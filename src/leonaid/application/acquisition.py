@@ -298,8 +298,8 @@ class AcquisitionPolicyService:
             self._people(scope),
         )
         parties = [
-            *(self._company(record, roster) for record in companies if record),
-            *(self._person(record, roster) for record in people if record),
+            *(self._company(record, roster) for record in companies),
+            *(self._person(record, roster) for record in people),
         ]
         return tuple(
             sorted(
@@ -315,37 +315,20 @@ class AcquisitionPolicyService:
     async def _companies(
         self,
         scope: AuthorizedPartyScope,
-    ) -> tuple[CompanyRecord | None, ...]:
-        return tuple(
-            await asyncio.gather(
-                *(
-                    self._crm.get_company(
-                        company_id,
-                        correlation_id=(
-                            f"policy:list:{scope.action_id}:company:{company_id}"
-                        ),
-                    )
-                    for company_id in sorted(scope.company_ids, key=str)
-                )
-            )
+    ) -> tuple[CompanyRecord, ...]:
+        # One batched ID query instead of one request per party.
+        return await self._crm.get_companies(
+            tuple(sorted(scope.company_ids, key=str)),
+            correlation_id=f"policy:list:{scope.action_id}:companies",
         )
 
     async def _people(
         self,
         scope: AuthorizedPartyScope,
-    ) -> tuple[PersonRecord | None, ...]:
-        return tuple(
-            await asyncio.gather(
-                *(
-                    self._crm.get_person(
-                        person_id,
-                        correlation_id=(
-                            f"policy:list:{scope.action_id}:person:{person_id}"
-                        ),
-                    )
-                    for person_id in sorted(scope.person_ids, key=str)
-                )
-            )
+    ) -> tuple[PersonRecord, ...]:
+        return await self._crm.get_people(
+            tuple(sorted(scope.person_ids, key=str)),
+            correlation_id=f"policy:list:{scope.action_id}:people",
         )
 
     @staticmethod

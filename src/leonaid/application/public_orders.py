@@ -24,13 +24,12 @@ from leonaid.application.crm import (
     PersonRecord,
     PostalAddress,
 )
-from leonaid.application.errors import Conflict, PermissionDenied
-from leonaid.application.sponsor_matching import (
-    candidate_company_query,
-    company_matches,
+from leonaid.application.crm_matching import (
+    find_company_matches,
+    find_person_matches,
     normalize_match_name,
-    person_matches,
 )
+from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.domain.action_templates import OrderFormConfiguration
 from leonaid.domain.actions import PublicActionAlias
 from leonaid.domain.commitments import (
@@ -673,18 +672,11 @@ class PublicOrderService:
         request_id: str,
     ) -> ResolvedPublicParty:
         assert draft.company_name is not None
-        direct = await self._crm.search_companies(
-            candidate_company_query(draft.company_name),
+        matches = await find_company_matches(
+            self._crm,
+            draft.company_name,
             correlation_id=f"{request_id}:company-search",
         )
-        matches = company_matches(direct, draft.normalized_key)
-        if not matches:
-            matches = company_matches(
-                await self._crm.list_companies(
-                    correlation_id=f"{request_id}:company-fallback",
-                ),
-                draft.normalized_key,
-            )
         if len(matches) > 1:
             raise Conflict(
                 "public_order_party_ambiguous",
@@ -746,15 +738,13 @@ class PublicOrderService:
         deterministic_id: UUID,
         request_id: str,
     ) -> UUID:
-        records = await self._crm.search_people(
-            given_name=draft.given_name,
-            family_name=draft.family_name,
-            correlation_id=f"{request_id}:contact-search",
-        )
         matches = tuple(
             record
-            for record in person_matches(
-                records, normalize_match_name(f"{draft.given_name} {draft.family_name}")
+            for record in await find_person_matches(
+                self._crm,
+                given_name=draft.given_name,
+                family_name=draft.family_name,
+                correlation_id=f"{request_id}:contact-search",
             )
             if record.data.company_twenty_id == company_id
         )
@@ -803,27 +793,16 @@ class PublicOrderService:
         primary_id: UUID,
         request_id: str,
     ) -> ResolvedPublicParty:
-        direct = await self._crm.search_people(
-            given_name=draft.given_name,
-            family_name=draft.family_name,
-            correlation_id=f"{request_id}:person-search",
-        )
         matches = tuple(
             record
-            for record in person_matches(direct, draft.normalized_key)
+            for record in await find_person_matches(
+                self._crm,
+                given_name=draft.given_name,
+                family_name=draft.family_name,
+                correlation_id=f"{request_id}:person-search",
+            )
             if record.data.company_twenty_id is None
         )
-        if not matches:
-            matches = tuple(
-                record
-                for record in person_matches(
-                    await self._crm.list_people(
-                        correlation_id=f"{request_id}:person-fallback",
-                    ),
-                    draft.normalized_key,
-                )
-                if record.data.company_twenty_id is None
-            )
         if len(matches) > 1:
             email_matches = tuple(
                 record for record in matches if record.data.email == draft.email

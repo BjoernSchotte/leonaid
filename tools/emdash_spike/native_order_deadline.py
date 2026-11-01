@@ -12,7 +12,7 @@ from uuid import UUID
 import asyncpg
 import httpx
 
-from leonaid.application.sponsor_matching import normalize_match_name
+from leonaid.application.crm_matching import normalize_match_name
 from tools.emdash_spike.valid_order_ingress_proof import snapshot
 from tools.public_orders.contract import assert_commitment
 

@@ -9,6 +9,7 @@ import os
 import stat
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NoReturn
@@ -70,7 +71,32 @@ def load_manifest(path: Path) -> JsonObject:
         raise TwentySchemaError("jedes Custom Object braucht nameSingular")
     if len(object_names) != len(set(object_names)):
         raise TwentySchemaError("doppelte Custom-Object-Namen im Manifest")
+    standard_names: list[str] = []
+    for item in json_list(value.get("standardObjects", []), "standardObjects"):
+        name = item.get("nameSingular")
+        if not isinstance(name, str) or not name:
+            raise TwentySchemaError("jedes Standard-Object braucht nameSingular")
+        if name in object_names:
+            raise TwentySchemaError(
+                f"Standard-Object ist zugleich als Custom Object deklariert: {name}"
+            )
+        for field in json_list(item.get("fields"), f"standardObjects.{name}.fields"):
+            # Standard objects only receive additional scalar fields. Relations
+            # and options would need the two-phase handling of custom objects.
+            if field.get("type") == "RELATION" or "options" in field:
+                raise TwentySchemaError(
+                    f"Standard-Object {name} unterstützt nur skalare Zusatzfelder"
+                )
+        standard_names.append(name)
+    if len(standard_names) != len(set(standard_names)):
+        raise TwentySchemaError("doppelte Standard-Object-Namen im Manifest")
     return value
+
+
+def standard_objects(manifest: JsonObject) -> JsonList:
+    """Standard Twenty objects that receive LeonAid-managed scalar fields."""
+
+    return json_list(manifest.get("standardObjects", []), "standardObjects")
 
 
 def one_by(
@@ -109,6 +135,37 @@ def normalized_instant(value: Any) -> str | None:
         raise TwentySchemaError(f"Zeitpunkt ist kein String: {value!r}")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def field_snapshot(desired_field: JsonObject, actual_field: JsonObject) -> JsonObject:
+    item: JsonObject = {
+        "name": actual_field["name"],
+        "label": actual_field["label"],
+        "description": actual_field.get("description"),
+        "icon": actual_field.get("icon"),
+        "type": actual_field["type"],
+        "isNullable": actual_field["isNullable"],
+        "isUnique": actual_field["isUnique"],
+    }
+    if "options" in desired_field:
+        item["options"] = normalize_options(actual_field.get("options"))
+    relation = actual_field.get("relation")
+    if isinstance(relation, dict):
+        target = json_object(
+            relation["targetObjectMetadata"],
+            "relation.targetObjectMetadata",
+        )
+        target_field = json_object(
+            relation["targetFieldMetadata"],
+            "relation.targetFieldMetadata",
+        )
+        item["relation"] = {
+            "type": relation["type"],
+            "targetObject": target["nameSingular"],
+            "targetFieldLabel": target_field["label"],
+            "targetFieldIcon": target_field["icon"],
+        }
+    return item
 
 
 def difference(
@@ -773,6 +830,34 @@ class Provisioner:
                         raise SchemaDrift(drifts)
             objects = self.object_map()
 
+    def ensure_standard_fields(self) -> None:
+        objects = self.object_map()
+        for desired_object in standard_objects(self.manifest):
+            object_name = str(desired_object["nameSingular"])
+            actual_object = objects.get(object_name)
+            if actual_object is None:
+                raise TwentySchemaError(f"Standard-Object fehlt: {object_name}")
+            object_id = str(actual_object["id"])
+            details = self.object_details(object_id)
+            fields = {
+                str(field["name"]): field
+                for field in json_list(details.get("fieldsList"), "fieldsList")
+            }
+            for desired in json_list(desired_object["fields"], "fields"):
+                field_name = str(desired["name"])
+                actual = fields.get(field_name)
+                if actual is None:
+                    self.create_field(desired, object_id, objects)
+                    fields = self.wait_for_field(object_id, field_name)
+                    actual = fields.get(field_name)
+                if actual is None:
+                    raise TwentySchemaError(
+                        f"Field fehlt nach Provisionierung: {object_name}.{field_name}"
+                    )
+                drifts = self.field_differences(object_name, desired, actual)
+                if drifts:
+                    raise SchemaDrift(drifts)
+
     def ensure_views(self) -> None:
         objects = self.object_map()
         for desired in json_list(self.manifest["views"], "views"):
@@ -1203,6 +1288,36 @@ class Provisioner:
                         actual_field,
                     )
                 )
+        for desired_object in standard_objects(self.manifest):
+            object_name = str(desired_object["nameSingular"])
+            actual_object = objects.get(object_name)
+            if actual_object is None:
+                difference(
+                    differences,
+                    f"standardObjects.{object_name}",
+                    "vorhanden",
+                    "fehlt",
+                )
+                continue
+            details = self.object_details(str(actual_object["id"]))
+            fields = {
+                str(field["name"]): field
+                for field in json_list(details.get("fieldsList"), "fieldsList")
+            }
+            for desired_field in json_list(desired_object["fields"], "fields"):
+                field_name = str(desired_field["name"])
+                actual_field = fields.get(field_name)
+                if actual_field is None:
+                    difference(
+                        differences,
+                        f"objects.{object_name}.fields.{field_name}",
+                        "vorhanden",
+                        "fehlt",
+                    )
+                    continue
+                differences.extend(
+                    self.field_differences(object_name, desired_field, actual_field)
+                )
         for desired_view in json_list(self.manifest["views"], "views"):
             object_name = str(desired_view["object"])
             actual_object = objects.get(object_name)
@@ -1289,6 +1404,7 @@ class Provisioner:
     def apply(self, token_output: Path | None) -> JsonObject:
         self.ensure_objects()
         self.ensure_fields()
+        self.ensure_standard_fields()
         self.ensure_views()
         self.ensure_roles()
         self.ensure_api_key(token_output)
@@ -1305,37 +1421,12 @@ class Provisioner:
                 str(field["name"]): field
                 for field in json_list(details["fieldsList"], "fieldsList")
             }
-            fields: list[JsonObject] = []
-            for desired_field in json_list(desired["fields"], "fields"):
-                actual_field = fields_by_name[str(desired_field["name"])]
-                item: JsonObject = {
-                    "name": actual_field["name"],
-                    "label": actual_field["label"],
-                    "description": actual_field.get("description"),
-                    "icon": actual_field.get("icon"),
-                    "type": actual_field["type"],
-                    "isNullable": actual_field["isNullable"],
-                    "isUnique": actual_field["isUnique"],
-                }
-                if "options" in desired_field:
-                    item["options"] = normalize_options(actual_field.get("options"))
-                relation = actual_field.get("relation")
-                if isinstance(relation, dict):
-                    target = json_object(
-                        relation["targetObjectMetadata"],
-                        "relation.targetObjectMetadata",
-                    )
-                    target_field = json_object(
-                        relation["targetFieldMetadata"],
-                        "relation.targetFieldMetadata",
-                    )
-                    item["relation"] = {
-                        "type": relation["type"],
-                        "targetObject": target["nameSingular"],
-                        "targetFieldLabel": target_field["label"],
-                        "targetFieldIcon": target_field["icon"],
-                    }
-                fields.append(item)
+            fields = [
+                field_snapshot(
+                    desired_field, fields_by_name[str(desired_field["name"])]
+                )
+                for desired_field in json_list(desired["fields"], "fields")
+            ]
             managed_objects.append(
                 {
                     "nameSingular": actual["nameSingular"],
@@ -1346,6 +1437,26 @@ class Provisioner:
                     "icon": actual.get("icon"),
                     "isSearchable": actual["isSearchable"],
                     "fields": fields,
+                }
+            )
+        managed_standard_objects: list[JsonObject] = []
+        for desired in standard_objects(self.manifest):
+            object_name = str(desired["nameSingular"])
+            details = self.object_details(str(objects[object_name]["id"]))
+            fields_by_name = {
+                str(field["name"]): field
+                for field in json_list(details["fieldsList"], "fieldsList")
+            }
+            managed_standard_objects.append(
+                {
+                    "nameSingular": object_name,
+                    "fields": [
+                        field_snapshot(
+                            desired_field,
+                            fields_by_name[str(desired_field["name"])],
+                        )
+                        for desired_field in json_list(desired["fields"], "fields")
+                    ],
                 }
             )
         views: list[JsonObject] = []
@@ -1429,6 +1540,7 @@ class Provisioner:
             "schemaVersion": self.manifest["schemaVersion"],
             "twentyVersion": self.manifest["twenty"]["version"],
             "objects": managed_objects,
+            "standardObjects": managed_standard_objects,
             "views": views,
             "roles": role_snapshot,
             "apiKey": {
@@ -1522,9 +1634,13 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         timeout=30,
     )
     try:
+        proof_match_key = f"poc 030 berechtigungsnachweis {uuid.uuid4().hex}"
         allowed = client.post(
             "/rest/companies",
-            json={"name": "POC-030 Berechtigungsnachweis"},
+            json={
+                "name": "POC-030 Berechtigungsnachweis",
+                "leonaidMatchKey": proof_match_key,
+            },
         )
         if allowed.status_code not in {200, 201}:
             raise TwentySchemaError(
@@ -1557,6 +1673,31 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         if "domainName" in record or "annualRevenue" in record:
             raise TwentySchemaError(
                 "Integrations-Key sieht nicht freigegebene Company-Felder"
+            )
+        if record.get("leonaidMatchKey") != proof_match_key:
+            raise TwentySchemaError(
+                "Integrations-Key kann den LeonAid-Match-Schlüssel nicht pflegen"
+            )
+        by_key = client.get(
+            "/rest/companies",
+            params={
+                "limit": 2,
+                "filter": f"leonaidMatchKey[eq]:{json.dumps(proof_match_key)}",
+            },
+        )
+        if by_key.status_code != 200:
+            raise TwentySchemaError(
+                "Integrations-Key kann nicht nach dem Match-Schlüssel filtern: "
+                f"HTTP {by_key.status_code}"
+            )
+        key_payload = json_object(by_key.json(), "Match-Key-Filter response")
+        key_data = json_object(key_payload.get("data"), "Match-Key-Filter data")
+        key_ids = [
+            item.get("id") for item in json_list(key_data.get("companies"), "companies")
+        ]
+        if key_ids != [proof_id]:
+            raise TwentySchemaError(
+                "Match-Schlüssel-Filter liefert nicht genau die Nachweis-Company"
             )
 
         custom = client.get("/rest/charityActions?limit=1")

@@ -75,6 +75,7 @@ def test_twenty_wire_fields_stay_inside_the_twenty_adapter() -> None:
         "companyId",
         "firstName",
         "lastName",
+        "leonaidMatchKey",
         "primaryEmail",
         "starting_after",
     }

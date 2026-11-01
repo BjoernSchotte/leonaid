@@ -13,14 +13,18 @@ from leonaid.application.crm import (
     PersonRecord,
     PostalAddress,
 )
+from leonaid.application.crm_matching import (
+    candidate_company_query,
+    company_match_key,
+    company_matches,
+    normalize_match_name,
+    person_match_key,
+    person_matches,
+)
 from leonaid.application.sponsor_matching import (
     SponsorDraft,
     SponsorMatchStatus,
-    candidate_company_query,
-    company_matches,
     match_status,
-    normalize_match_name,
-    person_matches,
 )
 
 GOLDEN_DATASET = (
@@ -125,3 +129,18 @@ def test_golden_company_and_person_conflicts_match_only_the_primary_key() -> Non
     )
     assert match_status(len(company_result)) is SponsorMatchStatus.SINGLE_MATCH
     assert match_status(len(person_result)) is SponsorMatchStatus.AMBIGUOUS_MATCH
+
+
+def test_stored_match_keys_equal_the_draft_keys_for_every_spelling_variant() -> None:
+    company = SponsorDraft(company_name="Großbäckerei Übermut K.G.")
+    person = SponsorDraft(given_name="Jürgen", family_name="Müller-Lüdenscheidt")
+
+    # The CRM adapter stores exactly these keys; lookups compare them verbatim.
+    assert company_match_key("GROSSBAECKEREI uebermut kg") == company.normalized_key
+    assert (
+        company_match_key("Großbäckerei Übermut K.G.") == "grossbaeckerei uebermut kg"
+    )
+    assert person_match_key("JUERGEN", "Mueller Luedenscheidt") == person.normalized_key
+    assert person_match_key("", "") == ""
+    # The ASCII-folded token is the name-search fallback for unkeyed records.
+    assert candidate_company_query("Großbäckerei Übermut K.G.") == "grossbaeckerei"

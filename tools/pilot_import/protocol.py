@@ -340,7 +340,6 @@ async def build_plans(
         base_url=require_env("TWENTY_BASE_URL"),
         api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
         timeout_seconds=5,
-        page_size=20,
     )
     async with TwentyCrmGateway(settings) as gateway:
         importer = ContactImporter(

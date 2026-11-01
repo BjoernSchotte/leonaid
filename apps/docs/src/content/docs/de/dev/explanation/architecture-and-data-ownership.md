@@ -4,8 +4,8 @@ description: Die Core-, CRM-, Storage- und Frontend-Grenzen hinter LeonAids modu
 docId: DOC-P037
 audience: [dev]
 diataxis: explanation
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -17,7 +17,12 @@ Zahlungen, Audit und Outbox. Policies werden dort bei jedem Request geprüft.
 
 Twenty ist System of Record für Firmen und Personen. LeonAid speichert stabile
 CRM-IDs und unveränderliche fachliche Snapshots, nicht eine zweite führende
-Kontaktkopie. RustFS hält private Dokumentbytes; Metadaten und Fachbezug liegen
+Kontaktkopie. Request-Pfade fragen Twenty nur nach Name, Match-Schlüssel
+oder expliziten Datensatz-IDs ab und listen nie eine ganze Sammlung: Core
+speichert an jeder geschriebenen Firma und Person einen normalisierten
+Match-Schlüssel in einem provisionierten Feld, findet Dubletten über eine
+exakte Schlüsselabfrage, und ein idempotentes Reparaturkommando ergänzt
+außerhalb von LeonAid angelegte Datensätze. RustFS hält private Dokumentbytes; Metadaten und Fachbezug liegen
 im Core. Rendering und Versand verarbeiten transaktional erzeugte
 Outbox-Ereignisse idempotent.
 
