@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -141,7 +142,8 @@ class InvoiceDocumentStorageHandler:
         if job.document.status is not GeneratedDocumentStatus.PENDING:
             raise RuntimeError("Ein gelöschtes Dokument darf nicht neu erzeugt werden.")
 
-        rendered = self._renderer.render(job.invoice_snapshot)
+        # Typst runs as a blocking subprocess; keep the worker event loop free.
+        rendered = await asyncio.to_thread(self._renderer.render, job.invoice_snapshot)
         key = (
             f"actions/{job.document.action_id}/invoices/"
             f"{job.invoice_snapshot.invoice_id}/v{job.document.version}/"

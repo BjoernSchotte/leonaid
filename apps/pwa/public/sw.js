@@ -1,4 +1,9 @@
-const CACHE_NAME = "leonaid-pwa-v3";
+// The build replaces both placeholders (see vite.config.ts). A new build ID
+// changes this file's bytes, so browsers install the update, the app shows
+// its update banner and activation deletes the previous build's cache.
+const BUILD_ID = "__LEONAID_BUILD_ID__";
+const BUILD_ASSETS = /* __LEONAID_BUILD_ASSETS__ */ [];
+const CACHE_NAME = `leonaid-pwa-${BUILD_ID}`;
 const OFFLINE_URL = "/app/offline.html";
 const APP_SHELL = [
   "/app/",
@@ -7,6 +12,7 @@ const APP_SHELL = [
   "/app/icons/icon-192.svg",
   "/app/icons/icon-512.svg",
   "/app/manifest.webmanifest",
+  ...BUILD_ASSETS,
 ];
 
 self.addEventListener("install", (event) => {
@@ -73,7 +79,11 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(request);
         if (cached) return cached;
         const response = await fetch(request);
-        if (response.ok) await cache.put(request, response.clone());
+        // Never store an HTML fallback under a script or style URL.
+        const contentType = response.headers.get("content-type") ?? "";
+        if (response.ok && !contentType.includes("text/html")) {
+          await cache.put(request, response.clone());
+        }
         return response;
       }),
     );

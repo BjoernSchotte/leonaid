@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { LeonAidApiClient } from "@leonaid/api-client";
+import { ErrorBoundary } from "@leonaid/ui";
 import "@leonaid/ui/styles.css";
 
 import { App } from "./app";
@@ -23,8 +24,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App client={apiClient} />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App client={apiClient} />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

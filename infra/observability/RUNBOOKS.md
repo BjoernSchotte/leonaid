@@ -1,70 +1,79 @@
-# Pilot-Betriebsrunbooks
+# Pilot operations runbooks
 
-Jeder Alarm enthält ausschließlich technische Labels, eine feste
-Zusammenfassung und einen Link auf diesen Ablauf. Personen-, Bestell-,
-Rechnungs-, Dokument- und Tokeninhalte gehören weder in Metriken noch in
-Alarme.
+Every alert carries only technical labels, a fixed summary and a link to the
+matching procedure below. Person, order, invoice, document and token content
+never belongs in metrics or alerts.
 
 ## Backup
 
-1. Alarm in dem unabhängigen Betreiberkanal quittieren.
-2. `pilot-doctor` mit dem privaten neuesten Manifest ausführen.
-3. Restic-Ziel, Credentials, freien Zielplatz und den letzten vollständigen
-   Vier-Komponenten-Snapshot prüfen.
-4. Bei unvollständigem oder altem Backup einen neuen Recovery Point erzeugen
-   und `restic check --read-data` ausführen.
-5. Alarm erst nach erfolgreichem Check und sichtbar zugestelltem
-   Recovery-Event schließen.
+1. Acknowledge the alert in the independent operator channel.
+2. Run `pilot-doctor` with the private latest manifest.
+3. Check the restic target, credentials, free space at the target and the
+   latest complete four-component snapshot.
+4. If the backup is incomplete or old, create a new recovery point and run
+   `restic check --read-data`.
+5. Close the alert only after a successful check and a visibly delivered
+   recovery event.
 
 ## Dependency
 
-1. Betroffenen Dienst am `dependency`-Label erkennen.
-2. Zustand in `/admin/system` gegenprüfen.
-3. Dienstlogs ausschließlich nach Request-ID und stabilen Fehlercodes prüfen.
-4. Gepinnten Dienst kontrolliert neu starten; keine Datenvolumes löschen.
-5. Readiness und gelöste Alarmzustellung abwarten.
+1. Identify the affected service from the `dependency` label.
+2. Cross-check its state in `/admin/system`.
+3. Search service logs only by request ID and stable error codes.
+4. Restart the pinned service in a controlled way; never delete data volumes.
+5. Wait for readiness and for the resolved-alert notification.
 
 ## Worker
 
-1. PostgreSQL-Erreichbarkeit und Worker-Health prüfen.
-2. Worker mit unverändertem Release-Image neu starten.
-3. Outbox-Zähler und Dead-Letter-Bestand kontrollieren.
-4. Fachjobs nur über den abgesicherten Admin-Retry erneut anstoßen.
+The worker is ready only while PostgreSQL is reachable and each background
+loop (`outbox`, `survey_sweep`) keeps completing iterations.
+
+1. Read `GET /health/ready` on the worker (port 8010): `checks` names the
+   failing loop.
+2. Check the metrics `leonaid_worker_loop_healthy`,
+   `leonaid_worker_loop_failures_total` and
+   `leonaid_worker_loop_last_success_age_seconds` per `loop` label.
+3. Search the worker log for `worker.loop.failed`. Each entry names the loop,
+   the error type and the code location, never row data. A
+   `worker.configuration.invalid` entry means the worker exited on start
+   because of missing settings; fix the environment, do not restart blindly.
+4. Restart the worker with the unchanged release image.
+5. Check the outbox counters and the dead-letter backlog.
+6. Retry business jobs only through the protected admin retry.
 
 ## Dead Letter
 
-1. Abhängigkeiten zuerst wiederherstellen.
-2. In `/admin/system` den stabilen Fehlercode prüfen.
-3. Mit frischer Anmeldung `Sicher wiederholen` auslösen.
-4. Genau eine erfolgreiche Verarbeitung und den gelösten Alarm prüfen.
+1. Restore the dependencies first.
+2. Check the stable error code in `/admin/system`.
+3. Sign in again and trigger `Sicher wiederholen` (safe retry).
+4. Confirm exactly one successful processing and the resolved alert.
 
 ## Disk
 
-1. Schreibintensive Prozesse stoppen, ohne Backup-/Security-Alarme zu
-   unterdrücken.
-2. Große technische Logs, temporäre Dateien und alte freigegebene
-   Prometheus-Blöcke identifizieren.
-3. Keine Datenbank-, RustFS- oder Restic-Dateien manuell löschen.
-4. Kapazität erweitern oder ausschließlich dokumentierte Retention anwenden.
+1. Stop write-heavy processes without silencing backup or security alerts.
+2. Identify large technical logs, temporary files and old, released
+   Prometheus blocks.
+3. Never delete database, RustFS or restic files by hand.
+4. Add capacity or apply only the documented retention.
 
 ## TLS
 
-1. Öffentliche Domain, Zertifikatskette, Hostname und Ablaufdatum prüfen.
-2. Caddy-ACME-Logs und DNS-Auflösung kontrollieren.
-3. Bei fehlgeschlagener Erneuerung ACME-Kontakt, Erreichbarkeit von 80/443 und
-   Rate Limits prüfen.
-4. Kein HSTS zurücknehmen; Zertifikat kontrolliert erneuern.
+1. Check the public domain, certificate chain, host name and expiry date.
+2. Check the Caddy ACME logs and DNS resolution.
+3. If renewal failed, check the ACME contact, reachability of ports 80/443 and
+   rate limits.
+4. Never roll back HSTS; renew the certificate in a controlled way.
 
 ## API
 
-1. 5xx-Zeitraum und Release-Commit bestimmen.
-2. Request-IDs aus strukturierten Logs verwenden; niemals Payloads kopieren.
-3. Abhängigkeiten, Datenbankmigration und letzten Release prüfen.
-4. Bei Release-Regressionsverdacht das Release-Runbook anwenden.
+1. Determine the 5xx time window and the release commit.
+2. Use request IDs from structured logs; never copy payloads.
+3. Check dependencies, the database migration and the latest release.
+4. If a release regression is suspected, follow the release runbook.
 
 ## Login
 
-1. Rate-Limit-, Provider- und Zustellzustand getrennt prüfen.
-2. Keine E-Mail-Adressen, Codes oder Magic Links in den Alarmkanal übertragen.
-3. Bei Missbrauchsverdacht Security-Owner eskalieren und AuditEvents
-   payloadfrei auswerten.
+1. Check rate limits, provider state and delivery state separately.
+2. Never post email addresses, codes or magic links to the alert channel.
+3. If abuse is suspected, escalate to the security owner and evaluate
+   AuditEvents without payloads.

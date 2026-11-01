@@ -120,4 +120,7 @@ outbox_cli \
   run-until-idle
 api_probe replay-and-verify-mail
 
+echo "poc022-test: a worker whose lease expired must not overwrite the new claim"
+api_probe verify-claim-loss
+
 echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter und Idempotenz bewiesen"

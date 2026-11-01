@@ -2,9 +2,12 @@
 
 import ipaddress
 import json
-import secrets
 import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "testing"))
+from subnet_pools import candidate_subnets  # noqa: E402
 
 ids = subprocess.check_output(["docker", "network", "ls", "-q"], text=True).split()
 networks = (
@@ -20,8 +23,6 @@ used = [
     for item in (network["IPAM"].get("Config") or [])
     if item.get("Subnet")
 ]
-candidates = list(ipaddress.ip_network("172.30.128.0/17").subnets(new_prefix=24))
-secrets.SystemRandom().shuffle(candidates)
 names = [
     "edge",
     "core-data",
@@ -33,14 +34,7 @@ names = [
     "mailing-data",
 ]
 count = 1 if sys.argv[1] == "--single" else len(names)
-selected = [
-    candidate
-    for candidate in candidates
-    if not any(
-        candidate.version == existing.version and candidate.overlaps(existing)
-        for existing in used
-    )
-][:count]
+selected = candidate_subnets(used)[:count]
 if len(selected) != count:
     raise SystemExit("No free survey test subnets; existing networks are untouched")
 if count == 1:

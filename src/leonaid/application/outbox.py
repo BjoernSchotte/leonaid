@@ -14,6 +14,10 @@ OutboxObserver = Callable[[str, ClaimedOutboxEvent, str | None], None]
 SAFE_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,119}\Z")
 
 
+class OutboxClaimLost(RuntimeError):
+    """The claim expired or another worker took it over; its result is void."""
+
+
 class OutboxQueue(Protocol):
     async def claim_next(
         self,
@@ -78,6 +82,15 @@ class OutboxWorker:
             return False
         self._observe("outbox.job.claimed", event)
         try:
+            await self._process(event)
+        except OutboxClaimLost:
+            # The lease expired while the handler ran; the current claim owner
+            # records the outcome. This worker keeps running.
+            self._observe("outbox.job.claim_lost", event, "outbox_claim_lost")
+        return True
+
+    async def _process(self, event: ClaimedOutboxEvent) -> None:
+        try:
             handler = self._handlers[event.event_type]
         except KeyError:
             await self._record_failure(
@@ -85,9 +98,11 @@ class OutboxWorker:
                 code="handler_not_registered",
                 detail=f"Kein Handler für {event.event_type}",
             )
-            return True
+            return
         try:
             await handler.handle(event)
+        except OutboxClaimLost:
+            raise
         except Exception as error:
             await self._record_failure(
                 event,
@@ -95,14 +110,13 @@ class OutboxWorker:
                 detail=str(error),
                 retryable=getattr(error, "retryable", True) is not False,
             )
-            return True
+            return
         await self._queue.complete(
             event_id=event.id,
             claim_token=event.claim_token,
             completed_at=self._clock(),
         )
         self._observe("outbox.job.completed", event)
-        return True
 
     async def run_until_idle(self, *, maximum_events: int = 10_000) -> int:
         handled = 0

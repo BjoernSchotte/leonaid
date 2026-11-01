@@ -5,6 +5,11 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$root/tools/testing/phase.sh"
 . "$root/infra/locks/images.env"
 
+# Containers that write into the checkout run as the invoking user. Native
+# Linux bind mounts keep the container's UID, so root containers would leave
+# root-owned .venv, node_modules and caches behind (Docker Desktop hides this).
+host_user="$(id -u):$(id -g)"
+
 usage() {
   cat <<'EOF'
 LeonAid PoC
@@ -14,6 +19,7 @@ Usage: ./leonaid <command>
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
   doctor            Diagnose Docker, locks, secrets and local dependencies
+  repair-ownership  Give root-owned files in the checkout back to the current user
   dev               Build and start the ready PoC core stack
   check             Run non-mutating quality and policy gates
   docs-dev          Serve the bilingual documentation source for authoring
@@ -230,6 +236,8 @@ docker_retry() {
 
 run_python() {
   docker_retry docker run --rm \
+    --user "$host_user" \
+    -e HOME=/tmp \
     -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
@@ -241,6 +249,8 @@ run_python() {
 
 run_bun() {
   docker_retry docker run --rm \
+    --user "$host_user" \
+    -e HOME=/tmp \
     -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
     -v "$root:/workspace" \
     -w /workspace \
@@ -256,6 +266,8 @@ run_docs_bun() {
   docs_site_url=${LEONAID_DOCS_SITE_URL:-https://docs.leonaid.invalid}
   docs_base_path=${LEONAID_DOCS_BASE_PATH:-}
   docker_retry docker run --rm \
+    --user "$host_user" \
+    -e HOME=/tmp \
     -e ASTRO_TELEMETRY_DISABLED=1 \
     -e LEONAID_DOCS_ARTIFACT_ID="$docs_artifact_id" \
     -e LEONAID_DOCS_BUILT_AT="$docs_built_at" \
@@ -276,6 +288,8 @@ serve_docs() {
   docs_site_url=${LEONAID_DOCS_SITE_URL:-https://docs.leonaid.invalid}
   docs_base_path=${LEONAID_DOCS_BASE_PATH:-}
   docker_retry docker run --rm \
+    --user "$host_user" \
+    -e HOME=/tmp \
     -e ASTRO_TELEMETRY_DISABLED=1 \
     -e LEONAID_DOCS_BASE_PATH="$docs_base_path" \
     -e LEONAID_DOCS_REVISION="$docs_revision" \
@@ -333,6 +347,8 @@ test_docs() {
     docker_retry docker run --detach \
       --name "$preview_container" \
       --network "$preview_network" \
+      --user "$host_user" \
+      -e HOME=/tmp \
       -e ASTRO_TELEMETRY_DISABLED=1 \
       -e LEONAID_DOCS_BASE_PATH="$docs_base_path" \
       -e LEONAID_DOCS_REVISION="$docs_revision" \
@@ -385,6 +401,36 @@ generate_test_logins() {
     python tools/dx/generate_test_logins.py \
     tests/fixtures/golden/v1/dataset.json \
     .local/test-logins.md
+}
+
+# Root-owned paths in the checkout, except Git metadata and private pilot data.
+root_owned_paths() {
+  find "$root" -xdev \
+    \( -path "$root/.git" -o -path "$root/.local" \) -prune \
+    -o -user 0 -print
+}
+
+repair_ownership() {
+  require_docker
+  if [ "$(id -u)" = 0 ]; then
+    echo "repair-ownership: OK: running as root; nothing to repair"
+    return
+  fi
+  if [ -z "$(root_owned_paths | head -n 1)" ]; then
+    echo "repair-ownership: OK: no root-owned files in the checkout"
+    return
+  fi
+  # Only root can chown; a short-lived container does it without sudo.
+  docker_retry docker run --rm \
+    -v "$root:/workspace" \
+    "$ALPINE_IMAGE" \
+    sh -c 'find /workspace -xdev \( -path /workspace/.git -o -path /workspace/.local \) -prune -o -user 0 -print0 | xargs -0 -r chown -h "$1"' \
+    repair "$host_user"
+  if [ -n "$(root_owned_paths | head -n 1)" ]; then
+    echo "repair-ownership: ERROR: root-owned files remain in the checkout" >&2
+    exit 1
+  fi
+  echo "repair-ownership: OK: root-owned files now belong to $host_user"
 }
 
 compose() {
@@ -455,6 +501,7 @@ bootstrap() {
     "$PYTHON_IMAGE" \
     python tools/dx/generate_secrets.py .env.example .env.local
   chmod 600 "$root/.env.local"
+  repair_ownership
   run_python uv sync --frozen --all-groups --no-install-project
   run_bun bun install --frozen-lockfile --ignore-scripts
   echo "bootstrap: OK: ausschließlich gelockte Docker-Toolchains verwendet"
@@ -514,6 +561,13 @@ doctor() {
     failures=$((failures + 1))
   else
     echo "doctor: OK: gelockte Frontend-Pakete vorhanden"
+  fi
+
+  if [ "$(id -u)" != 0 ] && [ -n "$(root_owned_paths | head -n 1)" ]; then
+    echo "doctor: ERROR: root-owned files in the checkout (e.g. $(root_owned_paths | head -n 1)). Run './leonaid repair-ownership'." >&2
+    failures=$((failures + 1))
+  else
+    echo "doctor: OK: checkout files belong to the current user"
   fi
 
   if ! docker run --rm \
@@ -2205,6 +2259,7 @@ command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
+  repair-ownership) repair_ownership ;;
   check) check_all ;;
   docs-dev) serve_docs dev ;;
   docs-check)
@@ -2343,6 +2398,8 @@ case "$command" in
     fi
     # shellcheck disable=SC2086
     docker run --rm \
+      --user "$host_user" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace:/workspace/src \
       -e UV_CACHE_DIR=/workspace/.cache/uv \
       -e UV_LINK_MODE=copy \
@@ -2411,11 +2468,13 @@ case "$command" in
     fi
     # shellcheck disable=SC2086
     docker run --rm \
+      --user "$host_user" \
       -v "$root:/workspace" \
       "$PYTHON_IMAGE" \
       python /workspace/tools/pilot_contract/test.py /workspace
     # shellcheck disable=SC2086
     docker run --rm \
+      --user "$host_user" \
       -v "$root:/workspace" \
       "$PYTHON_IMAGE" \
       python /workspace/tools/pilot_contract/check.py \
@@ -2478,6 +2537,8 @@ case "$command" in
     fi
     # shellcheck disable=SC2086
     docker run --rm \
+      --user "$host_user" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace \
       -v "$root:/workspace" \
       -w /workspace \
@@ -2490,6 +2551,8 @@ case "$command" in
     shift
     status=0
     docker run --rm \
+      --user "$host_user" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace \
       -v "$root:/workspace" \
       -w /workspace \

@@ -3,6 +3,7 @@ export * from "./button";
 export * from "./confirm-dialog";
 export * from "./data-table";
 export * from "./empty-state";
+export * from "./error-boundary";
 export * from "./form-field";
 export * from "./status-message";
 export * from "./theme-switcher";

@@ -6,6 +6,8 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 
 run_python() {
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp \
     -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
@@ -17,6 +19,8 @@ run_python() {
 
 run_bun() {
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp \
     -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
     -v "$root:/workspace" \
     -w /workspace \

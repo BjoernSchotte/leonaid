@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid5
@@ -20,11 +21,18 @@ from leonaid.adapters.postgres.action_progress import (
     AsyncpgActionProgressUnitOfWorkFactory,
     AsyncpgTransactionalOutboxRepository,
 )
+from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.application.action_progress import RecordActionProgress
 from leonaid.application.errors import ApplicationError
+from leonaid.application.outbox import OutboxWorker
 from leonaid.domain.action_progress import RecordActionProgressCommand
-from leonaid.domain.outbox import ClaimedOutboxEvent, PendingOutboxEvent, json_payload
+from leonaid.domain.outbox import (
+    ClaimedOutboxEvent,
+    PendingOutboxEvent,
+    RetryPolicy,
+    json_payload,
+)
 
 USER_ADMIN = UUID("10000000-0000-4000-8000-000000000002")
 USER_ACQUIRER = UUID("10000000-0000-4000-8000-000000000004")
@@ -35,6 +43,8 @@ COMMITMENT = UUID("80000000-0000-4000-8000-000000000001")
 INVOICE = UUID("a0000000-0000-4000-8000-000000000001")
 COMMAND = UUID("f1000000-0000-4000-8000-000000000001")
 MAIL_EVENT = UUID("f3000000-0000-4000-8000-000000000001")
+CLAIM_LOSS_EVENT = UUID("f3000000-0000-4000-8000-000000000002")
+CLAIM_LOSS_EVENT_TYPE = "probe.claim_loss.v1"
 COMMAND_NAMESPACE = UUID("9fd77fa3-417a-47a6-9b73-e755f209b342")
 
 
@@ -556,6 +566,83 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     raise RuntimeError("Rechnungs-Idempotenz lieferte eine andere ID.")
 
 
+class LeaseTakeoverHandler:
+    """Lets a second real worker take over the claim while this handler runs."""
+
+    def __init__(self, queue: AsyncpgOutboxQueue) -> None:
+        self._queue = queue
+        self.takeover: ClaimedOutboxEvent | None = None
+
+    async def handle(self, event: ClaimedOutboxEvent) -> None:
+        # A claim time one hour ahead makes the first worker's lease stale.
+        self.takeover = await self._queue.claim_next(
+            worker_id="poc022-takeover-worker",
+            now=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+
+
+async def verify_claim_loss() -> None:
+    pool = await create_pool(database_url())
+    try:
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await AsyncpgTransactionalOutboxRepository(connection).append(
+                    PendingOutboxEvent(
+                        id=CLAIM_LOSS_EVENT,
+                        aggregate_type="charity_action",
+                        aggregate_id=ACTION,
+                        event_type=CLAIM_LOSS_EVENT_TYPE,
+                        idempotency_key="poc022:claim-loss:v1",
+                        payload={},
+                    )
+                )
+        queue = AsyncpgOutboxQueue(pool, claim_lease=timedelta(minutes=5))
+        handler = LeaseTakeoverHandler(queue)
+        observed: list[str] = []
+        worker = OutboxWorker(
+            worker_id="poc022-slow-worker",
+            queue=queue,
+            handlers={CLAIM_LOSS_EVENT_TYPE: handler},
+            retry_policy=RetryPolicy(
+                max_attempts=3,
+                base_delay=timedelta(0),
+                maximum_delay=timedelta(0),
+            ),
+            observer=lambda name, _event, _code: observed.append(name),
+        )
+        if not await worker.run_once():
+            raise RuntimeError("Claim-loss event was not claimed.")
+        takeover = handler.takeover
+        if takeover is None or takeover.id != CLAIM_LOSS_EVENT:
+            raise RuntimeError("The second worker did not take over the stale claim.")
+        if observed != ["outbox.job.claimed", "outbox.job.claim_lost"]:
+            raise RuntimeError(f"Unexpected worker observations: {observed}")
+        async with pool.acquire() as connection:
+            row = await connection.fetchrow(
+                "SELECT status, claimed_by, attempts FROM outbox_event WHERE id = $1",
+                CLAIM_LOSS_EVENT,
+            )
+        if row is None or (row["status"], row["claimed_by"], row["attempts"]) != (
+            "processing",
+            "poc022-takeover-worker",
+            2,
+        ):
+            raise RuntimeError(
+                f"Stale worker overwrote the new claim: {dict(row or {})}"
+            )
+        await queue.complete(
+            event_id=CLAIM_LOSS_EVENT,
+            claim_token=takeover.claim_token,
+            completed_at=datetime.now(timezone.utc),
+        )
+        state = await queue.state(CLAIM_LOSS_EVENT)
+        if state is None or state.status != "completed":
+            raise RuntimeError(f"Takeover worker could not complete: {state}")
+    finally:
+        await pool.close()
+    print("poc022: stale claim was reported as lost and left to the new owner")
+
+
 async def run(arguments: argparse.Namespace) -> None:
     if arguments.command == "prepare":
         await prepare()
@@ -575,6 +662,8 @@ async def run(arguments: argparse.Namespace) -> None:
         await verify_dead_letter()
     elif arguments.command == "replay-and-verify-mail":
         await replay_and_verify_mail()
+    elif arguments.command == "verify-claim-loss":
+        await verify_claim_loss()
     else:
         raise RuntimeError(f"Unbekannter Probe-Befehl: {arguments.command}")
 
@@ -590,6 +679,7 @@ def parser() -> argparse.ArgumentParser:
         "enqueue-mail",
         "verify-dead-letter",
         "replay-and-verify-mail",
+        "verify-claim-loss",
     ):
         subcommands.add_parser(name)
     produce_many_command = subcommands.add_parser("produce-many")
