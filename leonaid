@@ -164,7 +164,9 @@ Commands:
                     Deploy the manifest-bound pilot without a live build
   pilot-release --env-file FILE --backup-manifest FILE --release-manifest FILE
                 --ledger FILE --password-file FILE --evidence-id ID
-                    Release staging/production with backup and explicit migrations
+                [--twenty-bootstrap-file FILE]
+                    Release staging/production with backup and explicit migrations;
+                    the bootstrap file also applies Twenty schema changes
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
@@ -1285,6 +1287,9 @@ pilot_deploy() {
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
     --gate pilot-deploy
+  # The monitoring profile sits outside the 13 deployed services; recreate it
+  # so alerting and the dead man's switch survive every deploy.
+  pilot_monitoring_up "$project" "$env_file"
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
   echo "pilot-deploy: OK: $project läuft exakt aus dem verifizierten Release-Manifest"
@@ -1991,11 +1996,41 @@ print(value["schemas"]["coreAlembicHead"])'
   echo "pilot-release: OK: RustFS, Twenty und Core wurden explizit auf das Manifestziel migriert"
 )
 
+# Apply the versioned Twenty schema with the admin bootstrap credentials and
+# repair CRM match keys. Idempotent; never creates or prints an API key.
+pilot_release_twenty_schema() {
+  project=$1
+  env_file=$2
+  bootstrap_file=$(pilot_absolute_file pilot-release "$3")
+  case "$(stat -c %a "$bootstrap_file" 2>/dev/null || stat -f %Lp "$bootstrap_file")" in
+    600|400) ;;
+    *)
+      echo "pilot-release: BLOCKED: --twenty-bootstrap-file must have mode 0600" >&2
+      return 1
+      ;;
+  esac
+  echo "pilot-release: applying the Twenty schema and repairing CRM match keys"
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$bootstrap_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py apply
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --entrypoint python \
+    api -m leonaid.entrypoints.crm_match_keys
+}
+
 pilot_release() {
   require_docker
   env_file=
   backup_manifest=
   release_manifest=
+  twenty_bootstrap_file=
   ledger=
   password_file=
   credentials_file=
@@ -2003,7 +2038,7 @@ pilot_release() {
   occurred_at=
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at)
+      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
         [ "$#" -ge 2 ] || {
           echo "pilot-release: ERROR: $1 benötigt einen Wert" >&2
           exit 64
@@ -2020,6 +2055,7 @@ pilot_release() {
           --credentials-file) credentials_file=$value ;;
           --evidence-id) evidence_id=$value ;;
           --occurred-at) occurred_at=$value ;;
+          --twenty-bootstrap-file) twenty_bootstrap_file=$value ;;
         esac
         ;;
       *)
@@ -2164,6 +2200,15 @@ pilot_release() {
         --env-file "$env_file" \
         --backup-manifest "$backup_manifest" \
         --release-manifest "$release_manifest"
+    )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ] && [ -n "$twenty_bootstrap_file" ]; then
+    # Still in maintenance: bring the Twenty schema (e.g. new custom fields)
+    # to the manifest's state and repair match keys before users return.
+    (
+      set -e
+      pilot_release_twenty_schema "$project" "$env_file" "$twenty_bootstrap_file"
     )
     status=$?
   fi
