@@ -4,9 +4,10 @@ import ipaddress
 import json
 from pathlib import Path
 import re
-import secrets
 import subprocess
 import sys
+
+from subnet_pools import candidate_subnets
 
 
 def reserve(project: str, override: Path, configuration: dict) -> None:
@@ -32,14 +33,13 @@ def reserve(project: str, override: Path, configuration: dict) -> None:
         prepared.append((key, settings, pattern, planned))
     if not prepared:
         raise ValueError("no owned networks")
-    pool = list(ipaddress.ip_network("172.30.128.0/17").subnets(new_prefix=24))
+    pool = candidate_subnets()
     version = subprocess.check_output(
         ["docker", "compose", "version", "--short"], text=True
     ).strip()
     retries = 0
     for key, settings, pattern, planned in prepared:
         alternatives = [candidate for candidate in pool if candidate != planned]
-        secrets.SystemRandom().shuffle(alternatives)
         for subnet in [planned, *alternatives]:
             command = [
                 "docker",
