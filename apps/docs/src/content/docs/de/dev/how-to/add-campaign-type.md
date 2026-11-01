@@ -1,7 +1,7 @@
 ---
 title: Einen Aktionstyp ergänzen
 description: Eine neue Aktionsvorlage als Daten veröffentlichen, ihr Erscheinungsbild wählen und eine neue Mechanik als Modul anbinden.
-docId: DOC-P039
+docId: DOC-P040
 audience: [dev]
 diataxis: how-to
 contentRevision: 1

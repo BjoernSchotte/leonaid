@@ -1,7 +1,7 @@
 ---
 title: Add a campaign type
 description: Publish a new campaign template as data, choose its theme, and plug in a new mechanic as a module.
-docId: DOC-P039
+docId: DOC-P040
 audience: [dev]
 diataxis: how-to
 contentRevision: 1

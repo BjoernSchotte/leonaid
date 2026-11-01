@@ -319,7 +319,7 @@
       "contains": ["class TwentyCrmGateway"]
     }
   ],
-  "DOC-P039": [
+  "DOC-P040": [
     {
       "file": "migrations/versions/0038_open_action_templates.py",
       "contains": ["presentation_theme", "ck_action_template_key"]
