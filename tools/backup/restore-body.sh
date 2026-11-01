@@ -149,7 +149,15 @@ if [ -n "$(docker volume ls -q \
   fail "Restore-Ziel besitzt bereits Volumes"
 fi
 
-if [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
+# A test harness that needs two overlays reserves the target's networks itself
+# (the in-restore reservation supports exactly one). Only local tests may do
+# so; the container and volume checks above still prove the target is empty.
+if [ "${LEONAID_RESTORE_NETWORKS_PRERESERVED:-false}" = true ]; then
+  [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = true ] ||
+    fail "Vorab reservierte Netzwerke sind nur im lokalen Test erlaubt"
+  [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ] ||
+    fail "Vorab reservierte Netzwerke fehlen"
+elif [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
   fail "Restore-Ziel besitzt bereits Netzwerke"
 fi
 

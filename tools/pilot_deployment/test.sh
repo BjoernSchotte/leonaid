@@ -177,7 +177,7 @@ print(
     fi
   fi
   if [ "$runtime_owned" = true ]; then
-    runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    runtime_compose --profile monitoring down --volumes --remove-orphans >/dev/null 2>&1 || status=1
     verify_project_absent "$project" || status=1
   fi
   if [ "$restore_owned" = true ]; then
@@ -819,7 +819,7 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
 if [ "$mode" = surveys ]; then
   # Both DBs, objects, writers and source archive are gone. Only independently
   # retained encrypted backups, explicit checkpoint and operator inputs remain.
-  runtime_compose down --volumes --remove-orphans
+  runtime_compose --profile monitoring down --volumes --remove-orphans
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
   [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
   runtime_owned=false
