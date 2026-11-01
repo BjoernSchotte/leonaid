@@ -2,9 +2,10 @@
 import "@fontsource-variable/instrument-sans/wght.css";
 import "@fontsource-variable/newsreader/wght.css";
 import "../styles/global.css";
-import "../styles/krapfentaxi.css";
+// Theme modules own their scoped stylesheets; importing the registry here
+// keeps them after the global styles in the cascade.
+import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
-import taxiLogo from "../assets/krapfentaxi/logo.png";
 
 import PublicMark from "../components/PublicMark.astro";
 
@@ -15,7 +16,7 @@ interface Props {
   imageMetadata?: { width?: number; height?: number; alt?: string };
   robots?: string;
   title: string;
-  isKrapfentaxi?: boolean;
+  theme?: PublicTheme;
   canOrder?: boolean;
   carrierName?: string;
   campaignBrand?: {
@@ -31,18 +32,13 @@ const {
   imageMetadata,
   robots = "index,follow",
   title,
-  isKrapfentaxi = false,
+  theme = defaultTheme,
   canOrder = false,
   carrierName,
   campaignBrand,
 } = Astro.props;
-const shareImage = imageMetadata ?? {
-  width: isKrapfentaxi ? 1568 : 1729,
-  height: isKrapfentaxi ? 1024 : 910,
-  alt: isKrapfentaxi
-    ? "Ein Löwe im Krapfentaxi vor der Würzburger Residenz."
-    : "Abstrakte Wege verbinden eine lokale Gemeinschaft.",
-};
+const shareImage = imageMetadata ?? theme.shareImage;
+const header = theme.header;
 ---
 
 <!doctype html>
@@ -63,8 +59,7 @@ const shareImage = imageMetadata ?? {
     <meta property="og:type" content="website" />
     <meta
       property="og:site_name"
-      content={campaignBrand?.name ??
-        (isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid")}
+      content={campaignBrand?.name ?? theme.siteName}
     />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -87,27 +82,25 @@ const shareImage = imageMetadata ?? {
     <meta name="twitter:image" content={imageUrl} />
     <title>{title}</title>
   </head>
-  <body class:list={[{ "taxi-site": isKrapfentaxi }]}>
+  <body class:list={[theme.bodyClass]}>
     <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
     <header class="site-header">
       <div class="site-shell site-header__inner">
         <a
           class="site-header__home"
-          href={isKrapfentaxi ? "#start" : "/"}
-          aria-label={isKrapfentaxi
-            ? "Krapfentaxi – zum Seitenanfang"
-            : "LeonAid Startseite"}
+          href={header ? header.homeHref : "/"}
+          aria-label={header ? header.homeLabel : "LeonAid Startseite"}
         >
           {
-            isKrapfentaxi ? (
+            header ? (
               <>
                 <>
                   {campaignBrand ? (
                     campaignBrand.logo && <img {...campaignBrand.logo} />
                   ) : (
-                    <Image src={taxiLogo} width={64} alt="" />
+                    <Image src={header.logo} width={64} alt="" />
                   )}
-                  <span>{campaignBrand?.name ?? "Lions Krapfentaxi"}</span>
+                  <span>{campaignBrand?.name ?? theme.siteName}</span>
                 </>
               </>
             ) : (
@@ -116,14 +109,11 @@ const shareImage = imageMetadata ?? {
           }
         </a>
         {
-          isKrapfentaxi ? (
-            <nav class="taxi-nav" aria-label="Aktionsnavigation">
-              <a href="#das-krapfentaxi">Das Krapfentaxi</a>
-              <a href={canOrder ? "#bestellen" : "#angebote"}>
-                {canOrder ? "Bestellen" : "Angebote"}
-              </a>
-              <a href="#wirkung">Wem wir helfen</a>
-              <a href="#datenschutz">Datenschutz</a>
+          header ? (
+            <nav class={header.navigationClass} aria-label="Aktionsnavigation">
+              {header.navigation(canOrder).map((item) => (
+                <a href={item.href}>{item.label}</a>
+              ))}
             </nav>
           ) : (
             <span class="site-header__promise">Lions helfen vor Ort</span>
@@ -139,7 +129,7 @@ const shareImage = imageMetadata ?? {
         <PublicMark label="LeonAid – Engagement transparent gemacht" />
         <p>
           {
-            isKrapfentaxi ? (
+            theme.campaignFooter ? (
               <>
                 Gemeinsam für den guten Zweck.
                 <br />

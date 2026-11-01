@@ -76,10 +76,11 @@ export const server = {
       familyName: requiredText(200),
       email: z.email().trim().max(320),
       phone: optionalText(40),
-      deliveryRecipientName: requiredText(300),
-      deliveryStreetLine1: requiredText(300),
-      deliveryPostalCode: requiredText(24),
-      deliveryCity: requiredText(200),
+      // Only rendered (and required by Core) for actions with delivery.
+      deliveryRecipientName: optionalText(300),
+      deliveryStreetLine1: optionalText(300),
+      deliveryPostalCode: optionalText(24),
+      deliveryCity: optionalText(200),
       deliveryWindowId: z.uuid().optional(),
       deliveryContactName: optionalText(200),
       deliveryContactPhone: optionalText(40),
@@ -132,23 +133,45 @@ export const server = {
           message: "Wähle mindestens ein Angebot und eine Menge aus.",
         });
       }
-      const invoiceRecipient = input.billingSameAsDelivery
+      const deliveryFields = [
+        input.deliveryRecipientName,
+        input.deliveryStreetLine1,
+        input.deliveryPostalCode,
+        input.deliveryCity,
+      ];
+      const deliveryRecipient = deliveryFields.every(Boolean)
         ? {
-            recipientName: input.deliveryRecipientName,
-            streetLine1: input.deliveryStreetLine1,
-            postalCode: input.deliveryPostalCode,
-            city: input.deliveryCity,
-            email: input.email,
+            recipientName: input.deliveryRecipientName ?? "",
+            streetLine1: input.deliveryStreetLine1 ?? "",
+            postalCode: input.deliveryPostalCode ?? "",
+            city: input.deliveryCity ?? "",
             countryCode: "DE",
           }
-        : {
-            recipientName: input.invoiceRecipientName ?? "",
-            streetLine1: input.invoiceStreetLine1 ?? "",
-            postalCode: input.invoicePostalCode ?? "",
-            city: input.invoiceCity ?? "",
-            email: input.invoiceEmail ?? input.email,
-            countryCode: "DE",
-          };
+        : null;
+      if (!deliveryRecipient && deliveryFields.some(Boolean)) {
+        throw new ActionError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Bitte vervollständige die Lieferadresse.",
+        });
+      }
+      if (input.billingSameAsDelivery && !deliveryRecipient) {
+        throw new ActionError({
+          code: "UNPROCESSABLE_CONTENT",
+          message:
+            "Bitte gib eine Lieferadresse oder eine Rechnungsadresse an.",
+        });
+      }
+      const invoiceRecipient =
+        input.billingSameAsDelivery && deliveryRecipient
+          ? { ...deliveryRecipient, email: input.email }
+          : {
+              recipientName: input.invoiceRecipientName ?? "",
+              streetLine1: input.invoiceStreetLine1 ?? "",
+              postalCode: input.invoicePostalCode ?? "",
+              city: input.invoiceCity ?? "",
+              email: input.invoiceEmail ?? input.email,
+              countryCode: "DE",
+            };
       try {
         return await submitPublicOrder(
           input.publicAlias,
@@ -162,13 +185,7 @@ export const server = {
               email: input.email,
               phone: input.phone || null,
             },
-            deliveryRecipient: {
-              recipientName: input.deliveryRecipientName,
-              streetLine1: input.deliveryStreetLine1,
-              postalCode: input.deliveryPostalCode,
-              city: input.deliveryCity,
-              countryCode: "DE",
-            },
+            ...(deliveryRecipient ? { deliveryRecipient } : {}),
             ...(input.deliveryWindowId
               ? { deliveryWindowId: input.deliveryWindowId }
               : {}),

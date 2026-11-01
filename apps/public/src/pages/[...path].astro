@@ -4,8 +4,7 @@ import { actions } from "astro:actions";
 import PublicAction from "../components/PublicAction.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
-import { isKrapfentaxiAction } from "../lib/presentation";
-import taxiHero from "../assets/krapfentaxi/hero.webp";
+import { resolvePublicTheme } from "../themes";
 import { campaignRedirect } from "../lib/campaign-redirect";
 
 const rawPath = Astro.params.path ?? "";
@@ -105,11 +104,9 @@ if (forwardedProtocol === "http" || forwardedProtocol === "https") {
   publicOrigin.protocol = `${forwardedProtocol}:`;
 }
 const canonicalUrl = new URL(canonicalPath || "/", publicOrigin).href;
-const isKrapfentaxi = isKrapfentaxiAction(route);
-const imageUrl = new URL(
-  isKrapfentaxi ? taxiHero.src : "/community-routes.png",
-  publicOrigin,
-).href;
+// The theme is data on the action, never inferred from names or slugs.
+const theme = resolvePublicTheme(route?.action?.presentationTheme);
+const imageUrl = new URL(theme.shareImage.src, publicOrigin).href;
 const robots =
   state === "action" || state === "home" ? "index,follow" : "noindex,follow";
 ---
@@ -120,7 +117,7 @@ const robots =
   imageUrl={imageUrl}
   robots={robots}
   title={title}
-  isKrapfentaxi={isKrapfentaxi}
+  theme={theme}
   canOrder={Boolean(
     route?.submissionsAllowed &&
       route.action?.orderForm &&
@@ -130,7 +127,11 @@ const robots =
 >
   {
     state === "action" && route ? (
-      <PublicAction orderResult={publicOrderResult} route={route} />
+      <PublicAction
+        orderResult={publicOrderResult}
+        route={route}
+        theme={theme}
+      />
     ) : state === "inactive" ? (
       <PublicState
         eyebrow="Zwischen zwei Aktionen"

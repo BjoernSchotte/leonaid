@@ -32,6 +32,13 @@ const redisplay = serverError
   ? await readOrderRedisplay(Astro.request, publicAlias)
   : null;
 const commandId = redisplay?.commandId ?? crypto.randomUUID();
+// Core sets requireDeliveryAddress only for actions with the delivery
+// capability; pickup or donation campaigns skip the delivery step.
+const collectsDelivery = orderForm.requireDeliveryAddress;
+const stepNumber = (step: number) => String(step).padStart(2, "0");
+const billingStep = collectsDelivery ? 4 : 3;
+const messageStep = billingStep + 1;
+const confirmStep = orderForm.allowMessage ? messageStep + 1 : messageStep;
 const deliveryConfiguration = orderForm.deliveryConfiguration;
 const deliveryEnabled = Boolean(deliveryConfiguration?.enabled);
 const deliveryUnavailable =
@@ -402,198 +409,210 @@ const quantitySummary = orderQuantitySummary(
                 </div>
               </fieldset>
 
-              <fieldset class="order-step">
-                <legend>
-                  <span>03</span>
-                  <span>
-                    Lieferung
-                    <small>Wohin die Bestellung gebracht wird</small>
-                  </span>
-                </legend>
-                <div class="form-grid">
-                  <div class="form-field form-field--wide">
-                    <label for="deliveryRecipientName">
-                      Empfänger:in <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="deliveryRecipientName"
-                      name="deliveryRecipientName"
-                      value={redisplay?.fields.deliveryRecipientName ?? ""}
-                      autocomplete="shipping name"
-                      maxlength="300"
-                      required
-                      aria-describedby="deliveryRecipientName-help deliveryRecipientName-error"
-                    />
-                    <small id="deliveryRecipientName-help">
-                      Firma, Abteilung oder Person, die die Lieferung annimmt.
-                    </small>
-                    <span
-                      id="deliveryRecipientName-error"
-                      class="field-error"
-                      data-error-for="deliveryRecipientName"
-                    />
-                  </div>
-                  <div class="form-field form-field--wide">
-                    <label for="deliveryStreetLine1">
-                      Straße und Hausnummer <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="deliveryStreetLine1"
-                      name="deliveryStreetLine1"
-                      value={redisplay?.fields.deliveryStreetLine1 ?? ""}
-                      autocomplete="shipping street-address"
-                      maxlength="300"
-                      required
-                      aria-describedby="deliveryStreetLine1-help deliveryStreetLine1-error"
-                    />
-                    <small id="deliveryStreetLine1-help">
-                      Die genaue Adresse für die Tourenplanung.
-                    </small>
-                    <span
-                      id="deliveryStreetLine1-error"
-                      class="field-error"
-                      data-error-for="deliveryStreetLine1"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="deliveryPostalCode">
-                      Postleitzahl <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="deliveryPostalCode"
-                      name="deliveryPostalCode"
-                      value={redisplay?.fields.deliveryPostalCode ?? ""}
-                      autocomplete="shipping postal-code"
-                      inputmode="numeric"
-                      maxlength="24"
-                      required
-                      aria-describedby="deliveryPostalCode-help deliveryPostalCode-error"
-                    />
-                    <small id="deliveryPostalCode-help">
-                      Grundlage für die spätere Routenzuordnung.
-                    </small>
-                    <span
-                      id="deliveryPostalCode-error"
-                      class="field-error"
-                      data-error-for="deliveryPostalCode"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="deliveryCity">
-                      Ort <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="deliveryCity"
-                      name="deliveryCity"
-                      value={redisplay?.fields.deliveryCity ?? ""}
-                      autocomplete="shipping address-level2"
-                      maxlength="200"
-                      required
-                      aria-describedby="deliveryCity-help deliveryCity-error"
-                    />
-                    <small id="deliveryCity-help">Ort der Lieferadresse.</small>
-                    <span
-                      id="deliveryCity-error"
-                      class="field-error"
-                      data-error-for="deliveryCity"
-                    />
-                  </div>
-                </div>
-                {deliveryEnabled && deliveryConfiguration && (
-                  <div class="order-delivery-details">
-                    <PublicDeliveryWindows
-                      configuration={deliveryConfiguration}
-                      selectedId={redisplay?.fields.deliveryWindowId}
-                    />
-                    <button
-                      type="button"
-                      class="delivery-refresh"
-                      data-delivery-refresh
-                      hidden
-                    >
-                      Lieferfenster aktualisieren
-                    </button>
-                    <p data-delivery-refresh-status role="status" />
-                    <div class="form-grid">
-                      <div class="form-field form-field--wide">
-                        <label for="deliveryContactName">
-                          Ansprechpartner bei der Lieferung (optional)
-                        </label>
-                        <input
-                          id="deliveryContactName"
-                          name="deliveryContactName"
-                          maxlength="200"
-                          autocomplete="section-delivery-contact name"
-                          value={redisplay?.fields.deliveryContactName ?? ""}
-                          aria-describedby="deliveryContact-help deliveryContactName-error"
-                        />
-                        <span
-                          id="deliveryContactName-error"
-                          class="field-error"
-                          data-error-for="deliveryContactName"
-                        />
-                      </div>
-                      <div class="form-field form-field--wide">
-                        <label for="deliveryContactPhone">
-                          Telefonnummer für die Lieferung (optional)
-                        </label>
-                        <input
-                          id="deliveryContactPhone"
-                          name="deliveryContactPhone"
-                          type="tel"
-                          maxlength="40"
-                          autocomplete="section-delivery-contact tel"
-                          value={redisplay?.fields.deliveryContactPhone ?? ""}
-                          aria-describedby="deliveryContact-help deliveryContactPhone-error"
-                        />
-                        <span
-                          id="deliveryContactPhone-error"
-                          class="field-error"
-                          data-error-for="deliveryContactPhone"
-                        />
-                        <small id="deliveryContact-help">
-                          Beide Angaben sind unabhängig optional. Ohne
-                          Lieferkontakt bleibt der Bestellkontakt für Rückfragen
-                          erhalten.
-                        </small>
-                      </div>
+              {collectsDelivery && (
+                <fieldset class="order-step">
+                  <legend>
+                    <span>03</span>
+                    <span>
+                      Lieferung
+                      <small>Wohin die Bestellung gebracht wird</small>
+                    </span>
+                  </legend>
+                  <div class="form-grid">
+                    <div class="form-field form-field--wide">
+                      <label for="deliveryRecipientName">
+                        Empfänger:in <em>Pflichtfeld</em>
+                      </label>
+                      <input
+                        id="deliveryRecipientName"
+                        name="deliveryRecipientName"
+                        value={redisplay?.fields.deliveryRecipientName ?? ""}
+                        autocomplete="shipping name"
+                        maxlength="300"
+                        required
+                        aria-describedby="deliveryRecipientName-help deliveryRecipientName-error"
+                      />
+                      <small id="deliveryRecipientName-help">
+                        Firma, Abteilung oder Person, die die Lieferung annimmt.
+                      </small>
+                      <span
+                        id="deliveryRecipientName-error"
+                        class="field-error"
+                        data-error-for="deliveryRecipientName"
+                      />
+                    </div>
+                    <div class="form-field form-field--wide">
+                      <label for="deliveryStreetLine1">
+                        Straße und Hausnummer <em>Pflichtfeld</em>
+                      </label>
+                      <input
+                        id="deliveryStreetLine1"
+                        name="deliveryStreetLine1"
+                        value={redisplay?.fields.deliveryStreetLine1 ?? ""}
+                        autocomplete="shipping street-address"
+                        maxlength="300"
+                        required
+                        aria-describedby="deliveryStreetLine1-help deliveryStreetLine1-error"
+                      />
+                      <small id="deliveryStreetLine1-help">
+                        Die genaue Adresse für die Tourenplanung.
+                      </small>
+                      <span
+                        id="deliveryStreetLine1-error"
+                        class="field-error"
+                        data-error-for="deliveryStreetLine1"
+                      />
+                    </div>
+                    <div class="form-field">
+                      <label for="deliveryPostalCode">
+                        Postleitzahl <em>Pflichtfeld</em>
+                      </label>
+                      <input
+                        id="deliveryPostalCode"
+                        name="deliveryPostalCode"
+                        value={redisplay?.fields.deliveryPostalCode ?? ""}
+                        autocomplete="shipping postal-code"
+                        inputmode="numeric"
+                        maxlength="24"
+                        required
+                        aria-describedby="deliveryPostalCode-help deliveryPostalCode-error"
+                      />
+                      <small id="deliveryPostalCode-help">
+                        Grundlage für die spätere Routenzuordnung.
+                      </small>
+                      <span
+                        id="deliveryPostalCode-error"
+                        class="field-error"
+                        data-error-for="deliveryPostalCode"
+                      />
+                    </div>
+                    <div class="form-field">
+                      <label for="deliveryCity">
+                        Ort <em>Pflichtfeld</em>
+                      </label>
+                      <input
+                        id="deliveryCity"
+                        name="deliveryCity"
+                        value={redisplay?.fields.deliveryCity ?? ""}
+                        autocomplete="shipping address-level2"
+                        maxlength="200"
+                        required
+                        aria-describedby="deliveryCity-help deliveryCity-error"
+                      />
+                      <small id="deliveryCity-help">
+                        Ort der Lieferadresse.
+                      </small>
+                      <span
+                        id="deliveryCity-error"
+                        class="field-error"
+                        data-error-for="deliveryCity"
+                      />
                     </div>
                   </div>
-                )}
-              </fieldset>
+                  {deliveryEnabled && deliveryConfiguration && (
+                    <div class="order-delivery-details">
+                      <PublicDeliveryWindows
+                        configuration={deliveryConfiguration}
+                        selectedId={redisplay?.fields.deliveryWindowId}
+                      />
+                      <button
+                        type="button"
+                        class="delivery-refresh"
+                        data-delivery-refresh
+                        hidden
+                      >
+                        Lieferfenster aktualisieren
+                      </button>
+                      <p data-delivery-refresh-status role="status" />
+                      <div class="form-grid">
+                        <div class="form-field form-field--wide">
+                          <label for="deliveryContactName">
+                            Ansprechpartner bei der Lieferung (optional)
+                          </label>
+                          <input
+                            id="deliveryContactName"
+                            name="deliveryContactName"
+                            maxlength="200"
+                            autocomplete="section-delivery-contact name"
+                            value={redisplay?.fields.deliveryContactName ?? ""}
+                            aria-describedby="deliveryContact-help deliveryContactName-error"
+                          />
+                          <span
+                            id="deliveryContactName-error"
+                            class="field-error"
+                            data-error-for="deliveryContactName"
+                          />
+                        </div>
+                        <div class="form-field form-field--wide">
+                          <label for="deliveryContactPhone">
+                            Telefonnummer für die Lieferung (optional)
+                          </label>
+                          <input
+                            id="deliveryContactPhone"
+                            name="deliveryContactPhone"
+                            type="tel"
+                            maxlength="40"
+                            autocomplete="section-delivery-contact tel"
+                            value={redisplay?.fields.deliveryContactPhone ?? ""}
+                            aria-describedby="deliveryContact-help deliveryContactPhone-error"
+                          />
+                          <span
+                            id="deliveryContactPhone-error"
+                            class="field-error"
+                            data-error-for="deliveryContactPhone"
+                          />
+                          <small id="deliveryContact-help">
+                            Beide Angaben sind unabhängig optional. Ohne
+                            Lieferkontakt bleibt der Bestellkontakt für
+                            Rückfragen erhalten.
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </fieldset>
+              )}
 
               <fieldset class="order-step">
                 <legend>
-                  <span>04</span>
+                  <span>{stepNumber(billingStep)}</span>
                   <span>
                     Rechnung
-                    <small>Standardmäßig wie die Lieferadresse</small>
-                  </span>
-                </legend>
-                <label class="check-row">
-                  <input
-                    type="checkbox"
-                    name="billingSameAsDelivery"
-                    value="true"
-                    checked={redisplay?.billingSameAsDelivery ?? true}
-                    data-billing-same
-                  />
-                  <span>
-                    <strong>
-                      Rechnungsadresse entspricht der Lieferadresse
-                    </strong>
                     <small>
-                      Deaktiviere dies nur, wenn die Rechnung an eine andere
-                      Anschrift gehen soll.
+                      {collectsDelivery
+                        ? "Standardmäßig wie die Lieferadresse"
+                        : "Wohin die Rechnung geschickt wird"}
                     </small>
                   </span>
-                </label>
+                </legend>
+                {collectsDelivery && (
+                  <label class="check-row">
+                    <input
+                      type="checkbox"
+                      name="billingSameAsDelivery"
+                      value="true"
+                      checked={redisplay?.billingSameAsDelivery ?? true}
+                      data-billing-same
+                    />
+                    <span>
+                      <strong>
+                        Rechnungsadresse entspricht der Lieferadresse
+                      </strong>
+                      <small>
+                        Deaktiviere dies nur, wenn die Rechnung an eine andere
+                        Anschrift gehen soll.
+                      </small>
+                    </span>
+                  </label>
+                )}
                 <div class="form-grid billing-fields" data-billing-fields>
-                  <p class="form-field--wide">
-                    Nur ausfüllen, wenn die Rechnungsadresse von der
-                    Lieferadresse abweicht. Bei gesetztem Häkchen verwenden wir
-                    die Lieferadresse.
-                  </p>
+                  {collectsDelivery && (
+                    <p class="form-field--wide">
+                      Nur ausfüllen, wenn die Rechnungsadresse von der
+                      Lieferadresse abweicht. Bei gesetztem Häkchen verwenden
+                      wir die Lieferadresse.
+                    </p>
+                  )}
                   <div class="form-field form-field--wide">
                     <label for="invoiceRecipientName">
                       Rechnungsempfänger:in <em>Pflichtfeld</em>
@@ -601,6 +620,7 @@ const quantitySummary = orderQuantitySummary(
                     <input
                       id="invoiceRecipientName"
                       name="invoiceRecipientName"
+                      required={!collectsDelivery}
                       value={redisplay?.fields.invoiceRecipientName ?? ""}
                       autocomplete="billing name"
                       maxlength="300"
@@ -622,6 +642,7 @@ const quantitySummary = orderQuantitySummary(
                     <input
                       id="invoiceStreetLine1"
                       name="invoiceStreetLine1"
+                      required={!collectsDelivery}
                       value={redisplay?.fields.invoiceStreetLine1 ?? ""}
                       autocomplete="billing street-address"
                       maxlength="300"
@@ -643,6 +664,7 @@ const quantitySummary = orderQuantitySummary(
                     <input
                       id="invoicePostalCode"
                       name="invoicePostalCode"
+                      required={!collectsDelivery}
                       value={redisplay?.fields.invoicePostalCode ?? ""}
                       autocomplete="billing postal-code"
                       inputmode="numeric"
@@ -665,6 +687,7 @@ const quantitySummary = orderQuantitySummary(
                     <input
                       id="invoiceCity"
                       name="invoiceCity"
+                      required={!collectsDelivery}
                       value={redisplay?.fields.invoiceCity ?? ""}
                       autocomplete="billing address-level2"
                       maxlength="200"
@@ -686,6 +709,7 @@ const quantitySummary = orderQuantitySummary(
                     <input
                       id="invoiceEmail"
                       name="invoiceEmail"
+                      required={!collectsDelivery}
                       value={redisplay?.fields.invoiceEmail ?? ""}
                       type="email"
                       autocomplete="billing email"
@@ -707,7 +731,7 @@ const quantitySummary = orderQuantitySummary(
               {orderForm.allowMessage && (
                 <fieldset class="order-step">
                   <legend>
-                    <span>05</span>
+                    <span>{stepNumber(messageStep)}</span>
                     <span>
                       Hinweis
                       <small>Optional für das Aktionsteam</small>
@@ -748,7 +772,7 @@ const quantitySummary = orderQuantitySummary(
 
               <fieldset class="order-step order-step--confirm">
                 <legend>
-                  <span>{orderForm.allowMessage ? "06" : "05"}</span>
+                  <span>{stepNumber(confirmStep)}</span>
                   <span>
                     Prüfen & absenden
                     <small>Mit klarer Bestätigung</small>
