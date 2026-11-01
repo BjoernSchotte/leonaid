@@ -745,6 +745,7 @@ pilot_doctor() {
   backup_manifest=
   gate=pilot-release
   json_argument=
+  first_install_argument=
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --env-file)
@@ -775,6 +776,10 @@ pilot_doctor() {
         json_argument=--json
         shift
         ;;
+      --first-install)
+        first_install_argument=--first-install
+        shift
+        ;;
       *)
         echo "pilot-doctor: ERROR: unbekannte Option '$1'" >&2
         exit 64
@@ -793,10 +798,13 @@ pilot_doctor() {
     echo "pilot-doctor: BLOCKED: Environment-Datei fehlt" >&2
     exit 1
   }
-  [ -f "$backup_manifest" ] || {
+  # A first install has no backup yet, and a new backup is the remedy for a
+  # missing one; every other gate requires the manifest.
+  if [ ! -f "$backup_manifest" ] &&
+    [ "$gate" != pilot-backup ] && [ -z "$first_install_argument" ]; then
     echo "pilot-doctor: BLOCKED: Backup-Manifest fehlt" >&2
     exit 1
-  }
+  fi
   env_file=$(CDPATH= cd -- "$(dirname -- "$env_file")" && pwd)/$(basename -- "$env_file")
   backup_manifest=$(
     CDPATH= cd -- "$(dirname -- "$backup_manifest")" &&
@@ -841,7 +849,9 @@ pilot_doctor() {
   }
   config_file=$(mktemp)
   doctor_input_directory=$(mktemp -d)
-  cp "$backup_manifest" "$doctor_input_directory/backup-manifest.json"
+  if [ -f "$backup_manifest" ]; then
+    cp "$backup_manifest" "$doctor_input_directory/backup-manifest.json"
+  fi
   trap 'rm -f "$config_file"; rm -rf "$doctor_input_directory"' EXIT HUP INT TERM
   pilot_compose_config "$project" "$env_file" "$config_file"
   set +e
@@ -910,7 +920,7 @@ pilot_doctor() {
         --resolve "$crm_domain=127.0.0.1:443" \
         --disk-path /workspace \
         --minimum-free-bytes 1048576 \
-        --minimum-certificate-validity-hours 1 $json_argument
+        --minimum-certificate-validity-hours 1 $json_argument $first_install_argument
   else
     # shellcheck disable=SC2086
     docker run --rm \
@@ -928,7 +938,7 @@ pilot_doctor() {
         --compose-config /doctor/compose.json \
         --backup-manifest /doctor/input/backup-manifest.json \
         --expected-release-commit "$release_commit" \
-        --gate "$gate" $json_argument
+        --gate "$gate" $json_argument $first_install_argument
   fi
   status=$?
   set -e

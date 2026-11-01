@@ -83,6 +83,11 @@ REQUIRED_ENVIRONMENT_KEYS = (
 )
 
 
+# pilot-install provisions the Twenty integration key itself; until then the
+# environment file carries this marker instead of a secret.
+PENDING_INTEGRATION_KEY = "PENDING_PILOT_INSTALL"
+
+
 class DoctorError(RuntimeError):
     """A readiness signal failed without carrying secret material."""
 
@@ -143,6 +148,7 @@ def validate_environment(
     compose_config: dict[str, Any],
     expected_release_commit: str,
     isolated_test_mode: bool = False,
+    first_install: bool = False,
 ) -> str:
     require_private_file(env_file, "environment_file")
     require_external_path(env_file, root, "environment_file")
@@ -173,6 +179,12 @@ def validate_environment(
     secret_values: list[str] = []
     for key in SECRET_KEYS:
         value = values[key]
+        if (
+            first_install
+            and key == "TWENTY_INTEGRATION_API_KEY"
+            and value == PENDING_INTEGRATION_KEY
+        ):
+            continue
         if len(value) < 24 or any(
             marker in value.casefold() for marker in placeholders
         ):
@@ -365,8 +377,17 @@ def validate_backup(
     *,
     project: str,
     maximum_age_hours: float,
+    tolerate_missing_or_stale: bool = False,
 ) -> None:
+    """Require a fresh backup of this project.
+
+    The pilot-backup gate tolerates a missing or stale manifest: a new backup
+    is exactly the remedy, so one failed nightly run must not block all later
+    ones. A manifest of another project or a broken manifest still blocks.
+    """
     if not path.is_file():
+        if tolerate_missing_or_stale:
+            return
         raise DoctorError("backup_manifest_missing")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -391,7 +412,7 @@ def validate_backup(
     age = dt.datetime.now(dt.timezone.utc) - created_at.astimezone(dt.timezone.utc)
     if age < dt.timedelta(minutes=-5):
         raise DoctorError("backup_timestamp_in_future")
-    if age > dt.timedelta(hours=maximum_age_hours):
+    if age > dt.timedelta(hours=maximum_age_hours) and not tolerate_missing_or_stale:
         raise DoctorError("backup_too_old")
 
 
@@ -474,6 +495,14 @@ def parser() -> argparse.ArgumentParser:
         default="pilot-release",
     )
     result.add_argument("--json", action="store_true")
+    result.add_argument(
+        "--first-install",
+        action="store_true",
+        help=(
+            "pilot-install only: no backup manifest and no running installation "
+            "yet; the Twenty integration key may still be pending"
+        ),
+    )
     result.add_argument(
         "--deployment-only",
         action="store_true",
@@ -588,16 +617,21 @@ def main() -> int:
             compose_config=compose_config,
             expected_release_commit=arguments.expected_release_commit,
             isolated_test_mode=arguments.isolated_test_mode,
+            first_install=arguments.first_install,
         )
-        validate_backup(
-            arguments.backup_manifest,
-            project=project,
-            maximum_age_hours=arguments.maximum_backup_age_hours,
-        )
+        if arguments.first_install and arguments.gate != "pilot-deploy":
+            raise DoctorError("first_install_requires_pilot_deploy_gate")
+        if not arguments.first_install:
+            validate_backup(
+                arguments.backup_manifest,
+                project=project,
+                maximum_age_hours=arguments.maximum_backup_age_hours,
+                tolerate_missing_or_stale=arguments.gate == "pilot-backup",
+            )
         if shutil.disk_usage(arguments.disk_path).free < arguments.minimum_free_bytes:
             raise DoctorError("disk_space_insufficient")
 
-        if arguments.gate != "pilot-restore":
+        if arguments.gate != "pilot-restore" and not arguments.first_install:
             probe_running_installation(arguments, environment)
 
         open_ids: list[str] = []
