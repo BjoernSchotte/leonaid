@@ -57,6 +57,24 @@ try {
   }
 }
 
+// A non-JSON success body (here the real Prometheus endpoint) must surface as
+// a typed ApiError instead of a JSON SyntaxError without status.
+try {
+  await client.request<never>("/metrics", { method: "GET" });
+  throw new Error("Non-JSON response was treated as success.");
+} catch (error: unknown) {
+  if (!(error instanceof ApiError)) {
+    throw error;
+  }
+  if (
+    error.status !== 200 ||
+    error.detail.code !== "unexpected_response_type" ||
+    !error.detail.message.includes("text/plain")
+  ) {
+    throw new Error(`Non-JSON response is not typed: ${JSON.stringify(error)}`);
+  }
+}
+
 console.log(
   "poc023-contract: OK: generierter Client, Golden-Antwort und typisierter Fehler",
 );
