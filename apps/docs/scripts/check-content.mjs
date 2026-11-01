@@ -5,8 +5,8 @@ import GithubSlugger from "github-slugger";
 import { load as loadYaml } from "js-yaml";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
-const defaultDocsRoot = path.join(projectRoot, "src/content/docs");
-const defaultInventory = path.resolve(
+export const defaultDocsRoot = path.join(projectRoot, "src/content/docs");
+export const defaultInventory = path.resolve(
   projectRoot,
   "../../specs/multilingual-documentation/CONTENT-INVENTORY.md",
 );

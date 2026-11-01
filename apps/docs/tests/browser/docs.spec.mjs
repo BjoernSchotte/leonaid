@@ -3,6 +3,11 @@ import { expect, test } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import {
+  defaultDocsRoot,
+  defaultInventory,
+  validateContent,
+} from "../../scripts/check-content.mjs";
 
 const baseURL = process.env.LEONAID_DOCS_BASE_URL;
 const artifactDirectory = process.env.LEONAID_DOCS_ARTIFACT_DIR;
@@ -91,11 +96,15 @@ test("serves the exact manifested bilingual artifact", async ({
   expect(manifest.schemaVersion).toBe(1);
   expect(manifest.sourceSha).toMatch(/^([0-9a-f]{40}|development)$/);
   if (expectedRevision) expect(manifest.sourceSha).toBe(expectedRevision);
+  const { published } = await validateContent({
+    docsRoot: defaultDocsRoot,
+    inventory: defaultInventory,
+  });
   expect(manifest.documentation).toMatchObject({
     defaultLocale: "de",
     locales: ["de", "en"],
-    publishedPages: 62,
-    languagePairs: 31,
+    publishedPages: published.length,
+    languagePairs: published.length / 2,
   });
   expect(manifest.api.sha256).toMatch(/^[0-9a-f]{64}$/);
   expect(manifest.hosting.publicUrl).toBe(
