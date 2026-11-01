@@ -10,7 +10,6 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from leonaid.application.crm import (
-    CompanyRecord,
     CrmGateway,
     CrmPartyKind,
     PersonRecord,
@@ -470,26 +469,34 @@ class AcquisitionActivityService:
         ordered = sorted(keys, key=lambda item: (item[0].value, str(item[1])))
         if not ordered:
             return {}
-        has_companies = any(kind is AssignmentPartyKind.COMPANY for kind, _ in ordered)
-        if has_companies:
-            companies_result, people = await asyncio.gather(
-                self._crm.list_companies(
-                    correlation_id=f"{correlation_prefix}:companies",
-                ),
-                self._crm.list_people(
-                    correlation_id=f"{correlation_prefix}:people",
-                ),
-            )
-            companies: tuple[CompanyRecord, ...] = companies_result
-        else:
-            companies = ()
-            people = await self._crm.list_people(
+        # Fetch only the referenced parties (and the contacts of referenced
+        # companies) in batched ID queries, never whole CRM collections.
+        company_ids = tuple(
+            party_id
+            for kind, party_id in ordered
+            if kind is AssignmentPartyKind.COMPANY
+        )
+        person_ids = tuple(
+            party_id for kind, party_id in ordered if kind is AssignmentPartyKind.PERSON
+        )
+        companies, people, contacts = await asyncio.gather(
+            self._crm.get_companies(
+                company_ids,
+                correlation_id=f"{correlation_prefix}:companies",
+            ),
+            self._crm.get_people(
+                person_ids,
                 correlation_id=f"{correlation_prefix}:people",
-            )
+            ),
+            self._crm.list_company_contacts(
+                company_ids,
+                correlation_id=f"{correlation_prefix}:contacts",
+            ),
+        )
         companies_by_id = {company.twenty_id: company for company in companies}
         people_by_id = {person.twenty_id: person for person in people}
         company_contacts: dict[UUID, tuple[PersonRecord, ...]] = {}
-        for person in people:
+        for person in contacts:
             company_id = person.data.company_twenty_id
             if company_id is not None:
                 company_contacts[company_id] = (

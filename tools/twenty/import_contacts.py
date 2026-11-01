@@ -33,7 +33,7 @@ from leonaid.application.crm import (
     PersonUpdate,
     PostalAddress,
 )
-from leonaid.application.sponsor_matching import (
+from leonaid.application.crm_matching import (
     candidate_company_query as sponsor_candidate_company_query,
     normalize_match_name,
 )
@@ -770,7 +770,6 @@ async def run(arguments: argparse.Namespace) -> None:
         base_url=require_env("TWENTY_BASE_URL"),
         api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
         timeout_seconds=5,
-        page_size=20,
     )
     mode = cast(ImportMode, arguments.command)
     async with TwentyCrmGateway(settings) as gateway:

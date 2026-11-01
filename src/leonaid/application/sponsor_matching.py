@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
-import unicodedata
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +20,11 @@ from leonaid.application.crm import (
     PersonRecord,
     PostalAddress,
 )
+from leonaid.application.crm_matching import (
+    find_company_matches,
+    find_person_matches,
+    normalize_match_name,
+)
 from leonaid.application.errors import Conflict
 from leonaid.application.policies import concealed_resource
 from leonaid.domain.identity import IdentityPrincipal
@@ -36,63 +39,6 @@ class SponsorMatchStatus(StrEnum):
 class SponsorResolutionOutcome(StrEnum):
     CREATED = "created"
     REUSED = "reused"
-
-
-def normalize_match_name(value: str) -> str:
-    """Return the PoC match key shared by imports and interactive matching."""
-
-    normalized = unicodedata.normalize("NFC", value.casefold())
-    normalized = normalized.replace("k.g.", "kg").replace("e.k.", "ek")
-    normalized = (
-        normalized.replace("ä", "ae")
-        .replace("ö", "oe")
-        .replace("ü", "ue")
-        .replace("ß", "ss")
-    )
-    normalized = unicodedata.normalize("NFKD", normalized)
-    without_marks = "".join(
-        character for character in normalized if not unicodedata.combining(character)
-    )
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
-
-
-def candidate_company_query(value: str) -> str:
-    """Choose a useful Twenty pre-filter without changing the exact match key."""
-
-    ignored = {"ag", "ek", "gbr", "gmbh", "kg", "mbh", "ohg", "ug"}
-    tokens = [
-        token
-        for token in normalize_match_name(value).split()
-        if token not in ignored and len(token) >= 2
-    ]
-    if not tokens:
-        tokens = normalize_match_name(value).split()
-    if not tokens:
-        raise ValueError("Firmenname enthält keinen suchbaren Bestandteil.")
-    return max(tokens, key=len)
-
-
-def company_matches(
-    records: tuple[CompanyRecord, ...],
-    normalized_key: str,
-) -> tuple[CompanyRecord, ...]:
-    return tuple(
-        record
-        for record in records
-        if normalize_match_name(record.data.name) == normalized_key
-    )
-
-
-def person_matches(
-    records: tuple[PersonRecord, ...],
-    normalized_key: str,
-) -> tuple[PersonRecord, ...]:
-    return tuple(
-        record
-        for record in records
-        if normalize_match_name(f"{record.data.given_name} {record.data.family_name}")
-        == normalized_key
-    )
 
 
 def match_status(candidate_count: int) -> SponsorMatchStatus:
@@ -545,17 +491,11 @@ class SponsorMatchingService:
         correlation_id: str,
     ) -> tuple[CompanyRecord, ...]:
         assert draft.company_name is not None
-        direct = await self._crm.search_companies(
-            candidate_company_query(draft.company_name),
+        return await find_company_matches(
+            self._crm,
+            draft.company_name,
             correlation_id=correlation_id,
         )
-        exact = company_matches(direct, draft.normalized_key)
-        if exact:
-            return exact
-        all_records = await self._crm.list_companies(
-            correlation_id=f"{correlation_id}:unicode-fallback",
-        )
-        return company_matches(all_records, draft.normalized_key)
 
     async def _matching_people(
         self,
@@ -565,18 +505,12 @@ class SponsorMatchingService:
     ) -> tuple[PersonRecord, ...]:
         assert draft.given_name is not None
         assert draft.family_name is not None
-        direct = await self._crm.search_people(
+        return await find_person_matches(
+            self._crm,
             given_name=draft.given_name,
             family_name=draft.family_name,
             correlation_id=correlation_id,
         )
-        exact = person_matches(direct, draft.normalized_key)
-        if exact:
-            return exact
-        all_records = await self._crm.list_people(
-            correlation_id=f"{correlation_id}:unicode-fallback",
-        )
-        return person_matches(all_records, draft.normalized_key)
 
     @staticmethod
     def _selected_candidate(

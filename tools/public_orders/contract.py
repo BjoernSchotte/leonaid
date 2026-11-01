@@ -24,6 +24,10 @@ MARA_ID = UUID("50000000-0000-4000-8000-000000000001")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 COMMAND_NAMESPACE = UUID("5657756c-cd86-4800-8a47-153261f525ab")
+TWIN_COMPANIES = (
+    (UUID("40000000-0000-4000-8000-00000000f072"), "POC072 Zwilling-Werk GmbH"),
+    (UUID("40000000-0000-4000-8000-00000000f073"), "POC072 Zwilling Werk GmbH"),
+)
 PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
 PRIVACY_NOTICE_VERSION = "public-order-golden-v1"
 PRIVACY_NOTICE_TEXT = (
@@ -412,6 +416,17 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             timeout=90,
         ) as twenty,
     ):
+        # Two existing CRM companies whose names share one match key, written
+        # around LeonAid (no stored key) as the Twenty UI would.
+        for twin_id, twin_name in TWIN_COMPANIES:
+            created_twin = await twenty.post(
+                "/rest/companies",
+                json={"id": str(twin_id), "name": twin_name},
+            )
+            if created_twin.status_code not in {200, 201}:
+                raise ContractFailure(
+                    "Twenty-Zwillingsfirma konnte nicht angelegt werden"
+                )
         companies_before = await twenty_collection(twenty, "companies")
         people_before = await twenty_collection(twenty, "people")
         company_count_before = len(companies_before)
@@ -606,6 +621,84 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             expected_recipient_ids={KLARA_ID},
         )
 
+        ambiguous = await submit(
+            api,
+            order_body(
+                token=token,
+                command=command_id("ambiguous-company"),
+                company_name="poc072 ZWILLING werk gmbh",
+                given_name="Zora",
+                family_name="Zwilling",
+                email="zora.zwilling@leonaid.invalid",
+            ),
+            label="ambiguous-company",
+            forwarded_for="203.0.113.80",
+        )
+        if (
+            ambiguous.status_code != 409
+            or error_code(ambiguous) != "public_order_party_ambiguous"
+        ):
+            raise ContractFailure(
+                "Mehrdeutige Firma wurde nicht als Konflikt abgewiesen"
+            )
+
+        # The second spelling differs from the CRM name ("Bäckerstübchen" vs
+        # "Baeckerstuebchen"); only the stored match key can find it.
+        variant_first = await submit(
+            api,
+            order_body(
+                token=token,
+                command=command_id("variant-company-first"),
+                quantity=1,
+                company_name="POC072 Bäckerstübchen GmbH",
+                given_name="Vera",
+                family_name="Variante",
+                email="vera.variante@leonaid.invalid",
+            ),
+            label="variant-company-first",
+            forwarded_for="203.0.113.81",
+        )
+        variant_first.raise_for_status()
+        variant_first_payload = variant_first.json()
+        variant_again = await submit(
+            api,
+            order_body(
+                token=token,
+                command=command_id("variant-company-again"),
+                quantity=1,
+                company_name="poc072 BAECKERSTUEBCHEN gmbh",
+                given_name="Vera",
+                family_name="Variante",
+                email="vera.variante@leonaid.invalid",
+            ),
+            label="variant-company-again",
+            forwarded_for="203.0.113.82",
+        )
+        variant_again.raise_for_status()
+        variant_again_payload = variant_again.json()
+        variant_first_row = await assert_commitment(
+            connection,
+            variant_first_payload,
+            expected_company_id=None,
+            expected_person=False,
+            expected_quantity=1,
+        )
+        variant_again_row = await assert_commitment(
+            connection,
+            variant_again_payload,
+            expected_company_id=variant_first_row["twenty_company_id"],
+            expected_person=False,
+            expected_quantity=1,
+        )
+        if (
+            variant_first_payload["crmOutcome"] != "created"
+            or variant_again_payload["crmOutcome"] != "reused"
+            or variant_again_row["id"] == variant_first_row["id"]
+        ):
+            raise ContractFailure(
+                "Schreibvariante einer Firma wurde nicht über den Schlüssel wiederverwendet"
+            )
+
         changed_body = order_body(
             token=token,
             command=command_id("new-company-concurrent"),
@@ -789,8 +882,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
         if (
             len(await twenty_collection(twenty, "companies"))
-            != company_count_before + 1
-            or len(await twenty_collection(twenty, "people")) != person_count_before + 2
+            != company_count_before + 2
+            or len(await twenty_collection(twenty, "people")) != person_count_before + 3
         ):
             raise ContractFailure("CRM-Neuanlage ist nicht exakt einmal erfolgt")
 
@@ -807,16 +900,18 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             UUID(str(existing_payload["commitmentId"])),
             UUID(str(company_payload["commitmentId"])),
             UUID(str(person_payload["commitmentId"])),
+            UUID(str(variant_first_payload["commitmentId"])),
+            UUID(str(variant_again_payload["commitmentId"])),
         ],
     )
-    if int(created_count) != 3:
+    if int(created_count) != 5:
         raise ContractFailure("Retry oder Abweisung erzeugte zusätzliche Commitments")
     public_commitments_after = int(
         await connection.fetchval(
             "SELECT count(*) FROM commitment WHERE source = 'public_form'"
         )
     )
-    if public_commitments_after != public_commitments_before + 3:
+    if public_commitments_after != public_commitments_before + 5:
         raise ContractFailure(
             "Abgewiesene oder doppelte Requests erzeugten Commitments"
         )

@@ -5,7 +5,13 @@ from uuid import UUID
 import pytest
 from pydantic import SecretStr
 
-from leonaid.adapters.twenty.gateway import TwentyGatewaySettings, _contains_filter
+from leonaid.adapters.twenty.gateway import (
+    TwentyGatewaySettings,
+    _contains_filter,
+    _equals_filter,
+    _in_filter,
+    _match_key,
+)
 from leonaid.application.crm import (
     CompanyData,
     CompanyUpdate,
@@ -50,18 +56,23 @@ def test_twenty_configuration_enforces_pinned_operational_limits() -> None:
     settings = TwentyGatewaySettings(
         base_url="http://twenty-server:3000",
         api_key=SecretStr("real-but-local-test-value"),
-        page_size=60,
+        page_size=200,
         requests_per_minute=100,
     )
 
-    assert settings.page_size == 60
+    assert settings.page_size == 200
+    default = TwentyGatewaySettings(
+        base_url="http://twenty-server:3000",
+        api_key=SecretStr("key"),
+    )
+    assert default.page_size == 200
     assert "real-but-local-test-value" not in repr(settings)
 
     with pytest.raises(ValueError, match="page_size"):
         TwentyGatewaySettings(
             base_url="http://twenty-server:3000",
             api_key=SecretStr("key"),
-            page_size=61,
+            page_size=201,
         )
     with pytest.raises(ValueError, match="zwischen 1 und 100"):
         TwentyGatewaySettings(
@@ -75,6 +86,18 @@ def test_filter_encoding_and_gateway_error_are_secret_safe() -> None:
     hostile = 'Acme",name[eq]:"Injected'
     expression = _contains_filter("name", hostile)
     assert expression == 'name[ilike]:"%Acme\\",name[eq]:\\"Injected%"'
+    assert (
+        _equals_filter("leonaidMatchKey", hostile)
+        == 'leonaidMatchKey[eq]:"Acme\\",name[eq]:\\"Injected"'
+    )
+    first = UUID("73000000-0000-4000-8000-000000000001")
+    second = UUID("73000000-0000-4000-8000-000000000002")
+    # Twenty splits the list at commas and rejects whitespace around items.
+    assert _in_filter("id", (first, second)) == (f'id[in]:["{first}","{second}"]')
+    assert _match_key("baeckerei sonnenseite kg") == "baeckerei sonnenseite kg"
+    for invalid in ("", "Bäckerei", "a" * 701):
+        with pytest.raises(ValueError, match="Match-Schlüssel"):
+            _match_key(invalid)
 
     error = CrmGatewayError(
         "crm_unavailable",

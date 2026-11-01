@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
@@ -239,15 +240,23 @@ class CrmGatewayError(ApplicationError):
 
 
 class CrmGateway(Protocol):
-    async def list_companies(
-        self,
-        *,
-        correlation_id: str,
-    ) -> tuple[CompanyRecord, ...]: ...
+    """CRM operations available to request paths.
+
+    Every query is bounded by a name, a match key or explicit record IDs. The
+    port deliberately offers no way to list a whole collection: request
+    latency and the shared Twenty quota must not grow with the CRM size.
+    """
 
     async def search_companies(
         self,
         name_query: str,
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]: ...
+
+    async def find_companies_by_match_key(
+        self,
+        match_key: str,
         *,
         correlation_id: str,
     ) -> tuple[CompanyRecord, ...]: ...
@@ -258,6 +267,13 @@ class CrmGateway(Protocol):
         *,
         correlation_id: str,
     ) -> CompanyRecord | None: ...
+
+    async def get_companies(
+        self,
+        twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]: ...
 
     async def create_company(
         self,
@@ -283,17 +299,18 @@ class CrmGateway(Protocol):
         correlation_id: str,
     ) -> tuple[CompanyRecord, CrmSyncReceipt]: ...
 
-    async def list_people(
-        self,
-        *,
-        correlation_id: str,
-    ) -> tuple[PersonRecord, ...]: ...
-
     async def search_people(
         self,
         *,
         given_name: str,
         family_name: str,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]: ...
+
+    async def find_people_by_match_key(
+        self,
+        match_key: str,
+        *,
         correlation_id: str,
     ) -> tuple[PersonRecord, ...]: ...
 
@@ -303,6 +320,20 @@ class CrmGateway(Protocol):
         *,
         correlation_id: str,
     ) -> PersonRecord | None: ...
+
+    async def get_people(
+        self,
+        twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]: ...
+
+    async def list_company_contacts(
+        self,
+        company_twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]: ...
 
     async def create_person(
         self,
@@ -327,3 +358,23 @@ class CrmGateway(Protocol):
         *,
         correlation_id: str,
     ) -> tuple[PersonRecord, CrmSyncReceipt]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class MatchKeyRepairReport:
+    """Outcome of reconciling stored CRM match keys for one party kind."""
+
+    party_kind: CrmPartyKind
+    scanned: int
+    repaired: int
+
+
+class CrmMatchKeyMaintenance(Protocol):
+    """Offline maintenance of the stored match keys (never a request path)."""
+
+    async def repair_match_keys(
+        self,
+        *,
+        updated_since: datetime | None,
+        correlation_id: str,
+    ) -> tuple[MatchKeyRepairReport, ...]: ...

@@ -12,19 +12,28 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
 
+import httpx
 from pydantic import SecretStr
 
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.application.crm import (
     CompanyData,
+    CompanyRecord,
     CompanyUpdate,
     CrmGatewayError,
     CrmPartyKind,
     CrmSyncReceipt,
     CrmSyncStatus,
     PersonData,
+    PersonRecord,
     PersonUpdate,
     PostalAddress,
+)
+from leonaid.application.crm_matching import (
+    company_match_key,
+    find_company_matches,
+    find_person_matches,
+    person_match_key,
 )
 
 JsonObject = dict[str, Any]
@@ -33,6 +42,13 @@ COMPANY_PREFIX = "POC031 Seitenprobe"
 PERSON_FAMILY_NAME = "POC031-Seitenprobe"
 COMPANY_COUNT = 65
 PERSON_COUNT = 61
+# Records written around the gateway, as the Twenty UI or a CSV import would.
+UNKEYED_COMPANY_NAME = "POC031 Großbäckerei Übermut K.G."
+UNKEYED_COMPANY_INPUT = "POC031 Grossbaeckerei  Uebermut KG"
+UNKEYED_GIVEN_NAME = "Jürgen"
+UNKEYED_FAMILY_NAME = "POC031-Müller-Überall"
+STALE_COMPANY_OLD_NAME = "POC031 Altname Apotheke"
+STALE_COMPANY_NEW_NAME = "POC031 Löwen-Apotheke"
 
 
 class ContractFailure(RuntimeError):
@@ -308,6 +324,16 @@ async def exercise(state_path: Path) -> None:
         ):
             raise ContractFailure("einzeln angelegte Person ist nicht lesbar")
 
+        match_state = await exercise_match_keys(
+            gateway,
+            company_ids=tuple(record.twenty_id for record, _ in created),
+            person_ids=tuple(record.twenty_id for record, _ in created_people),
+            first_company=updated,
+            first_person=updated_person,
+            single_company_id=single_company.twenty_id,
+            single_person_id=single_person.twenty_id,
+        )
+
     write_state(
         state_path,
         {
@@ -321,11 +347,259 @@ async def exercise(state_path: Path) -> None:
             "firstPersonId": str(first_person.twenty_id),
             "firstPersonLeonAidId": str(first_person_receipt.leonaid_id),
             "singlePersonId": str(single_person.twenty_id),
+            **match_state,
         },
     )
     print(
         "twenty-gateway-contract: CRUD, 60er-Batches, Korrelation und "
         "Cursor-Pagination real bewiesen"
+    )
+
+
+def raw_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        base_url=require_env("TWENTY_BASE_URL").rstrip("/"),
+        headers={
+            "Authorization": f"Bearer {require_env('TWENTY_INTEGRATION_API_KEY')}"
+        },
+        timeout=30,
+    )
+
+
+def raw_record(response: httpx.Response) -> JsonObject:
+    if response.status_code not in {200, 201}:
+        raise ContractFailure(
+            f"Twenty-Rohzugriff scheiterte: HTTP {response.status_code} "
+            f"{response.text[:300]}"
+        )
+    payload = response.json()
+    data = payload.get("data", payload) if isinstance(payload, dict) else None
+    if isinstance(data, dict) and len(data) == 1:
+        nested = next(iter(data.values()))
+        if isinstance(nested, dict):
+            return nested
+    if not isinstance(data, dict):
+        raise ContractFailure("Twenty-Rohzugriff lieferte keinen Datensatz")
+    return data
+
+
+def ids(records: tuple[CompanyRecord, ...] | tuple[PersonRecord, ...]) -> set[UUID]:
+    return {record.twenty_id for record in records}
+
+
+async def exercise_match_keys(
+    gateway: TwentyCrmGateway,
+    *,
+    company_ids: tuple[UUID, ...],
+    person_ids: tuple[UUID, ...],
+    first_company: CompanyRecord,
+    first_person: PersonRecord,
+    single_company_id: UUID,
+    single_person_id: UUID,
+) -> JsonObject:
+    """Prove key writes, exact lookups, batched reads and the 200-record page."""
+
+    if ids(
+        await gateway.find_companies_by_match_key(
+            company_match_key(first_company.data.name),
+            correlation_id="poc031:keys:renamed-company",
+        )
+    ) != {first_company.twenty_id}:
+        raise ContractFailure("Company-Update pflegte den Match-Schlüssel nicht")
+    # The person update changed only the given name; the gateway must still
+    # store the key of the complete new name.
+    if ids(
+        await gateway.find_people_by_match_key(
+            person_match_key(
+                first_person.data.given_name, first_person.data.family_name
+            ),
+            correlation_id="poc031:keys:renamed-person",
+        )
+    ) != {first_person.twenty_id}:
+        raise ContractFailure("Teil-Umbenennung pflegte den Person-Schlüssel nicht")
+
+    variant, _ = await gateway.create_company(
+        local_id("company-variant", 1),
+        CompanyData(name="POC031 Bäckerei Sonnenschein K.G."),
+        correlation_id="poc031:keys:create-variant",
+    )
+    by_key = await gateway.find_companies_by_match_key(
+        "poc031 baeckerei sonnenschein kg",
+        correlation_id="poc031:keys:variant-key",
+    )
+    found = await find_company_matches(
+        gateway,
+        "poc031 BAECKEREI  Sonnenschein KG",
+        correlation_id="poc031:keys:variant-match",
+    )
+    if ids(by_key) != {variant.twenty_id} or ids(found) != {variant.twenty_id}:
+        raise ContractFailure(
+            "Schreibvariante wurde nicht exakt über den Schlüssel gefunden"
+        )
+
+    twins = await gateway.create_companies(
+        (
+            (local_id("company-twin", 1), CompanyData(name="POC031 Doppel-Werk GmbH")),
+            (local_id("company-twin", 2), CompanyData(name="poc031 doppel werk GMBH")),
+        ),
+        correlation_id="poc031:keys:create-twins",
+    )
+    ambiguous = await find_company_matches(
+        gateway,
+        "POC031 Doppel Werk GmbH",
+        correlation_id="poc031:keys:twins",
+    )
+    if ids(ambiguous) != {record.twenty_id for record, _ in twins}:
+        raise ContractFailure(
+            "Batch-Anlage pflegte keine Schlüssel oder Mehrdeutigkeit fehlt"
+        )
+
+    missing_id = local_id("company-missing", 1)
+    companies = await gateway.get_companies(
+        (*company_ids, single_company_id, missing_id),
+        correlation_id="poc031:keys:get-companies",
+    )
+    if ids(companies) != {*company_ids, single_company_id}:
+        raise ContractFailure("gebündelter Company-Read über 50 IDs ist unvollständig")
+    people = await gateway.get_people(
+        (*person_ids, single_person_id),
+        correlation_id="poc031:keys:get-people",
+    )
+    if ids(people) != {*person_ids, single_person_id}:
+        raise ContractFailure("gebündelter Person-Read über 50 IDs ist unvollständig")
+    contacts = await gateway.list_company_contacts(
+        (first_company.twenty_id, single_company_id),
+        correlation_id="poc031:keys:contacts",
+    )
+    if ids(contacts) != {*person_ids, single_person_id}:
+        raise ContractFailure("Kontakte der angefragten Firmen sind unvollständig")
+    if await gateway.get_companies((), correlation_id="poc031:keys:empty") != ():
+        raise ContractFailure("leere ID-Liste muss ohne Treffer bleiben")
+
+    async with raw_client() as twenty:
+        page = await twenty.get(
+            "/rest/companies",
+            params={
+                "limit": 200,
+                "filter": f'name[ilike]:"%{COMPANY_PREFIX}%"',
+            },
+        )
+        page.raise_for_status()
+        page_payload = page.json()
+        page_records = page_payload["data"]["companies"]
+        if (
+            len(page_records) != COMPANY_COUNT
+            or page_payload["pageInfo"]["hasNextPage"] is not False
+        ):
+            raise ContractFailure("Twenty liefert keine Seite mit 200 Datensätzen")
+
+        unkeyed_company = raw_record(
+            await twenty.post(
+                "/rest/companies",
+                json={
+                    "id": str(local_id("company-unkeyed", 1)),
+                    "name": UNKEYED_COMPANY_NAME,
+                },
+            )
+        )
+        unkeyed_person = raw_record(
+            await twenty.post(
+                "/rest/people",
+                json={
+                    "id": str(local_id("person-unkeyed", 1)),
+                    "name": {
+                        "firstName": UNKEYED_GIVEN_NAME,
+                        "lastName": UNKEYED_FAMILY_NAME,
+                    },
+                },
+            )
+        )
+        stale, _ = await gateway.create_company(
+            local_id("company-stale", 1),
+            CompanyData(name=STALE_COMPANY_OLD_NAME),
+            correlation_id="poc031:keys:create-stale",
+        )
+        renamed = raw_record(
+            await twenty.patch(
+                f"/rest/companies/{stale.twenty_id}",
+                json={"name": STALE_COMPANY_NEW_NAME},
+            )
+        )
+    if unkeyed_company.get("leonaidMatchKey") or unkeyed_person.get("leonaidMatchKey"):
+        raise ContractFailure("Rohdatensätze dürfen noch keinen Schlüssel besitzen")
+    if renamed.get("leonaidMatchKey") != company_match_key(STALE_COMPANY_OLD_NAME):
+        raise ContractFailure(
+            "Umbenennung außerhalb LeonAids muss den Schlüssel veralten"
+        )
+    # Without a stored key neither the key lookup nor the literal name search
+    # can see these spelling variants; the repair run must close that gap.
+    if await find_company_matches(
+        gateway,
+        UNKEYED_COMPANY_INPUT,
+        correlation_id="poc031:keys:unkeyed-before",
+    ):
+        raise ContractFailure("ungepflegte Schreibvariante wurde unerwartet gefunden")
+    # A stale stored key must never produce a match for the old name.
+    if await find_company_matches(
+        gateway,
+        STALE_COMPANY_OLD_NAME,
+        correlation_id="poc031:keys:stale-before",
+    ):
+        raise ContractFailure("veralteter Schlüssel erzeugte einen falschen Treffer")
+    print(
+        "twenty-gateway-contract: Match-Schlüssel, exakte Varianten, "
+        "Mehrdeutigkeit, ID-Batches und 200er-Seite real bewiesen"
+    )
+    return {
+        "unkeyedCompanyId": str(unkeyed_company["id"]),
+        "unkeyedPersonId": str(unkeyed_person["id"]),
+        "staleCompanyId": str(stale.twenty_id),
+    }
+
+
+async def verify_match_key_repair(state_path: Path) -> None:
+    """Run after the operator command repaired keys written outside LeonAid."""
+
+    state = read_state(state_path)
+    async with TwentyCrmGateway(settings()) as gateway:
+        company = await find_company_matches(
+            gateway,
+            UNKEYED_COMPANY_INPUT,
+            correlation_id="poc031:repair:company",
+        )
+        person = await find_person_matches(
+            gateway,
+            given_name="Juergen",
+            family_name="POC031 Mueller Ueberall",
+            correlation_id="poc031:repair:person",
+        )
+        renamed = await find_company_matches(
+            gateway,
+            "POC031 Loewen Apotheke",
+            correlation_id="poc031:repair:renamed",
+        )
+        old_name = await find_company_matches(
+            gateway,
+            STALE_COMPANY_OLD_NAME,
+            correlation_id="poc031:repair:old-name",
+        )
+        second_run = await gateway.repair_match_keys(
+            updated_since=None,
+            correlation_id="poc031:repair:idempotent",
+        )
+    if ids(company) != {UUID(str(state["unkeyedCompanyId"]))}:
+        raise ContractFailure("Backfill machte die Bestandsfirma nicht auffindbar")
+    if ids(person) != {UUID(str(state["unkeyedPersonId"]))}:
+        raise ContractFailure("Backfill machte die Bestandsperson nicht auffindbar")
+    if ids(renamed) != {UUID(str(state["staleCompanyId"]))} or old_name:
+        raise ContractFailure("Reparatur korrigierte den veralteten Schlüssel nicht")
+    if any(report.repaired for report in second_run) or not all(
+        report.scanned for report in second_run
+    ):
+        raise ContractFailure("zweiter Reparaturlauf war nicht idempotent")
+    print(
+        "twenty-gateway-contract: Backfill/Reparatur macht Bestandsdatensätze "
+        "auffindbar und ist idempotent"
     )
 
 
@@ -430,7 +704,12 @@ async def verify_after_restart(state_path: Path) -> None:
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     subparsers = result.add_subparsers(dest="command", required=True)
-    for command in ("exercise", "expect-outage", "verify-after-restart"):
+    for command in (
+        "exercise",
+        "verify-match-key-repair",
+        "expect-outage",
+        "verify-after-restart",
+    ):
         command_parser = subparsers.add_parser(command)
         command_parser.add_argument("--state", type=Path, required=True)
     return result
@@ -440,6 +719,8 @@ async def async_main() -> None:
     arguments = parser().parse_args()
     if arguments.command == "exercise":
         await exercise(arguments.state)
+    elif arguments.command == "verify-match-key-repair":
+        await verify_match_key_repair(arguments.state)
     elif arguments.command == "expect-outage":
         await expect_outage(arguments.state)
     elif arguments.command == "verify-after-restart":
@@ -451,8 +732,20 @@ async def async_main() -> None:
 def main() -> None:
     try:
         asyncio.run(async_main())
-    except (ContractFailure, CrmGatewayError, ValueError, KeyError) as error:
-        print(f"twenty-gateway-contract: ERROR: {error}", file=sys.stderr)
+    except (
+        ContractFailure,
+        CrmGatewayError,
+        ValueError,
+        KeyError,
+        httpx.HTTPError,
+    ) as error:
+        detail = (
+            f" [code={error.code} operation={error.operation} "
+            f"correlation={error.correlation_id} http={error.http_status}]"
+            if isinstance(error, CrmGatewayError)
+            else ""
+        )
+        print(f"twenty-gateway-contract: ERROR: {error}{detail}", file=sys.stderr)
         raise SystemExit(1) from error
 
 

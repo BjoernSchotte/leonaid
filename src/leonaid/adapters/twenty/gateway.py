@@ -9,6 +9,7 @@ import time
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Literal, Self
 from urllib.parse import urlparse
 from uuid import UUID
@@ -24,10 +25,17 @@ from leonaid.application.crm import (
     CrmPartyKind,
     CrmSyncReceipt,
     CrmSyncStatus,
+    MatchKeyRepairReport,
     PersonData,
     PersonRecord,
     PersonUpdate,
     PostalAddress,
+)
+from leonaid.application.crm_matching import (
+    MATCH_KEY_MAX_LENGTH,
+    company_match_key,
+    normalize_match_name,
+    person_match_key,
 )
 
 JsonObject = dict[str, Any]
@@ -35,7 +43,13 @@ OperationKind = Literal["read", "write"]
 logger = logging.getLogger(__name__)
 
 TWENTY_RATE_LIMIT_PER_MINUTE = 100
+# Twenty 2.24 caps batch mutations at 60 records and REST list pages at 200.
 TWENTY_BATCH_LIMIT = 60
+TWENTY_PAGE_LIMIT = 200
+# Keeps `id[in]:[...]` filters well below common URL length limits.
+TWENTY_ID_FILTER_CHUNK = 50
+# Provisioned custom field (infra/twenty/schema.json) holding the match key.
+MATCH_KEY_FIELD = "leonaidMatchKey"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +57,7 @@ class TwentyGatewaySettings:
     base_url: str
     api_key: SecretStr
     timeout_seconds: float = 5.0
-    page_size: int = 20
+    page_size: int = TWENTY_PAGE_LIMIT
     requests_per_minute: int = TWENTY_RATE_LIMIT_PER_MINUTE
     max_rate_limit_retries: int = 2
     max_retry_after_seconds: float = 60.0
@@ -56,9 +70,9 @@ class TwentyGatewaySettings:
             raise ValueError("Twenty API-Key darf nicht leer sein.")
         if self.timeout_seconds <= 0:
             raise ValueError("Twenty Timeout muss positiv sein.")
-        if not 1 <= self.page_size <= TWENTY_BATCH_LIMIT:
+        if not 1 <= self.page_size <= TWENTY_PAGE_LIMIT:
             raise ValueError(
-                f"Twenty page_size muss zwischen 1 und {TWENTY_BATCH_LIMIT} liegen."
+                f"Twenty page_size muss zwischen 1 und {TWENTY_PAGE_LIMIT} liegen."
             )
         if not 1 <= self.requests_per_minute <= TWENTY_RATE_LIMIT_PER_MINUTE:
             raise ValueError(
@@ -131,6 +145,8 @@ class TwentyCrmGateway:
         *,
         correlation_id: str,
     ) -> tuple[CompanyRecord, ...]:
+        """List every company; for imports and maintenance, never request paths."""
+
         records = await self._list_collection(
             "companies",
             filter_expression=None,
@@ -151,6 +167,35 @@ class TwentyCrmGateway:
             filter_expression=_contains_filter("name", query),
             correlation_id=correlation_id,
             operation="search_companies",
+        )
+        return tuple(_company_from_wire(record) for record in records)
+
+    async def find_companies_by_match_key(
+        self,
+        match_key: str,
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]:
+        records = await self._list_collection(
+            "companies",
+            filter_expression=_equals_filter(MATCH_KEY_FIELD, _match_key(match_key)),
+            correlation_id=correlation_id,
+            operation="find_companies_by_match_key",
+        )
+        return tuple(_company_from_wire(record) for record in records)
+
+    async def get_companies(
+        self,
+        twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]:
+        records = await self._list_by_values(
+            "companies",
+            "id",
+            twenty_ids,
+            correlation_id=correlation_id,
+            operation="get_companies",
         )
         return tuple(_company_from_wire(record) for record in records)
 
@@ -265,7 +310,14 @@ class TwentyCrmGateway:
             twenty_id=twenty_id,
             json_body=_company_update_to_wire(update),
         )
-        record = _company_from_wire(_single_record(response, "company"))
+        wire = await self._ensure_match_key(
+            "companies",
+            _single_record(response, "company"),
+            leonaid_id=leonaid_id,
+            correlation_id=correlation_id,
+            operation="update_company",
+        )
+        record = _company_from_wire(wire)
         return record, _receipt(
             leonaid_id,
             record.twenty_id,
@@ -278,6 +330,8 @@ class TwentyCrmGateway:
         *,
         correlation_id: str,
     ) -> tuple[PersonRecord, ...]:
+        """List every person; for imports and maintenance, never request paths."""
+
         records = await self._list_collection(
             "people",
             filter_expression=None,
@@ -306,6 +360,50 @@ class TwentyCrmGateway:
             filter_expression=filter_expression,
             correlation_id=correlation_id,
             operation="search_people",
+        )
+        return tuple(_person_from_wire(record) for record in records)
+
+    async def find_people_by_match_key(
+        self,
+        match_key: str,
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]:
+        records = await self._list_collection(
+            "people",
+            filter_expression=_equals_filter(MATCH_KEY_FIELD, _match_key(match_key)),
+            correlation_id=correlation_id,
+            operation="find_people_by_match_key",
+        )
+        return tuple(_person_from_wire(record) for record in records)
+
+    async def get_people(
+        self,
+        twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]:
+        records = await self._list_by_values(
+            "people",
+            "id",
+            twenty_ids,
+            correlation_id=correlation_id,
+            operation="get_people",
+        )
+        return tuple(_person_from_wire(record) for record in records)
+
+    async def list_company_contacts(
+        self,
+        company_twenty_ids: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]:
+        records = await self._list_by_values(
+            "people",
+            "companyId",
+            company_twenty_ids,
+            correlation_id=correlation_id,
+            operation="list_company_contacts",
         )
         return tuple(_person_from_wire(record) for record in records)
 
@@ -420,13 +518,140 @@ class TwentyCrmGateway:
             twenty_id=twenty_id,
             json_body=_person_update_to_wire(update),
         )
-        record = _person_from_wire(_single_record(response, "person"))
+        wire = await self._ensure_match_key(
+            "people",
+            _single_record(response, "person"),
+            leonaid_id=leonaid_id,
+            correlation_id=correlation_id,
+            operation="update_person",
+        )
+        record = _person_from_wire(wire)
         return record, _receipt(
             leonaid_id,
             record.twenty_id,
             CrmPartyKind.PERSON,
             correlation_id,
         )
+
+    async def repair_match_keys(
+        self,
+        *,
+        updated_since: datetime | None,
+        correlation_id: str,
+    ) -> tuple[MatchKeyRepairReport, ...]:
+        """Backfill or correct stored match keys in an idempotent maintenance run.
+
+        Records created or renamed outside LeonAid (Twenty UI, native CSV
+        import, older LeonAid versions) carry no or a stale key. The run walks
+        both collections page by page and patches only records whose stored key
+        differs from the key of their current name. ``updated_since`` limits a
+        run to records changed since an earlier run.
+        """
+
+        filter_expression = (
+            None
+            if updated_since is None
+            else _greater_or_equal_filter("updatedAt", _instant(updated_since))
+        )
+        reports: list[MatchKeyRepairReport] = []
+        collections: tuple[tuple[Literal["companies", "people"], CrmPartyKind], ...] = (
+            ("companies", CrmPartyKind.COMPANY),
+            ("people", CrmPartyKind.PERSON),
+        )
+        for collection, kind in collections:
+            operation = f"repair_match_keys_{collection}"
+            records = await self._list_collection(
+                collection,
+                filter_expression=filter_expression,
+                correlation_id=correlation_id,
+                operation=operation,
+            )
+            repaired = 0
+            for record in records:
+                if _stored_match_key(record) != _expected_match_key(collection, record):
+                    await self._ensure_match_key(
+                        collection,
+                        record,
+                        leonaid_id=None,
+                        correlation_id=correlation_id,
+                        operation=operation,
+                    )
+                    repaired += 1
+            reports.append(
+                MatchKeyRepairReport(
+                    party_kind=kind,
+                    scanned=len(records),
+                    repaired=repaired,
+                )
+            )
+        return tuple(reports)
+
+    async def _ensure_match_key(
+        self,
+        collection: Literal["companies", "people"],
+        record: JsonObject,
+        *,
+        leonaid_id: UUID | None,
+        correlation_id: str,
+        operation: str,
+    ) -> JsonObject:
+        """Return the record after making its stored key match its current name."""
+
+        expected = _expected_match_key(collection, record)
+        if _stored_match_key(record) == expected:
+            return record
+        twenty_id = _uuid(record.get("id"), f"{collection}.id")
+        response = await self._request(
+            "PATCH",
+            f"/rest/{collection}/{twenty_id}",
+            operation=f"{operation}_match_key",
+            operation_kind="write",
+            correlation_id=correlation_id,
+            leonaid_id=leonaid_id,
+            twenty_id=twenty_id,
+            json_body={MATCH_KEY_FIELD: expected},
+        )
+        updated = _single_record(
+            response, "company" if collection == "companies" else "person"
+        )
+        if _stored_match_key(updated) != expected:
+            raise CrmGatewayError(
+                "crm_match_key_not_persisted",
+                "Twenty hat den Match-Schlüssel nicht gespeichert.",
+                operation=f"{operation}_match_key",
+                correlation_id=correlation_id,
+                retryable=True,
+                outcome_unknown=False,
+                leonaid_id=leonaid_id,
+                twenty_id=twenty_id,
+            )
+        return updated
+
+    async def _list_by_values(
+        self,
+        collection: Literal["companies", "people"],
+        field_name: Literal["id", "companyId"],
+        values: tuple[UUID, ...],
+        *,
+        correlation_id: str,
+        operation: str,
+    ) -> tuple[JsonObject, ...]:
+        unique = sorted(set(values), key=str)
+        records: list[JsonObject] = []
+        seen: set[UUID] = set()
+        for index in range(0, len(unique), TWENTY_ID_FILTER_CHUNK):
+            chunk = unique[index : index + TWENTY_ID_FILTER_CHUNK]
+            for record in await self._list_collection(
+                collection,
+                filter_expression=_in_filter(field_name, chunk),
+                correlation_id=correlation_id,
+                operation=operation,
+            ):
+                record_id = _uuid(record.get("id"), f"{collection}.id")
+                if record_id not in seen:
+                    seen.add(record_id)
+                    records.append(record)
+        return tuple(records)
 
     async def _list_collection(
         self,
@@ -723,6 +948,61 @@ def _contains_filter(field_name: str, value: str) -> str:
     return f"{field_name}[ilike]:{json.dumps(f'%{value}%', ensure_ascii=False)}"
 
 
+def _equals_filter(field_name: str, value: str) -> str:
+    return f"{field_name}[eq]:{json.dumps(value, ensure_ascii=False)}"
+
+
+def _greater_or_equal_filter(field_name: str, value: str) -> str:
+    return f"{field_name}[gte]:{json.dumps(value)}"
+
+
+def _in_filter(field_name: str, values: Sequence[UUID]) -> str:
+    # Twenty splits the list at commas and rejects items with whitespace.
+    encoded = json.dumps([str(value) for value in values], separators=(",", ":"))
+    return f"{field_name}[in]:{encoded}"
+
+
+def _instant(value: datetime) -> str:
+    if value.tzinfo is None:
+        raise ValueError("updated_since muss eine Zeitzone besitzen.")
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _match_key(value: str) -> str:
+    if not value or len(value) > MATCH_KEY_MAX_LENGTH:
+        raise ValueError(
+            f"Match-Schlüssel muss 1 bis {MATCH_KEY_MAX_LENGTH} Zeichen enthalten."
+        )
+    if normalize_match_name(value) != value:
+        raise ValueError("Match-Schlüssel ist nicht normalisiert.")
+    return value
+
+
+def _stored_match_key(record: Mapping[str, Any]) -> str | None:
+    return _wire_optional(record.get(MATCH_KEY_FIELD))
+
+
+def _expected_match_key(
+    collection: Literal["companies", "people"],
+    record: Mapping[str, Any],
+) -> str | None:
+    """Return the key of the record's current name, or None for an empty name."""
+
+    if collection == "companies":
+        name = record.get("name")
+        key = company_match_key(name if isinstance(name, str) else "")
+    else:
+        name_value = record.get("name")
+        name_parts = name_value if isinstance(name_value, Mapping) else {}
+        given = name_parts.get("firstName")
+        family = name_parts.get("lastName")
+        key = person_match_key(
+            given if isinstance(given, str) else "",
+            family if isinstance(family, str) else "",
+        )
+    return key or None
+
+
 def _mapping(value: object, label: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise CrmGatewayError(
@@ -810,6 +1090,7 @@ def _company_to_wire(company: CompanyData) -> JsonObject:
     return {
         "name": company.name,
         "address": _address_to_wire(company.address),
+        MATCH_KEY_FIELD: company_match_key(company.name) or None,
     }
 
 
@@ -817,6 +1098,7 @@ def _company_update_to_wire(update: CompanyUpdate) -> JsonObject:
     result: JsonObject = {}
     if update.name is not None:
         result["name"] = update.name
+        result[MATCH_KEY_FIELD] = company_match_key(update.name) or None
     if update.address is not None:
         result["address"] = _address_to_wire(update.address)
     return result
@@ -843,6 +1125,9 @@ def _person_to_wire(person: PersonData) -> JsonObject:
             "primaryEmail": person.email or "",
             "additionalEmails": [],
         },
+        MATCH_KEY_FIELD: (
+            person_match_key(person.given_name, person.family_name) or None
+        ),
     }
     if person.company_twenty_id is not None:
         result["companyId"] = str(person.company_twenty_id)
@@ -863,6 +1148,11 @@ def _person_update_to_wire(update: PersonUpdate) -> JsonObject:
         if update.family_name is not None:
             name["lastName"] = update.family_name
         result["name"] = name
+        if update.given_name is not None and update.family_name is not None:
+            # A partial rename is completed by the follow-up key check.
+            result[MATCH_KEY_FIELD] = (
+                person_match_key(update.given_name, update.family_name) or None
+            )
     if update.email is not None:
         result["emails"] = {
             "primaryEmail": update.email,
