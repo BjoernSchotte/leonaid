@@ -97,8 +97,8 @@
     {
       "id": "caddy",
       "version": "2.11.4-alpine",
-      "image": "docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648",
-      "digest": "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648",
+      "image": "docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b",
+      "digest": "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b",
       "license": "Apache-2.0",
       "upstream": "https://github.com/caddyserver/caddy/releases/tag/v2.11.4",
       "roles": [
@@ -271,8 +271,8 @@
     {
       "id": "caddy-builder",
       "version": "2.11.4-builder-alpine",
-      "image": "docker.io/library/caddy:2.11.4-builder-alpine@sha256:1a1689db91cfb390b2d856a1b3774e796852822cd723fa54c475b272f82bb4b7",
-      "digest": "sha256:1a1689db91cfb390b2d856a1b3774e796852822cd723fa54c475b272f82bb4b7",
+      "image": "docker.io/library/caddy:2.11.4-builder-alpine@sha256:0aa610043dab5da82ad0a0268e46bb852785e6f5160f12f1c6fe3f42903d7e1b",
+      "digest": "sha256:0aa610043dab5da82ad0a0268e46bb852785e6f5160f12f1c6fe3f42903d7e1b",
       "license": "Apache-2.0",
       "upstream": "https://github.com/caddyserver/caddy/releases/tag/v2.11.4",
       "roles": [

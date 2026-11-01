@@ -20,7 +20,11 @@ reviewer: Björn Schotte
 | Mail relay                    | login, invitation, and invoice mail       | external provider; local Mailpit   |
 
 Locally only Caddy publishes `127.0.0.1:8443` for HTTPS and
-`127.0.0.1:8080` for diagnostic HTTP. The pilot overlay exposes only 80/443.
+`127.0.0.1:8080` for diagnostic HTTP. If either port is taken, `bootstrap`
+picks the first free pair from 28080 once and stores it as `LEONAID_HTTP_PORT`
+and `LEONAID_HTTPS_PORT` in `.env.local`. For LAN access set
+`LEONAID_BIND_ADDRESS=0.0.0.0` and `LEONAID_LAN_HOST` to the host's LAN
+name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev stack is then reachable from the LAN. The pilot overlay exposes only 80/443.
 Databases, Redis, S3, and internal APIs stay inside Compose networks.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,

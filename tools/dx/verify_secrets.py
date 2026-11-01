@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 import sys
 from pathlib import Path
 
-CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED"}
+PORT_KEYS = {"LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT"}
+NETWORK_KEYS = {"LEONAID_BIND_ADDRESS", "LEONAID_LAN_HOST"}
+CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS, *NETWORK_KEYS}
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -47,6 +50,31 @@ def main() -> int:
         print(
             "secret-check: ERROR: LEONAID_RESET_ALLOWED must be true locally",
             file=sys.stderr,
+        )
+        return 1
+
+    ports = [actual[key] for key in sorted(PORT_KEYS)]
+    if not all(port.isdigit() and 1024 <= int(port) <= 65535 for port in ports) or (
+        len(set(ports)) != len(ports)
+    ):
+        print(
+            "secret-check: ERROR: local host ports must be distinct, 1024-65535",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        ipaddress.ip_address(actual["LEONAID_BIND_ADDRESS"])
+    except ValueError:
+        print(
+            "secret-check: ERROR: LEONAID_BIND_ADDRESS must be an IP", file=sys.stderr
+        )
+        return 1
+    if not actual["LEONAID_LAN_HOST"] or any(
+        char in actual["LEONAID_LAN_HOST"] for char in " ,/:{}"
+    ):
+        print(
+            "secret-check: ERROR: LEONAID_LAN_HOST must be a bare host", file=sys.stderr
         )
         return 1
 

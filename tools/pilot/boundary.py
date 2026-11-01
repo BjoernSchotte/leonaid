@@ -32,13 +32,24 @@ class BoundaryError(RuntimeError):
     """Raised when a private pilot path crosses a public boundary."""
 
 
+def git_command(root: Path, *arguments: str) -> list[str]:
+    # Linux bind mounts keep the host owner; Git in a root container would
+    # otherwise refuse the checkout as "dubious ownership".
+    safe = f"safe.directory={root.resolve()}"
+    return ["git", "-c", safe, "-C", str(root), *arguments]
+
+
 def git_lines(root: Path, *arguments: str) -> list[str]:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
-        check=True,
+        git_command(root, *arguments),
+        check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        raise BoundaryError(
+            f"git {arguments[0]} fehlgeschlagen: {result.stderr.strip()}"
+        )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -64,15 +75,17 @@ def check_ignored_paths(root: Path) -> None:
         ".local/test-logins.md",
     ]
     result = subprocess.run(
-        ["git", "-C", str(root), "check-ignore", "--stdin"],
+        git_command(root, "check-ignore", "--stdin"),
         input="\n".join(probes) + "\n",
         check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode not in {0, 1}:
+        raise BoundaryError(f"git check-ignore fehlgeschlagen: {result.stderr.strip()}")
     ignored = set(result.stdout.splitlines())
     missing = [probe for probe in probes if probe not in ignored]
-    if result.returncode not in {0, 1} or missing:
+    if missing:
         raise BoundaryError(f"private Pfade sind nicht ignoriert: {', '.join(missing)}")
 
 
