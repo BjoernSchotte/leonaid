@@ -4,11 +4,12 @@ import {
   CharityIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
   type ActionGoalRequest,
+  type ActionTemplateSummaryResponse,
   type BeneficiaryDraftRequest,
   type CreateCharityActionRequest,
   type CharityActionResponse,
@@ -36,7 +37,7 @@ const capabilities: ReadonlyArray<{
     value: "acquisition",
   },
   {
-    description: "Aktionsangebote wie Krapfenboxen oder Sponsorings.",
+    description: "Aktionsangebote wie Boxen, Stückware oder Sponsorings.",
     label: "Angebote",
     value: "offerings",
   },
@@ -50,7 +51,52 @@ const capabilities: ReadonlyArray<{
     label: "Rechnungen",
     value: "invoicing",
   },
+  {
+    description:
+      "Liefertage, Lieferadressen und Ausfahrer. Benötigt Bestellungen.",
+    label: "Auslieferung",
+    value: "delivery",
+  },
 ];
+
+const capabilityLabels = new Map(
+  capabilities.map((capability) => [capability.value, capability.label]),
+);
+
+// The neutral catalogue entry behind "Individuelle Charity-Aktion".
+const BLANK_TEMPLATE_KEY = "blank";
+
+function joinGerman(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} und ${items[items.length - 1]}`;
+}
+
+function templateHelp(template: ActionTemplateSummaryResponse): string {
+  const adopted = [
+    template.offeringCount > 0 ? "Angebote" : null,
+    template.hasOrderForm ? "Bestellformular" : null,
+  ].filter((item): item is string => item !== null);
+  const sentences = [
+    adopted.length
+      ? `${joinGerman(adopted)} ${adopted.length > 1 ? "werden" : "wird"} aus der Vorlage „${template.displayName}“ übernommen.`
+      : template.description,
+  ];
+  if (template.capabilities.includes("delivery")) {
+    sentences.push(
+      "Die Liefertermine legst du nach dem Speichern des Entwurfs fest.",
+    );
+  }
+  return sentences.join(" ");
+}
+
+function templateCapabilityText(template: ActionTemplateSummaryResponse) {
+  const labels = template.capabilities
+    .map((capability) => capabilityLabels.get(capability))
+    .filter((label): label is string => Boolean(label));
+  return labels.length
+    ? `${joinGerman(labels)} werden aus der Vorlage „${template.displayName}“ übernommen.`
+    : `Die Vorlage „${template.displayName}“ aktiviert keine Funktionen.`;
+}
 
 export interface CreateActionPageProps {
   readonly client: LeonAidApiClient;
@@ -60,17 +106,31 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryDraft[]>([
     { key: 0, organizationName: "", publicDescription: "" },
   ]);
-  const [template, setTemplate] = useState<"blank" | "krapfentaxi">("blank");
+  // "" selects an individual action whose capabilities the admin picks.
+  const [templateKey, setTemplateKey] = useState("");
   const [created, setCreated] = useState<CharityActionResponse>();
   const [error, setError] = useState<string>();
+  const templates = useQuery({
+    queryKey: ["action-templates"],
+    queryFn: () => client.listActionTemplates(),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const templateOptions = (templates.data?.items ?? []).filter(
+    (item) => item.key !== BLANK_TEMPLATE_KEY,
+  );
+  const template = templateOptions.find((item) => item.key === templateKey);
+  const plansDelivery = template
+    ? template.capabilities.includes("delivery")
+    : false;
   const mutation = useMutation({
     mutationFn: async (draft: CreateCharityActionRequest) => {
-      if (template === "krapfentaxi") {
+      if (template) {
         const { capabilities: _capabilities, ...details } = draft;
         return (
           await client.createCharityActionFromTemplate({
             ...details,
-            templateKey: template,
+            templateKey: template.key,
           })
         ).action;
       }
@@ -143,7 +203,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
             {created.name} wurde als Entwurf angelegt.
           </span>
         </StatusMessage>
-        {template === "krapfentaxi" && (
+        {created.capabilities.includes("delivery") && (
           <>
             <p>
               Ergänze jetzt die Liefertermine. Du kannst den Entwurf auch
@@ -159,7 +219,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         )}
         <a
           className="ui-button ui-button--secondary"
-          href={`/admin/actions/${created.id}${template === "krapfentaxi" ? "#delivery" : ""}`}
+          href={`/admin/actions/${created.id}${created.capabilities.includes("delivery") ? "#delivery" : ""}`}
         >
           Aktion jetzt verwalten
         </a>
@@ -199,7 +259,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         <li>
           <span>3</span> Begünstigte
         </li>
-        {template === "krapfentaxi" && (
+        {plansDelivery && (
           <li>
             <span>4</span> Lieferung
           </li>
@@ -221,19 +281,23 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
             <label className="action-field action-field--wide">
               <span>Aktionsvorlage</span>
               <select
-                value={template}
-                disabled={mutation.isPending}
-                onChange={(event) =>
-                  setTemplate(event.target.value as "blank" | "krapfentaxi")
-                }
+                value={templateKey}
+                disabled={mutation.isPending || templates.isPending}
+                onChange={(event) => setTemplateKey(event.target.value)}
               >
-                <option value="blank">Individuelle Charity-Aktion</option>
-                <option value="krapfentaxi">Krapfentaxi</option>
+                <option value="">Individuelle Charity-Aktion</option>
+                {templateOptions.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.displayName}
+                  </option>
+                ))}
               </select>
               <small>
-                {template === "krapfentaxi"
-                  ? "Angebote und Bestellformular werden aus der Krapfentaxi-Vorlage übernommen. Die Liefertermine legst du nach dem Speichern des Entwurfs fest."
-                  : "Wähle die benötigten Funktionen selbst. Für diese Vorlage gibt es keine Lieferplanung."}
+                {template
+                  ? templateHelp(template)
+                  : templates.isError
+                    ? "Die Vorlagen konnten nicht geladen werden. Du kannst eine individuelle Aktion anlegen."
+                    : "Wähle die benötigten Funktionen selbst."}
               </small>
             </label>
             <label className="action-field action-field--wide">
@@ -332,11 +396,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
               <small>Aktiviere nur, was diese Aktion wirklich benötigt.</small>
             </div>
           </legend>
-          {template === "krapfentaxi" ? (
-            <p>
-              Akquise, Angebote, Bestellungen und Rechnungen werden aus der
-              Krapfentaxi-Vorlage übernommen.
-            </p>
+          {template ? (
+            <p>{templateCapabilityText(template)}</p>
           ) : (
             <div className="action-choice-grid">
               {capabilities.map((capability) => (

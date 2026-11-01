@@ -2,6 +2,7 @@ import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
 import { useActionInUrl } from "../action-admin/action-location";
 import { DeliverySummary } from "./delivery-fields";
 import { CompleteDraft } from "./complete-draft";
+import { quantitySummary } from "./quantities";
 
 import {
   Calendar03Icon,
@@ -481,6 +482,10 @@ export function CommitmentAdminPage({
   const euroTotal = commitments.data?.currencyTotals.find(
     (item) => item.currency === "EUR",
   );
+  const quantityTotals = quantitySummary(
+    commitments.data?.quantities ?? [],
+    commitments.data?.totalPieces ?? 0,
+  );
 
   return (
     <div className="commitment-page commitment-page--admin">
@@ -586,11 +591,8 @@ export function CommitmentAdminPage({
                 />
               </span>
               <p>
-                <small>Boxen · Stück</small>
-                <strong>
-                  {commitments.data?.totalBoxes ?? 0} ·{" "}
-                  {commitments.data?.totalPieces ?? 0}
-                </strong>
+                <small>{quantityTotals.labels.join(" · ")}</small>
+                <strong>{quantityTotals.values.join(" · ")}</strong>
               </p>
             </div>
             <div>

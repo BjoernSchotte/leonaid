@@ -69,7 +69,7 @@ const panels = [
     legacyHashes: ["publication"],
   },
   {
-    description: "Tage und Zeitfenster für Krapfentaxi",
+    description: "Tage und Zeitfenster für die Auslieferung",
     icon: Calendar03Icon,
     id: "delivery",
     label: "Lieferung",
@@ -112,17 +112,6 @@ export interface ManageActionPageProps {
 
 export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
   const [activePanel, setActivePanel] = useState<PanelId>(initialPanel);
-  const configuration = useQuery({
-    queryKey: ["charity-action-configuration", actionId],
-    queryFn: () => client.getCharityActionConfiguration(actionId),
-    retry: false,
-  });
-  const hasDelivery = configuration.data?.template.key === "krapfentaxi";
-  const visiblePanels = panels.filter(
-    (panel) => panel.id !== "delivery" || hasDelivery,
-  );
-  const selectedPanel =
-    activePanel === "delivery" && !hasDelivery ? "basics" : activePanel;
   const tabRefs = useRef(new Map<PanelId, HTMLButtonElement>());
   const queryClient = useQueryClient();
   const queryKey = ["action-management", actionId] as const;
@@ -134,6 +123,14 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     retryDelay: (attempt) => 150 * (attempt + 1),
     staleTime: 0,
   });
+  // Delivery planning follows the action's capability, not its template name.
+  const hasDelivery =
+    query.data?.action.capabilities.includes("delivery") ?? false;
+  const visiblePanels = panels.filter(
+    (panel) => panel.id !== "delivery" || hasDelivery,
+  );
+  const selectedPanel =
+    activePanel === "delivery" && !hasDelivery ? "basics" : activePanel;
 
   function updateAction(action: CharityActionResponse) {
     queryClient.setQueryData<ActionManagementResponse>(
@@ -277,18 +274,6 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           Bearbeitungsfelder sind schreibgeschützt.
         </StatusMessage>
       ) : null}
-
-      {configuration.isError && (
-        <StatusMessage tone="error">
-          Die Aktionsvorlage konnte nicht geladen werden.
-          <Button
-            variant="secondary"
-            onClick={() => void configuration.refetch()}
-          >
-            Erneut versuchen
-          </Button>
-        </StatusMessage>
-      )}
 
       <div className="action-workspace-nav">
         <div

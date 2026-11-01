@@ -20,6 +20,7 @@ import {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import { CompleteDraft } from "./complete-draft";
+import { quantityLabel } from "./quantities";
 import { useActionInUrl } from "../action-admin/action-location";
 import {
   DeliveryFields,
@@ -43,22 +44,11 @@ interface RecipientDraft {
   readonly streetLine1: string;
 }
 
-const unitLabels = {
-  box: ["Box", "Boxen"],
-  package: ["Paket", "Pakete"],
-  piece: ["Stück", "Stück"],
-  sponsoring: ["Sponsoring", "Sponsorings"],
-} as const;
-
 function formatMoney(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
     currency,
     style: "currency",
   }).format(amountMinor / 100);
-}
-
-function quantityLabel(quantity: number, unit: keyof typeof unitLabels) {
-  return unitLabels[unit][quantity === 1 ? 0 : 1];
 }
 
 function captureError(error: unknown) {

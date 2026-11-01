@@ -27,7 +27,7 @@
     },
     {
       "file": "packages/features/src/action-admin/manage-action.tsx",
-      "contains": ["configuration.data?.template.key === \"krapfentaxi\""]
+      "contains": ["query.data?.action.capabilities.includes(\"delivery\")"]
     }
   ],
   "DOC-P013": [

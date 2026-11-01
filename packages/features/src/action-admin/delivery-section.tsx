@@ -246,8 +246,8 @@ function DeliveryEditor({
         <div>
           <h2 id="delivery-heading">Lieferung planen</h2>
           <p>
-            Lege Tage und Zeitfenster für die Krapfentaxi-Lieferungen fest. Alle
-            Uhrzeiten gelten in der gewählten Zeitzone.
+            Lege Tage und Zeitfenster für die Lieferungen dieser Aktion fest.
+            Alle Uhrzeiten gelten in der gewählten Zeitzone.
           </p>
         </div>
       </header>
