@@ -109,6 +109,8 @@ docker run --rm \
   --env LEONAID_COMPONENT_API_BASE_URL=http://api:8000 \
   --env LEONAID_COMPONENT_ACTION_ID=20000000-0000-4000-8000-000000000001 \
   --env LEONAID_COMPONENT_SESSION=poc052-10000000-0000-4000-8000-000000000002-real-server-session-token \
+  --env HOME=/tmp \
+  --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace" \
   --workdir /workspace \
   "$BUN_IMAGE" \

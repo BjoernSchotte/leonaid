@@ -41,6 +41,7 @@ if [ "$status" -ne 0 ]; then
 fi
 
 if ! docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
