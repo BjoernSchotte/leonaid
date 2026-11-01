@@ -215,3 +215,41 @@ def test_public_order_rejects_an_invalid_phone_before_calling_the_crm() -> None:
         )
 
     assert captured.value.code == "public_order_phone_invalid"
+
+
+def test_delivery_recipient_is_only_required_for_delivery_actions() -> None:
+    from leonaid.application.public_orders import (
+        PublicOrderContext,
+        PublicOrderService,
+    )
+    from leonaid.domain.action_templates import OrderFormConfiguration
+
+    form = OrderFormConfiguration(
+        form_key="bestellung",
+        title="Bestellen",
+        introduction="Unterstützen Sie die Aktion.",
+        submit_label="Absenden",
+        require_company_name=False,
+        require_contact_name=True,
+        require_email=True,
+        require_phone=False,
+        require_delivery_address=True,
+        require_billing_address=True,
+        allow_message=True,
+    )
+    without_address = replace(public_order(), delivery_recipient=None)
+    pickup = PublicOrderContext(
+        action_id=ACTION_ID, action_name="Abholverkauf", order_form=form
+    )
+    assert not pickup.requires_delivery_recipient
+    PublicOrderService._require_form_fields(pickup, without_address)
+
+    delivery = replace(pickup, delivers=True)
+    assert delivery.requires_delivery_recipient
+    PublicOrderService._require_form_fields(delivery, public_order())
+    with pytest.raises(DomainInvariantError) as captured:
+        PublicOrderService._require_form_fields(delivery, without_address)
+    assert captured.value.code == "public_order_delivery_recipient_required"
+    assert without_address.request_hash(
+        action_id=ACTION_ID, public_alias="abholverkauf"
+    ) != public_order().request_hash(action_id=ACTION_ID, public_alias="abholverkauf")

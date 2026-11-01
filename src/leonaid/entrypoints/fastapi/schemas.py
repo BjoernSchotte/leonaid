@@ -685,6 +685,7 @@ ActionCapabilityValue = Literal[
     "offerings",
     "ordering",
     "invoicing",
+    "delivery",
 ]
 CharityActionStatusValue = Literal[
     "draft",
@@ -693,9 +694,25 @@ CharityActionStatusValue = Literal[
     "completed",
     "archived",
 ]
-ActionTemplateKeyValue = Literal["blank", "krapfentaxi"]
+# Template keys are open data (any published template), validated as slugs.
+ActionTemplateKeyValue = Annotated[
+    str,
+    Field(min_length=1, max_length=64, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"),
+]
+PresentationThemeValue = Annotated[
+    str,
+    Field(min_length=1, max_length=64, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"),
+]
+BOX_FIELD_DEPRECATION = (
+    "Boxes are one offering unit among others; use quantities instead."
+)
 OfferingStatusValue = Literal["draft", "active", "inactive"]
 OfferingUnitValue = Literal["box", "piece", "package", "sponsoring"]
+
+
+class UnitQuantityResponse(TransportModel):
+    unit: OfferingUnitValue
+    quantity: int = Field(gt=0)
 
 
 def decimal_text(value: str) -> str:
@@ -772,6 +789,7 @@ class CharityActionResponse(TransportModel):
     capabilities: list[ActionCapabilityValue]
     beneficiaries: list[BeneficiaryResponse]
     goal: ActionGoalResponse
+    presentation_theme: PresentationThemeValue | None
 
 
 class PublicOfferingResponse(TransportModel):
@@ -816,6 +834,8 @@ class PublicCharityActionResponse(TransportModel):
     goal: ActionGoalResponse
     offerings: list[PublicOfferingResponse]
     order_form: PublicOrderFormResponse | None
+    capabilities: list[ActionCapabilityValue]
+    presentation_theme: PresentationThemeValue | None
 
 
 class PublicActionRouteResponse(TransportModel):
@@ -878,7 +898,8 @@ class CreatePublicOrderRequest(TransportModel):
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
     party: PublicOrderPartyRequest
-    delivery_recipient: PublicOrderDeliveryRecipientRequest
+    # Required only when the action has the delivery capability.
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     invoice_recipient: PublicOrderInvoiceRecipientRequest
     lines: list[PublicOrderLineRequest] = Field(min_length=1, max_length=100)
     message: str | None = Field(default=None, max_length=1_000)
@@ -904,7 +925,7 @@ class PublicOrderResultResponse(TransportModel):
     status: Literal["review_ready"]
     total_minor: int = Field(ge=0)
     currency: str
-    total_boxes: int = Field(ge=0)
+    total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     total_pieces: int = Field(ge=0)
     quantities: list[PublicOrderQuantityResponse] = Field(min_length=1)
     crm_outcome: Literal["created", "reused"]
@@ -919,6 +940,7 @@ class ActionTemplateSummaryResponse(TransportModel):
     capabilities: list[ActionCapabilityValue]
     offering_count: int = Field(ge=0)
     has_order_form: bool
+    presentation_theme: PresentationThemeValue | None
 
 
 class ActionTemplateListResponse(TransportModel):
@@ -1070,7 +1092,7 @@ class CommitmentLineResponse(TransportModel):
     unit: OfferingUnitValue
     pieces_per_unit: int | None
     piece_count: int = Field(ge=0)
-    box_count: int = Field(ge=0)
+    box_count: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     unit_price_minor: int = Field(ge=0)
     line_total_minor: int = Field(ge=0)
     currency: str
@@ -1097,7 +1119,8 @@ class CommitmentResponse(TransportModel):
     total_minor: int = Field(ge=0)
     currency: str
     total_pieces: int = Field(ge=0)
-    total_boxes: int = Field(ge=0)
+    total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
+    quantities: list[UnitQuantityResponse]
     replayed: bool
 
 
@@ -1124,7 +1147,8 @@ class CommitmentListResponse(TransportModel):
     items: list[CommitmentRecordResponse]
     currency_totals: list[CommitmentCurrencyTotalResponse]
     total_pieces: int = Field(ge=0)
-    total_boxes: int = Field(ge=0)
+    total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
+    quantities: list[UnitQuantityResponse]
 
 
 class IssueInvoiceRequest(TransportModel):
@@ -1316,8 +1340,9 @@ class DashboardCommitmentResponse(TransportModel):
     total: int = Field(ge=0)
     active_total: int = Field(ge=0)
     active_total_minor: int = Field(ge=0)
-    total_boxes: int = Field(ge=0)
+    total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     total_pieces: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
     currency: str
 
 
@@ -1867,8 +1892,9 @@ class ActivityFeedItemResponse(TransportModel):
     public_reference: str
     total_minor: int = Field(ge=0)
     currency: str = Field(min_length=3, max_length=3)
-    total_boxes: int = Field(ge=0)
+    total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     total_pieces: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
     next_action_label: str
     next_action_href: str
     occurred_at: datetime

@@ -4,9 +4,9 @@ description: Die verbindlichen deutschen LeonAid-Begriffe und ihre englischen En
 docId: DOC-P002
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
 reviewer: Björn Schotte
 ---
 
@@ -17,7 +17,7 @@ reviewer: Björn Schotte
 | Akquisiteur          | acquirer              | Eine aktionsbezogene Rolle für zugewiesene Firmen und Kontakte.                                                               |
 | Sponsor              | sponsor               | Eine Firma oder Person im CRM, die einer Akquise zugeordnet werden kann.                                                      |
 | Bestellung           | order                 | Eine verbindliche Auswahl von Angeboten mit serverseitig berechnetem Preis. Der Code nennt das Fachobjekt `Commitment`.       |
-| Lieferfenster        | delivery window       | Ein vom Charity-Admin für eine Krapfentaxi-Aktion freigegebener Lieferzeitraum.                                               |
+| Lieferfenster        | delivery window       | Ein vom Charity-Admin für eine Aktion mit Auslieferung freigegebener Lieferzeitraum.                                          |
 | Rechnung             | invoice               | Ein unveränderlicher Beleg-Snapshot mit eigenem Status und PDF.                                                               |
 | System-Admin         | system administrator  | Die globale Produktrolle für Benutzer und systemweite Einstellungen.                                                          |
 | Sysadmin / Betreiber | system operator       | Die Person, die Host, Container, Secrets, Backup und Wiederherstellung betreibt. Das ist nicht automatisch eine Produktrolle. |

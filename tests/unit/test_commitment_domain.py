@@ -20,6 +20,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
+    UnitQuantity,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -172,6 +173,19 @@ def test_commitment_sources_keep_buyer_recipient_and_lines_separate(
     assert commitment.lines[0].description_snapshot == "Krapfenbox"
     assert commitment.total_boxes == 3
     assert commitment.total_pieces == 72
+    assert commitment.quantities == (UnitQuantity(OfferingUnit.BOX, 3),)
+
+
+def test_unit_quantities_sum_per_unit_in_stable_order() -> None:
+    assert UnitQuantity.summarize(
+        [
+            (OfferingUnit.PIECE, 2),
+            (OfferingUnit.BOX, 1),
+            (OfferingUnit.PIECE, 3),
+            (OfferingUnit.PACKAGE, 0),
+        ]
+    ) == (UnitQuantity(OfferingUnit.BOX, 1), UnitQuantity(OfferingUnit.PIECE, 5))
+    assert UnitQuantity.summarize([]) == ()
 
 
 def test_commitment_rejects_a_tampered_total() -> None:

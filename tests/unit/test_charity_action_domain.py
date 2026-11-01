@@ -86,6 +86,7 @@ def test_capability_and_beneficiary_invariants_stay_action_neutral() -> None:
                 ActionCapability.OFFERINGS,
                 ActionCapability.ORDERING,
                 ActionCapability.INVOICING,
+                ActionCapability.DELIVERY,
             }
         )
     )
@@ -96,6 +97,14 @@ def test_capability_and_beneficiary_invariants_stay_action_neutral() -> None:
             capabilities=frozenset({ActionCapability.ORDERING}),
         )
     assert missing_offering.value.code == "action_capability_dependency_invalid"
+
+    with pytest.raises(DomainInvariantError) as missing_ordering:
+        neutral_action(
+            capabilities=frozenset(
+                {ActionCapability.OFFERINGS, ActionCapability.DELIVERY}
+            ),
+        )
+    assert missing_ordering.value.code == "action_capability_dependency_invalid"
 
     with pytest.raises(DomainInvariantError) as no_beneficiary:
         neutral_action(beneficiaries=())
@@ -125,6 +134,7 @@ def test_capability_and_beneficiary_invariants_stay_action_neutral() -> None:
         "goal",
         "publication_window",
         "revision",
+        "presentation_theme",
     }
 
 

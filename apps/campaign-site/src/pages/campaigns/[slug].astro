@@ -3,7 +3,7 @@ import { actions } from "astro:actions";
 import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
 import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
 import PublicAction from "../../../../public/src/components/PublicAction.astro";
-import KrapfentaxiCampaignIntro from "../../components/KrapfentaxiCampaignIntro.astro";
+import { resolveCampaignTheme } from "../../themes";
 import { withEmDashRuntime } from "emdash/middleware";
 import PublicState from "../../../../public/src/components/PublicState.astro";
 import {
@@ -58,7 +58,10 @@ if (
 )
   return Astro.redirect(route.canonicalPath, 308);
 const action = state === "published" ? route?.action : null;
-const isKrapfentaxi = Boolean(action && content?.theme === "krapfentaxi");
+// The editor's theme choice is data; the registry maps it to layout and intro.
+const campaignTheme = resolveCampaignTheme(action ? content?.theme : null);
+const ThemeIntro = campaignTheme.Intro;
+const brandedHeader = Boolean(action && campaignTheme.publicTheme.header);
 const orderForm =
   action && route?.submissionsAllowed && route.orderAlias
     ? action.orderForm
@@ -104,8 +107,8 @@ const units = {
   robots={state === "published" ? "index,follow" : "noindex,follow"}
   canOrder={Boolean(orderForm)}
   carrierName={action?.carrierName}
-  isKrapfentaxi={isKrapfentaxi}
-  campaignBrand={isKrapfentaxi && action
+  theme={campaignTheme.publicTheme}
+  campaignBrand={brandedHeader && action
     ? {
         name: action.name,
         logo: content?.brand_logo
@@ -120,13 +123,9 @@ const units = {
     : undefined}
 >
   {
-    content && action && route && isKrapfentaxi ? (
+    content && action && route && ThemeIntro ? (
       <PublicAction route={route} orderResult={orderResult}>
-        <KrapfentaxiCampaignIntro
-          slot="intro"
-          route={route}
-          content={content}
-        />
+        <ThemeIntro slot="intro" route={route} content={content} />
         {!!content.faq?.length && (
           <section
             slot="after-intro"
@@ -266,7 +265,7 @@ const units = {
     )
   }
   {
-    !isKrapfentaxi && action && orderForm && route?.orderAlias && (
+    !ThemeIntro && action && orderForm && route?.orderAlias && (
       <PublicOrder
         action={action}
         orderForm={orderForm}

@@ -1010,10 +1010,9 @@
             "type": "string"
           },
           "key": {
-            "enum": [
-              "blank",
-              "krapfentaxi"
-            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "title": "Key",
             "type": "string"
           },
@@ -1041,7 +1040,8 @@
                 "acquisition",
                 "offerings",
                 "ordering",
-                "invoicing"
+                "invoicing",
+                "delivery"
               ],
               "type": "string"
             },
@@ -1061,10 +1061,9 @@
             "type": "boolean"
           },
           "key": {
-            "enum": [
-              "blank",
-              "krapfentaxi"
-            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "title": "Key",
             "type": "string"
           },
@@ -1072,6 +1071,20 @@
             "minimum": 0.0,
             "title": "Offeringcount",
             "type": "integer"
+          },
+          "presentationTheme": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentationtheme"
           },
           "version": {
             "minimum": 1.0,
@@ -1086,7 +1099,8 @@
           "description",
           "capabilities",
           "offeringCount",
-          "hasOrderForm"
+          "hasOrderForm",
+          "presentationTheme"
         ],
         "title": "ActionTemplateSummaryResponse",
         "type": "object"
@@ -1177,6 +1191,13 @@
             "title": "Publicreference",
             "type": "string"
           },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
           "readAt": {
             "anyOf": [
               {
@@ -1190,6 +1211,7 @@
             "title": "Readat"
           },
           "totalBoxes": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Totalboxes",
             "type": "integer"
@@ -1219,6 +1241,7 @@
           "currency",
           "totalBoxes",
           "totalPieces",
+          "quantities",
           "nextActionLabel",
           "nextActionHref",
           "occurredAt",
@@ -2008,7 +2031,8 @@
                 "acquisition",
                 "offerings",
                 "ordering",
-                "invoicing"
+                "invoicing",
+                "delivery"
               ],
               "type": "string"
             },
@@ -2039,6 +2063,20 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "presentationTheme": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentationtheme"
           },
           "publicationEndsAt": {
             "anyOf": [
@@ -2105,7 +2143,8 @@
           "revision",
           "capabilities",
           "beneficiaries",
-          "goal"
+          "goal",
+          "presentationTheme"
         ],
         "title": "CharityActionResponse",
         "type": "object"
@@ -2425,6 +2464,7 @@
         "additionalProperties": false,
         "properties": {
           "boxCount": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Boxcount",
             "type": "integer"
@@ -2527,7 +2567,15 @@
             "title": "Items",
             "type": "array"
           },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
           "totalBoxes": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Totalboxes",
             "type": "integer"
@@ -2543,7 +2591,8 @@
           "items",
           "currencyTotals",
           "totalPieces",
-          "totalBoxes"
+          "totalBoxes",
+          "quantities"
         ],
         "title": "CommitmentListResponse",
         "type": "object"
@@ -2662,6 +2711,13 @@
             "title": "Lines",
             "type": "array"
           },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
           "replayed": {
             "title": "Replayed",
             "type": "boolean"
@@ -2687,6 +2743,7 @@
             "type": "string"
           },
           "totalBoxes": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Totalboxes",
             "type": "integer"
@@ -2714,6 +2771,7 @@
           "currency",
           "totalPieces",
           "totalBoxes",
+          "quantities",
           "replayed"
         ],
         "title": "CommitmentResponse",
@@ -3176,10 +3234,9 @@
             "type": "string"
           },
           "templateKey": {
-            "enum": [
-              "blank",
-              "krapfentaxi"
-            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "title": "Templatekey",
             "type": "string"
           },
@@ -3288,7 +3345,8 @@
                 "acquisition",
                 "offerings",
                 "ordering",
-                "invoicing"
+                "invoicing",
+                "delivery"
               ],
               "type": "string"
             },
@@ -3505,7 +3563,14 @@
             ]
           },
           "deliveryRecipient": {
-            "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "deliveryWindowId": {
             "anyOf": [
@@ -3574,7 +3639,6 @@
           "accessToken",
           "commandId",
           "party",
-          "deliveryRecipient",
           "invoiceRecipient",
           "lines",
           "privacyAcknowledged",
@@ -3749,6 +3813,13 @@
             "title": "Invoiced",
             "type": "integer"
           },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
           "reviewReady": {
             "minimum": 0.0,
             "title": "Reviewready",
@@ -3760,6 +3831,7 @@
             "type": "integer"
           },
           "totalBoxes": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Totalboxes",
             "type": "integer"
@@ -3781,6 +3853,7 @@
           "activeTotalMinor",
           "totalBoxes",
           "totalPieces",
+          "quantities",
           "currency"
         ],
         "title": "DashboardCommitmentResponse",
@@ -8588,6 +8661,20 @@
             "title": "Beneficiaries",
             "type": "array"
           },
+          "capabilities": {
+            "items": {
+              "enum": [
+                "acquisition",
+                "offerings",
+                "ordering",
+                "invoicing",
+                "delivery"
+              ],
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
           "carrierName": {
             "title": "Carriername",
             "type": "string"
@@ -8626,6 +8713,20 @@
               }
             ]
           },
+          "presentationTheme": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentationtheme"
+          },
           "purpose": {
             "title": "Purpose",
             "type": "string"
@@ -8647,7 +8748,9 @@
           "beneficiaries",
           "goal",
           "offerings",
-          "orderForm"
+          "orderForm",
+          "capabilities",
+          "presentationTheme"
         ],
         "title": "PublicCharityActionResponse",
         "type": "object"
@@ -9077,6 +9180,7 @@
             "type": "string"
           },
           "totalBoxes": {
+            "deprecated": true,
             "minimum": 0.0,
             "title": "Totalboxes",
             "type": "integer"
@@ -10227,7 +10331,8 @@
                 "acquisition",
                 "offerings",
                 "ordering",
-                "invoicing"
+                "invoicing",
+                "delivery"
               ],
               "type": "string"
             },
@@ -11810,6 +11915,32 @@
           "targetStatus"
         ],
         "title": "TransitionCharityActionRequest",
+        "type": "object"
+      },
+      "UnitQuantityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "quantity": {
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "quantity"
+        ],
+        "title": "UnitQuantityResponse",
         "type": "object"
       },
       "UpdateAcquisitionAssignmentRequest": {

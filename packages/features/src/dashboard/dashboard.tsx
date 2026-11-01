@@ -24,6 +24,7 @@ import type {
 import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
+import { formatQuantities } from "../commitments/quantities";
 
 type DashboardMode = "acquirer" | "charity_admin";
 
@@ -398,8 +399,10 @@ function AdminDashboard({
           <small>Bestellungen</small>
           <strong>{data.commitments.activeTotal}</strong>
           <p>
-            {data.commitments.totalBoxes} Boxen · {data.commitments.totalPieces}{" "}
-            Stück
+            {formatQuantities(
+              data.commitments.quantities,
+              data.commitments.totalPieces,
+            )}
           </p>
         </a>
         <a href={commitmentsHref}>

@@ -176,7 +176,8 @@ class PublicOrderPartyDraft:
 @dataclass(frozen=True, slots=True)
 class PublicOrderDraft:
     party: PublicOrderPartyDraft
-    delivery_recipient: DeliveryRecipientSnapshot
+    # Only required for actions with the delivery capability.
+    delivery_recipient: DeliveryRecipientSnapshot | None
     invoice_recipient: InvoiceRecipientSnapshot
     lines: tuple[CommitmentLineDraft, ...]
     message: str | None
@@ -245,7 +246,11 @@ class PublicOrderDraft:
             "actionId": str(action_id),
             "publicAlias": public_alias,
             "party": self.party.payload(),
-            "deliveryRecipient": self.delivery_recipient.payload(),
+            "deliveryRecipient": (
+                self.delivery_recipient.payload()
+                if self.delivery_recipient is not None
+                else None
+            ),
             "invoiceRecipient": self.invoice_recipient.payload(),
             "lines": [
                 {
@@ -431,6 +436,13 @@ class PublicOrderContext:
     action_name: str
     order_form: OrderFormConfiguration
     delivery_configuration: DeliveryConfiguration | None = None
+    # True when the action has the delivery capability (physical goods that
+    # are handed over at an address).
+    delivers: bool = False
+
+    @property
+    def requires_delivery_recipient(self) -> bool:
+        return self.delivers and self.order_form.require_delivery_address
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,18 +601,18 @@ class PublicOrderService:
                     "public_order_rejected",
                     "Die Bestellung konnte nicht verarbeitet werden. Lade die Seite neu.",
                 )
-            self._require_form_fields(context.order_form, draft)
+            self._require_form_fields(context, draft)
             if context.delivery_configuration is not None:
                 context.delivery_configuration.validate_order(
                     window_id=draft.delivery_window_id,
-                    has_address=True,
+                    has_address=draft.delivery_recipient is not None,
                     contact=draft.delivery_contact,
                     complete=True,
                     now=datetime.now(timezone.utc),
                 )
             party = await self._resolve_party(
                 draft.party,
-                delivery=draft.delivery_recipient,
+                address=draft.delivery_recipient or draft.invoice_recipient,
                 idempotency_key=idempotency_key,
                 request_id=request_id,
             )
@@ -619,9 +631,15 @@ class PublicOrderService:
 
     @staticmethod
     def _require_form_fields(
-        form: OrderFormConfiguration,
+        context: PublicOrderContext,
         draft: PublicOrderDraft,
     ) -> None:
+        form = context.order_form
+        if context.requires_delivery_recipient and draft.delivery_recipient is None:
+            raise DomainInvariantError(
+                "public_order_delivery_recipient_required",
+                "Bitte gib eine Lieferanschrift an.",
+            )
         if form.require_company_name and draft.party.company_name is None:
             raise DomainInvariantError(
                 "public_order_company_required",
@@ -642,7 +660,7 @@ class PublicOrderService:
         self,
         draft: PublicOrderPartyDraft,
         *,
-        delivery: DeliveryRecipientSnapshot,
+        address: DeliveryRecipientSnapshot | InvoiceRecipientSnapshot,
         idempotency_key: str,
         request_id: str,
     ) -> ResolvedPublicParty:
@@ -651,7 +669,7 @@ class PublicOrderService:
         if draft.party_kind is CrmPartyKind.COMPANY:
             return await self._resolve_company(
                 draft,
-                delivery=delivery,
+                address=address,
                 primary_id=primary_id,
                 contact_id=contact_id,
                 request_id=request_id,
@@ -666,7 +684,7 @@ class PublicOrderService:
         self,
         draft: PublicOrderPartyDraft,
         *,
-        delivery: DeliveryRecipientSnapshot,
+        address: DeliveryRecipientSnapshot | InvoiceRecipientSnapshot,
         primary_id: UUID,
         contact_id: UUID,
         request_id: str,
@@ -704,10 +722,10 @@ class PublicOrderService:
                     CompanyData(
                         name=draft.company_name,
                         address=PostalAddress(
-                            street_line_1=delivery.street_line_1,
-                            postal_code=delivery.postal_code,
-                            city=delivery.city,
-                            country=delivery.country_code,
+                            street_line_1=address.street_line_1,
+                            postal_code=address.postal_code,
+                            city=address.city,
+                            country=address.country_code,
                         ),
                     ),
                     correlation_id=f"{request_id}:company-create",

@@ -692,6 +692,25 @@ async def seed_identity(
             action["goalUnit"],
             action["currency"],
         )
+    # Older schema revisions (seeded by migration proofs) have no theme column.
+    if await connection.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'charity_action'
+              AND column_name = 'presentation_theme'
+        )
+        """
+    ):
+        # The golden campaign kind doubles as its public presentation theme.
+        await connection.executemany(
+            "UPDATE charity_action SET presentation_theme = $2 WHERE id = $1",
+            [
+                (action["id"], str(action["kind"]).lower().replace("_", "-"))
+                for action in dataset["actions"]
+            ],
+        )
 
     golden_action_ids = [action["id"] for action in dataset["actions"]]
     await connection.execute(

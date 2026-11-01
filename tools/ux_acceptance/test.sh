@@ -73,7 +73,7 @@ fi
 mkdir -p "$browser_results"
 chmod 700 "$browser_results"
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
-  shared_services="api"
+  shared_services="api twenty-worker mailpit"
   . "$root/tools/testing/borrow_stack.sh"
 else
 # Refuse existing resources and unreadable inventories before Docker mutations.

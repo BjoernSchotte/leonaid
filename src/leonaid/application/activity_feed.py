@@ -8,6 +8,8 @@ from enum import StrEnum
 from typing import Literal, Mapping, Protocol
 from uuid import UUID
 
+from leonaid.domain.action_templates import OfferingUnit
+from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.policies import concealed_resource
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 
@@ -44,12 +46,14 @@ class ActivityFeedItem:
     public_reference: str
     total_minor: int
     currency: str
+    # Deprecated: boxes are one offering unit among others; use quantities.
     total_boxes: int
     total_pieces: int
     next_action_label: str
     next_action_href: str
     occurred_at: datetime
     read_at: datetime | None
+    quantities: tuple[UnitQuantity, ...] = ()
 
     @property
     def is_read(self) -> bool:
@@ -187,7 +191,34 @@ class ActivityFeedService:
             next_action_href=next_action_href,
             occurred_at=stored.occurred_at,
             read_at=stored.read_at,
+            quantities=ActivityFeedService._payload_quantities(payload),
         )
+
+    @staticmethod
+    def _payload_quantities(
+        payload: Mapping[str, object],
+    ) -> tuple[UnitQuantity, ...]:
+        raw = payload.get("quantities")
+        if raw is None:
+            # Events recorded before per-unit quantities only carried boxes.
+            boxes = ActivityFeedService._payload_non_negative_int(payload, "totalBoxes")
+            return UnitQuantity.summarize([(OfferingUnit.BOX, boxes)])
+        if not isinstance(raw, list):
+            raise RuntimeError("ActivityEvent enthält keine gültigen Mengen.")
+        items: list[tuple[OfferingUnit, int]] = []
+        for entry in raw:
+            if not isinstance(entry, Mapping):
+                raise RuntimeError("ActivityEvent enthält keine gültigen Mengen.")
+            try:
+                unit = OfferingUnit(str(entry.get("unit")))
+            except ValueError as error:
+                raise RuntimeError(
+                    "ActivityEvent enthält eine unbekannte Mengeneinheit."
+                ) from error
+            items.append(
+                (unit, ActivityFeedService._payload_non_negative_int(entry, "quantity"))
+            )
+        return UnitQuantity.summarize(items)
 
     @staticmethod
     def _payload_string(payload: Mapping[str, object], key: str) -> str:

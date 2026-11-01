@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -10,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 import asyncpg
 
+from leonaid.domain.action_templates import OfferingUnit
+from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.dashboard import (
     AcquirerDashboard,
     CharityAdminDashboard,
@@ -265,7 +268,24 @@ class AsyncpgDashboardRepository(DashboardRepository):
             SELECT
                 commitment_summary.*,
                 line_summary.total_boxes,
-                line_summary.total_pieces
+                line_summary.total_pieces,
+                (
+                    SELECT coalesce(
+                        jsonb_object_agg(unit_totals.unit, unit_totals.quantity),
+                        '{}'::jsonb
+                    )::text
+                    FROM (
+                        SELECT
+                            line.unit_snapshot AS unit,
+                            sum(line.quantity) AS quantity
+                        FROM commitment
+                        JOIN commitment_line AS line
+                          ON line.commitment_id = commitment.id
+                        WHERE commitment.action_id = $1
+                          AND commitment.status <> 'cancelled'
+                        GROUP BY line.unit_snapshot
+                    ) AS unit_totals
+                ) AS quantities_by_unit
             FROM commitment_summary
             CROSS JOIN line_summary
             """,
@@ -285,6 +305,12 @@ class AsyncpgDashboardRepository(DashboardRepository):
             active_total_minor=_integer(row, "active_total_minor"),
             total_boxes=_integer(row, "total_boxes"),
             total_pieces=_integer(row, "total_pieces"),
+            quantities=UnitQuantity.summarize(
+                (OfferingUnit(str(unit)), int(quantity))
+                for unit, quantity in json.loads(
+                    str(row["quantities_by_unit"] or "{}")
+                ).items()
+            ),
         )
 
     @staticmethod

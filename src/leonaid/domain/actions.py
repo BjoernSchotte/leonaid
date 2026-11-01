@@ -12,6 +12,7 @@ from uuid import UUID
 from leonaid.domain.errors import DomainInvariantError
 
 ACTION_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+PRESENTATION_THEME_MAX_LENGTH = 64
 RESERVED_PUBLIC_ALIASES = frozenset(
     {
         "_health",
@@ -65,6 +66,32 @@ class ActionCapability(StrEnum):
     OFFERINGS = "offerings"
     ORDERING = "ordering"
     INVOICING = "invoicing"
+    # Physical hand-over of ordered goods: delivery windows, delivery
+    # recipients and the driver role. Requires ORDERING.
+    DELIVERY = "delivery"
+
+
+def capability_dependency_problem(
+    capabilities: frozenset[ActionCapability],
+) -> DomainInvariantError | None:
+    """Return the first violated capability dependency, if any."""
+    if (
+        ActionCapability.ORDERING in capabilities
+        and ActionCapability.OFFERINGS not in capabilities
+    ):
+        return DomainInvariantError(
+            "action_capability_dependency_invalid",
+            "Bestellungen benötigen die Capability Angebote.",
+        )
+    if (
+        ActionCapability.DELIVERY in capabilities
+        and ActionCapability.ORDERING not in capabilities
+    ):
+        return DomainInvariantError(
+            "action_capability_dependency_invalid",
+            "Auslieferung benötigt die Capability Bestellungen.",
+        )
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,8 +240,20 @@ class CharityAction:
     goal: ActionGoal
     publication_window: PublicationWindow | None = None
     revision: int = 1
+    # Public presentation theme key. Purely visual: the
+    # public renderers resolve it in their theme registry and fall back to the
+    # neutral LeonAid look for unknown or missing keys.
+    presentation_theme: str | None = None
 
     def __post_init__(self) -> None:
+        if self.presentation_theme is not None and (
+            len(self.presentation_theme) > PRESENTATION_THEME_MAX_LENGTH
+            or not ACTION_SLUG.fullmatch(self.presentation_theme)
+        ):
+            raise DomainInvariantError(
+                "action_presentation_theme_invalid",
+                "Das Erscheinungsbild muss ein URL-tauglicher Schlüssel sein.",
+            )
         for value, code, message in (
             (
                 self.carrier_name,
@@ -269,14 +308,9 @@ class CharityAction:
                 "action_beneficiary_duplicate",
                 "Begünstigte dürfen innerhalb einer Aktion nicht doppelt vorkommen.",
             )
-        if (
-            ActionCapability.ORDERING in self.capabilities
-            and ActionCapability.OFFERINGS not in self.capabilities
-        ):
-            raise DomainInvariantError(
-                "action_capability_dependency_invalid",
-                "Bestellungen benötigen die Capability Angebote.",
-            )
+        problem = capability_dependency_problem(self.capabilities)
+        if problem is not None:
+            raise problem
 
     def transition_to(self, target: CharityActionStatus) -> CharityAction:
         if target is self.status:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -362,6 +363,7 @@ class CommitmentLine:
 
     @property
     def box_count(self) -> int:
+        """Deprecated: boxes are one offering unit among others; use quantity."""
         return self.quantity if self.unit_snapshot is OfferingUnit.BOX else 0
 
     @classmethod
@@ -398,6 +400,38 @@ class CommitmentLine:
             pieces_per_unit_snapshot=offering.pieces_per_unit,
             unit_price=offering.unit_price,
             line_total=total,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UnitQuantity:
+    """Ordered quantity of one offering unit, e.g. 12 boxes or 3 pieces."""
+
+    unit: OfferingUnit
+    quantity: int
+
+    def __post_init__(self) -> None:
+        if isinstance(self.quantity, bool) or self.quantity < 0:
+            raise DomainInvariantError(
+                "unit_quantity_invalid",
+                "Eine Mengensumme darf nicht negativ sein.",
+            )
+
+    def payload(self) -> dict[str, object]:
+        return {"unit": self.unit.value, "quantity": self.quantity}
+
+    @staticmethod
+    def summarize(
+        items: Iterable[tuple[OfferingUnit, int]],
+    ) -> tuple[UnitQuantity, ...]:
+        """Sum quantities per unit; omit zero sums; stable unit order."""
+        totals: dict[OfferingUnit, int] = {}
+        for unit, quantity in items:
+            totals[unit] = totals.get(unit, 0) + quantity
+        return tuple(
+            UnitQuantity(unit, totals[unit])
+            for unit in OfferingUnit
+            if totals.get(unit, 0) > 0
         )
 
 
@@ -472,11 +506,6 @@ class Commitment:
                     "commitment_public_reference_invalid",
                     "Eine öffentliche Bestellung benötigt eine gültige Referenz.",
                 )
-            if self.delivery_recipient is None:
-                raise DomainInvariantError(
-                    "commitment_delivery_recipient_required",
-                    "Eine öffentliche Bestellung benötigt eine Lieferanschrift.",
-                )
         elif self.public_reference is not None:
             raise DomainInvariantError(
                 "commitment_public_reference_forbidden",
@@ -489,4 +518,11 @@ class Commitment:
 
     @property
     def total_boxes(self) -> int:
+        """Deprecated: use ``quantities`` which covers every offering unit."""
         return sum(line.box_count for line in self.lines)
+
+    @property
+    def quantities(self) -> tuple[UnitQuantity, ...]:
+        return UnitQuantity.summarize(
+            (line.unit_snapshot, line.quantity) for line in self.lines
+        )

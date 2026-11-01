@@ -7,8 +7,7 @@ import type {
 
 import PublicOrder from "./PublicOrder.astro";
 import { offeringPrice, offeringUnit } from "../lib/order-presentation";
-import KrapfentaxiIntro from "./KrapfentaxiIntro.astro";
-import { isKrapfentaxiAction } from "../lib/presentation";
+import type { PublicTheme } from "../themes";
 
 interface OrderActionResult {
   data?: PublicOrderResultResponse;
@@ -18,13 +17,17 @@ interface OrderActionResult {
 interface Props {
   orderResult?: OrderActionResult;
   route: PublicActionRouteResponse | PublicCampaignRouteResponse;
+  /** Resolved by the page from data; the generic hero is used without one. */
+  theme?: PublicTheme;
 }
 
-const { orderResult, route } = Astro.props;
+const { orderResult, route, theme } = Astro.props;
 const action = route.action;
-const isKrapfentaxi =
-  (route.routeKind === "alias" || route.routeKind === "archive") &&
-  isKrapfentaxiAction(route);
+// Theme intros render Core-owned routes; CMS campaigns pass their own intro.
+const ThemeIntro =
+  route.routeKind === "alias" || route.routeKind === "archive"
+    ? theme?.Intro
+    : undefined;
 const orderAlias = "orderAlias" in route ? route.orderAlias : route.routeValue;
 
 if (!action) {
@@ -69,9 +72,8 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   {
     Astro.slots.has("intro") ? (
       <slot name="intro" />
-    ) : isKrapfentaxi &&
-      (route.routeKind === "alias" || route.routeKind === "archive") ? (
-      <KrapfentaxiIntro route={route} />
+    ) : ThemeIntro ? (
+      <ThemeIntro route={route} />
     ) : (
       <section class="action-hero">
         <div class="site-shell action-hero__grid">

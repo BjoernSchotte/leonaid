@@ -37,7 +37,10 @@ from leonaid.domain.actions import (
 )
 
 
-from leonaid.adapters.postgres.delivery import lock_configuration
+from leonaid.adapters.postgres.delivery import (
+    has_delivery_capability,
+    lock_configuration,
+)
 
 
 class AsyncpgCharityActionRepository(CharityActionRepository):
@@ -68,7 +71,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                             publication_starts_at, publication_ends_at,
                             archive_slug,
                             goal_value, actual_value, goal_unit, currency,
-                            revision, created_at, updated_at
+                            revision, created_at, updated_at,
+                            presentation_theme
                         )
                         VALUES (
                             $1, $2, $3, $4, $5,
@@ -76,7 +80,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                             $8, $9,
                             $10,
                             $11, $12, $13, $14,
-                            $15, $16, $16
+                            $15, $16, $16,
+                            $17
                         )
                         """,
                         action.id,
@@ -103,6 +108,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         action.goal.currency,
                         action.revision,
                         occurred_at,
+                        action.presentation_theme,
                     )
                     await self._insert_capabilities(connection, action)
                     await self._insert_beneficiaries(connection, action, occurred_at)
@@ -115,9 +121,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     await connection.execute(
                         "INSERT INTO action_delivery_configuration(action_id, enabled) VALUES ($1, $2)",
                         action.id,
-                        configuration is not None
-                        and configuration.snapshot.template_key
-                        is ActionTemplateKey.KRAPFENTAXI,
+                        ActionCapability.DELIVERY in action.capabilities,
                     )
                     await connection.execute(
                         """
@@ -626,11 +630,14 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     "",
                     occurred_at=occurred_at,
                 )
+                had_delivery = await has_delivery_capability(connection, action.id)
                 await connection.execute(
                     "DELETE FROM charity_action_capability WHERE action_id = $1",
                     action.id,
                 )
                 await self._insert_capabilities(connection, action)
+                if had_delivery != (ActionCapability.DELIVERY in action.capabilities):
+                    await self._sync_delivery_capability(connection, action)
                 await self._audit(
                     connection,
                     action=changed,
@@ -644,6 +651,34 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     occurred_at=occurred_at,
                 )
         return changed
+
+    @staticmethod
+    async def _sync_delivery_capability(
+        connection: asyncpg.Connection[Any],
+        action: CharityAction,
+    ) -> None:
+        """Switch delivery planning on/off when the capability is toggled."""
+        wanted = ActionCapability.DELIVERY in action.capabilities
+        delivery = await lock_configuration(connection, action.id)
+        if wanted == delivery.enabled:
+            return
+        if not wanted and any(not window.retired for window in delivery.windows):
+            raise Conflict(
+                "delivery_capability_in_use",
+                "Bitte zuerst alle Lieferfenster stilllegen, bevor die "
+                "Auslieferung deaktiviert wird.",
+            )
+        await connection.execute(
+            """
+            INSERT INTO action_delivery_configuration(action_id, enabled)
+            VALUES ($1, $2)
+            ON CONFLICT (action_id) DO UPDATE
+            SET enabled = EXCLUDED.enabled,
+                revision = action_delivery_configuration.revision + 1
+            """,
+            action.id,
+            wanted,
+        )
 
     async def replace_beneficiaries(
         self,
@@ -770,7 +805,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 starts_on, ends_on,
                 publication_starts_at, publication_ends_at,
                 archive_slug, goal_value, actual_value, goal_unit, currency,
-                revision
+                revision, presentation_theme
             FROM charity_action
             WHERE id = $1
             """,
@@ -840,6 +875,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 else None
             ),
             revision=int(row["revision"]),
+            presentation_theme=(
+                str(row["presentation_theme"])
+                if row["presentation_theme"] is not None
+                else None
+            ),
         )
 
     @staticmethod
@@ -1010,7 +1050,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> ActionTemplate | None:
         row = await connection.fetchrow(
             """
-            SELECT template_key, version, display_name, description
+            SELECT template_key, version, display_name, description,
+                presentation_theme
             FROM action_template_version
             WHERE template_key = $1
               AND ($2::integer IS NULL OR version = $2)
@@ -1086,6 +1127,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             order_form=(
                 AsyncpgCharityActionRepository._order_form_from_row(form)
                 if form is not None
+                else None
+            ),
+            presentation_theme=(
+                str(row["presentation_theme"])
+                if row["presentation_theme"] is not None
                 else None
             ),
         )

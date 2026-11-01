@@ -55,6 +55,19 @@ async def read_configuration(
     )
 
 
+async def has_delivery_capability(
+    connection: asyncpg.Connection[Any], action_id: UUID
+) -> bool:
+    """Delivery is a capability of the action, never of a template name."""
+    return bool(
+        await connection.fetchval(
+            """SELECT EXISTS (SELECT 1 FROM charity_action_capability
+            WHERE action_id = $1 AND capability = 'delivery')""",
+            action_id,
+        )
+    )
+
+
 async def lock_configuration(
     connection: asyncpg.Connection[Any], action_id: UUID
 ) -> DeliveryConfiguration:
@@ -89,17 +102,12 @@ class AsyncpgDeliveryRepository:
                     raise ResourceNotFound(
                         "action_not_found", "Diese Aktion wurde nicht gefunden."
                     )
-                supported = await connection.fetchval(
-                    """SELECT EXISTS (SELECT 1 FROM action_template_snapshot s
-                    JOIN charity_action_capability c ON c.action_id = s.action_id
-                    WHERE s.action_id = $1 AND s.template_key = 'krapfentaxi'
-                    AND c.capability = 'ordering')""",
-                    configuration.action_id,
-                )
-                if not supported:
+                if not await has_delivery_capability(
+                    connection, configuration.action_id
+                ):
                     raise DomainInvariantError(
                         "delivery_not_supported",
-                        "Lieferplanung ist nur für Krapfentaxi mit Bestellungen verfügbar.",
+                        "Lieferplanung ist nur für Aktionen mit Auslieferung verfügbar.",
                     )
                 if action["status"] == "archived":
                     raise Conflict(

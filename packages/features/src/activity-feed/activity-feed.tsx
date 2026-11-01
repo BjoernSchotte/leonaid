@@ -16,6 +16,8 @@ import {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { formatQuantities } from "../commitments/quantities";
+
 interface ActivityFeedPageProps {
   readonly client: LeonAidApiClient;
   readonly surface: "pwa" | "web";
@@ -39,8 +41,7 @@ function formatDateTime(value: string) {
 }
 
 function quantityCopy(item: ActivityFeedItemResponse) {
-  const boxes = `${item.totalBoxes} ${item.totalBoxes === 1 ? "Box" : "Boxen"}`;
-  return `${boxes} · ${item.totalPieces} Stück`;
+  return formatQuantities(item.quantities, item.totalPieces);
 }
 
 function updatedPage(

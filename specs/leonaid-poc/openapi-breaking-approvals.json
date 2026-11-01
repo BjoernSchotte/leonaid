@@ -18,6 +18,29 @@
         "property-newly-required:PrivacySubjectReportResponse.orderDeliveries"
       ],
       "rationale": "Delivery planning adds an output-only list to the authenticated privacy subject report. Core always serializes orderDeliveries, including an empty list when no deliveries exist. Existing response fields and all existing request requirements remain unchanged. The generated client ships with the matching Core release. This exact-hash approval covers the additive response field only, not compatibility with an older Core server."
+    },
+    {
+      "oldSha256": "ce0b8d9fdc79de9e8b2ff780b6fe36bb6b7b1f90d9103bfe2718a183788f64cf",
+      "newSha256": "1293adc3fc0a53fd68cb346ebc447132dedfca8a09924f7f9bf060e30e17972f",
+      "changes": [
+        "property-newly-required:ActionTemplateSummaryResponse.presentationTheme",
+        "property-newly-required:ActivityFeedItemResponse.quantities",
+        "property-newly-required:CharityActionResponse.presentationTheme",
+        "property-newly-required:CommitmentListResponse.quantities",
+        "property-newly-required:CommitmentResponse.quantities",
+        "property-newly-required:DashboardCommitmentResponse.quantities",
+        "property-newly-required:PublicCharityActionResponse.capabilities",
+        "property-newly-required:PublicCharityActionResponse.presentationTheme",
+        "property-type-changed:ActionTemplateSnapshotResponse.key",
+        "property-type-changed:ActionTemplateSummaryResponse.capabilities",
+        "property-type-changed:ActionTemplateSummaryResponse.key",
+        "property-type-changed:CharityActionResponse.capabilities",
+        "property-type-changed:CreateActionFromTemplateRequest.templateKey",
+        "property-type-changed:CreateCharityActionRequest.capabilities",
+        "property-type-changed:CreatePublicOrderRequest.deliveryRecipient",
+        "property-type-changed:SetActionCapabilitiesRequest.capabilities"
+      ],
+      "rationale": "Campaign modularity: campaign types become data. Template keys widen from the closed enum blank|krapfentaxi to validated slugs that must exist in the template catalogue, and the capability enum gains 'delivery' (previously implied by the Krapfentaxi template key). CreatePublicOrderRequest.deliveryRecipient becomes optional because Core now requires it only for actions with the delivery capability; existing callers that send it are unaffected. New response fields (presentationTheme, public capabilities, per-unit quantities) are always serialized and only added; box totals stay and are marked deprecated. The generated client ships with the matching Core release; clients that switch exhaustively over the old enums must accept the new values. Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

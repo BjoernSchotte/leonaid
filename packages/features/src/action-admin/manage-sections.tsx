@@ -586,6 +586,12 @@ const capabilityOptions: ReadonlyArray<{
     label: "Rechnungen",
     value: "invoicing",
   },
+  {
+    description:
+      "Liefertage, Lieferadressen und Ausfahrer. Benötigt Bestellungen.",
+    label: "Auslieferung",
+    value: "delivery",
+  },
 ];
 
 export function CapabilitiesSection({

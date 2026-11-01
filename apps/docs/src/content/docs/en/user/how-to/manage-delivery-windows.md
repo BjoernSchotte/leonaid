@@ -4,15 +4,18 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
 reviewer: Björn Schotte
 ---
 
 **Role:** charity administrator for the affected campaign. The editor is
-available for campaigns created from the **Krapfentaxi** template. In the back
-office, open the campaign and the **Lieferung planen** section.
+available for campaigns with the **Auslieferung** (delivery) capability. Templates
+such as **Krapfentaxi** enable it; for other campaigns, enable it under
+**Funktionen & Team** while the campaign is a draft or scheduled. Delivery
+requires **Bestellungen**. In the back office, open the campaign and the
+**Lieferung planen** section.
 
 1. For a new setup, enable **Lieferplanung für diese Aktion aktivieren**.
 2. Choose the **Zeitzone** before saving the first window. It becomes fixed as

@@ -94,8 +94,8 @@ async def prove() -> None:
                 configuration=template.configure(identifier),
             )
 
-        action = await create(ActionTemplateKey.KRAPFENTAXI)
-        other = await create(ActionTemplateKey.KRAPFENTAXI)
+        action = await create(ActionTemplateKey("krapfentaxi"))
+        other = await create(ActionTemplateKey("krapfentaxi"))
         blank = await create(ActionTemplateKey.BLANK)
         initial = await repo.get(action.id)
         assert initial.enabled and not initial.windows
@@ -148,7 +148,7 @@ async def prove() -> None:
         except DomainInvariantError as error:
             assert error.code == "delivery_not_supported"
         else:
-            raise AssertionError("Non-Krapfentaxi delivery accepted")
+            raise AssertionError("Delivery accepted without delivery capability")
         try:
             await repo.save(
                 replace(
@@ -345,7 +345,7 @@ def main() -> None:
             (historical_action,),
         ).fetchone() == (False,)
         assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [
-            ("0036_delivery_windows",)
+            ("0038_open_action_templates",)
         ]
     asyncio.run(prove())
 

@@ -10,6 +10,7 @@ from typing import Protocol, TypeVar
 from uuid import UUID
 
 from leonaid.application.policies import concealed_resource
+from leonaid.domain.commitments import UnitQuantity
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 
 StatusValue = TypeVar("StatusValue", bound=str)
@@ -54,8 +55,10 @@ class CommitmentCounts:
     invoiced: int = 0
     cancelled: int = 0
     active_total_minor: int = 0
+    # Deprecated: boxes are one offering unit among others; use quantities.
     total_boxes: int = 0
     total_pieces: int = 0
+    quantities: tuple[UnitQuantity, ...] = ()
 
     @property
     def total(self) -> int:
