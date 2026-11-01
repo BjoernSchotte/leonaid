@@ -343,6 +343,7 @@ class CharityActionService:
             capabilities=template.capabilities,
             beneficiaries=self._beneficiaries(action_id, draft.beneficiaries),
             goal=draft.goal,
+            presentation_theme=template.presentation_theme,
         )
         configuration = template.configure(action.id)
         created = await self._repository.create(
@@ -409,6 +410,7 @@ class CharityActionService:
                 unit=source.goal.unit,
                 currency=source.goal.currency,
             ),
+            presentation_theme=source.presentation_theme,
         )
         configuration = source_configuration.copy_for(
             action.id,

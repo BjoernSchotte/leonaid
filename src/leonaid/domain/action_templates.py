@@ -6,18 +6,52 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
-from leonaid.domain.actions import ActionCapability
+from leonaid.domain.actions import ActionCapability, capability_dependency_problem
 from leonaid.domain.errors import DomainInvariantError
 
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+TEMPLATE_KEY_MAX_LENGTH = 64
+TEMPLATE_KEY_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
 
-class ActionTemplateKey(StrEnum):
-    BLANK = "blank"
-    KRAPFENTAXI = "krapfentaxi"
+class ActionTemplateKey(str):
+    """Open, slug-shaped identifier of a published action template.
+
+    Template keys are data, not code: any key that exists in the template
+    catalogue is valid. Behaviour must be derived from the template's
+    capabilities, never from its key.
+    """
+
+    __slots__ = ()
+
+    # The only key core relies on: the neutral template used for actions
+    # created without a template.
+    BLANK: ClassVar[ActionTemplateKey]
+
+    def __new__(cls, value: str) -> ActionTemplateKey:
+        if (
+            not isinstance(value, str)
+            or len(value) > TEMPLATE_KEY_MAX_LENGTH
+            or not SLUG.fullmatch(value)
+        ):
+            raise DomainInvariantError(
+                "template_key_invalid",
+                "Der Template-Schlüssel muss ein URL-tauglicher Slug sein.",
+            )
+        return super().__new__(cls, value)
+
+    @property
+    def value(self) -> str:
+        return str.__str__(self)
+
+    def __repr__(self) -> str:
+        return f"ActionTemplateKey({self.value!r})"
+
+
+ActionTemplateKey.BLANK = ActionTemplateKey("blank")
 
 
 class OfferingStatus(StrEnum):
@@ -395,8 +429,19 @@ class ActionTemplate:
     capabilities: frozenset[ActionCapability]
     offerings: tuple[TemplateOffering, ...]
     order_form: OrderFormConfiguration | None
+    # Default public presentation theme for actions created from this
+    # template; None keeps the neutral LeonAid look.
+    presentation_theme: str | None = None
 
     def __post_init__(self) -> None:
+        if self.presentation_theme is not None and (
+            len(self.presentation_theme) > TEMPLATE_KEY_MAX_LENGTH
+            or not SLUG.fullmatch(self.presentation_theme)
+        ):
+            raise DomainInvariantError(
+                "template_presentation_theme_invalid",
+                "Das Erscheinungsbild muss ein URL-tauglicher Schlüssel sein.",
+            )
         if self.version <= 0:
             raise DomainInvariantError(
                 "template_version_invalid",
@@ -479,14 +524,9 @@ def _validate_configuration(
             "template_offerings_capability_missing",
             "Standardangebote benötigen die Capability Angebote.",
         )
-    if (
-        ActionCapability.ORDERING in capabilities
-        and ActionCapability.OFFERINGS not in capabilities
-    ):
-        raise DomainInvariantError(
-            "action_capability_dependency_invalid",
-            "Bestellungen benötigen die Capability Angebote.",
-        )
+    problem = capability_dependency_problem(capabilities)
+    if problem is not None:
+        raise problem
     if order_form is not None and ActionCapability.ORDERING not in capabilities:
         raise DomainInvariantError(
             "template_ordering_capability_missing",

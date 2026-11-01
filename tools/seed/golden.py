@@ -647,11 +647,12 @@ async def seed_identity(
                 goal_value,
                 actual_value,
                 goal_unit,
-                currency
+                currency,
+                presentation_theme
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7,
-                $8, $9, $10, $11, $12, $13, $14
+                $8, $9, $10, $11, $12, $13, $14, $15
             )
             ON CONFLICT (id) DO UPDATE
             SET carrier_name = EXCLUDED.carrier_name,
@@ -667,6 +668,7 @@ async def seed_identity(
                 actual_value = EXCLUDED.actual_value,
                 goal_unit = EXCLUDED.goal_unit,
                 currency = EXCLUDED.currency,
+                presentation_theme = EXCLUDED.presentation_theme,
                 updated_at = CURRENT_TIMESTAMP
             """,
             action["id"],
@@ -691,6 +693,8 @@ async def seed_identity(
             actual_value,
             action["goalUnit"],
             action["currency"],
+            # The golden campaign kind doubles as its public presentation theme.
+            str(action["kind"]).lower().replace("_", "-"),
         )
 
     golden_action_ids = [action["id"] for action in dataset["actions"]]

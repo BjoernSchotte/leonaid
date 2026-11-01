@@ -1,4 +1,4 @@
-"""Transactional PostgreSQL boundary for public Krapfentaxi orders."""
+"""Transactional PostgreSQL boundary for public campaign orders."""
 
 from __future__ import annotations
 
@@ -308,7 +308,13 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                     FROM charity_action_capability
                     WHERE action_id = action.id
                       AND capability = 'ordering'
-                ) AS ordering_enabled
+                ) AS ordering_enabled,
+                EXISTS (
+                    SELECT 1
+                    FROM charity_action_capability
+                    WHERE action_id = action.id
+                      AND capability = 'delivery'
+                ) AS delivery_enabled
             FROM charity_action AS action
             LEFT JOIN public_action_alias AS alias
               ON alias.action_id = action.id AND alias.is_primary AND alias.enabled
@@ -353,6 +359,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             action_id=row["id"],
             action_name=str(row["name"]),
             delivery_configuration=await lock_configuration(connection, action_id),
+            delivers=bool(row["delivery_enabled"]),
             order_form=OrderFormConfiguration(
                 form_key=str(row["form_key"]),
                 title=str(row["title"]),
@@ -389,7 +396,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         assert context.delivery_configuration is not None
         window_snapshot = context.delivery_configuration.validate_order(
             window_id=draft.delivery_window_id,
-            has_address=True,
+            has_address=draft.delivery_recipient is not None,
             contact=draft.delivery_contact,
             complete=True,
             now=datetime.now(timezone.utc),
@@ -502,6 +509,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                     "currency": commitment.total.currency,
                     "totalBoxes": commitment.total_boxes,
                     "totalPieces": commitment.total_pieces,
+                    "quantities": [item.payload() for item in commitment.quantities],
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),

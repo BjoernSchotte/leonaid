@@ -22,6 +22,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
     Offering,
+    UnitQuantity,
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
@@ -192,6 +193,7 @@ class CommitmentList:
     currency_totals: tuple[CommitmentCurrencyTotal, ...]
     total_boxes: int
     total_pieces: int
+    quantities: tuple[UnitQuantity, ...] = ()
 
 
 class CommitmentRepository(Protocol):
@@ -341,6 +343,11 @@ class CommitmentService:
             ),
             total_boxes=sum(record.commitment.total_boxes for record in records),
             total_pieces=sum(record.commitment.total_pieces for record in records),
+            quantities=UnitQuantity.summarize(
+                (item.unit, item.quantity)
+                for record in records
+                for item in record.commitment.quantities
+            ),
         )
 
     async def create_internal(

@@ -135,7 +135,8 @@ def require_template_response(
         or offerings[0].get("unitPriceMinor") != price
         or order_form.get("title") != title
         or action.get("capabilities")
-        != ["acquisition", "invoicing", "offerings", "ordering"]
+        != ["acquisition", "delivery", "invoicing", "offerings", "ordering"]
+        or action.get("presentationTheme") != "krapfentaxi"
     ):
         raise ContractFailure("Krapfentaxi-Konfiguration ist unvollständig")
     return UUID(str(action["id"]))
@@ -145,11 +146,11 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         """
         INSERT INTO action_template_version (
-            template_key, version, display_name, description
+            template_key, version, display_name, description, presentation_theme
         )
         VALUES (
             'krapfentaxi', 3, 'Krapfentaxi',
-            'Dritte reale Testversion mit angepasstem Preis.'
+            'Dritte reale Testversion mit angepasstem Preis.', 'krapfentaxi'
         )
         """
     )
@@ -162,7 +163,13 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
         """,
         [
             (capability,)
-            for capability in ("acquisition", "offerings", "ordering", "invoicing")
+            for capability in (
+                "acquisition",
+                "offerings",
+                "ordering",
+                "invoicing",
+                "delivery",
+            )
         ],
     )
     await connection.execute(
@@ -191,6 +198,59 @@ async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
             'Unterstützen Sie die nächste Krapfentaxi-Aktion.',
             'Bestellung absenden',
             true, true, true, false, true, true, true
+        )
+        """
+    )
+
+
+async def publish_pickup_goods_sale(connection: asyncpg.Connection[Any]) -> None:
+    """A new goods-sale campaign type is pure data: no code knows its key."""
+    await connection.execute(
+        """
+        INSERT INTO action_template_version (
+            template_key, version, display_name, description
+        )
+        VALUES (
+            'christbaumverkauf', 1, 'Christbaumverkauf',
+            'Christbäume zur Abholung mit öffentlichem Bestellformular.'
+        )
+        """
+    )
+    await connection.executemany(
+        """
+        INSERT INTO action_template_capability (
+            template_key, template_version, capability
+        )
+        VALUES ('christbaumverkauf', 1, $1)
+        """,
+        [(capability,) for capability in ("offerings", "ordering", "invoicing")],
+    )
+    await connection.execute(
+        """
+        INSERT INTO action_template_offering (
+            template_key, template_version, code, name, status, unit,
+            pieces_per_unit, unit_price_minor, currency, sort_order
+        )
+        VALUES (
+            'christbaumverkauf', 1, 'nordmanntanne', 'Nordmanntanne',
+            'draft', 'piece', NULL, 3900, 'EUR', 0
+        )
+        """
+    )
+    await connection.execute(
+        """
+        INSERT INTO action_template_order_form (
+            template_key, template_version, form_key, title, introduction,
+            submit_label, require_company_name, require_contact_name,
+            require_email, require_phone, require_delivery_address,
+            require_billing_address, allow_message
+        )
+        VALUES (
+            'christbaumverkauf', 1, 'baum-bestellung',
+            'Christbaum reservieren',
+            'Reservieren Sie Ihren Baum zur Abholung.',
+            'Reservierung absenden',
+            false, true, true, false, false, true, true
         )
         """
     )
@@ -361,6 +421,80 @@ async def exercise(
             ("krapfentaxi", 3),
         ]:
             raise ContractFailure("Neueste veröffentlichte Template-Version fehlt")
+
+        await publish_pickup_goods_sale(connection)
+        open_list = await client.get(
+            "/api/v1/action-templates",
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("template-list-open"),
+        )
+        open_list.raise_for_status()
+        pickup_summary = next(
+            (
+                item
+                for item in open_list.json()["items"]
+                if item["key"] == "christbaumverkauf"
+            ),
+            None,
+        )
+        if (
+            pickup_summary is None
+            or pickup_summary["capabilities"] != ["invoicing", "offerings", "ordering"]
+            or not pickup_summary["hasOrderForm"]
+            or pickup_summary["presentationTheme"] is not None
+        ):
+            raise ContractFailure("Neuer Daten-Template-Typ fehlt in der Auswahl")
+        pickup_response = await client.post(
+            "/api/v1/actions/from-template",
+            json=template_payload(
+                key="christbaumverkauf",
+                slug="christbaumverkauf-2027",
+                name="Christbaumverkauf 2027",
+            ),
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("create-pickup"),
+        )
+        pickup_response.raise_for_status()
+        pickup = pickup_response.json()
+        if (
+            pickup["template"]["key"] != "christbaumverkauf"
+            or pickup["action"]["capabilities"]
+            != ["invoicing", "offerings", "ordering"]
+            or pickup["action"]["presentationTheme"] is not None
+            or [item["unit"] for item in pickup["offerings"]] != ["piece"]
+            or pickup["orderForm"]["requireDeliveryAddress"] is not False
+        ):
+            raise ContractFailure("Daten-Template wurde nicht neutral instanziiert")
+        pickup_delivery = await connection.fetchval(
+            "SELECT enabled FROM action_delivery_configuration WHERE action_id = $1",
+            UUID(str(pickup["action"]["id"])),
+        )
+        if pickup_delivery is not False:
+            raise ContractFailure("Abholverkauf erhielt eine Lieferplanung")
+        unknown = await client.post(
+            "/api/v1/actions/from-template",
+            json=template_payload(
+                key="unbekannte-aktion",
+                slug="unbekannte-aktion-2027",
+                name="Unbekannte Aktion 2027",
+            ),
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("create-unknown"),
+        )
+        invalid = await client.post(
+            "/api/v1/actions/from-template",
+            json=template_payload(
+                key="Kein Slug",
+                slug="ungueltige-aktion-2027",
+                name="Ungültige Aktion 2027",
+            ),
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("create-invalid"),
+        )
+        if unknown.status_code not in {404, 422} or invalid.status_code != 422:
+            raise ContractFailure(
+                "Unbekannte oder ungültige Template-Schlüssel wurden akzeptiert"
+            )
 
         historical = await client.get(
             f"/api/v1/actions/{v1_action_id}/configuration",

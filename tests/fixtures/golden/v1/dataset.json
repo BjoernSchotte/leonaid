@@ -93,7 +93,13 @@
       "actualAmountCents": 90000,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing",
+        "delivery"
+      ],
       "publicAlias": "krapfentaxi",
       "publicationStartsAt": "2026-07-01T00:00:00+02:00",
       "publicationEndsAt": "2026-11-16T00:00:00+01:00",
@@ -110,7 +116,13 @@
       "actualAmountCents": 0,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing",
+        "delivery"
+      ],
       "publicAlias": null,
       "publicationStartsAt": null,
       "publicationEndsAt": null,
@@ -127,7 +139,13 @@
       "actualAmountCents": 0,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing",
+        "delivery"
+      ],
       "publicAlias": null,
       "publicationStartsAt": null,
       "publicationEndsAt": null,

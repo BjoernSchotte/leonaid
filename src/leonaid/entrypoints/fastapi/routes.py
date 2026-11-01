@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -161,6 +162,7 @@ from leonaid.domain.commitments import (
     CommitmentSource,
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
+    UnitQuantity,
 )
 from leonaid.domain.identity import AccountStatus, ActionRole, GlobalRole
 from leonaid.domain.invitations import InvitationStatus
@@ -186,6 +188,7 @@ from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
+    UnitQuantityResponse,
     CampaignAliasListResponse,
     CampaignAliasMutationResponse,
     CreateCampaignAliasRequest,
@@ -572,6 +575,15 @@ def acquisition_party_response(
     return AcquisitionPartyResponse.model_validate(party)
 
 
+def unit_quantity_responses(
+    quantities: Iterable[UnitQuantity],
+) -> list[UnitQuantityResponse]:
+    return [
+        UnitQuantityResponse(unit=item.unit.value, quantity=item.quantity)
+        for item in quantities
+    ]
+
+
 def activity_feed_item_response(
     item: ActivityFeedItem,
 ) -> ActivityFeedItemResponse:
@@ -589,6 +601,7 @@ def activity_feed_item_response(
         currency=item.currency,
         total_boxes=item.total_boxes,
         total_pieces=item.total_pieces,
+        quantities=unit_quantity_responses(item.quantities),
         next_action_label=item.next_action_label,
         next_action_href=item.next_action_href,
         occurred_at=item.occurred_at,
@@ -967,6 +980,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                 active_total_minor=admin.commitments.active_total_minor,
                 total_boxes=admin.commitments.total_boxes,
                 total_pieces=admin.commitments.total_pieces,
+                quantities=unit_quantity_responses(admin.commitments.quantities),
                 currency=snapshot.currency,
             ),
             invoices=DashboardInvoiceResponse(
@@ -1049,6 +1063,7 @@ def charity_action_response(action: CharityAction) -> CharityActionResponse:
             unit=action.goal.unit,
             currency=action.goal.currency,
         ),
+        presentation_theme=action.presentation_theme,
     )
 
 
@@ -1160,8 +1175,10 @@ def public_action_route_response(
                         ),
                         require_email=route.order_form.configuration.require_email,
                         require_phone=route.order_form.configuration.require_phone,
+                        # Delivery data is only collected for delivery actions.
                         require_delivery_address=(
                             route.order_form.configuration.require_delivery_address
+                            and ActionCapability.DELIVERY in action.capabilities
                         ),
                         require_billing_address=(
                             route.order_form.configuration.require_billing_address
@@ -1188,6 +1205,8 @@ def public_action_route_response(
                     )
                     else None
                 ),
+                capabilities=sorted(item.value for item in action.capabilities),
+                presentation_theme=action.presentation_theme,
             )
             if action is not None
             else None
@@ -1206,6 +1225,7 @@ def action_template_summary_response(
         capabilities=sorted(item.value for item in template.capabilities),
         offering_count=len(template.offerings),
         has_order_form=template.order_form is not None,
+        presentation_theme=template.presentation_theme,
     )
 
 
@@ -1326,6 +1346,7 @@ def commitment_response(commitment: Commitment) -> CommitmentResponse:
         currency=commitment.total.currency,
         total_pieces=commitment.total_pieces,
         total_boxes=commitment.total_boxes,
+        quantities=unit_quantity_responses(commitment.quantities),
         replayed=commitment.replayed,
     )
 
@@ -1385,6 +1406,7 @@ def commitment_list_response(value: CommitmentList) -> CommitmentListResponse:
         ],
         total_pieces=value.total_pieces,
         total_boxes=value.total_boxes,
+        quantities=unit_quantity_responses(value.quantities),
     )
 
 
@@ -1852,12 +1874,16 @@ def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
             email=body.party.email,
             phone=body.party.phone,
         ),
-        delivery_recipient=DeliveryRecipientSnapshot(
-            recipient_name=body.delivery_recipient.recipient_name,
-            street_line_1=body.delivery_recipient.street_line_1,
-            postal_code=body.delivery_recipient.postal_code,
-            city=body.delivery_recipient.city,
-            country_code=body.delivery_recipient.country_code,
+        delivery_recipient=(
+            DeliveryRecipientSnapshot(
+                recipient_name=body.delivery_recipient.recipient_name,
+                street_line_1=body.delivery_recipient.street_line_1,
+                postal_code=body.delivery_recipient.postal_code,
+                city=body.delivery_recipient.city,
+                country_code=body.delivery_recipient.country_code,
+            )
+            if body.delivery_recipient is not None
+            else None
         ),
         invoice_recipient=InvoiceRecipientSnapshot(
             recipient_name=body.invoice_recipient.recipient_name,

@@ -41,7 +41,8 @@
       "acquisition",
       "offerings",
       "ordering",
-      "invoicing"
+      "invoicing",
+      "delivery"
     ],
     "membershipRole": [
       "CHARITY_ADMIN",

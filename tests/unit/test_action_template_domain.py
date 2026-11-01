@@ -31,7 +31,7 @@ def krapfentaxi_template(
     price: int = 3600,
 ) -> ActionTemplate:
     return ActionTemplate(
-        key=ActionTemplateKey.KRAPFENTAXI,
+        key=ActionTemplateKey("krapfentaxi"),
         version=version,
         display_name="Krapfentaxi",
         description="Bestellaktion für Krapfenboxen.",
@@ -161,6 +161,37 @@ def test_only_active_configured_offerings_are_public() -> None:
     )
 
 
+def test_template_keys_are_open_validated_slugs() -> None:
+    assert ActionTemplateKey("christbaum-verkauf").value == "christbaum-verkauf"
+    assert ActionTemplateKey.BLANK == "blank"
+    for invalid in ("", "Krapfentaxi", "two words", "-leading", "x" * 65):
+        with pytest.raises(DomainInvariantError) as captured:
+            ActionTemplateKey(invalid)
+        assert captured.value.code == "template_key_invalid"
+
+
+def test_delivery_capability_requires_ordering() -> None:
+    template = krapfentaxi_template()
+    assert ActionCapability.DELIVERY in template.capabilities
+    with pytest.raises(DomainInvariantError) as captured:
+        replace(
+            template,
+            capabilities=frozenset(
+                {ActionCapability.OFFERINGS, ActionCapability.DELIVERY}
+            ),
+            order_form=None,
+        )
+    assert captured.value.code == "action_capability_dependency_invalid"
+
+
+def test_template_presentation_theme_is_a_slug() -> None:
+    template = replace(krapfentaxi_template(), presentation_theme="krapfentaxi")
+    assert template.presentation_theme == "krapfentaxi"
+    with pytest.raises(DomainInvariantError) as captured:
+        replace(template, presentation_theme="Not A Slug")
+    assert captured.value.code == "template_presentation_theme_invalid"
+
+
 def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:
     project_root = Path(__file__).resolve().parents[2]
     action_source = (project_root / "src/leonaid/domain/actions.py").read_text(
@@ -170,8 +201,10 @@ def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:
         project_root / "src/leonaid/domain/action_templates.py"
     ).read_text(encoding="utf-8")
 
+    # Campaign types are data: neither the aggregate nor the template model
+    # may special-case a campaign name.
     assert "krapfen" not in action_source.casefold()
-    assert "krapfentaxi" in template_source.casefold()
+    assert "krapfen" not in template_source.casefold()
     assert {field.name for field in fields(CharityAction)} == {
         "id",
         "carrier_name",
@@ -186,4 +219,5 @@ def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:
         "goal",
         "publication_window",
         "revision",
+        "presentation_theme",
     }
