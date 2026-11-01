@@ -9,3 +9,5 @@ ARG TARGETARCH
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=readonly -p=1 -trimpath -ldflags='-w -s' -o /out/caddy .
 FROM docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 COPY --from=build /out/caddy /usr/bin/caddy
+# Upstream caddy:2.11.4-alpine still ships brotli-libs 1.2.0-r0 (CVE-2026-111497).
+RUN apk upgrade --no-cache brotli-libs
