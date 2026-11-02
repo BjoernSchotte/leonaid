@@ -113,6 +113,7 @@ api_probe replay-and-verify-mail
 
 echo "poc022-test: a worker whose lease expired must not overwrite the new claim"
 api_probe verify-claim-loss
+api_probe handler-timeout
 
 echo "poc022-test: retention deletes only expired completed jobs, in bounded batches"
 api_probe verify-retention
@@ -128,4 +129,4 @@ case "$retention_output" in
 esac
 api_probe verify-retention-cli
 
-echo "poc022-test: OK: UoW, crash recovery, worker fencing, retry, dead letter, idempotency and retention proven"
+echo "poc022-test: OK: UoW, crash recovery, worker fencing, retry, dead letter, idempotency, retention and handler timeout proven"

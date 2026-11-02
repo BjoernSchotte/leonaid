@@ -38,6 +38,8 @@ class ModuleRegistration:
     router: APIRouter | None = None
     navigation: NavigationContribution | None = None
     handlers: Mapping[str, OutboxEventHandler] = field(default_factory=dict)
+    # Upper runtime bound in seconds for handlers that are safe to repeat.
+    handler_timeouts: Mapping[str, float] = field(default_factory=dict)
     background_loops: Sequence[BackgroundLoop] = ()
     requires: tuple[str, ...] = ()
 
@@ -163,3 +165,24 @@ def collect_background_loops(
             names.add(loop.name)
             loops.append(loop)
     return tuple(loops)
+
+
+def collect_handler_timeouts(
+    modules: Sequence[ModuleRegistration],
+) -> dict[str, float]:
+    """Timeouts may only name handlers that the same module registers."""
+    validate_modules(modules)
+    timeouts: dict[str, float] = {}
+    for module in modules:
+        for event_type, seconds in module.handler_timeouts.items():
+            if event_type not in module.handlers:
+                raise RegistrationError(
+                    f"Module {module.id} sets a timeout for foreign or unknown "
+                    f"handler {event_type}"
+                )
+            if not seconds > 0:
+                raise RegistrationError(
+                    f"Handler timeout must be positive: {event_type}"
+                )
+            timeouts[event_type] = seconds
+    return timeouts
