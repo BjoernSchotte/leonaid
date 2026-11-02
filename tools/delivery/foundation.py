@@ -280,7 +280,9 @@ async def prove() -> None:
         await prove_public_http(pool, action.id, admin_id)
         saved = await repo.get(action.id)
         retired = await repo.save(
-            replace(saved, windows=tuple(replace(w, retired=True) for w in windows))
+            replace(
+                saved, windows=tuple(replace(w, retired=True) for w in saved.windows)
+            )
         )
         try:
             await repo.save(replace(retired, windows=windows))

@@ -86,6 +86,7 @@ export function DeliveryFields({
   disabled = false,
   refresh,
   refreshing = false,
+  lockedWindow = false,
 }: {
   readonly configuration: DeliveryConfigurationResponse;
   readonly value: DeliveryDraft;
@@ -94,15 +95,17 @@ export function DeliveryFields({
   readonly disabled?: boolean;
   readonly refresh: () => void;
   readonly refreshing?: boolean;
+  /** A booked window is immutable: hide the choice and keep the stored ID. */
+  readonly lockedWindow?: boolean;
 }) {
   const prefix = useId();
   const windows = configuration.windows.filter((item) => !item.retired);
   const days = [...new Set(windows.map((item) => item.deliveryOn))].sort();
   const selectedAvailable = windows.some((item) => item.id === value.windowId);
   useEffect(() => {
-    if (value.windowId && !selectedAvailable)
+    if (!lockedWindow && value.windowId && !selectedAvailable)
       onChange({ ...value, windowId: "" });
-  }, [selectedAvailable, value.windowId]);
+  }, [lockedWindow, selectedAvailable, value.windowId]);
   return (
     <fieldset
       className="commitment-step commitment-delivery"
@@ -197,55 +200,62 @@ export function DeliveryFields({
           <small>Zwei Buchstaben, zum Beispiel DE.</small>
         </div>
       </div>
-      <fieldset
-        className="commitment-window-choice"
-        aria-describedby={`${prefix}-timezone`}
-      >
-        <legend>Lieferzeitfenster</legend>
-        <p id={`${prefix}-timezone`}>
-          Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
-          auswählen.
+      {lockedWindow ? (
+        <p className="commitment-step__intro">
+          Der gebuchte Liefertermin bleibt unverändert.
         </p>
-        {days.length ? (
-          days.map((day) => (
-            <div className="commitment-delivery-day" key={day}>
-              <h3>{dayLabel(day)}</h3>
-              <div className="commitment-delivery-options">
-                {windows
-                  .filter((item) => item.deliveryOn === day)
-                  .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-                  .map((item) => (
-                    <label key={item.id}>
-                      <input
-                        type="radio"
-                        name="delivery-window"
-                        value={item.id}
-                        checked={value.windowId === item.id}
-                        onChange={() =>
-                          onChange({ ...value, windowId: item.id })
-                        }
-                      />
-                      <span>
-                        {item.startsAt.slice(0, 5)}–{item.endsAt.slice(0, 5)}{" "}
-                        Uhr<span className="sr-only"> am {dayLabel(day)}</span>
-                      </span>
-                    </label>
-                  ))}
+      ) : (
+        <fieldset
+          className="commitment-window-choice"
+          aria-describedby={`${prefix}-timezone`}
+        >
+          <legend>Lieferzeitfenster</legend>
+          <p id={`${prefix}-timezone`}>
+            Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
+            auswählen.
+          </p>
+          {days.length ? (
+            days.map((day) => (
+              <div className="commitment-delivery-day" key={day}>
+                <h3>{dayLabel(day)}</h3>
+                <div className="commitment-delivery-options">
+                  {windows
+                    .filter((item) => item.deliveryOn === day)
+                    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+                    .map((item) => (
+                      <label key={item.id}>
+                        <input
+                          type="radio"
+                          name="delivery-window"
+                          value={item.id}
+                          checked={value.windowId === item.id}
+                          onChange={() =>
+                            onChange({ ...value, windowId: item.id })
+                          }
+                        />
+                        <span>
+                          {item.startsAt.slice(0, 5)}–{item.endsAt.slice(0, 5)}{" "}
+                          Uhr
+                          <span className="sr-only"> am {dayLabel(day)}</span>
+                        </span>
+                      </label>
+                    ))}
+                </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <StatusMessage tone="info">
-            Zurzeit ist kein Lieferfenster verfügbar. Ein Entwurf ist möglich.
-            Bitte den Charity-Admin, neue Termine freizugeben.
-          </StatusMessage>
-        )}
-        <Button variant="ghost" disabled={refreshing} onClick={refresh}>
-          {refreshing
-            ? "Lieferfenster werden geladen …"
-            : "Lieferfenster aktualisieren"}
-        </Button>
-      </fieldset>
+            ))
+          ) : (
+            <StatusMessage tone="info">
+              Zurzeit ist kein Lieferfenster verfügbar. Ein Entwurf ist möglich.
+              Bitte den Charity-Admin, neue Termine freizugeben.
+            </StatusMessage>
+          )}
+          <Button variant="ghost" disabled={refreshing} onClick={refresh}>
+            {refreshing
+              ? "Lieferfenster werden geladen …"
+              : "Lieferfenster aktualisieren"}
+          </Button>
+        </fieldset>
+      )}
       <div className="commitment-recipient-grid">
         <div className="commitment-field commitment-field--wide">
           <label htmlFor={`${prefix}-contact-name`}>

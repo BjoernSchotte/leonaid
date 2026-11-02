@@ -214,6 +214,164 @@ async def mutate_twenty_company() -> None:
             raise ContractFailure("The real Twenty address was not changed")
 
 
+def completion_path(commitment_id: UUID = COMMITMENT_ID) -> str:
+    return (
+        f"/api/v1/actions/{ACTION_ID}/commitments/{commitment_id}/delivery-completion"
+    )
+
+
+async def exercise_delivery_completion(
+    connection: asyncpg.Connection[Any],
+    api: httpx.AsyncClient,
+    tokens: dict[str, str],
+) -> dict[str, Any]:
+    """Delivery planning enabled after capture blocks invoicing until completed."""
+    window_id = UUID("98000000-0000-4000-8000-000000000001")
+    await connection.execute(
+        """
+        INSERT INTO charity_action_capability (action_id, capability)
+        VALUES ($1, 'delivery') ON CONFLICT DO NOTHING
+        """,
+        ACTION_ID,
+    )
+    await connection.execute(
+        """
+        INSERT INTO action_delivery_configuration (action_id, enabled)
+        VALUES ($1, true)
+        ON CONFLICT (action_id) DO UPDATE
+        SET enabled = true, revision = action_delivery_configuration.revision + 1
+        """,
+        ACTION_ID,
+    )
+    await connection.execute(
+        """
+        INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
+        -- A fixed local day time: a window may not cross local midnight.
+        VALUES ($1, $2,
+            ((now() AT TIME ZONE 'Europe/Berlin')::date + 1 + time '10:00')
+                AT TIME ZONE 'Europe/Berlin',
+            ((now() AT TIME ZONE 'Europe/Berlin')::date + 1 + time '12:00')
+                AT TIME ZONE 'Europe/Berlin')
+        """,
+        window_id,
+        ACTION_ID,
+    )
+    blocked = await issue(
+        api,
+        token=tokens["klara_fresh"],
+        idempotency_key="poc090:delivery:incomplete",
+    )
+    if (
+        blocked.status_code != 409
+        or error_code(blocked) != "invoice_delivery_incomplete"
+    ):
+        raise ContractFailure(
+            f"Invoice was issued without delivery details: {blocked.status_code} {blocked.text}"
+        )
+    if await connection.fetchval(
+        "SELECT count(*) FROM invoice WHERE commitment_id = $1", COMMITMENT_ID
+    ):
+        raise ContractFailure("Rejected issuing created an invoice")
+
+    loaded = await api.get(
+        f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}",
+        headers=session_headers(tokens["klara_fresh"]),
+    )
+    loaded.raise_for_status()
+    order = loaded.json()
+    recipient = order["invoiceRecipient"]
+    if recipient is None or recipient["streetLine1"] != "Sonnenstraße 2":
+        raise ContractFailure("Golden order has no billing details")
+    body = {
+        "expectedVersion": order["deliveryCompletionVersion"],
+        "invoiceRecipient": {**recipient, "email": "rechnung@sonnenseite.example"},
+        "deliveryRecipient": {
+            "recipientName": "Bäckerei Sonnenseite KG, Lager",
+            "streetLine1": "Lagerweg 4",
+            "postalCode": "10243",
+            "city": "Beispielstadt",
+            "countryCode": "DE",
+        },
+        "deliveryWindowId": str(window_id),
+    }
+
+    async def complete(token: str, key: str, value: dict[str, Any]) -> httpx.Response:
+        return await api.post(
+            completion_path(),
+            headers={
+                **session_headers(token),
+                "Idempotency-Key": key,
+                "X-Request-ID": f"poc090:{key}",
+            },
+            json=value,
+        )
+
+    denied = await complete(tokens["anna"], "poc090:completion:acquirer", body)
+    if denied.status_code != 403:
+        raise ContractFailure("Acquirer could complete delivery details")
+    finance = await complete(tokens["finn"], "poc090:completion:finance", body)
+    if finance.status_code != 403:
+        raise ContractFailure("Finance reader could complete delivery details")
+    anonymous = await api.post(
+        completion_path(),
+        headers={"Idempotency-Key": "poc090:completion:anonymous"},
+        json=body,
+    )
+    if anonymous.status_code != 401:
+        raise ContractFailure("Anonymous delivery completion was not rejected")
+    stale = await complete(
+        tokens["klara_fresh"],
+        "poc090:completion:stale",
+        {**body, "expectedVersion": "0" * 64},
+    )
+    if stale.status_code != 409 or error_code(stale) != "delivery_completion_conflict":
+        raise ContractFailure("Stale delivery completion was accepted")
+    accepted = await complete(tokens["klara_fresh"], "poc090:completion:ok", body)
+    accepted.raise_for_status()
+    completed: dict[str, Any] = accepted.json()
+    if (
+        completed["status"] != "review_ready"
+        or completed["lines"] != order["lines"]
+        or completed["totalMinor"] != order["totalMinor"]
+        or completed["deliveryWindowId"] != str(window_id)
+        or completed["invoiceRecipient"]["email"] != "rechnung@sonnenseite.example"
+    ):
+        raise ContractFailure("Delivery completion changed the order incorrectly")
+    replay = await complete(tokens["klara_fresh"], "poc090:completion:ok", body)
+    replay.raise_for_status()
+    if not replay.json()["replayed"] or replay.json()["id"] != completed["id"]:
+        raise ContractFailure("Delivery completion replay was not exact")
+    return completed
+
+
+async def assert_completion_closed(
+    api: httpx.AsyncClient, tokens: dict[str, str], completed: dict[str, Any]
+) -> None:
+    current = await api.get(
+        f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}",
+        headers=session_headers(tokens["klara_fresh"]),
+    )
+    current.raise_for_status()
+    response = await api.post(
+        completion_path(),
+        headers={
+            **session_headers(tokens["klara_fresh"]),
+            "Idempotency-Key": "poc090:completion:after-invoice",
+        },
+        json={
+            "expectedVersion": current.json()["deliveryCompletionVersion"],
+            "invoiceRecipient": completed["invoiceRecipient"],
+            "deliveryRecipient": completed["deliveryRecipient"],
+            "deliveryWindowId": completed["deliveryWindowId"],
+        },
+    )
+    if (
+        response.status_code != 409
+        or error_code(response) != "delivery_completion_closed"
+    ):
+        raise ContractFailure("An invoiced order could still be edited")
+
+
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
     tokens = await seed_sessions(connection)
     api_url = require_env("API_BASE_URL").rstrip("/")
@@ -334,6 +492,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ):
             raise ContractFailure("Draft order could be invoiced")
 
+        completed = await exercise_delivery_completion(connection, api, tokens)
+
         first, second = await asyncio.gather(
             issue(
                 api,
@@ -364,7 +524,10 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
         if issued_snapshot["streetLine1"] != "Sonnenstraße 2":
             raise ContractFailure("Invoice does not contain the expected snapshot")
+        if issued_snapshot["email"] != completed["invoiceRecipient"]["email"]:
+            raise ContractFailure("Invoice does not use the completed billing details")
         await assert_database_result(connection, invoice_id)
+        await assert_completion_closed(api, tokens, completed)
 
         replay = await issue(
             api,

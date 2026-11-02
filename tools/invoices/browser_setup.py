@@ -16,6 +16,8 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 
+ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
+DELIVERY_WINDOW_ID = UUID("98000000-0000-4000-8000-000000000002")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 SESSION_NAMESPACE = UUID("ab77cb61-0df1-4df7-a3fb-fbf8bddf58b4")
@@ -73,6 +75,39 @@ async def main() -> None:
                 fresh_login_at,
                 created_at,
             )
+        # Delivery planning was enabled after the golden orders were captured:
+        # the browser proof must complete the missing details before issuing.
+        await connection.execute(
+            """
+            INSERT INTO charity_action_capability (action_id, capability)
+            VALUES ($1, 'delivery') ON CONFLICT DO NOTHING
+            """,
+            ACTION_ID,
+        )
+        await connection.execute(
+            """
+            INSERT INTO action_delivery_configuration (action_id, enabled)
+            VALUES ($1, true)
+            ON CONFLICT (action_id) DO UPDATE
+            SET enabled = true,
+                revision = action_delivery_configuration.revision + 1
+            """,
+            ACTION_ID,
+        )
+        await connection.execute(
+            """
+            INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
+            -- A fixed local day time: a window may not cross local midnight.
+            VALUES ($1, $2,
+                ((now() AT TIME ZONE 'Europe/Berlin')::date + 2 + time '10:00')
+                    AT TIME ZONE 'Europe/Berlin',
+                ((now() AT TIME ZONE 'Europe/Berlin')::date + 2 + time '12:00')
+                    AT TIME ZONE 'Europe/Berlin')
+            ON CONFLICT (id) DO NOTHING
+            """,
+            DELIVERY_WINDOW_ID,
+            ACTION_ID,
+        )
     finally:
         await connection.close()
 
@@ -83,7 +118,10 @@ async def main() -> None:
         encoding="utf-8",
     )
     output.chmod(0o600)
-    print("invoice-browser-setup: OK: stale admin and finance reader sessions")
+    print(
+        "invoice-browser-setup: OK: stale admin and finance reader sessions, "
+        "delivery planning enabled after capture"
+    )
 
 
 if __name__ == "__main__":

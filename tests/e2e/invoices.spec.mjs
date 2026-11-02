@@ -107,6 +107,135 @@ function sessionCookie(value) {
   };
 }
 
+const actionId = "20000000-0000-4000-8000-000000000001";
+
+async function openCompletion(page) {
+  await page.goto(
+    `${baseUrl}/admin/orders?status=review_ready&invoice=${commitmentId}`,
+  );
+  const row = page.locator(`[data-commitment-id="${commitmentId}"]`);
+  await expect(row).toBeVisible();
+  await row.getByTestId("commitment-order-details").locator("summary").click();
+  const form = row.getByTestId("delivery-completion");
+  await expect(form).toBeVisible();
+  return { form, row };
+}
+
+async function fillDelivery(form, contactName) {
+  await form
+    .getByLabel("Lieferempfänger", { exact: true })
+    .fill("Bäckerei Sonnenseite KG, Lager");
+  await form
+    .getByLabel("Straße und Hausnummer für die Lieferung")
+    .fill("Lagerweg 4");
+  await form.getByLabel("PLZ für die Lieferung").fill("10243");
+  await form.getByLabel("Ort für die Lieferung").fill("Beispielstadt");
+  await form.getByRole("radio").first().check();
+  await form
+    .getByLabel("Ansprechpartner bei der Lieferung (optional)")
+    .fill(contactName);
+}
+
+test("manager completes missing delivery details and recovers from a competing edit", async ({
+  browser,
+}) => {
+  const options = { ignoreHTTPSErrors: true };
+  const mobileContext = await browser.newContext({
+    ...options,
+    viewport: { width: 390, height: 844 },
+  });
+  const desktopContext = await browser.newContext({
+    ...options,
+    viewport: { width: 1440, height: 1000 },
+  });
+  await mobileContext.addCookies([sessionCookie(klaraSession)]);
+  await desktopContext.addCookies([sessionCookie(klaraSession)]);
+  const page = await mobileContext.newPage();
+  const other = await desktopContext.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  try {
+    const orderUrl = `${baseUrl}/api/v1/actions/${actionId}/commitments/${commitmentId}`;
+    const before = await (await page.request.get(orderUrl)).json();
+    expect(before.deliveryWindowId).toBeNull();
+    const mobile = await openCompletion(page);
+    const review = page.getByTestId("invoice-review");
+    await expect(review).toContainText("Lieferangaben fehlen");
+    await expect(page.getByTestId("issue-invoice")).toBeDisabled();
+    await expect(
+      mobile.form.getByLabel("Rechnungsempfänger", { exact: true }),
+    ).toHaveValue("Bäckerei Sonnenseite KG");
+    await fillDelivery(mobile.form, "Lager Süd");
+
+    // A second manager completes the same order first.
+    const desktop = await openCompletion(other);
+    await fillDelivery(desktop.form, "Lager Nord");
+    await desktop.form.getByTestId("delivery-completion-submit").click();
+    await expect(desktop.form).toContainText("Angaben gespeichert");
+
+    await mobile.form.getByTestId("delivery-completion-submit").click();
+    await expect(mobile.form).toContainText("inzwischen geändert");
+    await expect(mobile.form).toContainText("Deine Eingaben bleiben erhalten");
+    await expect(
+      mobile.form.getByLabel("Ansprechpartner bei der Lieferung (optional)"),
+    ).toHaveValue("Lager Süd");
+    await mobile.form
+      .getByRole("button", { name: "Aktuellen Stand laden und vergleichen" })
+      .click();
+    const comparison = mobile.form.getByTestId(
+      "delivery-completion-comparison",
+    );
+    await expect(comparison).toContainText("Lager Nord");
+    await expect(
+      mobile.form.getByTestId("delivery-completion-submit"),
+    ).toBeDisabled();
+    await comparison
+      .getByRole("button", { name: "Meine Eingaben auf diesen Stand anwenden" })
+      .click();
+    await expect(mobile.form).toContainText(
+      "Der gebuchte Liefertermin bleibt unverändert.",
+    );
+    await mobile.form.getByTestId("delivery-completion-submit").click();
+    await expect(mobile.form).toContainText("Angaben gespeichert");
+
+    const readback = await page.request.get(orderUrl);
+    expect(readback.ok()).toBeTruthy();
+    const order = await readback.json();
+    expect(order.status).toBe("review_ready");
+    expect(order.deliveryContact.name).toBe("Lager Süd");
+    expect(order.deliveryRecipient.streetLine1).toBe("Lagerweg 4");
+    // The competing desktop edit booked the window; it stays fixed.
+    expect(order.deliveryWindowId).toMatch(/^98000000-/);
+    expect(order.deliveryWindowSnapshot.windowId).toBe(order.deliveryWindowId);
+    expect(order.invoiceRecipient.streetLine1).toBe("Sonnenstraße 2");
+    expect(order.totalMinor).toBe(before.totalMinor);
+    expect(order.lines).toEqual(before.lines);
+
+    await expect(review).not.toContainText("Lieferangaben fehlen");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-delivery-completion-mobile.png`,
+      fullPage: true,
+    });
+    const accessibility = await new AxeBuilder({ page })
+      .include(`[data-commitment-id="${commitmentId}"]`)
+      .analyze();
+    expect(
+      accessibility.violations.filter((violation) =>
+        ["critical", "serious"].includes(violation.impact),
+      ),
+    ).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await mobileContext.close();
+    await desktopContext.close();
+  }
+});
+
 test("fresh login protects approval and finance role sees the invoice unchanged", async ({
   browser,
 }) => {

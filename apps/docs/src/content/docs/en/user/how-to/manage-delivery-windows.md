@@ -4,9 +4,9 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
 reviewer: Björn Schotte
 ---
 
@@ -36,3 +36,25 @@ all windows are retired, no new binding order can be completed.
 On an edit conflict, select **Aktuellen Stand laden und Eingaben behalten**,
 compare the merged plan, and save again. Use the offered new-tab link if you
 need to inspect the current state separately.
+
+## Complete missing delivery details
+
+Orders captured before delivery planning was enabled have no delivery address
+or window. While delivery planning is active, such an order cannot be invoiced:
+**Rechnung prüfen** shows **Lieferangaben fehlen** and the approval stays
+disabled.
+
+1. Open **Bestellungen prüfen**, then the order's **Liefer- und
+   Rechnungsangaben ergänzen** section.
+2. Enter the delivery address, select a window and, if needed, correct the
+   billing address.
+3. Select **Angaben speichern**.
+
+The confirmation says **Angaben gespeichert. Die Bestellung ist prüfbereit.**
+Buyer, items and prices stay unchanged. A booked window stays fixed, even if it
+was retired later. Invoiced orders can no longer be changed.
+
+If another administrator saved the order in the meantime, your inputs stay in
+the form. Select **Aktuellen Stand laden und vergleichen**, check the stored
+details, then select **Meine Eingaben auf diesen Stand anwenden** and save
+again.
