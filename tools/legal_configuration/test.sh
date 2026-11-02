@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
 project=${LEONAID_LEGAL_TEST_PROJECT:-leonaid-pilot044-test}
@@ -34,7 +35,8 @@ cleanup() {
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
+  verify_owned_project_removed "$project" || status=1
   rm -rf "$proof"
   exit "$status"
 }

@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 mode=${2:-baseline}
 case "$mode" in baseline|surveys) ;; *) echo "Expected baseline or surveys mode" >&2; exit 64 ;; esac
@@ -184,22 +185,22 @@ print(
   fi
   if [ "$runtime_owned" = true ]; then
     runtime_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || status=1
-    verify_project_absent "$project" || status=1
+    verify_owned_project_removed "$project" || status=1
   fi
   if [ "$restore_owned" = true ]; then
     restore_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || status=1
-    verify_project_absent "$restore_project" || status=1
+    verify_owned_project_removed "$restore_project" || status=1
   fi
   if [ "$backup_owned" = true ]; then
     docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
     docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || status=1
     verify_backup_absent || status=1
-    verify_project_absent "$operator_backup_project" || status=1
+    verify_owned_project_removed "$operator_backup_project" || status=1
   fi
   if [ "$build_owned" = true ]; then
     docker image rm "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" "$proxy_image_tag" >/dev/null 2>&1 || status=1
     verify_images_absent || status=1
-    verify_project_absent "$build_project" || status=1
+    verify_owned_project_removed "$build_project" || status=1
   fi
   rm -rf "$overlay_directory"
   rm -rf "$manifest_proof_directory"

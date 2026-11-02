@@ -27,29 +27,43 @@ if [ -d "$proof" ]; then
   done
 fi
 
-docker compose \
-  --project-name "$project" \
-  --env-file "$root/.env.local" \
-  --file "$root/infra/compose/compose.yml" \
-  ps >"$destination/services.txt" 2>&1 || true
-docker compose \
-  --project-name "$project" \
-  --env-file "$root/.env.local" \
-  --file "$root/infra/compose/compose.yml" \
-  logs --no-color >"$destination/compose.log" 2>&1 || true
-
-docker compose \
-  --project-name "$project" \
-  --env-file "$root/.env.local" \
-  --file "$root/infra/compose/compose.yml" \
-  run --rm --user "$(id -u):$(id -g)" --no-deps \
-  --env-from-file "$root/.env.local" \
-  --env PYTHONPATH=/repo/src \
-  --volume "$root:/repo:ro" \
-  --volume "$destination:/ci" \
-  --entrypoint python \
-  api /repo/tools/ci/runtime_diagnostics.py /ci/runtime-diagnostics.json \
-  >"$destination/runtime-diagnostics.log" 2>&1 || true
+# Reuse the exact Compose file set and env file the suite started this project
+# with, read from the project's own containers. A different file set (e.g.
+# compose.yml without the suite's isolation/overlay files) makes `compose run`
+# create networks the suite's model does not declare, from Docker's default
+# address pools, and the suite's `down` then leaks them.
+model=$(docker ps --all \
+  --filter "label=com.docker.compose.project=$project" \
+  --filter "label=com.docker.compose.oneoff=False" \
+  --format '{{.Label "com.docker.compose.project.config_files"}}|{{.Label "com.docker.compose.project.environment_file"}}' \
+  2>/dev/null | head -n 1) || model=""
+config_files=${model%%|*}
+environment_files=${model#*|}
+if [ -z "$environment_files" ]; then environment_files="$root/.env.local"; fi
+if [ -z "$model" ] || [ -z "$config_files" ]; then
+  echo "No containers of $project; Compose diagnostics skipped." \
+    >"$destination/services.txt"
+else
+  set --
+  old_ifs=$IFS
+  IFS=,
+  for file in $config_files; do set -- "$@" --file "$file"; done
+  for file in $environment_files; do set -- "$@" --env-file "$file"; done
+  IFS=$old_ifs
+  docker compose --project-name "$project" "$@" \
+    ps --all >"$destination/services.txt" 2>&1 || true
+  docker compose --project-name "$project" "$@" \
+    logs --no-color >"$destination/compose.log" 2>&1 || true
+  docker compose --project-name "$project" "$@" \
+    run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$root/.env.local" \
+    --env PYTHONPATH=/repo/src \
+    --volume "$root:/repo:ro" \
+    --volume "$destination:/ci" \
+    --entrypoint python \
+    api /repo/tools/ci/runtime_diagnostics.py /ci/runtime-diagnostics.json \
+    >"$destination/runtime-diagnostics.log" 2>&1 || true
+fi
 
 docker run --rm --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace:ro" \

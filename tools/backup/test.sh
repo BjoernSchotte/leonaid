@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
@@ -51,21 +52,6 @@ target_compose() {
       "$@"
 }
 
-verify_cleanup() {
-  checked_project=$1
-  for inventory in containers volumes networks; do
-    case "$inventory" in
-      containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-      volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-      networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-    esac
-    if [ -n "$remaining" ]; then
-      echo "test-isolation: owned $inventory remain for $checked_project" >&2
-      return 1
-    fi
-  done
-}
-
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -81,12 +67,12 @@ cleanup() {
   fi
   if [ "$source_owned" = true ]; then
     if ! source_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-    if ! verify_cleanup "$source_project"; then status=1; fi
+    if ! verify_owned_project_removed "$source_project"; then status=1; fi
   fi
   if [ "$target_owned" = true ]; then
     if [ "${LEONAID_BACKUP_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
       if ! target_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-      if ! verify_cleanup "$target_project"; then status=1; fi
+      if ! verify_owned_project_removed "$target_project"; then status=1; fi
     else
       echo "backup-test: Owned restore project retained without host ports: $target_project"
     fi
@@ -258,7 +244,7 @@ fi
 . "$root/tools/backup/survey-recovery-fixture.sh"
 prepare_survey_recovery_fixture source_compose "$proof"
 source_compose --profile '*' down --volumes --remove-orphans
-verify_cleanup "$source_project"
+verify_owned_project_removed "$source_project"
 python3 "$root/tools/surveys/network_override.py" "$target_isolation"
 target_owned=true
 restore_started=$(date +%s)

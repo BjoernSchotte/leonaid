@@ -137,11 +137,23 @@ retain their focused harnesses. Nightly recovery harnesses remain independent.
 In CI, explicit survey repeat passes create a new fixture and project each time.
 No global Docker pruning or reset is used.
 
+Every owned suite ends its teardown with `verify_owned_project_removed`
+(`tools/testing/owned_teardown.sh`; `SharedStack.remove_owned` in Python). It
+lists any container (also stopped `compose run` one-offs), network or volume
+that still carries the project's Compose label, removes exactly those and fails
+the run, so a leak is visible but cannot exhaust Docker's address pools. It
+also removes the `<project>-<service>` images Compose built, because project
+names are unique per run and those images are never reused.
+`tools/ci/capture-failure.sh` reads the Compose file set from the project's
+containers instead of assuming `compose.yml`: a different file set made its
+`compose run api` create networks the suite's `down` did not know.
+
 Validation commands:
 
 ```sh
 python3 tools/testing/shared_stack_test.py
 python3 tools/testing/shared_stack_live.py
+python3 tools/testing/owned_teardown_live.py
 sh tools/ci/e2e.sh acquisition
 ./leonaid test-surveys --shard request-concurrency
 ```
