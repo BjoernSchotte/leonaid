@@ -454,9 +454,10 @@ def validate_twenty_mail(
     for service_name in TWENTY_MAIL_SERVICES:
         service = object_value(services[service_name], f"services.{service_name}")
         entrypoint = service.get("entrypoint")
-        if not isinstance(entrypoint, list) or [
-            unescape_compose(item) for item in entrypoint
-        ] != expected_entrypoint:
+        if (
+            not isinstance(entrypoint, list)
+            or [unescape_compose(item) for item in entrypoint] != expected_entrypoint
+        ):
             raise DeploymentContractError(
                 f"{service_name} does not start through the Twenty mail policy"
             )
