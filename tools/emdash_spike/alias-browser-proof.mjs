@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin } from "./browser-login.mjs";
 
 const origin = "https://proxy:8443";
@@ -7,7 +8,7 @@ const action = "20000000-0000-4000-8000-000000000001";
 const other = "20000000-0000-4000-8000-000000000003";
 const admin = (id) => `/admin/actions/${id}`;
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,

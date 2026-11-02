@@ -196,8 +196,8 @@ if (
   const live = await call(url(first.id));
   assert.equal(live.headers["content-type"], "image/png");
   assert.equal(live.headers["x-content-type-options"], "nosniff");
-  // Caddy adds the common site policy. Both independently enforced policies
-  // survive the proxy; the image-specific policy must remain a complete entry.
+  // Caddy fills in the site policy only for responses without one, so the
+  // image-specific policy must survive the proxy as a complete entry.
   assert.ok(
     live.headers["content-security-policy"]
       .split(",")

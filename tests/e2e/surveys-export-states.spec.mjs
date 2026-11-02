@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;

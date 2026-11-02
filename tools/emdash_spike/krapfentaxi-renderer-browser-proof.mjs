@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 
 const origin = "https://proxy:8443";
 const path = "/campaigns/krapfentaxi-2026/";
@@ -8,7 +9,7 @@ const root = "/_emdash/api/content/campaign_pages";
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const media = JSON.parse(await readFile("/proof/public-media.json", "utf8"));
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const admin = async (url, method = "GET", data) => {

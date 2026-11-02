@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { writeFileSync, readFileSync } from "node:fs";
 const baseURL = "http://localhost:8080";
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;

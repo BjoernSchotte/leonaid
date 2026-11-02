@@ -15,9 +15,25 @@
 	}
 }
 
+# Strict Content-Security-Policy without 'unsafe-inline'. The admin web app and
+# the PWA are static builds whose scripts and styles are all files, so Caddy
+# sends the complete policy for them and for the API.
 (leonaid_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self' wss:; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
+		X-Frame-Options DENY
+	}
+}
+
+# The Astro apps (public pages, campaign site, EmDash admin) send their own
+# policy with the same directives plus sha256 hashes of the scripts and styles
+# Astro inlines (security.csp in apps/public and apps/campaign-site
+# astro.config.mjs). A second Caddy policy would intersect with it and block
+# those hashed scripts, so Caddy sets the same strict policy only for responses
+# without one (endpoints, redirects, errors). The leading "?" does exactly this.
+(astro_headers) {
+	header {
+		?Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'"
 		X-Frame-Options DENY
 	}
 }
@@ -90,7 +106,7 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
 	handle @campaign_routes {
-		import leonaid_headers
+		import astro_headers
 		import order_declared_body_limit
 		reverse_proxy campaign-site:3000 {
 			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
@@ -120,7 +136,7 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 	}
 
 	handle {
-		import leonaid_headers
+		import astro_headers
 		import order_declared_body_limit
 		reverse_proxy public:3000 {
 			@body_rejected status 408 413

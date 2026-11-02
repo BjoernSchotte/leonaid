@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const origin = "https://proxy:8443";
 const root = "/_emdash/api/content/campaign_pages";
 const editor = "/_emdash/admin/content/campaign_pages";
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const actor of ["charity", "charity_b"]) {
       const context = await browser.newContext({
