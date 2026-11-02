@@ -217,6 +217,7 @@ async def prove_manager_completion(
         assert json.loads(events[0]["payload"]) == {
             "previousStatus": "review_ready",
             "status": "review_ready",
+            "historical": False,
         }
         assert "Warehouse" not in str(events) and "Billing" not in str(events)
 
@@ -567,7 +568,7 @@ async def prove_historical_completion(
         ]
     print(
         "delivery-completion historical PASS: past and retired past windows recorded "
-        "by managers only, capture rejects past windows, retired future windows "
+        "by the manager completion, capture rejects past windows, retired future windows "
         "rejected, recorded time immutable, historical audit flag without personal "
         "data, draft completion after the order period closed (synthetic identity)"
     )
