@@ -2,6 +2,7 @@
 
 import ipaddress
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,13 @@ names = [
     "mail-data",
     "telemetry",
     "mailing-data",
+]
+# Overlays for stacks with extra networks (the pilot's mail-egress) name them
+# here so they also get an explicit subnet from the test pools.
+names += [
+    name.strip()
+    for name in os.environ.get("LEONAID_TEST_EXTRA_NETWORKS", "").split(",")
+    if name.strip()
 ]
 count = 1 if sys.argv[1] == "--single" else len(names)
 selected = candidate_subnets(used)[:count]

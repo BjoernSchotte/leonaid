@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Strict contract test for the systemd backup units in infra/pilot/systemd.
+"""Strict contract test for the systemd units in infra/pilot/systemd.
 
 `systemd-analyze verify` needs a systemd host, which the pinned check images do
 not have. This parser therefore enforces the subset of the unit syntax the
-units use and cross-checks them against ./leonaid pilot-backup, the example
-EnvironmentFile and the 26-hour backup age that the doctor and the
-LeonAidBackupStale alert require.
+units use and cross-checks them against ./leonaid:
+
+- leonaid-backup.*: pilot-backup, backup.env.example and the 26-hour backup
+  age that the doctor and the LeonAidBackupStale alert require;
+- leonaid-crm-repair*.*: pilot-repair-crm-match-keys, crm-repair.env.example,
+  a 15-minute incremental run whose --changed-within window covers the worst
+  gap between two starts, and a nightly full run.
 """
 
 from __future__ import annotations
@@ -124,7 +128,150 @@ def backup_options(cli: Path) -> tuple[set[str], set[str]]:
     return accepted, required
 
 
+def cli_options(cli: Path, function: str, command: str) -> tuple[set[str], set[str]]:
+    """Accepted and required options of a ./leonaid shell function."""
+    text = cli.read_text(encoding="utf-8")
+    body = text.split(f"\n{function}() {{\n", 1)[1].split("\n}\n", 1)[0]
+    accepted = set(re.findall(r"^      (--[a-z-]+)\)$", body, re.MULTILINE))
+    required = set(
+        re.findall(rf'echo "{command}: ERROR: (--[a-z-]+) is missing"', body)
+    )
+    if not accepted or not required or not required <= accepted:
+        raise UnitError(f"cannot read the {command} options from ./leonaid")
+    return accepted, required
+
+
+def exec_words(settings: dict[str, str], name: str) -> list[str]:
+    """The words after `cd "$LEONAID_CHECKOUT" && exec` in ExecStart."""
+    command = shlex.split(settings["ExecStart"])
+    if command[:3] != ["/bin/sh", "-eu", "-c"] or len(command) != 4:
+        raise UnitError(f"{name}: ExecStart must run one /bin/sh -eu -c script")
+    script = command[3]
+    if "$" in script.replace("$$", ""):
+        raise UnitError(f"{name}: ExecStart must escape every variable as $$")
+    words = shlex.split(script.replace("$$", "$"))
+    if words[:4] != ["cd", "$LEONAID_CHECKOUT", "&&", "exec"]:
+        raise UnitError(f"{name}: ExecStart must change into the checkout first")
+    return words[4:]
+
+
+def require_hardening(settings: dict[str, str], name: str, env_file: str) -> None:
+    expected = {
+        "Type": "oneshot",
+        "User": "leonaid",
+        "Group": "leonaid",
+        "EnvironmentFile": env_file,
+        "UMask": "0077",
+        "NoNewPrivileges": "yes",
+    }
+    for key, value in expected.items():
+        if settings.get(key) != value:
+            raise UnitError(f"{name} needs {key}={value}")
+
+
+def require_docker(service: dict[str, dict[str, str]], name: str) -> None:
+    unit = service.get("Unit", {})
+    if "docker.service" not in unit.get("Requires", "").split():
+        raise UnitError(f"{name} must require docker.service")
+    if "docker.service" not in unit.get("After", "").split():
+        raise UnitError(f"{name} must start after docker.service")
+
+
+def require_timer_basics(
+    timer: dict[str, dict[str, str]], name: str, service: str
+) -> dict[str, str]:
+    schedule = timer.get("Timer", {})
+    if schedule.get("Persistent") != "true":
+        raise UnitError(f"{name}: Persistent=true must catch up missed runs")
+    if schedule.get("Unit") != service:
+        raise UnitError(f"{name} must start {service}")
+    if time_span(schedule.get("RandomizedDelaySec", "")) <= timedelta(0):
+        raise UnitError(f"{name}: RandomizedDelaySec must spread the start time")
+    time_span(schedule.get("AccuracySec", ""))
+    if timer.get("Install", {}).get("WantedBy") != "timers.target":
+        raise UnitError(f"{name} must be wanted by timers.target")
+    return schedule
+
+
+def check_crm_repair(root: Path) -> None:
+    directory = root / "infra/pilot/systemd"
+    environment = read_env(directory / "crm-repair.env.example")
+    for key, value in environment.items():
+        if not value.startswith("/"):
+            raise UnitError(f"crm-repair.env.example {key} must be an absolute path")
+    accepted, required = cli_options(
+        root / "leonaid",
+        "pilot_repair_crm_match_keys",
+        "pilot-repair-crm-match-keys",
+    )
+    for stem in ("leonaid-crm-repair", "leonaid-crm-repair-full"):
+        name = f"{stem}.service"
+        service = parse_unit(directory / name, "service")
+        require_docker(service, name)
+        settings = service.get("Service", {})
+        require_hardening(settings, name, "/etc/leonaid/crm-repair.env")
+        words = exec_words(settings, name)
+        if words[:2] != ["./leonaid", "pilot-repair-crm-match-keys"]:
+            raise UnitError(f"{name}: ExecStart must run pilot-repair-crm-match-keys")
+        arguments = words[2:]
+        if len(arguments) % 2:
+            raise UnitError(f"{name}: every option needs exactly one value")
+        options = dict(zip(arguments[::2], arguments[1::2], strict=True))
+        if not set(options) <= accepted:
+            raise UnitError(f"{name}: unknown options {set(options) - accepted}")
+        if not required <= set(options):
+            raise UnitError(f"{name}: missing options {required - set(options)}")
+        referenced = set(re.findall(r"\$\$([A-Z_]+)", settings["ExecStart"]))
+        if referenced != set(environment):
+            raise UnitError(
+                f"{name}: ExecStart variables and crm-repair.env.example differ: "
+                f"{sorted(referenced ^ set(environment))}"
+            )
+        window = options.get("--changed-within")
+        if window is not None and not window.isdigit():
+            raise UnitError(f"{name}: --changed-within needs whole minutes")
+        timeout = time_span(settings.get("TimeoutStartSec", ""))
+        timer = parse_unit(directory / f"{stem}.timer", "timer")
+        schedule = require_timer_basics(timer, f"{stem}.timer", name)
+        jitter = time_span(schedule["RandomizedDelaySec"]) + time_span(
+            schedule["AccuracySec"]
+        )
+        if stem == "leonaid-crm-repair":
+            match = re.fullmatch(
+                r"\*-\*-\* \*:00/(\d+):00", schedule.get("OnCalendar", "")
+            )
+            if not match:
+                raise UnitError("leonaid-crm-repair.timer must run every N minutes")
+            interval = timedelta(minutes=int(match.group(1)))
+            if interval > timedelta(minutes=15):
+                raise UnitError(
+                    "leonaid-crm-repair.timer must run at least every 15 minutes"
+                )
+            if window is None:
+                raise UnitError("leonaid-crm-repair.service must use --changed-within")
+            # The window starts at the run's own start and must reach back past
+            # the previous start in the worst case, or edits fall in between.
+            if interval + jitter >= timedelta(minutes=int(window)):
+                raise UnitError(
+                    "--changed-within does not cover the worst gap between two runs"
+                )
+            if timeout > interval:
+                raise UnitError(
+                    "an incremental run must end before the next one is due"
+                )
+        else:
+            if not re.fullmatch(
+                r"\*-\*-\* \d{2}:\d{2}:\d{2}", schedule.get("OnCalendar", "")
+            ):
+                raise UnitError("leonaid-crm-repair-full.timer must run once per day")
+            if window is not None:
+                raise UnitError("leonaid-crm-repair-full.service must scan everything")
+            if timeout + jitter >= timedelta(days=1):
+                raise UnitError("a full run must end before the next one is due")
+
+
 def check(root: Path) -> None:
+    check_crm_repair(root)
     directory = root / "infra/pilot/systemd"
     service = parse_unit(directory / "leonaid-backup.service", "service")
     timer = parse_unit(directory / "leonaid-backup.timer", "timer")
@@ -288,13 +435,58 @@ def main() -> None:
             "latest-backup-manifest.json",
             "other-manifest.json",
         ),
+        "repair window shorter than the interval": (
+            "leonaid-crm-repair.service",
+            "--changed-within 30",
+            "--changed-within 15",
+        ),
+        "incremental repair without a window": (
+            "leonaid-crm-repair.service",
+            " --changed-within 30",
+            "",
+        ),
+        "full repair with a window": (
+            "leonaid-crm-repair-full.service",
+            '--env-file "$$LEONAID_ENV_FILE"',
+            '--env-file "$$LEONAID_ENV_FILE" --changed-within 30',
+        ),
+        "unknown repair option": (
+            "leonaid-crm-repair.service",
+            "--changed-within 30",
+            "--changed-since 30",
+        ),
+        "repair as root": (
+            "leonaid-crm-repair-full.service",
+            "User=leonaid",
+            "User=root",
+        ),
+        "unescaped repair variable": (
+            "leonaid-crm-repair.service",
+            '"$$LEONAID_ENV_FILE"',
+            '"$LEONAID_ENV_FILE"',
+        ),
+        "hourly repair": (
+            "leonaid-crm-repair.timer",
+            "*:00/15:00",
+            "*:00/60:00",
+        ),
+        "repair timeout over the interval": (
+            "leonaid-crm-repair.service",
+            "TimeoutStartSec=10min",
+            "TimeoutStartSec=1h",
+        ),
+        "repair env drift": (
+            "crm-repair.env.example",
+            "LEONAID_CHECKOUT=/opt/leonaid",
+            "LEONAID_CHECKOUT=/opt/leonaid\nLEONAID_UNUSED=/tmp",
+        ),
     }
     for label, mutation in mutations.items():
         rejected(root, label, mutation)
     print(
-        "pilot-systemd-test: OK: backup service and timer match pilot-backup, "
-        f"backup.env and the 26-hour window; {len(mutations)} unsafe mutations "
-        "rejected"
+        "pilot-systemd-test: OK: backup units match pilot-backup and the 26-hour "
+        "window; CRM repair units match pilot-repair-crm-match-keys and cover "
+        f"every gap; {len(mutations)} unsafe mutations rejected"
     )
 
 
