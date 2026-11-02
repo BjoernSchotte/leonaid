@@ -9,6 +9,7 @@ import editorRevisionPatch from "./emdash-editor-patch.mjs";
 import contentLogPatch from "./emdash-content-log-patch.mjs";
 import postgresPatch from "./emdash-postgres-patch.mjs";
 import { emdashAdminScriptHashes } from "./emdash-admin-csp.mjs";
+import zodJitlessPatch from "./zod-jitless-patch.mjs";
 
 export default defineConfig({
   output: "server",
@@ -48,6 +49,7 @@ export default defineConfig({
     editorRevisionPatch(),
     contentLogPatch(),
     postgresPatch(),
+    zodJitlessPatch(),
     react(),
     emdash({
       // A fixed public favicon avoids the native shell resolving global CMS
