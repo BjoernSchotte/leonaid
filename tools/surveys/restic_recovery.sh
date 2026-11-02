@@ -2,6 +2,11 @@
 set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+# The harness writes recovery proofs and the survey-erasure archive from
+# one-off core containers. The whole isolated stack therefore runs as the
+# invoking user instead of the production core uid (compose.yml x-core-user).
+LEONAID_CORE_RUNTIME_USER="$(id -u):$(id -g)"
+export LEONAID_CORE_RUNTIME_USER
 mode=${2:-manual}
 case "$mode" in manual|archive|durable) ;; *) echo 'Expected manual, archive or durable mode' >&2; exit 1 ;; esac
 . "$root/infra/locks/images.env"
@@ -143,7 +148,8 @@ with open(sys.argv[1]) as source:
 PY
 )
   archive_fetch() {
-    docker run --rm --network none --env-file "$root/.env.local" \
+    docker run --rm --network none --user "$LEONAID_CORE_RUNTIME_USER" \
+      --env-file "$root/.env.local" \
       --volume "$root:/repo:ro" --volume "$proof:/proof" --volume "$archive_volume:/archive" \
       --workdir /repo --entrypoint python "$api_image" tools/surveys/recovery.py fetch \
       --archive /archive --output /proof/fetched-checkpoint.json \

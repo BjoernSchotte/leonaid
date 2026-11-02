@@ -152,7 +152,7 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env PYTHONPATH=/repo:/workspace/src \
   --env UI_PROOF_PATH=/proof/activity-feed-ui-proof.json \

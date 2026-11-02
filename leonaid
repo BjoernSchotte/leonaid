@@ -9,6 +9,10 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # Linux bind mounts keep the container's UID, so root containers would leave
 # root-owned .venv, node_modules and caches behind (Docker Desktop hides this).
 host_user="$(id -u):$(id -g)"
+# The pilot exporter reads the operator's 0600 backup manifest, so it runs as
+# the account that operates this installation (see infra/pilot/compose.yml).
+LEONAID_OPERATOR_USER=$host_user
+export LEONAID_OPERATOR_USER
 
 usage() {
   cat <<'EOF'
@@ -2577,6 +2581,7 @@ render_golden_pdfs() {
 
 run_golden_tool() {
   compose --profile dev-mail run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
     --env-from-file "$root/.env.local" \
     --volume "$root:/repo:ro" \
     --volume "$root/.local:/repo/.local" \

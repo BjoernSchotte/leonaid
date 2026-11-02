@@ -169,7 +169,7 @@ compose run --rm --no-deps \
   --base-backoff-seconds 0 \
   run-until-idle
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -211,7 +211,7 @@ for screenshot in \
   fi
 done
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -221,7 +221,7 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/invoice_delivery/contract.py assert-delivered /proof/state.json
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -231,7 +231,7 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/invoice_delivery/contract.py queue-resend /proof/state.json
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \

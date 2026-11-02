@@ -360,7 +360,7 @@ snapshot_and_verify() {
     rollback) runner=rollback_target ;;
     *) fail "Unbekannter Snapshot-Modus: $mode" ;;
   esac
-  $runner --profile dev-mail run --rm --no-deps \
+  $runner --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --volume "$root:/repo:ro" \
     --volume "$proof:/proof" \

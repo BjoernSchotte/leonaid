@@ -131,7 +131,7 @@ compose run --rm --no-deps \
   api tools/storage/contract.py \
   tests/fixtures/golden/v1/documents/KT26-0001.json
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
@@ -155,7 +155,7 @@ compose run --rm --no-deps \
   --base-backoff-seconds 0 \
   run-once
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
   --volume "$proof:/proof" \
@@ -171,7 +171,7 @@ compose run --rm --no-deps \
   --base-backoff-seconds 0 \
   run-until-idle --maximum-events 10
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \

@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
 reviewer: Björn Schotte
 ---
 
@@ -35,3 +35,47 @@ Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-restore`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
 `./leonaid help` for the current complete list; the CLI is authoritative when
 this reference differs.
+
+## Runtime limits and identity
+
+Every long-running service has a memory, CPU, and process limit
+(`mem_limit`, `cpus`, `pids_limit`) and rotated logs (`local` driver, 5 × 10 MB).
+The limits are ceilings, not reservations. The pilot set, including the
+monitoring profile, fits an 8 GB VPS and leaves about 1.4 GiB for the operating
+system and Docker.
+
+| Service                     | Observed (idle) | Memory limit | CPUs | PIDs |
+| --------------------------- | --------------- | ------------ | ---- | ---- |
+| twenty-server               | 610–780 MiB     | 1600 MiB     | 2    | 512  |
+| twenty-worker               | 630–670 MiB     | 1400 MiB     | 1.5  | 512  |
+| worker (incl. Typst)        | 70 MiB          | 768 MiB      | 1.5  | 256  |
+| api                         | 115 MiB         | 384 MiB      | 1.5  | 256  |
+| core-postgres               | 27 MiB          | 384 MiB      | 1.5  | 256  |
+| twenty-postgres             | 35 MiB          | 384 MiB      | 1.5  | 256  |
+| twenty-redis                | 15–31 MiB       | 256 MiB      | 0.5  | 64   |
+| rustfs                      | 40 MiB          | 256 MiB      | 1    | 256  |
+| survey-validator            | 21 MiB          | 256 MiB      | 1    | 64   |
+| proxy (Caddy)               | 16 MiB          | 128 MiB      | 1    | 128  |
+| public                      | 29 MiB          | 128 MiB      | 1    | 64   |
+| web, pwa                    | 16–17 MiB each  | 64 MiB each  | 0.5  | 64   |
+| **Core sum**                | ~2.5 GiB        | **5.9 GiB**  |      |      |
+| prometheus                  | —               | 256 MiB      | 0.5  | 128  |
+| pilot-exporter              | —               | 128 MiB      | 0.5  | 64   |
+| alertmanager                | —               | 64 MiB       | 0.25 | 64   |
+| **Pilot sum with monitoring** |               | **6.4 GiB**  |      |      |
+
+The optional campaign site (`emdash` profile) adds 384 MiB. Redis gets
+`--maxmemory 192mb`: with `noeviction` it rejects writes before the container
+limit kills it. If a service is OOM-killed (`docker inspect` shows
+`OOMKilled: true`), raise its limit and lower another one so that the sum
+still fits the host.
+
+The Core image runs as the fixed user `10001:10001`. `api`, `worker`, `web`,
+`pwa`, `public`, and `survey-validator` run with a read-only root filesystem, a
+small `tmpfs` at `/tmp`, no Linux capabilities, and `no-new-privileges`.
+`pilot-doctor` rejects a pilot configuration without these settings. Releases
+before this change ran the Core as root and wrote the survey erasure archive
+as root. The one-shot service `core-volume-init` therefore hands that volume
+over to `10001:10001` before every `api`/`worker` start; existing installs need
+no manual step. `pilot-exporter` runs as the account that calls `./leonaid`,
+because it reads that account's `0600` backup manifest.

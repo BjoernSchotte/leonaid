@@ -7,7 +7,7 @@ prepare_survey_recovery_fixture() {
   fixture_directory=$2
   LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
   LEONAID_SURVEY_ERASURE_CHECKPOINT="$fixture_directory/erasure-checkpoint.json"
-  "$fixture_compose" run --rm --no-deps \
+  "$fixture_compose" run --rm --user "$(id -u):$(id -g)" --no-deps \
     --volume "$root:/repo:ro" --volume "$fixture_directory:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
     --output /proof/erasure-checkpoint.json
