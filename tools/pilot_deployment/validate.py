@@ -236,9 +236,7 @@ def service_networks(service: dict[str, Any]) -> set[str]:
     return set(networks) if isinstance(networks, (dict, list)) else set()
 
 
-def validate_mail_egress(
-    services: dict[str, Any], networks: dict[str, Any]
-) -> None:
+def validate_mail_egress(services: dict[str, Any], networks: dict[str, Any]) -> None:
     egress = object_value(
         networks.get(MAIL_EGRESS_NETWORK), f"networks.{MAIL_EGRESS_NETWORK}"
     )
@@ -293,9 +291,7 @@ def validate_twenty_mail(
         "EMAIL_SMTP_HOST": string_value(worker_environment, "MAIL_SMTP_HOST"),
         "EMAIL_SMTP_PORT": port,
         "EMAIL_SMTP_USER": str(worker_environment.get("MAIL_SMTP_USERNAME") or ""),
-        "EMAIL_SMTP_PASSWORD": str(
-            worker_environment.get("MAIL_SMTP_PASSWORD") or ""
-        ),
+        "EMAIL_SMTP_PASSWORD": str(worker_environment.get("MAIL_SMTP_PASSWORD") or ""),
     }
     for service_name in TWENTY_MAIL_SERVICES:
         service = object_value(services[service_name], f"services.{service_name}")

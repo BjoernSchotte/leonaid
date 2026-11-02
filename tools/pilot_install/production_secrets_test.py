@@ -93,7 +93,11 @@ def main() -> None:
     for value in ("abc__def0123456789abcdef0123", "eyJ__x.eyJ__y.sig__nature0123"):
         if is_placeholder(value):
             raise AssertionError("a random secret with '__' counts as a placeholder")
-    for value in ("__RANDOM_PASSWORD__", "prefix-__SMTP_PASSWORD__", "ChangeMe-0123456789abcdef"):
+    for value in (
+        "__RANDOM_PASSWORD__",
+        "prefix-__SMTP_PASSWORD__",
+        "ChangeMe-0123456789abcdef",
+    ):
         if not is_placeholder(value):
             raise AssertionError(f"placeholder {value!r} was not recognised")
     for name, generate in GENERATORS.items():
