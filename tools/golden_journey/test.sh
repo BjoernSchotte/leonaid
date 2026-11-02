@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 . "$root/tools/testing/phase.sh"
 
@@ -49,17 +50,7 @@ cleanup() {
   fi
   if [ "$owned" = true ]; then
     if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-    for inventory in containers volumes networks; do
-      case "$inventory" in
-        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
-        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
-        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
-      esac
-      if [ -n "$remaining" ]; then
-        echo "test-isolation: owned $inventory remain for $project" >&2
-        status=1
-      fi
-    done
+    if ! verify_owned_project_removed "$project"; then status=1; fi
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
   if [ "$status" -eq 0 ]; then rm -rf "$browser_results"; fi

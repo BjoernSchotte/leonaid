@@ -2,6 +2,7 @@
 set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 # The harness writes recovery proofs and the survey-erasure archive from
 # one-off core containers. The whole isolated stack therefore runs as the
 # invoking user instead of the production core uid (compose.yml x-core-user).
@@ -49,11 +50,15 @@ cleanup() {
   status=$?
   if [ "$source_owned" = true ]; then
     source_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
-    verify_project_absent "$source_project" || status=1
+    # The target restores the source images; remove them after the target.
+    verify_owned_project_removed "$source_project" --keep-images || status=1
   fi
   if [ "$target_owned" = true ]; then
     target_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
-    verify_project_absent "$target_project" || status=1
+    verify_owned_project_removed "$target_project" || status=1
+  fi
+  if [ "$source_owned" = true ]; then
+    remove_owned_project_images "$source_project"
   fi
   if [ "$archive_owned" = true ]; then
     docker volume rm "$archive_volume" >/dev/null 2>&1 || status=1

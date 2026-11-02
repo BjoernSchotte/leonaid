@@ -9,6 +9,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project="${LEONAID_PILOT_INSTALL_PROJECT:-leonaid-production-test-install}-$suffix"
@@ -99,7 +100,7 @@ cleanup() {
   if [ "$runtime_owned" = true ]; then
     runtime_compose --profile '*' down --volumes --remove-orphans \
       >/dev/null 2>&1 || status=1
-    verify_project_absent "$project" || status=1
+    verify_owned_project_removed "$project" || status=1
   fi
   if [ "$backup_owned" = true ]; then
     docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
@@ -109,7 +110,7 @@ cleanup() {
     for service in $image_services; do
       docker image rm "$build_project-$service:latest" >/dev/null 2>&1 || status=1
     done
-    verify_project_absent "$build_project" || status=1
+    verify_owned_project_removed "$build_project" || status=1
   fi
   rm -rf "$overlay_directory" "$workspace"
   exit "$status"

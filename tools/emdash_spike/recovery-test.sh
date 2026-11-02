@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 root=$1
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
   "$NODE_IMAGE" node tools/emdash_spike/recovery-key-proof.mjs
@@ -38,12 +39,15 @@ compose() {
     --file "$root/infra/backup/cms-operators.yml" "$@"
 }
 cleanup() {
-  compose "$source_project" --profile recovery-test --profile emdash down --volumes >/dev/null
-  compose "$target_project" --profile recovery-test --profile emdash down --volumes >/dev/null
+  compose "$source_project" --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+  compose "$target_project" --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+  verify_owned_project_removed "$source_project" || leak_detected=1
+  verify_owned_project_removed "$target_project" || leak_detected=1
   # This directory is the freshly allocated private proof, never a project root.
   rm -rf "$proof"
 }
-trap cleanup EXIT
+# A teardown leak fails the run even when the test itself passed.
+trap 'cleanup; [ "${leak_detected:-0}" -eq 0 ] || exit 1' EXIT
 trap 'exit 130' HUP INT TERM
 docker run --rm --network none --user "$(id -u):$(id -g)" --volume "$proof:/proof" "$NODE_IMAGE" \
   node -e 'require("node:fs").writeFileSync("/proof/password",require("node:crypto").randomBytes(48).toString("hex"),{mode:0o600})'

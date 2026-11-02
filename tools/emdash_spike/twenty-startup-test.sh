@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 root=$1
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -37,11 +38,13 @@ cleanup() {
       const states=["23505","23502","42P07","42710","42P01","28P01","53300","57P03","08006","ECONNREFUSED","ETIMEDOUT"];
       console.log(JSON.stringify({errorClasses:classes,signals:Object.fromEntries(states.map(code=>[code,raw.split(code).length-1]))}));'
   fi
-  compose down --volumes >/dev/null
+  compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+  verify_owned_project_removed "$project" || leak_detected=1
   rmdir "$proof"
   exit "$status"
 }
-trap cleanup EXIT
+# A teardown leak fails the run even when the test itself passed.
+trap 'cleanup; [ "${leak_detected:-0}" -eq 0 ] || exit 1' EXIT
 trap 'exit 130' HUP INT TERM
 compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   node --input-type=module -e '

@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 root=$1
+. "$root/tools/testing/owned_teardown.sh"
 mode=${2:-auth}
 orders=${3:-false}
 recovery=${4:-false}
@@ -163,11 +164,13 @@ cleanup() {
     fi
     project=$recovery_target
     LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
-    compose down --volumes >/dev/null
+    compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+    verify_owned_project_removed "$project" || leak_detected=1
     project=$recovery_source
     LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
   fi
-  compose down --volumes >/dev/null
+  compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+  verify_owned_project_removed "$project" || leak_detected=1
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
   rm -f "$proof/recovery-aliases.json"
@@ -192,7 +195,8 @@ cleanup() {
   if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
 }
-trap cleanup EXIT
+# A teardown leak fails the run even when the test itself passed.
+trap 'cleanup; [ "${leak_detected:-0}" -eq 0 ] || exit 1' EXIT
 trap 'exit 130' HUP INT TERM
 docker run --rm --network none --volume "$root:/workspace:ro" \
   --workdir /workspace "$NODE_IMAGE" node tools/emdash_spike/auth-patch-proof.mjs

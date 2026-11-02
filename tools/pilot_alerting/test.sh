@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
 project=${LEONAID_PILOT_ALERTING_PROJECT:-leonaid-pilot042-test}
@@ -42,6 +43,7 @@ cleanup() {
   fi
   compose --profile dev-mail --profile monitoring \
     down --volumes --remove-orphans >/dev/null 2>&1 || true
+  verify_owned_project_removed "$project" || status=1
   rm -rf "$workspace"
   exit "$status"
 }
