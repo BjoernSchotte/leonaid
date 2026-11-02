@@ -3,34 +3,16 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-. "$root/infra/locks/images.env"
 
-images="$TWENTY_IMAGE
-$POSTGRES_IMAGE
-$VALKEY_IMAGE
-$REDIS_UPGRADE_SOURCE_IMAGE
-$RUSTFS_IMAGE
-$SEAWEEDFS_IMAGE
-$MAILPIT_IMAGE
-$CADDY_IMAGE
-$PYTHON_IMAGE
-$UV_IMAGE
-$NODE_IMAGE
-$BUN_IMAGE
-$TYPST_IMAGE
-$PLAYWRIGHT_IMAGE
-$SYFT_IMAGE
-$TRIVY_IMAGE
-$ALPINE_IMAGE
-$LISTMONK_IMAGE
-$OTEL_IMAGE"
+# Every pinned image of the canonical lock, so no new pin can escape the check.
+images=$(sed -n 's/^[A-Z][A-Z0-9_]*_IMAGE=//p' "$root/infra/locks/images.env")
+if [ -z "$images" ]; then
+  echo "image-digest: ERROR: no images found in infra/locks/images.env" >&2
+  exit 1
+fi
 
 count=0
-old_ifs=$IFS
-IFS='
-'
 for image in $images; do
-  IFS=$old_ifs
   tagged=${image%@*}
   expected=${image##*@}
   actual=$(docker buildx imagetools inspect "$tagged" | awk '/^Digest:/ {print $2; exit}')
@@ -39,9 +21,6 @@ for image in $images; do
     exit 1
   fi
   count=$((count + 1))
-  IFS='
-'
 done
-IFS=$old_ifs
 
 echo "image-digest: OK: $count version tags resolve to their recorded digests"

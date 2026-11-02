@@ -61,4 +61,15 @@ sed -i 's/hash = \"sha256:[a-f0-9]*\"/hash = \"\"/g' \
   "$tmp/python-hash/uv.lock"
 expect_failure python-hash "invalid artifact hash"
 
-echo "pin-test: OK: positive and four policy-rejection cases passed"
+make_fixture review-overdue
+sed -i 's/"reviewedAt": "[0-9-]*"/"reviewedAt": "2000-01-01"/;
+  s/"nextReviewOn": "[0-9-]*"/"nextReviewOn": "2000-03-01"/' \
+  "$tmp/review-overdue/infra/locks/external-systems.lock"
+expect_failure review-overdue "pin review OVERDUE since 2000-03-01"
+
+make_fixture review-too-far
+sed -i 's/"nextReviewOn": "[0-9-]*"/"nextReviewOn": "2099-01-01"/' \
+  "$tmp/review-too-far/infra/locks/external-systems.lock"
+expect_failure review-too-far "at most six months after reviewedAt"
+
+echo "pin-test: OK: positive and six policy-rejection cases passed"

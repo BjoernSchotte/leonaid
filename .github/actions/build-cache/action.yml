@@ -43,7 +43,7 @@ runs:
           printf "%s\n" "$status" > "$2/status"
         ' bootstrap "$BOOTSTRAP_PROFILE" "$directory" </dev/null >/dev/null 2>&1 &
     - id: builder
-      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
     - name: Select the same builder for subsequent Compose calls
       shell: bash
       env:
@@ -52,7 +52,7 @@ runs:
         echo "BUILDX_BUILDER=$CACHE_BUILDER" >> "$GITHUB_ENV"
         echo "DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}" >> "$GITHUB_ENV"
     - name: Import layers and build requested images
-      uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b
+      uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
       env:
         CACHE_NAMESPACE: ${{ inputs.namespace }}
         CACHE_WRITE: ${{ inputs.write }}

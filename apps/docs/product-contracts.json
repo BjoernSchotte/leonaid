@@ -164,6 +164,25 @@
         "command:prod upgrade",
         "503 maintenance_mode"
       ]
+    },
+    {
+      "file": "tools/pins/check.py",
+      "contains": ["pin review OVERDUE", "(due - reviewed).days > 183"]
+    },
+    {
+      "file": "tools/security/vuln_policy.py",
+      "contains": [
+        "MAX_WAIVER_DAYS = 90",
+        "BLOCKING_SEVERITIES = {\"HIGH\", \"CRITICAL\"}"
+      ]
+    },
+    {
+      "file": "tools/ci/security.sh",
+      "contains": ["tools/security/vulnerability-scan.sh"]
+    },
+    {
+      "file": "renovate.json",
+      "contains": ["needs-upgrade-runbook", "before 6am on monday"]
     }
   ],
   "DOC-P025": [

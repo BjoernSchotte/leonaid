@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/infra/locks/images.env"
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=leonaid-poc021-test-$suffix
 owned=false
@@ -65,7 +66,7 @@ compose --profile '*' config --format json | python3 "$root/tools/testing/reserv
 
 docker run --rm \
   -v "$root:/repo:ro" \
-  docker.io/library/python:3.13.13-slim-trixie@sha256:aa938a849bcb82dce8f49480f056ab82bf5c1c3ebc294f0430f37b6820e7f286 \
+  "$PYTHON_IMAGE" \
   python /repo/tools/schema/check_migrations.py /repo/migrations/versions
 
 echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"

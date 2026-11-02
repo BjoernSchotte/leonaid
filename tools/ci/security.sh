@@ -40,6 +40,10 @@ docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
   /bin/sh /workspace/tools/pins/test.sh /workspace
+docker run --rm --network none -e PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  "$PYTHON_IMAGE" \
+  python /workspace/tools/security/vuln_policy_test.py
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
@@ -66,41 +70,8 @@ docker run --rm \
   --skip-files /workspace/.env.local \
   /workspace
 
-docker run --rm \
-  --volume "$root:/workspace:ro" \
-  --volume leonaid-trivy-cache:/root/.cache/trivy \
-  "$TRIVY_IMAGE" \
-  filesystem \
-  --scanners vuln \
-  --severity CRITICAL \
-  --exit-code 1 \
-  /workspace
-
-docker compose \
-  --env-file "$root/.env.local" \
-  --file "$root/infra/compose/compose.yml" \
-  build api worker web pwa public
-
-for image_name in \
-  leonaid-api:latest \
-  leonaid-worker:latest \
-  leonaid-web:latest \
-  leonaid-pwa:latest \
-  leonaid-public:latest; do
-  docker run --rm \
-    --volume /var/run/docker.sock:/var/run/docker.sock \
-    --volume leonaid-trivy-cache:/root/.cache/trivy \
-    "$TRIVY_IMAGE" \
-    image \
-    --scanners vuln \
-    --severity CRITICAL \
-    --ignore-unfixed \
-    --exit-code 1 \
-    "$image_name"
-done
-
-/bin/sh "$root/tools/proxy/scan-image.sh" "$root"
+/bin/sh "$root/tools/security/vulnerability-scan.sh"
 
 python3 "$root/tools/testing/shared_stack.py" core tools/security/test.sh
 
-echo "ci-security: OK: Policies, Secrets und kritische Abhängigkeiten/Images"
+echo "ci-security: OK: policies, secrets, dependency audit and HIGH/CRITICAL image gates"

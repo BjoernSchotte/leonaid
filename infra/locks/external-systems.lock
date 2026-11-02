@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-07-27",
-  "nextReviewOn": "2026-08-27",
+  "reviewedAt": "2026-11-02",
+  "nextReviewOn": "2027-02-01",
   "systems": [
     {
       "id": "twenty",
@@ -207,6 +207,17 @@
       "roles": [
         "vulnerability-scanner",
         "secret-scanner"
+      ]
+    },
+    {
+      "id": "osv-scanner",
+      "version": "2.7.0",
+      "image": "ghcr.io/google/osv-scanner:v2.7.0@sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0",
+      "digest": "sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/google/osv-scanner/releases/tag/v2.7.0",
+      "roles": [
+        "dependency-vulnerability-scanner"
       ]
     },
     {

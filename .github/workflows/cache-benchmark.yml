@@ -23,7 +23,7 @@ jobs:
       matrix:
         targets: [proxy, default]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare measured build cache
         uses: ./.github/actions/build-cache
         with:
@@ -39,7 +39,7 @@ jobs:
         run: sh tools/ci/measure-cache.sh
       - name: Publish bounded timings
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cache-cold-${{ matrix.targets }}
           path: .artifacts/cache-measurement/*.json
@@ -55,7 +55,7 @@ jobs:
       matrix:
         targets: [proxy, default]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare measured build cache
         uses: ./.github/actions/build-cache
         with:
@@ -71,7 +71,7 @@ jobs:
         run: sh tools/ci/measure-cache.sh
       - name: Publish bounded timings
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cache-warm-${{ matrix.targets }}
           path: .artifacts/cache-measurement/*.json
@@ -87,7 +87,7 @@ jobs:
       matrix:
         targets: [proxy, default]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Change one application source input on this runner only
         run: printf '\n// Cache benchmark changes source while preserving behavior.\n' >> apps/public/src/pages/health/ready.ts
       - name: Prepare measured build cache
@@ -105,7 +105,7 @@ jobs:
         run: sh tools/ci/measure-cache.sh
       - name: Publish bounded timings
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cache-changed-${{ matrix.targets }}
           path: .artifacts/cache-measurement/*.json
