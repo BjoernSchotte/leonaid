@@ -50,6 +50,8 @@ def is_placeholder(value: str) -> bool:
     return TEMPLATE_PLACEHOLDER.search(value) is not None or any(
         word in value.casefold() for word in PLACEHOLDER_WORDS
     )
+
+
 CORE_RUNTIME_USER = "10001:10001"
 HARDENED_SERVICES = {"api", "worker", "web", "pwa", "public", "survey-validator"}
 
