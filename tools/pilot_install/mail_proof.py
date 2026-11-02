@@ -20,6 +20,7 @@ Nothing here prints credentials or message bodies.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -143,21 +144,31 @@ def twenty_reset(email: str) -> None:
             "variables": {"email": email},
         }
     ).encode()
+    # Twenty serves its auth mutations on /metadata and resolves the
+    # workspace from the browser origin, like its own sign-in page.
     request = urllib.request.Request(
-        "http://twenty-server:3000/graphql",
+        os.environ["TWENTY_BASE_URL"] + "/metadata",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Origin": os.environ["TWENTY_ORIGIN"],
+        },
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = json.loads(response.read())
     result = (payload.get("data") or {}).get("emailPasswordResetLink") or {}
     if result.get("success") is not True:
-        codes = [
-            (error.get("extensions") or {}).get("code")
+        # Twenty's auth errors carry no secrets; show code and message.
+        problems = [
+            (
+                (error.get("extensions") or {}).get("code"),
+                (error.get("extensions") or {}).get("subCode"),
+                str(error.get("message", ""))[:200],
+            )
             for error in payload.get("errors") or []
         ]
-        raise SystemExit(f"mail-proof: Twenty refused the reset request: {codes}")
+        raise SystemExit(f"mail-proof: Twenty refused the reset request: {problems}")
     print("mail-proof: Twenty accepted the password reset request")
 
 
