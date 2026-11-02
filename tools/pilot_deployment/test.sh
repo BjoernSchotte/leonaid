@@ -508,7 +508,7 @@ python3 - "$config" <<'CONFIG'
 import hashlib, json, pathlib, sys
 data = pathlib.Path(sys.argv[1]).read_bytes()
 value = json.loads(data)
-assert len([service for service in value["services"].values() if not service.get("profiles")]) == 13
+assert len([service for service in value["services"].values() if not service.get("profiles")]) == 14
 print(f"pilot-deployment-test: runtime config valid, bytes={len(data)}, sha256={hashlib.sha256(data).hexdigest()}")
 CONFIG
 # Send the complete host snapshot through stdin: the same shared directory was
