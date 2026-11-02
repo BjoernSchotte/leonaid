@@ -52,7 +52,7 @@ in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 |---|---|
 | `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
 | `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects |
-| `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime` |
+| `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
 seeds synthetic data. They always run; there is no path filter, because Core,
@@ -61,6 +61,11 @@ once. Neither the script nor the workflow retries a failed case, so an
 intermittent failure stays red and must be fixed at its cause.
 `tools/ci/workflow_contract.py` rejects a missing group, a path filter,
 `continue-on-error` or a retry in the job.
+
+Observed GitHub runtimes (PR #40): `krapfentaxi-orders` 12–15 min,
+`krapfentaxi-migration` 4–6 min, `static` 1–3 min. The legs run in parallel
+with the other jobs. `krapfentaxi-orders` is the longest job of the workflow
+(next: Security, about 8 min), so it adds roughly 4 minutes of wall time.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the

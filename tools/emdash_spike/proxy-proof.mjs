@@ -52,12 +52,18 @@ if (process.argv.includes("--cms-stopped")) {
     "/_emdash/admin/setup",
     "/_emdash/api/setup",
     "/_emdash/image?href=test",
-    "/campaigns/test/",
   ]) {
     const response = await get(path);
     assert.equal(response.status, 503, path);
     assert.equal(await response.text(), "CMS access is not enabled");
   }
+  // Public campaign pages check the trusted origin before bootstrap
+  // (EMS-050/085). This probe's Host is the internal proxy name, not
+  // EMDASH_SITE_URL, so only the CMS's own origin denial can answer here.
+  const campaign = await get("/campaigns/test/");
+  assert.equal(campaign.status, 403, "/campaigns/test/");
+  assert.equal(campaign.headers.get("cache-control"), "no-store");
+  assert.equal(await campaign.text(), "Invalid CMS origin");
   // This proves dispatch only, not ordering or SEO content correctness.
   for (const path of [
     "/_image",
