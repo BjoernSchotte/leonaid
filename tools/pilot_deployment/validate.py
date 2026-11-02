@@ -32,10 +32,26 @@ PRIVATE_NETWORKS = {"core-data", "crm-data", "mail-data", "storage-data", "telem
 # carries SMTP of the two mail senders and nothing else.
 MAIL_EGRESS_NETWORK = "mail-egress"
 MAIL_EGRESS_SERVICES = {"twenty-worker", "worker"}
-# Twenty 2.24 hands host, port and credentials to nodemailer, which uses
-# implicit TLS exactly on port 465 and otherwise upgrades with STARTTLS.
+# Twenty 2.54 hands host, port and credentials to nodemailer, which uses
+# implicit TLS exactly on port 465 and otherwise upgrades with STARTTLS only
+# if the relay offers it. Twenty has no option to require STARTTLS, so it may
+# send mail only with MAIL_SMTP_MODE=tls; the entrypoint below selects the
+# logger driver (no mail) for every other mode.
 IMPLICIT_TLS_PORT = "465"
 TWENTY_MAIL_SERVICES = ("twenty-server", "twenty-worker")
+TWENTY_MAIL_POLICY_SCRIPT = (
+    'if [ "${MAIL_SMTP_MODE}" = tls ]; then EMAIL_DRIVER=SMTP; '
+    "else EMAIL_DRIVER=logger; fi\n"
+    "export EMAIL_DRIVER\n"
+    'exec /app/entrypoint.sh "$@"\n'
+)
+# The CRM UI is admin-only: twenty-server publishes its port on the host's
+# loopback interface for an SSH tunnel and joins no network the proxy uses.
+TWENTY_ADMIN_SERVICE = "twenty-server"
+TWENTY_ADMIN_TARGET_PORT = 3000
+TWENTY_ADMIN_NETWORK = "crm-admin"
+TWENTY_ADMIN_NETWORKS = {"crm-data", TWENTY_ADMIN_NETWORK}
+LOOPBACK = "127.0.0.1"
 IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 FULL_COMMIT = re.compile(r"[0-9a-f]{40}$")
@@ -135,7 +151,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         raise DeploymentContractError("aktive Service-Menge weicht vom Pilot-Core ab")
 
     published: list[tuple[str, int, int]] = []
-    published_hosts: list[str] = []
+    published_hosts: list[tuple[str, str]] = []
     for service_name, raw_service in services.items():
         service = object_value(raw_service, f"services.{service_name}")
         validate_runtime_limits(service_name, service)
@@ -157,7 +173,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                     int(port.get("published", 0)),
                 )
             )
-            published_hosts.append(str(port.get("host_ip", "")))
+            published_hosts.append((service_name, str(port.get("host_ip", ""))))
         for raw_volume in service.get("volumes", []):
             volume = object_value(raw_volume, f"{service_name}.volumes")
             if volume.get("type") != "bind":
@@ -181,20 +197,40 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                     f"{service_name} enthält einen nicht freigegebenen Bind-Mount"
                 )
 
+    admin_ports = [
+        host_port
+        for service, target, host_port in published
+        if service == TWENTY_ADMIN_SERVICE and target == TWENTY_ADMIN_TARGET_PORT
+    ]
+    if len(admin_ports) != 1 or not 1 <= admin_ports[0] <= 65535:
+        raise DeploymentContractError(
+            "twenty-server must publish port 3000 exactly once for the admin tunnel"
+        )
+    admin_port = admin_ports[0]
+    if any(
+        host != LOOPBACK
+        for service, host in published_hosts
+        if service == TWENTY_ADMIN_SERVICE
+    ):
+        raise DeploymentContractError(
+            "twenty-server may publish its port on 127.0.0.1 only"
+        )
+    others = [
+        (service, target, host_port)
+        for service, target, host_port in published
+        if (service, target) != (TWENTY_ADMIN_SERVICE, TWENTY_ADMIN_TARGET_PORT)
+    ]
     if isolated_test_mode:
         if (
-            sorted((service, target) for service, target, _ in published)
-            != [
-                ("proxy", 80),
-                ("proxy", 443),
-            ]
-            or any(host_port < 1 for _, _, host_port in published)
-            or any(host != "127.0.0.1" for host in published_hosts)
+            sorted((service, target) for service, target, _ in others)
+            != [("proxy", 80), ("proxy", 443)]
+            or any(host_port < 1 for _, _, host_port in others)
+            or any(host != LOOPBACK for _, host in published_hosts)
         ):
             raise DeploymentContractError(
                 "isolierter Test darf nur Caddys Zielports 80/443 veröffentlichen"
             )
-    elif sorted(published) != [("proxy", 80, 80), ("proxy", 443, 443)]:
+    elif sorted(others) != [("proxy", 80, 80), ("proxy", 443, 443)]:
         raise DeploymentContractError("nur Caddy darf exakt 80/443 veröffentlichen")
 
     networks = object_value(config.get("networks"), "networks")
@@ -281,6 +317,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     if worker_environment.get("MAIL_SMTP_VERIFY_CERTIFICATES") != "true":
         raise DeploymentContractError("produktive SMTP-Zertifikatsprüfung ist aus")
     validate_mail_egress(services, networks)
+    validate_twenty_admin_access(services, networks, api_environment, admin_port)
     validate_twenty_mail(services, worker_environment)
 
 
@@ -309,6 +346,68 @@ def validate_mail_egress(services: dict[str, Any], networks: dict[str, Any]) -> 
         )
 
 
+def validate_twenty_admin_access(
+    services: dict[str, Any],
+    networks: dict[str, Any],
+    api_environment: dict[str, Any],
+    admin_port: int,
+) -> None:
+    """Twenty is reachable only through the loopback port and its tunnel URL."""
+
+    admin_network = object_value(
+        networks.get(TWENTY_ADMIN_NETWORK), f"networks.{TWENTY_ADMIN_NETWORK}"
+    )
+    # Docker publishes no port of a container that is only on internal networks.
+    if admin_network.get("internal") is True:
+        raise DeploymentContractError(
+            "crm-admin is internal; the admin port of twenty-server cannot be published"
+        )
+    attached = {
+        name
+        for name, service in services.items()
+        if TWENTY_ADMIN_NETWORK in service_networks(object_value(service, name))
+    }
+    if attached != {TWENTY_ADMIN_SERVICE}:
+        raise DeploymentContractError(
+            "crm-admin must connect only twenty-server, found "
+            + ",".join(sorted(attached))
+        )
+    server_networks = service_networks(
+        object_value(services[TWENTY_ADMIN_SERVICE], TWENTY_ADMIN_SERVICE)
+    )
+    if server_networks != TWENTY_ADMIN_NETWORKS:
+        raise DeploymentContractError(
+            "twenty-server must join exactly crm-data and crm-admin, found "
+            + ",".join(sorted(server_networks))
+        )
+    tunnel_url = f"http://localhost:{admin_port}"
+    for service_name in TWENTY_MAIL_SERVICES:
+        environment = object_value(
+            object_value(services[service_name], service_name).get("environment"),
+            f"{service_name}.environment",
+        )
+        for key in ("SERVER_URL", "AUTH_COOKIE_ALLOWED_ORIGINS"):
+            if environment.get(key) != tunnel_url:
+                raise DeploymentContractError(
+                    f"{service_name} {key} must be the admin tunnel URL {tunnel_url}"
+                )
+    if api_environment.get("TWENTY_ORIGIN") != tunnel_url:
+        raise DeploymentContractError(
+            f"api TWENTY_ORIGIN must be the admin tunnel URL {tunnel_url}"
+        )
+
+
+def twenty_mail_enabled(mode: object) -> bool:
+    """Whether the mail policy lets Twenty send mail (implicit TLS only)."""
+
+    return mode == "tls"
+
+
+def unescape_compose(value: object) -> object:
+    # `docker compose config` keeps "$$" escaped; the container sees "$".
+    return value.replace("$$", "$") if isinstance(value, str) else value
+
+
 def address_domain(value: str) -> str:
     address = parseaddr(value)[1]
     if address.count("@") != 1:
@@ -319,7 +418,8 @@ def address_domain(value: str) -> str:
 def validate_twenty_mail(
     services: dict[str, Any], worker_environment: dict[str, Any]
 ) -> None:
-    """Twenty must send through the core relay with TLS and an aligned sender."""
+    """Twenty sends only through the core relay, only with implicit TLS and an
+    aligned sender; its entrypoint picks the logger driver for other modes."""
 
     mode = worker_environment.get("MAIL_SMTP_MODE")
     port = str(worker_environment.get("MAIL_SMTP_PORT", ""))
@@ -338,8 +438,14 @@ def validate_twenty_mail(
             "MAIL_SMTP_CA_FILE is not supported in the pilot; Twenty trusts only public CAs"
         )
     sender_domain = address_domain(string_value(worker_environment, "MAIL_FROM"))
+    expected_entrypoint = [
+        "/bin/sh",
+        "-c",
+        TWENTY_MAIL_POLICY_SCRIPT,
+        "twenty-mail-policy",
+    ]
     expected = {
-        "EMAIL_DRIVER": "SMTP",
+        "MAIL_SMTP_MODE": str(mode),
         "EMAIL_SMTP_NO_TLS": "false",
         "EMAIL_SMTP_HOST": string_value(worker_environment, "MAIL_SMTP_HOST"),
         "EMAIL_SMTP_PORT": port,
@@ -348,9 +454,21 @@ def validate_twenty_mail(
     }
     for service_name in TWENTY_MAIL_SERVICES:
         service = object_value(services[service_name], f"services.{service_name}")
+        entrypoint = service.get("entrypoint")
+        if (
+            not isinstance(entrypoint, list)
+            or [unescape_compose(item) for item in entrypoint] != expected_entrypoint
+        ):
+            raise DeploymentContractError(
+                f"{service_name} does not start through the Twenty mail policy"
+            )
         environment = object_value(
             service.get("environment"), f"{service_name}.environment"
         )
+        if "EMAIL_DRIVER" in environment:
+            raise DeploymentContractError(
+                f"{service_name} sets EMAIL_DRIVER; only the mail policy may choose it"
+            )
         for key, value in expected.items():
             if str(environment.get(key) or "") != value:
                 # Never echo the value: the password is among the keys.

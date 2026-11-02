@@ -4,9 +4,9 @@ description: Diagnose common operational failures with Doctor, health checks, an
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -34,11 +34,16 @@ email addresses, or document bytes.
   (pilot: `pilot-repair-crm-match-keys --env-file FILE`, which the
   `leonaid-crm-repair` timers run on schedule and which skips while
   maintenance mode is on).
-- **No mail from the CRM (pilot):** Twenty's worker sends verification,
-  password reset and invitation mail through the `MAIL_SMTP_*` relay over
-  the `mail-egress` network. Check the `twenty-worker` logs for the SMTP
-  error, that `MAIL_SMTP_PORT` matches `MAIL_SMTP_MODE` (465 only with
-  `tls`), and that the relay certificate comes from a public CA.
+- **No mail from the CRM (pilot):** Twenty sends mail only with
+  `MAIL_SMTP_MODE=tls` on port 465; with `starttls` it sends nothing on
+  purpose and `pilot-doctor` warns about it. With `tls`, Twenty's worker
+  sends verification and password reset mail through the `MAIL_SMTP_*`
+  relay over the `mail-egress` network. Check the `twenty-worker` logs for
+  the SMTP error and that the relay certificate comes from a public CA.
+- **CRM does not open (pilot):** The CRM has no public domain. Run
+  `./leonaid crm-admin --env-file FILE` on the server and use the printed
+  `ssh -N -L` command with the same local port; Twenty rejects other
+  origins than `http://localhost:TWENTY_ADMIN_PORT`.
 - **Writes return 503:** Check `infra/upgrade/maintenance.sh status`. Disable
   maintenance only after dependencies are healthy and contracts pass.
 

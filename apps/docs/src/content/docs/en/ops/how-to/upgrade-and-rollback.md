@@ -4,9 +4,9 @@ description: Update pinned Core, Twenty, and RustFS versions behind a maintenanc
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -42,3 +42,15 @@ failed project, and restore the same recovery point into a new, explicitly
 confirmed project. Redis 7.4 cannot read Valkey's data files either, so an
 older release never starts on a migrated queue volume; the restored project
 starts with an empty one.
+
+## Twenty 2.24 to 2.54
+
+Twenty 2.54 closes several security advisories, among them an unauthenticated
+invitation takeover in versions up to 2.47. Its upgrade sequence contains
+every instance and workspace command since 1.21, so `command:prod upgrade`
+migrates a 2.24 database in one step; no intermediate release is needed.
+`./leonaid test-upgrade` proves exactly this jump with Golden Data. Twenty
+2.54 drops the `isCustom` column of views and now builds indexes and checks
+foreign keys of a schema change in background jobs. It refuses further schema
+changes until they finish; `tools/twenty/provision.py` waits and repeats the
+refused request. The environment variables that LeonAid sets are unchanged.
