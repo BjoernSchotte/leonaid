@@ -35,7 +35,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "pilot-alerting-test: Diagnose:" >&2
+    echo "pilot-alerting-test: diagnosis:" >&2
     compose --profile dev-mail --profile monitoring ps --all >&2 || true
     compose --profile dev-mail --profile monitoring logs --no-color --tail=120 \
       api worker pilot-exporter prometheus alertmanager alert-sink >&2 || true
@@ -81,7 +81,7 @@ wait_event() {
 dependency_cycle() {
   service=$1
   dependency=$2
-  echo "pilot-alerting-test: stoppt $service und erwartet Alarm/Recovery"
+  echo "pilot-alerting-test: stops $service and expects alert/recovery"
   compose stop "$service"
   wait_event LeonAidDependencyUnavailable firing "$dependency"
   compose start "$service"
@@ -90,7 +90,7 @@ dependency_cycle() {
 }
 
 if [ ! -f "$root/.env.local" ]; then
-  echo "pilot-alerting-test: ERROR: .env.local fehlt" >&2
+  echo "pilot-alerting-test: ERROR: .env.local is missing" >&2
   exit 1
 fi
 
@@ -158,7 +158,7 @@ dependency_cycle rustfs rustfs
 dependency_cycle mailpit mail
 dependency_cycle worker worker
 
-echo "pilot-alerting-test: erzeugt und heilt ein real veraltetes Backup"
+echo "pilot-alerting-test: creates and heals a really stale backup"
 contract write-manifest /proof/backup-manifest.json --project "$project" --stale
 wait_event LeonAidBackupStale firing
 monitor_contract assert-monitoring-status \
@@ -175,7 +175,7 @@ monitor_contract assert-monitoring-status \
   --check backup \
   --status ready
 
-echo "pilot-alerting-test: füllt ein echtes 16-MiB-tmpfs bis unter 10 Prozent"
+echo "pilot-alerting-test: fills a real 16 MiB tmpfs to below 10 percent free"
 compose exec --no-TTY pilot-exporter \
   dd if=/dev/zero of=/run/leonaid-monitor/disk/capacity-test.bin \
   bs=1024 count=14800
@@ -195,7 +195,7 @@ monitor_contract assert-monitoring-status \
   --check disk \
   --status ready
 
-echo "pilot-alerting-test: prüft synthetische PII gegen den Alarmkanal"
+echo "pilot-alerting-test: checks synthetic PII against the alert channel"
 compose exec --no-TTY core-postgres sh -c \
   "psql -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"
   INSERT INTO outbox_event (
@@ -226,7 +226,7 @@ wait_event LeonAidDeadLetterPresent resolved
 if grep -E \
   'monitoring-canary-person|monitoring-canary-secret|\"payload\":\\{\"email\"' \
   "$events_file" >/dev/null 2>&1; then
-  echo "pilot-alerting-test: ERROR: Alarmkanal enthält synthetische PII" >&2
+  echo "pilot-alerting-test: ERROR: alert channel contains synthetic PII" >&2
   exit 1
 fi
 
@@ -234,5 +234,5 @@ contract assert-no-event /proof/events/events.jsonl --receiver-path /alerts \
   --alert LeonAidWatchdog
 
 echo "pilot-alerting-test: OK: Watchdog reached only the heartbeat receiver"
-echo "pilot-alerting-test: OK: vier reale Ausfälle, Backup, Disk, Recovery,"
-echo "pilot-alerting-test:     Wartungsgrenze und PII-freier Webhook bewiesen"
+echo "pilot-alerting-test: OK: four real outages, backup, disk, recovery,"
+echo "pilot-alerting-test:     maintenance boundary and PII-free webhook proven"

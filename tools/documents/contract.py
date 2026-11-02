@@ -49,7 +49,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -64,7 +64,7 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
 
 
@@ -128,7 +128,7 @@ def assert_document_payload(
     row: asyncpg.Record,
 ) -> None:
     if not isinstance(value, dict):
-        raise ContractFailure("Dokumentantwort ist kein Objekt")
+        raise ContractFailure("Document response is not an object")
     expected = {
         "id": str(row["id"]),
         "actionId": str(row["action_id"]),
@@ -157,7 +157,7 @@ def assert_document_payload(
     }
     if value != expected:
         raise ContractFailure(
-            "API-Metadaten weichen vom PostgreSQL-Dokumentstand ab: "
+            "API metadata differs from the PostgreSQL document state: "
             f"{json.dumps(value, sort_keys=True)}"
         )
     private_fields = {
@@ -167,7 +167,7 @@ def assert_document_payload(
         "sha256",
     }
     if private_fields.intersection(value):
-        raise ContractFailure("Interne Speicherbezüge wurden an das Frontend geleakt")
+        raise ContractFailure("Internal storage references leaked to the frontend")
 
 
 async def assert_list(
@@ -189,7 +189,7 @@ async def assert_list(
         or len(value.get("items", [])) != 1
         or response.headers.get("cache-control") != "private, no-store"
     ):
-        raise ContractFailure(f"Dokumentreferenz ist unvollständig: {path}")
+        raise ContractFailure(f"Document reference is incomplete: {path}")
     row = await connection.fetchrow(
         """
         SELECT *
@@ -201,16 +201,16 @@ async def assert_list(
         invoice_id,
     )
     if row is None:
-        raise ContractFailure("Golden-Dokument fehlt in PostgreSQL")
+        raise ContractFailure("Golden document is missing in PostgreSQL")
     item = value["items"][0]
     if not isinstance(item, dict):
-        raise ContractFailure("Dokumentlisteneintrag ist kein Objekt")
+        raise ContractFailure("Document list entry is not an object")
     assert_document_payload(item.get("document"), row)
     if (
         item.get("invoiceNumber") != f"KT26-{str(invoice_id)[-1].zfill(4)}"
         or not str(item.get("buyerDisplayName", "")).strip()
     ):
-        raise ContractFailure("Fachliche Dokumentbezeichnung fehlt")
+        raise ContractFailure("Domain document label is missing")
     return item
 
 
@@ -232,7 +232,7 @@ async def assert_action_list(
         or not isinstance(items, list)
         or len(items) != 3
     ):
-        raise ContractFailure("Aktionskontext zeigt nicht alle drei Golden-Dokumente")
+        raise ContractFailure("Action context does not show all three golden documents")
     rows = await connection.fetch(
         """
         SELECT *
@@ -243,7 +243,7 @@ async def assert_action_list(
         ACTION_ID,
     )
     if len(rows) != 3:
-        raise ContractFailure("PostgreSQL enthält nicht drei Golden-Dokumente")
+        raise ContractFailure("PostgreSQL does not contain three golden documents")
     by_id = {
         str(item.get("document", {}).get("id")): item
         for item in items
@@ -252,7 +252,7 @@ async def assert_action_list(
     for row in rows:
         item = by_id.get(str(row["id"]))
         if item is None:
-            raise ContractFailure("Aktionskontext verlor ein PostgreSQL-Dokument")
+            raise ContractFailure("Action context lost a PostgreSQL document")
         assert_document_payload(item["document"], row)
     return items
 
@@ -274,7 +274,7 @@ async def assert_exact_bytes(
             invoice_id,
         )
         if row is None:
-            raise ContractFailure("Dokument fehlt beim Bytevergleich")
+            raise ContractFailure("Document is missing for the byte comparison")
         retrieved = await object_storage.get(
             ObjectLocation(
                 bucket=str(row["storage_bucket"]),
@@ -297,7 +297,7 @@ async def assert_exact_bytes(
             or response.headers.get("x-document-version") != "2"
         ):
             raise ContractFailure(
-                "PostgreSQL, RustFS, Golden-PDF und API sind nicht byteidentisch"
+                "PostgreSQL, RustFS, golden PDF and API are not byte-identical"
             )
 
 
@@ -321,7 +321,7 @@ async def exercise(
     )
     if assignment_count != 1:
         raise ContractFailure(
-            "Golden-Voraussetzung fehlt: Akquisiteur ist der Firma nicht zugeordnet"
+            "Golden precondition missing: acquirer is not assigned to the company"
         )
 
     async with httpx.AsyncClient(
@@ -406,11 +406,11 @@ async def exercise(
             or foreign_document.content.startswith(b"%PDF")
         ):
             raise ContractFailure(
-                "Akquisiteurs- oder Fremdaktionsgrenze schützt Dokumente nicht"
+                "Acquirer or foreign-action boundary does not protect documents"
             )
     print(
-        "document-contract: OK: Aktion, Bestellung, Rechnung, Firma und Kontakt; "
-        "Admin/Finanzen erlaubt, Akquise/Fremdaktion verweigert; Bytes exakt"
+        "document-contract: OK: action, order, invoice, company and contact; "
+        "admin/finance allowed, acquirer/foreign action denied; bytes exact"
     )
 
 
@@ -420,7 +420,7 @@ async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
         INVOICE_THREE_ID,
     )
     if row is None:
-        raise ContractFailure("Dokument für kontrollierten Fehlfall fehlt")
+        raise ContractFailure("Document for the controlled failure case is missing")
     location = ObjectLocation(
         bucket=str(row["storage_bucket"]),
         key=str(row["object_key"]),
@@ -431,7 +431,7 @@ async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
         location,
         authorization=ObjectDeletionAuthorization(
             actor_user_id=ADMIN_ID,
-            reason="POC-093 kontrollierter Test einer fehlenden Objektversion",
+            reason="POC-093 controlled test of a missing object version",
         ),
     )
     token = token_for("finance", FINANCE_ID)
@@ -457,11 +457,11 @@ async def assert_missing_object(connection: asyncpg.Connection[Any]) -> None:
         or response.content.startswith(b"%PDF")
     ):
         raise ContractFailure(
-            "Fehlende RustFS-Version ergab keinen diagnostizierbaren JSON-Fehler"
+            "Missing RustFS version did not give a diagnosable JSON error"
         )
     print(
-        "document-contract: OK: fehlende RustFS-Version bleibt auffindbar und "
-        "liefert Fehler generated_document_storage_missing statt Leerdownload"
+        "document-contract: OK: missing RustFS version stays listed and "
+        "returns error generated_document_storage_missing instead of an empty download"
     )
 
 

@@ -58,7 +58,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -119,12 +119,12 @@ async def create_invitation(
     )
     if response.status_code != 202:
         raise ContractFailure(
-            f"Einladung an {email} lieferte HTTP {response.status_code}: "
+            f"invitation to {email} returned HTTP {response.status_code}: "
             f"{response.text[:300]}"
         )
     payload = response.json()
     if set(payload) != {"invitationId", "status"} or payload["status"] != "queued":
-        raise ContractFailure("Einladungsantwort verrät unerwartete Kontoinformationen")
+        raise ContractFailure("invitation response reveals unexpected account information")
     return UUID(str(payload["invitationId"])), payload
 
 
@@ -167,22 +167,22 @@ async def wait_for_mail(
                     detail_response.raise_for_status()
                     detail = detail_response.json()
                     if not isinstance(detail, dict):
-                        raise ContractFailure("Mailpit-Nachricht ist kein Objekt")
+                        raise ContractFailure("Mailpit message is not an object")
                     if recipient_addresses(detail.get("From")) != {
                         "noreply@leonaid.invalid"
                     } or recipient_addresses(detail.get("ReplyTo")) != {
                         "support@leonaid.invalid"
                     }:
                         raise ContractFailure(
-                            "Einladungs-/Änderungsmail besitzt falsches "
-                            "From oder Reply-To"
+                            "invitation/change mail has the wrong "
+                            "From or Reply-To"
                         )
                     text = detail.get("Text")
                     if not isinstance(text, str):
-                        raise ContractFailure("Mailpit-Nachricht enthält keinen Text")
+                        raise ContractFailure("Mailpit message contains no text")
                     return text, detail
         await asyncio.sleep(0.2)
-    raise ContractFailure(f"Mail an {recipient} wurde nicht rechtzeitig zugestellt")
+    raise ContractFailure(f"mail to {recipient} was not delivered in time")
 
 
 def credentials_from_mail(text: str) -> tuple[str, str]:
@@ -190,7 +190,7 @@ def credentials_from_mail(text: str) -> tuple[str, str]:
     code = CODE_PATTERN.search(text)
     if token is None or code is None or "antworte auf diese E-Mail" not in text:
         raise ContractFailure(
-            "Einladungsmail enthält nicht Link, Code und Supporthinweis"
+            "invitation mail does not contain link, code and support note"
         )
     return token.group(1), code.group(1)
 
@@ -199,7 +199,7 @@ def email_change_credentials_from_mail(text: str) -> tuple[str, str]:
     token = EMAIL_CHANGE_TOKEN_PATTERN.search(text)
     code = CODE_PATTERN.search(text)
     if token is None or code is None:
-        raise ContractFailure("E-Mail-Korrektur enthält nicht Link und Code")
+        raise ContractFailure("email correction does not contain link and code")
     return token.group(1), code.group(1)
 
 
@@ -211,7 +211,7 @@ async def require_invalid(
         response.status_code != 400
         or response.json().get("error", {}).get("code") != "invitation_invalid"
     ):
-        raise ContractFailure(f"{label} wurde nicht generisch abgewiesen")
+        raise ContractFailure(f"{label} was not rejected generically")
 
 
 async def verify_accepted(
@@ -251,7 +251,7 @@ async def verify_accepted(
         "membership_role": role,
     }
     if row is None or dict(row) != expected:
-        raise ContractFailure(f"Annahme war nicht atomar sichtbar: {dict(row or {})}")
+        raise ContractFailure(f"acceptance was not visible atomically: {dict(row or {})}")
 
 
 async def run(arguments: argparse.Namespace) -> None:
@@ -359,7 +359,7 @@ async def run(arguments: argparse.Namespace) -> None:
             != "email_change_invalid"
         ):
             raise ContractFailure(
-                "Abgelaufene E-Mail-Bestätigung wurde nicht generisch abgewiesen"
+                "expired email confirmation was not rejected generically"
             )
 
         klara_options = await client.get(
@@ -369,7 +369,7 @@ async def run(arguments: argparse.Namespace) -> None:
         if klara_options.status_code != 200 or {
             UUID(str(item["id"])) for item in klara_options.json().get("actions", [])
         } != {ACTION_ID}:
-            raise ContractFailure("Charity-Admin erhielt fremde Einladungsoptionen")
+            raise ContractFailure("charity admin got foreign invitation options")
         system_options = await client.get(
             "/api/v1/invitations/options",
             cookies=cookies(system_session),
@@ -377,7 +377,7 @@ async def run(arguments: argparse.Namespace) -> None:
         if system_options.status_code != 200 or {
             UUID(str(item["id"])) for item in system_options.json().get("actions", [])
         } != {ACTION_ID, FOREIGN_ACTION_ID}:
-            raise ContractFailure("System-Admin erhielt nicht alle aktiven Optionen")
+            raise ContractFailure("system admin did not get all active options")
 
         forbidden = await client.post(
             "/api/v1/invitations",
@@ -394,7 +394,7 @@ async def run(arguments: argparse.Namespace) -> None:
             or forbidden.json().get("error", {}).get("code")
             != "invitation_action_forbidden"
         ):
-            raise ContractFailure("Direkter Fremdaktions-Request wurde nicht verboten")
+            raise ContractFailure("direct request for a foreign action was not forbidden")
 
         link_id, link_dispatch = await create_invitation(
             client,
@@ -415,7 +415,7 @@ async def run(arguments: argparse.Namespace) -> None:
             role="acquirer",
         )
         if duplicate_link_id != link_id:
-            raise ContractFailure("Wiederholte Einladung erzeugte zweite Zugangsdaten")
+            raise ContractFailure("repeated invitation created second credentials")
 
         code_id, code_dispatch = await create_invitation(
             client,
@@ -428,7 +428,7 @@ async def run(arguments: argparse.Namespace) -> None:
         code_text, _code_mail = await wait_for_mail(mailpit, CODE_EMAIL)
         code_token, code_value = credentials_from_mail(code_text)
         if set(link_dispatch) != set(code_dispatch):
-            raise ContractFailure("Account-Existenz verändert die Antwortstruktur")
+            raise ContractFailure("account existence changes the response structure")
 
         revoked_id, _ = await create_invitation(
             client,
@@ -469,7 +469,7 @@ async def run(arguments: argparse.Namespace) -> None:
                         "code": wrong_code,
                     },
                 ),
-                f"falscher Codeversuch {attempt + 1}",
+                f"wrong code attempt {attempt + 1}",
             )
         await require_invalid(
             await client.post(
@@ -480,7 +480,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     "code": code_limit_value,
                 },
             ),
-            "richtiger Code nach Fehlversuchssperre",
+            "correct code after failed-attempt lockout",
         )
         await require_invalid(
             await client.post(
@@ -488,7 +488,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 headers=brute_force_headers,
                 json={"magicToken": code_limit_token},
             ),
-            "Magic Link nach Fehlversuchssperre",
+            "magic link after failed-attempt lockout",
         )
 
         connection = await asyncpg.connect(database_url, timeout=10)
@@ -513,7 +513,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 link_id,
             )
             if stored is None:
-                raise ContractFailure("Einladungs-Snapshot oder Outbox fehlt")
+                raise ContractFailure("invitation snapshot or outbox missing")
             outbox_count = await connection.fetchval(
                 """
                 SELECT count(*)
@@ -524,7 +524,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 link_id,
             )
             if outbox_count != 1:
-                raise ContractFailure("Idempotente Einladung erzeugte mehrere Mails")
+                raise ContractFailure("idempotent invitation created multiple mails")
             if {
                 "email_snapshot": stored["email_snapshot"],
                 "display_name_snapshot": stored["display_name_snapshot"],
@@ -538,18 +538,18 @@ async def run(arguments: argparse.Namespace) -> None:
                 "invited_by_name_snapshot": "Klara Kern",
                 "role_snapshot": "acquirer",
             }:
-                raise ContractFailure("Einladungs-Snapshots sind unvollständig")
+                raise ContractFailure("invitation snapshots are incomplete")
             if (
                 stored["token_digest"]
                 != hashlib.sha256(link_token.encode()).hexdigest()
             ):
-                raise ContractFailure("Magic Token wurde nicht passend gehasht")
+                raise ContractFailure("magic token was not hashed correctly")
             if (
                 len(str(stored["code_digest"])) != 64
                 or stored["code_digest"]
                 == hashlib.sha256(link_code.encode()).hexdigest()
             ):
-                raise ContractFailure("Code-Digest ist nicht geeignet gepeppert")
+                raise ContractFailure("code digest is not peppered correctly")
             payload_text = str(stored["outbox_payload"])
             if (
                 set(json.loads(payload_text)) != {"secureMail"}
@@ -557,7 +557,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or link_code in payload_text
                 or LINK_EMAIL in payload_text
             ):
-                raise ContractFailure("Outbox speichert Einladung im Klartext")
+                raise ContractFailure("outbox stores the invitation in plain text")
             try:
                 await connection.execute(
                     """
@@ -570,7 +570,7 @@ async def run(arguments: argparse.Namespace) -> None:
             except asyncpg.CheckViolationError:
                 pass
             else:
-                raise ContractFailure("Einladungs-Snapshot war veränderlich")
+                raise ContractFailure("invitation snapshot was mutable")
 
             expired_token = secrets.token_urlsafe(32)
             await connection.execute(
@@ -616,20 +616,20 @@ async def run(arguments: argparse.Namespace) -> None:
             accepted_link.status_code != 200
             or accepted_link.json().get("role") != "acquirer"
         ):
-            raise ContractFailure("Magic Link wurde nicht angenommen")
+            raise ContractFailure("magic link was not accepted")
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 json={"magicToken": link_token},
             ),
-            "wiederverwendeter Magic Link",
+            "reused magic link",
         )
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 json={"email": LINK_EMAIL, "code": link_code},
             ),
-            "Code einer bereits per Link angenommenen Einladung",
+            "code of an invitation already accepted by link",
         )
 
         accepted_code = await client.post(
@@ -641,7 +641,7 @@ async def run(arguments: argparse.Namespace) -> None:
             or accepted_code.json().get("role") != "driver"
         ):
             raise ContractFailure(
-                "Sechsstelliger Code wurde nicht angenommen: "
+                "six-digit code was not accepted: "
                 f"HTTP {accepted_code.status_code} {accepted_code.text[:300]}"
             )
         await require_invalid(
@@ -649,14 +649,14 @@ async def run(arguments: argparse.Namespace) -> None:
                 "/api/v1/invitations/accept",
                 json={"email": CODE_EMAIL, "code": code_value},
             ),
-            "wiederverwendeter Code",
+            "reused code",
         )
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 json={"magicToken": code_token},
             ),
-            "Link einer bereits per Code angenommenen Einladung",
+            "link of an invitation already accepted by code",
         )
 
         revoked = await client.delete(
@@ -664,20 +664,20 @@ async def run(arguments: argparse.Namespace) -> None:
             cookies=cookies(klara_session),
         )
         if revoked.status_code != 200 or revoked.json() != {"status": "revoked"}:
-            raise ContractFailure("Einladung wurde nicht widerrufen")
+            raise ContractFailure("invitation was not revoked")
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 json={"magicToken": revoked_token},
             ),
-            "widerrufene Einladung",
+            "revoked invitation",
         )
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 json={"magicToken": expired_token},
             ),
-            "abgelaufene Einladung",
+            "expired invitation",
         )
         await require_invalid(
             await client.post(
@@ -687,7 +687,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     "code": "000000",
                 },
             ),
-            "unbekanntes Konto",
+            "unknown account",
         )
 
         foreign_id, _ = await create_invitation(
@@ -714,7 +714,7 @@ async def run(arguments: argparse.Namespace) -> None:
             cookies=cookies(klara_session),
         )
         if klara_list.status_code != 200:
-            raise ContractFailure("Charity-Admin konnte Einladungen nicht auflisten")
+            raise ContractFailure("charity admin could not list invitations")
         klara_items = klara_list.json().get("items", [])
         if (
             not klara_items
@@ -724,7 +724,7 @@ async def run(arguments: argparse.Namespace) -> None:
             - {str(item["status"]) for item in klara_items}
         ):
             raise ContractFailure(
-                "Einladungsliste verletzt Aktionsscope oder Lifecycle-Vollständigkeit"
+                "invitation list violates action scope or lifecycle completeness"
             )
         system_list = await client.get(
             "/api/v1/invitations",
@@ -734,7 +734,7 @@ async def run(arguments: argparse.Namespace) -> None:
         if system_list.status_code != 200 or foreign_id not in {
             UUID(str(item["id"])) for item in system_list.json().get("items", [])
         }:
-            raise ContractFailure("System-Admin-Filter enthält die fremde Aktion nicht")
+            raise ContractFailure("system admin filter does not contain the foreign action")
 
         connection = await asyncpg.connect(database_url, timeout=10)
         try:
@@ -758,20 +758,20 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         if reissued.status_code != 202:
             raise ContractFailure(
-                f"Neuversand scheiterte: {reissued.status_code} {reissued.text[:300]}"
+                f"reissue failed: {reissued.status_code} {reissued.text[:300]}"
             )
         reissued_id = UUID(str(reissued.json()["invitationId"]))
         reissued_text, _ = await wait_for_mail(mailpit, REISSUE_EMAIL)
         reissued_token, _ = credentials_from_mail(reissued_text)
         if reissued_id == lifecycle_id or reissued_token == lifecycle_token:
-            raise ContractFailure("Neuversand rotierte Einladung oder Token nicht")
+            raise ContractFailure("reissue did not rotate invitation or token")
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
                 headers={"User-Agent": "LeonAid-PILOT013-reissue-contract"},
                 json={"magicToken": lifecycle_token},
             ),
-            "Link vor Neuversand",
+            "link before reissue",
         )
         too_soon = await client.post(
             f"/api/v1/invitations/{reissued_id}/resend",
@@ -782,7 +782,7 @@ async def run(arguments: argparse.Namespace) -> None:
             or too_soon.json().get("error", {}).get("code")
             != "invitation_reissue_unavailable"
         ):
-            raise ContractFailure("Neuversand wurde nicht zeitlich begrenzt")
+            raise ContractFailure("reissue was not rate-limited in time")
 
         await mailpit.delete("/api/v1/messages")
         corrected = await client.post(
@@ -793,7 +793,7 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         if corrected.status_code != 202:
             raise ContractFailure(
-                "Adresskorrektur scheiterte: "
+                "address correction failed: "
                 f"{corrected.status_code} {corrected.text[:300]}"
             )
         corrected_id = UUID(str(corrected.json()["invitationId"]))
@@ -805,7 +805,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 headers={"User-Agent": "LeonAid-PILOT013-correction-contract"},
                 json={"magicToken": reissued_token},
             ),
-            "Link vor Adresskorrektur",
+            "link before address correction",
         )
 
         ui_resend_id, _ = await create_invitation(
@@ -866,7 +866,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 for row in replacement_rows
             } != expected_chain:
                 raise ContractFailure(
-                    "Historie von Neuversand und Adresskorrektur ist nicht unveränderlich"
+                    "reissue and address correction history is not immutable"
                 )
         finally:
             await connection.close()
@@ -877,7 +877,7 @@ async def run(arguments: argparse.Namespace) -> None:
             json={"email": EMAIL_CHANGE_OLD},
         )
         if login_before_change.status_code != 202:
-            raise ContractFailure("Login-Challenge vor E-Mail-Wechsel fehlt")
+            raise ContractFailure("login challenge before email change missing")
         await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
         await mailpit.delete("/api/v1/messages")
         requested_change = await client.post(
@@ -888,13 +888,13 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         if requested_change.status_code != 202:
             raise ContractFailure(
-                "E-Mail-Korrektur konnte nicht angefordert werden: "
+                "email correction could not be requested: "
                 f"{requested_change.status_code} {requested_change.text[:300]}"
             )
         old_notice_text, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
         new_confirmation_text, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_NEW)
         if "bleibt aktiv" not in old_notice_text:
-            raise ContractFailure("Alte Adresse erhielt keinen Sicherheitshinweis")
+            raise ContractFailure("old address got no security notice")
         email_change_token, email_change_code = email_change_credentials_from_mail(
             new_confirmation_text
         )
@@ -909,7 +909,7 @@ async def run(arguments: argparse.Namespace) -> None:
             != "email_change_already_pending"
         ):
             raise ContractFailure(
-                "Konkurrierende E-Mail-Korrektur wurde nicht abgewiesen"
+                "concurrent email correction was not rejected"
             )
         occupied_change = await client.post(
             f"/api/v1/identity/members/{UI_EMAIL_START_USER_ID}/email-change",
@@ -921,20 +921,20 @@ async def run(arguments: argparse.Namespace) -> None:
             or occupied_change.json().get("error", {}).get("code")
             != "email_change_address_in_use"
         ):
-            raise ContractFailure("Belegte E-Mail-Adresse wurde nicht abgewiesen")
+            raise ContractFailure("email address already in use was not rejected")
         forbidden_change = await client.post(
             f"/api/v1/identity/members/{EMAIL_CHANGE_USER_ID}/email-change",
             cookies=cookies(klara_session),
             json={"newEmail": "forbidden-change@leonaid.invalid"},
         )
         if forbidden_change.status_code != 403:
-            raise ContractFailure("Charity-Admin konnte Login-E-Mail korrigieren")
+            raise ContractFailure("charity admin was able to correct the login email")
         still_active = await client.get(
             "/api/v1/identity/me",
             cookies=cookies(email_session_one),
         )
         if still_active.status_code != 200:
-            raise ContractFailure("Alte Adresse wurde vor Bestätigung deaktiviert")
+            raise ContractFailure("old address was deactivated before confirmation")
 
         await mailpit.delete("/api/v1/messages")
         confirmed_change = await client.post(
@@ -948,12 +948,12 @@ async def run(arguments: argparse.Namespace) -> None:
             "revokedSessionCount": 2,
         }:
             raise ContractFailure(
-                "E-Mail-Korrektur wurde nicht atomar bestätigt: "
+                "email correction was not confirmed atomically: "
                 f"{confirmed_change.status_code} {confirmed_change.text[:300]}"
             )
         if confirmed_change.headers.get("set-cookie") is not None:
             raise ContractFailure(
-                "E-Mail-Bestätigung löschte die unabhängige Browser-Sitzung"
+                "email confirmation deleted the independent browser session"
             )
         admin_still_active = await client.get(
             "/api/v1/identity/me",
@@ -961,7 +961,7 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         if admin_still_active.status_code != 200:
             raise ContractFailure(
-                "E-Mail-Bestätigung widerrief die unabhängige Admin-Sitzung"
+                "email confirmation revoked the independent admin session"
             )
         replay = await client.post(
             "/api/v1/email-changes/confirm",
@@ -972,20 +972,20 @@ async def run(arguments: argparse.Namespace) -> None:
             replay.status_code != 400
             or replay.json().get("error", {}).get("code") != "email_change_invalid"
         ):
-            raise ContractFailure("E-Mail-Bestätigung war wiederverwendbar")
+            raise ContractFailure("email confirmation was reusable")
         for old_session in (email_session_one, email_session_two):
             denied = await client.get(
                 "/api/v1/identity/me",
                 cookies=cookies(old_session),
             )
             if denied.status_code != 401:
-                raise ContractFailure("Alte Sitzung blieb nach E-Mail-Wechsel aktiv")
+                raise ContractFailure("old session stayed active after email change")
         completed_old, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
         completed_new, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_NEW)
         if "wurde bestätigt und geändert" not in completed_old or (
             "wurde bestätigt und geändert" not in completed_new
         ):
-            raise ContractFailure("Abschlussinformation erreichte nicht beide Adressen")
+            raise ContractFailure("completion notice did not reach both addresses")
 
         await mailpit.delete("/api/v1/messages")
         ui_confirm_change = await client.post(
@@ -995,7 +995,7 @@ async def run(arguments: argparse.Namespace) -> None:
             json={"newEmail": UI_EMAIL_CONFIRM_NEW},
         )
         if ui_confirm_change.status_code != 202:
-            raise ContractFailure("UI-Bestätigungsfixture konnte nicht erstellt werden")
+            raise ContractFailure("UI confirmation fixture could not be created")
         ui_confirm_text, _ = await wait_for_mail(mailpit, UI_EMAIL_CONFIRM_NEW)
         ui_email_confirm_token, _ = email_change_credentials_from_mail(ui_confirm_text)
 
@@ -1041,14 +1041,14 @@ async def run(arguments: argparse.Namespace) -> None:
             or expired_email_change_status != "expired"
         ):
             raise ContractFailure(
-                "Terminale Einladungs- oder E-Mail-Änderungsstatus fehlen"
+                "terminal invitation or email change statuses missing"
             )
         if code_limit is None or dict(code_limit) != {
             "status": "revoked",
             "failed_code_attempts": 5,
             "failed": True,
         }:
-            raise ContractFailure("Fehlversuchssperre wurde nicht persistiert")
+            raise ContractFailure("failed-attempt lockout was not persisted")
         email_change_state = await connection.fetchrow(
             """
             SELECT
@@ -1080,7 +1080,7 @@ async def run(arguments: argparse.Namespace) -> None:
             "pending_challenges": 0,
         }:
             raise ContractFailure(
-                "E-Mail-Wechsel, Sessionentzug und Challengeentzug waren nicht atomar"
+                "email change, session revocation and challenge revocation were not atomic"
             )
         audit_payloads = await connection.fetch(
             """
@@ -1091,7 +1091,7 @@ async def run(arguments: argparse.Namespace) -> None:
             """
         )
         if not audit_payloads:
-            raise ContractFailure("Einladungs-AuditEvents fehlen")
+            raise ContractFailure("invitation AuditEvents missing")
         sensitive = {
             LINK_EMAIL,
             CODE_EMAIL,
@@ -1116,7 +1116,7 @@ async def run(arguments: argparse.Namespace) -> None:
             for row in audit_payloads
             for secret in sensitive
         ):
-            raise ContractFailure("AuditEvent enthält Zugangsdaten oder E-Mail")
+            raise ContractFailure("AuditEvent contains credentials or email")
     finally:
         await connection.close()
 
@@ -1138,10 +1138,10 @@ async def run(arguments: argparse.Namespace) -> None:
     )
     output.chmod(0o600)
     print(
-        "invitation-contract: Link, Code, Ablauf, Widerruf, atomare "
-        "Aktivierung, Lifecycle-Liste, Neuversand, Adresskorrektur und "
-        "bestätigten Login-E-Mail-Wechsel mit Sessionentzug sowie echten "
-        "Outbox/SMTP-Versand bewiesen"
+        "invitation-contract: link, code, expiry, revocation, atomic "
+        "activation, lifecycle list, reissue, address correction, "
+        "confirmed login email change with session revocation and real "
+        "outbox/SMTP delivery proven"
     )
 
 

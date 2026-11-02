@@ -81,7 +81,7 @@ async def expect_database_error(
         await operation()
     except asyncpg.PostgresError:
         return
-    raise SchemaError(f"Constraint wurde nicht erzwungen: {label}")
+    raise SchemaError(f"constraint was not enforced: {label}")
 
 
 async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> None:
@@ -95,10 +95,10 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     tables = {str(row["table_name"]) for row in rows}
     missing = EXPECTED_TABLES - tables
     if missing:
-        raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
+        raise SchemaError(f"core tables missing: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
     if revision != "0020_account_status_admin":
-        raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
+        raise SchemaError(f"unexpected Alembic head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
             "SELECT label, payload FROM previous_schema_snapshot WHERE id = 1"
@@ -109,7 +109,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             or marker["payload"]["amountMinor"] != 7200
             or marker["payload"]["actionId"] != ACTION
         ):
-            raise SchemaError("Daten des Vorgänger-Snapshots gingen verloren")
+            raise SchemaError("data from the previous snapshot was lost")
         migrated_invoice = await connection.fetchrow(
             """
             SELECT
@@ -136,7 +136,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             or migrated_invoice["payment_reference"] != "LEGACY-0001"
         ):
             raise SchemaError(
-                "Alt-Rechnung wurde nicht vollständig in den neuen Snapshotvertrag migriert"
+                "legacy invoice was not fully migrated to the new snapshot contract"
             )
 
 
@@ -187,14 +187,14 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION,
         ),
-        "unvollständiges Publikationsfenster",
+        "incomplete publication window",
     )
     await expect_database_error(
         lambda: connection.execute(
             "UPDATE charity_action SET revision = 0 WHERE id = $1",
             ACTION,
         ),
-        "nicht positive Aktionsrevision",
+        "non-positive action revision",
     )
     await connection.execute(
         """
@@ -211,7 +211,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION,
         ),
-        "mehr als ein öffentlicher Alias je Aktion",
+        "more than one public alias per action",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -222,7 +222,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION,
         ),
-        "veränderlicher Archiv-Slug",
+        "mutable archive slug",
     )
     disposable_action = "20000000-0000-4000-8000-000000000099"
     reused_action = "20000000-0000-4000-8000-000000000098"
@@ -250,7 +250,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             disposable_action,
         ),
-        "reservierter öffentlicher Alias",
+        "reserved public alias",
     )
     await connection.execute(
         "DELETE FROM charity_action WHERE id = $1",
@@ -273,7 +273,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             date(2028, 1, 1),
             date(2028, 1, 31),
         ),
-        "Wiederverwendung eines gelöschten Archiv-Slugs",
+        "reuse of a deleted archive slug",
     )
     templates = await connection.fetch(
         """
@@ -286,7 +286,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         ("blank", 1),
         ("krapfentaxi", 1),
     ]:
-        raise SchemaError("eingebaute PoC-Templates fehlen oder sind unerwartet")
+        raise SchemaError("built-in PoC templates are missing or unexpected")
     await expect_database_error(
         lambda: connection.execute(
             """
@@ -295,7 +295,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             WHERE template_key = 'krapfentaxi' AND version = 1
             """
         ),
-        "Mutation einer veröffentlichten Template-Version",
+        "mutation of a published template version",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -313,7 +313,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION,
         ),
-        "negative Minor Units",
+        "negative minor units",
     )
     await connection.execute(
         """
@@ -394,7 +394,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ACTION,
         ),
-        "Steuersatz trotz Kleinunternehmerregelung",
+        "tax rate despite small-business VAT exemption",
     )
     await connection.execute(
         """
@@ -433,7 +433,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             WHERE number = 'KT26-0001'
             """
         ),
-        "veränderter ausgestellter Rechnungssnapshot",
+        "changed snapshot of an issued invoice",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -460,7 +460,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             WHERE number = 'KT26-0001'
             """
         ),
-        "zweite Rechnung für dasselbe Commitment",
+        "second invoice for the same commitment",
     )
     await connection.execute(
         "UPDATE invoice SET status = 'cancelled' WHERE number = 'KT26-0001'"
@@ -469,7 +469,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "SELECT number FROM invoice WHERE status = 'cancelled'"
     )
     if preserved_number != "KT26-0001":
-        raise SchemaError("Storno hat die ausgestellte Rechnungsnummer ersetzt")
+        raise SchemaError("cancellation replaced the issued invoice number")
     await expect_database_error(
         lambda: connection.execute(
             """
@@ -486,7 +486,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             COMPANY,
             USER_A,
         ),
-        "mehr als eine CRM-Partei",
+        "more than one CRM party",
     )
     await connection.execute(
         """
@@ -509,7 +509,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             ASSIGNMENT_A,
         ),
-        "nicht positive Zuordnungsrevision",
+        "non-positive assignment revision",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -525,7 +525,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             COMPANY,
             USER_A,
         ),
-        "doppelte Akquisiteur-Zuordnung",
+        "duplicate acquirer assignment",
     )
     await connection.execute(
         """
@@ -544,7 +544,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             "UPDATE charity_action SET status = 'draft' WHERE id = $1",
             ACTION,
         ),
-        "rückwärts gerichteter Aktionsstatus",
+        "backward action status transition",
     )
     await connection.execute(
         """
@@ -583,7 +583,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             INVITATION,
         ),
-        "veränderter Einladungs-Snapshot",
+        "changed invitation snapshot",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -594,7 +594,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             INVITATION,
         ),
-        "unvollständige Einladungsannahme",
+        "incomplete invitation acceptance",
     )
     await connection.execute(
         """
@@ -628,7 +628,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             SESSION,
         ),
-        "Fresh Login vor Sitzungsbeginn",
+        "fresh login before session start",
     )
     await connection.execute(
         """
@@ -664,7 +664,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             LOGIN_CHALLENGE,
         ),
-        "veränderter Login-Snapshot",
+        "changed login snapshot",
     )
     await expect_database_error(
         lambda: connection.execute(
@@ -675,7 +675,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             """,
             LOGIN_CHALLENGE,
         ),
-        "unvollständig konsumierte Login-Challenge",
+        "partially consumed login challenge",
     )
 
 
@@ -726,7 +726,7 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
         OUTBOX,
     )
     if rolled_back != {"value": 0, "audits": 0, "outbox": 0}:
-        raise SchemaError(f"Rollback war nicht atomar: {dict(rolled_back or {})}")
+        raise SchemaError(f"rollback was not atomic: {dict(rolled_back or {})}")
 
     async with connection.transaction():
         await connection.execute(
@@ -772,14 +772,14 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
         OUTBOX,
     )
     if committed != {"value": 7200, "audits": 1, "outbox": 1}:
-        raise SchemaError(f"Commit war nicht atomar: {dict(committed or {})}")
+        raise SchemaError(f"commit was not atomic: {dict(committed or {})}")
 
     occurred_at = await connection.fetchval(
         "SELECT occurred_at FROM audit_event WHERE id = $1",
         AUDIT,
     )
     if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None:
-        raise SchemaError("Audit-Zeitpunkt ist nicht timezone-aware")
+        raise SchemaError("audit timestamp is not timezone-aware")
 
 
 async def run(legacy: bool) -> None:
@@ -807,9 +807,9 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    mode = "Vorgänger-Upgrade" if arguments.legacy else "Leeraufbau"
+    mode = "upgrade from previous snapshot" if arguments.legacy else "build from empty"
     print(
-        f"poc021-schema: OK: {mode}, Constraints, timezone-aware Daten "
-        "und transaktionales Audit/Outbox"
+        f"poc021-schema: OK: {mode}, constraints, timezone-aware data "
+        "and transactional audit/outbox"
     )
     return 0

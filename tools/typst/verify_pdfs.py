@@ -90,7 +90,7 @@ def _assert_expected_text(
     ]
     if missing:
         raise PdfVerificationError(
-            f"{engine} vermisst in {snapshot.number}: {missing[:4]}"
+            f"{engine} is missing in {snapshot.number}: {missing[:4]}"
         )
 
 
@@ -99,7 +99,7 @@ def _snapshot_from_manifest(item: dict[str, object]) -> InvoiceDocumentSnapshot:
     if not isinstance(snapshot, dict) or not all(
         isinstance(key, str) for key in snapshot
     ):
-        raise PdfVerificationError("Renderer-Manifest enthält keinen Snapshot.")
+        raise PdfVerificationError("Renderer manifest contains no snapshot.")
     return InvoiceDocumentSnapshot.from_payload(snapshot)
 
 
@@ -110,18 +110,18 @@ def _verify_metadata(
 ) -> None:
     metadata = reader.metadata
     if metadata is None:
-        raise PdfVerificationError(f"Metadaten fehlen: {snapshot.number}")
+        raise PdfVerificationError(f"metadata missing: {snapshot.number}")
     if metadata.title != f"Rechnung {snapshot.number}":
-        raise PdfVerificationError(f"PDF-Titel ist falsch: {snapshot.number}")
+        raise PdfVerificationError(f"PDF title is wrong: {snapshot.number}")
     if metadata.author != snapshot.issuer.legal_name:
-        raise PdfVerificationError(f"PDF-Autor ist falsch: {snapshot.number}")
+        raise PdfVerificationError(f"PDF author is wrong: {snapshot.number}")
     keywords = str(metadata.get("/Keywords", ""))
     if "LeonAid" not in keywords or RENDER_VERSION not in keywords:
-        raise PdfVerificationError(f"Render-Version fehlt: {snapshot.number}")
+        raise PdfVerificationError(f"render version missing: {snapshot.number}")
     creation_date = metadata.creation_date
     if creation_date is None or creation_date != snapshot.issued_at:
         raise PdfVerificationError(
-            f"PDF-Erzeugungszeit ist nicht der Freigabezeitpunkt: {snapshot.number}"
+            f"PDF creation time is not the issue time: {snapshot.number}"
         )
 
 
@@ -146,9 +146,9 @@ def _assert_golden_images(
 ) -> None:
     golden = sorted(golden_directory.glob(f"{number}-page-*.png"))
     if not golden:
-        raise PdfVerificationError(f"Freigegebene Golden-Bilder fehlen: {number}")
+        raise PdfVerificationError(f"approved golden images missing: {number}")
     if len(rendered) != len(golden):
-        raise PdfVerificationError(f"Seitenzahl weicht vom Golden-Bild ab: {number}")
+        raise PdfVerificationError(f"page count differs from golden image: {number}")
     for actual, expected in zip(rendered, golden, strict=True):
         actual_pixmap = fitz.Pixmap(str(actual))
         expected_pixmap = fitz.Pixmap(str(expected))
@@ -161,8 +161,8 @@ def _assert_golden_images(
             actual_digest = hashlib.sha256(actual_pixmap.samples).hexdigest()[:12]
             expected_digest = hashlib.sha256(expected_pixmap.samples).hexdigest()[:12]
             raise PdfVerificationError(
-                f"Visuelle Abweichung {actual.name}: "
-                f"{actual_digest} statt {expected_digest}"
+                f"visual difference {actual.name}: "
+                f"{actual_digest} instead of {expected_digest}"
             )
 
 
@@ -175,26 +175,24 @@ def _verify_one(
 ) -> dict[str, object]:
     reader = PdfReader(pdf_path, strict=True)
     if not reader.pages:
-        raise PdfVerificationError(f"pypdf findet keine Seiten: {snapshot.number}")
+        raise PdfVerificationError(f"pypdf finds no pages: {snapshot.number}")
     for page in reader.pages:
         width = float(page.mediabox.width)
         height = float(page.mediabox.height)
         if abs(width - A4_WIDTH_POINTS) > 0.5 or abs(height - A4_HEIGHT_POINTS) > 0.5:
-            raise PdfVerificationError(f"Seitenformat ist nicht A4: {snapshot.number}")
+            raise PdfVerificationError(f"page format is not A4: {snapshot.number}")
     pypdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
     _assert_expected_text(snapshot=snapshot, extracted=pypdf_text, engine="pypdf")
     _verify_metadata(snapshot=snapshot, reader=reader)
     forbidden = _forbidden_keys(reader.trailer, set())
     if forbidden:
         raise PdfVerificationError(
-            f"Externe/aktive PDF-Ressourcen gefunden: {sorted(forbidden)}"
+            f"external/active PDF resources found: {sorted(forbidden)}"
         )
 
     with fitz.open(pdf_path) as document:
         if document.page_count != len(reader.pages):
-            raise PdfVerificationError(
-                f"PDF-Engines widersprechen sich bei {snapshot.number}."
-            )
+            raise PdfVerificationError(f"PDF engines disagree on {snapshot.number}.")
         mupdf_text = "\n".join(page.get_text("text") for page in document)
         _assert_expected_text(snapshot=snapshot, extracted=mupdf_text, engine="MuPDF")
         font_xrefs = {
@@ -204,19 +202,17 @@ def _verify_one(
             if int(font[0]) > 0
         }
         if not font_xrefs:
-            raise PdfVerificationError(
-                f"PDF verwendet keine Schrift: {snapshot.number}"
-            )
+            raise PdfVerificationError(f"PDF uses no font: {snapshot.number}")
         for xref in font_xrefs:
             _name, extension, _font_type, content = document.extract_font(xref)
             if not extension or not content:
                 raise PdfVerificationError(
-                    f"Schrift ist nicht eingebettet: {snapshot.number}, XRef {xref}"
+                    f"font is not embedded: {snapshot.number}, XRef {xref}"
                 )
         images = _render_pages(document, image_directory, snapshot.number)
 
     if snapshot.number == "KT26-LAYOUT-0001" and len(images) < 2:
-        raise PdfVerificationError("Der Layout-Grenzfall erzeugt keinen Seitenumbruch.")
+        raise PdfVerificationError("The layout edge case produces no page break.")
     if golden_directory is not None and snapshot.number in {
         "KT26-0001",
         "KT26-LAYOUT-0001",
@@ -245,26 +241,26 @@ def verify(
     template_source = template.read_text(encoding="utf-8")
     if re.search(r"https?://|@preview|#image\s*\(", template_source, re.I):
         raise PdfVerificationError(
-            "Die Rechnungsvorlage referenziert eine externe Laufzeitressource."
+            "The invoice template references an external runtime resource."
         )
     manifest_value: Any = json.loads(
         (pdf_directory / "contract-manifest.json").read_text(encoding="utf-8")
     )
     if not isinstance(manifest_value, list):
-        raise PdfVerificationError("Renderer-Manifest ist keine Liste.")
+        raise PdfVerificationError("Renderer manifest is not a list.")
     image_directory.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, object]] = []
     for value in manifest_value:
         if not isinstance(value, dict) or not all(
             isinstance(key, str) for key in value
         ):
-            raise PdfVerificationError("Renderer-Manifest enthält ungültigen Eintrag.")
+            raise PdfVerificationError("Renderer manifest contains an invalid entry.")
         snapshot = _snapshot_from_manifest(value)
         pdf_path = pdf_directory / str(value.get("filename"))
         expected_digest = str(value.get("sha256"))
         actual_digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
         if actual_digest != expected_digest:
-            raise PdfVerificationError(f"PDF-Prüfsumme ist falsch: {snapshot.number}")
+            raise PdfVerificationError(f"PDF checksum is wrong: {snapshot.number}")
         results.append(
             _verify_one(
                 pdf_path=pdf_path,
@@ -305,8 +301,8 @@ def main() -> int:
     total_pages = sum(value for value in page_counts if isinstance(value, int))
     print(
         "typst-pdf-verification: OK: "
-        f"{len(results)} PDFs in pypdf und MuPDF geöffnet; "
-        f"{total_pages} Seiten geprüft"
+        f"{len(results)} PDFs opened in pypdf and MuPDF; "
+        f"{total_pages} pages checked"
     )
     return 0
 

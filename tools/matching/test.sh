@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "matching-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "matching-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 \
       api core-postgres twenty-server twenty-worker pwa proxy >&2 || true
@@ -63,7 +63,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "matching-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "matching-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -99,7 +99,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "matching-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "matching-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -158,11 +158,11 @@ for screenshot in \
   matching-no-match-mobile.png \
   matching-created-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "matching-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "matching-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
 mkdir -p "$root/.artifacts/poc063"
 cp "$proof/"matching-*.png "$root/.artifacts/poc063/"
 
-echo "matching-test: OK: realer Core/Twenty-Vertrag und vollständige Konflikt-UX bewiesen"
+echo "matching-test: OK: real Core/Twenty contract and complete conflict UX proven"

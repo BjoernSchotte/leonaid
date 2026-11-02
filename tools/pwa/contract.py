@@ -42,7 +42,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -107,7 +107,7 @@ async def add_real_phone() -> None:
         )
         if record.data.phone != MARA_PHONE or receipt.twenty_id != MARA_ID:
             raise ContractFailure(
-                "Telefonnummer wurde nicht über den CRM-Port persistiert"
+                "Phone number was not persisted through the CRM port"
             )
         reread = await crm.get_person(
             MARA_ID,
@@ -115,7 +115,7 @@ async def add_real_phone() -> None:
         )
         if reread is None or reread.data.phone != MARA_PHONE:
             raise ContractFailure(
-                "Telefonnummer ist nach echtem Twenty-Read nicht sichtbar"
+                "Phone number is not visible after a real Twenty read"
             )
 
 
@@ -134,14 +134,14 @@ async def request_board(
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Arbeitsvorrat besitzt keinen Objektvertrag")
+        raise ContractFailure("Work queue response is not an object")
     return payload
 
 
 def names(payload: Mapping[str, Any]) -> set[str]:
     items = payload.get("workItems")
     if not isinstance(items, list):
-        raise ContractFailure("Arbeitsvorrat enthält keine workItems")
+        raise ContractFailure("Work queue has no workItems")
     return {
         str(item.get("partyDisplayName")) for item in items if isinstance(item, dict)
     }
@@ -160,13 +160,13 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         gesa = await request_board(api, GESA_ID, "poc062:empty-board")
 
     if names(anna) != {"Musterwerk GmbH", "Doppelkontakt AG"}:
-        raise ContractFailure(f"Annas Sichtgrenze ist falsch: {sorted(names(anna))}")
+        raise ContractFailure(f"Anna's visibility boundary is wrong: {sorted(names(anna))}")
     if names(bernd) != {"Bäckerei Sonnenseite KG", "Doppelkontakt AG"}:
-        raise ContractFailure(f"Bernds Sichtgrenze ist falsch: {sorted(names(bernd))}")
+        raise ContractFailure(f"Bernd's visibility boundary is wrong: {sorted(names(bernd))}")
     if names(carla) != {"Sophie Sponsor"}:
-        raise ContractFailure(f"Carlas Sichtgrenze ist falsch: {sorted(names(carla))}")
+        raise ContractFailure(f"Carla's visibility boundary is wrong: {sorted(names(carla))}")
     if names(gesa):
-        raise ContractFailure(f"Leere Persona besitzt unerwartete Daten: {names(gesa)}")
+        raise ContractFailure(f"Empty persona has unexpected data: {names(gesa)}")
 
     anna_items = anna["workItems"]
     musterwerk = next(
@@ -177,19 +177,19 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         or musterwerk["email"] != "mara.muster@musterwerk.leonaid.invalid"
         or musterwerk["phone"] != MARA_PHONE
     ):
-        raise ContractFailure("Twenty-Kontaktwege fehlen in Annas Sponsorzeile")
+        raise ContractFailure("Twenty contact channels are missing in Anna's sponsor row")
 
     shared = next(
         item for item in anna_items if item["partyDisplayName"] == "Doppelkontakt AG"
     )
     shared_names = {item["displayName"] for item in shared.get("assignedAcquirers", [])}
     if shared_names != {"Anna Akquise", "Bernd Binder"}:
-        raise ContractFailure(f"Mitzuordnung ist unvollständig: {shared_names}")
+        raise ContractFailure(f"Shared assignment is incomplete: {shared_names}")
 
     print(
         "pwa-contract: OK:",
-        "reale Twenty-Kontakte, vier Personas, Sichtgrenzen, Leerzustand",
-        "und Mitzuordnung bewiesen",
+        "real Twenty contacts, four personas, visibility boundaries, empty state",
+        "and shared assignment proven",
     )
 
 

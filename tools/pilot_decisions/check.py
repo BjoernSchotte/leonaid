@@ -218,8 +218,8 @@ def json_result(
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Validiert das öffentliche Pilot-Entscheidungsregister. "
-            "Mit --ready wird das gewählte Produktiv-Gate fail-closed geprüft."
+            "Validates the public pilot decision register. "
+            "With --ready, the selected production gate is checked fail-closed."
         )
     )
     parser.add_argument("root", nargs="?", default=".")
@@ -232,12 +232,12 @@ def main() -> int:
         "--gate",
         choices=sorted(GATES),
         default="pilot-release",
-        help="Produktiv-Gate, dessen fällige Entscheidungen geprüft werden",
+        help="production gate whose due decisions are checked",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="stabilen maschinenlesbaren Status nach stdout schreiben",
+        help="write a stable machine-readable status to stdout",
     )
     args = parser.parse_args()
     root = Path(args.root).resolve()
@@ -268,14 +268,14 @@ def main() -> int:
         return 0
     if args.ready and stop_ids:
         print(
-            f"pilot-doctor: STOP ({args.gate}): Pilot-Scope reicht nicht für "
+            f"pilot-doctor: STOP ({args.gate}): pilot scope is not sufficient for "
             + ", ".join(stop_ids),
             file=sys.stderr,
         )
         return 3
     if args.ready and open_ids:
         print(
-            f"pilot-doctor: BLOCKED ({args.gate}): offene Entscheidungen: "
+            f"pilot-doctor: BLOCKED ({args.gate}): open decisions: "
             + ", ".join(open_ids),
             file=sys.stderr,
         )
@@ -283,12 +283,12 @@ def main() -> int:
     if args.ready:
         print(
             f"pilot-doctor: OK ({args.gate}): "
-            "alle fälligen Pilotentscheidungen sind freigegeben"
+            "all due pilot decisions are approved"
         )
     else:
         print(
             "pilot-decisions: OK: "
-            f"{len(decisions)} Entscheidungen, {len(open_ids)} offen, "
+            f"{len(decisions)} decisions, {len(open_ids)} open, "
             f"{len(stop_ids)} STOP"
         )
     return 0

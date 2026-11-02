@@ -33,7 +33,7 @@ for directory in \
   # fall back to the BSD/macOS format.
   actual=$(stat -c '%a' "$directory" 2>/dev/null || stat -f '%Lp' "$directory")
   if [ "$actual" != "700" ]; then
-    echo "pilot-data-boundary-test: ERROR: $directory ist Modus $actual statt 700" >&2
+    echo "pilot-data-boundary-test: ERROR: $directory is mode $actual instead of 700" >&2
     exit 1
   fi
 done
@@ -63,12 +63,12 @@ if docker run --rm \
   python tools/dx/generate_test_logins.py \
   tests/fixtures/golden/v1/dataset.json \
   /boundary/production-test-logins.md; then
-  echo "pilot-data-boundary-test: ERROR: Produktion erzeugte Golden-Testlogins" >&2
+  echo "pilot-data-boundary-test: ERROR: production created golden test logins" >&2
   exit 1
 fi
 if [ -e "$production_test_logins" ]; then
-  echo "pilot-data-boundary-test: ERROR: abgewiesene Produktion hinterließ Testlogins" >&2
+  echo "pilot-data-boundary-test: ERROR: rejected production left test logins behind" >&2
   exit 1
 fi
 
-echo "pilot-data-boundary-test: OK: Host-, Docker-, Git-, Workflow-, Artefakt- und Produktionsgrenze bewiesen"
+echo "pilot-data-boundary-test: OK: host, Docker, Git, workflow, artifact and production boundaries proven"

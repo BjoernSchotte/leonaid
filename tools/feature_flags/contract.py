@@ -35,7 +35,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -50,7 +50,7 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
 
 
@@ -106,12 +106,12 @@ async def seed_sessions(
 
 def flags_by_key(payload: object) -> dict[str, dict[str, Any]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("flags"), list):
-        raise ContractFailure("Feature-Flag-Antwort besitzt keine Liste")
+        raise ContractFailure("Feature flag response has no list")
     result: dict[str, dict[str, Any]] = {}
     for item in payload["flags"]:
         if not isinstance(item, dict) or not isinstance(item.get("key"), str):
             raise ContractFailure(
-                "Feature-Flag-Antwort enthält einen ungültigen Eintrag"
+                "Feature flag response contains an invalid entry"
             )
         result[item["key"]] = item
     return result
@@ -136,7 +136,7 @@ async def prepare(
             flag.get("enabled") is not False or flag.get("revision") != 1
             for flag in flags.values()
         ):
-            raise ContractFailure("Golden Feature-Flags starten nicht deterministisch")
+            raise ContractFailure("Golden feature flags do not start deterministically")
 
         evaluation = await api.get(
             "/api/v1/feature-flags/evaluations?surface=web",
@@ -149,7 +149,7 @@ async def prepare(
             or flag.get("provider") != "leonaid-postgres-snapshot"
             for flag in evaluated.values()
         ):
-            raise ContractFailure("OpenFeature wertet den Golden-Startwert falsch aus")
+            raise ContractFailure("OpenFeature evaluates the golden start value wrongly")
 
         forbidden = await api.get(
             "/api/v1/admin/feature-flags",
@@ -159,7 +159,7 @@ async def prepare(
             forbidden.status_code != 403
             or error_code(forbidden) != "system_admin_required"
         ):
-            raise ContractFailure("Charity-Admin konnte Feature-Flags verwalten")
+            raise ContractFailure("Charity admin could manage feature flags")
 
         stale = await api.put(
             f"/api/v1/admin/feature-flags/{SYSTEM_STATUS_KEY}",
@@ -168,7 +168,7 @@ async def prepare(
         )
         if stale.status_code != 401 or error_code(stale) != "fresh_login_required":
             raise ContractFailure(
-                "Feature-Flag-Änderung verlangte keinen frischen Login: "
+                "Feature flag change did not require a fresh login: "
                 f"HTTP {stale.status_code} {stale.text}"
             )
 
@@ -180,7 +180,7 @@ async def prepare(
             disabled.status_code != 404
             or error_code(disabled) != "feature_flag_disabled"
         ):
-            raise ContractFailure("Deaktiviertes Backend-Flag gab Diagnose frei")
+            raise ContractFailure("Disabled backend flag exposed diagnostics")
 
 
 async def assert_result(connection: asyncpg.Connection[Any]) -> None:
@@ -214,7 +214,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         },
     }
     if persisted != expected:
-        raise ContractFailure(f"Persistierter Flag-Zustand weicht ab: {persisted}")
+        raise ContractFailure(f"Persisted flag state differs: {persisted}")
 
     audit_rows = await connection.fetch(
         """
@@ -227,7 +227,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
     )
     if len(audit_rows) != 4:
         raise ContractFailure(
-            f"Feature-Flag-Audit enthält {len(audit_rows)} statt 4 Änderungen"
+            f"Feature flag audit contains {len(audit_rows)} instead of 4 changes"
         )
     audit_payloads = [
         json.loads(row["payload"])
@@ -239,7 +239,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         SYSTEM_STATUS_KEY,
         PREVIEW_NOTICE_KEY,
     }:
-        raise ContractFailure("Feature-Flag-Audit enthält unbekannte Schlüssel")
+        raise ContractFailure("Feature flag audit contains unknown keys")
 
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -255,7 +255,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             flags[SYSTEM_STATUS_KEY].get("revision") != 4
             or flags[PREVIEW_NOTICE_KEY].get("revision") != 2
         ):
-            raise ContractFailure("API verlor Flags nach dem Prozessneustart")
+            raise ContractFailure("API lost flags after the process restart")
 
         evaluation = await api.get(
             "/api/v1/feature-flags/evaluations?surface=web",
@@ -269,7 +269,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             or flag.get("provider") != "leonaid-postgres-snapshot"
             for flag in evaluated.values()
         ):
-            raise ContractFailure("Python OpenFeature wertete Persistenz nicht aus")
+            raise ContractFailure("Python OpenFeature did not evaluate persisted state")
 
         diagnostics = await api.get(
             "/api/v1/admin/system-status",
@@ -277,7 +277,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         )
         diagnostics.raise_for_status()
         if diagnostics.json().get("evaluatedBy") != "openfeature":
-            raise ContractFailure("Backend-Diagnose belegt OpenFeature nicht")
+            raise ContractFailure("Backend diagnostics do not prove OpenFeature")
 
         forbidden_diagnostics = await api.get(
             "/api/v1/admin/system-status",
@@ -287,7 +287,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             forbidden_diagnostics.status_code != 403
             or error_code(forbidden_diagnostics) != "system_admin_required"
         ):
-            raise ContractFailure("Browser-Flag umging Backend-RBAC")
+            raise ContractFailure("Browser flag bypassed backend RBAC")
 
         stale_revision = await api.put(
             f"/api/v1/admin/feature-flags/{SYSTEM_STATUS_KEY}",
@@ -298,7 +298,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             stale_revision.status_code != 409
             or error_code(stale_revision) != "feature_flag_revision_conflict"
         ):
-            raise ContractFailure("Veraltete Flag-Version wurde nicht abgewiesen")
+            raise ContractFailure("Stale flag version was not rejected")
 
         same_value = await api.put(
             f"/api/v1/admin/feature-flags/{SYSTEM_STATUS_KEY}",
@@ -307,7 +307,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         )
         same_value.raise_for_status()
         if same_value.json().get("revision") != 4:
-            raise ContractFailure("Idempotente Flag-Änderung erhöhte die Version")
+            raise ContractFailure("Idempotent flag change increased the version")
         audit_count = await connection.fetchval(
             """
             SELECT count(*)
@@ -317,7 +317,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             """
         )
         if audit_count != 4:
-            raise ContractFailure("Idempotente Flag-Änderung erzeugte ein AuditEvent")
+            raise ContractFailure("Idempotent flag change created an AuditEvent")
 
 
 async def run(command: str, sessions_path: Path | None) -> None:
@@ -325,7 +325,7 @@ async def run(command: str, sessions_path: Path | None) -> None:
     try:
         if command == "prepare":
             if sessions_path is None:
-                raise ContractFailure("prepare benötigt eine Sessions-Datei")
+                raise ContractFailure("prepare needs a sessions file")
             await prepare(connection, sessions_path)
         else:
             await assert_result(connection)

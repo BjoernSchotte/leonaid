@@ -45,7 +45,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -60,14 +60,14 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
 
 
 def read_state(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ContractFailure("Der POC-095-Zustand ist ungültig")
+        raise ContractFailure("The POC-095 state is invalid")
     return value
 
 
@@ -82,7 +82,7 @@ def json_object(value: object, *, label: str) -> dict[str, Any]:
     if isinstance(value, str):
         value = json.loads(value)
     if not isinstance(value, dict):
-        raise ContractFailure(f"{label} ist kein JSON-Objekt")
+        raise ContractFailure(f"{label} is not a JSON object")
     return value
 
 
@@ -134,7 +134,7 @@ async def seed_sessions(
 def invoice_record(payload: dict[str, Any], invoice_id: UUID) -> dict[str, Any]:
     items = payload.get("items")
     if not isinstance(items, list):
-        raise ContractFailure("Rechnungsjournal besitzt keine Belegliste")
+        raise ContractFailure("Invoice ledger has no record list")
     for item in items:
         if (
             isinstance(item, dict)
@@ -142,7 +142,7 @@ def invoice_record(payload: dict[str, Any], invoice_id: UUID) -> dict[str, Any]:
             and item["invoice"].get("id") == str(invoice_id)
         ):
             return item
-    raise ContractFailure(f"Rechnung {invoice_id} fehlt im Journal")
+    raise ContractFailure(f"Invoice {invoice_id} is missing from the ledger")
 
 
 async def assert_negative_payment_cases(
@@ -173,7 +173,7 @@ async def assert_negative_payment_cases(
             response.status_code != 403
             or error_code(response) != "invoice_settlement_required"
         ):
-            raise ContractFailure(f"Persona {label} konnte eine Zahlung buchen")
+            raise ContractFailure(f"Persona {label} could record a payment")
 
     for amount, key in (
         (35_999, "poc095:partial:rejected"),
@@ -192,7 +192,7 @@ async def assert_negative_payment_cases(
             or error_code(response) != "invoice_payment_full_amount_required"
         ):
             raise ContractFailure(
-                f"Teil-/Überzahlung {amount} wurde nicht stabil abgewiesen"
+                f"Partial/over payment {amount} was not rejected with a stable error"
             )
 
     wrong_currency = await api.post(
@@ -207,7 +207,7 @@ async def assert_negative_payment_cases(
         wrong_currency.status_code != 422
         or error_code(wrong_currency) != "invoice_payment_currency_mismatch"
     ):
-        raise ContractFailure("Abweichende Zahlungswährung wurde nicht abgewiesen")
+        raise ContractFailure("Mismatched payment currency was not rejected")
 
 
 async def prepare(
@@ -243,7 +243,7 @@ async def prepare(
             or finance_payload != admin_payload
         ):
             raise ContractFailure(
-                "Golden-Journal unterscheidet offen, bezahlt und storniert nicht"
+                "Golden ledger does not distinguish open, paid and cancelled"
             )
 
         await assert_negative_payment_cases(api, tokens)
@@ -259,7 +259,7 @@ async def prepare(
         response.raise_for_status()
         invoice = response.json()
     if invoice.get("number") != "KT26-0004" or invoice.get("status") != "issued":
-        raise ContractFailure(f"Storno-Beleg wurde nicht freigegeben: {invoice}")
+        raise ContractFailure(f"Invoice for the cancellation case was not issued: {invoice}")
     state = {
         "cancellationInvoiceId": str(invoice["id"]),
         "openInvoiceId": str(OPEN_INVOICE_ID),
@@ -274,8 +274,8 @@ async def prepare(
         output.write(f"PAYMENT_KEY={PAYMENT_KEY}\n")
         output.write(f"CANCELLATION_KEY={CANCELLATION_KEY}\n")
     print(
-        "invoice-settlement-contract: Rollen, Golden-Status und serverseitige "
-        "Vollzahlungsgrenze bewiesen"
+        "invoice-settlement-contract: roles, golden status and server-side "
+        "full-payment rule proven"
     )
 
 
@@ -303,19 +303,19 @@ async def capture(
         invoice_id,
     )
     if invoice_snapshot is None or document_snapshot is None:
-        raise ContractFailure("Typst-PDF und Rechnungs-Snapshot fehlen vor Storno")
+        raise ContractFailure("Typst PDF and invoice snapshot are missing before cancellation")
     state["invoiceSnapshot"] = json_object(
         invoice_snapshot,
-        label="Rechnungs-Snapshot",
+        label="Invoice snapshot",
     )
     state["documentSnapshot"] = json_object(
         document_snapshot,
-        label="Dokument-Snapshot",
+        label="Document snapshot",
     )
     write_state(state_path, state)
     print(
-        "invoice-settlement-contract: unveränderlicher Rechnungs- und "
-        "Typst-Dokumentstand vor Browseraktion gesichert"
+        "invoice-settlement-contract: immutable invoice and "
+        "Typst document state saved before the browser action"
     )
 
 
@@ -349,7 +349,7 @@ async def assert_after_browser(
             or cancellation_record.get("cancellation", {}).get("reason")
             != CANCELLATION_REASON
         ):
-            raise ContractFailure("Browseraktionen sind im Journal inkonsistent")
+            raise ContractFailure("Browser actions are inconsistent in the ledger")
 
         payment_replay = await api.post(
             f"/api/v1/actions/{ACTION_ID}/invoices/{OPEN_INVOICE_ID}/payments",
@@ -381,7 +381,7 @@ async def assert_after_browser(
             payment_replay.json().get("replayed") is not True
             or cancellation_replay.json().get("replayed") is not True
         ):
-            raise ContractFailure("Finanzbefehle sind nicht idempotent")
+            raise ContractFailure("Finance commands are not idempotent")
 
     counts = await connection.fetchrow(
         """
@@ -414,7 +414,7 @@ async def assert_after_browser(
         "payment_audits": 1,
         "cancellation_audits": 1,
     }:
-        raise ContractFailure(f"Finanz-Audit ist inkonsistent: {dict(counts or {})}")
+        raise ContractFailure(f"Finance audit is inconsistent: {dict(counts or {})}")
 
     invoice_snapshot = await connection.fetchval(
         """
@@ -434,19 +434,19 @@ async def assert_after_browser(
         cancellation_invoice_id,
     )
     if invoice_snapshot is None or document_snapshot is None:
-        raise ContractFailure("Historischer Beleg fehlt nach dem Storno")
+        raise ContractFailure("Historical record is missing after the cancellation")
     if (
-        json_object(invoice_snapshot, label="Rechnungs-Snapshot")
+        json_object(invoice_snapshot, label="Invoice snapshot")
         != state["invoiceSnapshot"]
-        or json_object(document_snapshot, label="Dokument-Snapshot")
+        or json_object(document_snapshot, label="Document snapshot")
         != state["documentSnapshot"]
     ):
         raise ContractFailure(
-            "Storno veränderte historischen Rechnungs- oder Typst-Dokumentstand"
+            "Cancellation changed the historical invoice or Typst document state"
         )
     print(
-        "invoice-settlement-contract: Vollzahlung, Storno, Audit, Replay und "
-        "unverändertes Typst-PDF dauerhaft bewiesen"
+        "invoice-settlement-contract: full payment, cancellation, audit, replay and "
+        "unchanged Typst PDF durably proven"
     )
 
 
@@ -460,7 +460,7 @@ async def run(arguments: argparse.Namespace) -> None:
         elif arguments.command == "assert":
             await assert_after_browser(connection, arguments.state)
         else:
-            raise ContractFailure(f"Unbekannter Befehl: {arguments.command}")
+            raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
         await connection.close()
 

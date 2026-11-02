@@ -38,35 +38,35 @@ def check(path: Path) -> list[str]:
     problems: list[str] = []
     for job in sorted(REQUIRED_JOBS):
         if f"\n  {job}:\n" not in text:
-            problems.append(f"Job fehlt: {job}")
+            problems.append(f"Job missing: {job}")
     # The Integration summary has no test output; its shards publish evidence.
     evidence_jobs = len(REQUIRED_JOBS - {"integration"})
     if text.count("actions/upload-artifact@") < evidence_jobs:
-        problems.append("Nicht jeder Job veröffentlicht Beweisartefakte.")
+        problems.append("Not every job publishes evidence artifacts.")
     if text.count("if: always()") < evidence_jobs:
-        problems.append("Nicht jeder Artefakt-Upload läuft auch nach Fehlern.")
+        problems.append("Not every artifact upload also runs after failures.")
     if "tools/ci/run-job.sh" not in text:
-        problems.append("Gemeinsame Log-/Sanitizing-Hülle fehlt.")
+        problems.append("Shared log/sanitizing wrapper is missing.")
     if "tools/ci/integration.sh" not in text or "tools/ci/e2e.sh" not in text:
-        problems.append("Integration/E2E verwenden nicht die lokalen Testpfade.")
+        problems.append("Integration/E2E do not use the local test paths.")
     if "ci-artifact-probe" not in text:
-        problems.append("Absichtlich fehlschlagender Probe-Branch fehlt.")
+        problems.append("Intentionally failing probe branch is missing.")
     cold = job_block(text, "pilot-cold-rehearsal")
     if "if: inputs.cold_run == true" not in cold:
-        problems.append("Finale Generalprobe ist nicht exklusiv an cold_run gebunden.")
+        problems.append("Final dress rehearsal is not bound exclusively to cold_run.")
     if "docker system prune --all --volumes --force" not in cold:
-        problems.append("Cold-Run leert Docker-Systemzustand und Caches nicht.")
+        problems.append("Cold run does not clear Docker system state and caches.")
     if "./leonaid test-pilot-rehearsal --synthetic" not in cold:
         problems.append(
-            "Cold-Run führt die vollständige synthetische Generalprobe nicht aus."
+            "Cold run does not execute the full synthetic dress rehearsal."
         )
     if "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR" not in cold:
         problems.append(
-            "Cold-Run veröffentlicht den sanitizten Generalprobenbeleg nicht."
+            "Cold run does not publish the sanitized dress-rehearsal evidence."
         )
     if "services:" in text:
         problems.append(
-            "Workflow darf keine von Compose abweichenden Services definieren."
+            "Workflow must not define services that differ from Compose."
         )
     integration = job_block(text, "integration")
     for required in (
@@ -76,7 +76,7 @@ def check(path: Path) -> list[str]:
         'test "$RESULT" = success',
     ):
         if required not in integration:
-            problems.append("Integration-Sammelcheck muss alle Shards verlangen.")
+            problems.append("Integration summary check must require all shards.")
     return problems
 
 
@@ -88,8 +88,8 @@ def main() -> None:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract: OK: Pflichtchecks, Integration-Shards, Cold-Rehearsal "
-        "und Failure-Artefakte"
+        "ci-workflow-contract: OK: required checks, integration shards, cold rehearsal "
+        "and failure artifacts"
     )
 
 

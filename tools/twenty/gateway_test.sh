@@ -16,7 +16,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "twenty-gateway-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "twenty-gateway-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -39,7 +39,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "twenty-gateway-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "twenty-gateway-test: diagnostics for the failed real services:" >&2
     diagnose
   fi
   if [ "$owned" = true ]; then
@@ -114,23 +114,23 @@ compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision
 fi
 
-echo "twenty-gateway-test: führt CRUD, echte Batches und Cursor-Pagination aus"
+echo "twenty-gateway-test: runs CRUD, real batches and cursor pagination"
 run_python tools/twenty/gateway_contract.py exercise --state /proof/state.json
 
-echo "twenty-gateway-test: repariert Match-Schlüssel mit dem Operator-Kommando"
+echo "twenty-gateway-test: repairs match keys with the operator command"
 run_python -m leonaid.entrypoints.crm_match_keys --changed-within 120
 run_python -m leonaid.entrypoints.crm_match_keys
 run_python -m leonaid.entrypoints.crm_match_keys --check
 run_python \
   tools/twenty/gateway_contract.py verify-match-key-repair --state /proof/state.json
 
-echo "twenty-gateway-test: stoppt Twenty real und erwartet sichere Fehler"
+echo "twenty-gateway-test: stops the real Twenty and expects safe errors"
 compose stop twenty-server
 run_python tools/twenty/gateway_contract.py expect-outage --state /proof/state.json
 
-echo "twenty-gateway-test: startet Twenty neu und prüft alle bestätigten Daten"
+echo "twenty-gateway-test: restarts Twenty and checks all confirmed data"
 compose up --detach --wait --wait-timeout 420 twenty-server
 run_python \
   tools/twenty/gateway_contract.py verify-after-restart --state /proof/state.json
 
-echo "twenty-gateway-test: OK: CRM-Port, Pagination und Ausfallvertrag real bewiesen"
+echo "twenty-gateway-test: OK: CRM port, pagination and outage contract proven for real"

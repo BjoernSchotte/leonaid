@@ -159,7 +159,7 @@ verify_images_absent() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "pilot-deployment-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "pilot-deployment-test: diagnosis of the failed services:" >&2
     if [ "$runtime_owned" = true ]; then
       runtime_compose ps >&2 || true
       runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
@@ -242,7 +242,7 @@ while [ "$attempts" -lt 60 ]; do
   sleep 1
 done
 [ "$backup_health" = "healthy" ] || {
-  echo "pilot-deployment-test: ERROR: Operator-Backupziel wurde nicht bereit" >&2
+  echo "pilot-deployment-test: ERROR: operator backup target did not become ready" >&2
   exit 1
 }
 backup_ip=$(
@@ -251,7 +251,7 @@ backup_ip=$(
     "$operator_backup_container"
 )
 [ -n "$backup_ip" ] || {
-  echo "pilot-deployment-test: ERROR: Operator-Backupziel hat keine IP" >&2
+  echo "pilot-deployment-test: ERROR: operator backup target has no IP" >&2
   exit 1
 }
 backup_repository="s3:http://$backup_ip:9000/$operator_backup_bucket"
@@ -364,7 +364,7 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
 
-echo "pilot-deployment-test: baut sechs Release-Images vor dem Deployment"
+echo "pilot-deployment-test: builds six release images before the deployment"
 build_owned=true
 docker compose \
   --project-name "$build_project" \
@@ -377,7 +377,7 @@ docker compose \
 # exactly as pilot-install does: bootstrap overlay (no verification, no
 # proxy), real schema, roles and key; then the real key replaces the
 # placeholder in the env file before the production topology starts.
-echo "pilot-deployment-test: provisioniert Twenty wie pilot-install"
+echo "pilot-deployment-test: provisions Twenty like pilot-install"
 runtime_owned=true
 runtime_compose --profile '*' config --format json |
   python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$source_overlay"
@@ -416,7 +416,7 @@ for action in "apply --token-output" "verify-key --token-file"; do
 done
 grep -q '^TWENTY_INTEGRATION_API_KEY=[A-Za-z0-9._-]\{32,\}$' \
   "$provision_directory/integration.env" || {
-  echo "pilot-deployment-test: ERROR: Twenty lieferte keinen gültigen Key" >&2
+  echo "pilot-deployment-test: ERROR: Twenty returned no valid key" >&2
   exit 1
 }
 provisioned_env="$workspace/production.env.provisioned"
@@ -426,7 +426,7 @@ chmod 600 "$provisioned_env"
 mv -f "$provisioned_env" "$env_file"
 rm -rf "$provision_directory"
 
-echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
+echo "pilot-deployment-test: starts the production topology without a build"
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
@@ -434,7 +434,7 @@ expected_services=$(printf '%s\n' \
   twenty-server twenty-worker web worker | sort)
 actual_services=$(runtime_compose ps --services --filter status=running | sort)
 if [ "$actual_services" != "$expected_services" ]; then
-  echo "pilot-deployment-test: ERROR: Pilot-Core ist nicht vollständig aktiv" >&2
+  echo "pilot-deployment-test: ERROR: pilot core is not fully running" >&2
   exit 1
 fi
 
@@ -442,7 +442,7 @@ for service in $expected_services; do
   container_id=$(runtime_compose ps --quiet "$service")
   health=$(docker inspect --format '{{.State.Health.Status}}' "$container_id")
   if [ "$health" != "healthy" ]; then
-    echo "pilot-deployment-test: ERROR: $service ist $health" >&2
+    echo "pilot-deployment-test: ERROR: $service is $health" >&2
     exit 1
   fi
 done
@@ -520,7 +520,7 @@ docker run --rm \
     /proof/backup-manifest.json \
     "$release_commit"
 
-echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
+echo "pilot-deployment-test: checks the deployment doctor against real TLS services"
 # This test runs MAIL_SMTP_MODE=starttls: Twenty sends no mail, and the doctor
 # passes with a warning instead of an error.
 doctor_output=$(docker run --rm \
@@ -580,19 +580,19 @@ unsafe_output=$(docker run --rm \
 unsafe_status=$?
 set -e
 if [ "$unsafe_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: unsicheres Secret wurde akzeptiert" >&2
+  echo "pilot-deployment-test: ERROR: unsafe secret was accepted" >&2
   exit 1
 fi
 if printf '%s' "$unsafe_output" | grep -q "$sentinel"; then
-  echo "pilot-deployment-test: ERROR: Doctor hat ein Secret ausgegeben" >&2
+  echo "pilot-deployment-test: ERROR: doctor printed a secret" >&2
   exit 1
 fi
 if ! printf '%s' "$unsafe_output" | grep -q "secret_invalid:LEONAID_SECRET_KEY"; then
-  echo "pilot-deployment-test: ERROR: Secret-Fehler ist nicht diagnostizierbar" >&2
+  echo "pilot-deployment-test: ERROR: secret error is not diagnosable" >&2
   exit 1
 fi
 
-echo "pilot-deployment-test: beweist den manifestgebundenen Operator-Deploy"
+echo "pilot-deployment-test: proves the manifest-bound operator deploy"
 core_image=$(docker image inspect --format '{{.Id}}' "$core_image_tag")
 web_image=$(docker image inspect --format '{{.Id}}' "$web_image_tag")
 pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
@@ -677,12 +677,12 @@ drift_output=$(
 drift_status=$?
 set -e
 if [ "$drift_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: Manifest-/Compose-Drift wurde deployed" >&2
+  echo "pilot-deployment-test: ERROR: manifest/Compose drift was deployed" >&2
   exit 1
 fi
 if ! printf '%s' "$drift_output" |
-  grep -Fq "Manifest-Images weichen"; then
-  echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
+  grep -Fq "manifest images differ"; then
+  echo "pilot-deployment-test: ERROR: manifest drift is not diagnosable" >&2
   exit 1
 fi
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
@@ -757,7 +757,7 @@ if printf '%s' "$crm_gate_output" | grep -Fq "$dummy_key"; then
   exit 1
 fi
 
-echo "pilot-deployment-test: beweist Operator-Backup und buildfreien Restore"
+echo "pilot-deployment-test: proves operator backup and build-free restore"
 runtime_compose exec -T core-postgres psql \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
   --dbname "${CORE_POSTGRES_DB:-leonaid}" \
@@ -801,16 +801,16 @@ wrong_backup_output=$(
 wrong_backup_status=$?
 set -e
 if [ "$wrong_backup_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: zu kurzes Restic-Passwort wurde akzeptiert" >&2
+  echo "pilot-deployment-test: ERROR: too short Restic password was accepted" >&2
   exit 1
 fi
 if ! printf '%s' "$wrong_backup_output" |
-  grep -Fq "Restic-Passwort muss mindestens 24 Zeichen"; then
-  echo "pilot-deployment-test: ERROR: Passwortablehnung ist nicht diagnostizierbar" >&2
+  grep -Fq "Restic password must be at least 24 characters"; then
+  echo "pilot-deployment-test: ERROR: password rejection is not diagnosable" >&2
   exit 1
 fi
 
-echo "pilot-deployment-test: beweist den vollständigen Operator-Release"
+echo "pilot-deployment-test: proves the complete operator release"
 set +e
 missing_staging_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
@@ -834,16 +834,16 @@ missing_staging_output=$(
 missing_staging_status=$?
 set -e
 if [ "$missing_staging_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: Produktion ohne Staging-Promotion wurde akzeptiert" >&2
+  echo "pilot-deployment-test: ERROR: production without staging promotion was accepted" >&2
   exit 1
 fi
 if ! printf '%s' "$missing_staging_output" |
-  grep -Fq "Produktion erfordert dasselbe in Staging verifizierte Manifest"; then
-  echo "pilot-deployment-test: ERROR: fehlende Staging-Promotion ist nicht diagnostizierbar" >&2
+  grep -Fq "production requires the same manifest that was verified in staging"; then
+  echo "pilot-deployment-test: ERROR: missing staging promotion is not diagnosable" >&2
   exit 1
 fi
 [ ! -e "$release_ledger" ] || {
-  echo "pilot-deployment-test: ERROR: abgelehnter Release hat das Ledger verändert" >&2
+  echo "pilot-deployment-test: ERROR: rejected release changed the ledger" >&2
   exit 1
 }
 "$root/leonaid" pilot-release-record \
@@ -946,12 +946,12 @@ wrong_restore_output=$(
 wrong_restore_status=$?
 set -e
 if [ "$wrong_restore_status" -eq 0 ]; then
-  echo "pilot-deployment-test: ERROR: falsche Restore-Bestätigung wurde akzeptiert" >&2
+  echo "pilot-deployment-test: ERROR: wrong restore confirmation was accepted" >&2
   exit 1
 fi
 if ! printf '%s' "$wrong_restore_output" |
-  grep -Fq "muss exakt RESTORE:$restore_project sein"; then
-  echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
+  grep -Fq "must be exactly RESTORE:$restore_project"; then
+  echo "pilot-deployment-test: ERROR: restore rejection is not diagnosable" >&2
   exit 1
 fi
 restore_doctor_network="container:$proxy_container"
@@ -1113,7 +1113,7 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   grep -Fx "twenty-storage-operator-backup" /data/pilot-operator-probe >/dev/null
 
-echo "pilot-deployment-test: OK: Contract, Leerstart und realer Deployment Doctor bewiesen"
-echo "pilot-deployment-test: OK: Operator-Deploy ist manifestgebunden, fail-closed und buildfrei"
-echo "pilot-deployment-test: OK: Operator-Release erzwingt Staging, Backup, Wartung und Migrationen"
-echo "pilot-deployment-test: OK: Operator-Backup/Restore erhält vier reale Datenkomponenten"
+echo "pilot-deployment-test: OK: contract, empty start and real deployment doctor proven"
+echo "pilot-deployment-test: OK: operator deploy is manifest-bound, fail-closed and build-free"
+echo "pilot-deployment-test: OK: operator release enforces staging, backup, maintenance and migrations"
+echo "pilot-deployment-test: OK: operator backup/restore preserves four real data components"

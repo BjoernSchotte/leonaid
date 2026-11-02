@@ -67,16 +67,16 @@ def check(root: Path) -> list[str]:
     for relative, snippets in REQUIRED_CONTENT.items():
         path = root / relative
         if not path.is_file():
-            problems.append(f"Übergabedokument fehlt: {relative}")
+            problems.append(f"Handoff document missing: {relative}")
             continue
         content = path.read_text(encoding="utf-8")
         for snippet in snippets:
             if snippet not in content:
-                problems.append(f"{relative}: Pflichtinhalt fehlt: {snippet}")
+                problems.append(f"{relative}: required content missing: {snippet}")
         for target in local_links(path, content):
             if not target.exists():
                 problems.append(
-                    f"{relative}: lokaler Link zeigt auf fehlendes Ziel: {target}"
+                    f"{relative}: local link points to missing target: {target}"
                 )
     return problems
 
@@ -89,8 +89,8 @@ def main() -> None:
             print(f"handoff-check: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "handoff-check: OK: kompakter GitHub-Einstieg, aktuelle Docs-Quellen "
-        "und historische Übergabedokumente vollständig verlinkt"
+        "handoff-check: OK: compact GitHub entry point, current docs sources "
+        "and historical handoff documents fully linked"
     )
 
 

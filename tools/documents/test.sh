@@ -31,7 +31,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "document-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "document-test: diagnostics for the failed real services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres rustfs twenty-server twenty-worker \
@@ -63,7 +63,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "document-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "document-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -99,7 +99,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "document-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "document-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -134,7 +134,7 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "document-test: ERROR: Browser-Sitzungen sind nicht auf Modus 600 begrenzt" >&2
+  echo "document-test: ERROR: browser sessions are not restricted to mode 600" >&2
   exit 1
 fi
 
@@ -168,7 +168,7 @@ for screenshot in \
   document-finance-pdf-preview.png \
   document-acquirer-denied.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "document-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "document-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -185,5 +185,5 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 mkdir -p "$root/.artifacts/poc093"
 cp "$proof"/document-*.png "$root/.artifacts/poc093/"
 
-echo "document-test: OK: alle Fachreferenzen, Rollen, RustFS-Metadaten,"
-echo "document-test:     byteidentischer Browserdownload und Fehlobjekt bewiesen"
+echo "document-test: OK: all domain references, roles, RustFS metadata,"
+echo "document-test:     byte-identical browser download and missing object proven"

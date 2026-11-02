@@ -35,7 +35,7 @@ def canonical_json(value: object) -> str:
 def ref_name(reference: str) -> str:
     prefix = "#/components/schemas/"
     if not reference.startswith(prefix):
-        raise GenerationError(f"Nicht unterstützte Referenz: {reference}")
+        raise GenerationError(f"Unsupported reference: {reference}")
     return reference.removeprefix(prefix)
 
 
@@ -67,7 +67,7 @@ def ts_type(schema: dict[str, Any]) -> str:
     if schema_type == "array":
         items = schema.get("items")
         if not isinstance(items, dict):
-            raise GenerationError("Array-Schema ohne items.")
+            raise GenerationError("Array schema without items.")
         return f"Array<{ts_type(items)}>"
     if schema_type == "object" or "properties" in schema:
         additional = schema.get("additionalProperties")
@@ -81,7 +81,7 @@ def ts_type(schema: dict[str, Any]) -> str:
         for name in sorted(properties):
             property_schema = properties[name]
             if not isinstance(property_schema, dict):
-                raise GenerationError(f"Ungültiges Property-Schema: {name}")
+                raise GenerationError(f"Invalid property schema: {name}")
             key = name if IDENTIFIER.fullmatch(name) else json.dumps(name)
             optional = "" if name in required else "?"
             fields.append(f"readonly {key}{optional}: {ts_type(property_schema)};")
@@ -98,7 +98,7 @@ def ts_type(schema: dict[str, Any]) -> str:
 def response_type(operation: dict[str, Any]) -> str:
     responses = operation.get("responses")
     if not isinstance(responses, dict):
-        raise GenerationError("Operation ohne responses.")
+        raise GenerationError("Operation without responses.")
     for status_code in sorted(responses):
         if not str(status_code).startswith("2"):
             continue
@@ -120,15 +120,15 @@ def response_type(operation: dict[str, Any]) -> str:
                 and media_contract["schema"].get("format") == "binary"
             ):
                 return "Blob"
-        raise GenerationError("Erfolgsantwort ohne JSON- oder Binärschema.")
-    raise GenerationError("Operation ohne 2xx-Antwort.")
+        raise GenerationError("Success response without JSON or binary schema.")
+    raise GenerationError("Operation without 2xx response.")
 
 
 def camel_identifier(value: str) -> str:
     parts = value.split("_")
     candidate = parts[0] + "".join(part.capitalize() for part in parts[1:])
     if not IDENTIFIER.fullmatch(candidate):
-        raise GenerationError(f"Parametername ist kein TypeScript-Identifier: {value}")
+        raise GenerationError(f"Parameter name is not a TypeScript identifier: {value}")
     return candidate
 
 
@@ -140,13 +140,13 @@ def path_parameters(
     combined: list[Any] = []
     for source in (path_item.get("parameters", []), operation.get("parameters", [])):
         if not isinstance(source, list):
-            raise GenerationError("parameters muss eine Liste sein.")
+            raise GenerationError("parameters must be a list.")
         combined.extend(source)
     result: list[tuple[str, str, str]] = []
     seen: set[str] = set()
     for parameter in combined:
         if not isinstance(parameter, dict):
-            raise GenerationError("Ungültiger OpenAPI-Parameter.")
+            raise GenerationError("Invalid OpenAPI parameter.")
         location = parameter.get("in")
         if location == "query":
             continue
@@ -158,15 +158,15 @@ def path_parameters(
             or not isinstance(schema, dict)
             or parameter.get("required") is not True
         ):
-            raise GenerationError("Nur erforderliche Pfadparameter werden unterstützt.")
+            raise GenerationError("Only required path parameters are supported.")
         if name in seen:
-            raise GenerationError(f"Doppelter Pfadparameter: {name}")
+            raise GenerationError(f"Duplicate path parameter: {name}")
         seen.add(name)
         result.append((name, camel_identifier(name), ts_type(schema)))
     placeholders = set(re.findall(r"\{([^{}]+)\}", path))
     if placeholders != seen:
         raise GenerationError(
-            f"Pfadparameter stimmen nicht mit dem Pfad überein: {path}"
+            f"Path parameters do not match the path: {path}"
         )
     return result
 
@@ -178,13 +178,13 @@ def query_parameters(
     combined: list[Any] = []
     for source in (path_item.get("parameters", []), operation.get("parameters", [])):
         if not isinstance(source, list):
-            raise GenerationError("parameters muss eine Liste sein.")
+            raise GenerationError("parameters must be a list.")
         combined.extend(source)
     result: list[tuple[str, str, str, bool]] = []
     seen: set[str] = set()
     for parameter in combined:
         if not isinstance(parameter, dict):
-            raise GenerationError("Ungültiger OpenAPI-Parameter.")
+            raise GenerationError("Invalid OpenAPI parameter.")
         location = parameter.get("in")
         if location == "path":
             continue
@@ -196,14 +196,14 @@ def query_parameters(
             or not isinstance(schema, dict)
         ):
             raise GenerationError(
-                "Nur Pfad- und skalare Query-Parameter werden unterstützt."
+                "Only path and scalar query parameters are supported."
             )
         if name in seen:
-            raise GenerationError(f"Doppelter Query-Parameter: {name}")
+            raise GenerationError(f"Duplicate query parameter: {name}")
         seen.add(name)
         parameter_type = ts_type(schema)
         if parameter_type.startswith(("Array<", "{ ", "Record<")):
-            raise GenerationError(f"Query-Parameter ist nicht skalar: {name}")
+            raise GenerationError(f"Query parameter is not scalar: {name}")
         result.append(
             (
                 name,
@@ -232,14 +232,14 @@ def request_body_type(operation: dict[str, Any]) -> str | None:
         return None
     if not isinstance(request_body, dict) or request_body.get("required") is not True:
         raise GenerationError(
-            "Nur erforderliche JSON-Request-Bodies werden unterstützt."
+            "Only required JSON request bodies are supported."
         )
     content = request_body.get("content")
     if not isinstance(content, dict):
-        raise GenerationError("RequestBody ohne content.")
+        raise GenerationError("RequestBody without content.")
     media = content.get("application/json")
     if not isinstance(media, dict) or not isinstance(media.get("schema"), dict):
-        raise GenerationError("RequestBody ohne JSON-Schema.")
+        raise GenerationError("RequestBody without JSON schema.")
     return ts_type(media["schema"])
 
 
@@ -262,12 +262,12 @@ def model_lines(document: dict[str, Any]) -> list[str]:
     components = document.get("components", {})
     schemas = components.get("schemas", {}) if isinstance(components, dict) else {}
     if not isinstance(schemas, dict):
-        raise GenerationError("components.schemas fehlt.")
+        raise GenerationError("components.schemas is missing.")
     lines: list[str] = []
     for name in sorted(schemas):
         schema = schemas[name]
         if not isinstance(schema, dict):
-            raise GenerationError(f"Ungültiges Schema: {name}")
+            raise GenerationError(f"Invalid schema: {name}")
         lines.append(f"export type {name} = {ts_type(schema)};")
     return lines
 
@@ -275,7 +275,7 @@ def model_lines(document: dict[str, Any]) -> list[str]:
 def operation_lines(document: dict[str, Any]) -> list[str]:
     paths = document.get("paths")
     if not isinstance(paths, dict):
-        raise GenerationError("paths fehlt.")
+        raise GenerationError("paths is missing.")
     seen: set[str] = set()
     lines: list[str] = []
     for path in sorted(paths):
@@ -290,15 +290,15 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
             if not isinstance(operation_id, str) or not IDENTIFIER.fullmatch(
                 operation_id
             ):
-                raise GenerationError(f"Ungültige operationId für {method} {path}.")
+                raise GenerationError(f"Invalid operationId for {method} {path}.")
             if operation_id in seen:
-                raise GenerationError(f"Doppelte operationId: {operation_id}")
+                raise GenerationError(f"Duplicate operationId: {operation_id}")
             seen.add(operation_id)
             parameters = path_parameters(path, path_item, operation)
             query = query_parameters(path_item, operation)
             if any(identifier == "queryParameters" for _, identifier, _ in parameters):
                 raise GenerationError(
-                    "Pfadparameter kollidiert mit generiertem Query-Objekt."
+                    "Path parameter collides with the generated query object."
                 )
             body_type = request_body_type(operation)
             result_type = response_type(operation)
@@ -366,7 +366,7 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                 ]
             )
     if not seen:
-        raise GenerationError("Keine API-Operationen gefunden.")
+        raise GenerationError("No API operations found.")
     return lines
 
 
@@ -519,7 +519,7 @@ def write_or_check(root: Path, *, check: bool) -> None:
         path.write_text(content, encoding="utf-8")
     if differences:
         raise GenerationError(
-            "Generierte API-Artefakte sind veraltet: " + ", ".join(differences)
+            "Generated API artifacts are stale: " + ", ".join(differences)
         )
 
 
@@ -533,8 +533,8 @@ def main() -> int:
     except GenerationError as error:
         print(f"openapi-generate: ERROR: {error}", file=sys.stderr)
         return 1
-    mode = "aktuell" if arguments.check else "geschrieben"
-    print(f"openapi-generate: OK: OpenAPI und TypeScript-Client {mode}")
+    mode = "up to date" if arguments.check else "written"
+    print(f"openapi-generate: OK: OpenAPI and TypeScript client {mode}")
     return 0
 
 

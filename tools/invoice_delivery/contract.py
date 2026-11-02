@@ -40,7 +40,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -55,7 +55,7 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
 
 
@@ -65,7 +65,7 @@ def read_state(path: Path) -> dict[str, str]:
         not isinstance(key, str) or not isinstance(item, str)
         for key, item in value.items()
     ):
-        raise ContractFailure("Der POC-094-Zustand ist ungültig")
+        raise ContractFailure("The POC-094 state is invalid")
     return value
 
 
@@ -144,14 +144,14 @@ async def prepare(
         or invoice.get("status") != "issued"
         or invoice.get("recipient", {}).get("email") != EXPECTED_RECIPIENT
     ):
-        raise ContractFailure(f"Golden-Rechnung ist nicht versandfähig: {invoice}")
+        raise ContractFailure(f"Golden invoice cannot be delivered: {invoice}")
     state = {"invoiceId": str(invoice["id"])}
     write_state(state_path, state)
     with sessions_path.open("a", encoding="utf-8") as output:
         output.write(f"INVOICE_ID={invoice['id']}\n")
     print(
-        "invoice-delivery-contract: Golden-Rechnung KT26-0004 mit "
-        "unveränderlichem E-Mail-Empfänger freigegeben"
+        "invoice-delivery-contract: golden invoice KT26-0004 issued with "
+        "immutable email recipient"
     )
 
 
@@ -172,7 +172,7 @@ async def queue(
         invoice_id,
     )
     if document is None:
-        raise ContractFailure("Das Typst-PDF ist noch nicht versandbereit")
+        raise ContractFailure("The Typst PDF is not ready for delivery yet")
     tokens = {
         "admin": token_for("admin", ADMIN_ID),
         "finance": token_for("finance", FINANCE_ID),
@@ -200,7 +200,7 @@ async def queue(
             forbidden.status_code != 403
             or error_code(forbidden) != "invoice_delivery_required"
         ):
-            raise ContractFailure("Finanz-Leser konnte eine Rechnung versenden")
+            raise ContractFailure("Finance reader could send an invoice")
 
         headers = {
             **session_headers(tokens["admin"]),
@@ -225,7 +225,7 @@ async def queue(
             or delivery.get("recipientEmail") != EXPECTED_RECIPIENT
         ):
             raise ContractFailure(
-                f"Idempotenter Versandauftrag ist inkonsistent: {delivery}"
+                f"Idempotent delivery request is inconsistent: {delivery}"
             )
         invoice_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoices",
@@ -242,7 +242,7 @@ async def queue(
         )
         if not isinstance(record, dict) or record.get("deliveries") != [delivery]:
             raise ContractFailure(
-                "Versandstatus ist im Rechnungsjournal nicht sichtbar"
+                "Delivery status is not visible in the invoice ledger"
             )
     counts = await connection.fetchrow(
         """
@@ -260,7 +260,7 @@ async def queue(
         UUID(str(delivery["id"])),
     )
     if counts is None or dict(counts) != {"deliveries": 1, "outbox": 1}:
-        raise ContractFailure(f"Versand-Replay duplizierte Daten: {dict(counts or {})}")
+        raise ContractFailure(f"Delivery replay duplicated data: {dict(counts or {})}")
     state.update(
         {
             "deliveryId": str(delivery["id"]),
@@ -272,8 +272,8 @@ async def queue(
     with sessions_path.open("a", encoding="utf-8") as output:
         output.write(f"DELIVERY_ID={delivery['id']}\n")
     print(
-        "invoice-delivery-contract: Versand einmalig per Outbox eingeplant; "
-        "Finanz-Leser bleibt schreibgeschützt"
+        "invoice-delivery-contract: delivery queued once via outbox; "
+        "finance reader stays read-only"
     )
 
 
@@ -308,7 +308,7 @@ async def assert_failed(
         or delivery.get("messageId") is not None
     ):
         raise ContractFailure(
-            f"SMTP-Ausfall ist nicht vollständig sichtbar: {delivery}"
+            f"SMTP outage is not fully visible: {delivery}"
         )
     row = await connection.fetchrow(
         """
@@ -331,11 +331,11 @@ async def assert_failed(
         or row["mail_id"] is not None
     ):
         raise ContractFailure(
-            f"Durable Fehlerzustand ist inkonsistent: {dict(row or {})}"
+            f"Durable error state is inconsistent: {dict(row or {})}"
         )
     print(
-        "invoice-delivery-contract: real gestopptes Mailpit ergab sichtbaren "
-        "Fehler, Versuch 1 und administrativen Wiederanlauf"
+        "invoice-delivery-contract: really stopped Mailpit gave a visible "
+        "error, attempt 1 and an admin retry"
     )
 
 
@@ -364,7 +364,7 @@ async def wait_for_delivery(
                     return cast(dict[str, Any], delivery)
         await asyncio.sleep(0.2)
     raise ContractFailure(
-        f"Versand {delivery_id} erreichte Status {expected_status} nicht"
+        f"Delivery {delivery_id} did not reach status {expected_status}"
     )
 
 
@@ -390,7 +390,7 @@ async def mailpit_messages(mailpit: httpx.AsyncClient) -> list[dict[str, Any]]:
     if not isinstance(messages, list) or any(
         not isinstance(item, dict) for item in messages
     ):
-        raise ContractFailure("Mailpit-Nachrichtenliste ist ungültig")
+        raise ContractFailure("Mailpit message list is invalid")
     return [cast(dict[str, Any], item) for item in messages]
 
 
@@ -403,7 +403,7 @@ async def assert_mime_message(
 ) -> None:
     message_id = summary.get("ID")
     if not isinstance(message_id, str):
-        raise ContractFailure("Mailpit-Nachricht besitzt keine ID")
+        raise ContractFailure("Mailpit message has no ID")
     raw_response = await mailpit.get(f"/api/v1/message/{message_id}/raw")
     raw_response.raise_for_status()
     message = BytesParser(policy=policy.default).parsebytes(raw_response.content)
@@ -429,7 +429,7 @@ async def assert_mime_message(
         or not isinstance(attachment_payload, bytes)
         or hashlib.sha256(attachment_payload).hexdigest() != expected_sha256
     ):
-        raise ContractFailure("Mailpit-MIME oder PDF-Anhang weicht vom Auftrag ab")
+        raise ContractFailure("Mailpit MIME or PDF attachment differs from the request")
 
 
 async def assert_delivered(
@@ -464,7 +464,7 @@ async def assert_delivered(
             or delivery.get("lastErrorDetail") is not None
         ):
             raise ContractFailure(
-                f"Wiederanlauf lieferte keinen eindeutigen Erfolg: {delivery}"
+                f"Retry did not give a clear success: {delivery}"
             )
         await assert_mime_message(
             mailpit,
@@ -483,10 +483,10 @@ async def assert_delivered(
             retry.status_code != 409
             or error_code(retry) != "invoice_delivery_already_sent"
         ):
-            raise ContractFailure("Bestätigter Erfolg konnte erneut gestartet werden")
+            raise ContractFailure("Confirmed success could be started again")
         await asyncio.sleep(0.5)
         if len(await mailpit_messages(mailpit)) != 1:
-            raise ContractFailure("Retry nach bestätigtem Erfolg duplizierte die Mail")
+            raise ContractFailure("Retry after confirmed success duplicated the mail")
     row = await connection.fetchrow(
         """
         SELECT
@@ -510,11 +510,11 @@ async def assert_delivered(
         or row["mail_deliveries"] != 1
     ):
         raise ContractFailure(
-            f"SMTP-Erfolg ist nicht fachlich projiziert: {dict(row or {})}"
+            f"SMTP success is not projected to the domain state: {dict(row or {})}"
         )
     print(
-        "invoice-delivery-contract: Retry nach echtem Ausfall ergab exakt eine "
-        "MIME-Mail mit byteidentischem Typst-PDF; bestätigter Erfolg ist gesperrt"
+        "invoice-delivery-contract: retry after a real outage gave exactly one "
+        "MIME mail with a byte-identical Typst PDF; confirmed success is locked"
     )
 
 
@@ -547,13 +547,13 @@ async def queue_resend(
         or document_count != 1
     ):
         raise ContractFailure(
-            "Bewusster Neuversand nutzt nicht exakt dasselbe Rechnungsdokument"
+            "Deliberate resend does not use exactly the same invoice document"
         )
     state["resendDeliveryId"] = str(delivery["id"])
     write_state(state_path, state)
     print(
-        "invoice-delivery-contract: bewusster Neuversand separat eingeplant, "
-        "ohne neue Dokumentversion"
+        "invoice-delivery-contract: deliberate resend queued separately, "
+        "without a new document version"
     )
 
 
@@ -580,7 +580,7 @@ async def assert_resend(
         )
         messages = await mailpit_messages(mailpit)
         if len(messages) != 2 or not resent.get("messageId"):
-            raise ContractFailure("Bewusster Neuversand ergab nicht exakt zwei Mails")
+            raise ContractFailure("Deliberate resend did not give exactly two mails")
         database_message_ids = {
             str(row["message_id"])
             for row in await connection.fetch(
@@ -595,11 +595,11 @@ async def assert_resend(
             )
         }
         if len(database_message_ids) != 2:
-            raise ContractFailure("Neuversand besitzt keine eigene Message-ID")
+            raise ContractFailure("Resend has no Message-ID of its own")
         for summary in messages:
             summary_message_id = f"<{summary.get('MessageID')}>"
             if summary_message_id not in database_message_ids:
-                raise ContractFailure("Mailpit- und PostgreSQL-Message-ID weichen ab")
+                raise ContractFailure("Mailpit and PostgreSQL Message-IDs differ")
             await assert_mime_message(
                 mailpit,
                 summary,
@@ -629,11 +629,11 @@ async def assert_resend(
         "sent": 2,
     }:
         raise ContractFailure(
-            f"Neuversandszahlen sind inkonsistent: {dict(counts or {})}"
+            f"Resend counts are inconsistent: {dict(counts or {})}"
         )
     print(
-        "invoice-delivery-contract: zwei bewusste Zustellungen, zwei Message-IDs "
-        "und weiterhin exakt ein unverändertes Typst-PDF"
+        "invoice-delivery-contract: two deliberate deliveries, two Message-IDs "
+        "and still exactly one unchanged Typst PDF"
     )
 
 
@@ -653,7 +653,7 @@ async def run(arguments: argparse.Namespace) -> None:
         elif arguments.command == "assert-resend":
             await assert_resend(connection, arguments.state)
         else:
-            raise ContractFailure(f"Unbekannter Befehl: {arguments.command}")
+            raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
         await connection.close()
 

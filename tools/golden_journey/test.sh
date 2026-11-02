@@ -39,7 +39,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "golden-journey: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "golden-journey: diagnostics for failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=400 \
       api worker public pwa web proxy core-postgres rustfs mailpit \
@@ -138,7 +138,7 @@ start_golden() {
   integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
     "$proof/$token_filename")
   if [ "${#integration_key}" -lt 32 ]; then
-    echo "golden-journey: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+    echo "golden-journey: ERROR: restricted Twenty key missing" >&2
     exit 1
   fi
 
@@ -176,7 +176,7 @@ run_round() {
   session_mode=$(stat -c '%a' "$proof/sessions-$round_name.env" 2>/dev/null || \
     stat -f '%Lp' "$proof/sessions-$round_name.env")
   if [ "$session_mode" != "600" ]; then
-    echo "golden-journey: ERROR: Sitzungsdatei ist nicht Modus 600" >&2
+    echo "golden-journey: ERROR: session file is not mode 600" >&2
     exit 1
   fi
 
@@ -211,7 +211,7 @@ run_round() {
 }
 
 if [ ! -f "$env_file" ]; then
-  echo "golden-journey: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "golden-journey: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -256,7 +256,7 @@ run_round round-1 repeat repeat-round-1.json repeat-round-1.normalized.json
 if ! cmp -s \
   "$proof/primary-round-1.normalized.json" \
   "$proof/repeat-round-1.normalized.json"; then
-  echo "golden-journey: ERROR: Wiederholung aus Golden Reset ist nicht deterministisch" >&2
+  echo "golden-journey: ERROR: repeat from Golden Reset is not deterministic" >&2
   diff -u \
     "$proof/primary-round-1.normalized.json" \
     "$proof/repeat-round-1.normalized.json" >&2 || true
@@ -273,6 +273,6 @@ cp "$proof"/primary/golden-*.png "$proof"/primary/golden-*.pdf \
   "$private_evidence/"
 find "$private_evidence" -type f -exec chmod 600 {} +
 
-echo "golden-journey: OK: vollständiger Persona-Weg in Chromium, Firefox und WebKit,"
-echo "golden-journey:     zwei zusätzliche Fachrunden ohne technische Duplikate"
-echo "golden-journey:     sowie deterministische Wiederholung aus Golden Reset bewiesen"
+echo "golden-journey: OK: full persona journey in Chromium, Firefox and WebKit,"
+echo "golden-journey:     two extra business rounds without technical duplicates"
+echo "golden-journey:     and deterministic repeat from Golden Reset proven"

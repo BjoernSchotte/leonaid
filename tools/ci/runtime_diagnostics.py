@@ -21,7 +21,7 @@ JsonObject = dict[str, Any]
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise RuntimeError(f"{name} fehlt")
+        raise RuntimeError(f"{name} is missing")
     return value
 
 
@@ -65,7 +65,7 @@ async def mailpit_diagnostic() -> JsonObject:
         payload = response.json()
     messages = payload.get("messages", []) if isinstance(payload, dict) else []
     subjects = Counter(
-        str(item.get("Subject", "(ohne Betreff)"))
+        str(item.get("Subject", "(no subject)"))
         for item in messages
         if isinstance(item, dict)
     )

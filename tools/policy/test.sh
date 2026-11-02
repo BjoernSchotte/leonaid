@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "policy-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "policy-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 api core-postgres twenty-server >&2 || true
   fi
@@ -60,7 +60,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "policy-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "policy-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -95,7 +95,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof_dir/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "policy-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "policy-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -134,4 +134,4 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   api tools/policy/contract.py \
   /repo/tests/fixtures/golden/v1/dataset.json
 
-echo "policy-test: OK: zentrale Row-Level-Policies gegen PostgreSQL und Twenty bewiesen"
+echo "policy-test: OK: central row-level policies proven against PostgreSQL and Twenty"

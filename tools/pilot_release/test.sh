@@ -27,6 +27,6 @@ docker run --rm \
   python tools/pilot_release/verify_artifacts.py \
     /workspace /workspace/.artifacts/pilot043
 
-echo "pilot-release-test: OK: zwei reale Releaseversionen, identische Promotion,"
-echo "pilot-release-test:     vollständige Golden Journeys, Migrationsfehler,"
-echo "pilot-release-test:     Recovery und Rollback bewiesen"
+echo "pilot-release-test: OK: two real release versions, identical promotion,"
+echo "pilot-release-test:     complete golden journeys, migration failure,"
+echo "pilot-release-test:     recovery and rollback proven"

@@ -33,7 +33,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -83,7 +83,7 @@ async def dashboard(
 
 def as_object(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ContractFailure(f"{label} ist kein Objekt")
+        raise ContractFailure(f"{label} is not an object")
     return value
 
 
@@ -95,9 +95,9 @@ async def assert_acquirer_aggregate(
     connection: asyncpg.Connection[Any],
     payload: dict[str, Any],
 ) -> None:
-    acquirer = as_object(payload.get("acquirer"), "Akquisiteur-Dashboard")
+    acquirer = as_object(payload.get("acquirer"), "Acquirer dashboard")
     if payload.get("charityAdmin") is not None:
-        raise ContractFailure("Akquisiteur erhält aktionsweite Admin-Kennzahlen")
+        raise ContractFailure("Acquirer receives action-wide admin metrics")
     pipeline = await connection.fetchrow(
         """
         SELECT
@@ -113,7 +113,7 @@ async def assert_acquirer_aggregate(
         ACTION_ID,
         ANNA_ID,
     )
-    api_pipeline = as_object(acquirer.get("pipeline"), "Persönliche Pipeline")
+    api_pipeline = as_object(acquirer.get("pipeline"), "Personal pipeline")
     pipeline_mapping = {
         "open": "open",
         "contacted": "contacted",
@@ -126,7 +126,7 @@ async def assert_acquirer_aggregate(
         int(api_pipeline[api_key]) != integer(pipeline, sql_key)
         for api_key, sql_key in pipeline_mapping.items()
     ):
-        raise ContractFailure("Persönliche API-Pipeline weicht von SQL ab")
+        raise ContractFailure("Personal API pipeline differs from SQL")
 
     activity_count = await connection.fetchval(
         """
@@ -137,8 +137,8 @@ async def assert_acquirer_aggregate(
         ANNA_ID,
     )
     if int(acquirer["activityCount"]) != int(activity_count or 0):
-        raise ContractFailure("Persönliche Aktivitätszahl weicht von SQL ab")
-    reminders = as_object(acquirer.get("reminders"), "Wiedervorlagen")
+        raise ContractFailure("Personal activity count differs from SQL")
+    reminders = as_object(acquirer.get("reminders"), "Follow-ups")
     if (
         int(reminders["unscheduled"]) != 2
         or int(reminders["overdue"]) != 0
@@ -146,16 +146,16 @@ async def assert_acquirer_aggregate(
         or int(reminders["upcoming"]) != 0
         or int(reminders["total"]) != 2
     ):
-        raise ContractFailure("Persönliche Wiedervorlagen sind nicht exakt")
+        raise ContractFailure("Personal follow-ups are not exact")
 
 
 async def assert_admin_aggregate(
     connection: asyncpg.Connection[Any],
     payload: dict[str, Any],
 ) -> None:
-    admin = as_object(payload.get("charityAdmin"), "Charity-Admin-Dashboard")
+    admin = as_object(payload.get("charityAdmin"), "Charity admin dashboard")
     if payload.get("acquirer") is not None:
-        raise ContractFailure("Charity-Admin erhält fremde persönliche Kennzahlen")
+        raise ContractFailure("Charity admin receives other users' personal metrics")
     pipeline = await connection.fetchrow(
         """
         SELECT
@@ -170,7 +170,7 @@ async def assert_admin_aggregate(
         """,
         ACTION_ID,
     )
-    api_pipeline = as_object(admin.get("pipeline"), "Aktionsweite Pipeline")
+    api_pipeline = as_object(admin.get("pipeline"), "Action-wide pipeline")
     pipeline_mapping = {
         "open": "open",
         "contacted": "contacted",
@@ -183,7 +183,7 @@ async def assert_admin_aggregate(
         int(api_pipeline[api_key]) != integer(pipeline, sql_key)
         for api_key, sql_key in pipeline_mapping.items()
     ):
-        raise ContractFailure("Aktionsweite API-Pipeline weicht von SQL ab")
+        raise ContractFailure("Action-wide API pipeline differs from SQL")
 
     commitment_sql = await connection.fetchrow(
         """
@@ -226,9 +226,9 @@ async def assert_admin_aggregate(
         """,
         ACTION_ID,
     )
-    api_commitments = as_object(admin.get("commitments"), "Bestellungen")
+    api_commitments = as_object(admin.get("commitments"), "Orders")
     if commitment_sql is None or line_sql is None:
-        raise ContractFailure("SQL-Bestellaggregate fehlen")
+        raise ContractFailure("SQL order aggregates are missing")
     commitment_mapping = {
         "draft": "draft",
         "reviewReady": "review_ready",
@@ -249,7 +249,7 @@ async def assert_admin_aggregate(
             ("totalPieces", "total_pieces"),
         )
     ):
-        raise ContractFailure("API-Bestellaggregate weichen von SQL ab")
+        raise ContractFailure("API order aggregates differ from SQL")
 
     invoice_sql = await connection.fetchrow(
         """
@@ -273,9 +273,9 @@ async def assert_admin_aggregate(
         """,
         ACTION_ID,
     )
-    api_invoices = as_object(admin.get("invoices"), "Rechnungen")
+    api_invoices = as_object(admin.get("invoices"), "Invoices")
     if invoice_sql is None:
-        raise ContractFailure("SQL-Rechnungsaggregate fehlen")
+        raise ContractFailure("SQL invoice aggregates are missing")
     invoice_mapping = {
         "issued": "issued",
         "sent": "sent",
@@ -290,13 +290,13 @@ async def assert_admin_aggregate(
         int(api_invoices[api_key]) != integer(invoice_sql, sql_key)
         for api_key, sql_key in invoice_mapping.items()
     ):
-        raise ContractFailure("API-Rechnungsaggregate weichen von SQL ab")
+        raise ContractFailure("API invoice aggregates differ from SQL")
 
 
 def assert_definitions(payload: dict[str, Any], expected_keys: set[str]) -> None:
     definitions = payload.get("metricDefinitions")
     if not isinstance(definitions, list):
-        raise ContractFailure("Kennzahl-Definitionen fehlen")
+        raise ContractFailure("Metric definitions are missing")
     actual_keys = {
         str(item.get("key"))
         for item in definitions
@@ -306,7 +306,7 @@ def assert_definitions(payload: dict[str, Any], expected_keys: set[str]) -> None
         and str(item.get("href", "")).startswith("/")
     }
     if actual_keys != expected_keys:
-        raise ContractFailure("Kennzahl-Definitionen sind unvollständig")
+        raise ContractFailure("Metric definitions are incomplete")
 
 
 async def run() -> None:
@@ -337,9 +337,9 @@ async def run() -> None:
             )
             anna_response.raise_for_status()
             if anna_response.headers.get("cache-control") != "private, no-store":
-                raise ContractFailure("Dashboard-Antwort ist cachebar")
-            anna = as_object(anna_response.json(), "Anna-Dashboard")
-            goal = as_object(anna.get("goal"), "Aktionsziel")
+                raise ContractFailure("Dashboard response is cacheable")
+            anna = as_object(anna_response.json(), "Anna dashboard")
+            goal = as_object(anna.get("goal"), "Action goal")
             if (
                 goal.get("actualValue") != "900"
                 or goal.get("targetValue") != "1000"
@@ -347,7 +347,7 @@ async def run() -> None:
                 or goal.get("progressBasisPoints") != 9000
                 or goal.get("configured") is not True
             ):
-                raise ContractFailure("Golden-Aktionsziel ist nicht exakt")
+                raise ContractFailure("Golden action goal is not exact")
             await assert_acquirer_aggregate(connection, anna)
             assert_definitions(
                 anna,
@@ -365,7 +365,7 @@ async def run() -> None:
                 label="klara",
             )
             klara_response.raise_for_status()
-            klara = as_object(klara_response.json(), "Klara-Dashboard")
+            klara = as_object(klara_response.json(), "Klara dashboard")
             await assert_admin_aggregate(connection, klara)
             assert_definitions(
                 klara,
@@ -384,7 +384,7 @@ async def run() -> None:
                 label="concealed",
             )
             if concealed.status_code != 404:
-                raise ContractFailure("Fremdes Dashboard wird nicht verborgen")
+                raise ContractFailure("Unrelated dashboard is not hidden")
 
             empty_response = await dashboard(
                 api,
@@ -393,32 +393,32 @@ async def run() -> None:
                 label="partial-empty",
             )
             empty_response.raise_for_status()
-            empty = as_object(empty_response.json(), "Leeres Dashboard")
-            empty_goal = as_object(empty.get("goal"), "Teilkonfiguriertes Ziel")
-            empty_admin = as_object(empty.get("charityAdmin"), "Leere Admin-Sicht")
+            empty = as_object(empty_response.json(), "Empty dashboard")
+            empty_goal = as_object(empty.get("goal"), "Partly configured goal")
+            empty_admin = as_object(empty.get("charityAdmin"), "Empty admin view")
             if (
                 empty_goal.get("configured") is not False
                 or empty_goal.get("targetValue") is not None
                 or empty_goal.get("progressBasisPoints") is not None
                 or empty_goal.get("actualValue") != "125"
-                or as_object(empty_admin["pipeline"], "Leere Pipeline").get("total")
+                or as_object(empty_admin["pipeline"], "Empty pipeline").get("total")
                 != 0
-                or as_object(empty_admin["commitments"], "Leere Bestellungen").get(
+                or as_object(empty_admin["commitments"], "Empty orders").get(
                     "total"
                 )
                 != 0
-                or as_object(empty_admin["invoices"], "Leere Rechnungen").get("total")
+                or as_object(empty_admin["invoices"], "Empty invoices").get("total")
                 != 0
             ):
                 raise ContractFailure(
-                    "Leere oder teilkonfigurierte Aktion ist nicht stabil"
+                    "Empty or partly configured action is not stable"
                 )
     finally:
         await connection.close()
 
-    print("dashboard-contract: OK: Rollen, Golden-Kennzahlen, echte SQL-Aggregate,")
+    print("dashboard-contract: OK: roles, golden metrics, real SQL aggregates,")
     print(
-        "dashboard-contract:     Definitionen, Leersicht und Row-Level-Schutz bewiesen"
+        "dashboard-contract:     definitions, empty view and row-level protection proven"
     )
 
 

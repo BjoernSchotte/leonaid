@@ -30,10 +30,10 @@ class InvalidEvidence(RuntimeError):
 def _documents(snapshot: dict[str, Any]) -> list[tuple[str, str, int]]:
     core = snapshot.get("core")
     if not isinstance(core, dict):
-        raise InvalidEvidence("Snapshot enthält keinen Core")
+        raise InvalidEvidence("snapshot has no core section")
     manifest = core.get("documentManifest")
     if not isinstance(manifest, list) or not manifest:
-        raise InvalidEvidence("Dokumentmanifest fehlt")
+        raise InvalidEvidence("document manifest is missing")
     return sorted(
         (
             str(item["objectKey"]),
@@ -67,14 +67,14 @@ def verify(root: Path, artifact_directory: Path) -> None:
     if result.get("result") != "passed" or any(
         result.get(key) != "passed" for key in required_results
     ):
-        raise InvalidEvidence("Release-Ergebnis ist unvollständig")
+        raise InvalidEvidence("release result is incomplete")
 
     release_v1 = _load_object(artifact_directory / "release-v1.json")
     release_v2 = _load_object(artifact_directory / "release-v2.json")
     validate_manifest(release_v1, root=root)
     validate_manifest(release_v2, root=root)
     if release_v1["gitCommit"] != release_v2["gitCommit"]:
-        raise InvalidEvidence("Releaseversionen binden verschiedene Checkouts")
+        raise InvalidEvidence("release versions bind different checkouts")
 
     ledger_path = artifact_directory / "release-ledger.jsonl"
     records = [
@@ -84,7 +84,7 @@ def verify(root: Path, artifact_directory: Path) -> None:
     if [record.get("sequence") for record in records] != list(
         range(1, len(records) + 1)
     ):
-        raise InvalidEvidence("Release-Ledger ist nicht lückenlos")
+        raise InvalidEvidence("release ledger has gaps")
     v2_sha = manifest_sha256(release_v2)
     staging_indices = [
         index
@@ -104,7 +104,7 @@ def verify(root: Path, artifact_directory: Path) -> None:
         or staging_indices[0] >= min(production_indices)
     ):
         raise InvalidEvidence(
-            "Produktion wurde nicht aus dem verifizierten Staging-Manifest promoted"
+            "production was not promoted from the verified staging manifest"
         )
     events = [str(record.get("event")) for record in records]
     for required_event in (
@@ -114,20 +114,20 @@ def verify(root: Path, artifact_directory: Path) -> None:
         "rollback_verified",
     ):
         if required_event not in events:
-            raise InvalidEvidence(f"Release-Ereignis fehlt: {required_event}")
+            raise InvalidEvidence(f"release event is missing: {required_event}")
 
     public_evidence = ledger_path.read_text(encoding="utf-8")
     for pattern in SECRET_PATTERNS:
         if pattern.search(public_evidence):
-            raise InvalidEvidence("Release-Ledger enthält sensible Werte")
+            raise InvalidEvidence("release ledger contains sensitive values")
 
     pre = _load_object(artifact_directory / "pre-upgrade.json")
     post = _load_object(artifact_directory / "post-upgrade.json")
     rollback = _load_object(artifact_directory / "rollback-restored.json")
     if _documents(pre) != _documents(post):
-        raise InvalidEvidence("Dokument-SHAs drifteten beim Upgrade")
+        raise InvalidEvidence("document SHAs drifted during upgrade")
     if _documents(pre) != _documents(rollback):
-        raise InvalidEvidence("Dokument-SHAs drifteten beim Rollback")
+        raise InvalidEvidence("document SHAs drifted during rollback")
 
     journey_before = _load_object(artifact_directory / "journey-before.normalized.json")
     journey_after = _load_object(artifact_directory / "journey-after.normalized.json")
@@ -135,19 +135,19 @@ def verify(root: Path, artifact_directory: Path) -> None:
         artifact_directory / "journey-rollback.normalized.json"
     )
     if journey_before.get("round") != "round-1":
-        raise InvalidEvidence("Golden Journey vor Upgrade ist nicht Runde 1")
+        raise InvalidEvidence("golden journey before upgrade is not round 1")
     if journey_after.get("round") != "round-2":
-        raise InvalidEvidence("Golden Journey nach Upgrade ist nicht Runde 2")
+        raise InvalidEvidence("golden journey after upgrade is not round 2")
     if journey_rollback != journey_after:
         raise InvalidEvidence(
-            "Golden Journey nach Rollback ist nicht fachlich identisch"
+            "golden journey after rollback is not identical in business terms"
         )
 
     failure_log = (artifact_directory / "core-migration-failure.log").read_text(
         encoding="utf-8"
     )
     if "pilot_missing_revision" not in failure_log:
-        raise InvalidEvidence("Realer Migrationsfehler ist nicht belegt")
+        raise InvalidEvidence("real migration failure is not proven")
 
 
 def main() -> int:
@@ -167,8 +167,8 @@ def main() -> int:
         print(f"pilot-release-evidence: ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "pilot-release-evidence: OK: Promotion, Migrationsfehler, "
-        "Rollback und Dokument-SHAs bewiesen"
+        "pilot-release-evidence: OK: promotion, migration failure, "
+        "rollback and document SHAs proven"
     )
     return 0
 

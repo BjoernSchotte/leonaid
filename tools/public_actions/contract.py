@@ -35,7 +35,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -48,7 +48,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -111,7 +111,7 @@ async def public_alias(
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Alias-Antwort ist kein Objekt")
+        raise ContractFailure("Alias response is not an object")
     return payload
 
 
@@ -123,35 +123,35 @@ async def assert_astro_matches(
     response = await client.get(path, follow_redirects=False)
     if response.status_code != 200:
         raise ContractFailure(
-            f"Astro-Route {path} antwortet mit HTTP {response.status_code}"
+            f"Astro route {path} answers with HTTP {response.status_code}"
         )
     expected_state = str(direct["availability"])
     if response.headers.get("X-LeonAid-Public-State") != expected_state:
         raise ContractFailure(
-            f"Astro-Route {path} und Core entscheiden unterschiedlich"
+            f"Astro route {path} and Core decide differently"
         )
     source = response.text
     has_client_script = "<script" in source.casefold()
     submissions_allowed = direct.get("submissionsAllowed") is True
     if submissions_allowed and not has_client_script:
         raise ContractFailure(
-            f"Astro-Route {path} verbessert das aktive Formular nicht im Browser"
+            f"Astro route {path} does not enhance the active form in the browser"
         )
     if not submissions_allowed and has_client_script:
         raise ContractFailure(
-            f"Astro-Route {path} liefert ohne Formular unnötiges Client-JavaScript aus"
+            f"Astro route {path} ships needless client JavaScript without a form"
         )
     action = direct.get("action")
     if isinstance(action, dict):
         name = html.escape(str(action["name"]))
         if name not in source:
             raise ContractFailure(
-                f"Astro-Route {path} zeigt nicht die vom Core gelieferte Aktion"
+                f"Astro route {path} does not show the action returned by Core"
             )
         for offering in action.get("offerings", []):
             if html.escape(str(offering["name"])) not in source:
                 raise ContractFailure(
-                    f"Astro-Route {path} verliert ein öffentliches Angebot"
+                    f"Astro route {path} drops a public offering"
                 )
         if submissions_allowed:
             order_form = action.get("orderForm")
@@ -167,17 +167,17 @@ async def assert_astro_matches(
                 or expected_submit_label not in source
             ):
                 raise ContractFailure(
-                    f"Astro-Route {path} rendert kein vollständiges Bestellformular"
+                    f"Astro route {path} does not render a complete order form"
                 )
     elif "Krapfentaxi" in source:
         raise ContractFailure(
-            f"Astro-Route {path} gibt bei inaktiver Aktion alte Daten preis"
+            f"Astro route {path} leaks old data for an inactive action"
         )
     canonical_path = str(direct["canonicalPath"])
     canonical_url = response.url.join(canonical_path)
     if f'rel="canonical" href="{canonical_url}"' not in source:
         raise ContractFailure(
-            f"Astro-Route {path} besitzt keine passende Canonical URL"
+            f"Astro route {path} has no matching canonical URL"
         )
 
 
@@ -223,7 +223,7 @@ async def exercise(
             or before.get("canonicalPath") != "/archive/krapfentaxi-2026"
             or before.get("action", {}).get("id") != str(CURRENT_ACTION_ID)
         ):
-            raise ContractFailure("Aktiver Alias löst nicht exakt auf 2026 auf")
+            raise ContractFailure("Active alias does not resolve exactly to 2026")
         await assert_astro_matches(public_client, "/krapfentaxi", before)
 
         neutral = await client.get(
@@ -241,7 +241,7 @@ async def exercise(
             "submissionsAllowed": False,
             "action": None,
         }:
-            raise ContractFailure("Inaktiver Alias liefert keine neutrale Sicht")
+            raise ContractFailure("Inactive alias does not return a neutral view")
         await assert_astro_matches(public_client, "/winterpause", neutral.json())
 
         archive = await client.get(
@@ -256,7 +256,7 @@ async def exercise(
             or archive_payload.get("canonicalPath") != "/archive/krapfentaxi-2025"
             or archive_payload.get("action", {}).get("id") != str(ARCHIVED_ACTION_ID)
         ):
-            raise ContractFailure("Archivroute ist nicht dauerhaft lesbar")
+            raise ContractFailure("Archive route is not permanently readable")
         await assert_astro_matches(
             public_client,
             "/archive/krapfentaxi-2025",
@@ -279,7 +279,7 @@ async def exercise(
             archived_write.status_code != 422
             or error_code(archived_write) != "action_archived_immutable"
         ):
-            raise ContractFailure("Direkter API-Schreibzugriff auf Archiv war möglich")
+            raise ContractFailure("Direct API write to an archived action was possible")
 
         created = await client.post(
             "/api/v1/actions/from-template",
@@ -302,7 +302,7 @@ async def exercise(
             follow_up_id,
         )
         if updated != "UPDATE 1":
-            raise ContractFailure("Golden-Folgejahr besitzt kein aktivierbares Angebot")
+            raise ContractFailure("Golden follow-up year has no offering that can be activated")
 
         delivery_configuration = await client.get(
             f"/api/v1/actions/{follow_up_id}/delivery-configuration",
@@ -384,7 +384,7 @@ async def exercise(
             or not observed_ids.issubset({str(CURRENT_ACTION_ID), str(follow_up_id)})
         ):
             raise ContractFailure(
-                "Aliaswechsel zeigte einen Zwischenzustand oder falsches Ziel"
+                "Alias switch showed an intermediate state or a wrong target"
             )
         await assert_astro_matches(public_client, "/krapfentaxi", after)
         follow_up_archive = await client.get(
@@ -408,7 +408,7 @@ async def exercise(
             or old_archive.json().get("canonicalPath") != "/archive/krapfentaxi-2026"
             or old_archive.json().get("submissionsAllowed") is not False
         ):
-            raise ContractFailure("Aliaswechsel veränderte die alte Archivroute")
+            raise ContractFailure("Alias switch changed the old archive route")
         await assert_astro_matches(
             public_client,
             "/archive/krapfentaxi-2026",
@@ -445,7 +445,7 @@ async def exercise(
                 ("krapfentaxi-2027", follow_up_id),
             }
         ):
-            raise ContractFailure("Alias oder Archivreservierungen sind inkonsistent")
+            raise ContractFailure("Alias or archive reservations are inconsistent")
 
 
 async def run() -> None:
@@ -459,9 +459,9 @@ async def run() -> None:
     finally:
         await connection.close()
     print(
-        "public-actions-contract: atomarer Folgejahrwechsel, neutrale Alias-Sicht, "
-        "dauerhafte Archive, Astro/Core-Parität, Angebote und Schreibschutz real "
-        "bewiesen"
+        "public-actions-contract: atomic follow-up year switch, neutral alias view, "
+        "permanent archives, Astro/Core parity, offerings and write protection "
+        "proven for real"
     )
 
 

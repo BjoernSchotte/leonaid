@@ -20,7 +20,7 @@ class RenderContractError(RuntimeError):
 def _load_payload(path: Path) -> dict[str, object]:
     value: Any = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        raise RenderContractError(f"Ungültiges Snapshot-JSON: {path.name}")
+        raise RenderContractError(f"invalid snapshot JSON: {path.name}")
     return value
 
 
@@ -86,7 +86,7 @@ def _render_twice(
     second = renderer.render(snapshot)
     if first.content != second.content or first.sha256 != second.sha256:
         raise RenderContractError(
-            f"Rendering ist nicht byte-deterministisch: {snapshot.number}"
+            f"rendering is not byte-deterministic: {snapshot.number}"
         )
     target = output / f"{snapshot.number}.pdf"
     target.write_bytes(first.content)
@@ -108,7 +108,7 @@ def run_contract(
 ) -> list[dict[str, object]]:
     database_value: Any = json.loads(database_snapshots.read_text(encoding="utf-8"))
     if not isinstance(database_value, list):
-        raise RenderContractError("Der Datenbankexport ist keine Snapshot-Liste.")
+        raise RenderContractError("The database export is not a snapshot list.")
     database_payloads = sorted(
         database_value,
         key=lambda item: str(item["number"]) if isinstance(item, dict) else "",
@@ -119,7 +119,7 @@ def run_contract(
     fixture_payloads.sort(key=lambda item: str(item["number"]))
     if database_payloads != fixture_payloads:
         raise RenderContractError(
-            "Datenbankexport und versionierte Renderer-Snapshots sind nicht identisch."
+            "Database export and versioned renderer snapshots are not identical."
         )
 
     output.mkdir(parents=True, exist_ok=True)
@@ -169,7 +169,7 @@ def main() -> int:
         return 1
     print(
         "typst-render-contract: OK: "
-        f"{len(manifest)} Rechnungen zweifach und byte-identisch gerendert"
+        f"{len(manifest)} invoices rendered twice with identical bytes"
     )
     return 0
 

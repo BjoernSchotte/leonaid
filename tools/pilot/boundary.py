@@ -48,7 +48,7 @@ def git_lines(root: Path, *arguments: str) -> list[str]:
     )
     if result.returncode != 0:
         raise BoundaryError(
-            f"git {arguments[0]} fehlgeschlagen: {result.stderr.strip()}"
+            f"git {arguments[0]} failed: {result.stderr.strip()}"
         )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
@@ -82,23 +82,23 @@ def check_ignored_paths(root: Path) -> None:
         text=True,
     )
     if result.returncode not in {0, 1}:
-        raise BoundaryError(f"git check-ignore fehlgeschlagen: {result.stderr.strip()}")
+        raise BoundaryError(f"git check-ignore failed: {result.stderr.strip()}")
     ignored = set(result.stdout.splitlines())
     missing = [probe for probe in probes if probe not in ignored]
     if missing:
-        raise BoundaryError(f"private Pfade sind nicht ignoriert: {', '.join(missing)}")
+        raise BoundaryError(f"private paths are not ignored: {', '.join(missing)}")
 
 
 def check_git_index_and_history(root: Path) -> None:
     indexed = private_paths(git_lines(root, "ls-files", "--cached"))
     if indexed:
-        raise BoundaryError(f"private Pilotdateien im Git-Index: {', '.join(indexed)}")
+        raise BoundaryError(f"private pilot files in the Git index: {', '.join(indexed)}")
     historical = private_paths(
         git_lines(root, "log", "--all", "--format=", "--name-only")
     )
     if historical:
         raise BoundaryError(
-            f"private Pilotdateien in Git-Historie: {', '.join(historical)}"
+            f"private pilot files in Git history: {', '.join(historical)}"
         )
 
 
@@ -113,7 +113,7 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
         is_upload = action.startswith(UPLOAD_ACTIONS)
         if "upload" in action.casefold() and not is_upload:
             raise BoundaryError(
-                f"{workflow}: unbekannte Upload-Action ist nicht freigegeben: {action}"
+                f"{workflow}: unknown upload action is not allowed: {action}"
             )
         is_cache = action.startswith(CACHE_ACTIONS)
         if not is_upload and not is_cache:
@@ -131,11 +131,11 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
             if candidate_stripped.startswith("path:"):
                 if path is not None:
                     raise BoundaryError(
-                        f"{workflow}: Upload-Schritt enthält mehrere path-Werte"
+                        f"{workflow}: upload step has multiple path values"
                     )
                 path = candidate_stripped.removeprefix("path:").strip()
         if path is None:
-            raise BoundaryError(f"{workflow}: Upload-Schritt enthält keinen path-Wert")
+            raise BoundaryError(f"{workflow}: upload step has no path value")
         path = path.strip("\"'")
         if (
             not path
@@ -145,12 +145,12 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
             or ".." in Path(path).parts
         ):
             raise BoundaryError(
-                f"{workflow}: Uploadpfad ist dynamisch oder nicht sicher: {path!r}"
+                f"{workflow}: upload path is dynamic or unsafe: {path!r}"
             )
         if is_cache:
             if path != SYNTHETIC_FIXTURE_CACHE:
                 raise BoundaryError(
-                    f"{workflow}: nicht freigegebener Cachepfad: {path}"
+                    f"{workflow}: cache path not allowed: {path}"
                 )
         else:
             paths.append(path)
@@ -168,7 +168,7 @@ def check_workflows(root: Path) -> None:
         )
     )
     if not workflows:
-        raise BoundaryError("GitHub-Workflows fehlen")
+        raise BoundaryError("GitHub workflows are missing")
     upload_count = 0
     for workflow in workflows:
         text = workflow.read_text(encoding="utf-8")
@@ -181,10 +181,10 @@ def check_workflows(root: Path) -> None:
             ):
                 continue
             raise BoundaryError(
-                f"{workflow}: nicht freigegebener öffentlicher Uploadpfad: {path}"
+                f"{workflow}: public upload path not allowed: {path}"
             )
     if upload_count == 0:
-        raise BoundaryError("GitHub-Workflows enthalten keinen geprüften Upload")
+        raise BoundaryError("GitHub workflows contain no checked upload")
 
 
 def check(root: Path) -> None:
@@ -202,8 +202,8 @@ def main() -> None:
     except (BoundaryError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"pilot-data-boundary: BLOCKED: {error}\n")
     print(
-        "pilot-data-boundary: OK: private Pfade sind ignoriert, "
-        "Git-frei und von öffentlichen CI-Uploads getrennt"
+        "pilot-data-boundary: OK: private paths are ignored, "
+        "absent from Git and separated from public CI uploads"
     )
 
 

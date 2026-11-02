@@ -63,15 +63,15 @@ def require_non_production_environment() -> None:
     environment = os.environ.get("LEONAID_ENV")
     if environment not in {"local", "test"}:
         raise SeedError(
-            "Golden Data sind ausschließlich in local/test erlaubt; "
-            "Produktion und unbekannte Umgebungen werden abgewiesen"
+            "Golden Data is allowed only in local/test; "
+            "production and unknown environments are refused"
         )
 
 
 def load_json_object(path: Path) -> JsonObject:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise SeedError(f"{path} muss ein JSON-Objekt enthalten")
+        raise SeedError(f"{path} must contain a JSON object")
     return value
 
 
@@ -81,16 +81,16 @@ def load_fixture(fixture: Path) -> tuple[JsonObject, JsonObject, str]:
     dataset = json.loads(dataset_bytes)
     expected = load_json_object(fixture / "expected.json")
     if not isinstance(dataset, dict):
-        raise SeedError("dataset.json muss ein JSON-Objekt enthalten")
+        raise SeedError("dataset.json must contain a JSON object")
     if manifest.get("datasetVersion") != DATASET_VERSION:
-        raise SeedError("unerwartete Golden-Dataset-Version")
+        raise SeedError("unexpected golden dataset version")
     return dataset, expected, hashlib.sha256(dataset_bytes).hexdigest()
 
 
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise SeedError(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise SeedError(f"required environment variable missing: {name}")
     return value
 
 
@@ -138,12 +138,12 @@ class TwentyClient:
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
-                raise SeedError("Twenty GraphQL lieferte kein JSON-Objekt")
+                raise SeedError("Twenty GraphQL returned no JSON object")
             errors = payload.get("errors")
             if not errors:
                 break
             messages = [
-                str(item.get("message", "unbekannter GraphQL-Fehler"))
+                str(item.get("message", "unknown GraphQL error"))
                 for item in errors
                 if isinstance(item, dict)
             ]
@@ -156,16 +156,16 @@ class TwentyClient:
             raise SeedError(f"Twenty GraphQL: {'; '.join(messages)}")
         data = payload.get("data")
         if not isinstance(data, dict):
-            raise SeedError("Twenty GraphQL lieferte keine data")
+            raise SeedError("Twenty GraphQL returned no data")
         return data
 
     @staticmethod
     def token_from(value: Any, label: str) -> str:
         if not isinstance(value, dict):
-            raise SeedError(f"Twenty {label} fehlt")
+            raise SeedError(f"Twenty {label} missing")
         token = value.get("token")
         if not isinstance(token, str) or not token:
-            raise SeedError(f"Twenty {label}.token fehlt")
+            raise SeedError(f"Twenty {label}.token missing")
         return token
 
     def credentials_login_token(self) -> str:
@@ -193,7 +193,7 @@ class TwentyClient:
         )
         login_result = login.get("getLoginTokenFromCredentials")
         if not isinstance(login_result, dict):
-            raise SeedError("Twenty Login-Response fehlt")
+            raise SeedError("Twenty login response missing")
         return self.token_from(login_result.get("loginToken"), "loginToken")
 
     def exchange_login_token(self, login_token: str) -> str:
@@ -214,10 +214,10 @@ class TwentyClient:
         )
         exchange_result = exchanged.get("getAuthTokensFromLoginToken")
         if not isinstance(exchange_result, dict):
-            raise SeedError("Twenty Token-Exchange-Response fehlt")
+            raise SeedError("Twenty token exchange response missing")
         exchange_tokens = exchange_result.get("tokens")
         if not isinstance(exchange_tokens, dict):
-            raise SeedError("Twenty Access-Tokens fehlen")
+            raise SeedError("Twenty access tokens missing")
         return self.token_from(
             exchange_tokens.get("accessOrWorkspaceAgnosticToken"),
             "accessToken",
@@ -234,7 +234,7 @@ class TwentyClient:
         )
         user_state = check.get("checkUserExists")
         if not isinstance(user_state, dict):
-            raise SeedError("Twenty checkUserExists fehlt")
+            raise SeedError("Twenty checkUserExists missing")
 
         if user_state.get("exists") is True:
             login_token = self.credentials_login_token()
@@ -253,10 +253,10 @@ class TwentyClient:
             )
             signup_result = signup.get("signUp")
             if not isinstance(signup_result, dict):
-                raise SeedError("Twenty Sign-up-Response fehlt")
+                raise SeedError("Twenty sign-up response missing")
             tokens = signup_result.get("tokens")
             if not isinstance(tokens, dict):
-                raise SeedError("Twenty Workspace-Agnostic-Tokens fehlen")
+                raise SeedError("Twenty workspace-agnostic tokens missing")
             user_token = self.token_from(
                 tokens.get("accessOrWorkspaceAgnosticToken"),
                 "workspaceAgnosticToken",
@@ -275,7 +275,7 @@ class TwentyClient:
             )
             workspace_result = workspace.get("signUpInNewWorkspace")
             if not isinstance(workspace_result, dict):
-                raise SeedError("Twenty Workspace-Response fehlt")
+                raise SeedError("Twenty workspace response missing")
             login_token = self.token_from(
                 workspace_result.get("loginToken"),
                 "loginToken",
@@ -295,7 +295,7 @@ class TwentyClient:
             bearer=self.access_token,
         )
         if not isinstance(activation.get("activateWorkspace"), dict):
-            raise SeedError("Twenty Workspace-Aktivierung fehlt")
+            raise SeedError("Twenty workspace activation missing")
         self.access_token = self.exchange_login_token(self.credentials_login_token())
 
     def request(
@@ -306,7 +306,7 @@ class TwentyClient:
         json_body: JsonObject | None = None,
     ) -> httpx.Response:
         if self.access_token is None:
-            raise SeedError("Twenty-Client ist nicht authentifiziert")
+            raise SeedError("Twenty client is not authenticated")
         return self.client.request(
             method,
             f"{self.base_url}{path}",
@@ -326,10 +326,10 @@ class TwentyClient:
             )
         payload = response.json()
         if not isinstance(payload, dict):
-            raise SeedError("Twenty Data API lieferte kein JSON-Objekt")
+            raise SeedError("Twenty Data API returned no JSON object")
         data = payload.get("data", payload)
         if not isinstance(data, dict):
-            raise SeedError("Twenty Data API lieferte kein Objekt in data")
+            raise SeedError("Twenty Data API returned no object in data")
         if len(data) == 1:
             nested = next(iter(data.values()))
             if isinstance(nested, dict):
@@ -367,7 +367,7 @@ class TwentyClient:
             if response.status_code not in {400, 500, 502, 503, 504}:
                 self.response_data(response)
             if time.monotonic() >= deadline:
-                raise SeedError("Twenty Data API wurde nicht rechtzeitig bereit")
+                raise SeedError("Twenty Data API did not become ready in time")
             time.sleep(1)
 
 
@@ -506,7 +506,7 @@ def ensure_bucket(client: Any, bucket: str) -> None:
         VersioningConfiguration={"Status": "Enabled"},
     )
     if client.get_bucket_versioning(Bucket=bucket).get("Status") != "Enabled":
-        raise SeedError("S3-Bucket bestätigt keine aktive Versionierung")
+        raise SeedError("S3 bucket does not confirm active versioning")
 
 
 def load_pdf(path: Path) -> tuple[bytes, str]:
@@ -516,7 +516,7 @@ def load_pdf(path: Path) -> tuple[bytes, str]:
         or not content.startswith(b"%PDF-")
         or b"%%EOF" not in content[-1_024:]
     ):
-        raise SeedError(f"Typst-Artefakt ist kein vollständiges PDF: {path}")
+        raise SeedError(f"Typst artifact is not a complete PDF: {path}")
     return content, hashlib.sha256(content).hexdigest()
 
 
@@ -582,7 +582,7 @@ def seed_rustfs(dataset: JsonObject, pdf_directory: Path) -> list[JsonObject]:
             )
         version_id = response.get("VersionId")
         if not isinstance(version_id, str) or version_id in {"", "null"}:
-            raise SeedError("RustFS lieferte keine unveränderliche Version-ID")
+            raise SeedError("RustFS returned no immutable version ID")
         item["storageVersionId"] = version_id
     return manifest
 
@@ -1833,10 +1833,10 @@ def clear_mailpit() -> None:
 def snapshot_mailpit() -> JsonObject:
     payload = mailpit_request("GET", "/api/v1/messages").json()
     if not isinstance(payload, dict):
-        raise SeedError("Mailpit Messages API lieferte kein JSON-Objekt")
+        raise SeedError("Mailpit Messages API returned no JSON object")
     messages = payload.get("messages")
     if not isinstance(messages, list):
-        raise SeedError("Mailpit Messages API lieferte keine messages-Liste")
+        raise SeedError("Mailpit Messages API returned no messages list")
     return {
         "total": payload.get("total"),
         "messageIds": sorted(
@@ -1871,30 +1871,30 @@ def verify_seed_snapshot(
 ) -> None:
     core = value.get("core")
     if not isinstance(core, dict):
-        raise SeedError("Core-Snapshot fehlt")
+        raise SeedError("core snapshot missing")
     if core.get("rowCount") != 1 or core.get("datasetSha256") != dataset_digest:
-        raise SeedError("Core-PostgreSQL entspricht nicht Golden Data v1")
+        raise SeedError("core PostgreSQL does not match Golden Data v1")
     if core.get("expectedCounts") != expected.get("counts"):
-        raise SeedError("Core-PostgreSQL enthält unerwartete fachliche Counts")
+        raise SeedError("core PostgreSQL has unexpected business counts")
     if core.get("documentManifest") != documents:
-        raise SeedError("Core-Dokumentzuordnungen weichen vom PDF-Manifest ab")
+        raise SeedError("core document mappings differ from the PDF manifest")
     if value.get("twenty") != expected_twenty(dataset):
-        raise SeedError("Twenty enthält nicht exakt die Golden-Firmen und -Kontakte")
+        raise SeedError("Twenty does not contain exactly the golden companies and contacts")
     rustfs = value.get("rustfs")
     if not isinstance(rustfs, dict):
-        raise SeedError("RustFS-Snapshot fehlt")
+        raise SeedError("RustFS snapshot missing")
     objects = rustfs.get("objects")
     if not isinstance(objects, list) or len(objects) != len(documents):
-        raise SeedError("RustFS enthält nicht exakt die Golden-PDFs")
+        raise SeedError("RustFS does not contain exactly the golden PDFs")
     if any(
         not isinstance(item, dict)
         or item.get("isPdf") is not True
         or item.get("sha256") != item.get("storedSha256")
         for item in objects
     ):
-        raise SeedError("RustFS-PDF oder gespeicherte SHA-256-Prüfsumme ist ungültig")
+        raise SeedError("RustFS PDF or stored SHA-256 checksum is invalid")
     if value.get("mailpit") != {"total": 0, "messageIds": []}:
-        raise SeedError("Mailpit wurde nicht auf den leeren Golden-Stand gesetzt")
+        raise SeedError("Mailpit was not reset to the empty golden state")
 
 
 async def snapshot(fixture: Path) -> JsonObject:
@@ -1983,7 +1983,7 @@ async def run(arguments: argparse.Namespace) -> None:
     if arguments.command == "seed-core":
         dataset, expected, dataset_digest = load_fixture(fixture)
         await seed_core(dataset, expected, dataset_digest, [])
-        print("golden-seed-core: OK: Identitäten und Aktionen in PostgreSQL gesetzt")
+        print("golden-seed-core: OK: identities and actions set in PostgreSQL")
     elif arguments.command == "seed-twenty":
         dataset, _expected, _dataset_digest = load_fixture(fixture)
         twenty = TwentyClient()
@@ -1991,7 +1991,7 @@ async def run(arguments: argparse.Namespace) -> None:
             seed_twenty(twenty, dataset)
         finally:
             twenty.close()
-        print("golden-seed-twenty: OK: Companies und People über Data API gesetzt")
+        print("golden-seed-twenty: OK: companies and people set via Data API")
     elif arguments.command == "seed":
         value = await seed(fixture, arguments.pdf_directory.resolve())
         print(
@@ -2002,7 +2002,7 @@ async def run(arguments: argparse.Namespace) -> None:
         write_snapshot(await snapshot(fixture), arguments.output)
     else:
         await mutate(fixture)
-        print("golden-mutate: OK: vier reale Systeme absichtlich verändert")
+        print("golden-mutate: OK: four real systems changed on purpose")
 
 
 def main() -> int:

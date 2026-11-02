@@ -47,14 +47,14 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
 def load_dataset(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ContractFailure("Golden Dataset ist kein JSON-Objekt")
+        raise ContractFailure("Golden dataset is not a JSON object")
     return value
 
 
@@ -100,7 +100,7 @@ def error_signature(response: httpx.Response) -> tuple[int, str, str]:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Fehlervertrag")
+        raise ContractFailure("Error response has no stable error contract")
     return response.status_code, str(error.get("code")), str(error.get("message"))
 
 
@@ -140,7 +140,7 @@ async def assert_no_twenty_account() -> None:
     payload = response.json()
     exists = payload.get("data", {}).get("checkUserExists", {}).get("exists")
     if exists is not False:
-        raise ContractFailure("Akquisiteurin besitzt unerwartet ein Twenty-Konto")
+        raise ContractFailure("Acquirer unexpectedly has a Twenty account")
 
 
 async def exercise(
@@ -164,7 +164,7 @@ async def exercise(
             COMPANY_ANNA,
             COMPANY_SHARED,
         }:
-            raise ContractFailure("Annas Liste ist nicht exakt zeilenbegrenzt")
+            raise ContractFailure("Anna's list is not limited to exactly her rows")
 
         bernd_list = await get(client, list_path, bernd)
         bernd_list.raise_for_status()
@@ -173,14 +173,14 @@ async def exercise(
             COMPANY_BERND,
             COMPANY_SHARED,
         }:
-            raise ContractFailure("Bernds Liste ist nicht exakt zeilenbegrenzt")
+            raise ContractFailure("Bernd's list is not limited to exactly his rows")
 
         for admin_token in (klara, system):
             admin_list = await get(client, list_path, admin_token)
             admin_list.raise_for_status()
             if admin_list.json()["total"] != 4:
                 raise ContractFailure(
-                    "Aktions-/System-Admin sieht nicht alle zugeordneten Partner"
+                    "Action/system admin does not see all assigned partners"
                 )
 
         shared_path = f"{list_path}/company/{COMPANY_SHARED}"
@@ -191,7 +191,7 @@ async def exercise(
                 str(ANNA_ID),
                 str(BERND_ID),
             }:
-                raise ContractFailure("Gemeinsame Zuweisung ist nicht transparent")
+                raise ContractFailure("Shared assignment is not visible to both acquirers")
 
         anna_detail = await get(
             client,
@@ -200,7 +200,7 @@ async def exercise(
         )
         anna_detail.raise_for_status()
         if anna_detail.json()["assignedAcquirerIds"] != [str(ANNA_ID)]:
-            raise ContractFailure("Detail enthält aktionsfremde Zuweisungen")
+            raise ContractFailure("Detail contains assignments from another action")
 
         hidden_detail = await get(
             client,
@@ -213,7 +213,7 @@ async def exercise(
             anna,
         )
         if error_signature(hidden_detail) != error_signature(unknown_detail):
-            raise ContractFailure("Detailfehler verrät einen verborgenen Datensatz")
+            raise ContractFailure("Detail error reveals a hidden record")
 
         hidden_search = await get(
             client,
@@ -233,7 +233,7 @@ async def exercise(
             hidden_search.json()["total"] != 0
             or hidden_search.json() != empty_search.json()
         ):
-            raise ContractFailure("Suche oder Count verrät die verborgene Firma")
+            raise ContractFailure("Search or count reveals the hidden company")
 
         count = await get(
             client,
@@ -242,7 +242,7 @@ async def exercise(
         )
         count.raise_for_status()
         if count.json() != {"total": 2}:
-            raise ContractFailure("Count verwendet nicht denselben Scope")
+            raise ContractFailure("Count does not use the same scope")
 
         first_page = await get(
             client,
@@ -263,12 +263,12 @@ async def exercise(
             or second_page.json()["total"] != 2
             or item_ids(first_page.json()) & item_ids(second_page.json())
         ):
-            raise ContractFailure("Pagination oder Total ist nicht scope-stabil")
+            raise ContractFailure("Pagination or total is not stable within the scope")
 
         exported = await get(client, f"{list_path}/export", anna)
         exported.raise_for_status()
         if item_ids(exported.json()) != {COMPANY_ANNA, COMPANY_SHARED}:
-            raise ContractFailure("Export umgeht den Zeilen-Scope")
+            raise ContractFailure("Export bypasses the row scope")
 
         manipulated = await get(
             client,
@@ -277,7 +277,7 @@ async def exercise(
             params={"assigneeId": str(BERND_ID)},
         )
         if error_signature(manipulated)[:2] != (422, "request_invalid"):
-            raise ContractFailure("Manipulierte Assignee-ID wurde nicht abgewiesen")
+            raise ContractFailure("Manipulated assignee ID was not rejected")
 
         foreign = await get(
             client,
@@ -290,7 +290,7 @@ async def exercise(
             anna,
         )
         if error_signature(foreign) != error_signature(unknown_action):
-            raise ContractFailure("Aktionsfehler verrät eine fremde Aktion")
+            raise ContractFailure("Action error reveals a foreign action")
 
         activities = await get(
             client,
@@ -303,7 +303,7 @@ async def exercise(
             "a0000000-0000-4000-8000-000000000005" in activity_ids
             or activities.json()["total"] != 4
         ):
-            raise ContractFailure("Aktivitätsfeed enthält fremde Aktivität")
+            raise ContractFailure("Activity feed contains a foreign activity")
 
         hidden_document = await get(
             client,
@@ -316,7 +316,7 @@ async def exercise(
             anna,
         )
         if error_signature(hidden_document) != error_signature(unknown_document):
-            raise ContractFailure("Dokumentfehler verrät fremde Metadaten")
+            raise ContractFailure("Document error reveals foreign metadata")
         visible_document = await get(
             client,
             (f"/api/v1/actions/{ACTION_ID}/acquisition/documents/{ANNA_DOCUMENT}"),
@@ -336,11 +336,11 @@ async def exercise(
             ANNA_ASSIGNMENT,
         )
         if removed_assignment is None:
-            raise ContractFailure("Golden Assignment fehlt")
+            raise ContractFailure("Golden assignment is missing")
         after_assignment_removal = await get(client, list_path, anna)
         after_assignment_removal.raise_for_status()
         if item_ids(after_assignment_removal.json()) != {COMPANY_SHARED}:
-            raise ContractFailure("Assignment-Entzug wirkt nicht ohne Neuanmeldung")
+            raise ContractFailure("Assignment removal does not take effect without a new login")
         await connection.execute(
             """
             INSERT INTO acquisition_assignment (
@@ -367,10 +367,10 @@ async def exercise(
             ANNA_MEMBERSHIP,
         )
         if ended is not True:
-            raise ContractFailure("Golden Membership fehlt")
+            raise ContractFailure("Golden membership is missing")
         after_membership_removal = await get(client, list_path, anna)
         if error_signature(after_membership_removal) != error_signature(unknown_action):
-            raise ContractFailure("Membership-Entzug wirkt nicht ohne Neuanmeldung")
+            raise ContractFailure("Membership removal does not take effect without a new login")
         await connection.execute(
             """
             UPDATE action_membership
@@ -384,7 +384,7 @@ async def exercise(
         restored = await get(client, list_path, anna)
         restored.raise_for_status()
         if item_ids(restored.json()) != {COMPANY_ANNA, COMPANY_SHARED}:
-            raise ContractFailure("Golden Scope ließ sich nicht wiederherstellen")
+            raise ContractFailure("Golden scope could not be restored")
 
         bodies = " ".join(
             response.text
@@ -397,13 +397,13 @@ async def exercise(
             )
         )
         if require_env("TWENTY_INTEGRATION_API_KEY") in bodies:
-            raise ContractFailure("Twenty-Integrations-Key gelangte in API-Antwort")
+            raise ContractFailure("Twenty integration key leaked into an API response")
 
 
 async def run(dataset_path: Path) -> None:
     dataset = load_dataset(dataset_path)
     if len(dataset.get("assignments", [])) != 5:
-        raise ContractFailure("Golden Dataset enthält nicht fünf Zuweisungen")
+        raise ContractFailure("Golden dataset does not contain five assignments")
     await assert_no_twenty_account()
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
@@ -412,14 +412,14 @@ async def run(dataset_path: Path) -> None:
     finally:
         await connection.close()
     print(
-        "policy-contract: Listen, Suche, Counts, Export, Aktivität, Dokumente "
-        "und Sofortentzug real bewiesen"
+        "policy-contract: lists, search, counts, export, activity, documents "
+        "and immediate revocation proven for real"
     )
 
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Nutzung: contract.py DATASET_JSON", file=sys.stderr)
+        print("Usage: contract.py DATASET_JSON", file=sys.stderr)
         return 64
     try:
         asyncio.run(run(Path(sys.argv[1])))

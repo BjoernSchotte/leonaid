@@ -46,7 +46,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -111,16 +111,16 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
 def feed_items(payload: object) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
-        raise ContractFailure("Feed-Antwort ist kein Objekt")
+        raise ContractFailure("Feed response is not an object")
     items = payload.get("items")
     if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
-        raise ContractFailure("Feed-Antwort besitzt keine gültigen Einträge")
+        raise ContractFailure("Feed response has no valid entries")
     return items
 
 
@@ -152,12 +152,12 @@ async def create_order(
     )
     if response.status_code != 201:
         raise ContractFailure(
-            f"Öffentliche Bestellung {label} scheiterte: "
+            f"Public order {label} failed: "
             f"{response.status_code} {response.text}"
         )
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Bestellantwort ist kein Objekt")
+        raise ContractFailure("Order response is not an object")
     return UUID(str(payload["commitmentId"]))
 
 
@@ -184,7 +184,7 @@ async def assert_recipients(
         or event["twenty_person_id"] is not None
     ):
         raise ContractFailure(
-            "ActivityEvent referenziert Aktion oder CRM-Partei falsch"
+            "ActivityEvent references the wrong action or CRM party"
         )
     recipients = await connection.fetch(
         """
@@ -198,7 +198,7 @@ async def assert_recipients(
     if {row["user_id"] for row in recipients} != expected_recipients or any(
         row["read_at"] is not None for row in recipients
     ):
-        raise ContractFailure("ActivityEvent-Empfänger sind nicht fachlich exakt")
+        raise ContractFailure("ActivityEvent recipients are not exactly right for the domain")
     return UUID(str(event["id"]))
 
 
@@ -235,7 +235,7 @@ def assert_feed_item(
             and item.get("nextActionLabel") != "Kontakt und Bestellung abstimmen"
         )
     ):
-        raise ContractFailure("Feed-Eintrag erklärt Referenz oder Folgeaktion falsch")
+        raise ContractFailure("Feed entry explains reference or next action wrongly")
 
 
 async def get_feed(
@@ -254,10 +254,10 @@ async def get_feed(
     )
     response.raise_for_status()
     if response.headers.get("cache-control") != "private, no-store":
-        raise ContractFailure("Persönlicher Feed ist cachebar")
+        raise ContractFailure("Personal feed is cacheable")
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Feed-Antwort ist kein Objekt")
+        raise ContractFailure("Feed response is not an object")
     return payload
 
 
@@ -328,7 +328,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or anna.get("unreadCount") != 2
             or len(anna_items) != 2
         ):
-            raise ContractFailure("Exklusive und gemeinsame Feed-Sicht für Anna fehlt")
+            raise ContractFailure("Exclusive and shared feed view for Anna is missing")
         anna_by_party = {item["partyId"]: item for item in anna_items}
         assert_feed_item(
             anna_by_party[str(MUSTERWERK_ID)],
@@ -348,7 +348,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or bernd.get("unreadCount") != 1
             or len(bernd_items) != 1
         ):
-            raise ContractFailure("Gemeinsame Feed-Sicht für Bernd fehlt")
+            raise ContractFailure("Shared feed view for Bernd is missing")
         assert_feed_item(
             bernd_items[0],
             party_id=DOPPELKONTAKT_ID,
@@ -362,7 +362,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or klara.get("unreadCount") != 1
             or len(klara_items) != 1
         ):
-            raise ContractFailure("Unzugeordnete Bestellung fehlt im Admin-Feed")
+            raise ContractFailure("Unassigned order is missing in the admin feed")
         assert_feed_item(
             klara_items[0],
             party_id=FREIE_FIRMA_ID,
@@ -372,7 +372,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
 
         carla = await get_feed(api, token=tokens[CARLA_ID], label="carla")
         if carla.get("total") != 0 or feed_items(carla):
-            raise ContractFailure("Fremder Akquisiteur sieht Feed-Einträge")
+            raise ContractFailure("Unrelated acquirer sees feed entries")
 
         marked = await authenticated_request(
             api,
@@ -384,7 +384,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         marked.raise_for_status()
         if marked.json().get("isRead") is not True or not marked.json().get("readAt"):
-            raise ContractFailure("Gelesen-Status wurde nicht gespeichert")
+            raise ContractFailure("Read status was not saved")
         unread = await get_feed(
             api,
             token=tokens[ANNA_ID],
@@ -398,7 +398,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or len(unread_items) != 1
             or unread_items[0].get("partyId") != str(DOPPELKONTAKT_ID)
         ):
-            raise ContractFailure("Ungelesen-Filter oder Zähler ist falsch")
+            raise ContractFailure("Unread filter or counter is wrong")
 
         concealed = await authenticated_request(
             api,
@@ -411,7 +411,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         if concealed.status_code != 404 or error_code(concealed) != (
             "resource_not_found"
         ):
-            raise ContractFailure("Fremder Feed-Eintrag ist nicht verborgen")
+            raise ContractFailure("Unrelated feed entry is not hidden")
 
         reset = await authenticated_request(
             api,
@@ -426,7 +426,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             reset.json().get("isRead") is not False
             or reset.json().get("readAt") is not None
         ):
-            raise ContractFailure("Ungelesen-Status wurde nicht wiederhergestellt")
+            raise ContractFailure("Unread status was not restored")
 
         event_count = await connection.fetchval(
             """
@@ -442,12 +442,12 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             ],
         )
         if int(event_count) != 3:
-            raise ContractFailure("Lesestatus hat ActivityEvents gelöscht")
+            raise ContractFailure("Read status deleted ActivityEvents")
 
     print(
         "activity-feed-contract: OK:",
-        "exklusiv, gemeinsam und unzugeordnet adressiert;",
-        "gelesen/ungelesen sowie Fremdzugriff real bewiesen",
+        "exclusive, shared and unassigned addressing;",
+        "read/unread and foreign access proven for real",
     )
 
 

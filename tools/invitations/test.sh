@@ -20,7 +20,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "invitation-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "invitation-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -46,7 +46,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "invitation-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "invitation-test: diagnostics for the failed real services:" >&2
     diagnose
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
@@ -116,7 +116,7 @@ else
   session_mode=$(stat -f '%Lp' "$proof/sessions.env")
 fi
 if [ "$session_mode" != "600" ]; then
-  echo "invitation-test: ERROR: Sitzungsdatei hat nicht Modus 0600" >&2
+  echo "invitation-test: ERROR: session file does not have mode 0600" >&2
   exit 1
 fi
 
@@ -147,10 +147,10 @@ for screenshot in \
   email-change-admin.png \
   email-change-confirm-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "invitation-test: ERROR: Browser-Screenshot fehlt: $screenshot" >&2
+    echo "invitation-test: ERROR: browser screenshot missing: $screenshot" >&2
     exit 1
   fi
   cp "$proof/$screenshot" "$artifact_directory/"
 done
 
-echo "invitation-test: OK: Berechtigung, Link/Code und echte Mailzustellung bewiesen"
+echo "invitation-test: OK: permission, link/code and real mail delivery proven"

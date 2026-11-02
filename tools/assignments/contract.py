@@ -35,7 +35,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -98,7 +98,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -134,7 +134,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         if sorted(item.status_code for item in concurrent) != [200, 201]:
             raise ContractFailure(
-                "Konkurrierende Zuweisung war nicht idempotent: "
+                "Concurrent assignment was not idempotent: "
                 f"{[item.status_code for item in concurrent]}"
             )
         payloads = [item.json() for item in concurrent]
@@ -145,7 +145,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             bool(item["created"]) for item in payloads
         ) != [False, True]:
             raise ContractFailure(
-                "Konkurrierende Antworten zeigen nicht dieselbe Zuweisung"
+                "Concurrent responses do not show the same assignment"
             )
         carla_assignment_id = UUID(assignment_ids.pop())
         carla_count = await connection.fetchval(
@@ -169,7 +169,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             carla_assignment_id,
         )
         if carla_count != 1 or carla_history_count != 1:
-            raise ContractFailure("Konkurrenz erzeugte Duplikat oder doppelte Historie")
+            raise ContractFailure("Concurrency created a duplicate or duplicate history")
 
         bernd = await request(
             api,
@@ -184,11 +184,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             },
         )
         if bernd.status_code != 201 or bernd.json()["created"] is not True:
-            raise ContractFailure("Proaktive Admin-Zuweisung an Bernd fehlgeschlagen")
+            raise ContractFailure("Proactive admin assignment to Bernd failed")
         bernd_assignment_id = UUID(bernd.json()["assignment"]["id"])
         if bernd_assignment_id == carla_assignment_id:
             raise ContractFailure(
-                "Mehrere Akquisiteure teilen fälschlich eine Assignment-ID"
+                "Several acquirers wrongly share one assignment ID"
             )
 
         due_at = datetime(2026, 8, 3, 8, 30, tzinfo=timezone.utc)
@@ -216,7 +216,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or datetime.fromisoformat(str(updated_body["dueAt"]).replace("Z", "+00:00"))
             != due_at
         ):
-            raise ContractFailure("Arbeitsstatus wurde nicht vollständig aktualisiert")
+            raise ContractFailure("Work status was not fully updated")
 
         stale = await request(
             api,
@@ -236,7 +236,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             stale.status_code != 409
             or error_code(stale) != "assignment_revision_conflict"
         ):
-            raise ContractFailure("Veraltete Zuordnungsrevision wurde akzeptiert")
+            raise ContractFailure("Stale assignment revision was accepted")
 
         details = await request(
             api,
@@ -254,7 +254,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or history[1]["previousState"]["status"] != "open"
             or history[1]["newState"]["status"] != "contacted"
         ):
-            raise ContractFailure("Zuweisungs- und Statushistorie ist unvollständig")
+            raise ContractFailure("Assignment and status history is incomplete")
 
         handed_over = await request(
             api,
@@ -279,7 +279,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or handover_body["targetCreated"] is not True
         ):
             raise ContractFailure(
-                "Übergabe bewahrt Verantwortung und Wiedervorlage nicht"
+                "Handover does not keep ownership and follow-up"
             )
         anna_assignment_id = UUID(handover_body["target"]["id"])
 
@@ -292,7 +292,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         if concealed.status_code != 404:
             raise ContractFailure(
-                "Übergebene Zuordnung blieb für alte Persona sichtbar"
+                "Handed-over assignment stayed visible to the old persona"
             )
 
         admin_details = await request(
@@ -304,7 +304,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         admin_details.raise_for_status()
         if len(admin_details.json()["history"]) != 3:
-            raise ContractFailure("Übergabe fehlt in der Ausgangshistorie")
+            raise ContractFailure("Handover is missing in the source history")
 
         preview = await request(
             api,
@@ -321,7 +321,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         }
         if names != {"Anna Akquise", "Bernd Binder"}:
             raise ContractFailure(
-                f"Aktive Mitzuordnung zeigt falsche Namen: {sorted(names)}"
+                f"Active co-assignment shows wrong names: {sorted(names)}"
             )
 
         rows = await connection.fetch(
@@ -342,7 +342,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or sum(str(row["status"]) != "handed_over" for row in rows) != 2
         ):
             raise ContractFailure(
-                "Mehrfachzuordnung oder Übergabestatus ist inkonsistent"
+                "Multiple assignment or handover status is inconsistent"
             )
         target_history = await connection.fetchval(
             """
@@ -353,7 +353,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             anna_assignment_id,
         )
         if target_history != 1:
-            raise ContractFailure("Übergabe-Ziel besitzt keine initiale Historie")
+            raise ContractFailure("Handover target has no initial history")
 
         audit_count = await connection.fetchval(
             """
@@ -371,13 +371,13 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         if audit_count != 4:
             raise ContractFailure(
-                "Idempotente Zuweisungen/Aktualisierungen sind falsch auditiert"
+                "Idempotent assignments/updates are audited wrongly"
             )
 
         print(
             "assignment-contract: OK:",
-            "Konkurrenz, Mehrfachzuordnung, Admin-Zuweisung, Arbeitsstatus,",
-            "Revision, Übergabe, Sichtentzug, Historie und Audit bewiesen",
+            "concurrency, multiple assignment, admin assignment, work status,",
+            "revision, handover, visibility removal, history and audit proven",
         )
 
 

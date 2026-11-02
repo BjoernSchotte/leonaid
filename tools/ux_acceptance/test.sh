@@ -33,7 +33,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "ux-acceptance-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "ux-acceptance-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres pwa web public proxy twenty-server twenty-worker >&2 ||
@@ -66,7 +66,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "ux-acceptance-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "ux-acceptance-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -106,7 +106,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "ux-acceptance-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "ux-acceptance-test: ERROR: restricted Twenty key missing" >&2
   exit 1
 fi
 
@@ -163,7 +163,7 @@ for report in \
   ux-acquirer-accessibility.json \
   ux-public-accessibility.json; do
   if [ ! -s "$proof/$report" ]; then
-    echo "ux-acceptance-test: ERROR: Bericht fehlt: $report" >&2
+    echo "ux-acceptance-test: ERROR: report missing: $report" >&2
     exit 1
   fi
 done
@@ -173,7 +173,7 @@ for screenshot in \
   ux-acquirer-mobile.png \
   ux-public-order-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "ux-acceptance-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "ux-acceptance-test: ERROR: browser evidence missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -183,5 +183,5 @@ cp "$proof"/performance-report.json "$artifact_directory/"
 cp "$proof"/ux-*.json "$artifact_directory/"
 cp "$proof"/ux-*.png "$artifact_directory/"
 
-echo "ux-acceptance-test: OK: Admin, Akquisiteurin und Öffentlichkeit,"
-echo "ux-acceptance-test:     Keyboard, Screenreader, 200 %, A11y und Performance bewiesen"
+echo "ux-acceptance-test: OK: admin, acquirer and public,"
+echo "ux-acceptance-test:     keyboard, screen reader, 200 %, a11y and performance proven"

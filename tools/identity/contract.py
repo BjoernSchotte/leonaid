@@ -46,7 +46,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -105,21 +105,21 @@ def require_identity(
 ) -> dict[str, Any]:
     if response.status_code != 200:
         raise ContractFailure(
-            f"Identitätsabfrage für {display_name} lieferte "
+            f"identity request for {display_name} returned "
             f"HTTP {response.status_code}: {response.text[:300]}"
         )
     payload = response.json()
     if not isinstance(payload, dict) or payload.get("displayName") != display_name:
-        raise ContractFailure(f"Identitätsantwort für {display_name} ist ungültig")
+        raise ContractFailure(f"identity response for {display_name} is invalid")
     if response.headers.get("cache-control") != "no-store":
-        raise ContractFailure("Identitätsantwort ist nicht gegen Caching geschützt")
+        raise ContractFailure("identity response is not protected against caching")
     return payload
 
 
 def navigation_keys(payload: dict[str, Any], surface: str) -> set[str]:
     navigation = payload.get("navigation")
     if not isinstance(navigation, list):
-        raise ContractFailure("Identitätsantwort enthält keine Navigation")
+        raise ContractFailure("identity response contains no navigation")
     return {
         str(item["key"])
         for item in navigation
@@ -138,7 +138,7 @@ def require_http(
         )
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure(f"{message}: Antwort ist kein Objekt")
+        raise ContractFailure(f"{message}: response is not an object")
     return payload
 
 
@@ -166,7 +166,7 @@ async def prove_role_administration(
                 cookies=system_cookies,
             ),
             200,
-            "Mitgliedsrevision konnte nicht geladen werden",
+            "member revision could not be loaded",
         )
         return int(payload["revision"])
 
@@ -192,7 +192,7 @@ async def prove_role_administration(
                 json={"enabled": enabled, "expectedRevision": revision},
             ),
             expected_status,
-            f"Globale Rollenänderung {role.value}",
+            f"global role change {role.value}",
         )
         if expected_status == 200:
             successful_commands.add(command_id)
@@ -224,7 +224,7 @@ async def prove_role_administration(
                 json={"enabled": enabled, "expectedRevision": revision},
             ),
             expected_status,
-            f"Aktionsrollenänderung {role.value}",
+            f"action role change {role.value}",
         )
         if expected_status == 200:
             successful_commands.add(command_id)
@@ -256,7 +256,7 @@ async def prove_role_administration(
             expected_status=401,
         )
         if stale.get("error", {}).get("code") != "fresh_login_required":
-            raise ContractFailure("Rollenänderung akzeptierte veraltetes Fresh Login")
+            raise ContractFailure("role change accepted a stale fresh login")
 
         forbidden_global = await change_global_role(
             client,
@@ -270,7 +270,7 @@ async def prove_role_administration(
         )
         if forbidden_global.get("error", {}).get("code") != "system_admin_required":
             raise ContractFailure(
-                "Charity-Admin erhielt für globale Rolle keinen klaren Scopefehler"
+                "charity admin got no clear scope error for a global role"
             )
         forbidden_foreign = await change_action_role(
             client,
@@ -288,7 +288,7 @@ async def prove_role_administration(
             != "role_action_scope_forbidden"
         ):
             raise ContractFailure(
-                "Charity-Admin erhielt für fremde Aktion keinen klaren Scopefehler"
+                "charity admin got no clear scope error for a foreign action"
             )
 
         finance_grant_id = "pilot012:charity:finance-grant"
@@ -316,7 +316,7 @@ async def prove_role_administration(
             finance_grant.get("replayed") is not False
             or finance_replay.get("replayed") is not True
         ):
-            raise ContractFailure("Aktionsrollenänderung ist nicht idempotent")
+            raise ContractFailure("action role change is not idempotent")
 
         anna_with_finance = require_identity(
             await identity_response(client, tokens["ANNA_OLD_SESSION"]),
@@ -324,7 +324,7 @@ async def prove_role_administration(
         )
         if "invoices" not in navigation_keys(anna_with_finance, "web"):
             raise ContractFailure(
-                "Finanzrolle wirkte nicht im nächsten Navigationsrequest"
+                "finance role did not take effect in the next navigation request"
             )
         for path in (
             f"/api/v1/actions/{ACTIVE_ACTION_ID}/invoices",
@@ -332,7 +332,7 @@ async def prove_role_administration(
         ):
             if (await client.get(path, cookies=anna_cookies)).status_code != 200:
                 raise ContractFailure(
-                    "Finanzrolle wirkte nicht im nächsten Rechnungs-/Dokumentrequest"
+                    "finance role did not take effect in the next invoice/document request"
                 )
 
         finance_revoke = await change_action_role(
@@ -351,7 +351,7 @@ async def prove_role_administration(
         )
         if "invoices" in navigation_keys(anna_without_finance, "web"):
             raise ContractFailure(
-                "Entzogene Finanzrolle blieb im nächsten Navigationsrequest wirksam"
+                "revoked finance role stayed effective in the next navigation request"
             )
         for path in (
             f"/api/v1/actions/{ACTIVE_ACTION_ID}/invoices",
@@ -362,7 +362,7 @@ async def prove_role_administration(
                 "code"
             ) not in {"invoice_read_required", "document_download_required"}:
                 raise ContractFailure(
-                    "Entzogene Finanzrolle blieb für Rechnungen/Dokumente wirksam"
+                    "revoked finance role stayed effective for invoices/documents"
                 )
 
         async with pool.acquire() as connection:
@@ -403,7 +403,7 @@ async def prove_role_administration(
                 ),
             )
         if membership_before is None or membership_before["active_until"] is not None:
-            raise ContractFailure("Golden-Akquisiteur-Membership fehlt")
+            raise ContractFailure("golden acquirer membership missing")
 
         acquirer_revoke = await change_action_role(
             client,
@@ -421,7 +421,7 @@ async def prove_role_administration(
         )
         if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"}:
             raise ContractFailure(
-                "Membership-Entzug wirkte nicht im nächsten PWA-Request"
+                "membership revocation did not take effect in the next PWA request"
             )
         async with pool.acquire() as connection:
             membership_after = await connection.fetchrow(
@@ -468,7 +468,7 @@ async def prove_role_administration(
             or association_counts_after != association_counts_before
         ):
             raise ContractFailure(
-                "Membership-Entzug löschte historische Fachzuordnungen"
+                "membership revocation deleted historical domain assignments"
             )
         acquirer_restore = await change_action_role(
             client,
@@ -496,7 +496,7 @@ async def prove_role_administration(
             display_name="Anna Akquise",
         )
         if "delivery" not in navigation_keys(anna_with_driver, "pwa"):
-            raise ContractFailure("Ausfahrerrolle wirkte nicht im nächsten Request")
+            raise ContractFailure("driver role did not take effect in the next request")
         await change_action_role(
             client,
             cookies=system_cookies,
@@ -524,7 +524,7 @@ async def prove_role_administration(
         )
         if "system" not in navigation_keys(klara_as_system, "web"):
             raise ContractFailure(
-                "System-Admin-Rolle wirkte nicht im nächsten Navigationsrequest"
+                "system admin role did not take effect in the next navigation request"
             )
         full_directory = require_http(
             await client.get(
@@ -533,11 +533,11 @@ async def prove_role_administration(
                 cookies=klara_cookies,
             ),
             200,
-            "Globale Mitgliederliste",
+            "global member list",
         )
         if full_directory.get("partial") is not False:
             raise ContractFailure(
-                "System-Admin-Rolle wirkte nicht auf die nächste Listenabfrage"
+                "system admin role did not take effect on the next list query"
             )
         privacy_export = await client.post(
             "/api/v1/admin/privacy/exports",
@@ -546,7 +546,7 @@ async def prove_role_administration(
         )
         if privacy_export.status_code != 200:
             raise ContractFailure(
-                "System-Admin-Rolle wirkte nicht auf den nächsten Exportrequest"
+                "system admin role did not take effect on the next export request"
             )
         await change_global_role(
             client,
@@ -563,7 +563,7 @@ async def prove_role_administration(
         )
         if "system" in navigation_keys(klara_after_system, "web"):
             raise ContractFailure(
-                "Entzogene System-Admin-Rolle blieb im nächsten Request wirksam"
+                "revoked system admin role stayed effective in the next request"
             )
         partial_directory = require_http(
             await client.get(
@@ -572,11 +572,11 @@ async def prove_role_administration(
                 cookies=klara_cookies,
             ),
             200,
-            "Aktionsbezogene Mitgliederliste",
+            "action-scoped member list",
         )
         if partial_directory.get("partial") is not True:
             raise ContractFailure(
-                "Entzogene System-Admin-Rolle blieb auf Listen wirksam"
+                "revoked system admin role stayed effective on lists"
             )
         denied_export = await client.post(
             "/api/v1/admin/privacy/exports",
@@ -589,7 +589,7 @@ async def prove_role_administration(
             != "system_admin_required"
         ):
             raise ContractFailure(
-                "Entzogene System-Admin-Rolle blieb auf Export wirksam"
+                "revoked system admin role stayed effective on export"
             )
 
         anna_revision = await member_revision(client, ANNA_ID)
@@ -627,7 +627,7 @@ async def prove_role_administration(
         )
         if stale_scope.get("error", {}).get("code") != "role_action_scope_forbidden":
             raise ContractFailure(
-                "Entzogene Charity-Admin-Rolle wirkte noch im nächsten Request"
+                "revoked charity admin role still took effect in the next request"
             )
         klara_restore = await change_action_role(
             client,
@@ -665,7 +665,7 @@ async def prove_role_administration(
             != "last_charity_admin_role_forbidden"
         ):
             raise ContractFailure(
-                "Letzter Charity-Admin lieferte keinen verständlichen Konflikt"
+                "last charity admin did not return a clear conflict"
             )
 
         finn_revision = await member_revision(client, FINN_ID)
@@ -700,7 +700,7 @@ async def prove_role_administration(
         )
         if sorted(item[2].status_code for item in concurrent_results) != [200, 409]:
             raise ContractFailure(
-                "Widersprüchliche Rollenänderungen gewannen nicht exakt einmal"
+                "conflicting role changes did not win exactly once"
             )
         winning_role, winning_id, winning_response = next(
             item for item in concurrent_results if item[2].status_code == 200
@@ -716,7 +716,7 @@ async def prove_role_administration(
             or winning_payload.get("revision") != finn_revision + 1
         ):
             raise ContractFailure(
-                "Rollen-Revision löste Konkurrenz nicht verständlich auf"
+                "role revision did not resolve concurrency clearly"
             )
         losing_grant = await change_global_role(
             client,
@@ -785,8 +785,8 @@ async def prove_role_administration(
         or any("email" in str(row["payload"]).casefold() for row in audit_rows)
     ):
         raise ContractFailure(
-            "Rollenänderungen besitzen keine exakten, PII-freien Audit-/"
-            "Idempotenzbelege oder lösten unerwartete E-Mail-Effekte aus"
+            "role changes lack exact, PII-free audit/"
+            "idempotency records or triggered unexpected email effects"
         )
 
 
@@ -854,7 +854,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or "system" not in navigation_keys(system_payload, "web")
             ):
                 raise ContractFailure(
-                    "globale Systemrolle ist nicht sauber von Aktionen getrennt"
+                    "global system role is not cleanly separated from actions"
                 )
             klara_memberships = klara_payload.get("actionMemberships")
             if (
@@ -865,7 +865,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or "members" not in navigation_keys(klara_payload, "web")
             ):
                 raise ContractFailure(
-                    "aktionsbezogene Charity-Admin-Sicht ist nicht korrekt"
+                    "action-scoped charity admin view is incorrect"
                 )
             if navigation_keys(anna_payload, "pwa") != {
                 "overview-pwa",
@@ -873,14 +873,14 @@ async def run(arguments: argparse.Namespace) -> None:
                 "activities",
                 "commitment",
             } or navigation_keys(anna_payload, "web") != {"surveys"}:
-                raise ContractFailure("Akquisiteur-Navigation enthält falsche Bereiche")
+                raise ContractFailure("acquirer navigation contains wrong areas")
 
             suspended = await identity_response(client, tokens["GESA_SESSION"])
             if (
                 suspended.status_code != 401
                 or suspended.json().get("error", {}).get("code") != "session_invalid"
             ):
-                raise ContractFailure("gesperrtes Golden-Konto erhielt Zugriff")
+                raise ContractFailure("suspended golden account got access")
 
             email_attempt = await client.patch(
                 "/api/v1/identity/me",
@@ -889,7 +889,7 @@ async def run(arguments: argparse.Namespace) -> None:
             )
             if email_attempt.status_code != 405:
                 raise ContractFailure(
-                    "Login-E-Mail besitzt unerwartet einen Self-Service"
+                    "login email unexpectedly has a self-service path"
                 )
 
         system_identity = await repository.principal_for_session(
@@ -901,7 +901,7 @@ async def run(arguments: argparse.Namespace) -> None:
             now=now,
         )
         if system_identity is None or klara_identity is None:
-            raise ContractFailure("reale Admin-Principals konnten nicht geladen werden")
+            raise ContractFailure("real admin principals could not be loaded")
         system = system_identity.principal
         klara = klara_identity.principal
 
@@ -918,7 +918,7 @@ async def run(arguments: argparse.Namespace) -> None:
         except PermissionDenied:
             pass
         else:
-            raise ContractFailure("Charity-Admin durfte globale Rolle vergeben")
+            raise ContractFailure("charity admin was allowed to grant a global role")
 
         klara_revision = int(
             await pool.fetchval(
@@ -936,7 +936,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:global-role:grant",
         )
         if not global_grant.enabled:
-            raise ContractFailure("globale Rolle wurde nicht hinzugefügt")
+            raise ContractFailure("global role was not added")
         global_replay = await administration.add_global_role(
             system,
             KLARA_ID,
@@ -947,7 +947,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:global-role:grant:replay",
         )
         if not global_replay.replayed:
-            raise ContractFailure("globale Rollenänderung ist nicht wiederholbar")
+            raise ContractFailure("global role change is not repeatable")
 
         membership_grant = await administration.add_action_membership(
             system,
@@ -960,7 +960,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:membership:grant",
         )
         if not membership_grant.enabled:
-            raise ContractFailure("zweite Aktionsrolle wurde nicht hinzugefügt")
+            raise ContractFailure("second action role was not added")
         membership_replay = await administration.add_action_membership(
             system,
             KLARA_ID,
@@ -972,7 +972,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:membership:grant:replay",
         )
         if not membership_replay.replayed:
-            raise ContractFailure("Aktionsrollenänderung ist nicht wiederholbar")
+            raise ContractFailure("action role change is not repeatable")
 
         klara_identity_with_roles = await repository.principal_for_session(
             hashlib.sha256(tokens["KLARA_SESSION"].encode()).hexdigest(),
@@ -980,7 +980,7 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         if klara_identity_with_roles is None:
             raise ContractFailure(
-                "Klaras aktualisierte Rollen konnten nicht geladen werden"
+                "Klara's updated roles could not be loaded"
             )
         klara_with_roles = klara_identity_with_roles.principal
         if (
@@ -990,7 +990,7 @@ async def run(arguments: argparse.Namespace) -> None:
             != frozenset({ActionRole.FINANCE_READER})
         ):
             raise ContractFailure(
-                "mehrere globale/Aktionsrollen wurden nicht getrennt persistiert"
+                "multiple global/action roles were not persisted separately"
             )
 
         async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
@@ -1005,7 +1005,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or system_page.headers.get("cache-control") != "no-store"
             ):
                 raise ContractFailure(
-                    "System-Admin-Mitgliederliste ist nicht sicher erreichbar"
+                    "system admin member list is not reachable securely"
                 )
             system_payload = system_page.json()
             first_items = system_payload.get("items")
@@ -1019,7 +1019,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or not isinstance(next_cursor, str)
             ):
                 raise ContractFailure(
-                    "System-Admin-Sortierung oder Cursor-Seite ist inkorrekt"
+                    "system admin sorting or cursor page is incorrect"
                 )
             second_page = await client.get(
                 "/api/v1/admin/members",
@@ -1029,7 +1029,7 @@ async def run(arguments: argparse.Namespace) -> None:
             if second_page.status_code != 200 or [
                 item.get("displayName") for item in second_page.json().get("items", [])
             ] != ["Felix Fremd", "Finn Finanzen", "Gesa Gesperrt"]:
-                raise ContractFailure("zweite Cursor-Seite ist inkorrekt")
+                raise ContractFailure("second cursor page is incorrect")
 
             suspended = await client.get(
                 "/api/v1/admin/members",
@@ -1061,7 +1061,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 != ["Anna Akquise"]
             ):
                 raise ContractFailure(
-                    "Mitgliedersuche, Status- oder Aktionsfilter ist inkorrekt"
+                    "member search, status filter or action filter is incorrect"
                 )
 
             system_detail = await client.get(
@@ -1074,7 +1074,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or system_detail_payload.get("globalRoles") != ["finance_reader"]
                 or len(system_detail_payload.get("actionMemberships", [])) != 3
             ):
-                raise ContractFailure("System-Admin-Detail enthält nicht alle Rollen")
+                raise ContractFailure("system admin detail does not contain all roles")
 
             klara_cookies = {"__Host-leonaid_session": tokens["KLARA_SESSION"]}
             klara_page = await client.get(
@@ -1107,7 +1107,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 )
             ):
                 raise ContractFailure(
-                    "Charity-Admin-Row-Level-Sicht oder Rollenredaktion ist inkorrekt"
+                    "charity admin row-level view or role redaction is incorrect"
                 )
             klara_detail = await client.get(
                 f"/api/v1/admin/members/{KLARA_ID}",
@@ -1119,7 +1119,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or len(klara_detail.json().get("actionMemberships", [])) != 2
             ):
                 raise ContractFailure(
-                    "Charity-Admin-Detail redigiert den Fremdscope nicht"
+                    "charity admin detail does not redact the foreign scope"
                 )
             forbidden_action = await client.get(
                 "/api/v1/admin/members",
@@ -1131,16 +1131,16 @@ async def run(arguments: argparse.Namespace) -> None:
                 cookies=klara_cookies,
             )
             if forbidden_action.status_code != 403:
-                raise ContractFailure("Charity-Admin durfte fremde Aktion filtern")
+                raise ContractFailure("charity admin was allowed to filter by a foreign action")
             if concealed_member.status_code != 404:
                 raise ContractFailure(
-                    "fremdes Mitglied wurde nicht als unbekannt verborgen"
+                    "foreign member was not hidden as unknown"
                 )
 
             public_denied = await client.get("/api/v1/admin/members")
             if public_denied.status_code != 401:
                 raise ContractFailure(
-                    "öffentliche Persona erhielt Mitgliederlisten-Zugriff"
+                    "public persona got member list access"
                 )
 
             for persona, token in (
@@ -1156,7 +1156,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     or denied.json().get("error", {}).get("code")
                     != "member_directory_forbidden"
                 ):
-                    raise ContractFailure(f"{persona} erhielt Mitgliederlisten-Zugriff")
+                    raise ContractFailure(f"{persona} got member list access")
 
         membership_revoke = await administration.add_action_membership(
             system,
@@ -1169,7 +1169,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:membership:revoke",
         )
         if membership_revoke.enabled:
-            raise ContractFailure("temporäre Aktionsrolle wurde nicht entfernt")
+            raise ContractFailure("temporary action role was not removed")
         global_revoke = await administration.add_global_role(
             system,
             KLARA_ID,
@@ -1180,7 +1180,7 @@ async def run(arguments: argparse.Namespace) -> None:
             request_id="poc040:global-role:revoke",
         )
         if global_revoke.enabled:
-            raise ContractFailure("temporäre globale Rolle wurde nicht entfernt")
+            raise ContractFailure("temporary global role was not removed")
 
         await prove_role_administration(pool, base_url=base_url, tokens=tokens)
 
@@ -1200,13 +1200,13 @@ async def run(arguments: argparse.Namespace) -> None:
             )
             if anna_detail.status_code != 200:
                 raise ContractFailure(
-                    "Anna konnte nicht für Statusänderung geladen werden"
+                    "Anna could not be loaded for the status change"
                 )
             anna_payload = anna_detail.json()
             anna_revision = int(anna_payload["revision"])
             if int(anna_payload["activeSessionCount"]) != 2:
                 raise ContractFailure(
-                    "Integrationstest besitzt nicht exakt zwei aktive Anna-Sitzungen"
+                    "integration test does not have exactly two active Anna sessions"
                 )
 
             stale_change = await client.patch(
@@ -1227,8 +1227,8 @@ async def run(arguments: argparse.Namespace) -> None:
                 != "fresh_login_required"
             ):
                 raise ContractFailure(
-                    "Statusänderung akzeptierte veraltetes Fresh Login nicht "
-                    f"korrekt: HTTP {stale_change.status_code} "
+                    "status change did not handle a stale fresh login "
+                    f"correctly: HTTP {stale_change.status_code} "
                     f"{stale_change.text[:300]}"
                 )
 
@@ -1245,7 +1245,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 },
             )
             if forbidden_change.status_code != 403:
-                raise ContractFailure("Charity-Admin durfte Kontostatus ändern")
+                raise ContractFailure("charity admin was allowed to change account status")
 
             self_change = await client.patch(
                 f"/api/v1/admin/members/{SYSTEM_ID}/status",
@@ -1261,7 +1261,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or self_change.json().get("error", {}).get("code")
                 != "account_self_status_change_forbidden"
             ):
-                raise ContractFailure("System-Admin konnte sich selbst sperren")
+                raise ContractFailure("system admin was able to suspend themselves")
 
             suspend_body = {
                 "status": "suspended",
@@ -1279,7 +1279,7 @@ async def run(arguments: argparse.Namespace) -> None:
             )
             if suspended.status_code != 200:
                 raise ContractFailure(
-                    f"Sperren lieferte HTTP {suspended.status_code}: "
+                    f"suspension returned HTTP {suspended.status_code}: "
                     f"{suspended.text[:300]}"
                 )
             suspended_payload = suspended.json()
@@ -1289,7 +1289,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or suspended_payload.get("revision") != anna_revision + 1
                 or suspended_payload.get("replayed") is not False
             ):
-                raise ContractFailure("Sperrantwort besitzt falschen atomaren Beleg")
+                raise ContractFailure("suspension response has a wrong atomic record")
 
             replay = await client.patch(
                 f"/api/v1/admin/members/{ANNA_ID}/status",
@@ -1299,7 +1299,7 @@ async def run(arguments: argparse.Namespace) -> None:
             )
             if replay.status_code != 200 or replay.json().get("replayed") is not True:
                 raise ContractFailure(
-                    "Statusänderung ist nicht idempotent wiederholbar"
+                    "status change is not idempotently repeatable"
                 )
 
             for token in (
@@ -1309,7 +1309,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 denied = await identity_response(client, token)
                 if denied.status_code != 401:
                     raise ContractFailure(
-                        "bestehende Sitzung blieb nach Suspendierung wirksam"
+                        "existing session stayed effective after suspension"
                     )
 
             async with pool.acquire() as status_connection:
@@ -1331,7 +1331,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     )
                 )
             if active_sessions != 0:
-                raise ContractFailure("PostgreSQL enthält aktive Anna-Sitzungen")
+                raise ContractFailure("PostgreSQL contains active Anna sessions")
 
             login_request = await client.post(
                 "/api/v1/auth/login",
@@ -1339,7 +1339,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 json={"email": "anna.akquise@leonaid.invalid"},
             )
             if login_request.status_code != 202:
-                raise ContractFailure("Login-Anfrage verrät den gesperrten Kontostatus")
+                raise ContractFailure("login request reveals the suspended account status")
             async with pool.acquire() as status_connection:
                 challenges_after = int(
                     await status_connection.fetchval(
@@ -1348,7 +1348,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     )
                 )
             if challenges_after != challenges_before:
-                raise ContractFailure("Gesperrtes Konto erhielt eine Login-Challenge")
+                raise ContractFailure("suspended account got a login challenge")
 
             reactivated = await client.patch(
                 f"/api/v1/admin/members/{ANNA_ID}/status",
@@ -1367,7 +1367,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or reactivated.json().get("status") != "active"
                 or reactivated.json().get("revokedSessionCount") != 0
             ):
-                raise ContractFailure("Reaktivierung wurde nicht persistiert")
+                raise ContractFailure("reactivation was not persisted")
             for token in (
                 tokens["ANNA_OLD_SESSION"],
                 tokens["ANNA_SECOND_SESSION"],
@@ -1375,7 +1375,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 still_denied = await identity_response(client, token)
                 if still_denied.status_code != 401:
                     raise ContractFailure(
-                        "widerrufene alte Sitzung lebte nach Reaktivierung wieder auf"
+                        "revoked old session came back after reactivation"
                     )
 
             bernd_detail = await client.get(
@@ -1383,7 +1383,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 cookies=system_cookies,
             )
             if bernd_detail.status_code != 200:
-                raise ContractFailure("Concurrency-Konto konnte nicht geladen werden")
+                raise ContractFailure("concurrency account could not be loaded")
             bernd_revision = int(bernd_detail.json()["revision"])
 
             async def conflicting_status(
@@ -1415,14 +1415,14 @@ async def run(arguments: argparse.Namespace) -> None:
             )
             if sorted(response.status_code for response in conflicts) != [200, 409]:
                 raise ContractFailure(
-                    "Widersprüchliche Statusänderungen gewannen nicht exakt einmal"
+                    "conflicting status changes did not win exactly once"
                 )
             winning_response = next(
                 response for response in conflicts if response.status_code == 200
             )
             winning_payload = winning_response.json()
             if winning_payload.get("revision") != bernd_revision + 1:
-                raise ContractFailure("Concurrency-Sieger erhöhte Revision nicht exakt")
+                raise ContractFailure("concurrency winner did not increase the revision exactly")
             if winning_payload.get("status") == "suspended":
                 restored = await client.patch(
                     f"/api/v1/admin/members/{BERND_ID}/status",
@@ -1438,7 +1438,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 )
                 if restored.status_code != 200:
                     raise ContractFailure(
-                        "Concurrency-Test konnte Bernd nicht reaktivieren"
+                        "concurrency test could not reactivate Bernd"
                     )
 
             async with pool.acquire() as archive_connection:
@@ -1494,7 +1494,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 archived.status_code != 200
                 or archived.json().get("status") != "archived"
             ):
-                raise ContractFailure("Archivierung wurde nicht persistiert")
+                raise ContractFailure("archiving was not persisted")
             async with pool.acquire() as archive_connection:
                 archive_after = {
                     "memberships": int(
@@ -1529,7 +1529,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 }
             if archive_after != archive_before:
                 raise ContractFailure(
-                    "Archivierung veränderte historische Fachzuordnungen"
+                    "archiving changed historical domain assignments"
                 )
 
         async with pool.acquire() as status_connection:
@@ -1555,10 +1555,10 @@ async def run(arguments: argparse.Namespace) -> None:
         except Conflict as error:
             if error.code != "last_system_admin_archival_forbidden":
                 raise ContractFailure(
-                    f"Letzter System-Admin lieferte falschen Konflikt: {error.code}"
+                    f"last system admin returned the wrong conflict: {error.code}"
                 ) from error
         else:
-            raise ContractFailure("Letzter aktiver System-Admin wurde archiviert")
+            raise ContractFailure("last active system admin was archived")
 
         connection = await asyncpg.connect(database_url, timeout=10)
         try:
@@ -1603,7 +1603,7 @@ async def run(arguments: argparse.Namespace) -> None:
         finally:
             await connection.close()
         if current_anna_email != original_anna_email:
-            raise ContractFailure("Login-E-Mail wurde verändert")
+            raise ContractFailure("login email was changed")
         event_types = [str(row["event_type"]) for row in audit_rows]
         if sorted(event_types) != sorted(
             [
@@ -1613,9 +1613,9 @@ async def run(arguments: argparse.Namespace) -> None:
                 "identity.action_membership.revoked",
             ]
         ):
-            raise ContractFailure(f"AuditEvents sind unvollständig: {event_types}")
+            raise ContractFailure(f"AuditEvents are incomplete: {event_types}")
         if any("email" in str(row["payload"]).casefold() for row in audit_rows):
-            raise ContractFailure("AuditEvent enthält unerwartet eine E-Mail")
+            raise ContractFailure("AuditEvent unexpectedly contains an email")
         expected_status_events = (
             5 if winning_payload.get("status") == "suspended" else 4
         )
@@ -1624,7 +1624,7 @@ async def run(arguments: argparse.Namespace) -> None:
             or pilot_status_receipts != expected_status_events
         ):
             raise ContractFailure(
-                "Statusänderungen besitzen nicht je einen Audit- und Idempotenzbeleg"
+                "status changes do not each have one audit and one idempotency record"
             )
         for row in pilot_status_audit_rows:
             payload = str(row["payload"])
@@ -1634,7 +1634,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 or "revision" not in payload
                 or "email" in payload.casefold()
             ):
-                raise ContractFailure("Status-Audit ist unvollständig oder enthält PII")
+                raise ContractFailure("status audit is incomplete or contains PII")
 
         output = arguments.session_output.resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -1660,8 +1660,8 @@ async def run(arguments: argparse.Namespace) -> None:
         await pool.close()
 
     print(
-        "identity-contract: Rollen, Statusrevision, Idempotenz, Konkurrenz, "
-        "Archivtreue und sofortiger Sitzungsentzug real bewiesen"
+        "identity-contract: roles, status revision, idempotency, concurrency, "
+        "archive integrity and immediate session revocation proven against real services"
     )
 
 

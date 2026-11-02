@@ -37,14 +37,14 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
 def error_code(response: httpx.Response) -> str:
     payload = response.json()
     if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("error response has no stable contract")
     return str(payload["error"].get("code"))
 
 
@@ -53,7 +53,7 @@ def session_from(response: httpx.Response) -> str:
     cookie.load(response.headers.get("set-cookie", ""))
     value = cookie.get(SESSION_COOKIE_NAME)
     if value is None:
-        raise ContractFailure("Login setzt kein Sitzungs-Cookie")
+        raise ContractFailure("login sets no session cookie")
     return value.value
 
 
@@ -107,7 +107,7 @@ async def prove() -> None:
     ) as client:
         health = await client.get("/api/health/live")
         if health.status_code != 200:
-            raise ContractFailure("Proxy-Health-Endpunkt ist nicht erreichbar")
+            raise ContractFailure("proxy health endpoint is not reachable")
         expected_headers = {
             "content-security-policy",
             "permissions-policy",
@@ -117,7 +117,7 @@ async def prove() -> None:
             "x-frame-options",
         }
         if not expected_headers.issubset(health.headers):
-            raise ContractFailure("Security-Header fehlen am echten TLS-Proxy")
+            raise ContractFailure("security headers missing at the real TLS proxy")
 
         allowed = await client.options(
             "/api/v1/auth/login",
@@ -140,7 +140,7 @@ async def prove() -> None:
             or denied.status_code != 403
             or error_code(denied) != "cors_origin_rejected"
         ):
-            raise ContractFailure("CORS-Allowlist wird nicht strikt erzwungen")
+            raise ContractFailure("CORS allowlist is not strictly enforced")
 
         fixed = "attacker-controlled-session-value-that-must-not-survive"
         login = await client.post(
@@ -149,16 +149,16 @@ async def prove() -> None:
             json={"email": ADMIN_EMAIL, "code": code.value},
         )
         if login.status_code != 200:
-            raise ContractFailure(f"Vorbereiteter echter Login scheitert: {login.text}")
+            raise ContractFailure(f"prepared real login fails: {login.text}")
         session = session_from(login)
         if session == fixed:
-            raise ContractFailure("Login übernimmt ein vorgegebenes Sitzungs-Token")
+            raise ContractFailure("login accepts a preset session token")
         identity = await client.get(
             "/api/v1/identity/me",
             headers={"Cookie": f"{SESSION_COOKIE_NAME}={session}"},
         )
         if identity.status_code != 200:
-            raise ContractFailure("Neu rotierte Sitzung ist nicht verwendbar")
+            raise ContractFailure("newly rotated session is not usable")
 
         cross_site = await client.post(
             "/api/v1/auth/logout",
@@ -170,13 +170,13 @@ async def prove() -> None:
             },
         )
         if cross_site.status_code != 403 or error_code(cross_site) != "csrf_rejected":
-            raise ContractFailure("Cross-Site-Sitzungsmutation wird nicht abgewehrt")
+            raise ContractFailure("cross-site session mutation is not blocked")
         still_active = await client.get(
             "/api/v1/identity/me",
             headers={"Cookie": f"{SESSION_COOKIE_NAME}={session}"},
         )
         if still_active.status_code != 200:
-            raise ContractFailure("Abgewiesener CSRF-Versuch verändert die Sitzung")
+            raise ContractFailure("rejected CSRF attempt changes the session")
 
         foreign_action = await connection.fetchval(
             """
@@ -193,13 +193,13 @@ async def prove() -> None:
             ADMIN_ID,
         )
         if foreign_action is None:
-            raise ContractFailure("Golden Data enthält keine fremde Charity-Aktion")
+            raise ContractFailure("Golden Data has no foreign charity action")
         horizontal = await client.get(
             f"/api/v1/actions/{foreign_action}",
             headers={"Cookie": f"{SESSION_COOKIE_NAME}={session}"},
         )
         if horizontal.status_code not in {403, 404}:
-            raise ContractFailure("Fremde Charity-Aktion ist horizontal abrufbar")
+            raise ContractFailure("foreign charity action is readable horizontally")
 
         options = await client.get(
             "/api/v1/invitations/options",
@@ -231,7 +231,7 @@ async def prove() -> None:
         ]
         if invitation_statuses[:10] != [202] * 10 or invitation_statuses[10] != 429:
             raise ContractFailure(
-                "Einladungs-Rate-Limit greift nicht am elften Versuch"
+                "invitation rate limit does not apply at the eleventh attempt"
             )
 
         login_statuses = [
@@ -244,14 +244,14 @@ async def prove() -> None:
             for _ in range(6)
         ]
         if login_statuses[:5] != [202] * 5 or login_statuses[5] != 429:
-            raise ContractFailure("Login-Rate-Limit greift nicht am sechsten Versuch")
+            raise ContractFailure("login rate limit does not apply at the sixth attempt")
 
         leaked = await client.post(
             f"/api/v1/does-not-exist?probe={canary}",
             json={"probe": canary},
         )
         if canary in leaked.text:
-            raise ContractFailure("Secret-Canary wird in der Fehlerantwort gespiegelt")
+            raise ContractFailure("secret canary is echoed in the error response")
 
         same_site = await client.post(
             "/api/v1/auth/logout",
@@ -263,11 +263,11 @@ async def prove() -> None:
             },
         )
         if same_site.status_code != 200:
-            raise ContractFailure("Gleich-originiger Logout wird fälschlich blockiert")
+            raise ContractFailure("same-origin logout is wrongly blocked")
 
     await connection.close()
     print(
-        "security-contract: TLS/Headers, CORS, CSRF, Rotation, RBAC und Rate-Limits OK"
+        "security-contract: TLS/headers, CORS, CSRF, rotation, RBAC and rate limits OK"
     )
 
 

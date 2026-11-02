@@ -20,17 +20,17 @@ class SnapshotError(RuntimeError):
 def load(path: Path) -> JsonObject:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise SnapshotError(f"{path} muss ein JSON-Objekt enthalten")
+        raise SnapshotError(f"{path} must contain a JSON object")
     return value
 
 
 def records_by_id(items: Any, label: str) -> dict[str, JsonObject]:
     if not isinstance(items, list):
-        raise SnapshotError(f"{label} muss eine Liste sein")
+        raise SnapshotError(f"{label} must be a list")
     result: dict[str, JsonObject] = {}
     for item in items:
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
-            raise SnapshotError(f"{label} enthält einen Datensatz ohne ID")
+            raise SnapshotError(f"{label} contains a record without ID")
         result[item["id"]] = item
     return result
 
@@ -53,40 +53,40 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
     expected = load(fixture / "expected.json")
     dataset_digest = hashlib.sha256((fixture / "dataset.json").read_bytes()).hexdigest()
     if snapshot.get("expectedDatasetSha256") != dataset_digest:
-        raise SnapshotError("Dataset-Prüfsumme weicht von der Fixture ab")
+        raise SnapshotError("dataset checksum differs from the fixture")
 
     core = snapshot.get("core")
     if not isinstance(core, dict):
-        raise SnapshotError("Core-Snapshot fehlt")
+        raise SnapshotError("core snapshot missing")
     if core.get("rowCount") != 1 or core.get("datasetSha256") != dataset_digest:
-        raise SnapshotError("Core-Snapshot enthält nicht exakt Golden Data v1")
+        raise SnapshotError("core snapshot does not contain exactly Golden Data v1")
     if core.get("expectedCounts") != expected.get("counts"):
-        raise SnapshotError("Core-Counts entsprechen nicht expected.json")
+        raise SnapshotError("core counts do not match expected.json")
     collections = core.get("collections")
     if not isinstance(collections, dict):
-        raise SnapshotError("Core-Collections fehlen")
+        raise SnapshotError("core collections missing")
     for name, count in expected["counts"].items():
         collection = collections.get(name)
         if not isinstance(collection, dict) or collection.get("count") != count:
-            raise SnapshotError(f"Core-Count weicht ab: {name}")
+            raise SnapshotError(f"core count differs: {name}")
 
     twenty = snapshot.get("twenty")
     if not isinstance(twenty, dict):
-        raise SnapshotError("Twenty-Snapshot fehlt")
+        raise SnapshotError("Twenty snapshot missing")
     actual_companies = records_by_id(twenty.get("companies"), "Twenty companies")
     expected_companies = records_by_id(dataset["companies"], "Golden companies")
     if set(actual_companies) != set(expected_companies):
-        raise SnapshotError("Twenty-Company-IDs entsprechen nicht Golden Data")
+        raise SnapshotError("Twenty company IDs do not match Golden Data")
     for record_id, company in expected_companies.items():
         actual = actual_companies[record_id]
         for key in ("name", "postalCode", "city"):
             if actual.get(key) != company.get(key):
-                raise SnapshotError(f"Twenty-Company-Feld weicht ab: {record_id}.{key}")
+                raise SnapshotError(f"Twenty company field differs: {record_id}.{key}")
 
     actual_people = records_by_id(twenty.get("people"), "Twenty people")
     expected_people = records_by_id(dataset["persons"], "Golden persons")
     if set(actual_people) != set(expected_people):
-        raise SnapshotError("Twenty-Person-IDs entsprechen nicht Golden Data")
+        raise SnapshotError("Twenty person IDs do not match Golden Data")
     for record_id, person in expected_people.items():
         actual = actual_people[record_id]
         expected_fields = {
@@ -96,17 +96,17 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
             "companyId": person["companyId"],
         }
         if any(actual.get(key) != value for key, value in expected_fields.items()):
-            raise SnapshotError(f"Twenty-Person-Felder weichen ab: {record_id}")
+            raise SnapshotError(f"Twenty person fields differ: {record_id}")
 
     rustfs = snapshot.get("rustfs")
     if not isinstance(rustfs, dict) or not isinstance(rustfs.get("objects"), list):
-        raise SnapshotError("RustFS-Objekte fehlen")
+        raise SnapshotError("RustFS objects missing")
     objects = rustfs["objects"]
     if len(objects) != len(dataset["invoices"]):
-        raise SnapshotError("RustFS enthält nicht exakt ein PDF je Golden-Rechnung")
+        raise SnapshotError("RustFS does not contain exactly one PDF per golden invoice")
     core_documents = core.get("documentManifest")
     if not isinstance(core_documents, list):
-        raise SnapshotError("Core-Dokumentmanifest fehlt")
+        raise SnapshotError("core document manifest missing")
     core_document_by_key = {
         str(item.get("objectKey")): item
         for item in core_documents
@@ -124,7 +124,7 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
             or item["size"] < 1_000
         ):
             raise SnapshotError(
-                "RustFS enthält ein ungültiges PDF oder SHA-256-Metadatum"
+                "RustFS contains an invalid PDF or SHA-256 metadata value"
             )
         core_document = core_document_by_key.get(str(item.get("objectKey")))
         if (
@@ -132,11 +132,11 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
             or core_document.get("storageVersionId") != item["storageVersionId"]
         ):
             raise SnapshotError(
-                "RustFS-Version-ID und Core-Dokumentzuordnung sind inkonsistent"
+                "RustFS version ID and core document mapping are inconsistent"
             )
 
     if snapshot.get("mailpit") != {"total": 0, "messageIds": []}:
-        raise SnapshotError("Mailpit ist nicht auf dem leeren Golden-Stand")
+        raise SnapshotError("Mailpit is not at the empty golden state")
 
 
 def verify_mutated(snapshot: JsonObject, fixture: Path) -> None:
@@ -146,31 +146,30 @@ def verify_mutated(snapshot: JsonObject, fixture: Path) -> None:
     rustfs = snapshot.get("rustfs")
     mailpit = snapshot.get("mailpit")
     if not isinstance(core, dict) or core.get("datasetSha256") != "0" * 64:
-        raise SnapshotError("Core-Mutation ist nicht sichtbar")
+        raise SnapshotError("core mutation is not visible")
     if not isinstance(twenty, dict):
-        raise SnapshotError("Twenty-Mutation ist nicht sichtbar")
+        raise SnapshotError("Twenty mutation is not visible")
     companies = records_by_id(twenty.get("companies"), "Twenty companies")
     first_company = str(dataset["companies"][0]["id"])
     if companies[first_company].get("name") != "ABSICHTLICH MUTIERT":
-        raise SnapshotError("Twenty-Mutation ist nicht sichtbar")
+        raise SnapshotError("Twenty mutation is not visible")
     if not isinstance(rustfs, dict) or not isinstance(rustfs.get("objects"), list):
-        raise SnapshotError("RustFS-Mutation ist nicht sichtbar")
+        raise SnapshotError("RustFS mutation is not visible")
     first_object = rustfs["objects"][0]
     if (
         not isinstance(first_object, dict)
         or first_object.get("size", 0) >= 1_000
         or first_object.get("storedSha256") != first_object.get("sha256")
     ):
-        raise SnapshotError("RustFS-Mutation ist nicht sichtbar")
+        raise SnapshotError("RustFS mutation is not visible")
     if not isinstance(mailpit, dict) or mailpit.get("total") != 1:
-        raise SnapshotError("Mailpit-Mutation ist nicht sichtbar")
+        raise SnapshotError("Mailpit mutation is not visible")
 
 
 def verify_equivalent(first: JsonObject, second: JsonObject) -> None:
     if normalized_business_snapshot(first) != normalized_business_snapshot(second):
         raise SnapshotError(
-            "fachlicher Snapshot wurde durch den vollständigen Reset nicht exakt "
-            "wiederhergestellt"
+            "full reset did not restore the business snapshot exactly"
         )
 
 

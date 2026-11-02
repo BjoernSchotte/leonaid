@@ -31,7 +31,7 @@ class VerificationFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise VerificationFailure(f"Umgebungsvariable fehlt: {name}")
+        raise VerificationFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -89,7 +89,7 @@ async def verify() -> None:
 
     if database is None or created is None:
         raise VerificationFailure(
-            "Der im Browser erzeugte Datensatz fehlt in PostgreSQL"
+            "The record created in the browser is missing in PostgreSQL"
         )
     database_totals = {
         "itemCount": int(database["item_count"]),
@@ -99,7 +99,7 @@ async def verify() -> None:
     }
     if database_totals != EXPECTED:
         raise VerificationFailure(
-            f"PostgreSQL-Gesamtsummen weichen vom Golden-Ergebnis ab: {database_totals}"
+            f"PostgreSQL totals differ from the golden result: {database_totals}"
         )
     if (
         int(created["duplicate_count"]) != 1
@@ -109,7 +109,7 @@ async def verify() -> None:
         or int(created["piece_count"]) != 48
     ):
         raise VerificationFailure(
-            "Der Browser-Datensatz ist nicht genau einmal oder fachlich falsch gespeichert"
+            "The browser record is not stored exactly once or is wrong for the domain"
         )
 
     api_url = require_env("API_BASE_URL").rstrip("/")
@@ -131,7 +131,7 @@ async def verify() -> None:
         and item["commitment"]["status"] == "review_ready"
         for item in value["items"]
     ):
-        raise VerificationFailure("Die Admin-API liefert den Browser-Datensatz nicht")
+        raise VerificationFailure("The admin API does not return the browser record")
     if (
         api_totals != EXPECTED
         or proof["adminApi"] != EXPECTED
@@ -139,12 +139,12 @@ async def verify() -> None:
         or database_totals != api_totals
     ):
         raise VerificationFailure(
-            "Golden-Summen stimmen zwischen Browser, API und PostgreSQL nicht überein"
+            "Golden totals do not match between browser, API and PostgreSQL"
         )
 
     print(
-        "commitment-ui-verification: Browser, Admin-API und PostgreSQL "
-        "melden 10 Bestellungen, 31 Boxen/744 Stück und 1.116,00 EUR"
+        "commitment-ui-verification: browser, admin API and PostgreSQL "
+        "report 10 orders, 31 boxes/744 pieces and 1,116.00 EUR"
     )
 
 

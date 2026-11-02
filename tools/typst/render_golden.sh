@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-root=${1:?Repository-Pfad fehlt}
-output=${2:?Ausgabepfad fehlt}
-image=${3:?Core-Image fehlt}
+root=${1:?repository path missing}
+output=${2:?output path missing}
+image=${3:?core image missing}
 # Acceptance rendering remains unconditional unless a seed explicitly opts in.
 reuse=${4:-}
 set --

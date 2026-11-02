@@ -46,7 +46,7 @@ def prove_permissions_and_manifest(workspace: Path) -> None:
     for directory in (pilot_root, *pilot_root.iterdir()):
         if not directory.is_dir() or mode(directory) != 0o700:
             raise AssertionError(
-                f"privates Verzeichnis ist nicht Modus 0700: {directory}"
+                f"private directory is not mode 0700: {directory}"
             )
 
     source = pilot_root / "intake" / "club-export.xlsx"
@@ -63,13 +63,13 @@ def prove_permissions_and_manifest(workspace: Path) -> None:
     write_private_json(manifest_path, manifest)
     parsed: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
     if set(parsed) != EXPECTED_MANIFEST_KEYS:
-        raise AssertionError("Evidence-Manifest enthält nicht freigegebene Metadaten")
+        raise AssertionError("evidence manifest contains metadata that is not allowed")
     serialized = manifest_path.read_text(encoding="utf-8")
     forbidden = ("club-export", "synthetic private workbook bytes", "@", "street")
     if any(value in serialized for value in forbidden):
-        raise AssertionError("Evidence-Manifest enthält private Quelldaten")
+        raise AssertionError("evidence manifest contains private source data")
     if mode(source) != 0o600 or mode(manifest_path) != 0o600:
-        raise AssertionError("private Dateien sind nicht Modus 0600")
+        raise AssertionError("private files are not mode 0600")
 
 
 def initialize_git_repository(repository: Path, root: Path) -> None:
@@ -101,7 +101,7 @@ def expect_boundary_failure(repository: Path, marker: str) -> None:
     )
     if result.returncode == 0 or marker not in result.stderr:
         raise AssertionError(
-            f"Git-Grenze hat privaten Pfad nicht abgewiesen: {result.stderr}"
+            f"Git boundary did not reject private path: {result.stderr}"
         )
 
 
@@ -118,7 +118,7 @@ def prove_real_git_index_and_history(root: Path, workspace: Path) -> None:
         str(private.relative_to(indexed_repo)),
         cwd=indexed_repo,
     )
-    expect_boundary_failure(indexed_repo, "Git-Index")
+    expect_boundary_failure(indexed_repo, "Git index")
 
     history_repo = workspace / "history-repo"
     initialize_git_repository(history_repo, root)
@@ -136,7 +136,7 @@ def prove_real_git_index_and_history(root: Path, workspace: Path) -> None:
     historical.unlink()
     run("git", "add", "--update", cwd=history_repo)
     run("git", "commit", "-m", "remove canary", cwd=history_repo)
-    expect_boundary_failure(history_repo, "Git-Historie")
+    expect_boundary_failure(history_repo, "Git history")
 
 
 def workflow_with_upload(
@@ -224,12 +224,12 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
         try:
             check_workflows(root)
         except BoundaryError as error:
-            if "nicht freigegebener öffentlicher Uploadpfad" not in str(error):
+            if "public upload path not allowed" not in str(error):
                 raise AssertionError(
-                    f"Uploadgrenze meldete falschen Fehler für {forbidden}: {error}"
+                    f"upload boundary reported the wrong error for {forbidden}: {error}"
                 ) from error
         else:
-            raise AssertionError(f"privater CI-Upload wurde erlaubt: {forbidden}")
+            raise AssertionError(f"private CI upload was allowed: {forbidden}")
 
     ci.write_text(
         workflow_with_upload(
@@ -250,12 +250,12 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     try:
         check_workflows(root)
     except BoundaryError as error:
-        if "nicht freigegebener öffentlicher Uploadpfad" not in str(error):
+        if "public upload path not allowed" not in str(error):
             raise AssertionError(
-                f"Pages-Upload meldete falschen Fehler: {error}"
+                f"Pages upload reported the wrong error: {error}"
             ) from error
     else:
-        raise AssertionError("nicht freigegebener Pages-Upload wurde erlaubt")
+        raise AssertionError("Pages upload that is not allowed was accepted")
 
     ci.write_text(
         workflow_with_upload(
@@ -267,12 +267,12 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     try:
         check_workflows(root)
     except BoundaryError as error:
-        if "unbekannte Upload-Action" not in str(error):
+        if "unknown upload action" not in str(error):
             raise AssertionError(
-                f"unbekannte Upload-Action meldete falschen Fehler: {error}"
+                f"unknown upload action reported the wrong error: {error}"
             ) from error
     else:
-        raise AssertionError("unbekannte Upload-Action wurde erlaubt")
+        raise AssertionError("unknown upload action was allowed")
 
 
 def main() -> None:
@@ -296,14 +296,14 @@ def main() -> None:
             if output.strip()
         )
         raise AssertionError(
-            "Repository-Grenznachweis fehlgeschlagen"
-            + (f":\n{details}" if details else " ohne Diagnoseausgabe")
+            "repository boundary proof failed"
+            + (f":\n{details}" if details else " without diagnostic output")
         )
     if "pilot-data-boundary: OK" not in result.stdout:
-        raise AssertionError("Repository-Grenznachweis fehlt")
+        raise AssertionError("repository boundary proof is missing")
     print(
-        "pilot-data-boundary-test: OK: 0700/0600, minimales Manifest, "
-        "echter Git-Index, Git-Historie und alle Workflow-Uploads bewiesen"
+        "pilot-data-boundary-test: OK: 0700/0600, minimal manifest, "
+        "real Git index, Git history and all workflow uploads proven"
     )
 
 

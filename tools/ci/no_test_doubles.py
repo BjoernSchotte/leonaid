@@ -38,9 +38,9 @@ FORBIDDEN_IMPORT_ROOTS = {
 DOUBLE_PREFIXES = ("Fake", "Mock", "Spy", "Stub")
 IO_PORT_SUFFIXES = ("Gateway", "Repository", "Store", "Transport")
 FORBIDDEN_NETWORK_MARKERS = {
-    "jest.mock(": "Modulersatz",
-    "mock.module(": "Modulersatz",
-    "vi.mock(": "Modulersatz",
+    "jest.mock(": "Module replacement",
+    "mock.module(": "Module replacement",
+    "vi.mock(": "Module replacement",
 }
 NETWORK_CALL = re.compile(r"\.\s*(?:route|fulfill)\s*\(")
 REVIEW_MANIFEST = "tools/ci/reviewed_network_faults.json"
@@ -81,7 +81,7 @@ def python_problems(path: Path) -> list[str]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except SyntaxError as error:
-        return [f"{path}: ungültiges Python: {error}"]
+        return [f"{path}: invalid Python: {error}"]
     problems: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -96,12 +96,12 @@ def python_problems(path: Path) -> list[str]:
                 for root in FORBIDDEN_IMPORT_ROOTS
             ):
                 problems.append(
-                    f"{path}:{getattr(node, 'lineno', 1)}: verbotener Import {name}"
+                    f"{path}:{getattr(node, 'lineno', 1)}: forbidden import {name}"
                 )
         if isinstance(node, ast.ClassDef) and node.name.startswith(DOUBLE_PREFIXES):
             if node.name.endswith(IO_PORT_SUFFIXES):
                 problems.append(
-                    f"{path}:{node.lineno}: Testimplementierung eines I/O-Ports "
+                    f"{path}:{node.lineno}: test implementation of an I/O port "
                     f"{node.name}"
                 )
     return problems
@@ -119,21 +119,21 @@ def text_problems(path: Path, *, reviewed_network_fault: bool = False) -> list[s
         ):
             if marker in text:
                 problems.append(
-                    f"{path}: verbotene Response-/Mock-Bibliothek {package}"
+                    f"{path}: forbidden response/mock library {package}"
                 )
                 break
     for marker, label in FORBIDDEN_NETWORK_MARKERS.items():
         if marker in text:
-            problems.append(f"{path}: {label} ist in Systemtests verboten ({marker})")
+            problems.append(f"{path}: {label} is forbidden in system tests ({marker})")
     if NETWORK_CALL.search(text) and not reviewed_network_fault:
         problems.append(
-            f"{path}: Browser-Netzwerkinterception requires an exact-source fault review"
+            f"{path}: browser network interception requires an exact-source fault review"
         )
     for match in re.finditer(
         r"\bclass\s+((?:Fake|Mock|Spy|Stub)\w+(?:Gateway|Repository|Store|Transport))\b",
         text,
     ):
-        problems.append(f"{path}: Testimplementierung eines I/O-Ports {match.group(1)}")
+        problems.append(f"{path}: test implementation of an I/O port {match.group(1)}")
     return problems
 
 
@@ -185,7 +185,7 @@ def fixture_problem(path: Path) -> str | None:
     parts = {part.casefold() for part in path.parts}
     name = path.name.casefold()
     if parts & HTTP_FIXTURE_PARTS or name.endswith((".har", ".har.zip")):
-        return f"{path}: versionierte HTTP-Fixture-Datei ist verboten"
+        return f"{path}: versioned HTTP fixture file is forbidden"
     return None
 
 
@@ -193,7 +193,7 @@ def check(root: Path) -> list[str]:
     reviewed, problems = reviewed_network_faults(root)
     problems.extend(
         [
-            f"Direktabhängigkeit {name} ist als Mock-/Fake-Bibliothek verboten."
+            f"Direct dependency {name} is forbidden as a mock/fake library."
             for name in sorted(dependency_names(root) & FORBIDDEN_PACKAGES)
         ]
     )
@@ -226,7 +226,7 @@ def main() -> None:
         for problem in problems:
             print(f"no-test-doubles: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
-    print("no-test-doubles: OK: keine Serverantwort oder I/O-Port-Tests ersetzt")
+    print("no-test-doubles: OK: no server responses or I/O port tests replaced")
 
 
 if __name__ == "__main__":

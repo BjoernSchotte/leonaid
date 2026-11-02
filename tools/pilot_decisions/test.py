@@ -125,7 +125,7 @@ def main() -> None:
     checker = root / "tools/pilot_decisions/check.py"
     canonical = (root / REGISTER).read_text(encoding="utf-8")
 
-    run(checker, root, marker="pilot-decisions: OK: 14 Entscheidungen")
+    run(checker, root, marker="pilot-decisions: OK: 14 decisions")
     for gate, expected_open in EXPECTED_OPEN_BY_GATE.items():
         run(
             checker,
@@ -158,8 +158,8 @@ def main() -> None:
             or payload["stopDecisionIds"]
         ):
             raise AssertionError(
-                f"{gate} ist nicht fail-closed oder enthält Entscheidungen "
-                f"aus dem falschen Gate: {payload}"
+                f"{gate} is not fail-closed or contains decisions "
+                f"from the wrong gate: {payload}"
             )
     help_response = subprocess.run(
         [sys.executable, str(checker), "--help"],
@@ -168,7 +168,7 @@ def main() -> None:
         text=True,
     )
     if help_response.returncode != 0 or "--gate" not in help_response.stdout:
-        raise AssertionError("pilot-doctor besitzt keine vollständige Hilfe")
+        raise AssertionError("pilot-doctor has no complete help")
 
     with tempfile.TemporaryDirectory() as temporary:
         fixtures = Path(temporary)

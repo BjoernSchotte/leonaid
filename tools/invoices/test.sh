@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "invoice-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "invoice-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
       api core-postgres twenty-server twenty-worker >&2 || true
@@ -63,7 +63,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "invoice-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "invoice-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -99,7 +99,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "invoice-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "invoice-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -128,8 +128,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/invoices/contract.py
 
-# Der Serververtrag ändert die reale CRM-Adresse absichtlich. Für den
-# Browsernachweis wird der Golden-Stand deshalb vollständig zurückgesetzt.
+# The server contract changes the real CRM address on purpose. So the
+# golden state is fully reset before the browser proof.
 compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
@@ -153,7 +153,7 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "invoice-test: ERROR: Browser-Sitzungen sind nicht auf Modus 600 begrenzt" >&2
+  echo "invoice-test: ERROR: browser sessions are not restricted to mode 600" >&2
   exit 1
 fi
 
@@ -187,7 +187,7 @@ for screenshot in \
   invoice-ledger-dark.png \
   invoice-finance-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "invoice-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "invoice-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -195,5 +195,5 @@ done
 mkdir -p "$root/.artifacts/poc090"
 cp "$proof"/invoice-*.png "$root/.artifacts/poc090/"
 
-echo "invoice-test: OK: Serververtrag, Fresh Login, Rechnungsfreigabe,"
-echo "invoice-test:     Finanz-Lesesicht und echte Twenty-Snapshots bewiesen"
+echo "invoice-test: OK: server contract, fresh login, invoice issuing,"
+echo "invoice-test:     finance reader view and real Twenty snapshots proven"

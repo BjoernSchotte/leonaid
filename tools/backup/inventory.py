@@ -36,7 +36,7 @@ class InventoryError(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise InventoryError(f"Umgebungsvariable fehlt: {name}")
+        raise InventoryError(f"environment variable missing: {name}")
     return value
 
 
@@ -92,12 +92,12 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
         )
         if unvalidated_foreign_keys:
             raise InventoryError(
-                f"{label}: {unvalidated_foreign_keys} Fremdschlüssel sind nicht validiert"
+                f"{label}: {unvalidated_foreign_keys} foreign keys are not validated"
             )
         if label == "core":
             missing = sorted(CRITICAL_CORE_TABLES - public_names)
             if missing:
-                raise InventoryError(f"Core-Kerntabellen fehlen: {missing}")
+                raise InventoryError(f"critical core tables missing: {missing}")
         return {
             "databaseSha256": digest_lines(
                 [
@@ -115,7 +115,7 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
 
 def file_inventory(root: Path) -> JsonObject:
     if not root.is_dir():
-        raise InventoryError(f"Twenty-Dateiablage fehlt: {root}")
+        raise InventoryError(f"Twenty file storage missing: {root}")
     files: list[JsonObject] = []
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
@@ -233,9 +233,9 @@ async def capture(output: Path, twenty_storage: Path) -> None:
     )
     print(
         "backup-inventory: OK: "
-        f"{core['tableCount']} Core-Tabellen, "
-        f"{twenty['tableCount']} Twenty-Tabellen, "
-        f"{rustfs['objectCount']} RustFS-Objekte"
+        f"{core['tableCount']} core tables, "
+        f"{twenty['tableCount']} Twenty tables, "
+        f"{rustfs['objectCount']} RustFS objects"
     )
 
 
@@ -245,9 +245,9 @@ def compare(before: Path, after: Path) -> None:
     if left != right:
         for key in ("core", "twenty", "twentyStorage", "rustfs"):
             if left.get(key) != right.get(key):
-                raise InventoryError(f"Restore-Inventar weicht ab: {key}")
-        raise InventoryError("Restore-Inventar weicht ab")
-    print("backup-inventory: OK: Restore ist logisch und bytegenau identisch")
+                raise InventoryError(f"restore inventory differs: {key}")
+        raise InventoryError("restore inventory differs")
+    print("backup-inventory: OK: restore is logically and byte-for-byte identical")
 
 
 def main() -> int:

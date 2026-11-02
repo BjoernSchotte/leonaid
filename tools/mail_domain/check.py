@@ -303,8 +303,8 @@ def write_report(path: Path, report: dict[str, Any]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Prüft bestätigte Mailidentitäten sowie SPF, DKIM und DMARC "
-            "gegen echte DNS-TXT-Antworten."
+            "Checks confirmed mail identities and SPF, DKIM and DMARC "
+            "against real DNS TXT answers."
         )
     )
     parser.add_argument("--expectation", type=Path, required=True)
@@ -330,8 +330,8 @@ def main() -> int:
         print(json.dumps(report, ensure_ascii=False, separators=(",", ":")))
     else:
         print(
-            "mail-domain-check: READY: Absenderausrichtung, SPF, DKIM und "
-            f"DMARC für {report['domain']} über echten DNS-Resolver bewiesen"
+            "mail-domain-check: READY: sender alignment, SPF, DKIM and "
+            f"DMARC for {report['domain']} proven via a real DNS resolver"
         )
     return 0
 

@@ -31,7 +31,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "action-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "action-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 core-postgres api web proxy >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
@@ -61,7 +61,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "action-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "action-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -121,10 +121,10 @@ docker run --rm \
   --reporter=line
 
 if [ ! -s "$proof/action-created.png" ]; then
-  echo "action-test: ERROR: Browsernachweis fehlt" >&2
+  echo "action-test: ERROR: browser evidence missing" >&2
   exit 1
 fi
 mkdir -p "$artifact_directory"
 cp "$proof/action-created.png" "$artifact_directory/"
 
-echo "action-test: OK: neutraler Aktionskern und vollständige Browsererstellung bewiesen"
+echo "action-test: OK: neutral action core and complete browser creation proven"

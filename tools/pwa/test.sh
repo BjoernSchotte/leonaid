@@ -34,7 +34,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "pwa-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "pwa-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=160 \
       api core-postgres twenty-server twenty-worker pwa proxy >&2 || true
@@ -65,7 +65,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "pwa-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "pwa-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -101,7 +101,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "pwa-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "pwa-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -197,7 +197,7 @@ for browser in chromium firefox webkit; do
   for width in 390 768 1440; do
     screenshot="$proof/pwa-list-$browser-$width.png"
     if [ ! -s "$screenshot" ]; then
-      echo "pwa-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+      echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
       exit 1
     fi
   done
@@ -208,7 +208,7 @@ for screenshot in \
   pwa-offline-chromium.png \
   pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "pwa-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -216,5 +216,5 @@ done
 mkdir -p "$root/.artifacts/poc062"
 cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
 
-echo "pwa-test: OK: PWA, reale Sichtgrenzen, Kontakte, 9 Browser/Viewports,"
-echo "pwa-test:     A11y, Textskalierung, Touch, Offline, Update, Leer- und Ausfallzustand bewiesen"
+echo "pwa-test: OK: PWA, real visibility boundaries, contacts, 9 browsers/viewports,"
+echo "pwa-test:     a11y, text scaling, touch, offline, update, empty and outage states proven"

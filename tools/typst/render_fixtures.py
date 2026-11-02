@@ -23,20 +23,18 @@ def load_snapshot(path: Path) -> InvoiceDocumentSnapshot:
     try:
         payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise FixtureRenderError(
-            f"Ungültiger Rechnungssnapshot: {path.name}"
-        ) from error
+        raise FixtureRenderError(f"invalid invoice snapshot: {path.name}") from error
     if not isinstance(payload, dict) or not all(
         isinstance(key, str) for key in payload
     ):
-        raise FixtureRenderError(f"Rechnungssnapshot ist kein JSON-Objekt: {path.name}")
+        raise FixtureRenderError(f"invoice snapshot is not a JSON object: {path.name}")
     return InvoiceDocumentSnapshot.from_payload(payload)
 
 
 def render_directory(source: Path, output: Path) -> list[dict[str, object]]:
     fixtures = sorted(source.glob("KT26-*.json"))
     if not fixtures:
-        raise FixtureRenderError("Keine versionierten Golden-Rechnungen gefunden.")
+        raise FixtureRenderError("No versioned golden invoices found.")
     output.mkdir(parents=True, exist_ok=True)
     renderer = TypstInvoiceRenderer()
     manifest: list[dict[str, object]] = []
@@ -46,7 +44,7 @@ def render_directory(source: Path, output: Path) -> list[dict[str, object]]:
         second = renderer.render(snapshot)
         if first.content != second.content or first.sha256 != second.sha256:
             raise FixtureRenderError(
-                f"Rendering ist nicht byte-deterministisch: {snapshot.number}"
+                f"rendering is not byte-deterministic: {snapshot.number}"
             )
         target = output / f"{snapshot.number}.pdf"
         target.unlink(missing_ok=True)
@@ -158,8 +156,7 @@ def main() -> int:
         print(f"typst-fixtures: ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "typst-fixtures: OK: "
-        f"{len(manifest)} Rechnungen mit identischen Doppelrenderings"
+        f"typst-fixtures: OK: {len(manifest)} invoices with identical double renderings"
     )
     return 0
 

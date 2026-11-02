@@ -127,4 +127,4 @@ docker run --rm \
   "$BUN_IMAGE" \
   bun tests/contract/api_client.ts
 
-echo "poc023-test: OK: deterministische Generierung, Boundary, Typen und Realvertrag bewiesen"
+echo "poc023-test: OK: deterministic generation, boundary, types and real contract proven"

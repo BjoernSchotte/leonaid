@@ -31,7 +31,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "action-admin-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "action-admin-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=160 core-postgres api web proxy >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
@@ -61,7 +61,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "action-admin-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "action-admin-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -143,11 +143,11 @@ for screenshot in \
   action-admin-mobile.png \
   action-overview-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "action-admin-test: ERROR: Browsernachweis $screenshot fehlt" >&2
+    echo "action-admin-test: ERROR: browser evidence $screenshot missing" >&2
     exit 1
   fi
 done
 mkdir -p "$artifact_directory"
 cp "$proof/"*.png "$artifact_directory/"
 
-echo "action-admin-test: OK: Server, React-Komponente und Browser-Lebenszyklus gegen echte Dienste bewiesen"
+echo "action-admin-test: OK: server, React component and browser lifecycle proven against real services"

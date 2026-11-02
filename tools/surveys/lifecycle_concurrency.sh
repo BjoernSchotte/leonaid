@@ -19,7 +19,7 @@ compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 
 if [ ! -f "$env_file" ]; then
-  echo "poc020-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "poc020-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -37,7 +37,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "lifecycle-concurrency: Diagnose der realen Services:" >&2
+    echo "lifecycle-concurrency: diagnostics for the real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 api core-postgres >&2 || true
   fi

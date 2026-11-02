@@ -43,7 +43,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -55,7 +55,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -63,7 +63,7 @@ def json_object(value: object) -> dict[str, Any]:
     if isinstance(value, str):
         value = json.loads(value)
     if not isinstance(value, dict):
-        raise ContractFailure("Persistierter JSON-Nachweis ist kein Objekt")
+        raise ContractFailure("Persisted JSON evidence is not an object")
     return {str(key): item for key, item in value.items()}
 
 
@@ -84,7 +84,7 @@ async def twenty_record(
         else:
             record = data
     if not isinstance(record, dict):
-        raise ContractFailure(f"Twenty-{collection}-Datensatz fehlt")
+        raise ContractFailure(f"Twenty {collection} record is missing")
     return record
 
 
@@ -100,7 +100,7 @@ async def twenty_collection(
     if not isinstance(records, list) or not all(
         isinstance(record, dict) for record in records
     ):
-        raise ContractFailure(f"Twenty-{collection}-Liste fehlt")
+        raise ContractFailure(f"Twenty {collection} list is missing")
     return records
 
 
@@ -113,7 +113,7 @@ async def public_context(
     )
     response.raise_for_status()
     if response.headers.get("cache-control") != "private, no-store":
-        raise ContractFailure("Formular-Token wurde öffentlich cachebar ausgeliefert")
+        raise ContractFailure("Form token was served as publicly cacheable")
     payload = response.json()
     action = payload.get("action") if isinstance(payload, dict) else None
     form = action.get("orderForm") if isinstance(action, dict) else None
@@ -137,7 +137,7 @@ async def public_context(
         or form.get("privacyContactEmail") != "datenschutz@leonaid.invalid"
     ):
         raise ContractFailure(
-            "Public-Kontext besitzt keinen vollständigen Bestellvertrag"
+            "Public context has no complete order contract"
         )
     return str(form["accessToken"]), offerings[0]
 
@@ -267,7 +267,7 @@ async def assert_activity(
         or row["action_id"] != ACTION_ID
         or str(row["event_type"]) != "public_order_received"
     ):
-        raise ContractFailure("Öffentliche Bestellung erzeugte kein ActivityEvent")
+        raise ContractFailure("Public order created no ActivityEvent")
     recipients = await connection.fetch(
         """
         SELECT user_id
@@ -279,7 +279,7 @@ async def assert_activity(
     )
     if {item["user_id"] for item in recipients} != expected_recipient_ids:
         raise ContractFailure(
-            "ActivityEvent wurde nicht an die fachlich Zuständigen adressiert"
+            "ActivityEvent was not addressed to the responsible users"
         )
 
 
@@ -342,7 +342,7 @@ async def assert_commitment(
         or int(line["unit_price_minor"]) != 3_600
         or int(line["line_total_minor"]) != expected_quantity * 3_600
     ):
-        raise ContractFailure("Commitment-Snapshots, Positionen oder Preis sind falsch")
+        raise ContractFailure("Commitment snapshots, line items or price are wrong")
     audit = await connection.fetchrow(
         """
         SELECT payload
@@ -360,7 +360,7 @@ async def assert_commitment(
         or json_object(audit["payload"]).get("privacyAcknowledged") is not True
         or json_object(audit["payload"]).get("bindingOrderConfirmed") is not True
     ):
-        raise ContractFailure("Einwilligung und Formularversion sind nicht auditiert")
+        raise ContractFailure("Consent and form version are not audited")
     evidence = await connection.fetchrow(
         """
         SELECT *
@@ -388,7 +388,7 @@ async def assert_commitment(
         )
     ):
         raise ContractFailure(
-            "Datenschutzhinweis wurde nicht als versionierter Nachweis gespeichert"
+            "Privacy notice was not stored as versioned evidence"
         )
     return row
 
@@ -425,7 +425,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if created_twin.status_code not in {200, 201}:
                 raise ContractFailure(
-                    "Twenty-Zwillingsfirma konnte nicht angelegt werden"
+                    "Twenty twin company could not be created"
                 )
         companies_before = await twenty_collection(twenty, "companies")
         people_before = await twenty_collection(twenty, "people")
@@ -436,7 +436,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "SELECT active_version_id FROM legal_configuration_state"
         )
         if active_configuration_id is None:
-            raise ContractFailure("Golden Data besitzen keine aktive Rechtsgrundlage")
+            raise ContractFailure("Golden data has no active legal basis")
         await connection.execute(
             "UPDATE legal_configuration_state SET active_version_id = NULL"
         )
@@ -459,7 +459,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != "public, max-age=15, stale-while-revalidate=30"
         ):
             raise ContractFailure(
-                "Public-Formular blieb ohne aktive Rechtsgrundlage geöffnet"
+                "Public form stayed open without an active legal basis"
             )
         await connection.execute(
             """
@@ -491,7 +491,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(stale_notice) != "public_order_privacy_notice_changed"
         ):
             raise ContractFailure(
-                "Veralteter Datenschutzhinweis wurde nicht fail-closed abgewiesen"
+                "Stale privacy notice was not rejected fail-closed"
             )
 
         existing_body = order_body(
@@ -519,7 +519,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or existing_payload["totalPieces"] != 24
         ):
             raise ContractFailure(
-                "Bestehende Firma wurde nicht eindeutig wiederverwendet"
+                "Existing company was not reused unambiguously"
             )
         existing_row = await assert_commitment(
             connection,
@@ -568,7 +568,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or len({item["publicReference"] for item in company_payloads}) != 1
         ):
             raise ContractFailure(
-                "Doppelter Submit erzeugte kein idempotentes Ergebnis"
+                "Double submit did not produce an idempotent result"
             )
         company_payload = company_payloads[0]
         company_row = await assert_commitment(
@@ -579,7 +579,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             expected_quantity=2,
         )
         if company_row["twenty_company_id"] is None:
-            raise ContractFailure("Neue Firma fehlt am Commitment")
+            raise ContractFailure("New company is missing on the commitment")
         await assert_activity(
             connection,
             commitment_id=company_row["id"],
@@ -607,7 +607,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             person_payload["crmOutcome"] != "created"
             or person_payload["replayed"] is not False
         ):
-            raise ContractFailure("Privatperson wurde nicht kontrolliert angelegt")
+            raise ContractFailure("Private person was not created in a controlled way")
         person_row = await assert_commitment(
             connection,
             person_payload,
@@ -639,7 +639,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(ambiguous) != "public_order_party_ambiguous"
         ):
             raise ContractFailure(
-                "Mehrdeutige Firma wurde nicht als Konflikt abgewiesen"
+                "Ambiguous company was not rejected as a conflict"
             )
 
         # The second spelling differs from the CRM name ("Bäckerstübchen" vs
@@ -696,7 +696,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or variant_again_row["id"] == variant_first_row["id"]
         ):
             raise ContractFailure(
-                "Schreibvariante einer Firma wurde nicht über den Schlüssel wiederverwendet"
+                "Spelling variant of a company was not reused via the match key"
             )
 
         changed_body = order_body(
@@ -718,7 +718,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             idempotency_conflict.status_code != 409
             or error_code(idempotency_conflict) != "idempotency_conflict"
         ):
-            raise ContractFailure("Vorgangs-ID akzeptierte abweichende Bestelldaten")
+            raise ContractFailure("Command ID accepted different order data")
 
         price_body = order_body(
             token=token,
@@ -740,7 +740,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(manipulated) != "public_order_price_changed"
         ):
             raise ContractFailure(
-                "Manipulierter Preis wurde nicht serverseitig abgewiesen"
+                "Manipulated price was not rejected on the server"
             )
 
         await connection.execute(
@@ -769,7 +769,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(inactive) != "offering_not_available"
         ):
             raise ContractFailure(
-                "Inaktives Angebot wurde nicht serverseitig abgewiesen"
+                "Inactive offering was not rejected on the server"
             )
 
         # The golden action delivers (delivery capability), so Core must
@@ -796,7 +796,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != "public_order_delivery_recipient_required"
         ):
             raise ContractFailure(
-                "Lieferaktion akzeptierte eine Bestellung ohne Lieferanschrift"
+                "Delivery action accepted an order without a delivery address"
             )
 
         archived_token = PublicOrderTokenCodec(require_env("LEONAID_SECRET_KEY")).issue(
@@ -819,7 +819,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             archived.status_code != 409
             or error_code(archived) != "public_order_action_closed"
         ):
-            raise ContractFailure("Archivierte Aktion nahm eine Bestellung an")
+            raise ContractFailure("Archived action accepted an order")
 
         spam_fingerprint = "203.0.113.250"
         for index in range(5):
@@ -842,7 +842,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 rejected.status_code != 409
                 or error_code(rejected) != "public_order_rejected"
             ):
-                raise ContractFailure("Honeypot-Signal wurde nicht sicher verworfen")
+                raise ContractFailure("Honeypot signal was not safely discarded")
         limited = await submit(
             api,
             order_body(
@@ -863,7 +863,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(limited) != "public_order_rate_limited"
         ):
             raise ContractFailure(
-                "Rate-Limit-Signal wurde nicht serverseitig erzwungen"
+                "Rate limit was not enforced on the server"
             )
 
         company_twenty_id = company_row["twenty_company_id"]
@@ -895,7 +895,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or person_record.get("name", {}).get("lastName") != "Öffentlich"
             or person_record.get("companyId") not in {None, ""}
         ):
-            raise ContractFailure("Twenty enthält nicht exakt die erwarteten CRM-Daten")
+            raise ContractFailure("Twenty does not contain exactly the expected CRM data")
         musterwerk = await twenty_record(twenty, "companies", MUSTERWERK_ID)
         mara = await twenty_record(twenty, "people", MARA_ID)
         if (
@@ -905,18 +905,18 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != "mara.muster@musterwerk.leonaid.invalid"
         ):
             raise ContractFailure(
-                "Wiederverwendung hat CRM-Bestand still überschrieben"
+                "Reuse silently overwrote existing CRM data"
             )
         if (
             len(await twenty_collection(twenty, "companies"))
             != company_count_before + 2
             or len(await twenty_collection(twenty, "people")) != person_count_before + 3
         ):
-            raise ContractFailure("CRM-Neuanlage ist nicht exakt einmal erfolgt")
+            raise ContractFailure("CRM records were not created exactly once")
 
     assignments_after = await assignment_snapshot(connection)
     if assignments_after != assignments_before:
-        raise ContractFailure("Öffentliche Bestellungen haben Assignments verändert")
+        raise ContractFailure("Public orders changed assignments")
     created_count = await connection.fetchval(
         """
         SELECT count(*)
@@ -932,7 +932,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ],
     )
     if int(created_count) != 5:
-        raise ContractFailure("Retry oder Abweisung erzeugte zusätzliche Commitments")
+        raise ContractFailure("Retry or rejection created extra commitments")
     public_commitments_after = int(
         await connection.fetchval(
             "SELECT count(*) FROM commitment WHERE source = 'public_form'"
@@ -940,7 +940,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     )
     if public_commitments_after != public_commitments_before + 5:
         raise ContractFailure(
-            "Abgewiesene oder doppelte Requests erzeugten Commitments"
+            "Rejected or duplicate requests created commitments"
         )
     fingerprints = await connection.fetch(
         """
@@ -954,11 +954,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         not re.fullmatch(r"[0-9a-f]{64}", str(row["fingerprint_hash"]))
         for row in fingerprints
     ):
-        raise ContractFailure("Rate-Limit speichert keine pseudonymisierten Signale")
+        raise ContractFailure("Rate limit does not store pseudonymized signals")
     print(
         "public-orders-contract: OK:",
-        "aktive Rechtsgrundlage, Firma/Person, serverseitiger Preis,",
-        "Idempotenz, Archiv/Inaktivität, Spam/Rate und ActivityEvents bewiesen",
+        "active legal basis, company/person, server-side price,",
+        "idempotency, archive/inactive, spam/rate and ActivityEvents proven",
     )
 
 

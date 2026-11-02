@@ -236,7 +236,7 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
     (proof / "backup-manifest.json").write_text(json.dumps(backup))
     config["services"]["survey-validator"]["image"] = "survey-validator:latest"
     (proof / "compose.json").write_text(json.dumps(config))
-    assert "digest-gepinnt" in run(expected=1)["error"]
+    assert "not pinned by digest" in run(expected=1)["error"]
     config["services"]["survey-validator"]["image"] = values[
         "LEONAID_SURVEY_VALIDATOR_IMAGE"
     ]

@@ -54,11 +54,11 @@ def check_file(path: Path) -> list[str]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError) as error:
         return [
-            f"{path}: nicht lesbar oder syntaktisch ungültig: {type(error).__name__}"
+            f"{path}: not readable or syntactically invalid: {type(error).__name__}"
         ]
     upgrade = upgrade_function(tree)
     if upgrade is None:
-        return [f"{path}: upgrade() fehlt"]
+        return [f"{path}: upgrade() missing"]
     destructive: set[str] = set()
     for node in ast.walk(upgrade):
         if not isinstance(node, ast.Call):
@@ -82,8 +82,8 @@ def check_file(path: Path) -> list[str]:
     )
     if missing:
         return [
-            f"{path}: destruktive Vorwärtsmigration {sorted(destructive)} "
-            f"ohne {missing}"
+            f"{path}: destructive forward migration {sorted(destructive)} "
+            f"without {missing}"
         ]
     return []
 
@@ -95,7 +95,7 @@ def check_directory(directory: Path) -> list[str]:
             continue
         problems.extend(check_file(path))
     if not list(directory.glob("*.py")):
-        problems.append(f"{directory}: keine Migrationen gefunden")
+        problems.append(f"{directory}: no migrations found")
     return problems
 
 
@@ -113,7 +113,7 @@ def main() -> int:
         for problem in problems:
             print(f"migration-policy: ERROR: {problem}", file=sys.stderr)
         return 1
-    print("migration-policy: OK: keine unbelegte destruktive Vorwärtsmigration")
+    print("migration-policy: OK: no destructive forward migration without references")
     return 0
 
 

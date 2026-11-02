@@ -26,7 +26,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "template-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "template-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 core-postgres api >&2 || true
   fi
@@ -54,7 +54,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "template-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "template-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -97,4 +97,4 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/templates/contract.py
 
-echo "template-test: OK: versionierte Templates und Vorjahreskopie bewiesen"
+echo "template-test: OK: versioned templates and previous-year copy proven"

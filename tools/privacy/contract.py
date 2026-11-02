@@ -46,7 +46,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -61,7 +61,7 @@ def headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     payload = response.json()
     if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(payload["error"].get("code"))
 
 
@@ -121,7 +121,7 @@ async def immutable_hashes(connection: asyncpg.Connection[Any]) -> dict[str, str
         INVOICE_ID,
     )
     if row is None:
-        raise ContractFailure("Golden-Rechnung besitzt kein erzeugtes Dokument")
+        raise ContractFailure("Golden invoice has no generated document")
     return {
         "invoiceHash": str(row["invoice_hash"]),
         "documentHash": str(row["document_hash"]),
@@ -151,7 +151,7 @@ async def prepare(
         or str(evidence["legal_basis_status"]) != "legal_review_pending"
         or evidence["revoked_at"] is not None
     ):
-        raise ContractFailure("Golden-Nachweis ist nicht deterministisch")
+        raise ContractFailure("Golden consent evidence is not deterministic")
 
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -174,7 +174,7 @@ async def prepare(
             != "privacy_legal_configuration_missing"
         ):
             raise ContractFailure(
-                "Datenschutzvorgang lief ohne aktive Aufbewahrungsregeln"
+                "Privacy request ran without active retention rules"
             )
         await connection.execute(
             """
@@ -207,7 +207,7 @@ async def prepare(
                 "auditDays": 3650,
             }
         ):
-            raise ContractFailure("Privacy-Lookup verschweigt Fristen oder PoC-Grenzen")
+            raise ContractFailure("Privacy lookup hides retention periods or PoC limits")
 
         export = await api.post(
             "/api/v1/admin/privacy/exports",
@@ -223,7 +223,7 @@ async def prepare(
             or str(LEGAL_CONFIGURATION_ID) not in serialized
         ):
             raise ContractFailure(
-                "Datenauskunft enthält fremde oder unvollständige Daten"
+                "Data export contains foreign or incomplete data"
             )
 
         forbidden = await api.post(
@@ -235,7 +235,7 @@ async def prepare(
             forbidden.status_code != 403
             or error_code(forbidden) != "system_admin_required"
         ):
-            raise ContractFailure("Charity-Admin konnte globale Privacy-Daten lesen")
+            raise ContractFailure("Charity admin could read global privacy data")
 
         stale = await api.post(
             "/api/v1/admin/privacy/exports",
@@ -243,7 +243,7 @@ async def prepare(
             json={"email": EMAIL},
         )
         if stale.status_code != 401 or error_code(stale) != "fresh_login_required":
-            raise ContractFailure("Datenauskunft verlangte keinen frischen Login")
+            raise ContractFailure("Data export did not require a fresh login")
 
 
 async def assert_result(
@@ -253,7 +253,7 @@ async def assert_result(
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     if await immutable_hashes(connection) != baseline:
         raise ContractFailure(
-            "Rechnung oder Rechnungs-PDF wurde bei Löschung verändert"
+            "Invoice or invoice PDF changed during erasure"
         )
 
     evidence = await connection.fetchrow(
@@ -271,12 +271,12 @@ async def assert_result(
         EMAIL,
     )
     if evidence is None or evidence["revoked_at"] is None:
-        raise ContractFailure("Nachweis wurde nicht widerrufen")
+        raise ContractFailure("Consent evidence was not revoked")
     if {str(row["purpose"]) for row in suppressions} != {
         "acquisition",
         "marketing",
     }:
-        raise ContractFailure("Akquise- und Marketing-Sperren fehlen")
+        raise ContractFailure("Acquisition and marketing suppressions are missing")
 
     commitment = await connection.fetchrow(
         """
@@ -287,7 +287,7 @@ async def assert_result(
         """
     )
     if commitment is None:
-        raise ContractFailure("Operative Golden-Bestellung fehlt")
+        raise ContractFailure("Operational golden order is missing")
     serialized = json.dumps(dict(commitment), default=str, ensure_ascii=False)
     if (
         EMAIL in serialized
@@ -295,7 +295,7 @@ async def assert_result(
         or "Werkstraße" in serialized
         or commitment["message_snapshot"] is not None
     ):
-        raise ContractFailure("Operative Bestelldaten wurden nicht anonymisiert")
+        raise ContractFailure("Operational order data was not anonymized")
 
     erasure = await connection.fetchrow(
         """
@@ -322,13 +322,13 @@ async def assert_result(
         }
         or "3650 Tage" not in erasure["retention_reasons"]
     ):
-        raise ContractFailure("Löschprotokoll ist unvollständig oder enthält Roh-PII")
+        raise ContractFailure("Erasure record is incomplete or contains raw PII")
     audit_leak = await connection.fetchval(
         "SELECT count(*) FROM audit_event WHERE payload::text ILIKE '%' || $1 || '%'",
         EMAIL,
     )
     if audit_leak:
-        raise ContractFailure("Privacy-Audit enthält die rohe E-Mail-Adresse")
+        raise ContractFailure("Privacy audit contains the raw email address")
 
     anna = token_for("anna", ANNA_ID)
     async with httpx.AsyncClient(
@@ -349,7 +349,7 @@ async def assert_result(
             None,
         )
         if work_item is None or "email" not in work_item.get("suppressedChannels", []):
-            raise ContractFailure("Akquisiteur-UI erhält die Kontaktsperre nicht")
+            raise ContractFailure("Acquirer UI does not receive the contact suppression")
         blocked = await api.post(
             f"/api/v1/actions/{ACTION_ID}/acquisition/activities",
             headers=headers(anna),
@@ -365,7 +365,7 @@ async def assert_result(
             },
         )
         if blocked.status_code != 409 or error_code(blocked) != "contact_suppressed":
-            raise ContractFailure("Direkter API-Aufruf umging die Kontaktsperre")
+            raise ContractFailure("Direct API call bypassed the contact suppression")
 
 
 async def run(
@@ -377,7 +377,7 @@ async def run(
     try:
         if command == "prepare":
             if sessions_path is None:
-                raise ContractFailure("prepare benötigt eine Sessions-Datei")
+                raise ContractFailure("prepare needs a sessions file")
             await prepare(connection, sessions_path, baseline_path)
         else:
             await assert_result(connection, baseline_path)

@@ -27,7 +27,7 @@ class VerificationFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise VerificationFailure(f"Umgebungsvariable fehlt: {name}")
+        raise VerificationFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -55,13 +55,13 @@ async def verify(connection: asyncpg.Connection[Any]) -> dict[str, object]:
         (FREIE_FIRMA_ID, KLARA_ID),
     }
     if set(state) != expected:
-        raise VerificationFailure("Browsernachweis veränderte die Empfängermenge")
+        raise VerificationFailure("Browser proof changed the set of recipients")
     if state[(MUSTERWERK_ID, ANNA_ID)] is None:
-        raise VerificationFailure("Annas Browseraktion speicherte kein read_at")
+        raise VerificationFailure("Anna's browser action stored no read_at")
     if any(
         state[key] is not None for key in expected if key != (MUSTERWERK_ID, ANNA_ID)
     ):
-        raise VerificationFailure("Lesestatus eines anderen Empfängers wurde verändert")
+        raise VerificationFailure("Read status of another recipient was changed")
     event_count = await connection.fetchval(
         """
         SELECT count(*)
@@ -72,7 +72,7 @@ async def verify(connection: asyncpg.Connection[Any]) -> dict[str, object]:
         [MUSTERWERK_ID, DOPPELKONTAKT_ID, FREIE_FIRMA_ID],
     )
     if int(event_count) != 3:
-        raise VerificationFailure("Browseraktion löschte oder duplizierte Ereignisse")
+        raise VerificationFailure("Browser action deleted or duplicated events")
     return {
         "eventCount": int(event_count),
         "recipientCount": len(state),
@@ -94,7 +94,7 @@ async def main() -> None:
     )
     print(
         "activity-feed-ui: OK:",
-        "Browser-Lesestatus isoliert persistiert, Ereignisse unverändert",
+        "browser read status persisted in isolation, events unchanged",
     )
 
 
