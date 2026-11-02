@@ -21,11 +21,17 @@ from leonaid.domain.outbox import (
 # probe compares the foreign keys in this list against pg_constraint, so a
 # new reference fails the proof until retention accounts for it.
 OUTBOX_REFERENCES: tuple[tuple[str, str, bool], ...] = (
-    # (table, column, enforced by a foreign key)
-    ("mail_delivery", "outbox_event_id", True),
+    # References that keep a completed job: (table, column, enforced by a
+    # foreign key).
     ("invoice_delivery", "outbox_event_id", True),
     ("survey_export_job", "event_id", True),
     ("survey_deletion", "event_id", False),
+)
+
+# Foreign keys that retention detaches: the referencing row stays as evidence
+# and its link becomes NULL when the job is deleted (ON DELETE SET NULL).
+OUTBOX_DETACHED_REFERENCES: tuple[tuple[str, str], ...] = (
+    ("mail_delivery", "outbox_event_id"),
 )
 
 _UNREFERENCED = "\n".join(
