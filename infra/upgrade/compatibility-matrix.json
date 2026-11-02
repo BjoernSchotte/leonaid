@@ -28,7 +28,7 @@
         "expectedDataChange": true
       },
       "rollback": {
-        "boundary": "Vor dem ersten Start des Zielservers darf das Quellimage erneut gestartet werden. Nach einer Zielmigration wird kein älteres Image gegen die vorwärts migrierte Datenbank gestartet.",
+        "boundary": "Before the target server starts for the first time, the source image may be started again. After a target migration, no older image is started against the forward-migrated database.",
         "strategy": "backup_restore",
         "restoredComponents": ["twenty-postgres", "twenty-server-data"]
       }
@@ -50,7 +50,7 @@
         "expectedDataChange": false
       },
       "rollback": {
-        "boundary": "Ein Binär-Rollback ist nur vor Zielschreibzugriffen zulässig. Nach Zielschreibzugriffen wird das vollständige RustFS-Volume aus dem Recovery Point restauriert.",
+        "boundary": "A binary rollback is allowed only before the target receives writes. After target writes, the complete RustFS volume is restored from the recovery point.",
         "strategy": "backup_restore",
         "restoredComponents": ["rustfs-data"]
       }
@@ -115,7 +115,7 @@
         "expectedDataChange": true
       },
       "rollback": {
-        "boundary": "Nach einer vorwärts laufenden Core-Migration wird kein Code-Rollback gegen das neue Schema behauptet.",
+        "boundary": "After a forward Core migration, no code rollback against the new schema is claimed.",
         "strategy": "backup_restore",
         "restoredComponents": ["core-postgres"]
       }

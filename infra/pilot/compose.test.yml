@@ -1,6 +1,6 @@
 services:
   proxy:
-    image: ${LEONAID_TEST_PROXY_IMAGE:?LEONAID_TEST_PROXY_IMAGE fehlt}
+    image: ${LEONAID_TEST_PROXY_IMAGE:?LEONAID_TEST_PROXY_IMAGE is missing}
     build: !reset null
     ports: !override
       - "127.0.0.1:${LEONAID_PILOT_TEST_HTTP_PORT:-19080}:80"
@@ -11,22 +11,22 @@ services:
       - caddy-config:/config
 
   api:
-    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}
+    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}
 
   worker:
-    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}
+    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}
 
   web:
-    image: ${LEONAID_TEST_WEB_IMAGE:?LEONAID_TEST_WEB_IMAGE fehlt}
+    image: ${LEONAID_TEST_WEB_IMAGE:?LEONAID_TEST_WEB_IMAGE is missing}
 
   pwa:
-    image: ${LEONAID_TEST_PWA_IMAGE:?LEONAID_TEST_PWA_IMAGE fehlt}
+    image: ${LEONAID_TEST_PWA_IMAGE:?LEONAID_TEST_PWA_IMAGE is missing}
 
   public:
-    image: ${LEONAID_TEST_PUBLIC_IMAGE:?LEONAID_TEST_PUBLIC_IMAGE fehlt}
+    image: ${LEONAID_TEST_PUBLIC_IMAGE:?LEONAID_TEST_PUBLIC_IMAGE is missing}
 
   survey-validator:
-    image: ${LEONAID_TEST_SURVEY_VALIDATOR_IMAGE:?LEONAID_TEST_SURVEY_VALIDATOR_IMAGE fehlt}
+    image: ${LEONAID_TEST_SURVEY_VALIDATOR_IMAGE:?LEONAID_TEST_SURVEY_VALIDATOR_IMAGE is missing}
 
   pilot-exporter:
-    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}
+    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}

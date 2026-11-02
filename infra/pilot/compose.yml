@@ -25,14 +25,14 @@ x-twenty-mail-policy: &twenty-mail-policy
 
 services:
   proxy:
-    image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE fehlt}
+    image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE is missing}
     build: !reset null
     ports: !override
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:80:80"
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
     environment:
-      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL fehlt}
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
     volumes: !override
       - ../pilot/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -41,29 +41,29 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost/_health"]
 
   api:
-    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
     build: !reset null
     environment:
       LEONAID_ENV: production
-      LEONAID_SERVICE_VERSION: ${LEONAID_SERVICE_VERSION:?LEONAID_SERVICE_VERSION fehlt}
-      LEONAID_RELEASE_COMMIT: ${LEONAID_RELEASE_COMMIT:?LEONAID_RELEASE_COMMIT fehlt}
-      LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL fehlt}
-      LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS fehlt}
+      LEONAID_SERVICE_VERSION: ${LEONAID_SERVICE_VERSION:?LEONAID_SERVICE_VERSION is missing}
+      LEONAID_RELEASE_COMMIT: ${LEONAID_RELEASE_COMMIT:?LEONAID_RELEASE_COMMIT is missing}
+      LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
+      LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS is missing}
       TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
-      MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL fehlt}
+      MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL is missing}
       WORKER_HEALTH_URL: http://worker:8010/health/ready
       PILOT_MONITOR_STATUS_URL: http://pilot-exporter:8020/status
       PILOT_ALERTMANAGER_URL: http://alertmanager:9093
       MAIL_TEST_API_URL: !reset null
-      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
-      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
 
   survey-validator:
-    image: ${LEONAID_SURVEY_VALIDATOR_IMAGE:?LEONAID_SURVEY_VALIDATOR_IMAGE fehlt}
+    image: ${LEONAID_SURVEY_VALIDATOR_IMAGE:?LEONAID_SURVEY_VALIDATOR_IMAGE is missing}
     build: !reset null
 
   worker:
-    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
     build: !reset null
     # Every network of the base stack is internal. The external SMTP relay is
     # only reachable through this dedicated egress network.
@@ -71,34 +71,34 @@ services:
       - mail-egress
     environment:
       LEONAID_ENV: production
-      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
-      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT fehlt}
-      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM fehlt}
-      MAIL_ENVELOPE_FROM: ${MAIL_ENVELOPE_FROM:?MAIL_ENVELOPE_FROM fehlt}
-      MAIL_REPLY_TO: ${MAIL_REPLY_TO:?MAIL_REPLY_TO fehlt}
-      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE fehlt}
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST is missing}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT is missing}
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is missing}
+      MAIL_ENVELOPE_FROM: ${MAIL_ENVELOPE_FROM:?MAIL_ENVELOPE_FROM is missing}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:?MAIL_REPLY_TO is missing}
+      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE is missing}
       MAIL_SMTP_USERNAME: ${MAIL_SMTP_USERNAME:-}
       MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
       MAIL_SMTP_TIMEOUT_SECONDS: ${MAIL_SMTP_TIMEOUT_SECONDS:-10}
       MAIL_SMTP_VERIFY_CERTIFICATES: "true"
       MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
-      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
-      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET is missing}
 
   web:
-    image: ${LEONAID_WEB_IMAGE:?LEONAID_WEB_IMAGE fehlt}
+    image: ${LEONAID_WEB_IMAGE:?LEONAID_WEB_IMAGE is missing}
     build: !reset null
 
   pwa:
-    image: ${LEONAID_PWA_IMAGE:?LEONAID_PWA_IMAGE fehlt}
+    image: ${LEONAID_PWA_IMAGE:?LEONAID_PWA_IMAGE is missing}
     build: !reset null
 
   public:
-    image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE fehlt}
+    image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE is missing}
     build: !reset null
     environment:
       # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
 
   # The CRM UI is for the system administrator only and has no public domain.
   # twenty-server publishes its port on the host's loopback interface only;
@@ -125,9 +125,9 @@ services:
       AUTH_COOKIE_ALLOWED_ORIGINS: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       IS_EMAIL_VERIFICATION_REQUIRED: "true"
       # Read by the mail policy above; the core worker uses the same value.
-      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE fehlt}
-      EMAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
-      EMAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT fehlt}
+      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE is missing}
+      EMAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST is missing}
+      EMAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT is missing}
       EMAIL_SMTP_USER: ${MAIL_SMTP_USERNAME:-}
       EMAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
       EMAIL_SMTP_NO_TLS: "false"
@@ -142,7 +142,7 @@ services:
       - mail-egress
 
   pilot-exporter:
-    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE is missing}
     profiles: ["monitoring"]
     logging: *default-logging
     restart: unless-stopped
@@ -162,14 +162,14 @@ services:
     command: ["python", "-m", "leonaid.entrypoints.monitoring.exporter"]
     environment:
       PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
-      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT fehlt}
+      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing}
       PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
-      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
+      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
       PILOT_TLS_PORT: "443"
       PILOT_TLS_CA_FILE: ${LEONAID_TLS_CA_FILE:-}
     volumes:
-      - ${LEONAID_BACKUP_MANIFEST_PATH:?LEONAID_BACKUP_MANIFEST_PATH fehlt}:/run/leonaid-monitor/backup-manifest.json:ro
-      - ${LEONAID_MONITORED_DISK_PATH:?LEONAID_MONITORED_DISK_PATH fehlt}:/run/leonaid-monitor/disk:ro
+      - ${LEONAID_BACKUP_MANIFEST_PATH:?LEONAID_BACKUP_MANIFEST_PATH is missing}:/run/leonaid-monitor/backup-manifest.json:ro
+      - ${LEONAID_MONITORED_DISK_PATH:?LEONAID_MONITORED_DISK_PATH is missing}:/run/leonaid-monitor/disk:ro
     networks:
       - edge
       - telemetry
@@ -220,8 +220,8 @@ services:
       - --storage.path=/alertmanager
     volumes:
       - ../observability/pilot/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - ${LEONAID_ALERT_WEBHOOK_URL_FILE:?LEONAID_ALERT_WEBHOOK_URL_FILE fehlt}:/run/secrets/alert-webhook-url:ro
-      - ${LEONAID_ALERT_HEARTBEAT_URL_FILE:?LEONAID_ALERT_HEARTBEAT_URL_FILE fehlt}:/run/secrets/alert-heartbeat-url:ro
+      - ${LEONAID_ALERT_WEBHOOK_URL_FILE:?LEONAID_ALERT_WEBHOOK_URL_FILE is missing}:/run/secrets/alert-webhook-url:ro
+      - ${LEONAID_ALERT_HEARTBEAT_URL_FILE:?LEONAID_ALERT_HEARTBEAT_URL_FILE is missing}:/run/secrets/alert-heartbeat-url:ro
       - alertmanager-data:/alertmanager
     networks:
       - telemetry

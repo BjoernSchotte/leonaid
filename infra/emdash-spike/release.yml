@@ -3,5 +3,5 @@
 # This does not enable public CMS routing or run migrations.
 services:
   campaign-site:
-    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:?LEONAID_CAMPAIGN_SITE_IMAGE fehlt}
+    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:?LEONAID_CAMPAIGN_SITE_IMAGE is missing}
     build: !reset null
