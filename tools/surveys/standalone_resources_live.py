@@ -35,15 +35,16 @@ def cleanup_failure(root):
     try:
         docker("volume", "create", name)
         volume_created = True
-        subnet = subprocess.check_output(
+        subprocess.run(
             [
                 sys.executable,
                 str(root / "tools/surveys/network_override.py"),
-                "--single",
+                "--create-internal",
+                name,
             ],
-            text=True,
-        ).strip()
-        docker("network", "create", "--internal", "--subnet", subnet, name)
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
         network_created = True
         # A stopped real container makes its volume busy without starting a stack.
         docker(

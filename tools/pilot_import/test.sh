@@ -121,11 +121,13 @@ compose exec -T twenty-postgres pg_dump \
   --format custom \
   --no-owner \
   --no-privileges >"$backup/twenty.dump"
+# host-write-user: root reads the volume, then hands the archive to the host user
 docker run --rm \
   --volume "${project}_twenty-server-data:/source:ro" \
   --volume "$backup:/backup" \
   "$ALPINE_IMAGE" \
   sh -c "umask 077; tar -C /source -cf /backup/twenty-storage.tar .; chown $host_user_id:$host_group_id /backup/twenty-storage.tar"
+# host-write-user: root reads the volume, then hands the archive to the host user
 docker run --rm \
   --volume "${project}_rustfs-data:/source:ro" \
   --volume "$backup:/backup" \

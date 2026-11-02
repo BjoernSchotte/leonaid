@@ -31,9 +31,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 image=true
 docker buildx build --load --file "$root/apps/surveys-demo/Dockerfile" --tag "$project" "$root"
-subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
 network=true
-docker network create --internal --subnet "$subnet" "$project" >/dev/null
+python3 "$root/tools/surveys/network_override.py" --create-internal "$project" >/dev/null
 volume=true
 docker volume create "$project" >/dev/null
 container=true
@@ -48,7 +47,7 @@ ready() {
   done
 }
 browser() {
-  docker run --rm --network "container:$project" --env HOME=/tmp --env CI=1 \
+  docker run --rm --network "container:$project" --user "$(id -u):$(id -g)" --env HOME=/tmp --env CI=1 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
     node_modules/.bin/playwright test tests/e2e/surveys-package.spec.mjs \

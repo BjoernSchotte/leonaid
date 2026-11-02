@@ -335,9 +335,9 @@ class SharedStack:
             shutil.copyfile(directory / name, target)
         self.copy_volumes("restore")
 
-    def copy_volumes(self, mode):
-        # No live process may hold a database, queue or storage file during copying.
-        running = self.call(
+    def active_containers(self):
+        # `docker ps` without -a lists running, restarting and paused containers.
+        return self.call(
             [
                 "docker",
                 "ps",
@@ -346,22 +346,73 @@ class SharedStack:
                 f"label=com.docker.compose.project={self.project}",
             ],
             capture=True,
+        ).split()
+
+    def describe(self, containers):
+        result = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{.Name}} status={{.State.Status}} restarts={{.RestartCount}} "
+                'oneoff={{index .Config.Labels "com.docker.compose.oneoff"}} '
+                "policy={{.HostConfig.RestartPolicy.Name}}",
+                *containers,
+            ],
+            env=self.env,
+            capture_output=True,
+            text=True,
         )
-        if running.strip():
-            raise RuntimeError(
-                f"Refusing fixture reset: active container IDs {running.split()}"
+        return "; ".join(result.stdout.split("\n")).strip("; ") or str(containers)
+
+    def quiesce(self, timeout=60):
+        """Stop every container of the project, or fail closed after timeout.
+
+        `compose stop` covers only the service containers that exist at that
+        moment. A container in restart backoff (restart: unless-stopped after
+        a crash) is not running while Compose stops it and is restarted by the
+        daemon afterwards; a one-off left by a test script is no service
+        container at all. Both are stopped explicitly here; the manual-stop
+        flag then prevents further restarts.
+        """
+        deadline = time.monotonic() + timeout
+        while active := self.active_containers():
+            details = self.describe(active)
+            if time.monotonic() > deadline:
+                raise RuntimeError(
+                    f"Refusing fixture reset: active containers after {timeout}s: {details}"
+                )
+            print(
+                f"shared-stack: stopping lingering containers: {details}",
+                flush=True,
+                file=self.output,
             )
+            # A container may vanish (--rm) between listing and stopping.
+            subprocess.run(
+                ["docker", "stop", "--timeout", "5", *active],
+                env=self.env,
+                stdout=subprocess.DEVNULL,
+                stderr=self.output,
+            )
+            time.sleep(1)
+
+    def copy_volumes(self, mode):
+        # No live process may hold a database, queue or storage file during copying.
+        self.quiesce()
         current = self.inventory("volumes")
         if current != self.volumes:
             raise RuntimeError(
                 f"Refusing fixture reset: volume inventory changed; expected {self.volumes}, actual {current}"
             )
+        # host-write-user: root reads service-owned volumes; save hands the archives to the host user
         args = [
             "docker",
             "run",
             "--rm",
             "--network",
             "none",
+            "--env",
+            f"FIXTURE_OWNER={os.getuid()}:{os.getgid()}",
             "--volume",
             f"{self.directory}:/fixture",
         ]
@@ -369,11 +420,17 @@ class SharedStack:
             args += ["--mount", f"type=volume,src={volume},dst=/state/{index}"]
         # Names are numeric indices from the guarded inventory, never external paths.
         script = (
-            'for d in /state/*; do tar -C "$d" -cf "/fixture/volume-${d##*/}.tar" .; done'
+            'for d in /state/*; do tar -C "$d" -cf "/fixture/volume-${d##*/}.tar" .; '
+            'chown "$FIXTURE_OWNER" "/fixture/volume-${d##*/}.tar"; done'
             if mode == "save"
             else 'for d in /state/*; do test -s "/fixture/volume-${d##*/}.tar"; find "$d" -mindepth 1 -delete; tar -C "$d" -xf "/fixture/volume-${d##*/}.tar"; done'
         )
         self.call([*args, self.alpine, "sh", "-eu", "-c", script])
+        # Fail closed if anything started while the copy ran.
+        if active := self.active_containers():
+            raise RuntimeError(
+                f"Fixture {mode} raced with started containers: {self.describe(active)}"
+            )
 
     def prepare(self):
         # Atomic directory creation also excludes a borrowed leaf in another process.

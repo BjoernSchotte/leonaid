@@ -226,10 +226,10 @@ if [ "$topology" = emdash ]; then
   compose exec -T core-postgres pg_dump \
     --username "${CORE_POSTGRES_USER:-leonaid}" --dbname emdash \
     --format custom --no-owner --no-privileges >"$stage/emdash.dump"
+  # Root reads the volume; the host shell writes the archive as the operator.
   docker run --rm --network none \
-    -v "${project}_cms-bootstrap-state:/source:ro" \
-    -v "$stage:/backup" "$ALPINE_IMAGE" \
-    tar -C /source -cf /backup/cms-bootstrap-state.tar .
+    -v "${project}_cms-bootstrap-state:/source:ro" "$ALPINE_IMAGE" \
+    tar -C /source -cf - . >"$stage/cms-bootstrap-state.tar"
 fi
 
 compose exec -T core-postgres pg_dump \
@@ -252,16 +252,16 @@ compose exec -T twenty-postgres pg_dump \
 # were running before this backup, including RustFS.
 compose stop rustfs >/dev/null
 
-docker run --rm \
+# Root reads the volumes; the host shell writes the archives as the operator,
+# so the stage never holds root-owned files.
+docker run --rm --network none \
   -v "${project}_twenty-server-data:/source:ro" \
-  -v "$stage:/backup" \
   "$ALPINE_IMAGE" \
-  tar -C /source -cf /backup/twenty-storage.tar .
-docker run --rm \
+  tar -C /source -cf - . >"$stage/twenty-storage.tar"
+docker run --rm --network none \
   -v "${project}_rustfs-data:/source:ro" \
-  -v "$stage:/backup" \
   "$ALPINE_IMAGE" \
-  tar -C /source -cf /backup/rustfs-data.tar .
+  tar -C /source -cf - . >"$stage/rustfs-data.tar"
 
 # As the host user: the manifest is created 0600, and the host copies it to
 # LEONAID_BACKUP_MANIFEST_OUTPUT below. A root-owned file would be unreadable

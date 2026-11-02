@@ -100,6 +100,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 [ -z "$existing" ]
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 
 fi

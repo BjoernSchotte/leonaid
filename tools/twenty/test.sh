@@ -103,6 +103,27 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   cmp /proof/first.json /proof/second.json
 
+echo "twenty-test: verwirft den Workspace-Cache gezielt und Twenty berechnet ihn neu"
+# The stale-cache repair of provision.py deletes exactly Twenty's
+# engine:workspace namespace; queues and other namespaces stay untouched.
+workspace_keys() {
+  compose exec -T twenty-redis redis-cli --scan --pattern 'engine:workspace:*' | wc -l
+}
+[ "$(workspace_keys)" -gt 0 ]
+compose exec -T twenty-redis redis-cli SET engine:lock:leonaid-cache-probe kept >/dev/null
+queue_keys_before=$(compose exec -T twenty-redis redis-cli --scan --pattern 'bull:*' | wc -l)
+run_tool flush-workspace-cache
+[ "$(workspace_keys)" -eq 0 ]
+[ "$(compose exec -T twenty-redis redis-cli GET engine:lock:leonaid-cache-probe)" = kept ]
+[ "$(compose exec -T twenty-redis redis-cli --scan --pattern 'bull:*' | wc -l)" -ge "$queue_keys_before" ]
+compose exec -T twenty-redis redis-cli DEL engine:lock:leonaid-cache-probe >/dev/null
+run_tool check --snapshot-output /proof/after-cache-flush.json
+docker run --rm \
+  --volume "$proof:/proof:ro" \
+  "$ALPINE_IMAGE" \
+  cmp /proof/first.json /proof/after-cache-flush.json
+[ "$(workspace_keys)" -gt 0 ]
+
 echo "twenty-test: beweist erlaubte und verweigerte Integrations-Key-Rechte"
 run_tool verify-key --token-file /proof/integration.env
 

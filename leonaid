@@ -446,6 +446,7 @@ repair_ownership() {
     return
   fi
   # Only root can chown; a short-lived container does it without sudo.
+  # host-write-user: chown of root-owned files requires root
   docker_retry docker run --rm \
     -v "$root:/workspace" \
     "$ALPINE_IMAGE" \
@@ -2541,8 +2542,12 @@ pilot_restore() {
     --backup-manifest "$backup_manifest" \
     --gate pilot-restore
   restore_overlay_secondary=
+  restore_networks_prereserved=false
+  restore_isolated_test=false
   if [ -n "${LEONAID_PILOT_TEST_RESTORE_OVERLAY:-}" ]; then
     restore_overlay_secondary=${LEONAID_PILOT_TEST_RESTORE_OVERLAY}
+    restore_networks_prereserved=${LEONAID_PILOT_TEST_NETWORKS_PRERESERVED:-false}
+    restore_isolated_test=true
     case "$source_project" in
       leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
@@ -2563,6 +2568,8 @@ pilot_restore() {
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
     LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$restore_overlay_secondary" \
+    LEONAID_RESTORE_NETWORKS_PRERESERVED="$restore_networks_prereserved" \
+    LEONAID_RESTORE_ISOLATED_PILOT_TEST="$restore_isolated_test" \
     LEONAID_RESTORE_NO_BUILD=true \
     LEONAID_RESTORE_PROFILE=none \
     /bin/sh "$root/tools/backup/restore.sh" "$root"
@@ -2957,7 +2964,8 @@ mail_domain_check() (
   cp "$expectation" "$private_workspace/expectation.json"
 
   if [ -n "$json_argument" ] && [ -n "$report" ]; then
-    docker run --rm \
+    docker run --rm --user "$(id -u):$(id -g)" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace:/workspace/src \
       -e UV_CACHE_DIR=/tmp/uv-cache \
       -e UV_LINK_MODE=copy \
@@ -2971,7 +2979,8 @@ mail_domain_check() (
       --json \
       --report /private/report.json
   elif [ -n "$json_argument" ]; then
-    docker run --rm \
+    docker run --rm --user "$(id -u):$(id -g)" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace:/workspace/src \
       -e UV_CACHE_DIR=/tmp/uv-cache \
       -e UV_LINK_MODE=copy \
@@ -2984,7 +2993,8 @@ mail_domain_check() (
       --expectation /private/expectation.json \
       --json
   elif [ -n "$report" ]; then
-    docker run --rm \
+    docker run --rm --user "$(id -u):$(id -g)" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace:/workspace/src \
       -e UV_CACHE_DIR=/tmp/uv-cache \
       -e UV_LINK_MODE=copy \
@@ -2997,7 +3007,8 @@ mail_domain_check() (
       --expectation /private/expectation.json \
       --report /private/report.json
   else
-    docker run --rm \
+    docker run --rm --user "$(id -u):$(id -g)" \
+      -e HOME=/tmp \
       -e PYTHONPATH=/workspace:/workspace/src \
       -e UV_CACHE_DIR=/tmp/uv-cache \
       -e UV_LINK_MODE=copy \

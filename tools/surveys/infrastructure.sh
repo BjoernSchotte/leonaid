@@ -306,8 +306,9 @@ if [ "$mode" = recovery ]; then
   compose stop proxy public api worker rustfs
   compose exec -T core-postgres pg_dump --username leonaid --dbname leonaid \
     --format custom --no-owner --no-privileges > "$proof/recovery-core.dump"
-  docker run --rm --volume "${project}_rustfs-data:/source:ro" --volume "$proof:/proof" \
-    "$ALPINE_IMAGE" tar -C /source -cf /proof/recovery-rustfs.tar .
+  # Root reads the volume; the host shell writes the archive as the invoking user.
+  docker run --rm --volume "${project}_rustfs-data:/source:ro" \
+    "$ALPINE_IMAGE" tar -C /source -cf - . >"$proof/recovery-rustfs.tar"
   compose up --detach --wait --wait-timeout 90 rustfs api public proxy
   recovery_probe delete
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

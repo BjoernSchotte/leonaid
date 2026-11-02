@@ -23,6 +23,17 @@ compose run --rm --no-deps --entrypoint alembic api upgrade head
 docker run --rm --volume "$root:/workspace:ro" "$PYTHON_IMAGE" python -V
 # core-oneoff-user: reads only image content through a deliberate root shell
 compose run --rm --no-deps --volume "$root:/repo:ro" api true
+# Browser and tool containers that write host files run as the host user.
+docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp \
+  --volume "$root:/workspace:ro" --volume "$proof:/proof" \
+  "$PLAYWRIGHT_IMAGE" node_modules/.bin/playwright test
+# A root container may read a volume when the host shell writes the archive.
+docker run --rm --volume "${project}_rustfs-data:/source:ro" \
+  "$ALPINE_IMAGE" tar -C /source -cf - . >"$proof/rustfs.tar"
+docker run --rm --mount type=bind,src="$root",dst=/workspace,readonly "$ALPINE_IMAGE" true
+docker run --rm --volume /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image x
+# host-write-user: chown to a service uid requires root
+docker run --rm --volume "$workspace:/secrets" "$ALPINE_IMAGE" chown 65534 /secrets/x
 """
 
 GOOD_STACK_USER = """#!/bin/sh
@@ -34,6 +45,13 @@ docker run --rm --user "$LEONAID_CORE_RUNTIME_USER" \\
 """
 
 GOOD_PYTHON = """
+browser = [
+    "docker", "run", "--rm", "--user", "1000:1000",
+    "--volume", f"{proof}:/proof", "playwright",
+]
+readonly = ["docker", "run", "--rm", "-v", f"{root}:/workspace:ro", "python"]
+# host-write-user: root reads service-owned volumes, then chowns the archives
+archive = ["docker", "run", "--rm", "--volume", f"{fixture}:/fixture", "alpine"]
 command = [
     "docker", "compose", "run", "--rm", "--no-deps",
     "--user", "1000:1000",
@@ -93,6 +111,38 @@ command = [
 ]
 """,
     ),
+    "playwright writing into a proof directory": (
+        "tools/surveys/package.sh",
+        """#!/bin/sh
+docker run --rm --network "container:$project" --env HOME=/tmp --env CI=1 \\
+  --volume "$root:/workspace:ro" --volume "$proof:/proof" \\
+  "$PLAYWRIGHT_IMAGE" node_modules/.bin/playwright test --output=/proof/x
+""",
+    ),
+    "alpine archive written inside the container": (
+        "tools/surveys/infrastructure.sh",
+        """#!/bin/sh
+docker run --rm --volume "${project}_rustfs-data:/source:ro" --volume "$proof:/proof" \\
+  "$ALPINE_IMAGE" tar -C /source -cf /proof/recovery-rustfs.tar .
+""",
+    ),
+    "writable bind mount": (
+        "tools/example/bind.sh",
+        """#!/bin/sh
+docker run --rm --mount type=bind,src="$proof",dst=/proof "$PYTHON_IMAGE" python -V
+""",
+    ),
+    "python docker run with a writable host mount": (
+        "tools/example/preflight.py",
+        """
+command = [
+    "docker", "run", "--rm", "--network", "none",
+    "-v", f"{root}:/workspace:ro",
+    "-v", f"{proof}:/proof",
+    "python", "-V",
+]
+""",
+    ),
     "the ./leonaid CLI": (
         "leonaid",
         """#!/bin/sh
@@ -139,8 +189,8 @@ def main() -> None:
         if result.returncode != 0:
             raise AssertionError(f"cleaned fixture was rejected: {result.stderr}")
     print(
-        "core-oneoff-user-test: OK: correct, named-volume, stack-user and marked "
-        f"one-offs pass; {len(BAD_CASES)} missing --user cases rejected"
+        "core-oneoff-user-test: OK: correct, named-volume, read-only, stack-user "
+        f"and marked one-offs pass; {len(BAD_CASES)} missing --user cases rejected"
     )
 
 

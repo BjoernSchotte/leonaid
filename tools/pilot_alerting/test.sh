@@ -48,7 +48,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 contract() {
-  docker run --rm \
+  docker run --rm --user "$(id -u):$(id -g)" \
     --volume "$root:/workspace:ro" \
     --volume "$workspace:/proof" \
     --workdir /workspace \

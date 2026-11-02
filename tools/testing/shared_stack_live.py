@@ -87,7 +87,28 @@ with smtplib.SMTP("mailpit",1025) as smtp: smtp.sendmail("probe@example.invalid"
                 raise AssertionError("Reset was allowed while a leaf held its lease")
         finally:
             lease.rmdir()
+        # `compose stop` ignores one-off containers; a still running one-off
+        # must be stopped by the reset itself, never copied around.
+        oneoff = stack.call(
+            [
+                *stack.compose,
+                "run",
+                "--detach",
+                "--no-deps",
+                "--entrypoint",
+                "sleep",
+                "api",
+                "600",
+            ],
+            capture=True,
+        ).split()[-1]
         stack.prepare()
+        state = stack.call(
+            ["docker", "inspect", "--format", "{{.State.Status}}", oneoff],
+            capture=True,
+        ).strip()
+        assert state == "exited", f"one-off survived the reset: {state}"
+        stack.call(["docker", "rm", oneoff])
         assert stack.inventory("containers") == original_containers
         assert stack.inventory("volumes") == original_volumes
         stack.call(

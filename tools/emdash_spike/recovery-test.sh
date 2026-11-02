@@ -45,7 +45,7 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
-docker run --rm --network none --volume "$proof:/proof" "$NODE_IMAGE" \
+docker run --rm --network none --user "$(id -u):$(id -g)" --volume "$proof:/proof" "$NODE_IMAGE" \
   node -e 'require("node:fs").writeFileSync("/proof/password",require("node:crypto").randomBytes(48).toString("hex"),{mode:0o600})'
 compose "$source_project" up --detach --wait core-postgres twenty-postgres rustfs
 compose "$source_project" run --rm --no-deps recovery-node tools/emdash_spike/service-provision.mjs

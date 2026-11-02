@@ -6,13 +6,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import stat
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, TypeVar
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -43,6 +46,88 @@ class SchemaDrift(TwentySchemaError):
 
 
 TRANSIENT_FLAT_ENTITY_ERROR = "Could not find flat entity"
+
+# Twenty 2.24 caches the workspace metadata ("flat maps") in Redis. A metadata
+# mutation commits, flushes the affected keys and recomputes them. A reader in
+# another process (twenty-worker jobs run after every metadata event) that
+# started its own recompute from the database before that commit writes its
+# stale result after the fresh one, with a new hash. Every process then serves
+# the stale map until the next invalidation or the 7-day cache TTL: a created
+# field stays invisible, and the worker fails with "Index field not found for
+# field id ..." because the index map is fresh while the field map is not.
+# Waiting longer cannot repair that. After STALE_CACHE_SECONDS without the
+# created entity, the provisioner deletes the workspace cache namespace once
+# more, exactly like Twenty's own `cache:flush --namespace engine:workspace`,
+# and all processes recompute from the committed database state.
+STALE_CACHE_SECONDS = 15.0
+VISIBILITY_TIMEOUT_SECONDS = 90.0
+WORKSPACE_CACHE_PATTERN = "engine:workspace:*"
+DEFAULT_TWENTY_REDIS_URL = "redis://twenty-redis:6379"
+
+T = TypeVar("T")
+
+
+class RedisError(RuntimeError):
+    """The Twenty cache Redis rejected a command or was unreachable."""
+
+
+def redis_command(connection: socket.socket, reader: Any, *arguments: str) -> Any:
+    payload = f"*{len(arguments)}\r\n".encode()
+    for argument in arguments:
+        encoded = argument.encode()
+        payload += b"$" + str(len(encoded)).encode() + b"\r\n" + encoded + b"\r\n"
+    connection.sendall(payload)
+    return redis_reply(reader)
+
+
+def redis_reply(reader: Any) -> Any:
+    line = reader.readline()
+    if not line.endswith(b"\r\n"):
+        raise RedisError("Twenty cache Redis closed the connection")
+    kind, value = line[:1], line[1:-2]
+    if kind == b"+":
+        return value.decode()
+    if kind == b"-":
+        raise RedisError(f"Twenty cache Redis error: {value.decode()[:200]}")
+    if kind == b":":
+        return int(value)
+    if kind == b"$":
+        length = int(value)
+        if length < 0:
+            return None
+        data = reader.read(length + 2)
+        return data[:-2].decode()
+    if kind == b"*":
+        count = int(value)
+        return None if count < 0 else [redis_reply(reader) for _ in range(count)]
+    raise RedisError("Twenty cache Redis sent an unknown reply")
+
+
+def flush_workspace_cache(url: str, pattern: str = WORKSPACE_CACHE_PATTERN) -> int:
+    """Delete Twenty's workspace cache keys; returns the number deleted."""
+    parts = urlsplit(url)
+    if parts.scheme != "redis" or not parts.hostname:
+        raise RedisError("TWENTY_REDIS_URL must be redis://host[:port][/db]")
+    deleted = 0
+    with socket.create_connection(
+        (parts.hostname, parts.port or 6379), timeout=10
+    ) as connection:
+        reader = connection.makefile("rb")
+        if parts.password:
+            user = [parts.username] if parts.username else []
+            redis_command(connection, reader, "AUTH", *user, parts.password)
+        database = parts.path.lstrip("/")
+        if database:
+            redis_command(connection, reader, "SELECT", database)
+        cursor = "0"
+        while True:
+            cursor, keys = redis_command(
+                connection, reader, "SCAN", cursor, "MATCH", pattern, "COUNT", "500"
+            )
+            if keys:
+                deleted += int(redis_command(connection, reader, "DEL", *keys))
+            if cursor == "0":
+                return deleted
 
 
 def json_object(value: Any, label: str) -> JsonObject:
@@ -682,21 +767,65 @@ class Provisioner:
             if drifts:
                 raise SchemaDrift(drifts)
 
-    def wait_for_object(self, name: str) -> dict[str, JsonObject]:
-        deadline = time.monotonic() + 90
+    def wait_until_visible(
+        self,
+        label: str,
+        probe: Callable[[], T | None],
+        timeout: float = VISIBILITY_TIMEOUT_SECONDS,
+    ) -> T:
+        """Poll until a created entity is visible; repair a stale Twenty cache."""
+        start = time.monotonic()
+        next_flush = start + STALE_CACHE_SECONDS
+        flushes = 0
         while True:
-            objects = self.object_map()
-            if name in objects:
-                return objects
-            if time.monotonic() >= deadline:
+            value = probe()
+            if value is not None:
+                if flushes:
+                    print(
+                        f"twenty-schema: {label} sichtbar nach {flushes} "
+                        "Cache-Neuberechnung(en)",
+                        file=sys.stderr,
+                    )
+                return value
+            now = time.monotonic()
+            if now >= start + timeout:
                 raise TwentySchemaError(
-                    f"Twenty Metadata API veröffentlichte Object nicht: {name}"
+                    f"Twenty Metadata API veröffentlichte {label} nicht "
+                    f"nach {timeout:.0f}s und {flushes} Cache-Neuberechnung(en)"
                 )
+            if now >= next_flush:
+                flushes += 1
+                next_flush = now + STALE_CACHE_SECONDS
+                self.repair_stale_cache(label, now - start)
             time.sleep(0.5)
 
+    def repair_stale_cache(self, label: str, waited: float) -> None:
+        url = os.environ.get("TWENTY_REDIS_URL", DEFAULT_TWENTY_REDIS_URL)
+        try:
+            deleted = flush_workspace_cache(url)
+        except (OSError, RedisError, ValueError) as error:
+            # Keep waiting: without the repair the deadline reports the failure.
+            print(
+                f"twenty-schema: WARNUNG: {label} nach {waited:.0f}s unsichtbar; "
+                f"Workspace-Cache nicht erreichbar ({type(error).__name__}: {error})",
+                file=sys.stderr,
+            )
+            return
+        print(
+            f"twenty-schema: {label} nach {waited:.0f}s unsichtbar; veralteter "
+            f"Twenty-Workspace-Cache verworfen ({deleted} Schlüssel)",
+            file=sys.stderr,
+        )
+
+    def wait_for_object(self, name: str) -> dict[str, JsonObject]:
+        def probe() -> dict[str, JsonObject] | None:
+            objects = self.object_map()
+            return objects if name in objects else None
+
+        return self.wait_until_visible(f"Object {name}", probe)
+
     def wait_for_field(self, object_id: str, field_name: str) -> dict[str, JsonObject]:
-        deadline = time.monotonic() + 90
-        while True:
+        def probe() -> dict[str, JsonObject] | None:
             # Validate the same GraphQL view we consume, not an independently
             # refreshed REST metadata cache that can become visible first.
             details = self.object_details(object_id)
@@ -704,14 +833,9 @@ class Provisioner:
                 str(field["name"]): field
                 for field in json_list(details.get("fieldsList"), "fieldsList")
             }
-            if field_name in fields:
-                return fields
-            if time.monotonic() >= deadline:
-                raise TwentySchemaError(
-                    "Twenty Metadata API veröffentlichte Field nicht: "
-                    f"{object_id}.{field_name}"
-                )
-            time.sleep(0.5)
+            return fields if field_name in fields else None
+
+        return self.wait_until_visible(f"Field {object_id}.{field_name}", probe)
 
     def object_differences(
         self,
@@ -901,14 +1025,11 @@ class Provisioner:
                 raise SchemaDrift(drifts)
 
     def wait_for_view(self, object_id: str, view_id: str) -> JsonObject:
-        deadline = time.monotonic() + 60
-        while True:
-            view = one_by(self.views(object_id), "id", view_id, "View-ID")
-            if view is not None:
-                return view
-            if time.monotonic() >= deadline:
-                raise TwentySchemaError(f"Twenty veröffentlichte View nicht: {view_id}")
-            time.sleep(0.5)
+        return self.wait_until_visible(
+            f"View {view_id}",
+            lambda: one_by(self.views(object_id), "id", view_id, "View-ID"),
+            timeout=60,
+        )
 
     def reconcile_view_fields(
         self,
@@ -1058,14 +1179,11 @@ class Provisioner:
                 raise SchemaDrift(drifts)
 
     def wait_for_role(self, role_id: str) -> JsonObject:
-        deadline = time.monotonic() + 60
-        while True:
-            role = one_by(self.roles(), "id", role_id, "Role-ID")
-            if role is not None:
-                return role
-            if time.monotonic() >= deadline:
-                raise TwentySchemaError(f"Twenty veröffentlichte Role nicht: {role_id}")
-            time.sleep(0.5)
+        return self.wait_until_visible(
+            f"Role {role_id}",
+            lambda: one_by(self.roles(), "id", role_id, "Role-ID"),
+            timeout=60,
+        )
 
     def expected_field_restrictions(
         self,
@@ -1747,6 +1865,13 @@ def run(arguments: argparse.Namespace) -> None:
         )
         return
 
+    if arguments.command == "flush-workspace-cache":
+        deleted = flush_workspace_cache(
+            os.environ.get("TWENTY_REDIS_URL", DEFAULT_TWENTY_REDIS_URL)
+        )
+        print(f"twenty-cache: OK: {deleted} Workspace-Cache-Schlüssel verworfen")
+        return
+
     provisioner = Provisioner(manifest)
     try:
         if arguments.command == "apply":
@@ -1813,13 +1938,22 @@ def main() -> int:
     mutate_command.add_argument("--field", required=True)
     mutate_command.add_argument("--label", required=True)
 
+    commands.add_parser("flush-workspace-cache")
+
     verify_key_command = commands.add_parser("verify-key")
     verify_key_command.add_argument("--token-file", required=True, type=Path)
 
     arguments = parser.parse_args()
     try:
         run(arguments)
-    except (TwentySchemaError, SeedError, httpx.HTTPError, KeyError) as error:
+    except (
+        TwentySchemaError,
+        SeedError,
+        httpx.HTTPError,
+        KeyError,
+        RedisError,
+        OSError,
+    ) as error:
         die(error)
     return 0
 
