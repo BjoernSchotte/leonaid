@@ -64,7 +64,15 @@ export function guardCsp(browser) {
     await close(options);
     if (violations.length === 0) return;
     process.exitCode = 1;
-    for (const { directive, blocked, document, source, line, sample, element } of violations) {
+    for (const {
+      directive,
+      blocked,
+      document,
+      source,
+      line,
+      sample,
+      element,
+    } of violations) {
       console.error(
         `csp-guard: ${browser.browserType().name()}: ${directive} blocked ` +
           `${blocked || "inline"} on ${document}` +

@@ -83,12 +83,22 @@ function takeViolations() {
 function describe(found) {
   return found
     .map(({ console: reports, ...violation }) =>
-      reports ? `browser console:\n  ${reports.join("\n  ")}` : describeOne(violation),
+      reports
+        ? `browser console:\n  ${reports.join("\n  ")}`
+        : describeOne(violation),
     )
     .join("\n");
 }
 
-function describeOne({ directive, blocked, document, source, line, sample, element }) {
+function describeOne({
+  directive,
+  blocked,
+  document,
+  source,
+  line,
+  sample,
+  element,
+}) {
   return (
     `${directive} blocked ${blocked || "inline"} on ${document}` +
     (source ? ` (${source}:${line})` : "") +
@@ -106,7 +116,9 @@ export const test = base.extend({
       // Violations raised in beforeAll/afterAll hooks surface here.
       const found = takeViolations();
       if (found.length > 0) {
-        throw new Error(`Content-Security-Policy violations:\n${describe(found)}`);
+        throw new Error(
+          `Content-Security-Policy violations:\n${describe(found)}`,
+        );
       }
     },
     { scope: "worker" },
@@ -119,7 +131,10 @@ export const test = base.extend({
       takeViolations();
       await use(undefined);
       const found = takeViolations();
-      expect(found, `Content-Security-Policy violations:\n${describe(found)}`).toEqual([]);
+      expect(
+        found,
+        `Content-Security-Policy violations:\n${describe(found)}`,
+      ).toEqual([]);
     },
     { auto: true },
   ],

@@ -8,7 +8,10 @@ export function adminRouteSource() {
   const require = createRequire(import.meta.url);
   // emdash/package.json is not exported; resolve the main entry instead.
   const packageRoot = dirname(dirname(require.resolve("emdash")));
-  return readFileSync(join(packageRoot, "src/astro/routes/admin.astro"), "utf8");
+  return readFileSync(
+    join(packageRoot, "src/astro/routes/admin.astro"),
+    "utf8",
+  );
 }
 
 /**

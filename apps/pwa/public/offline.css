@@ -1,8 +1,7 @@
 :root {
   color: #0d2240;
   background: #f5f7fb;
-  font-family:
-    "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
+  font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -12,8 +11,7 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: max(1rem, env(safe-area-inset-top))
-    max(1rem, env(safe-area-inset-right))
-    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
     max(1rem, env(safe-area-inset-left));
   place-items: center;
 }
