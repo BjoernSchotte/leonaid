@@ -34,6 +34,19 @@ export function guardCsp(browser) {
         // Browsers render non-HTML responses (JSON, plain text) in a generated
         // viewer document whose own inline styles the policy blocks.
         if (!/html|xml/.test(document.contentType)) return;
+        // WebKit 27 builds the <select> control in a user-agent shadow tree
+        // whose inline style it checks against the page policy, so every
+        // <select> raises style-src-attr (retargeted to the host; sourceFile
+        // is the script that inserted it) even with no inline style in the
+        // page. Same rule as tests/e2e/csp-guard.mjs: a page-authored inline
+        // style on a <select> carries a style attribute and is still reported.
+        if (
+          event.effectiveDirective === "style-src-attr" &&
+          event.target instanceof HTMLSelectElement &&
+          !event.target.hasAttribute("style")
+        ) {
+          return;
+        }
         if (
           event.effectiveDirective === "style-src-elem" &&
           harnessStyles > 0 &&
