@@ -1,116 +1,113 @@
-# Twenty-Vertrag für LeonAid
+# Twenty contract for LeonAid
 
-## Verbindlicher Stand
+## Binding baseline
 
-LeonAid provisioniert ausschließlich die in
-[`schema.json`](./schema.json) deklarierte Teilmenge der Twenty-API. Geprüft ist:
+LeonAid provisions only the subset of the Twenty API declared in
+[`schema.json`](./schema.json). Verified:
 
-- Twenty `2.54.0`, Upstream-Tag `twenty/v2.54.0`
+- Twenty `2.54.0`, upstream tag `twenty/v2.54.0`
   (`c75ef7bfd0589219bd22e8f134df458af0af3445`)
-- Container-Digest
+- Container digest
   `sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e`
-- GraphQL Metadata API unter `/metadata`
-- REST Metadata API unter `/rest/metadata`
-- generierte REST Data API unter `/rest/<objectPlural>`
+- GraphQL Metadata API at `/metadata`
+- REST Metadata API at `/rest/metadata`
+- Generated REST Data API at `/rest/<objectPlural>`
 
-Ein Upgrade von Twenty ist eine bewusste Vertragsänderung. Vor dem Merge müssen
-der Pin, das Manifest und `tools/twenty/test.sh` gemeinsam aktualisiert und
-gegen eine leere Instanz bewiesen werden.
+A Twenty upgrade is a deliberate contract change. Before the merge, the pin,
+the manifest and `tools/twenty/test.sh` must be updated together and proven
+against an empty instance.
 
-Der produktive Data-API-Vertrag ist separat im
+The production Data API contract is documented separately in the
 [`Twenty CRM Gateway`](../../src/leonaid/adapters/twenty/README.md)
-dokumentiert und wird durch `./leonaid test-twenty-gateway` real geprüft.
+and is checked for real by `./leonaid test-twenty-gateway`.
 
-## Einmaliger Kontaktimport
+## One-time contact import
 
-Twenty 2.54.0 kann über seine Oberfläche CSV-, XLSX- und XLS-Dateien
-importieren, allerdings jeweils nur für ein Objekt. LeonAid verwendet für den
-PoC bewusst den eigenen API-Importpfad, weil er die fachlichen
-Primärschlüssel, einen prüfbaren Dry Run und einen gemeinsamen zeilenbezogenen
-Report für Companies und People benötigt. Der Weg bleibt auf Twentys
-unterstützter Data API und greift nicht auf interne Tabellen zu.
+Twenty 2.54.0 can import CSV, XLSX and XLS files through its interface, but
+only for one object at a time. For the PoC, LeonAid deliberately uses its own
+API import path, because it needs the business primary keys, a verifiable dry
+run and a shared row-level report for companies and people. The path stays on
+Twenty's supported Data API and does not access internal tables.
 
-Die versionierte
-[Golden-Arbeitsmappe](../../tests/fixtures/golden/v1/outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx)
-und [`import-mapping.json`](./import-mapping.json) bilden die Vorlage für eine
-echte Bestandsdatei. Die erste Zeile muss exakt diese Spalten enthalten:
+The versioned
+[golden workbook](../../tests/fixtures/golden/v1/outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx)
+and [`import-mapping.json`](./import-mapping.json) are the template for a
+real existing-data file. The first row must contain exactly these columns:
 
 ```text
 source_id, record_type, company_name, given_name, family_name, email,
 street_line_1, postal_code, city, country
 ```
 
-- `source_id` ist pro Zeile eine stabile UUIDv4 und macht Berichte über
-  Wiederholungen vergleichbar.
-- `record_type` ist `COMPANY` oder `PERSON`.
-- Firmen benötigen `company_name`; Personen benötigen `given_name` und
-  `family_name`.
-- Leere Zellen löschen keine vorhandenen CRM-Werte.
-- Firmennamen werden Unicode-, Groß-/Kleinschreibungs-, Whitespace- und
-  Interpunktions-unabhängig verglichen. Ohne Firma gilt Vor- plus Nachname als
-  Match-Schlüssel.
-- Kein Treffer wird als `new`, genau ein Treffer als `update` oder
-  `unchanged`, mehrere Treffer als `conflict` und ungültige Zeilen als
-  `rejected` berichtet.
-- Konflikte und verworfene Zeilen werden niemals automatisch geschrieben.
+- `source_id` is a stable UUIDv4 per row and makes reports comparable across
+  repeated runs.
+- `record_type` is `COMPANY` or `PERSON`.
+- Companies need `company_name`; people need `given_name` and `family_name`.
+- Empty cells never delete existing CRM values.
+- Company names are compared independent of Unicode form, case, whitespace
+  and punctuation. Without a company, given name plus family name is the
+  match key.
+- No match is reported as `new`, exactly one match as `update` or
+  `unchanged`, several matches as `conflict` and invalid rows as `rejected`.
+- Conflicts and rejected rows are never written automatically.
 
-Die Arbeitsdatei wird in das Repository oder in das ignorierte Verzeichnis
-`.local/` gelegt. Vor dem ersten Lauf:
+Put the working file in the repository or in the ignored directory
+`.local/`. Before the first run:
 
 ```sh
 ./leonaid provision-twenty
-./leonaid import-crm dry-run .local/kontakte.xlsx \
+./leonaid import-crm dry-run .local/contacts.xlsx \
   --report .local/import-dry-run.json
 ```
 
-Der JSON-Report besitzt Dateimodus `0600` und nennt für jede Excel-/CSV-Zeile
-Status, Begründung, Trefferkandidaten und die betroffene Twenty-ID. Erst nach
-fachlicher Prüfung wird derselbe Stand angewendet:
+The JSON report has file mode `0600` and lists, for each Excel/CSV row,
+status, reason, match candidates and the affected Twenty ID. Only after a
+business review is the same state applied:
 
 ```sh
-./leonaid import-crm apply .local/kontakte.xlsx \
+./leonaid import-crm apply .local/contacts.xlsx \
   --report .local/import-apply.json
 ```
 
-Ein erneuter Dry Run muss nur noch `unchanged`, weiterhin bewusst ungelöste
-`conflict`-Fälle oder `rejected`-Zeilen zeigen. Vorhandene Firmen werden nicht
-umbenannt; nichtleere Adressfelder und bei Personen E-Mail/Firmenrelation
-werden kontrolliert ergänzt oder aktualisiert.
+A repeated dry run must then show only `unchanged`, deliberately unresolved
+`conflict` cases or `rejected` rows. Existing companies are not renamed;
+non-empty address fields and, for people, email and company relation are
+added or updated in a controlled way.
 
-Referenzen zum nativen Twenty-Import:
+References for the native Twenty import:
 
 - [Import overview](https://docs.twenty.com/user-guide/data-migration/overview)
 - [Supported file formats](https://docs.twenty.com/user-guide/data-migration/capabilities/file-formats)
 - [Update existing records](https://docs.twenty.com/user-guide/data-migration/how-tos/update-existing-records-via-import)
 
-## Fachliche Grenze
+## Business boundary
 
-Twenty bleibt führend für Companies, People, Kontaktwege und allgemeine
-CRM-Aktivitäten. LeonAid Core bleibt führend für Charity-Aktionen,
-aktionsbezogene Rollen, Zuweisungshistorie, Bestellungen und Rechnungen.
+Twenty stays the system of record for companies, people, contact channels and
+general CRM activities. LeonAid Core stays the system of record for charity
+actions, action-specific roles, assignment history, orders and invoices.
 
-Für den Charity-Admin-Spike werden zwei klar als Lesemodell beschriebene Custom
-Objects gespiegelt:
+For the charity admin spike, two custom objects are mirrored and clearly
+described as read models:
 
-- `charityAction`: Zeitraum, Lifecycle, Ziel und Archiv-Slug
-- `acquisitionAssignment`: Akquisiteur, Status, Wiedervorlage sowie Relationen
-  zu Aktion und wahlweise Company oder Person
+- `charityAction`: period, lifecycle, target and archive slug
+- `acquisitionAssignment`: acquirer, status, follow-up date and relations to
+  the action and to either a company or a person
 
-Die stabilen `leonaidId`-Felder verbinden beide Systeme. Änderungen in Twenty
-dürfen die fachlichen Invarianten des Core nicht umgehen.
+The stable `leonaidId` fields connect both systems. Changes in Twenty must not
+bypass the business invariants of the core.
 
-## Deklarativ verwaltete Capabilities
+## Declaratively managed capabilities
 
-Das Manifest beschreibt und der Provisioner prüft:
+The manifest describes and the provisioner checks:
 
-- zwei Custom Objects mit Text-, Zahl-, Datum-/Zeit- und Select-Feldern,
-- drei `MANY_TO_ONE`-Relationen und die von Twenty erzeugten Gegenfelder,
-- zwei tabellarische Charity-Admin-Views mit expliziten sichtbaren Spalten,
-- die Benutzerrolle `LeonAid Charity-Admin`,
-- die technische Rolle `LeonAid Integration`,
-- genau einen dieser technischen Rolle zugeordneten API-Key.
+- two custom objects with text, number, date/time and select fields,
+- three `MANY_TO_ONE` relations and the inverse fields Twenty creates,
+- two table views for charity admins with explicit visible columns,
+- the user role `LeonAid Charity-Admin`,
+- the technical role `LeonAid Integration`,
+- exactly one API key assigned to this technical role.
 
-Die Provisionierung nutzt nur unterstützte Metadata-Mutationen:
+Provisioning uses only supported metadata mutations:
 
 - `createOneObject`
 - `createOneField`
@@ -120,7 +117,7 @@ Die Provisionierung nutzt nur unterstützte Metadata-Mutationen:
   `upsertPermissionFlags`
 - `createApiKey`, `generateApiKeyToken`
 
-Interne Twenty-Tabellen werden weder gelesen noch verändert.
+Internal Twenty tables are neither read nor changed.
 
 ## Match keys on standard objects
 
@@ -154,69 +151,68 @@ again after bulk imports or edits in the Twenty UI. The command uses at most
 60 Twenty requests per minute by default (`--requests-per-minute`) so the live
 system keeps headroom in Twenty's shared quota.
 
-## Least-Privilege-Key
+## Least-privilege key
 
-`LeonAid Integration` darf nur Companies, People, Charity-Aktionen und
-Akquise-Zuweisungen lesen und kontrolliert aktualisieren. Die Rolle besitzt:
+`LeonAid Integration` may only read and update, in a controlled way,
+companies, people, charity actions and acquisition assignments. The role has:
 
-- keine globalen Lese-, Schreib- oder Löschrechte,
-- keine Settings-, Rollen-, Datenmodell-, Workflow-, Import-, Export- oder
-  Tool-Flags,
-- keine Soft-Delete- oder Destroy-Rechte,
-- explizite Feld-Whitelists.
+- no global read, write or delete permissions,
+- no settings, role, data model, workflow, import, export or tool flags,
+- no soft-delete or destroy permissions,
+- explicit field allowlists.
 
-Twenty modelliert Feldrechte als Einschränkungen. Relation-Feldrechte müssen
-auf beiden Seiten identisch sein; deshalb sind die benötigten Gegenrelationen
-ebenfalls freigegeben. `position`, `createdBy` und `updatedBy` benötigen beim
-Record-Create Schreibrecht, obwohl Twenty ihre Werte serverseitig setzt. Diese
-technischen Pflichtrechte sind im Manifest sichtbar.
+Twenty models field permissions as restrictions. Relation field permissions
+must be identical on both sides; therefore the required inverse relations are
+also allowed. `position`, `createdBy` and `updatedBy` need write permission on
+record create, even though Twenty sets their values server-side. These
+technically required permissions are visible in the manifest.
 
-Der Contracttest beweist mit dem erzeugten Key:
+With the generated key, the contract test proves:
 
-1. Company-Create und Reads der beiden LeonAid-Objekte funktionieren.
-2. Nicht freigegebene Company-Felder werden nicht ausgeliefert.
-3. Opportunities werden mit `PERMISSION_DENIED` verweigert.
-4. Administrative Rollen-Metadaten werden verweigert.
+1. Company create and reads of both LeonAid objects work.
+2. Company fields that are not allowed are not returned.
+3. Opportunities are denied with `PERMISSION_DENIED`.
+4. Administrative role metadata is denied.
 
-Der Token wird nur einmal in der ignorierten Datei
-`.local/twenty/integration.env` mit Dateimodus `0600` abgelegt. Er wird nie in
-Logs, Snapshots oder Git geschrieben.
+The token is stored only once in the ignored file
+`.local/twenty/integration.env` with file mode `0600`. It is never written to
+logs, snapshots or Git.
 
-## Betrieb und Drift
+## Operations and drift
 
 ```sh
 ./leonaid provision-twenty
 ```
 
-Der Befehl:
+The command:
 
-1. startet die gepinnte Twenty-Instanz,
-2. legt fehlende deklarierte Objekte an,
-3. reconciliert die technisch erforderlichen Rechte,
-4. bricht bei abweichenden verwalteten Objekt-, Feld-, Relations-, View-,
-   Rollen- oder API-Key-Eigenschaften mit einem exakten Pfad ab,
-5. schreibt einen geheimnisfreien kanonischen Snapshot nach
+1. starts the pinned Twenty instance,
+2. creates missing declared objects,
+3. reconciles the technically required permissions,
+4. aborts with an exact path on any differing managed object, field,
+   relation, view, role or API key property,
+5. writes a secret-free canonical snapshot to
    `.local/twenty/schema-snapshot.json`.
 
-Bestehender Drift wird nicht stillschweigend durch Umbenennen oder Löschen
-kaschiert. Eine gewollte Änderung braucht ein angepasstes Manifest, eine
-bewusste Migration und den vollständigen Contracttest.
+Existing drift is never silently hidden by renaming or deleting. An intended
+change needs an updated manifest, a deliberate migration and the full contract
+test.
 
-## Verifizierte Grenzen von Twenty 2.54.0
+## Verified limits of Twenty 2.54.0
 
-- Custom Fields können im Produkt nicht als fachlich verpflichtend markiert
-  werden. Pflichtfeldregeln bleiben deshalb im LeonAid Core.
-- Die hier genutzte Relations-API unterstützt `MANY_TO_ONE` und
-  `ONE_TO_MANY`. Für den PoC wird kein Many-to-many-Lab-Feature verwendet.
-- Objekt- und Feldrechte ersetzen keine aktionsbezogene Row-Level-
-  Autorisierung. Akquisiteure greifen ausschließlich über LeonAid Core zu.
-- Charity-Admins mit direktem Twenty-Zugriff sehen innerhalb der freigegebenen
-  Objekte alle Records. Die Zuordnung zu selbst verwalteten Aktionen wird
-  weiterhin serverseitig im Core geprüft.
-- Die API ist auf 100 Requests pro Minute und Batches von höchstens 60 Records
-  ausgelegt. POC-031 muss Pagination, Backoff und Batching innerhalb dieser
-  Grenzen umsetzen.
-- Workflows, Webhooks und Twenty-Mailversand gehören nicht zu POC-030.
+- Custom fields cannot be marked as mandatory in the product. Required-field
+  rules therefore stay in LeonAid Core.
+- The relation API used here supports `MANY_TO_ONE` and `ONE_TO_MANY`. The PoC
+  uses no many-to-many lab feature.
+- Object and field permissions do not replace action-specific row-level
+  authorization. Acquirers access data only through LeonAid Core.
+- Charity admins with direct Twenty access see all records within the allowed
+  objects. The assignment to self-managed actions is still checked
+  server-side in the core.
+- The API is designed for 100 requests per minute and batches of at most 60
+  records. POC-031 must implement pagination, backoff and batching within
+  these limits.
+- Workflows, webhooks and Twenty mail delivery are not part of POC-030.
 - Since 2.54 views have no `isCustom` field; a LeonAid view is identified by
   its fixed id from `schema.json`.
 - Since 2.54 Twenty builds indexes and validates foreign keys of a schema
@@ -225,13 +221,13 @@ bewusste Migration und den vollständigen Contracttest.
   finish. The refusal happens before any change; the provisioning client
   (`tools/seed/golden.py`) repeats the request for up to 180 seconds.
 
-Referenzen:
+References:
 
 - [Twenty APIs](https://docs.twenty.com/developers/extend/api)
 - [Twenty Custom Objects](https://docs.twenty.com/developers/contribute/capabilities/backend-development/custom-objects)
 - [Twenty v2.54.0 source](https://github.com/twentyhq/twenty/tree/twenty/v2.54.0)
 
-## Reale Prüfung
+## Real verification
 
 ```sh
 ./tools/twenty/test.sh
@@ -239,12 +235,12 @@ Referenzen:
 ./leonaid test-crm-import
 ```
 
-Der Schematest startet Twenty aus leeren Volumes, provisioniert zweimal, vergleicht
-kanonische Snapshots bytegenau, prüft den echten Integrations-Key und verändert
-anschließend ein Feld über `updateOneField`. `check` muss den konkreten
-Feldpfad samt Ist-Wert melden.
+The schema test starts Twenty from empty volumes, provisions twice, compares
+canonical snapshots byte for byte, checks the real integration key and then
+changes a field through `updateOneField`. `check` must report the concrete
+field path including the actual value.
 
-Der Importtest startet ein eigenes leeres Twenty, provisioniert und befüllt es
-über die öffentlichen APIs, führt Dry Run, initialen Import, gezieltes Update
-und identische Wiederholung aus und verifiziert Reports sowie Records erneut
-über den produktiven CRM-Gateway.
+The import test starts its own empty Twenty, provisions and fills it through
+the public APIs, runs dry run, initial import, targeted update and identical
+repeat, and verifies reports and records again through the production CRM
+gateway.

@@ -91,7 +91,7 @@ cleanup() {
       mkdir -p "$artifact_directory/failures"
       cp "$proof"/twenty-*.log "$artifact_directory/failures/" >/dev/null 2>&1 || true
     fi
-    echo "upgrade-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
+    echo "upgrade-test: diagnostics for the failed owned services:" >&2
     if [ "$source_owned" = true ]; then
       source_target ps --all >&2 || true
       source_target logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
@@ -126,14 +126,14 @@ fail() {
   exit 1
 }
 
-[ -f "$env_file" ] || fail ".env.local fehlt; zuerst ./leonaid bootstrap"
+[ -f "$env_file" ] || fail ".env.local missing; run ./leonaid bootstrap first"
 
 verify_image() {
   container=$1
   expected=$2
   actual=$(docker inspect --format '{{ .Config.Image }}' "$container")
   [ "$actual" = "$expected" ] ||
-    fail "$container läuft mit $actual statt $expected"
+    fail "$container runs $actual instead of $expected"
 }
 
 create_release_manifest() {
@@ -247,7 +247,7 @@ p.write_text(json.dumps(v))'
     python tools/upgrade/validate_plan.py \
     /proof/invalid-matrix.json \
     infra/locks/external-systems.lock >/dev/null 2>&1; then
-    fail "Upgradeplan ohne Release Notes wurde akzeptiert"
+    fail "upgrade plan without release notes was accepted"
   fi
 }
 
@@ -256,7 +256,7 @@ run_dashboard_contract() {
   case "$mode" in
     source) runner=source_target ;;
     rollback) runner=rollback_target ;;
-    *) fail "Unbekannter Contract-Modus: $mode" ;;
+    *) fail "unknown contract mode: $mode" ;;
   esac
   $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
@@ -281,7 +281,7 @@ run_maintenance_contract() {
   case "$mode" in
     source) runner=source_target ;;
     rollback) runner=rollback_target ;;
-    *) fail "Unbekannter Wartungsmodus: $mode" ;;
+    *) fail "unknown maintenance mode: $mode" ;;
   esac
   $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
@@ -299,7 +299,7 @@ run_twenty_upgrade() {
   case "$mode" in
     source) runner=source_target ;;
     rollback) runner=rollback_target ;;
-    *) fail "Unbekannter Twenty-Upgrade-Modus: $mode" ;;
+    *) fail "unknown Twenty upgrade mode: $mode" ;;
   esac
   # Twenty's supported entrypoint establishes any instance-level schema
   # prerequisites before it invokes the workspace upgrade. Let that bootstrap
@@ -309,7 +309,7 @@ run_twenty_upgrade() {
     twenty-server
   if $runner logs --no-color twenty-server \
     | grep -F "Warning: Upgrade completed with errors" >/dev/null; then
-    fail "Twenty-Entrypoint meldet einen fehlgeschlagenen Upgrade-Lauf: $label"
+    fail "Twenty entrypoint reports a failed upgrade run: $label"
   fi
   $runner stop twenty-server
   if ! $runner run --rm --no-deps \
@@ -317,14 +317,14 @@ run_twenty_upgrade() {
     twenty-server command:prod run-instance-commands \
     >"$proof/twenty-instance-upgrade-$label.log" 2>&1; then
     tail -n 120 "$proof/twenty-instance-upgrade-$label.log" >&2
-    fail "Twenty-Instance-Upgrade ist fehlgeschlagen: $label"
+    fail "Twenty instance upgrade failed: $label"
   fi
   if ! $runner run --rm --no-deps \
     --entrypoint yarn \
     twenty-server command:prod upgrade \
     >"$proof/twenty-upgrade-$label.log" 2>&1; then
     tail -n 120 "$proof/twenty-upgrade-$label.log" >&2
-    fail "Twenty-Upgrade-Command ist fehlgeschlagen: $label"
+    fail "Twenty upgrade command failed: $label"
   fi
   $runner up --detach --force-recreate --wait --wait-timeout 420 \
     twenty-server twenty-worker
@@ -337,8 +337,8 @@ run_twenty_upgrade() {
     --no-align \
     --command "SELECT count(*) FROM information_schema.columns WHERE table_schema='core' AND ((table_name='keyValuePair' AND column_name='applicationId') OR (table_name='userSession' AND column_name='country') OR (table_name='view' AND column_name='isCustom'))" \
     | grep -Fx "2" >/dev/null ||
-    fail "Twenty-Zielschema fehlt nach Upgrade-Command: $label"
-  echo "upgrade-test: Twenty-Upgrade-Command und Zielschema OK: $label"
+    fail "Twenty target schema missing after upgrade command: $label"
+  echo "upgrade-test: Twenty upgrade command and target schema OK: $label"
 }
 
 snapshot_and_verify() {
@@ -348,7 +348,7 @@ snapshot_and_verify() {
   case "$mode" in
     source) runner=source_target ;;
     rollback) runner=rollback_target ;;
-    *) fail "Unbekannter Snapshot-Modus: $mode" ;;
+    *) fail "unknown snapshot mode: $mode" ;;
   esac
   $runner --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
@@ -405,7 +405,7 @@ run_e2e() {
       expected_invoiced="720,00 €"
       expected_outstanding="360,00 €"
       ;;
-    *) fail "Unbekannte Browser-Smoke-Phase: $phase" ;;
+    *) fail "unknown browser smoke phase: $phase" ;;
   esac
   docker run --rm \
     --network "${project}_edge" \
@@ -431,7 +431,7 @@ run_e2e() {
     --trace=retain-on-failure \
     --reporter=line
   [ -s "$proof/upgrade-$phase.png" ] ||
-    fail "Browsernachweis fehlt: upgrade-$phase.png"
+    fail "browser evidence missing: upgrade-$phase.png"
 }
 
 run_full_golden_journey() {
@@ -442,7 +442,7 @@ run_full_golden_journey() {
   case "$mode" in
     source) runner=source_target ;;
     rollback) runner=rollback_target ;;
-    *) fail "Unbekannter Golden-Journey-Modus: $mode" ;;
+    *) fail "unknown golden journey mode: $mode" ;;
   esac
   artifact_path="journey-$phase"
   session_file="sessions-$phase.env"
@@ -468,7 +468,7 @@ run_full_golden_journey() {
   session_mode=$(stat -c '%a' "$proof/$session_file" 2>/dev/null || \
     stat -f '%Lp' "$proof/$session_file")
   [ "$session_mode" = "600" ] ||
-    fail "Golden-Journey-Sitzungsdatei ist nicht Modus 600: $phase"
+    fail "golden journey session file is not mode 600: $phase"
 
   docker run --rm \
     --network "${project}_edge" \
@@ -517,7 +517,7 @@ run_full_golden_journey() {
 response=httpx.delete("http://mailpit:8025/mail/api/v1/messages",timeout=20)
 response.raise_for_status()'
 
-  echo "upgrade-test: vollständige Golden Journey OK: $phase ($round_name)"
+  echo "upgrade-test: full golden journey OK: $phase ($round_name)"
 }
 
 # The old release ran Redis 7.4 (RDB format 12), which Valkey refuses to load.
@@ -684,7 +684,7 @@ source_old run --rm --no-deps \
   --token-output /proof/integration.env
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
-[ "${#integration_key}" -ge 32 ] || fail "eingeschränkter Twenty-Key fehlt"
+[ "${#integration_key}" -ge 32 ] || fail "restricted Twenty key missing"
 
 source_old up --detach --wait --wait-timeout 420 api
 /bin/sh "$root/tools/typst/render_golden.sh" \
@@ -733,7 +733,7 @@ run_maintenance_contract source maintenance
 running_writers=$(source_target ps --services --filter status=running)
 for writer in worker twenty-server twenty-worker; do
   if echo "$running_writers" | grep -Fx "$writer" >/dev/null; then
-    fail "Writer läuft im Wartungsmodus weiter: $writer"
+    fail "writer keeps running in maintenance mode: $writer"
   fi
 done
 
@@ -814,7 +814,7 @@ if rollback_target run --rm --no-deps \
   --entrypoint uv \
   api run --frozen --no-sync alembic upgrade pilot_missing_revision \
   >"$proof/core-migration-failure.log" 2>&1; then
-  fail "Absichtlich ungültige Core-Migration wurde akzeptiert"
+  fail "intentionally invalid core migration was accepted"
 fi
 run_maintenance_contract rollback maintenance
 record_release_event \
@@ -880,7 +880,7 @@ if docker run --rm \
   python /workspace/tools/seed/verify_snapshot.py golden \
   /proof/failed-upgrade.json \
   /workspace/tests/fixtures/golden/v1 >/dev/null 2>&1; then
-  fail "Absichtlich defektes Upgrade bestand den Golden-Contract"
+  fail "intentionally broken upgrade passed the golden contract"
 fi
 record_release_event \
   "$release_v2" production_failed failed PILOT-043-POST-SMOKE-FAILURE \
@@ -903,7 +903,7 @@ if ! cmp -s \
   diff -u \
     "$proof/journey-after.normalized.json" \
     "$proof/journey-rollback.normalized.json" >&2 || true
-  fail "Golden Journey ist nach dem Rollback nicht fachlich identisch"
+  fail "golden journey is not functionally identical after rollback"
 fi
 record_release_event \
   "$release_v2" rollback_verified passed PILOT-043-POST-SMOKE-ROLLBACK \
@@ -973,7 +973,7 @@ pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "releaseLedger":"passed"
 },sort_keys=True,indent=2)+"\n")'
 
-echo "upgrade-test: OK: reale Twenty-, RustFS- und PostgreSQL-Upgrades,"
-echo "upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade"
-echo "upgrade-test:     vollständige Golden Journeys vor/nach Upgrade und Rollback"
-echo "upgrade-test:     sowie Manifest-Promotion, Migrationsfehler und Recovery bewiesen"
+echo "upgrade-test: OK: real Twenty, RustFS and PostgreSQL upgrades,"
+echo "upgrade-test:     maintenance boundary, contract/E2E before and after the upgrade"
+echo "upgrade-test:     full golden journeys before/after upgrade and rollback"
+echo "upgrade-test:     plus manifest promotion, migration failure and recovery proven"

@@ -138,7 +138,7 @@
       "contains": [
         "LEONAID_RELEASE_COMMIT",
         "up --no-build --pull missing",
-        "Exit `0` bedeutet bereit"
+        "Exit `0` means ready"
       ]
     },
     {
@@ -189,7 +189,7 @@
     {
       "file": "leonaid",
       "contains": [
-        "Docker ist nicht erreichbar",
+        "Docker is not reachable",
         "doctor) doctor ;;",
         "test-mail-domain"
       ]
@@ -310,9 +310,9 @@
     {
       "file": "migrations/README.md",
       "contains": [
-        "Alembic ist alleiniger Owner",
+        "Alembic is the sole owner",
         "drop_table",
-        "interne Twenty-Tabellen"
+        "internal Twenty tables"
       ]
     }
   ],

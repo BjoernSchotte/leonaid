@@ -104,9 +104,9 @@ class CommitmentDraft:
                 else None
             ),
             "message": self.message,
-            # An unverbindlicher Clientpreis ist absichtlich kein Bestandteil
-            # des fachlichen Befehls. Ausschließlich Offering-ID, Menge und
-            # Einheit bestimmen die Serverberechnung.
+            # The non-binding client price is deliberately not part of the
+            # domain command. Only offering ID, quantity and unit drive the
+            # server-side calculation.
             "lines": [
                 {
                     "offeringId": str(line.offering_id),

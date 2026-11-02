@@ -18,40 +18,41 @@ class LoginPersona:
     email: str
     dataset_role: str
     product_role: str
+    # Navigation labels match the German app UI the user clicks.
     destination_label: str
     destination_url: str
 
 
 LOGIN_PERSONAS = (
     LoginPersona(
-        heading="Akquisiteurin",
+        heading="Acquirer",
         email="anna.akquise@leonaid.invalid",
         dataset_role="ACQUIRER",
-        product_role="Akquisiteurin für Krapfentaxi 2026",
-        destination_label="Startseite nach Login",
+        product_role="Acquirer for Krapfentaxi 2026",
+        destination_label="Start page after login",
         destination_url="http://127.0.0.1:8080/app/",
     ),
     LoginPersona(
-        heading="Charity-Admin",
+        heading="Charity admin",
         email="klara.kern@leonaid.invalid",
         dataset_role="CHARITY_ADMIN",
-        product_role="Charity-Admin für Krapfentaxi 2026",
+        product_role="Charity admin for Krapfentaxi 2026",
         destination_label="Bestellungen",
         destination_url="http://127.0.0.1:8080/admin/orders",
     ),
     LoginPersona(
-        heading="Finanzverantwortlicher",
+        heading="Finance lead",
         email="finn.finanzen@leonaid.invalid",
         dataset_role="FINANCE",
-        product_role="Finanz-Lesezugriff für Krapfentaxi 2026",
+        product_role="Finance read access for Krapfentaxi 2026",
         destination_label="Rechnungen und Zahlungsstatus",
         destination_url="http://127.0.0.1:8080/admin/invoices",
     ),
     LoginPersona(
-        heading="System-Admin",
+        heading="System admin",
         email="system-admin@leonaid.invalid",
         dataset_role="SYSTEM_ADMIN",
-        product_role="installationsweite System-Administration",
+        product_role="Installation-wide system administration",
         destination_label="Betrieb und Feature-Flags",
         destination_url="http://127.0.0.1:8080/admin/system",
     ),
@@ -62,45 +63,45 @@ def require_non_production_environment() -> None:
     environment = os.environ.get("LEONAID_ENV")
     if environment not in {"local", "test"}:
         raise ValueError(
-            "Golden-Testlogins sind ausschließlich in local/test erlaubt; "
-            "Produktion und unbekannte Umgebungen werden abgewiesen"
+            "Golden test logins are allowed only in local/test; "
+            "production and unknown environments are rejected"
         )
 
 
 def load_dataset(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise ValueError("Golden Dataset muss ein JSON-Objekt sein")
+        raise ValueError("Golden dataset must be a JSON object")
     return data
 
 
 def render_test_logins(dataset: dict[str, Any]) -> str:
     raw_users = dataset.get("users")
     if not isinstance(raw_users, list):
-        raise ValueError("Golden Dataset enthält keine Benutzerliste")
+        raise ValueError("Golden dataset contains no user list")
 
     users_by_email: dict[str, dict[str, Any]] = {}
     for raw_user in raw_users:
         if not isinstance(raw_user, dict):
-            raise ValueError("Golden Dataset enthält einen ungültigen Benutzer")
+            raise ValueError("Golden dataset contains an invalid user")
         email = raw_user.get("email")
         if not isinstance(email, str) or not email:
-            raise ValueError("Golden-Benutzer besitzt keine E-Mail-Adresse")
+            raise ValueError("Golden user has no email address")
         if email in users_by_email:
-            raise ValueError(f"Golden Dataset enthält E-Mail doppelt: {email}")
+            raise ValueError(f"Golden dataset contains duplicate email: {email}")
         users_by_email[email] = raw_user
 
     sections: list[str] = []
     for persona in LOGIN_PERSONAS:
         user = users_by_email.get(persona.email)
         if user is None:
-            raise ValueError(f"Golden-Login fehlt: {persona.email}")
+            raise ValueError(f"Golden login missing: {persona.email}")
         if user.get("status") != "ACTIVE":
-            raise ValueError(f"Golden-Login ist nicht aktiv: {persona.email}")
+            raise ValueError(f"Golden login is not active: {persona.email}")
         if user.get("role") != persona.dataset_role:
             raise ValueError(
-                f"Golden-Login {persona.email} hat Rolle {user.get('role')!r} "
-                f"statt {persona.dataset_role!r}"
+                f"Golden login {persona.email} has role {user.get('role')!r} "
+                f"instead of {persona.dataset_role!r}"
             )
         sections.append(
             "\n".join(
@@ -108,8 +109,8 @@ def render_test_logins(dataset: dict[str, Any]) -> str:
                     f"## {persona.heading}",
                     "",
                     "- URL: http://127.0.0.1:8080/login",
-                    f"- E-Mail: `{persona.email}`",
-                    f"- Rolle: {persona.product_role}",
+                    f"- Email: `{persona.email}`",
+                    f"- Role: {persona.product_role}",
                     f"- {persona.destination_label}: {persona.destination_url}",
                 )
             )
@@ -117,22 +118,22 @@ def render_test_logins(dataset: dict[str, Any]) -> str:
 
     dataset_version = dataset.get("datasetVersion")
     if not isinstance(dataset_version, str) or not dataset_version:
-        raise ValueError("Golden Dataset besitzt keine Version")
+        raise ValueError("Golden dataset has no version")
 
     return (
-        "# Lokale Test-Logins\n\n"
-        f"Golden Dataset {dataset_version}; nur für den lokalen Stack. "
-        "Diese Datei wird nicht committet.\n\n" + "\n\n".join(sections) + "\n\n"
-        "## Öffentlicher Besteller oder Sponsor\n\n"
-        "- Kein Login erforderlich\n"
-        "- Aktionsseite und Formular: http://127.0.0.1:8080/krapfentaxi\n\n"
-        "## Login-Code\n\n"
-        "1. Auf der Login-Seite die gewünschte E-Mail angeben.\n"
-        "2. Den frisch erzeugten sechsstelligen Code in Mailpit öffnen:\n"
+        "# Local test logins\n\n"
+        f"Golden dataset {dataset_version}; for the local stack only. "
+        "This file is not committed.\n\n" + "\n\n".join(sections) + "\n\n"
+        "## Public customer or sponsor\n\n"
+        "- No login required\n"
+        "- Campaign page and form: http://127.0.0.1:8080/krapfentaxi\n\n"
+        "## Login code\n\n"
+        "1. Enter the email address on the login page.\n"
+        "2. Open the newly created six-digit code in Mailpit:\n"
         "   http://127.0.0.1:8080/mail/\n"
-        "3. Den Code auf der Login-Seite bestätigen.\n\n"
-        "Codes und Magic Links sind kurzlebig und werden deshalb hier nicht "
-        "gespeichert.\n"
+        "3. Confirm the code on the login page.\n\n"
+        "Codes and magic links are short-lived, so they are not stored "
+        "here.\n"
     )
 
 
@@ -146,11 +147,11 @@ def write_test_logins(dataset_path: Path, output_path: Path) -> None:
 def check_test_logins(dataset_path: Path, output_path: Path) -> None:
     expected = render_test_logins(load_dataset(dataset_path))
     if not output_path.is_file():
-        raise ValueError(f"lokale Testlogin-Datei fehlt: {output_path}")
+        raise ValueError(f"local test login file missing: {output_path}")
     if output_path.read_text(encoding="utf-8") != expected:
-        raise ValueError("lokale Testlogin-Datei ist nicht auf Golden-Data-Stand")
+        raise ValueError("local test login file does not match the golden data")
     if os.stat(output_path).st_mode & 0o777 != 0o600:
-        raise ValueError("lokale Testlogin-Datei muss Dateimodus 0600 besitzen")
+        raise ValueError("local test login file must have file mode 0600")
 
 
 def parse_args() -> argparse.Namespace:
@@ -167,13 +168,15 @@ def main() -> int:
         require_non_production_environment()
         if args.check:
             check_test_logins(args.dataset, args.output)
-            print("test-login-handoff: OK: Golden-Personas, Inhalt und Modus aktuell")
+            print(
+                "test-login-handoff: OK: golden personas, content and mode up to date"
+            )
             return 0
         write_test_logins(args.dataset, args.output)
     except (OSError, ValueError) as error:
         print(f"test-login-handoff: BLOCKED: {error}", file=sys.stderr)
         return 1
-    print(f"test-login-handoff: OK: lokale Zugänge unter {args.output}")
+    print(f"test-login-handoff: OK: local logins at {args.output}")
     return 0
 
 

@@ -49,7 +49,7 @@ def private_json(path: Path, value: JsonObject) -> None:
 def load_json(path: Path) -> JsonObject:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise AssertionError(f"JSON-Objekt erwartet: {path}")
+        raise AssertionError(f"expected a JSON object: {path}")
     return value
 
 
@@ -101,36 +101,36 @@ def check_damaged(workspace: Path) -> None:
     mapping = load_mapping(workspace / "infra/twenty/import-mapping.json")
     damaged = workspace / ".local" / "pilot" / "intake" / "damaged"
     for name, marker in (
-        ("formula", "Formeln"),
-        ("missing-header", "Header"),
+        ("formula", "formulas"),
+        ("missing-header", "headers"),
     ):
         try:
             load_rows(damaged / f"{name}.xlsx", "Kontakte", mapping)
         except ImportFailure as error:
             if marker not in str(error):
                 raise AssertionError(
-                    f"{name} lieferte keine stabile Fehlerklasse: {error}"
+                    f"{name} did not return a stable error class: {error}"
                 ) from error
         else:
-            raise AssertionError(f"{name} wurde nicht abgewiesen")
+            raise AssertionError(f"{name} was not rejected")
 
     duplicate = load_rows(damaged / "duplicate-id.xlsx", "Kontakte", mapping)
     if (
         sum(
-            "source_id ist innerhalb der Datei doppelt" in row.validation_errors
+            "source_id is duplicated within the file" in row.validation_errors
             for row in duplicate
         )
         != 2
     ):
-        raise AssertionError("doppelte IDs wurden nicht zeilenbezogen erkannt")
+        raise AssertionError("duplicate IDs were not detected per row")
     invalid_email = load_rows(damaged / "invalid-email.xlsx", "Kontakte", mapping)
-    if "email ist ungültig" not in invalid_email[2].validation_errors:
-        raise AssertionError("ungültige E-Mail wurde nicht erkannt")
+    if "email is invalid" not in invalid_email[2].validation_errors:
+        raise AssertionError("invalid email was not detected")
     source = workspace / ".local" / "pilot" / "intake" / "historic-contacts.xlsx"
     if len(load_rows(source, "Kontakte", mapping)) != 4:
-        raise AssertionError("erstes Blatt besitzt nicht vier Strukturzeilen")
+        raise AssertionError("first sheet does not have four structure rows")
     if len(load_rows(source, "Kontakte Update", mapping)) != 4:
-        raise AssertionError("zweites Blatt besitzt nicht vier Strukturzeilen")
+        raise AssertionError("second sheet does not have four structure rows")
 
 
 def write_backup_manifest(workspace: Path, source_project: str) -> None:
@@ -144,7 +144,7 @@ def write_backup_manifest(workspace: Path, source_project: str) -> None:
     ):
         path = backup / name
         if not path.is_file() or path.stat().st_size == 0:
-            raise AssertionError(f"reales Backup-Artefakt fehlt: {name}")
+            raise AssertionError(f"real backup artifact is missing: {name}")
         files[name] = {"size": path.stat().st_size, "sha256": sha256_file(path)}
         path.chmod(0o600)
     private_json(
@@ -167,10 +167,10 @@ def resolve(workspace: Path) -> None:
         if isinstance(row, dict) and row.get("status") == "conflict"
     ]
     if len(conflicts) != 1:
-        raise AssertionError("Golden-Dry-Run muss genau einen Konflikt besitzen")
+        raise AssertionError("golden dry run must have exactly one conflict")
     candidates = conflicts[0].get("candidates")
     if not isinstance(candidates, list) or len(candidates) != 2:
-        raise AssertionError("Golden-Konflikt muss zwei echte Kandidaten besitzen")
+        raise AssertionError("golden conflict must have two real candidates")
     candidate = sorted(candidates, key=lambda item: str(item["twentyId"]))[0]
     private_json(
         workspace / ".local" / "pilot" / "manifests" / "resolutions.json",
@@ -217,7 +217,7 @@ def write_negative_manifests(workspace: Path) -> None:
     resolutions = load_json(pilot / "manifests" / "resolutions.json")
     decisions = resolutions.get("decisions")
     if not isinstance(decisions, list):
-        raise AssertionError("Resolution-Fixture enthält keine decisions")
+        raise AssertionError("resolution fixture has no decisions")
     stale = {**resolutions, "decisions": [*decisions]}
     stale["decisions"].append(
         {
@@ -241,7 +241,7 @@ def check_reports(workspace: Path) -> None:
     dry_a_bytes = (evidence / "dry-a.json").read_bytes()
     dry_b_bytes = (evidence / "dry-b.json").read_bytes()
     if dry_a_bytes != dry_b_bytes:
-        raise AssertionError("identische Dry Runs sind nicht bytegleich")
+        raise AssertionError("identical dry runs are not byte-identical")
     dry = load_json(evidence / "dry-a.json")
     applied = load_json(evidence / "apply.json")
     verified = load_json(evidence / "verify.json")
@@ -253,9 +253,9 @@ def check_reports(workspace: Path) -> None:
         "conflict": 0,
         "rejected": 1,
     }:
-        raise AssertionError(f"unerwarteter freigegebener Dry Run: {dry['summary']}")
+        raise AssertionError(f"unexpected approved dry run: {dry['summary']}")
     if applied["appliedCount"] != 3 or applied["summary"] != dry["summary"]:
-        raise AssertionError("Apply setzte nicht exakt drei freigegebene Writes um")
+        raise AssertionError("apply did not perform exactly three approved writes")
     if verified["summary"] != {
         "new": 0,
         "update": 0,
@@ -263,7 +263,7 @@ def check_reports(workspace: Path) -> None:
         "conflict": 0,
         "rejected": 1,
     }:
-        raise AssertionError(f"Verify ist nicht idempotent: {verified['summary']}")
+        raise AssertionError(f"verify is not idempotent: {verified['summary']}")
     if restored["summary"] != {
         "new": 1,
         "update": 1,
@@ -272,20 +272,20 @@ def check_reports(workspace: Path) -> None:
         "rejected": 1,
     }:
         raise AssertionError(
-            f"Recovery Point stellte den Vorzustand nicht her: {restored['summary']}"
+            f"recovery point did not restore the previous state: {restored['summary']}"
         )
     for row in dry["rows"]:
         if not str(row.get("error_code", "")).startswith("ROW_"):
-            raise AssertionError("Reportzeile besitzt keinen stabilen Fehlercode")
+            raise AssertionError("report row has no stable error code")
     summary_text = (evidence / "summary.json").read_text(encoding="utf-8")
     for forbidden in ("rows", "candidates", "Nordstern", "Mustermann", "@"):
         if forbidden in summary_text:
             raise AssertionError(
-                f"sanitizte Summe enthält privaten Marker: {forbidden}"
+                f"sanitized summary contains a private marker: {forbidden}"
             )
     for path in evidence.iterdir():
         if path.is_file() and stat.S_IMODE(path.stat().st_mode) != 0o600:
-            raise AssertionError(f"Evidence ist nicht Modus 0600: {path}")
+            raise AssertionError(f"evidence does not have mode 0600: {path}")
 
 
 def hold_lock(workspace: Path, ready: Path, release: Path) -> None:
@@ -299,7 +299,7 @@ def hold_lock(workspace: Path, ready: Path, release: Path) -> None:
         deadline = time.monotonic() + 20
         while not release.exists():
             if time.monotonic() >= deadline:
-                raise AssertionError("Concurrency-Test erhielt kein Release-Signal")
+                raise AssertionError("concurrency test received no release signal")
             time.sleep(0.05)
         fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 

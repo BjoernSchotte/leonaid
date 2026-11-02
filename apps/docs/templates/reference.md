@@ -1,25 +1,25 @@
 ---
-title: <Gegenstand der Referenz>
-description: <Welche Fakten auf dieser Seite systematisch nachgeschlagen werden.>
+title: <Subject of the reference>
+description: <Which facts readers look up systematically on this page.>
 docId: DOC-P000
 audience: [dev]
 diataxis: reference
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: <vollständiger-produkt-commit>
+verifiedAgainst: <full-product-commit>
 reviewer: <name>
 ---
 
-## Vertrag
+## Contract
 
-Präzise Definition ohne Lernstrecke.
+Precise definition without a learning path.
 
-## Werte
+## Values
 
-| Wert          | Bedeutung                      | Geltungsbereich |
-| ------------- | ------------------------------ | --------------- |
-| `<code-wert>` | Tatsächliche Bedeutung im Code | Grenze          |
+| Value          | Meaning                    | Scope    |
+| -------------- | -------------------------- | -------- |
+| `<code-value>` | Actual meaning in the code | Boundary |
 
-## Fehler und Grenzen
+## Errors and limits
 
-Vollständige, nachschlagbare Fälle mit Verweis auf den maßgeblichen Codepfad.
+Complete, searchable cases with a reference to the authoritative code path.

@@ -36,7 +36,7 @@ class InventoryError(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise InventoryError(f"Umgebungsvariable fehlt: {name}")
+        raise InventoryError(f"environment variable missing: {name}")
     return value
 
 
@@ -118,7 +118,7 @@ async def require_foreign_key_holds(
     parent_columns = constraint["parentColumns"]
     if not child_columns or len(child_columns) != len(parent_columns):
         raise InventoryError(
-            f"{label}: Fremdschlüssel {constraint['name']} ist nicht lesbar"
+            f"{label}: foreign key {constraint['name']} is not readable"
         )
     not_null = " AND ".join(
         f"child.{quote(column)} IS NOT NULL" for column in child_columns
@@ -138,8 +138,8 @@ async def require_foreign_key_holds(
     )
     if violations:
         raise InventoryError(
-            f"{label}: Fremdschlüssel {constraint['table']}.{constraint['name']} "
-            f"ist nicht validiert und von {violations} Zeilen verletzt"
+            f"{label}: foreign key {constraint['table']}.{constraint['name']} "
+            f"is not validated and violated by {violations} rows"
         )
 
 
@@ -177,14 +177,14 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
         unvalidated = await unvalidated_foreign_keys(connection)
         if unvalidated and label != "twenty":
             raise InventoryError(
-                f"{label}: {len(unvalidated)} Fremdschlüssel sind nicht validiert"
+                f"{label}: {len(unvalidated)} foreign keys are not validated"
             )
         for constraint in unvalidated:
             await require_foreign_key_holds(connection, constraint, label=label)
         if label == "core":
             missing = sorted(CRITICAL_CORE_TABLES - public_names)
             if missing:
-                raise InventoryError(f"Core-Kerntabellen fehlen: {missing}")
+                raise InventoryError(f"critical core tables missing: {missing}")
         return {
             "databaseSha256": digest_lines(
                 [
@@ -205,7 +205,7 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
 
 def file_inventory(root: Path) -> JsonObject:
     if not root.is_dir():
-        raise InventoryError(f"Twenty-Dateiablage fehlt: {root}")
+        raise InventoryError(f"Twenty file storage missing: {root}")
     files: list[JsonObject] = []
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
@@ -283,7 +283,7 @@ async def object_inventory(core_url: str) -> JsonObject:
         stored = str(document["sha256"])
         if actual != stored:
             raise InventoryError(
-                f"Rechnungs-PDF {document['id']} weicht von gespeichertem SHA-256 ab"
+                f"invoice PDF {document['id']} differs from the stored SHA-256"
             )
         invoice_documents.append(
             {
@@ -323,9 +323,9 @@ async def capture(output: Path, twenty_storage: Path) -> None:
     )
     print(
         "backup-inventory: OK: "
-        f"{core['tableCount']} Core-Tabellen, "
-        f"{twenty['tableCount']} Twenty-Tabellen, "
-        f"{rustfs['objectCount']} RustFS-Objekte"
+        f"{core['tableCount']} core tables, "
+        f"{twenty['tableCount']} Twenty tables, "
+        f"{rustfs['objectCount']} RustFS objects"
     )
 
 
@@ -335,9 +335,9 @@ def compare(before: Path, after: Path) -> None:
     if left != right:
         for key in ("core", "twenty", "twentyStorage", "rustfs"):
             if left.get(key) != right.get(key):
-                raise InventoryError(f"Restore-Inventar weicht ab: {key}")
-        raise InventoryError("Restore-Inventar weicht ab")
-    print("backup-inventory: OK: Restore ist logisch und bytegenau identisch")
+                raise InventoryError(f"restore inventory differs: {key}")
+        raise InventoryError("restore inventory differs")
+    print("backup-inventory: OK: restore is logically and byte-for-byte identical")
 
 
 def main() -> int:

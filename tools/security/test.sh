@@ -18,7 +18,7 @@ isolation_file="$proof/compose-isolation.yml"
 artifact_directory="$root/.artifacts/poc110"
 
 if [ ! -f "$env_file" ]; then
-  echo "security-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "security-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -39,7 +39,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "security-test: Diagnose der echten Services:" >&2
+    echo "security-test: diagnostics for the real services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres proxy pwa web public twenty-server rustfs >&2 || true
@@ -96,11 +96,11 @@ compose run --rm --no-deps \
 
 canary=$(sed -n '1p' "$proof/canary")
 if [ -z "$canary" ]; then
-  echo "security-test: ERROR: Secret-Canary fehlt" >&2
+  echo "security-test: ERROR: secret canary missing" >&2
   exit 1
 fi
 if compose logs --no-color api proxy | grep -F "$canary" >/dev/null; then
-  echo "security-test: ERROR: Secret-Canary steht in Service-Logs" >&2
+  echo "security-test: ERROR: secret canary appears in service logs" >&2
   exit 1
 fi
 
@@ -123,10 +123,10 @@ docker run --rm \
   --reporter=line
 
 if [ ! -s "$proof/security-rate-limit.png" ]; then
-  echo "security-test: ERROR: Browser-Nachweis fehlt" >&2
+  echo "security-test: ERROR: browser proof missing" >&2
   exit 1
 fi
 mkdir -p "$artifact_directory"
 cp "$proof/security-rate-limit.png" "$artifact_directory/"
 
-echo "security-test: OK: Transportgrenze, Missbrauchsschutz und Browser-UX bewiesen"
+echo "security-test: OK: transport boundary, abuse protection and browser UX proven"

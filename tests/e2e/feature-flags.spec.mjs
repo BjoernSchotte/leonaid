@@ -6,7 +6,7 @@ const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const simoneSession = process.env.SIMONE_SESSION;
 
 if (!baseUrl || !artifactDirectory || !simoneSession) {
-  throw new Error("POC-096 Browserumgebung ist unvollständig");
+  throw new Error("POC-096 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -32,7 +32,7 @@ async function expectNoSeriousAccessibilityViolations(page) {
   ).toEqual([]);
 }
 
-test("System-Admin steuert Browser und Backend über OpenFeature", async ({
+test("system admin controls browser and backend through OpenFeature", async ({
   browser,
 }) => {
   const context = await browser.newContext({

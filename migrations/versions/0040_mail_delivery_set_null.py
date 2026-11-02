@@ -21,7 +21,7 @@ DATA_MIGRATION_REFERENCE = (
     "No rows change: the foreign key is replaced with the same columns and "
     "ON DELETE SET NULL, and outbox_event_id only becomes nullable."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 CONSTRAINT = "mail_delivery_outbox_event_id_fkey"
 

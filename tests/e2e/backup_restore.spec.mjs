@@ -7,12 +7,12 @@ const klaraSession = process.env.KLARA_SESSION;
 const actionId = "20000000-0000-4000-8000-000000000001";
 
 if (!baseUrl || !artifactDirectory || !klaraSession) {
-  throw new Error("POC-112 Browserumgebung ist unvollständig");
+  throw new Error("POC-112 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
 
-test("wiederhergestellte Instanz ist mit bestehender Sitzung arbeitsfähig", async ({
+test("restored instance works with an existing session", async ({
   browser,
 }) => {
   const context = await browser.newContext({

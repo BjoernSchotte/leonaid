@@ -78,13 +78,13 @@ async function openMusterwerkCapture(context, page) {
   );
 }
 
-test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext", async ({
+test("acquirer captures a review-ready order from the sponsor context", async ({
   context,
   page,
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "chromium-390",
-    "Der schreibende Browserweg läuft genau einmal im mobilen Leitbrowser.",
+    "The writing browser path runs exactly once in the lead mobile browser.",
   );
   await openMusterwerkCapture(context, page);
 
@@ -161,7 +161,7 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   );
 });
 
-test("Bestellerfassung bleibt in allen Zielbrowsern responsiv und barrierearm", async ({
+test("order capture stays responsive and accessible in all target browsers", async ({
   context,
   page,
 }, testInfo) => {
@@ -198,13 +198,13 @@ test("Bestellerfassung bleibt in allen Zielbrowsern responsiv und barrierearm", 
   });
 });
 
-test("Charity-Admin sieht denselben Eingang und dieselben Golden-Summen", async ({
+test("charity admin sees the same inbox and the same golden totals", async ({
   context,
   page,
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "chromium-1440",
-    "Der Admin-Abgleich läuft einmal im Desktop-Leitbrowser.",
+    "The admin cross-check runs once in the lead desktop browser.",
   );
   await authenticate(context, klaraSession);
   await page.goto(`${baseUrl}/admin/orders`);

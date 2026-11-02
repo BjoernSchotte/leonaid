@@ -17,7 +17,7 @@ test.use({
   viewport: { width: 390, height: 844 },
 });
 
-test("WCAG- und Web-Vitals-Budgets werden im definierten mobilen Profil eingehalten", async ({
+test("WCAG and Web Vitals budgets are met in the defined mobile profile", async ({
   context,
   page,
 }) => {

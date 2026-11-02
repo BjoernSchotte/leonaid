@@ -40,9 +40,9 @@ def load_object(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise InvalidPlan(f"{path}: ungültiges JSON: {error}") from error
+        raise InvalidPlan(f"{path}: invalid JSON: {error}") from error
     if not isinstance(value, dict):
-        raise InvalidPlan(f"{path}: Wurzel muss ein Objekt sein")
+        raise InvalidPlan(f"{path}: root must be an object")
     return value
 
 
@@ -54,10 +54,12 @@ def require(condition: bool, message: str) -> None:
 def system_images(lock: dict[str, Any]) -> dict[str, str]:
     systems = lock.get("systems")
     if not isinstance(systems, list):
-        raise InvalidPlan("external-systems.lock: systems fehlt")
+        raise InvalidPlan("external-systems.lock: systems missing")
     result: dict[str, str] = {}
     for item in systems:
-        require(isinstance(item, dict), "external-systems.lock: System ist kein Objekt")
+        require(
+            isinstance(item, dict), "external-systems.lock: system is not an object"
+        )
         system_id = item.get("id")
         image = item.get("image")
         if isinstance(system_id, str) and isinstance(image, str):
@@ -66,33 +68,33 @@ def system_images(lock: dict[str, Any]) -> dict[str, str]:
 
 
 def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
-    require(matrix.get("schemaVersion") == 1, "schemaVersion muss 1 sein")
+    require(matrix.get("schemaVersion") == 1, "schemaVersion must be 1")
     window = matrix.get("changeWindow")
     if not isinstance(window, dict):
-        raise InvalidPlan("changeWindow fehlt")
+        raise InvalidPlan("changeWindow missing")
     for gate in (
         "backupRequired",
         "goldenCloneRequired",
         "maintenanceModeRequired",
         "releaseNotesReviewed",
     ):
-        require(window.get(gate) is True, f"changeWindow.{gate} muss true sein")
+        require(window.get(gate) is True, f"changeWindow.{gate} must be true")
 
     components = matrix.get("components")
     if not isinstance(components, list):
-        raise InvalidPlan("components fehlt")
+        raise InvalidPlan("components missing")
     by_id = {
         item.get("id"): item
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }
-    require(set(by_id) == REQUIRED_COMPONENTS, "Komponentenmatrix ist unvollständig")
+    require(set(by_id) == REQUIRED_COMPONENTS, "component matrix is incomplete")
     locked = system_images(lock)
 
     for component_id, component in by_id.items():
         require(
             component.get("sourceVersion") != component.get("targetVersion"),
-            f"{component_id}: Quell- und Zielversion sind gleich",
+            f"{component_id}: source and target version are equal",
         )
         notes = component.get("releaseNotes")
         require(
@@ -101,7 +103,7 @@ def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
             and all(
                 isinstance(url, str) and url.startswith("https://") for url in notes
             ),
-            f"{component_id}: Release-Notes-Quellen fehlen",
+            f"{component_id}: release notes sources missing",
         )
         migration = component.get("migration")
         require(
@@ -109,7 +111,7 @@ def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
             and migration.get("reviewed") is True
             and isinstance(migration.get("command"), str)
             and bool(migration["command"].strip()),
-            f"{component_id}: Migration ist nicht geprüft",
+            f"{component_id}: migration is not reviewed",
         )
         rollback = component.get("rollback")
         require(
@@ -119,7 +121,7 @@ def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
             and bool(rollback["boundary"].strip())
             and isinstance(rollback.get("restoredComponents"), list)
             and bool(rollback["restoredComponents"]),
-            f"{component_id}: Restore-Grenze fehlt",
+            f"{component_id}: restore boundary missing",
         )
 
     image_pairs = {
@@ -134,25 +136,25 @@ def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
         target = component.get("targetImage")
         require(
             isinstance(source, str) and PINNED_IMAGE.fullmatch(source) is not None,
-            f"{component_id}: Quellimage ist nicht mit Tag und Digest gepinnt",
+            f"{component_id}: source image is not pinned by tag and digest",
         )
         require(
             isinstance(target, str) and PINNED_IMAGE.fullmatch(target) is not None,
-            f"{component_id}: Zielimage ist nicht mit Tag und Digest gepinnt",
+            f"{component_id}: target image is not pinned by tag and digest",
         )
         require(
             source == locked.get(source_id),
-            f"{component_id}: Quellimage weicht vom System-Lock ab",
+            f"{component_id}: source image differs from the system lock",
         )
         require(
             target == locked.get(target_id),
-            f"{component_id}: Zielimage weicht vom System-Lock ab",
+            f"{component_id}: target image differs from the system lock",
         )
 
     gates = matrix.get("gates")
     require(
         isinstance(gates, list) and set(gates) == REQUIRED_GATES,
-        "Gate-Liste ist unvollständig oder enthält unbekannte Gates",
+        "gate list is incomplete or contains unknown gates",
     )
 
 
@@ -166,7 +168,7 @@ def main() -> int:
     except InvalidPlan as error:
         print(f"upgrade-plan: ERROR: {error}", file=sys.stderr)
         return 1
-    print("upgrade-plan: OK: Release Notes, Migrationen, Backup und Rollback geprüft")
+    print("upgrade-plan: OK: release notes, migrations, backup and rollback checked")
     return 0
 
 

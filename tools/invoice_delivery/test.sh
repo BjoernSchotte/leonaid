@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "invoice-delivery-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "invoice-delivery-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=260 \
       api core-postgres rustfs mailpit worker pwa web proxy \
@@ -54,7 +54,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "invoice-delivery-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "invoice-delivery-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -90,7 +90,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "invoice-delivery-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "invoice-delivery-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -121,8 +121,8 @@ compose run --rm --no-deps \
   api tools/invoice_delivery/contract.py prepare \
   /proof/state.json /proof/sessions.env
 
-# Der erste Worker-Lauf erzeugt das neue PDF per realem Typst und speichert es
-# versioniert in RustFS. Noch ist kein Rechnungsversand eingeplant.
+# The first worker run renders the new PDF with real Typst and stores it
+# versioned in RustFS. No invoice delivery is queued yet.
 compose run --rm --no-deps \
   worker python -m leonaid.entrypoints.worker.outbox \
   --worker-id poc094-render \
@@ -145,13 +145,12 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "invoice-delivery-test: ERROR: Browser-Sitzungen sind nicht Modus 600" >&2
+  echo "invoice-delivery-test: ERROR: browser sessions are not mode 600" >&2
   exit 1
 fi
 
-# Der echte Relay-Prozess wird physisch gestoppt. Ein einzelner erlaubter
-# Versuch muss deshalb dauerhaft als administrativ wiederanlaufbarer Fehler
-# enden.
+# The real relay process is physically stopped. So a single allowed
+# attempt must end as a durable error that an admin can retry.
 compose stop mailpit
 compose run --rm --no-deps \
   worker python -m leonaid.entrypoints.worker.outbox \
@@ -197,7 +196,7 @@ for screenshot in \
   invoice-delivery-failed.png \
   invoice-delivery-sent.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "invoice-delivery-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "invoice-delivery-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -235,5 +234,5 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 mkdir -p "$root/.artifacts/poc094"
 cp "$proof"/invoice-delivery-*.png "$root/.artifacts/poc094/"
 
-echo "invoice-delivery-test: OK: echter SMTP-Ausfall, sichtbarer Retry,"
-echo "invoice-delivery-test:     MIME/PDF-Hash und bewusster Neuversand bewiesen"
+echo "invoice-delivery-test: OK: real SMTP outage, visible retry,"
+echo "invoice-delivery-test:     MIME/PDF hash and deliberate resend proven"

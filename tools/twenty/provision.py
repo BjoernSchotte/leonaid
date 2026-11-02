@@ -34,13 +34,13 @@ class SchemaDrift(TwentySchemaError):
 
     def __init__(self, differences: list[JsonObject]) -> None:
         self.differences = differences
-        lines = ["Twenty-Schema weicht von infra/twenty/schema.json ab:"]
+        lines = ["Twenty schema differs from infra/twenty/schema.json:"]
         for difference in differences:
             lines.append(
                 "  - "
                 f"{difference['path']}: "
-                f"erwartet={json.dumps(difference['expected'], ensure_ascii=False, sort_keys=True)} "
-                f"vorhanden={json.dumps(difference['actual'], ensure_ascii=False, sort_keys=True)}"
+                f"expected={json.dumps(difference['expected'], ensure_ascii=False, sort_keys=True)} "
+                f"actual={json.dumps(difference['actual'], ensure_ascii=False, sort_keys=True)}"
             )
         super().__init__("\n".join(lines))
 
@@ -132,13 +132,13 @@ def flush_workspace_cache(url: str, pattern: str = WORKSPACE_CACHE_PATTERN) -> i
 
 def json_object(value: Any, label: str) -> JsonObject:
     if not isinstance(value, dict):
-        raise TwentySchemaError(f"{label} muss ein JSON-Objekt sein")
+        raise TwentySchemaError(f"{label} must be a JSON object")
     return value
 
 
 def json_list(value: Any, label: str) -> JsonList:
     if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
-        raise TwentySchemaError(f"{label} muss eine Liste aus JSON-Objekten sein")
+        raise TwentySchemaError(f"{label} must be a list of JSON objects")
     return value
 
 
@@ -146,35 +146,35 @@ def load_manifest(path: Path) -> JsonObject:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise TwentySchemaError(f"Twenty-Manifest ist nicht lesbar: {error}") from error
+        raise TwentySchemaError(f"Twenty manifest is not readable: {error}") from error
     value = json_object(manifest, str(path))
     if value.get("schemaVersion") != 1:
-        raise TwentySchemaError("unerwartete Twenty-Schema-Version")
+        raise TwentySchemaError("unexpected Twenty schema version")
     objects = json_list(value.get("objects"), "objects")
     object_names = [item.get("nameSingular") for item in objects]
     if any(not isinstance(name, str) or not name for name in object_names):
-        raise TwentySchemaError("jedes Custom Object braucht nameSingular")
+        raise TwentySchemaError("every custom object needs nameSingular")
     if len(object_names) != len(set(object_names)):
-        raise TwentySchemaError("doppelte Custom-Object-Namen im Manifest")
+        raise TwentySchemaError("duplicate custom object names in the manifest")
     standard_names: list[str] = []
     for item in json_list(value.get("standardObjects", []), "standardObjects"):
         name = item.get("nameSingular")
         if not isinstance(name, str) or not name:
-            raise TwentySchemaError("jedes Standard-Object braucht nameSingular")
+            raise TwentySchemaError("every standard object needs nameSingular")
         if name in object_names:
             raise TwentySchemaError(
-                f"Standard-Object ist zugleich als Custom Object deklariert: {name}"
+                f"standard object is also declared as a custom object: {name}"
             )
         for field in json_list(item.get("fields"), f"standardObjects.{name}.fields"):
             # Standard objects only receive additional scalar fields. Relations
             # and options would need the two-phase handling of custom objects.
             if field.get("type") == "RELATION" or "options" in field:
                 raise TwentySchemaError(
-                    f"Standard-Object {name} unterstützt nur skalare Zusatzfelder"
+                    f"standard object {name} supports only additional scalar fields"
                 )
         standard_names.append(name)
     if len(standard_names) != len(set(standard_names)):
-        raise TwentySchemaError("doppelte Standard-Object-Namen im Manifest")
+        raise TwentySchemaError("duplicate standard object names in the manifest")
     return value
 
 
@@ -192,7 +192,7 @@ def one_by(
 ) -> JsonObject | None:
     matches = [item for item in items if item.get(key) == value]
     if len(matches) > 1:
-        raise TwentySchemaError(f"{label} ist mehrfach vorhanden: {value}")
+        raise TwentySchemaError(f"{label} occurs more than once: {value}")
     return matches[0] if matches else None
 
 
@@ -217,7 +217,7 @@ def normalized_instant(value: Any) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise TwentySchemaError(f"Zeitpunkt ist kein String: {value!r}")
+        raise TwentySchemaError(f"timestamp is not a string: {value!r}")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds")
 
@@ -280,7 +280,7 @@ class Provisioner:
 
     def metadata(self, query: str, variables: JsonObject | None = None) -> JsonObject:
         if self.client.access_token is None:
-            raise TwentySchemaError("Twenty-Admin-Sitzung fehlt")
+            raise TwentySchemaError("Twenty admin session missing")
         return self.client.graphql(
             query,
             variables or {},
@@ -420,7 +420,7 @@ class Provisioner:
             if not isinstance(name, str):
                 continue
             if name in result:
-                raise TwentySchemaError(f"Twenty Object ist doppelt: {name}")
+                raise TwentySchemaError(f"Twenty object is duplicated: {name}")
             result[name] = item
         return result
 
@@ -492,7 +492,7 @@ class Provisioner:
             target = objects.get(str(target_name))
             if target is None:
                 raise TwentySchemaError(
-                    f"Relationsziel fehlt vor Provisionierung: {target_name}"
+                    f"relation target missing before provisioning: {target_name}"
                 )
             field["relationCreationPayload"] = {
                 "type": relation["type"],
@@ -623,9 +623,7 @@ class Provisioner:
             object_name = str(permission["object"])
             actual_object = objects.get(object_name)
             if actual_object is None:
-                raise TwentySchemaError(
-                    f"Rollenobjekt ist nicht vorhanden: {object_name}"
-                )
+                raise TwentySchemaError(f"role object does not exist: {object_name}")
             object_id = str(actual_object["id"])
             object_permissions.append(
                 {
@@ -649,7 +647,7 @@ class Provisioner:
             missing = sorted((read_fields | update_fields) - existing_names)
             if missing:
                 raise TwentySchemaError(
-                    f"Rollenfeld fehlt in {object_name}: {', '.join(missing)}"
+                    f"role field missing in {object_name}: {', '.join(missing)}"
                 )
             for field in actual_fields:
                 field_name = str(field.get("name"))
@@ -747,7 +745,7 @@ class Provisioner:
         result = json_object(data.get("generateApiKeyToken"), "generateApiKeyToken")
         token = result.get("token")
         if not isinstance(token, str) or len(token) < 32:
-            raise TwentySchemaError("Twenty erzeugte keinen gültigen API-Key-Token")
+            raise TwentySchemaError("Twenty did not create a valid API key token")
         return token
 
     def ensure_objects(self) -> None:
@@ -785,16 +783,16 @@ class Provisioner:
             if value is not None:
                 if flushes:
                     print(
-                        f"twenty-schema: {label} sichtbar nach {flushes} "
-                        "Cache-Neuberechnung(en)",
+                        f"twenty-schema: {label} visible after {flushes} "
+                        "cache recompute(s)",
                         file=sys.stderr,
                     )
                 return value
             now = time.monotonic()
             if now >= start + timeout:
                 raise TwentySchemaError(
-                    f"Twenty Metadata API veröffentlichte {label} nicht "
-                    f"nach {timeout:.0f}s und {flushes} Cache-Neuberechnung(en)"
+                    f"Twenty Metadata API did not publish {label} "
+                    f"after {timeout:.0f}s and {flushes} cache recompute(s)"
                 )
             if now >= next_flush:
                 flushes += 1
@@ -809,14 +807,14 @@ class Provisioner:
         except (OSError, RedisError, ValueError) as error:
             # Keep waiting: without the repair the deadline reports the failure.
             print(
-                f"twenty-schema: WARNUNG: {label} nach {waited:.0f}s unsichtbar; "
-                f"Workspace-Cache nicht erreichbar ({type(error).__name__}: {error})",
+                f"twenty-schema: WARNING: {label} invisible after {waited:.0f}s; "
+                f"workspace cache unreachable ({type(error).__name__}: {error})",
                 file=sys.stderr,
             )
             return
         print(
-            f"twenty-schema: {label} nach {waited:.0f}s unsichtbar; veralteter "
-            f"Twenty-Workspace-Cache verworfen ({deleted} Schlüssel)",
+            f"twenty-schema: {label} invisible after {waited:.0f}s; stale "
+            f"Twenty workspace cache dropped ({deleted} keys)",
             file=sys.stderr,
         )
 
@@ -950,7 +948,7 @@ class Provisioner:
                         actual = fields.get(field_name)
                     if actual is None:
                         raise TwentySchemaError(
-                            f"Field fehlt nach Provisionierung: {object_name}.{field_name}"
+                            f"field missing after provisioning: {object_name}.{field_name}"
                         )
                     drifts = self.field_differences(object_name, desired, actual)
                     if drifts:
@@ -963,7 +961,7 @@ class Provisioner:
             object_name = str(desired_object["nameSingular"])
             actual_object = objects.get(object_name)
             if actual_object is None:
-                raise TwentySchemaError(f"Standard-Object fehlt: {object_name}")
+                raise TwentySchemaError(f"standard object missing: {object_name}")
             object_id = str(actual_object["id"])
             details = self.object_details(object_id)
             fields = {
@@ -979,7 +977,7 @@ class Provisioner:
                     actual = fields.get(field_name)
                 if actual is None:
                     raise TwentySchemaError(
-                        f"Field fehlt nach Provisionierung: {object_name}.{field_name}"
+                        f"field missing after provisioning: {object_name}.{field_name}"
                     )
                 drifts = self.field_differences(object_name, desired, actual)
                 if drifts:
@@ -991,7 +989,7 @@ class Provisioner:
             object_name = str(desired["object"])
             actual_object = objects.get(object_name)
             if actual_object is None:
-                raise TwentySchemaError(f"View-Object fehlt: {object_name}")
+                raise TwentySchemaError(f"view object missing: {object_name}")
             object_id = str(actual_object["id"])
             views = self.views(object_id)
             actual = one_by(views, "id", str(desired["id"]), "View-ID")
@@ -1056,7 +1054,7 @@ class Provisioner:
             field = fields.get(field_name)
             if field is None:
                 raise TwentySchemaError(
-                    f"View-Feld existiert nicht: {desired['name']}.{field_name}"
+                    f"view field does not exist: {desired['name']}.{field_name}"
                 )
             field_id = str(field["id"])
             desired_metadata_ids.add(field_id)
@@ -1336,7 +1334,7 @@ class Provisioner:
         role_label = str(desired["role"])
         role = one_by(self.roles(), "label", role_label, "API-Key-Role")
         if role is None:
-            raise TwentySchemaError(f"API-Key-Role fehlt: {role_label}")
+            raise TwentySchemaError(f"API key role missing: {role_label}")
         keys = self.api_keys()
         actual = one_by(keys, "name", str(desired["name"]), "API-Key")
         if actual is None:
@@ -1380,8 +1378,8 @@ class Provisioner:
                 difference(
                     differences,
                     f"objects.{object_name}",
-                    "vorhanden",
-                    "fehlt",
+                    "present",
+                    "missing",
                 )
                 continue
             differences.extend(self.object_differences(desired_object, actual_object))
@@ -1397,8 +1395,8 @@ class Provisioner:
                     difference(
                         differences,
                         f"objects.{object_name}.fields.{field_name}",
-                        "vorhanden",
-                        "fehlt",
+                        "present",
+                        "missing",
                     )
                     continue
                 differences.extend(
@@ -1415,8 +1413,8 @@ class Provisioner:
                 difference(
                     differences,
                     f"standardObjects.{object_name}",
-                    "vorhanden",
-                    "fehlt",
+                    "present",
+                    "missing",
                 )
                 continue
             details = self.object_details(str(actual_object["id"]))
@@ -1431,8 +1429,8 @@ class Provisioner:
                     difference(
                         differences,
                         f"objects.{object_name}.fields.{field_name}",
-                        "vorhanden",
-                        "fehlt",
+                        "present",
+                        "missing",
                     )
                     continue
                 differences.extend(
@@ -1453,8 +1451,8 @@ class Provisioner:
                 difference(
                     differences,
                     f"views.{desired_view['name']}",
-                    "vorhanden",
-                    "fehlt",
+                    "present",
+                    "missing",
                 )
             else:
                 differences.extend(
@@ -1476,8 +1474,8 @@ class Provisioner:
                 difference(
                     differences,
                     f"roles.{desired_role['label']}",
-                    "vorhanden",
-                    "fehlt",
+                    "present",
+                    "missing",
                 )
             else:
                 differences.extend(
@@ -1494,8 +1492,8 @@ class Provisioner:
             difference(
                 differences,
                 f"apiKey.{desired_key['name']}",
-                "vorhanden",
-                "fehlt",
+                "present",
+                "missing",
             )
         else:
             actual_role = actual_key.get("role")
@@ -1589,7 +1587,7 @@ class Provisioner:
                 "View-ID",
             )
             if actual_view is None:
-                raise TwentySchemaError(f"View fehlt im Snapshot: {desired['name']}")
+                raise TwentySchemaError(f"view missing in snapshot: {desired['name']}")
             field_name_by_id = {
                 str(field["id"]): str(field["name"])
                 for field in json_list(actual_object["fields"], "object.fields")
@@ -1627,7 +1625,7 @@ class Provisioner:
                 "Role-ID",
             )
             if actual_role is None:
-                raise TwentySchemaError(f"Role fehlt im Snapshot: {desired['label']}")
+                raise TwentySchemaError(f"role missing in snapshot: {desired['label']}")
             role_snapshot.append(
                 {
                     "id": actual_role["id"],
@@ -1654,7 +1652,7 @@ class Provisioner:
             "API-Key",
         )
         if key is None:
-            raise TwentySchemaError("API-Key fehlt im Snapshot")
+            raise TwentySchemaError("API key missing in snapshot")
         key_role = json_object(key["role"], "apiKey.role")
         return {
             "schemaVersion": self.manifest["schemaVersion"],
@@ -1674,12 +1672,12 @@ class Provisioner:
     def mutate_field(self, object_name: str, field_name: str, label: str) -> None:
         actual_object = self.object_map().get(object_name)
         if actual_object is None:
-            raise TwentySchemaError(f"Object für Drift-Mutation fehlt: {object_name}")
+            raise TwentySchemaError(f"object for drift mutation missing: {object_name}")
         fields = json_list(actual_object.get("fields"), "object.fields")
         field = one_by(fields, "name", field_name, "Field")
         if field is None:
             raise TwentySchemaError(
-                f"Field für Drift-Mutation fehlt: {object_name}.{field_name}"
+                f"field for drift mutation missing: {object_name}.{field_name}"
             )
         self.metadata(
             """
@@ -1726,11 +1724,11 @@ def read_secret(path: Path, name: str) -> str:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
-        raise TwentySchemaError(f"API-Key-Datei ist nicht lesbar: {error}") from error
+        raise TwentySchemaError(f"API key file is not readable: {error}") from error
     prefix = f"{name}="
     values = [line[len(prefix) :] for line in lines if line.startswith(prefix)]
     if len(values) != 1 or len(values[0]) < 32:
-        raise TwentySchemaError(f"{path} enthält keinen gültigen {name}")
+        raise TwentySchemaError(f"{path} has no valid {name}")
     return values[0]
 
 
@@ -1764,7 +1762,7 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         )
         if allowed.status_code not in {200, 201}:
             raise TwentySchemaError(
-                "Integrations-Key darf erlaubte Company nicht schreiben: "
+                "integration key cannot write an allowed company: "
                 f"HTTP {allowed.status_code} {allowed.text[:300]}"
             )
         created_payload = json_object(allowed.json(), "Create Company response")
@@ -1776,11 +1774,11 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         created = json_object(created_data, "Create Company data")
         proof_id = created.get("id")
         if not isinstance(proof_id, str):
-            raise TwentySchemaError("Twenty lieferte keine ID für die erlaubte Company")
+            raise TwentySchemaError("Twenty returned no ID for the allowed company")
         company = client.get(f"/rest/companies/{proof_id}")
         if company.status_code != 200:
             raise TwentySchemaError(
-                "Integrations-Key darf erlaubte Company nicht lesen: "
+                "integration key cannot read an allowed company: "
                 f"HTTP {company.status_code}"
             )
         payload = json_object(company.json(), "Company response")
@@ -1792,11 +1790,11 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         record = json_object(data, "Company data")
         if "domainName" in record or "annualRevenue" in record:
             raise TwentySchemaError(
-                "Integrations-Key sieht nicht freigegebene Company-Felder"
+                "integration key sees company fields that are not granted"
             )
         if record.get("leonaidMatchKey") != proof_match_key:
             raise TwentySchemaError(
-                "Integrations-Key kann den LeonAid-Match-Schlüssel nicht pflegen"
+                "integration key cannot maintain the LeonAid match key"
             )
         by_key = client.get(
             "/rest/companies",
@@ -1807,7 +1805,7 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         )
         if by_key.status_code != 200:
             raise TwentySchemaError(
-                "Integrations-Key kann nicht nach dem Match-Schlüssel filtern: "
+                "integration key cannot filter by the match key: "
                 f"HTTP {by_key.status_code}"
             )
         key_payload = json_object(by_key.json(), "Match-Key-Filter response")
@@ -1817,19 +1815,19 @@ def verify_integration_key(path: Path, base_url: str) -> None:
         ]
         if key_ids != [proof_id]:
             raise TwentySchemaError(
-                "Match-Schlüssel-Filter liefert nicht genau die Nachweis-Company"
+                "match key filter does not return exactly the proof company"
             )
 
         custom = client.get("/rest/charityActions?limit=1")
         if custom.status_code != 200:
             raise TwentySchemaError(
-                "Integrations-Key darf Charity-Aktionen nicht lesen: "
+                "integration key cannot read charity actions: "
                 f"HTTP {custom.status_code}"
             )
         unrelated = client.get("/rest/opportunities?limit=1")
         if not is_permission_denied(unrelated):
             raise TwentySchemaError(
-                "Integrations-Key konnte fachfremde Opportunities lesen: "
+                "integration key could read unrelated opportunities: "
                 f"HTTP {unrelated.status_code} {unrelated.text[:300]}"
             )
         administrative = client.post(
@@ -1848,7 +1846,7 @@ def verify_integration_key(path: Path, base_url: str) -> None:
             )
         if not denied:
             raise TwentySchemaError(
-                "Integrations-Key konnte administrative Rollen-Metadaten lesen"
+                "integration key could read administrative role metadata"
             )
     finally:
         client.close()
@@ -1862,8 +1860,8 @@ def run(arguments: argparse.Namespace) -> None:
             os.environ["TWENTY_BASE_URL"],
         )
         print(
-            "twenty-key: OK: erlaubte CRM-Objekte nutzbar; "
-            "fachfremde Objekte und Administration verweigert"
+            "twenty-key: OK: allowed CRM objects usable; "
+            "unrelated objects and administration denied"
         )
         return
 
@@ -1871,7 +1869,7 @@ def run(arguments: argparse.Namespace) -> None:
         deleted = flush_workspace_cache(
             os.environ.get("TWENTY_REDIS_URL", DEFAULT_TWENTY_REDIS_URL)
         )
-        print(f"twenty-cache: OK: {deleted} Workspace-Cache-Schlüssel verworfen")
+        print(f"twenty-cache: OK: {deleted} workspace cache keys dropped")
         return
 
     provisioner = Provisioner(manifest)
@@ -1886,14 +1884,14 @@ def run(arguments: argparse.Namespace) -> None:
             if arguments.snapshot_output is not None:
                 write_json(arguments.snapshot_output.resolve(), value)
             print(
-                "twenty-provision: OK: Schema, Views, Rollen und API-Key "
-                "sind deklarationsgleich"
+                "twenty-provision: OK: schema, views, roles and API key "
+                "match the declaration"
             )
         elif arguments.command == "check":
             value = provisioner.check()
             if arguments.snapshot_output is not None:
                 write_json(arguments.snapshot_output.resolve(), value)
-            print("twenty-check: OK: kein Drift zur Deklaration")
+            print("twenty-check: OK: no drift from the declaration")
         elif arguments.command == "snapshot":
             write_json(arguments.output.resolve(), provisioner.check())
             print(f"twenty-snapshot: OK: {arguments.output}")
@@ -1905,14 +1903,14 @@ def run(arguments: argparse.Namespace) -> None:
             )
             print(
                 "twenty-mutate: OK: "
-                f"{arguments.object}.{arguments.field}.label absichtlich geändert"
+                f"{arguments.object}.{arguments.field}.label changed on purpose"
             )
     finally:
         provisioner.close()
 
 
 def die(error: Exception) -> NoReturn:
-    print(f"twenty-schema: FEHLER: {error}", file=sys.stderr)
+    print(f"twenty-schema: ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
 
 

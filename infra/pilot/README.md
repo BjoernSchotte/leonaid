@@ -1,68 +1,67 @@
-# Pilot-Betrieb
+# Pilot operation
 
 Current bilingual operator guide:
 [Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/deploy-pilot.md) ·
 [English](../../apps/docs/src/content/docs/en/ops/how-to/deploy-pilot.md).
 This file remains the detailed pilot contract.
 
-Diese additive Konfiguration härtet den bestehenden LeonAid-Core für genau
-eine Staging- oder Produktionsinstallation. Sie baut keine Images auf dem
-Server und veröffentlicht ausschließlich Caddy auf Port 80/443.
+This additive configuration hardens the existing LeonAid core for exactly one
+staging or production installation. It builds no images on the server and
+publishes only Caddy, on ports 80/443.
 The Twenty CRM UI is admin-only and has no public domain: `twenty-server`
 publishes its port on `127.0.0.1:TWENTY_ADMIN_PORT` only, and
 `./leonaid crm-admin --env-file FILE` prints the SSH tunnel to it.
 
-## Umgebungsgrenze
+## Environment boundary
 
-Staging und Produktion erhalten jeweils eigene:
+Staging and production each get their own:
 
-- Portal-Domain und Twenty-Admin-Port;
-- Compose-Projekte und damit eigene Netzwerke, Volumes und Datenbanken;
-- RustFS-Buckets und Restic-Repositories;
-- Anwendungs-, Datenbank-, Twenty-, RustFS- und SMTP-Secrets;
-- SMTP-Zugänge und Absender.
+- portal domain and Twenty admin port;
+- Compose projects, and with them their own networks, volumes and databases;
+- RustFS buckets and Restic repositories;
+- application, database, Twenty, RustFS and SMTP secrets;
+- SMTP accounts and senders.
 
-`LEONAID_DEPLOYMENT_STAGE`, `LEONAID_COMPOSE_PROJECT` und `RUSTFS_BUCKET`
-müssen dieselbe Umgebung benennen. Der Deployment Doctor blockiert
-Verwechslungen. Eine Installation für einen weiteren Club ist eine weitere
-vollständig getrennte Umgebung.
+`LEONAID_DEPLOYMENT_STAGE`, `LEONAID_COMPOSE_PROJECT` and `RUSTFS_BUCKET`
+must name the same environment. The deployment doctor blocks mix-ups. An
+installation for another club is another, fully separate environment.
 
-## Private Konfiguration
+## Private configuration
 
-`production.env.example` ist nur eine sichere Vorlage. Die ausgefüllte Datei:
+`production.env.example` is only a safe template. The filled-in file:
 
-1. liegt außerhalb des Git-Repositorys;
-2. gehört ausschließlich dem Betriebsaccount und hat Modus `0600`;
-3. enthält für jeden Secret-Namen einen zufälligen, eigenen Wert;
-4. referenziert ausschließlich digest-gepinnte Release-Images;
-5. bindet `LEONAID_RELEASE_COMMIT` an den freigegebenen vollständigen Git-SHA;
-6. verwendet ein externes Restic-Ziel.
+1. lives outside the Git repository;
+2. is owned only by the operations account and has mode `0600`;
+3. holds a random, distinct value for every secret name;
+4. references only digest-pinned release images;
+5. binds `LEONAID_RELEASE_COMMIT` to the approved full Git SHA;
+6. uses an external Restic target.
 
-Die Datei darf weder in Logs noch in öffentliche CI-Artefakte gelangen.
-Container erhalten nur die für ihren Prozess benötigten Werte. Der öffentliche
-Evidence-Report enthält ausschließlich Status und Fehlercodes.
+The file must never reach logs or public CI artifacts.
+Containers get only the values their process needs. The public evidence
+report contains only status values and error codes.
 
-Release, Migration, Promotion und Rollback folgen dem
-[`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Produktion akzeptiert nur ein
-Manifest, das zuvor mit exakt demselben SHA in Staging verifiziert wurde.
-Pilotnutzer, Rollenwechsel, Offboarding, datensparsames Feedback und die
-Support-Code-Strecke folgen dem
+Release, migration, promotion and rollback follow
+[`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Production accepts only a
+manifest that was verified in staging with exactly the same SHA before.
+Pilot users, role changes, offboarding, data-minimal feedback and the
+support-code flow follow
 [`ONBOARDING-SUPPORT-RUNBOOK.md`](ONBOARDING-SUPPORT-RUNBOOK.md).
-Der tägliche technische Pilotcheck und der sanitizte JSON-Report folgen dem
+The daily technical pilot check and the sanitized JSON report follow
 [`LIVE-PILOT-RUNBOOK.md`](LIVE-PILOT-RUNBOOK.md).
-Technisches Readiness-Dossier, privates Abnahmeprotokoll und ausdrückliche
-Milestoneentscheidung folgen dem
+The technical readiness dossier, the private acceptance record and the
+explicit milestone decision follow
 [`PILOT-ACCEPTANCE-RUNBOOK.md`](PILOT-ACCEPTANCE-RUNBOOK.md).
-Produktive Absenderidentitäten, öffentlicher DNS-Check, Bounce-/Complaint-Weg,
-Rotation und Provider-Wiederanlauf folgen dem
+Production sender identities, the public DNS check, the bounce/complaint path,
+rotation and provider recovery follow
 [`MAIL-RUNBOOK.md`](MAIL-RUNBOOK.md).
-Der einmalige Excel-Intake, Dry Run, Konfliktentscheidungen, Vier-Augen-Apply
-und Verify folgen dem [`IMPORT-RUNBOOK.md`](IMPORT-RUNBOOK.md).
+The one-time Excel intake, dry run, conflict decisions, four-eyes apply
+and verify follow [`IMPORT-RUNBOOK.md`](IMPORT-RUNBOOK.md).
 
-## Erstinstallation
+## First installation
 
-Ein leerer Host wird einmalig mit `pilot-install` aufgesetzt; die vollständige
-Server-Vorbereitung beschreibt
+An empty host is set up once with `pilot-install`; the full server
+preparation is described in
 [Install on a fresh VPS](../../apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md) ·
 [Auf einem frischen VPS installieren](../../apps/docs/src/content/docs/de/ops/how-to/install-on-a-vps.md).
 
@@ -76,31 +75,31 @@ Server-Vorbereitung beschreibt
   --credentials-file /etc/leonaid/secrets/restic-backend.env
 ```
 
-`pilot-install` läuft nur auf einem Projekt ohne Volumes und Container und nur
-solange `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` gilt. Produktives
-Twenty verlangt bestätigte E-Mail-Adressen und verweigert sonst jeden
-Token-Tausch; der erste Administrator könnte sich also nie anmelden. Deshalb
-startet `pilot-install` zuerst nur Twenty mit `compose.bootstrap.yml`
-(Verifizierung aus, kein Proxy, kein öffentlicher Zugang), provisioniert
-Schema, Rollen und Key, bestätigt die Adresse des Administrators über Twentys
-eigene Mutation `verifyEmailAndGetLoginToken` mit einem einmaligen Token und
-startet danach den vollständigen Stack mit aktiver Verifizierung. Es folgen
-erstes Backup, Monitoring mit Watchdog-Heartbeat und der vollständige Doctor.
+`pilot-install` runs only on a project without volumes and containers, and
+only while `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` is set.
+Production Twenty requires verified email addresses and otherwise refuses
+every token exchange, so the first administrator could never sign in. For
+this reason `pilot-install` first starts only Twenty with
+`compose.bootstrap.yml` (verification off, no proxy, no public access),
+provisions schema, roles and key, verifies the administrator's address
+through Twenty's own mutation `verifyEmailAndGetLoginToken` with a one-time
+token, and then starts the full stack with verification active. The first
+backup, monitoring with the watchdog heartbeat and the full doctor follow.
 
-Tägliche Backups plant `systemd/leonaid-backup.timer`. Die CRM-Abgleichschlüssel
-repariert `./leonaid pilot-repair-crm-match-keys`: `systemd/leonaid-crm-repair.timer`
-alle 15 Minuten mit einem 30-Minuten-Fenster, `leonaid-crm-repair-full.timer`
-nächtlich vollständig. Im Wartungsmodus setzt der Befehl mit Status 0 aus.
-Weitere CRM-Benutzer bestätigen ihre Adresse per Mail über dasselbe
-SMTP-Relay wie der Core (siehe `MAIL-RUNBOOK.md`); Twenty sends mail only with
-`MAIL_SMTP_MODE=tls`. Der Alarm
-`LeonAidWatchdog` feuert ständig und geht ausschließlich an die externe URL aus
-`LEONAID_ALERT_HEARTBEAT_URL_FILE`; bleiben die Pings aus, alarmiert der
-externe Dienst.
+`systemd/leonaid-backup.timer` schedules daily backups.
+`./leonaid pilot-repair-crm-match-keys` repairs the CRM match keys:
+`systemd/leonaid-crm-repair.timer` runs every 15 minutes with a 30-minute
+window, `leonaid-crm-repair-full.timer` runs a full repair nightly. In
+maintenance mode the command skips with status 0.
+Further CRM users verify their address by email through the same SMTP relay
+as the core (see `MAIL-RUNBOOK.md`); Twenty sends mail only with
+`MAIL_SMTP_MODE=tls`. The `LeonAidWatchdog` alert fires constantly and goes
+only to the external URL from `LEONAID_ALERT_HEARTBEAT_URL_FILE`; if the pings
+stop, the external service raises the alarm.
 
-## Compose- und Release-Prüfung
+## Compose and release check
 
-Vor einem Start wird die effektive Konfiguration erzeugt und geprüft:
+Before a start, the effective configuration is generated and checked:
 
 ```sh
 docker compose \
@@ -111,10 +110,10 @@ docker compose \
   config --format json
 ```
 
-Der Vertrag blockiert Builds auf dem Zielsystem, ungepinnte Images,
-Live-Code-Mounts, zusätzliche Hostports, öffentliche Datennetze,
-Loopback-URLs, Mailpit und Default-Secrets. Der Operator startet oder
-aktualisiert die Umgebung ausschließlich mit dem gebundenen Release-Manifest:
+The contract blocks builds on the target system, unpinned images,
+live-code mounts, additional host ports, public data networks,
+loopback URLs, Mailpit and default secrets. The operator starts or
+updates the environment only with the bound release manifest:
 
 ```sh
 ./leonaid pilot-deploy \
@@ -123,15 +122,15 @@ aktualisiert die Umgebung ausschließlich mit dem gebundenen Release-Manifest:
   --release-manifest .local/pilot/evidence/release-2026.1.0.json
 ```
 
-Der Befehl verifiziert vor dem Start Checkout, Manifest, effektive
-Compose-Images und alle für `pilot-deploy` fälligen Entscheidungen. Er
-verwendet ausschließlich `up --no-build --pull missing`, wartet auf alle
-Healthchecks und führt danach den vollständigen Deployment Doctor aus. Ein
-Manifest-/Compose-Drift erreicht den Start nicht.
+Before the start, the command verifies the checkout, the manifest, the
+effective Compose images and all decisions due for `pilot-deploy`. It uses
+only `up --no-build --pull missing`, waits for all health checks and then
+runs the full deployment doctor. Drift between manifest and Compose never
+reaches the start.
 
-Die vollständige technische Promotion mit frischem Backup, Wartungsmodus,
-expliziten Twenty-/Core-Migrationen und sequenziellem Release-Ledger läuft
-über:
+The full technical promotion with a fresh backup, maintenance mode,
+explicit Twenty/core migrations and a sequential release ledger runs
+through:
 
 ```sh
 ./leonaid pilot-release \
@@ -144,15 +143,15 @@ expliziten Twenty-/Core-Migrationen und sequenziellem Release-Ledger läuft
   --evidence-id PILOT-RELEASE-STAGING-2026-01
 ```
 
-Die Evidence-ID referenziert den privaten fachlichen Browser- und
-Dokumentnachweis für denselben Manifest-SHA; sie ersetzt ihn nicht.
-Produktion wird vor jeder Mutation blockiert, solange genau dieser SHA nicht
-als `staging_verified` im Ledger steht.
+The evidence ID references the private functional browser and document
+evidence for the same manifest SHA; it does not replace it.
+Production is blocked before any mutation as long as exactly this SHA is not
+recorded as `staging_verified` in the ledger.
 
-## Backup und Restore
+## Backup and restore
 
-Produktive Sicherungen laufen ebenfalls ausschließlich durch einen
-Doctor-geschützten Operatorbefehl:
+Production backups also run only through a doctor-protected operator
+command:
 
 ```sh
 ./leonaid pilot-backup \
@@ -162,9 +161,9 @@ Doctor-geschützten Operatorbefehl:
   --credentials-file /secure/leonaid/restic-backend.env
 ```
 
-Ein Recovery Drill benötigt ein frisches `leonaid-restore-*`-Projekt, ein
-separates Ziel-Environment und die exakte Bestätigung. Der Zielstart ist
-buildfrei:
+A recovery drill needs a fresh `leonaid-restore-*` project, a separate
+target environment and the exact confirmation. The target start does not
+build:
 
 ```sh
 ./leonaid pilot-restore \
@@ -176,13 +175,13 @@ buildfrei:
   --confirm RESTORE:leonaid-restore-drill-2026-07
 ```
 
-Quell- und Ziel-Environment müssen dasselbe externe Restic-Repository
-referenzieren. Bestehende Zielcontainer oder -volumes sowie eine abweichende
-Bestätigung blockieren den Restore vor einer Mutation.
+Source and target environment must reference the same external Restic
+repository. Existing target containers or volumes, or a confirmation that
+does not match, block the restore before any mutation.
 
-## Deployment Doctor
+## Deployment doctor
 
-Für eine reine Diagnose und danach vor jedem weiteren produktiven Gate:
+For a pure diagnosis, and afterwards before every further production gate:
 
 ```sh
 ./leonaid pilot-doctor \
@@ -191,42 +190,41 @@ Für eine reine Diagnose und danach vor jedem weiteren produktiven Gate:
   --gate pilot-deploy
 ```
 
-Der Doctor prüft ohne Secret-Ausgabe:
+The doctor checks, without printing secrets:
 
-- private Dateirechte, getrennte Secrets, Stage-/Projekt-/Bucket-Grenzen;
-- freigegebenen Commit, Digests, Compose-Ports, Netze und Mounts;
-- externes Backupziel, Manifest-Inventar und maximal 26 Stunden Backupalter;
-- mindestens 5 GiB freien Speicher;
-- DNS-Auflösung, Hostname-validiertes TLS und mindestens 14 Tage
-  Zertifikatsrestlaufzeit;
-- HSTS, CSP und weitere Sicherheitsheader;
-- Portal, API-/Datenbank-Readiness (includes Twenty's `/healthz`) und Mail-Provider;
+- private file permissions, separate secrets, stage/project/bucket boundaries;
+- approved commit, digests, Compose ports, networks and mounts;
+- external backup target, manifest inventory and a backup age of at most 26 hours;
+- at least 5 GiB of free storage;
+- DNS resolution, hostname-validated TLS and at least 14 days of
+  remaining certificate validity;
+- HSTS, CSP and other security headers;
+- portal, API/database readiness (includes Twenty's `/healthz`) and mail provider;
 - warns (exit status unchanged) when `MAIL_SMTP_MODE` is not `tls`, because
   Twenty then sends no mail;
-- Uhrversatz gegen den `Date`-Header des externen Mail-Providers;
-- alle für das gewählte Gate fälligen fachlichen Entscheidungen.
+- clock skew against the `Date` header of the external mail provider;
+- all functional decisions due for the selected gate.
 
-Exit `0` bedeutet bereit, `1` einen technischen Blocker, `2` offene
-Entscheidungen und `3` eine fachliche STOP-Entscheidung. `--json` liefert
-denselben Status maschinenlesbar. `--deployment-only` existiert nur für
-Diagnose und Tests; produktive Befehle verwenden immer den vollständigen
-Doctor.
+Exit `0` means ready, `1` a technical blocker, `2` open decisions and
+`3` a functional STOP decision. `--json` returns the same status in
+machine-readable form. `--deployment-only` exists only for diagnosis and
+tests; production commands always use the full doctor.
 
-## TLS, Header und Erneuerung
+## TLS, headers and renewal
 
-Caddy beschafft und erneuert öffentlich vertrauenswürdige Zertifikate
-automatisch. Port 80 bleibt für ACME und die permanente HTTPS-Weiterleitung
-erreichbar. HSTS wird erst nach dem erfolgreichen Staging-Nachweis auf die
-Produktionsdomains übernommen. Die Caddy-Daten- und Konfigurationsvolumes
-bleiben persistent; ein Zertifikatsfehler ist ein Doctor-Blocker.
+Caddy obtains and renews publicly trusted certificates automatically.
+Port 80 stays reachable for ACME and the permanent HTTPS redirect. HSTS is
+applied to the production domains only after the successful staging
+evidence. The Caddy data and config volumes stay persistent; a certificate
+error is a doctor blocker.
 
-Der noch offene reale Staging-Nachweis muss die öffentlichen DNS-Einträge, die
-vollständige Vertrauenskette, Sicherheitsheader und eine beobachtete
-Erneuerung bzw. einen dokumentierten Renewal-Dry-Run enthalten.
+The real staging evidence, still open, must cover the public DNS records, the
+full chain of trust, security headers and an observed renewal or a
+documented renewal dry run.
 
-## Abbruch und Aufräumen
+## Abort and clean-up
 
-Diagnose zuerst:
+Diagnose first:
 
 ```sh
 docker compose \
@@ -237,7 +235,6 @@ docker compose \
   ps
 ```
 
-Ein fehlgeschlagener erstmaliger Staging-Leerstart darf mit dem exakten
-Projektnamen inklusive Volumes entfernt werden. Für Produktion ist das Löschen
-von Volumes verboten; dort folgt ein Rollback ausschließlich dem
-Backup-/Restore-Runbook aus PILOT-041.
+A failed first empty staging start may be removed, including volumes, using
+the exact project name. Deleting volumes in production is forbidden; there a
+rollback follows only the backup/restore runbook from PILOT-041.

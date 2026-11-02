@@ -34,7 +34,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -49,7 +49,7 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(value["error"].get("code"))
 
 
@@ -183,7 +183,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             "active": None,
             "draftApproval": None,
         }:
-            raise ContractFailure("Initialzustand ist nicht deterministisch")
+            raise ContractFailure("Initial state is not deterministic")
 
         forbidden = await api.get(
             "/api/v1/admin/legal/configuration",
@@ -193,7 +193,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             forbidden.status_code != 403
             or error_code(forbidden) != "system_admin_required"
         ):
-            raise ContractFailure("Akquisiteurin konnte Rechtsgrundlage lesen")
+            raise ContractFailure("Acquirer could read the legal basis")
 
         created = await api.put(
             "/api/v1/admin/legal/configuration/draft",
@@ -207,7 +207,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             or not isinstance(state.get("draft"), dict)
             or state["draft"].get("version") != 1
         ):
-            raise ContractFailure("Erste unveränderliche Version wurde nicht angelegt")
+            raise ContractFailure("First immutable version was not created")
 
         version_id = str(state["draft"]["id"])
         own_approval = await api.post(
@@ -222,7 +222,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             own_approval.status_code != 409
             or error_code(own_approval) != "legal_configuration_four_eyes_required"
         ):
-            raise ContractFailure("Vier-Augen-Grenze ließ Eigenfreigabe zu")
+            raise ContractFailure("Four-eyes rule allowed self-approval")
 
         approved = await api.post(
             f"/api/v1/admin/legal/configuration/draft/{version_id}/approval",
@@ -234,7 +234,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
         )
         approved.raise_for_status()
         if approved.json().get("revision") != 3:
-            raise ContractFailure("Freigabe erhöhte Revision nicht")
+            raise ContractFailure("Approval did not increase the revision")
 
         blocked = await api.post(
             f"/api/v1/admin/legal/configuration/draft/{version_id}/activation",
@@ -245,7 +245,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             blocked.status_code != 409
             or error_code(blocked) != "legal_configuration_activation_blocked"
         ):
-            raise ContractFailure("Offene E-Rechnungsentscheidung wurde aktiviert")
+            raise ContractFailure("Pending e-invoice decision was activated")
 
         stale = await api.put(
             "/api/v1/admin/legal/configuration/draft",
@@ -256,9 +256,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             stale.status_code != 409
             or error_code(stale) != "legal_configuration_revision_conflict"
         ):
-            raise ContractFailure(
-                "Optimistische Revision verhinderte Lost Update nicht"
-            )
+            raise ContractFailure("Optimistic revision did not prevent a lost update")
 
 
 async def assert_result(connection: asyncpg.Connection[Any]) -> None:
@@ -274,7 +272,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         or state["draft_version_id"] is not None
         or state["active_version_id"] is None
     ):
-        raise ContractFailure(f"Finaler Aktivzustand ist ungültig: {state}")
+        raise ContractFailure(f"Final active state is invalid: {state}")
 
     versions = await connection.fetch(
         """
@@ -294,7 +292,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         (1, "pending", None),
         (2, "not_required", "ERECHNUNG-PILOT-044"),
     ]:
-        raise ContractFailure("Versionen sind nicht vollständig oder wurden verändert")
+        raise ContractFailure("Versions are incomplete or were changed")
 
     rows = await connection.fetch(
         """
@@ -311,7 +309,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         "legal_configuration_approved",
         "legal_configuration_activated",
     ]:
-        raise ContractFailure("Audit-Sequenz ist unvollständig")
+        raise ContractFailure("Audit sequence is incomplete")
     forbidden_fragments = (
         "DE89370400440532013000",
         "@leonaid.invalid",
@@ -320,7 +318,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
     )
     audit_payload = json.dumps([str(row["payload"]) for row in rows])
     if any(fragment in audit_payload for fragment in forbidden_fragments):
-        raise ContractFailure("Audit enthält vertrauliche Konfigurationswerte")
+        raise ContractFailure("Audit contains confidential configuration values")
 
     active_version_id = state["active_version_id"]
     profile = await connection.fetchrow(
@@ -343,7 +341,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         or int(profile["payment_terms_days"]) != 14
     ):
         raise ContractFailure(
-            "Rechnungsprofil wurde nicht atomar an die aktive Version gebunden"
+            "Invoice profile was not bound atomically to the active version"
         )
     approval = await connection.fetchrow(
         """
@@ -358,11 +356,11 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         or approval["approved_by_user_id"] != SIMONE_ID
         or approval["evidence_id"] != "UI-FREIGABE-PILOT-044"
     ):
-        raise ContractFailure("Aktive Version besitzt keine unabhängige UI-Freigabe")
+        raise ContractFailure("Active version has no independent UI approval")
 
     print(
-        "legal-configuration-contract: OK: Versionierung, Vier-Augen-Grenze, "
-        "Aktivierungsstopp und PII-freies Audit bewiesen"
+        "legal-configuration-contract: OK: versioning, four-eyes rule, "
+        "activation block and PII-free audit proven"
     )
 
 
@@ -371,7 +369,7 @@ async def run(command: str, sessions_path: Path | None) -> None:
     try:
         if command == "prepare":
             if sessions_path is None:
-                raise ContractFailure("prepare benötigt --sessions")
+                raise ContractFailure("prepare requires --sessions")
             await prepare(connection, sessions_path)
         else:
             await assert_result(connection)

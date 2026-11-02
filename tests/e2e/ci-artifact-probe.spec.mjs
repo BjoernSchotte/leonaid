@@ -10,7 +10,7 @@ if (!baseUrl || !artifactDirectory) {
   );
 }
 
-test("POC-003 erzeugt absichtlich sichere Failure-Artefakte", async ({
+test("POC-003 deliberately produces safe failure artifacts", async ({
   page,
 }) => {
   await page.goto(`${baseUrl}/krapfentaxi`);

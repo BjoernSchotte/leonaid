@@ -29,9 +29,7 @@ def expect_failure(checker: Path, root: Path, expected: str) -> None:
     )
     output = result.stdout + result.stderr
     if result.returncode == 0 or expected not in output:
-        raise AssertionError(
-            f"Policy-Fall {expected!r} wurde nicht abgewiesen: {output}"
-        )
+        raise AssertionError(f"Policy case {expected!r} was not rejected: {output}")
 
 
 def write_review(root: Path, source: str) -> Path:
@@ -73,7 +71,7 @@ def main() -> None:
             ),
             encoding="utf-8",
         )
-        expect_failure(checker, python_dependency, "Direktabhängigkeit responses")
+        expect_failure(checker, python_dependency, "Direct dependency responses")
 
         python_port = root / "python-port"
         write_base(source, python_port)
@@ -81,7 +79,7 @@ def main() -> None:
             "class FakeCrmGateway:\n    pass\n",
             encoding="utf-8",
         )
-        expect_failure(checker, python_port, "Testimplementierung eines I/O-Ports")
+        expect_failure(checker, python_port, "test implementation of an I/O port")
 
         frontend = root / "frontend"
         write_base(source, frontend)
@@ -91,7 +89,7 @@ def main() -> None:
             json.dumps(package),
             encoding="utf-8",
         )
-        expect_failure(checker, frontend, "Direktabhängigkeit msw")
+        expect_failure(checker, frontend, "Direct dependency msw")
 
         browser_response = root / "browser-response"
         write_base(source, browser_response)
@@ -99,7 +97,7 @@ def main() -> None:
             "await page.route('/api/**', async (route) => route.fulfill({}));\n",
             encoding="utf-8",
         )
-        expect_failure(checker, browser_response, "Browser-Netzwerkinterception")
+        expect_failure(checker, browser_response, "browser network interception")
 
         typescript_port = root / "typescript-port"
         write_base(source, typescript_port)
@@ -110,7 +108,7 @@ def main() -> None:
         expect_failure(
             checker,
             typescript_port,
-            "Testimplementierung eines I/O-Ports",
+            "test implementation of an I/O port",
         )
 
         http_fixture = root / "http-fixture"
@@ -118,7 +116,7 @@ def main() -> None:
         fixture = http_fixture / "tests/http-fixtures/response.json"
         fixture.parent.mkdir()
         fixture.write_text('{"status": 200}\n', encoding="utf-8")
-        expect_failure(checker, http_fixture, "HTTP-Fixture-Datei")
+        expect_failure(checker, http_fixture, "HTTP fixture file")
 
         fault = root / "reviewed-fault"
         write_base(source, fault)
@@ -136,17 +134,17 @@ def main() -> None:
         expect_failure(checker, fault, "stale network fault review")
 
         write_review(fault, test_source + 'import { http } from "msw";\n')
-        expect_failure(checker, fault, "verbotene Response-/Mock-Bibliothek msw")
+        expect_failure(checker, fault, "forbidden response/mock library msw")
 
         write_review(fault, test_source + 'vi.mock("service");\n')
-        expect_failure(checker, fault, "Modulersatz")
+        expect_failure(checker, fault, "Module replacement")
 
         write_review(fault, test_source)
         (fault / "tests/e2e/unreviewed.spec.mjs").write_text(
             "await anotherBrowser . route ('/api/**', handler);\n",
             encoding="utf-8",
         )
-        expect_failure(checker, fault, "Browser-Netzwerkinterception")
+        expect_failure(checker, fault, "browser network interception")
         (fault / "tests/e2e/unreviewed.spec.mjs").unlink()
 
         path.unlink()

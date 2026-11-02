@@ -81,7 +81,7 @@ def assert_rejected(
     result = run_sanitizer(sanitizer, case, env_file, proof)
     if result.returncode != 70 or "BLOCKED" not in result.stderr:
         raise AssertionError(
-            f"Private Evidence wurde nicht fail-closed abgewiesen: {name}: "
+            f"Private evidence was not rejected fail-closed: {name}: "
             f"{result.stdout}{result.stderr}"
         )
 
@@ -118,17 +118,17 @@ def main() -> None:
         result = run_sanitizer(sanitizer, artifacts, env_file, proof)
         if (
             result.returncode != 0
-            or "4 Secret-Vorkommen redigiert" not in result.stdout
+            or "4 secret occurrences redacted" not in result.stdout
         ):
-            raise AssertionError(f"Unerwarteter Sanitizer-Nachweis: {result}")
+            raise AssertionError(f"Unexpected sanitizer result: {result}")
         forbidden = (primary_secret.encode(), session_secret.encode())
         for path in artifacts.rglob("*"):
             if not path.is_file():
                 continue
             if any(secret in path.read_bytes() for secret in forbidden):
-                raise AssertionError(f"Secret blieb im Artefakt {path}")
+                raise AssertionError(f"Secret remained in artifact {path}")
         if (artifacts / "trace.zip").stat().st_mode & 0o777 != 0o640:
-            raise AssertionError("Trace-ZIP verlor beim Redigieren ihre Dateirechte")
+            raise AssertionError("Trace ZIP lost its file permissions during redaction")
 
         timestamp_artifacts = workspace / "timestamp-artifacts"
         timestamp_artifacts.mkdir()
@@ -146,7 +146,7 @@ def main() -> None:
         )
         if timestamp_result.returncode != 0:
             raise AssertionError(
-                "Zeitstempel-Nanosekunden wurden als Telefonnummer abgewiesen: "
+                "Timestamp nanoseconds were rejected as a phone number: "
                 f"{timestamp_result.stdout}{timestamp_result.stderr}"
             )
 
@@ -161,7 +161,7 @@ def main() -> None:
         if layer_result.returncode != 0 or layer_log.read_text() != (
             "#121 loading layer [DOCKER_LAYER_ID] 25.52kB / 25.52kB 0.1s done\n"
         ):
-            raise AssertionError("Numerische Docker-Layer-ID wurde nicht redigiert")
+            raise AssertionError("Numeric Docker layer ID was not redacted")
 
         private_canary = b"PII_NAME_CANARY_Erika-Mustermann"
         cases = {
@@ -219,8 +219,8 @@ def main() -> None:
         )
 
     print(
-        "ci-artifact-sanitize-test: OK: Secrets werden redigiert; PII, "
-        "Screenshots, PDFs und verschachtelte Traces werden fail-closed abgewiesen"
+        "ci-artifact-sanitize-test: OK: secrets are redacted; PII, "
+        "screenshots, PDFs and nested traces are rejected fail-closed"
     )
 
 

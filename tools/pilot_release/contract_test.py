@@ -196,8 +196,8 @@ def main() -> int:
         assert "secret" not in serialized.lower()
 
     print(
-        "pilot-release-contract: OK: Manifestbindung, Drift, "
-        "Staging-Promotion und secretsfreies Ledger bewiesen"
+        "pilot-release-contract: OK: manifest binding, drift, "
+        "staging promotion and secret-free ledger proven"
     )
     return 0
 

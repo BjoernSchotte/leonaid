@@ -26,7 +26,7 @@ def rejected(label: str, operation: Callable[[], object]) -> None:
         operation()
     except DoctorError:
         return
-    raise AssertionError(f"Doctor-Mutation wurde akzeptiert: {label}")
+    raise AssertionError(f"doctor mutation was accepted: {label}")
 
 
 def write_environment(path: Path, values: dict[str, str]) -> None:
@@ -65,7 +65,7 @@ def main() -> None:
         local_backup["RESTIC_REPOSITORY"] = "/srv/leonaid-backup"
         write_environment(environment_path, local_backup)
         rejected(
-            "lokales Backup-Ziel",
+            "local backup target",
             lambda: validate_environment(
                 local_backup,
                 root=root,
@@ -79,7 +79,7 @@ def main() -> None:
         wrong_stage["LEONAID_DEPLOYMENT_STAGE"] = "staging"
         write_environment(environment_path, wrong_stage)
         rejected(
-            "Projekt/Stage-Verwechslung",
+            "project/stage mix-up",
             lambda: validate_environment(
                 wrong_stage,
                 root=root,
@@ -95,7 +95,7 @@ def main() -> None:
         ]
         write_environment(environment_path, duplicate_secrets)
         rejected(
-            "wiederverwendetes Secret",
+            "reused secret",
             lambda: validate_environment(
                 duplicate_secrets,
                 root=root,
@@ -107,7 +107,7 @@ def main() -> None:
 
         wrong_commit = "f" * 40
         rejected(
-            "falscher Release-Commit",
+            "wrong release commit",
             lambda: validate_environment(
                 values,
                 root=root,
@@ -125,7 +125,7 @@ def main() -> None:
         stale_path = temporary_root / "stale-backup.json"
         stale_path.write_text(json.dumps(stale_payload), encoding="utf-8")
         rejected(
-            "veraltetes Backup",
+            "stale backup",
             lambda: validate_backup(
                 stale_path,
                 project=project,
@@ -134,7 +134,7 @@ def main() -> None:
         )
 
         rejected(
-            "ungültiges DNS-Override",
+            "invalid DNS override",
             lambda: parse_resolve(["portal.leonaid.org=:70000"]),
         )
 

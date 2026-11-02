@@ -73,10 +73,10 @@ docker run --rm --user "$(id -u):$(id -g)" \
   python /workspace/tools/ci/sanitize_artifacts.py \
   /ci /workspace/.env.local --env-directory /proof \
   >"$destination/sanitize.log" 2>&1 || {
-    echo "ci-capture-failure: ERROR: Artefakte konnten nicht sicher redigiert werden" >&2
+    echo "ci-capture-failure: ERROR: artifacts could not be redacted safely" >&2
     find "$destination" -type f -delete
     printf '%s\n' \
-      "Artefakte aus Sicherheitsgründen verworfen: Redaktionsprüfung fehlgeschlagen." \
+      "Artifacts discarded for security reasons: redaction check failed." \
       >"$destination/SANITIZATION-FAILED.txt"
     exit 1
   }

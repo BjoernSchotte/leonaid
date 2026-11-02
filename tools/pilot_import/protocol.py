@@ -74,12 +74,12 @@ def require_object(path: Path, *, label: str) -> JsonObject:
     except (OSError, json.JSONDecodeError) as error:
         raise PilotImportFailure(
             f"{label.upper()}_INVALID",
-            f"{label} ist nicht als JSON lesbar",
+            f"{label} is not readable as JSON",
         ) from error
     if not isinstance(value, dict):
         raise PilotImportFailure(
             f"{label.upper()}_INVALID",
-            f"{label} muss ein JSON-Objekt sein",
+            f"{label} must be a JSON object",
         )
     return value
 
@@ -88,7 +88,7 @@ def require_opaque(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not OPAQUE_ID.fullmatch(value):
         raise PilotImportFailure(
             "MANIFEST_METADATA_INVALID",
-            f"{label} muss eine opake ID besitzen",
+            f"{label} must be an opaque ID",
         )
     return value
 
@@ -97,19 +97,19 @@ def require_timestamp(value: object, *, label: str) -> str:
     if not isinstance(value, str):
         raise PilotImportFailure(
             "MANIFEST_METADATA_INVALID",
-            f"{label} muss ein ISO-8601-Zeitpunkt sein",
+            f"{label} must be an ISO 8601 timestamp",
         )
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
         raise PilotImportFailure(
             "MANIFEST_METADATA_INVALID",
-            f"{label} muss ein ISO-8601-Zeitpunkt sein",
+            f"{label} must be an ISO 8601 timestamp",
         ) from error
     if parsed.tzinfo is None:
         raise PilotImportFailure(
             "MANIFEST_METADATA_INVALID",
-            f"{label} benötigt eine Zeitzone",
+            f"{label} requires a time zone",
         )
     return value
 
@@ -121,14 +121,14 @@ def ensure_private_file(path: Path, *, root: Path, area: str) -> None:
     except ValueError as error:
         raise PilotImportFailure(
             "PRIVATE_PATH_REQUIRED",
-            f"Datei muss unter .local/pilot/{area}/ liegen",
+            f"file must be below .local/pilot/{area}/",
         ) from error
     if not path.is_file():
-        raise PilotImportFailure("PRIVATE_FILE_MISSING", "private Datei fehlt")
+        raise PilotImportFailure("PRIVATE_FILE_MISSING", "private file is missing")
     if stat.S_IMODE(path.stat().st_mode) != 0o600:
         raise PilotImportFailure(
             "PRIVATE_FILE_MODE_INVALID",
-            "private Datei muss Modus 0600 besitzen",
+            "private file must have mode 0600",
         )
 
 
@@ -139,7 +139,7 @@ def ensure_private_output(path: Path, *, root: Path, area: str) -> None:
     except ValueError as error:
         raise PilotImportFailure(
             "PRIVATE_PATH_REQUIRED",
-            f"Ausgabe muss unter .local/pilot/{area}/ liegen",
+            f"output must be below .local/pilot/{area}/",
         ) from error
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     path.parent.chmod(0o700)
@@ -152,19 +152,19 @@ def validate_intake_manifest(context: ImportContext) -> JsonObject:
     if payload.get("schemaVersion") != 1:
         raise PilotImportFailure(
             "INTAKE_MANIFEST_VERSION_INVALID",
-            "Intake-Manifest benötigt schemaVersion 1",
+            "intake manifest requires schemaVersion 1",
         )
     expected_sha = payload.get("sourceSha256")
     actual_sha = sha256_file(context.source)
     if expected_sha != actual_sha:
         raise PilotImportFailure(
             "SOURCE_FINGERPRINT_MISMATCH",
-            "Quelldatei stimmt nicht mit dem Intake-Manifest überein",
+            "source file does not match the intake manifest",
         )
     if payload.get("purpose") != "historic-sponsor-contact-import":
         raise PilotImportFailure(
             "IMPORT_PURPOSE_INVALID",
-            "Intake-Manifest ist nicht für den historischen Kontaktimport freigegeben",
+            "intake manifest is not approved for the historic contact import",
         )
     require_opaque(
         payload.get("authorizationReference"), label="authorizationReference"
@@ -216,7 +216,7 @@ def require_env(name: str) -> str:
     if not value:
         raise PilotImportFailure(
             "TARGET_CONFIGURATION_MISSING",
-            f"erforderliche Zielkonfiguration fehlt: {name}",
+            f"required target configuration is missing: {name}",
         )
     return value
 
@@ -280,7 +280,7 @@ def validate_context(arguments: argparse.Namespace) -> ImportContext:
     if not ENVIRONMENT.fullmatch(arguments.target_environment):
         raise PilotImportFailure(
             "TARGET_ENVIRONMENT_INVALID",
-            "target-environment muss staging-* oder production-* sein",
+            "target-environment must be staging-* or production-*",
         )
     source = arguments.source.resolve()
     manifest = arguments.manifest.resolve()
@@ -334,7 +334,7 @@ async def build_plans(
     if set(resolutions) - row_source_ids:
         raise PilotImportFailure(
             "STALE_RESOLUTION",
-            "Resolution-Datei enthält Source-IDs außerhalb der Quelldatei",
+            "resolution file contains source IDs that are not in the source file",
         )
     settings = TwentyGatewaySettings(
         base_url=require_env("TWENTY_BASE_URL"),
@@ -354,19 +354,19 @@ def validate_approval(context: ImportContext, report: JsonObject) -> None:
     if context.approval is None or context.backup_manifest is None:
         raise PilotImportFailure(
             "APPLY_PREREQUISITE_MISSING",
-            "Apply benötigt --approval und --backup-manifest",
+            "apply requires --approval and --backup-manifest",
         )
     backup_payload = require_object(context.backup_manifest, label="backup_manifest")
     source_project = backup_payload.get("sourceProject")
     if not isinstance(source_project, str) or not source_project:
         raise PilotImportFailure(
             "RECOVERY_POINT_INVALID",
-            "Recovery Point enthält kein sourceProject",
+            "recovery point has no sourceProject",
         )
     if source_project != f"leonaid-{context.target_environment}":
         raise PilotImportFailure(
             "RECOVERY_POINT_TARGET_MISMATCH",
-            "Recovery Point gehört nicht zur bestätigten Zielumgebung",
+            "recovery point does not belong to the confirmed target environment",
         )
     try:
         verify_backup_manifest(
@@ -376,13 +376,13 @@ def validate_approval(context: ImportContext, report: JsonObject) -> None:
     except ManifestError as error:
         raise PilotImportFailure(
             "RECOVERY_POINT_INVALID",
-            "Recovery Point ist unvollständig oder nicht bytegenau",
+            "recovery point is incomplete or not byte-exact",
         ) from error
     approval = require_object(context.approval, label="approval")
     if approval.get("schemaVersion") != 1:
         raise PilotImportFailure(
             "APPROVAL_VERSION_INVALID",
-            "Freigabe benötigt schemaVersion 1",
+            "approval requires schemaVersion 1",
         )
     expected = {
         "batchId": context.batch_id,
@@ -396,7 +396,7 @@ def validate_approval(context: ImportContext, report: JsonObject) -> None:
     if any(approval.get(key) != value for key, value in expected.items()):
         raise PilotImportFailure(
             "APPROVAL_FINGERPRINT_MISMATCH",
-            "Freigabe bindet nicht exakt Input, Mapping, Resolution, Plan und Recovery Point",
+            "approval does not bind exactly to input, mapping, resolution, plan and recovery point",
         )
     approvers = approval.get("approvedBy")
     if (
@@ -408,7 +408,7 @@ def validate_approval(context: ImportContext, report: JsonObject) -> None:
     ):
         raise PilotImportFailure(
             "FOUR_EYES_APPROVAL_MISSING",
-            "Apply benötigt zwei unterschiedliche opake Freigabe-IDs",
+            "apply requires two different opaque approver IDs",
         )
     require_timestamp(approval.get("approvedAt"), label="approvedAt")
     require_opaque(approval.get("recoveryPointId"), label="recoveryPointId")
@@ -427,7 +427,7 @@ def exclusive_batch_lock(context: ImportContext) -> Iterator[None]:
         except BlockingIOError as error:
             raise PilotImportFailure(
                 "BATCH_APPLY_CONCURRENT",
-                "dieser Importbatch wird bereits angewendet",
+                "this import batch is already being applied",
             ) from error
         try:
             yield
@@ -466,7 +466,7 @@ async def execute(context: ImportContext) -> None:
         ):
             raise PilotImportFailure(
                 "VERIFY_NOT_IDEMPOTENT",
-                "Verify meldet neue, geänderte oder ungeklärte Datensätze",
+                "verify reports new, changed or unresolved records",
             )
         report = report_payload(
             context,
@@ -482,7 +482,7 @@ async def execute(context: ImportContext) -> None:
         if any(plan.status is RowStatus.CONFLICT for plan in preflight):
             raise PilotImportFailure(
                 "UNRESOLVED_CONFLICT",
-                "Apply wird wegen ungeklärter Konflikte abgewiesen",
+                "apply rejected because of unresolved conflicts",
             )
         preflight_report = report_payload(
             context,

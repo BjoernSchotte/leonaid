@@ -31,7 +31,7 @@ def _fixture_payloads(directory: Path) -> list[dict[str, object]]:
         if not isinstance(value, dict) or not all(
             isinstance(key, str) for key in value
         ):
-            raise SnapshotExportError(f"Ungültige Golden-Datei: {path.name}")
+            raise SnapshotExportError(f"invalid golden file: {path.name}")
         payloads.append(InvoiceDocumentSnapshot.from_payload(value).payload())
     return sorted(payloads, key=lambda item: str(item["number"]))
 
@@ -61,8 +61,8 @@ async def export_snapshots(
     expected = _fixture_payloads(fixture_directory)
     if actual != expected:
         raise SnapshotExportError(
-            "Die real gespeicherten Rechnungssnapshots weichen von den "
-            "versionierten Golden-Rechnungen ab."
+            "The invoice snapshots stored in the real database differ from the "
+            "versioned golden invoices."
         )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -79,7 +79,7 @@ def main() -> int:
     arguments = parser.parse_args()
     database_url = os.environ.get("CORE_DATABASE_URL")
     if not database_url:
-        print("typst-snapshots: ERROR: CORE_DATABASE_URL fehlt", file=sys.stderr)
+        print("typst-snapshots: ERROR: CORE_DATABASE_URL missing", file=sys.stderr)
         return 1
     try:
         count = asyncio.run(
@@ -92,10 +92,7 @@ def main() -> int:
     except (OSError, ValueError, asyncpg.PostgresError, SnapshotExportError) as error:
         print(f"typst-snapshots: ERROR: {error}", file=sys.stderr)
         return 1
-    print(
-        "typst-snapshots: OK: "
-        f"{count} echte Datenbank-Snapshots entsprechen Golden Data"
-    )
+    print(f"typst-snapshots: OK: {count} real database snapshots match golden data")
     return 0
 
 

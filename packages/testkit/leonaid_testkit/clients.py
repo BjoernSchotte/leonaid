@@ -36,10 +36,10 @@ def _json_object(
     except ValueError as error:
         raise context.failure(
             step,
-            f"HTTP {response.status_code} lieferte kein JSON-Objekt.",
+            f"HTTP {response.status_code} did not return a JSON object.",
         ) from error
     if not isinstance(value, dict):
-        raise context.failure(step, "HTTP-Antwort ist kein JSON-Objekt.")
+        raise context.failure(step, "HTTP response is not a JSON object.")
     return value
 
 
@@ -118,12 +118,12 @@ class MailpitClient:
         if response.status_code != 200:
             raise self._context.failure(
                 step,
-                f"Mailpit-Nachrichtenliste lieferte HTTP {response.status_code}.",
+                f"Mailpit message list returned HTTP {response.status_code}.",
             )
         payload = _json_object(response, context=self._context, step=step)
         messages = payload.get("messages")
         if not isinstance(messages, list):
-            raise self._context.failure(step, "Mailpit liefert keine messages-Liste.")
+            raise self._context.failure(step, "Mailpit did not return a messages list.")
         return {
             str(item["ID"])
             for item in messages
@@ -152,7 +152,7 @@ class MailpitClient:
         if not isinstance(messages, list):
             raise self._context.failure(
                 "mailpit-poll",
-                "Mailpit liefert beim Polling keine messages-Liste.",
+                "Mailpit did not return a messages list while polling.",
             )
         for summary in messages:
             if not isinstance(summary, dict):
@@ -180,7 +180,7 @@ class MailpitClient:
             if not isinstance(message_subject, str) or not isinstance(text, str):
                 raise self._context.failure(
                     "mailpit-detail",
-                    "Mailpit-Nachricht enthält Betreff oder Text nicht.",
+                    "Mailpit message has no subject or text.",
                 )
             if subject is not None and message_subject != subject:
                 continue
@@ -214,7 +214,7 @@ class MailpitClient:
         if message is None:
             raise self._context.failure(
                 "mailpit-delivery",
-                "Mailpit-Polling endete ohne Nachricht.",
+                "Mailpit polling ended without a message.",
             )
         return message
 
@@ -246,7 +246,7 @@ class MailpitClient:
         except (OSError, smtplib.SMTPException) as error:
             raise self._context.failure(
                 "mailpit-smtp-send",
-                f"Realer SMTP-Versand an Mailpit schlug fehl: {error}.",
+                f"Real SMTP delivery to Mailpit failed: {error}.",
             ) from error
         return await self.wait_for_message(
             recipient=recipient,
@@ -314,7 +314,7 @@ class LeonAidApiClient:
         ) != {"status": "queued"}:
             raise self._context.failure(
                 "persona-login-request",
-                f"Login-Anfrage lieferte HTTP {request.status_code} ohne queued.",
+                f"Login request returned HTTP {request.status_code} without queued.",
             )
         login_mail = await mailpit.wait_for_message(
             recipient=email,
@@ -324,7 +324,7 @@ class LeonAidApiClient:
         if token_match is None:
             raise self._context.failure(
                 "persona-login-mail",
-                "Login-Mail enthält keinen Magic-Link.",
+                "Login mail contains no magic link.",
             )
         complete = await self._client.post(
             "/api/v1/auth/login/complete",
@@ -337,7 +337,7 @@ class LeonAidApiClient:
         if complete.status_code != 200:
             raise self._context.failure(
                 "persona-login-complete",
-                f"Magic-Link-Abschluss lieferte HTTP {complete.status_code}.",
+                f"Magic link completion returned HTTP {complete.status_code}.",
             )
         session_token = self._session_from_response(complete)
         session = PersonaSession(
@@ -356,7 +356,7 @@ class LeonAidApiClient:
         ):
             raise self._context.failure(
                 "persona-login-identity",
-                "Echte Sitzung gehört nicht zur angeforderten Persona.",
+                "Real session does not belong to the requested persona.",
             )
         return session
 
@@ -369,7 +369,7 @@ class LeonAidApiClient:
         if len(values) != 1:
             raise self._context.failure(
                 "persona-login-cookie",
-                "Login setzt nicht genau ein Sitzungscookie.",
+                "Login does not set exactly one session cookie.",
             )
         parsed = SimpleCookie()
         parsed.load(values[0])
@@ -384,7 +384,7 @@ class LeonAidApiClient:
         ):
             raise self._context.failure(
                 "persona-login-cookie",
-                "Sitzungscookie verletzt den Secure/HttpOnly/Host-only-Vertrag.",
+                "Session cookie violates the Secure/HttpOnly/host-only contract.",
             )
         return cookie.value
 
@@ -407,7 +407,7 @@ class LeonAidApiClient:
         if response.status_code != 200:
             raise self._context.failure(
                 step,
-                f"LeonAid API lieferte HTTP {response.status_code}.",
+                f"LeonAid API returned HTTP {response.status_code}.",
             )
         return _json_object(response, context=self._context, step=step)
 
@@ -454,7 +454,7 @@ class TwentyClient:
         if response.status_code != 200:
             raise self._context.failure(
                 "twenty-company-read",
-                f"Twenty lieferte für {twenty_id} HTTP {response.status_code}.",
+                f"Twenty returned HTTP {response.status_code} for {twenty_id}.",
             )
         payload = _json_object(
             response,
@@ -465,7 +465,7 @@ class TwentyClient:
         if not isinstance(data, dict):
             raise self._context.failure(
                 "twenty-company-read",
-                "Twenty liefert kein Firmenobjekt.",
+                "Twenty did not return a company object.",
             )
         nested = data.get("company")
         return dict(nested) if isinstance(nested, dict) else dict(data)
@@ -512,12 +512,12 @@ class RustFsClient:
                 if body != content or actual_hash != expected_hash:
                     raise self._context.failure(
                         "rustfs-hash",
-                        "RustFS-Leseinhalt besitzt nicht den geschriebenen SHA-256.",
+                        "RustFS read content does not match the written SHA-256.",
                     )
                 if metadata.get("sha256") != expected_hash:
                     raise self._context.failure(
                         "rustfs-metadata",
-                        "RustFS hat die SHA-256-Metadaten nicht erhalten.",
+                        "RustFS did not keep the SHA-256 metadata.",
                     )
                 return actual_hash
             finally:
@@ -530,7 +530,7 @@ class RustFsClient:
                 raise
             raise self._context.failure(
                 "rustfs-roundtrip",
-                f"Realer RustFS-Schreib-/Lesezyklus schlug fehl: {error}.",
+                f"Real RustFS write/read cycle failed: {error}.",
             ) from error
 
 
@@ -548,7 +548,7 @@ class ReadOnlySqlClient:
         except (OSError, asyncpg.PostgresError) as error:
             raise self._context.failure(
                 "sql-connect",
-                f"Read-only SQL-Verbindung schlug fehl: {error}.",
+                f"Read-only SQL connection failed: {error}.",
             ) from error
         return self
 
@@ -567,13 +567,13 @@ class ReadOnlySqlClient:
         if not normalized.startswith(("select", "with", "show")):
             raise self._context.failure(
                 "sql-readonly-guard",
-                "Testkit-SQL erlaubt ausschließlich lesende Statements.",
+                "Testkit SQL allows read-only statements only.",
             )
         connection = self._connection
         if connection is None:
             raise self._context.failure(
                 "sql-read",
-                "Read-only SQL-Client wurde nicht geöffnet.",
+                "Read-only SQL client was not opened.",
             )
         try:
             async with connection.transaction(readonly=True):
@@ -581,11 +581,11 @@ class ReadOnlySqlClient:
         except asyncpg.PostgresError as error:
             raise self._context.failure(
                 "sql-read",
-                f"Read-only SQL-Prüfung schlug fehl: {error}.",
+                f"Read-only SQL check failed: {error}.",
             ) from error
         if row is None:
             raise self._context.failure(
                 "sql-read",
-                "Read-only SQL-Prüfung fand keinen Datensatz.",
+                "Read-only SQL check found no row.",
             )
         return dict(row)

@@ -1,30 +1,29 @@
-# Reproduzierbare Abhängigkeiten
+# Reproducible dependencies
 
-`external-systems.lock` ist die kanonische, maschinenlesbare Liste aller
-externen Systeme sowie aller Container, die den PoC bauen oder prüfen. Ein
-Eintrag enthält immer einen lesbaren Tag und den unveränderlichen
-Multi-Arch-Index-Digest. Compose- und Dockerfile-Referenzen müssen dieselbe
-Form `image:version@sha256:digest` verwenden.
+`external-systems.lock` is the canonical, machine-readable list of all
+external systems and of all containers that build or check the PoC. Each
+entry always contains a readable tag and the immutable multi-arch index
+digest. Compose and Dockerfile references must use the same form
+`image:version@sha256:digest`.
 
-`browser-artifacts.lock` hält zusätzlich die im Playwright-Image enthaltenen
-Browser-Revisionen fest. `uv.lock` und `bun.lock` sind die kanonischen
-Paket-Locks. Die Toolchain-Versionen stehen in `.tool-versions`.
+`browser-artifacts.lock` also records the browser revisions contained in the
+Playwright image. `uv.lock` and `bun.lock` are the canonical package locks.
+The toolchain versions are in `.tool-versions`.
 
-Die React-Peers von `packages/surveys` deklarieren als eng begrenzte Ausnahme
-den Kompatibilitätsbereich `^19.2.8`. Der Pin-Checker erlaubt dies ausschließlich
-für `react` und `react-dom` im Peer-Abschnitt dieses Packages. Alle LeonAid-Hosts,
-die das Package direkt einbinden, müssen beide Laufzeitabhängigkeiten exakt auf
-`19.2.8` setzen. Andere Packages und Abhängigkeitsabschnitte bleiben exakt gepinnt.
-Der unabhängige Consumer prüft zusätzlich die tatsächlichen installierten
-Versionen und verwendet seinen eigenen Frozen Lockfile. Ein Versionswechsel
-benötigt eine gemeinsame Aktualisierung dieser Policy, der Hosts und Locks sowie
-einen erneuten Consumer-Test. Der Peer-Bereich allein ist kein Testnachweis für
-zukünftige React-Versionen.
+As a narrow exception, the React peers of `packages/surveys` declare the
+compatibility range `^19.2.8`. The pin checker allows this only for `react`
+and `react-dom` in the peer section of this package. Every LeonAid host that
+includes the package directly must pin both runtime dependencies exactly to
+`19.2.8`. All other packages and dependency sections stay pinned exactly.
+The independent consumer also checks the versions actually installed and uses
+its own frozen lockfile. A version change requires a joint update of this
+policy, the hosts and the locks, plus a new consumer test. The peer range
+alone is no test evidence for future React versions.
 
-Updates erfolgen ausschließlich in einem expliziten Renovate-PR oder einem
-manuell eröffneten Upgrade-PR. Ein solcher PR aktualisiert Tag und Digest,
-setzt `reviewedAt` sowie `nextReviewOn`, erzeugt alle Locks und SBOMs neu und
-durchläuft die Contract- und E2E-Gates. Automerges sind deaktiviert.
+Updates happen only in an explicit Renovate PR or a manually opened upgrade
+PR. Such a PR updates tag and digest, sets `reviewedAt` and `nextReviewOn`,
+regenerates all locks and SBOMs and passes the contract and E2E gates.
+Automerge is disabled.
 
 ## Review deadline and vulnerability gates
 
@@ -44,8 +43,7 @@ the scanned third-party images (Trivy) and in `uv.lock`/`bun.lock`
 `infra/security/vulnerability-allowlist.json` with reason, reviewer and an
 expiry at most 90 days after the review; expired waivers fail the gate.
 
-Die Prüfungen werden ausschließlich in den hier erfassten Docker-Images
-ausgeführt:
+The checks run only inside the Docker images recorded here:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \

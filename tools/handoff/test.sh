@@ -12,4 +12,4 @@ docker run --rm \
 
 /bin/sh "$root/tools/dx/test-fresh-checkout.sh" "$root"
 
-echo "handoff-test: OK: Dokumentvertrag und frischer Docker-Checkout bewiesen"
+echo "handoff-test: OK: document contract and fresh Docker checkout proven"

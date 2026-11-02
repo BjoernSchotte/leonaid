@@ -53,10 +53,10 @@ def main() -> None:
         )
         # Valid choices proceed only as far as the missing environment guard.
         # No Docker executable/socket or operator credentials are supplied.
-        refused("Environment-Datei fehlt")
-        refused("Environment-Datei fehlt", LEONAID_RESTORE_SCOPE="full")
+        refused("environment file missing")
+        refused("environment file missing", LEONAID_RESTORE_SCOPE="full")
         refused(
-            "Environment-Datei fehlt",
+            "environment file missing",
             LEONAID_RESTORE_SCOPE="cms",
             LEONAID_RESTORE_TOPOLOGY="emdash",
             LEONAID_RESTORE_CMS_IMAGE="synthetic-image-still-requires-verification",

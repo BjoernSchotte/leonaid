@@ -29,38 +29,38 @@ fail() {
 . "$root/tools/backup/compose-overlays.sh"
 validate_recovery_overlays
 
-[ -f "$env_file" ] || fail "Environment-Datei fehlt"
-[ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
-[ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE fehlt"
+[ -f "$env_file" ] || fail "environment file missing"
+[ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY missing"
+[ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE missing"
 if [ -n "$compose_overlay" ]; then
   compose_overlay=$(cd "$(dirname "$compose_overlay")" && pwd)/$(basename "$compose_overlay")
   case "$compose_overlay" in
     "$root"/*) ;;
-    *) fail "Backup-Compose-Overlay muss innerhalb des Repositories liegen" ;;
+    *) fail "backup Compose overlay must be inside the repository" ;;
   esac
-  [ -f "$compose_overlay" ] || fail "Backup-Compose-Overlay fehlt"
+  [ -f "$compose_overlay" ] || fail "backup Compose overlay missing"
 fi
 if [ -n "$compose_overlay_secondary" ]; then
   [ -n "$compose_overlay" ] ||
-    fail "Sekundäres Backup-Compose-Overlay benötigt ein primäres Overlay"
+    fail "secondary backup Compose overlay requires a primary overlay"
   compose_overlay_secondary=$(
     cd "$(dirname "$compose_overlay_secondary")" &&
       pwd
   )/$(basename "$compose_overlay_secondary")
   case "$compose_overlay_secondary" in
     "$root"/*) ;;
-    *) fail "Sekundäres Backup-Compose-Overlay muss im Repository liegen" ;;
+    *) fail "secondary backup Compose overlay must be inside the repository" ;;
   esac
   [ -f "$compose_overlay_secondary" ] ||
-    fail "Sekundäres Backup-Compose-Overlay fehlt"
+    fail "secondary backup Compose overlay missing"
 fi
 if [ -n "$manifest_output" ]; then
   case "$manifest_output" in
     /*) ;;
-    *) fail "Backup-Manifest-Ausgabe muss absolut sein" ;;
+    *) fail "backup manifest output must be an absolute path" ;;
   esac
   [ -d "$(dirname "$manifest_output")" ] ||
-    fail "Verzeichnis für Backup-Manifest-Ausgabe fehlt"
+    fail "directory for backup manifest output missing"
   manifest_output_tmp="$manifest_output.tmp.$$"
 fi
 
@@ -118,7 +118,7 @@ cleanup() {
   fi
   rm -rf "$stage"
   if [ "$status" -eq 0 ]; then
-    echo "backup: OK: $project konsistent, verschlüsselt und integritätsgeprüft; source services resumed"
+    echo "backup: OK: $project consistent, encrypted and integrity-checked; source services resumed"
   fi
   exit "$status"
 }
@@ -151,7 +151,7 @@ restic_run() {
   shift
   if [ "$local_repository" = "true" ]; then
     if [ -n "$credentials_file" ]; then
-      [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
+      [ -f "$credentials_file" ] || fail "backup credentials file missing"
       docker run --rm \
         --user "$(id -u):$(id -g)" \
         -e RESTIC_CACHE_DIR=/tmp/restic-cache \
@@ -175,7 +175,7 @@ restic_run() {
     fi
   else
     if [ -n "$credentials_file" ]; then
-      [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
+      [ -f "$credentials_file" ] || fail "backup credentials file missing"
       docker run --rm \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
         -e "RESTIC_REPOSITORY=$repository" \
@@ -197,7 +197,7 @@ restic_run() {
 running=$(compose ps --services --filter status=running)
 for required in core-postgres twenty-postgres rustfs; do
   echo "$running" | grep -Fx "$required" >/dev/null ||
-    fail "Service ist nicht bereit: $required"
+    fail "service is not ready: $required"
 done
 cms_database=$(compose exec -T core-postgres psql \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
@@ -205,11 +205,11 @@ cms_database=$(compose exec -T core-postgres psql \
   "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname='emdash')")
 case "$topology:$cms_database" in
   legacy:f|emdash:t) ;;
-  *) fail "Backup-Topologie passt nicht zum vorhandenen CMS-Datenbestand" ;;
+  *) fail "backup topology does not match the existing CMS data" ;;
 esac
 if [ "$topology" = emdash ]; then
   bootstrap_project=$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "${project}_cms-bootstrap-state")
-  [ "$bootstrap_project" = "$project" ] || fail "CMS-Bootstrap-Volume fehlt oder gehört zu anderem Projekt"
+  [ "$bootstrap_project" = "$project" ] || fail "CMS bootstrap volume missing or belongs to another project"
 fi
 for service in twenty-server twenty-worker api worker public pwa web proxy campaign-site rustfs; do
   if echo "$running" | grep -Fx "$service" >/dev/null; then

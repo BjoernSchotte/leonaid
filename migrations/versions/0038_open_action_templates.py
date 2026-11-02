@@ -23,7 +23,7 @@ DATA_MIGRATION_REFERENCE = (
     "(the former public-site heuristic) get it as well, so every existing "
     "public page keeps its current look."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 SLUG_CHECK = "~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'"
 

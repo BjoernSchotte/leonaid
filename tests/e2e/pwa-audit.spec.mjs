@@ -19,7 +19,7 @@ test.use({
   viewport: { width: 390, height: 844 },
 });
 
-test("POC-062 Manifest, Installation, Update und Offline-Hinweis sind echt", async ({
+test("POC-062 manifest, installation, update and offline notice are real", async ({
   browserName,
   context,
   page,
@@ -27,7 +27,7 @@ test("POC-062 Manifest, Installation, Update und Offline-Hinweis sind echt", asy
   test.setTimeout(60_000);
   test.skip(
     browserName !== "chromium",
-    "Installability wird über Chromium-CDP geprüft.",
+    "Installability is checked through Chromium CDP.",
   );
   await context.addCookies([
     {

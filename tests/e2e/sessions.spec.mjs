@@ -7,7 +7,7 @@ const charityAdminEmail = "klara.kern@leonaid.invalid";
 const financeEmail = "finn.finanzen@leonaid.invalid";
 
 if (!baseUrl || !mailpitBaseUrl || !artifactDirectory) {
-  throw new Error("POC-042 Browserumgebung ist unvollständig");
+  throw new Error("POC-042 browser environment is incomplete");
 }
 
 test.setTimeout(60_000);
@@ -87,7 +87,7 @@ async function waitForCode(request, previousIds, recipientEmail) {
   return code;
 }
 
-test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
+test("login, normal work, fresh login, admin action and logout", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -207,7 +207,7 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
   }
 });
 
-test("Finanz-Lesezugriff startet ohne Umweg im Rechnungsjournal", async ({
+test("finance read access starts directly in the invoice journal", async ({
   browser,
 }) => {
   const context = await browser.newContext({

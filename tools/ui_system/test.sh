@@ -33,7 +33,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "ui-system-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "ui-system-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres web proxy twenty-server >&2 || true
@@ -55,7 +55,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "ui-system-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "ui-system-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -103,7 +103,7 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "ui-system-test: ERROR: Browser-Sitzung ist nicht Modus 600" >&2
+  echo "ui-system-test: ERROR: browser session is not mode 600" >&2
   exit 1
 fi
 
@@ -142,7 +142,7 @@ for screenshot in \
   ui-system-dark.png \
   ui-system-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "ui-system-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "ui-system-test: ERROR: browser proof missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -150,5 +150,5 @@ done
 mkdir -p "$artifact_directory"
 cp "$proof"/ui-system-*.png "$artifact_directory/"
 
-echo "ui-system-test: OK: reale Golden-Identität, UI-Patterns, Light/Dark,"
-echo "ui-system-test:     A11y und visuelle Shell-Regressionen bewiesen"
+echo "ui-system-test: OK: real golden identity, UI patterns, light/dark,"
+echo "ui-system-test:     a11y and visual shell regressions proven"

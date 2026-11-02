@@ -33,7 +33,7 @@ def rejected(label: str, operation: Callable[[], object]) -> None:
         operation()
     except ManifestError:
         return
-    raise AssertionError(f"unsichere Backup-Mutation akzeptiert: {label}")
+    raise AssertionError(f"unsafe backup mutation accepted: {label}")
 
 
 def write_backup(

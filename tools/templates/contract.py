@@ -33,7 +33,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
@@ -138,7 +138,7 @@ def require_template_response(
         != ["acquisition", "delivery", "invoicing", "offerings", "ordering"]
         or action.get("presentationTheme") != "krapfentaxi"
     ):
-        raise ContractFailure("Krapfentaxi-Konfiguration ist unvollständig")
+        raise ContractFailure("Krapfentaxi configuration is incomplete")
     return UUID(str(action["id"]))
 
 
@@ -334,7 +334,7 @@ async def exercise(
             headers=request_headers("anna-list"),
         )
         if anna_list.status_code != 403:
-            raise ContractFailure("Akquisiteur konnte Aktionstemplates verwenden")
+            raise ContractFailure("acquirer could use action templates")
 
         initial_list = await client.get(
             "/api/v1/action-templates",
@@ -348,11 +348,11 @@ async def exercise(
             ("krapfentaxi", 2),
         ]:
             raise ContractFailure(
-                "PoC-Liste enthält nicht exakt leere Aktion und Krapfentaxi"
+                "PoC list does not contain exactly the empty action and Krapfentaxi"
             )
         serialized = json.dumps(items).casefold()
         if "lions open" in serialized or "weihnachtsmarkt" in serialized:
-            raise ContractFailure("Nachgelagerte Templates wurden vorweggenommen")
+            raise ContractFailure("later-phase templates were included too early")
 
         v1_response = await client.post(
             "/api/v1/actions/from-template",
@@ -393,7 +393,7 @@ async def exercise(
             or blank["offerings"] != []
             or blank["orderForm"] is not None
         ):
-            raise ContractFailure("Leere Aktion ist nicht technisch neutral")
+            raise ContractFailure("empty action is not technically neutral")
 
         try:
             await connection.execute(
@@ -406,7 +406,7 @@ async def exercise(
         except asyncpg.PostgresError:
             pass
         else:
-            raise ContractFailure("Veröffentlichte Template-Version war veränderbar")
+            raise ContractFailure("published template version was mutable")
 
         await publish_version_three(connection)
         current_list = await client.get(
@@ -420,7 +420,7 @@ async def exercise(
             ("blank", 1),
             ("krapfentaxi", 3),
         ]:
-            raise ContractFailure("Neueste veröffentlichte Template-Version fehlt")
+            raise ContractFailure("latest published template version missing")
 
         await publish_pickup_goods_sale(connection)
         open_list = await client.get(
@@ -443,7 +443,7 @@ async def exercise(
             or not pickup_summary["hasOrderForm"]
             or pickup_summary["presentationTheme"] is not None
         ):
-            raise ContractFailure("Neuer Daten-Template-Typ fehlt in der Auswahl")
+            raise ContractFailure("new data template type missing from the selection")
         pickup_response = await client.post(
             "/api/v1/actions/from-template",
             json=template_payload(
@@ -464,13 +464,13 @@ async def exercise(
             or [item["unit"] for item in pickup["offerings"]] != ["piece"]
             or pickup["orderForm"]["requireDeliveryAddress"] is not False
         ):
-            raise ContractFailure("Daten-Template wurde nicht neutral instanziiert")
+            raise ContractFailure("data template was not instantiated neutrally")
         pickup_delivery = await connection.fetchval(
             "SELECT enabled FROM action_delivery_configuration WHERE action_id = $1",
             UUID(str(pickup["action"]["id"])),
         )
         if pickup_delivery is not False:
-            raise ContractFailure("Abholverkauf erhielt eine Lieferplanung")
+            raise ContractFailure("pickup sale got a delivery plan")
         unknown = await client.post(
             "/api/v1/actions/from-template",
             json=template_payload(
@@ -492,9 +492,7 @@ async def exercise(
             headers=request_headers("create-invalid"),
         )
         if unknown.status_code not in {404, 422} or invalid.status_code != 422:
-            raise ContractFailure(
-                "Unbekannte oder ungültige Template-Schlüssel wurden akzeptiert"
-            )
+            raise ContractFailure("unknown or invalid template keys were accepted")
 
         historical = await client.get(
             f"/api/v1/actions/{v1_action_id}/configuration",
@@ -557,7 +555,7 @@ async def exercise(
             or copied["action"]["goal"]["actualValue"] != "0"
             or copied["offerings"][0]["id"] == str(v1_offering_id)
         ):
-            raise ContractFailure("Vorjahreskopie ist fachlich nicht sauber getrennt")
+            raise ContractFailure("previous-year copy is not cleanly separated")
 
         snapshot = await connection.fetchrow(
             """
@@ -602,7 +600,7 @@ async def exercise(
             "snapshots": 1,
         }:
             raise ContractFailure(
-                "Vorjahreskopie übernahm operative Daten oder verlor Konfiguration"
+                "previous-year copy took over operational data or lost configuration"
             )
 
         try:
@@ -617,7 +615,7 @@ async def exercise(
         except asyncpg.PostgresError:
             pass
         else:
-            raise ContractFailure("Aktions-Snapshot war nachträglich veränderbar")
+            raise ContractFailure("action snapshot was mutable afterwards")
 
 
 async def run() -> None:
@@ -628,8 +626,8 @@ async def run() -> None:
     finally:
         await connection.close()
     print(
-        "template-contract: Versionen, Snapshot-Isolation und saubere "
-        "Vorjahreskopie real bewiesen"
+        "template-contract: versions, snapshot isolation and clean "
+        "previous-year copy proven against real services"
     )
 
 

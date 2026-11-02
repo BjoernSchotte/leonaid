@@ -10,7 +10,7 @@ if (!baseUrl || !artifactDirectory || !session) {
   );
 }
 
-test("Charity-Admin legt eine neutrale Aktion vollständig über die Oberfläche an", async ({
+test("charity admin creates a neutral action entirely through the UI", async ({
   browser,
 }) => {
   const context = await browser.newContext({

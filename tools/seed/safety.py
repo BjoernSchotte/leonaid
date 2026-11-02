@@ -40,10 +40,10 @@ def parse_env(path: Path) -> dict[str, str]:
         if not line or line.startswith("#"):
             continue
         if "=" not in line:
-            raise ResetSafetyError(f"{path}:{line_number}: KEY=VALUE erwartet")
+            raise ResetSafetyError(f"{path}:{line_number}: expected KEY=VALUE")
         key, value = line.split("=", 1)
         if key in values:
-            raise ResetSafetyError(f"{path}:{line_number}: doppelter Schlüssel {key}")
+            raise ResetSafetyError(f"{path}:{line_number}: duplicate key {key}")
         values[key] = value
     return values
 
@@ -51,19 +51,19 @@ def parse_env(path: Path) -> dict[str, str]:
 def service_environment(config: dict[str, Any], service: str) -> dict[str, str]:
     services = config.get("services")
     if not isinstance(services, dict):
-        raise ResetSafetyError("Compose-Konfiguration enthält keine Services")
+        raise ResetSafetyError("Compose configuration has no services")
     raw_service = services.get(service)
     if not isinstance(raw_service, dict):
-        raise ResetSafetyError(f"Compose-Service fehlt: {service}")
+        raise ResetSafetyError(f"Compose service missing: {service}")
     environment = raw_service.get("environment")
     if not isinstance(environment, dict):
-        raise ResetSafetyError(f"Compose-Service {service} hat keine Environment")
+        raise ResetSafetyError(f"Compose service {service} has no environment")
     if not all(
         isinstance(key, str) and isinstance(value, str)
         for key, value in environment.items()
     ):
         raise ResetSafetyError(
-            f"Compose-Service {service} enthält ungültige Environment-Werte"
+            f"Compose service {service} has invalid environment values"
         )
     return environment
 
@@ -72,10 +72,10 @@ def validate_endpoint(value: str, scheme: str, host: str, label: str) -> None:
     parsed = urlparse(value)
     if parsed.scheme != scheme or parsed.hostname != host:
         raise ResetSafetyError(
-            f"{label} muss auf {scheme}://{host} zeigen; Ziel wurde abgewiesen"
+            f"{label} must point to {scheme}://{host}; target refused"
         )
     if parsed.username is None and scheme == "postgresql":
-        raise ResetSafetyError(f"{label} enthält keinen lokalen Datenbankbenutzer")
+        raise ResetSafetyError(f"{label} has no local database user")
 
 
 def validate(
@@ -85,33 +85,33 @@ def validate(
     env_values: dict[str, str],
 ) -> None:
     if env_values.get("LEONAID_ENV") != "local":
-        raise ResetSafetyError("LEONAID_ENV muss exakt 'local' sein")
+        raise ResetSafetyError("LEONAID_ENV must be exactly 'local'")
     if env_values.get("LEONAID_RESET_ALLOWED") != "true":
-        raise ResetSafetyError("LEONAID_RESET_ALLOWED muss exakt 'true' sein")
+        raise ResetSafetyError("LEONAID_RESET_ALLOWED must be exactly 'true'")
     if ALLOWED_PROJECT.fullmatch(project_name) is None:
-        raise ResetSafetyError(f"Compose-Projektname ist nicht erlaubt: {project_name}")
+        raise ResetSafetyError(f"Compose project name is not allowed: {project_name}")
     if config.get("name") != project_name:
         raise ResetSafetyError(
-            f"gerendertes Compose-Projekt {config.get('name')!r} passt nicht zu {project_name!r}"
+            f"rendered Compose project {config.get('name')!r} does not match {project_name!r}"
         )
 
     services = config.get("services")
     if not isinstance(services, dict):
-        raise ResetSafetyError("Compose-Konfiguration enthält keine Services")
+        raise ResetSafetyError("Compose configuration has no services")
     missing_services = sorted(REQUIRED_SERVICES - set(services))
     if missing_services:
-        raise ResetSafetyError(f"Reset-Services fehlen: {missing_services}")
+        raise ResetSafetyError(f"reset services missing: {missing_services}")
 
     for (service, key), (scheme, host) in EXPECTED_ENDPOINTS.items():
         environment = service_environment(config, service)
         value = environment.get(key)
         if value is None:
-            raise ResetSafetyError(f"{service}.{key} fehlt")
+            raise ResetSafetyError(f"{service}.{key} missing")
         validate_endpoint(value, scheme, host, f"{service}.{key}")
 
     volumes = config.get("volumes")
     if not isinstance(volumes, dict) or not volumes:
-        raise ResetSafetyError("Compose-Konfiguration enthält keine benannten Volumes")
+        raise ResetSafetyError("Compose configuration has no named volumes")
     external_volumes = sorted(
         name
         for name, definition in volumes.items()
@@ -119,7 +119,7 @@ def validate(
     )
     if external_volumes:
         raise ResetSafetyError(
-            f"externe Volumes dürfen nicht zurückgesetzt werden: {external_volumes}"
+            f"external volumes must not be reset: {external_volumes}"
         )
 
 
@@ -131,16 +131,16 @@ def main() -> int:
     try:
         config = json.load(sys.stdin)
         if not isinstance(config, dict):
-            raise ResetSafetyError("Compose-JSON muss ein Objekt sein")
+            raise ResetSafetyError("Compose JSON must be an object")
         validate(
             config,
             project_name=arguments.project_name,
             env_values=parse_env(arguments.env_file),
         )
     except (OSError, json.JSONDecodeError, ResetSafetyError) as error:
-        print(f"reset-safety: ABGEWIESEN: {error}", file=sys.stderr)
+        print(f"reset-safety: REFUSED: {error}", file=sys.stderr)
         return 1
-    print("reset-safety: OK: ausschließlich markiertes lokales LeonAid-Testsystem")
+    print("reset-safety: OK: only the marked local LeonAid test system")
     return 0
 
 

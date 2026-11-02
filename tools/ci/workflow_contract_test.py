@@ -27,25 +27,25 @@ def main() -> None:
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0 or "Beweisartefakte" not in (
+        if result.returncode == 0 or "evidence artifacts" not in (
             result.stdout + result.stderr
         ):
-            raise AssertionError("Fehlender Artefakt-Upload wurde nicht abgewiesen.")
+            raise AssertionError("Missing artifact upload was not rejected.")
         mutations = (
             (
                 "needs: integration-shards\n    if: ${{ !cancelled()",
                 "needs: integration-shards\n    if: ${{ always()",
-                "Sammelcheck",
+                "summary check",
             ),
             (
                 "needs: integration-shards",
                 "needs: unit",
-                "Sammelcheck",
+                "summary check",
             ),
             (
                 'test "$RESULT" = success',
                 'test "$RESULT" != failure',
-                "Sammelcheck",
+                "summary check",
             ),
             (
                 "if: inputs.cold_run == true && inputs.artifact_probe != true",
@@ -55,17 +55,17 @@ def main() -> None:
             (
                 "docker system prune --all --volumes --force",
                 "docker image ls",
-                "Docker-Systemzustand",
+                "Docker system state",
             ),
             (
                 "./leonaid test-pilot-rehearsal --synthetic",
                 "./leonaid test-unit",
-                "synthetische Generalprobe",
+                "synthetic dress rehearsal",
             ),
             (
                 "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR",
                 "REMOVED_REHEARSAL_ARTIFACT_DIR",
-                "Generalprobenbeleg",
+                "dress-rehearsal evidence",
             ),
             (
                 "group: [krapfentaxi-orders, ",
@@ -81,22 +81,22 @@ def main() -> None:
                 "    name: EmDash proof / ${{ matrix.group }}\n",
                 "    name: EmDash proof / ${{ matrix.group }}\n"
                 "    continue-on-error: true\n",
-                "wiederholen oder ignorieren",
+                "retry or ignore",
             ),
             (
                 "  pull_request:\n",
                 "  pull_request:\n    paths: [apps/campaign-site/**]\n",
-                "Pfadfilter",
+                "path filters",
             ),
             (
                 "needs: emdash-cases\n    if: ${{ !cancelled()",
                 "needs: emdash-cases\n    if: ${{ always()",
-                "EmDash-Sammelcheck",
+                "EmDash summary check",
             ),
             (
                 "needs.emdash-cases.result",
                 "needs.emdash-cases.outputs.result",
-                "EmDash-Sammelcheck",
+                "EmDash summary check",
             ),
         )
         for old, new, expected in mutations:
@@ -111,11 +111,11 @@ def main() -> None:
                 result.stdout + result.stderr
             ):
                 raise AssertionError(
-                    f"Cold-Run-Vertragsbruch {expected!r} wurde nicht abgewiesen."
+                    f"Cold-run contract violation {expected!r} was not rejected."
                 )
     print(
-        "ci-workflow-contract-test: OK: Pflichtchecks, Shards, Cold-Rehearsal und "
-        "fehlender Upload werden geprüft"
+        "ci-workflow-contract-test: OK: required checks, shards, cold rehearsal and "
+        "missing upload are checked"
     )
 
 

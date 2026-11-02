@@ -9,7 +9,7 @@ const klaraSession = process.env.KLARA_SESSION;
 const actionId = "20000000-0000-4000-8000-000000000001";
 
 if (!baseUrl || !artifactDirectory || !annaSession || !klaraSession) {
-  throw new Error("POC-102 Browserumgebung ist unvollständig");
+  throw new Error("POC-102 browser environment is incomplete");
 }
 
 test.setTimeout(120_000);
@@ -75,7 +75,7 @@ async function expectNoHorizontalOverflow(page, label) {
 
 async function expectTouchTarget(locator, label) {
   const box = await locator.boundingBox();
-  expect(box, `${label} ist nicht sichtbar`).not.toBeNull();
+  expect(box, `${label} is not visible`).not.toBeNull();
   expect(
     box.height,
     `${label} ist niedriger als 44 Pixel`,
@@ -102,7 +102,7 @@ function expectNoUnexpectedPageErrors(errors) {
   ).toEqual([]);
 }
 
-test("Charity-Admin erledigt den prüfenden Desktop-Weg ohne Kontextverlust", async ({
+test("charity admin completes the desktop review path without losing context", async ({
   browser,
 }) => {
   const context = await contextFor(browser, klaraSession, {
@@ -177,7 +177,7 @@ test("Charity-Admin erledigt den prüfenden Desktop-Weg ohne Kontextverlust", as
   }
 });
 
-test("Akquisiteurin erreicht mobil Sponsor und Bestellerfassung mit klarer Führung", async ({
+test("acquirer reaches sponsor and order capture on mobile with clear guidance", async ({
   browser,
 }) => {
   const context = await contextFor(browser, annaSession, {
@@ -282,7 +282,7 @@ test("Akquisiteurin erreicht mobil Sponsor und Bestellerfassung mit klarer Führ
   }
 });
 
-test("Öffentlicher Besteller versteht Formular, Validierung und nächsten Schritt", async ({
+test("public customer understands form, validation and next step", async ({
   browser,
 }) => {
   const context = await contextFor(browser, undefined, {
@@ -423,7 +423,7 @@ async function measureCorePage(browser, scenario) {
   }
 }
 
-test("Drei Kernoberflächen erfüllen reproduzierbare mobile Performancebudgets", async ({
+test("three core surfaces meet reproducible mobile performance budgets", async ({
   browser,
 }) => {
   const scenarios = [

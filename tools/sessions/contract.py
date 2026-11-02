@@ -36,7 +36,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -51,12 +51,14 @@ def session_from_response(response: httpx.Response) -> str:
         if value.startswith(f"{SESSION_COOKIE_NAME}=")
     ]
     if len(matching) != 1:
-        raise ContractFailure("Antwort setzt nicht genau ein Host-only-Sitzungscookie")
+        raise ContractFailure(
+            "response does not set exactly one host-only session cookie"
+        )
     parsed = SimpleCookie()
     parsed.load(matching[0])
     morsel = parsed.get(SESSION_COOKIE_NAME)
     if morsel is None:
-        raise ContractFailure("Sitzungscookie ist syntaktisch ungültig")
+        raise ContractFailure("session cookie is syntactically invalid")
     if (
         not morsel["secure"]
         or not morsel["httponly"]
@@ -66,7 +68,7 @@ def session_from_response(response: httpx.Response) -> str:
         or not morsel["expires"]
     ):
         raise ContractFailure(
-            "Sitzungscookie ist nicht Secure/HttpOnly/Host-only/SameSite=Lax"
+            "session cookie is not Secure/HttpOnly/host-only/SameSite=Lax"
         )
     return morsel.value
 
@@ -94,7 +96,7 @@ async def message_ids(mailpit: httpx.AsyncClient) -> set[str]:
     payload = response.json()
     messages = payload.get("messages") if isinstance(payload, dict) else None
     if not isinstance(messages, list):
-        raise ContractFailure("Mailpit-Nachrichtenliste ist ungültig")
+        raise ContractFailure("Mailpit message list is invalid")
     return {
         str(message["ID"])
         for message in messages
@@ -131,7 +133,7 @@ async def wait_for_new_mail(
                 detail = detail_response.json()
                 text = detail.get("Text") if isinstance(detail, dict) else None
                 if not isinstance(text, str):
-                    raise ContractFailure("Mailpit-Nachricht enthält keinen Text")
+                    raise ContractFailure("Mailpit message has no text")
                 if (
                     recipient_addresses(detail.get("From"))
                     != {"noreply@leonaid.invalid"}
@@ -142,19 +144,19 @@ async def wait_for_new_mail(
                     or "antworte auf diese E-Mail" not in text
                 ):
                     raise ContractFailure(
-                        "Login-Mail besitzt keine eindeutige Identität, "
-                        "Betreff- oder Supportführung"
+                        "login mail lacks a unique sender identity, "
+                        "subject or support guidance"
                     )
                 return text
         await asyncio.sleep(0.2)
-    raise ContractFailure(f"Mail an {recipient} wurde nicht rechtzeitig zugestellt")
+    raise ContractFailure(f"mail to {recipient} was not delivered in time")
 
 
 def credentials_from_mail(text: str) -> tuple[str, str]:
     token = TOKEN_PATTERN.search(text)
     code = CODE_PATTERN.search(text)
     if token is None or code is None:
-        raise ContractFailure("Login-Mail enthält nicht Link und Code")
+        raise ContractFailure("login mail does not contain link and code")
     return token.group(1), code.group(1)
 
 
@@ -176,11 +178,9 @@ async def request_login(
     )
     expected = {"status": "queued"}
     if first.status_code != 202 or first.json() != expected:
-        raise ContractFailure("Login-Anfrage besitzt keinen generischen 202-Vertrag")
+        raise ContractFailure("login request does not return the generic 202 contract")
     if second.status_code != 202 or second.json() != expected:
-        raise ContractFailure(
-            "Wiederholte Login-Anfrage ist nicht generisch/idempotent"
-        )
+        raise ContractFailure("repeated login request is not generic/idempotent")
     return credentials_from_mail(
         await wait_for_new_mail(
             mailpit,
@@ -202,7 +202,7 @@ async def complete_login(
         body = {"magicToken": magic_token}
     else:
         if email is None or code is None:
-            raise ContractFailure("Code-Login benötigt E-Mail und Code")
+            raise ContractFailure("code login needs email and code")
         body = {"email": email, "code": code}
     response = await client.post(
         "/api/v1/auth/login/complete",
@@ -214,7 +214,7 @@ async def complete_login(
     )
     if response.status_code != 200:
         raise ContractFailure(
-            f"Login-Abschluss lieferte HTTP {response.status_code}: "
+            f"login completion returned HTTP {response.status_code}: "
             f"{response.text[:300]}"
         )
     return response, session_from_response(response)
@@ -225,7 +225,7 @@ async def expect_login_invalid(response: httpx.Response, label: str) -> None:
         response.status_code != 401
         or response.json().get("error", {}).get("code") != "login_invalid"
     ):
-        raise ContractFailure(f"{label} wurde nicht generisch abgewiesen")
+        raise ContractFailure(f"{label} was not rejected generically")
 
 
 async def require_identity(
@@ -242,14 +242,12 @@ async def require_identity(
         },
     )
     if response.status_code != 200:
-        raise ContractFailure(
-            f"Gültige 90-Tage-Sitzung wurde abgewiesen: {response.text}"
-        )
+        raise ContractFailure(f"valid 90-day session was rejected: {response.text}")
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Identitätsantwort ist kein Objekt")
+        raise ContractFailure("identity response is not an object")
     if payload.get("displayName") != display_name:
-        raise ContractFailure("Sitzung wurde dem falschen Konto zugeordnet")
+        raise ContractFailure("session was assigned to the wrong account")
     for field in (
         "sessionExpiresAt",
         "sessionLastSeenAt",
@@ -257,7 +255,7 @@ async def require_identity(
         "freshUntil",
     ):
         if field not in payload:
-            raise ContractFailure(f"Sitzungsmetadatum fehlt: {field}")
+            raise ContractFailure(f"session metadata field missing: {field}")
     return dict(payload)
 
 
@@ -286,11 +284,9 @@ async def run() -> None:
                 json={"email": UNKNOWN_EMAIL},
             )
             if unknown.status_code != 202 or unknown.json() != {"status": "queued"}:
-                raise ContractFailure(
-                    "Unbekanntes Konto hat abweichende Antwort erhalten"
-                )
+                raise ContractFailure("unknown account received a different response")
             if await message_ids(mailpit) != unknown_before:
-                raise ContractFailure("Unbekanntes Konto erzeugte eine E-Mail")
+                raise ContractFailure("unknown account triggered an email")
 
             anna_magic, anna_code = await request_login(client, mailpit, ANNA_EMAIL)
             anna_response, anna_token = await complete_login(
@@ -298,14 +294,14 @@ async def run() -> None:
                 magic_token=anna_magic,
             )
             if anna_response.json().get("userId") != str(ANNA_ID):
-                raise ContractFailure("Magic-Link-Login aktivierte das falsche Konto")
+                raise ContractFailure("magic-link login activated the wrong account")
             await require_identity(client, anna_token, display_name="Anna Akquise")
             alternate = await client.post(
                 "/api/v1/auth/login/complete",
                 headers={"X-Request-ID": f"poc042:alternate:{uuid4()}"},
                 json={"email": ANNA_EMAIL, "code": anna_code},
             )
-            await expect_login_invalid(alternate, "Alternativer verbrauchter Code")
+            await expect_login_invalid(alternate, "alternate consumed code")
 
             anna_digest = hashlib.sha256(anna_token.encode()).hexdigest()
             anna_session = await connection.fetchrow(
@@ -318,7 +314,7 @@ async def run() -> None:
                 anna_digest,
             )
             if anna_session is None:
-                raise ContractFailure("Sitzung wurde nicht serverseitig gespeichert")
+                raise ContractFailure("session was not stored server-side")
             if (
                 anna_session["user_id"] != ANNA_ID
                 or anna_session["expires_at"] - anna_session["created_at"]
@@ -328,7 +324,7 @@ async def run() -> None:
                 or anna_session["revoked_at"] is not None
                 or anna_session["device_hint"] != "POC-042 real contract"
             ):
-                raise ContractFailure("90-Tage-Sitzungsdatensatz ist inkonsistent")
+                raise ContractFailure("90-day session record is inconsistent")
 
             system_magic, system_code = await request_login(
                 client,
@@ -342,7 +338,7 @@ async def run() -> None:
             )
             system_session_id = UUID(str(system_response.json()["userId"]))
             if system_session_id != SYSTEM_ID:
-                raise ContractFailure("Code-Login aktivierte das falsche Systemkonto")
+                raise ContractFailure("code login activated the wrong system account")
             system_digest = hashlib.sha256(system_token.encode()).hexdigest()
             before_rotation = await connection.fetchrow(
                 """
@@ -356,7 +352,7 @@ async def run() -> None:
                 system_digest,
             )
             if before_rotation is None:
-                raise ContractFailure("System-Sitzung fehlt")
+                raise ContractFailure("system session missing")
             await require_identity(client, system_token, display_name="Simone System")
             stale_admin = await client.delete(
                 f"/api/v1/admin/users/{ANNA_ID}/sessions",
@@ -371,7 +367,7 @@ async def run() -> None:
                 != "fresh_login_required"
             ):
                 raise ContractFailure(
-                    "Sensible Adminaktion verlangte keinen Fresh Login"
+                    "sensitive admin action did not require a fresh login"
                 )
 
             fresh_before = await message_ids(mailpit)
@@ -383,7 +379,7 @@ async def run() -> None:
                 },
             )
             if requested.status_code != 202:
-                raise ContractFailure("Fresh-Login-Challenge wurde nicht versendet")
+                raise ContractFailure("fresh-login challenge was not sent")
             fresh_magic, fresh_code = credentials_from_mail(
                 await wait_for_new_mail(
                     mailpit,
@@ -401,7 +397,7 @@ async def run() -> None:
                 json={"code": fresh_code},
             )
             if refreshed.status_code != 200:
-                raise ContractFailure(f"Fresh Login scheiterte: {refreshed.text[:300]}")
+                raise ContractFailure(f"fresh login failed: {refreshed.text[:300]}")
             refreshed_token = session_from_response(refreshed)
             refreshed_digest = hashlib.sha256(refreshed_token.encode()).hexdigest()
             after_rotation = await connection.fetchrow(
@@ -419,7 +415,7 @@ async def run() -> None:
                 or after_rotation["token_digest"] == system_digest
             ):
                 raise ContractFailure(
-                    "Fresh Login rotierte nicht dasselbe absolute Sitzungstoken"
+                    "fresh login did not rotate the same absolute session token"
                 )
             old_after_rotation = await client.get(
                 "/api/v1/identity/me",
@@ -429,7 +425,7 @@ async def run() -> None:
                 },
             )
             if old_after_rotation.status_code != 401:
-                raise ContractFailure("Altes Cookie blieb nach Tokenrotation gültig")
+                raise ContractFailure("old cookie stayed valid after token rotation")
             fresh_reuse = await client.post(
                 "/api/v1/auth/fresh/complete",
                 headers={
@@ -438,7 +434,7 @@ async def run() -> None:
                 },
                 json={"magicToken": fresh_magic},
             )
-            await expect_login_invalid(fresh_reuse, "Verbrauchter Fresh-Magic-Link")
+            await expect_login_invalid(fresh_reuse, "consumed fresh magic link")
 
             revoked = await client.delete(
                 f"/api/v1/admin/users/{ANNA_ID}/sessions",
@@ -448,9 +444,7 @@ async def run() -> None:
                 },
             )
             if revoked.status_code != 200 or revoked.json().get("revokedCount") != 1:
-                raise ContractFailure(
-                    "Administrativer Sitzungswiderruf war nicht wirksam"
-                )
+                raise ContractFailure("admin session revocation had no effect")
             stolen = await client.get(
                 "/api/v1/identity/me",
                 headers={
@@ -459,7 +453,7 @@ async def run() -> None:
                 },
             )
             if stolen.status_code != 401:
-                raise ContractFailure("Gestohlenes Cookie blieb nach Widerruf gültig")
+                raise ContractFailure("stolen cookie stayed valid after revocation")
 
             logout = await client.post(
                 "/api/v1/auth/logout",
@@ -469,14 +463,14 @@ async def run() -> None:
                 },
             )
             if logout.status_code != 200 or logout.json() != {"status": "signed_out"}:
-                raise ContractFailure("Logout-Antwort ist ungültig")
+                raise ContractFailure("logout response is invalid")
             cleared = [
                 value
                 for value in logout.headers.get_list("set-cookie")
                 if value.startswith(f"{SESSION_COOKIE_NAME}=")
             ]
             if len(cleared) != 1 or "Max-Age=0" not in cleared[0]:
-                raise ContractFailure("Logout löscht das sichere Cookie nicht")
+                raise ContractFailure("logout does not clear the secure cookie")
             after_logout = await client.get(
                 "/api/v1/identity/me",
                 headers={
@@ -485,7 +479,7 @@ async def run() -> None:
                 },
             )
             if after_logout.status_code != 401:
-                raise ContractFailure("Logout widerrief die Sitzung nicht sofort")
+                raise ContractFailure("logout did not revoke the session immediately")
 
             expired_token = secrets.token_urlsafe(48)
             explicit_now = datetime.now(timezone.utc)
@@ -513,7 +507,7 @@ async def run() -> None:
                 },
             )
             if expired.status_code != 401:
-                raise ContractFailure("Explizit abgelaufene Sitzung blieb gültig")
+                raise ContractFailure("explicitly expired session stayed valid")
 
             leaked = await connection.fetchval(
                 """
@@ -545,7 +539,7 @@ async def run() -> None:
                 f"%{fresh_code}%",
             )
             if leaked != 0 or audit_leaks != 0:
-                raise ContractFailure("Outbox oder Audit enthält Login-Geheimnisse")
+                raise ContractFailure("outbox or audit contains login secrets")
     finally:
         await connection.close()
 
@@ -566,8 +560,8 @@ def main() -> int:
         )
         return 1
     print(
-        "session-contract: 90 Tage, Fresh Login, Rotation, Logout und "
-        "Admin-Widerruf real bewiesen"
+        "session-contract: 90 days, fresh login, rotation, logout and "
+        "admin revocation proven against real services"
     )
     return 0
 

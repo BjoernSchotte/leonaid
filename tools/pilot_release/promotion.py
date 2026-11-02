@@ -42,10 +42,10 @@ def _load_ledger(path: Path) -> list[dict[str, Any]]:
         for line in path.read_text(encoding="utf-8").splitlines():
             value = json.loads(line)
             if not isinstance(value, dict):
-                raise InvalidPromotion("Ledger-Zeile ist kein Objekt")
+                raise InvalidPromotion("ledger line is not an object")
             records.append(value)
     except (OSError, json.JSONDecodeError) as error:
-        raise InvalidPromotion(f"Ledger ist ungültig: {error}") from error
+        raise InvalidPromotion(f"ledger is invalid: {error}") from error
     return records
 
 
@@ -69,30 +69,30 @@ def record_event(
 ) -> dict[str, Any]:
     validate_manifest(manifest)
     if event not in ALLOWED_EVENTS:
-        raise InvalidPromotion("unbekanntes Release-Ereignis")
+        raise InvalidPromotion("unknown release event")
     if result not in {"passed", "failed"}:
-        raise InvalidPromotion("result muss passed oder failed sein")
+        raise InvalidPromotion("result must be passed or failed")
     if EVIDENCE_ID.fullmatch(evidence_id) is None:
-        raise InvalidPromotion("Evidence-ID ist ungültig")
+        raise InvalidPromotion("evidence ID is invalid")
     try:
         parsed_at = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
     except ValueError as error:
-        raise InvalidPromotion("occurredAt ist ungültig") from error
+        raise InvalidPromotion("occurredAt is invalid") from error
     if parsed_at.tzinfo is None:
-        raise InvalidPromotion("occurredAt benötigt eine Zeitzone")
+        raise InvalidPromotion("occurredAt requires a time zone")
 
     digest = manifest_sha256(manifest)
     records = _load_ledger(ledger)
     if event.startswith("production_") and not _staging_verified(records, digest):
         raise InvalidPromotion(
-            "Produktion erfordert dasselbe in Staging verifizierte Manifest"
+            "production requires the same manifest that was verified in staging"
         )
     if event.startswith("rollback_") and not any(
         record.get("event") in {"production_started", "production_failed"}
         and record.get("manifestSha256") == digest
         for record in records
     ):
-        raise InvalidPromotion("Rollback erfordert einen Produktionsversuch")
+        raise InvalidPromotion("rollback requires a production attempt")
 
     sequence = len(records) + 1
     record = {

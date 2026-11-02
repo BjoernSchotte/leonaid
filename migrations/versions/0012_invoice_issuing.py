@@ -19,10 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 NOW = sa.text("CURRENT_TIMESTAMP")
 DATA_MIGRATION_REFERENCE = (
-    "upgrade() normalisiert bestehende Rechnungsstatus und ergänzt vor den "
-    "NOT-NULL-Constraints sämtliche neuen Snapshotfelder."
+    "upgrade() normalizes existing invoice statuses and fills all new "
+    "snapshot fields before the NOT NULL constraints apply."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

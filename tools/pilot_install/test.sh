@@ -333,7 +333,7 @@ from pathlib import Path
 import sys
 base, network, target, ca = sys.argv[1:]
 text = Path(base).read_text()
-anchor = "  worker:\n    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}\n"
+anchor = "  worker:\n    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}\n"
 assert text.count(anchor) == 1
 mount = (
     "    configs:\n"

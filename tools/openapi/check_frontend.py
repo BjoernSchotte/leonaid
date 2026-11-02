@@ -54,10 +54,12 @@ def violations(
                         text,
                     )
             if DIRECT_API_FETCH.search(transport_text):
-                problems.append(f"{path}: direkter API-fetch statt @leonaid/api-client")
+                problems.append(
+                    f"{path}: direct API fetch instead of @leonaid/api-client"
+                )
             if GENERATED_IMPORT.search(text):
                 problems.append(
-                    f"{path}: generiertes Transportartefakt direkt importiert"
+                    f"{path}: generated transport artifact imported directly"
                 )
     return problems
 
@@ -79,7 +81,7 @@ def main() -> int:
         for problem in problems:
             print(f"frontend-api-boundary: ERROR: {problem}", file=sys.stderr)
         return 1
-    print("frontend-api-boundary: OK: Transportzugriffe laufen über api-client")
+    print("frontend-api-boundary: OK: transport access goes through api-client")
     return 0
 
 

@@ -153,7 +153,7 @@ def is_approved(
 def load(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ValueError(f"{path} enthält kein JSON-Objekt.")
+        raise ValueError(f"{path} does not contain a JSON object.")
     return value
 
 
@@ -167,17 +167,17 @@ def main() -> int:
     new = load(arguments.new)
     changes = breaking_changes(old, new)
     if not changes:
-        print("openapi-breaking: OK: keine brechende Änderung")
+        print("openapi-breaking: OK: no breaking change")
         return 0
     approvals = load(arguments.approvals)
     if is_approved(changes, old, new, approvals):
-        print("openapi-breaking: OK: bewusst freigegeben: " + ", ".join(changes))
+        print("openapi-breaking: OK: explicitly approved: " + ", ".join(changes))
         return 0
     for change in changes:
         print(f"openapi-breaking: ERROR: {change}", file=sys.stderr)
     print(
-        "openapi-breaking: FAILED: exakte Hashes, Änderungsliste und Begründung "
-        "in der Approval-Datei erforderlich",
+        "openapi-breaking: FAILED: approval file requires exact hashes, change list "
+        "and rationale",
         file=sys.stderr,
     )
     return 1

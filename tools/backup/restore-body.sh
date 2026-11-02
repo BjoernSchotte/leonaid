@@ -43,32 +43,32 @@ trap cleanup EXIT HUP INT TERM
 . "$root/tools/backup/compose-overlays.sh"
 validate_recovery_overlays
 
-[ -f "$env_file" ] || fail "Environment-Datei fehlt"
-[ -n "$source_project" ] || fail "LEONAID_BACKUP_SOURCE_PROJECT fehlt"
-[ -n "$target_project" ] || fail "LEONAID_RESTORE_PROJECT fehlt"
-[ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
-[ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE fehlt"
+[ -f "$env_file" ] || fail "environment file missing"
+[ -n "$source_project" ] || fail "LEONAID_BACKUP_SOURCE_PROJECT missing"
+[ -n "$target_project" ] || fail "LEONAID_RESTORE_PROJECT missing"
+[ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY missing"
+[ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE missing"
 if [ -n "$compose_overlay" ]; then
   compose_overlay=$(cd "$(dirname "$compose_overlay")" && pwd)/$(basename "$compose_overlay")
   case "$compose_overlay" in
     "$root"/*) ;;
-    *) fail "Restore-Compose-Overlay muss innerhalb des Repositories liegen" ;;
+    *) fail "restore Compose overlay must be inside the repository" ;;
   esac
-  [ -f "$compose_overlay" ] || fail "Restore-Compose-Overlay fehlt"
+  [ -f "$compose_overlay" ] || fail "restore Compose overlay missing"
 fi
 if [ -n "$compose_overlay_secondary" ]; then
   [ -n "$compose_overlay" ] ||
-    fail "Sekundäres Restore-Compose-Overlay benötigt ein primäres Overlay"
+    fail "secondary restore Compose overlay requires a primary overlay"
   compose_overlay_secondary=$(
     cd "$(dirname "$compose_overlay_secondary")" &&
       pwd
   )/$(basename "$compose_overlay_secondary")
   case "$compose_overlay_secondary" in
     "$root"/*) ;;
-    *) fail "Sekundäres Restore-Compose-Overlay muss im Repository liegen" ;;
+    *) fail "secondary restore Compose overlay must be inside the repository" ;;
   esac
   [ -f "$compose_overlay_secondary" ] ||
-    fail "Sekundäres Restore-Compose-Overlay fehlt"
+    fail "secondary restore Compose overlay missing"
 fi
 
 safety_arguments=""
@@ -142,11 +142,11 @@ else
 
 if [ -n "$(docker ps -aq \
   --filter "label=com.docker.compose.project=$target_project")" ]; then
-  fail "Restore-Ziel besitzt bereits Container"
+  fail "restore target already has containers"
 fi
 if [ -n "$(docker volume ls -q \
   --filter "label=com.docker.compose.project=$target_project")" ]; then
-  fail "Restore-Ziel besitzt bereits Volumes"
+  fail "restore target already has volumes"
 fi
 
 # A test harness that needs two overlays reserves the target's networks itself
@@ -155,20 +155,20 @@ fi
 if [ "${LEONAID_RESTORE_NETWORKS_PRERESERVED:-false}" = true ]; then
   [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = true ] ||
     [ "${LEONAID_RESTORE_ISOLATED_PILOT_TEST:-false}" = true ] ||
-    fail "Vorab reservierte Netzwerke sind nur im lokalen oder isolierten Pilot-Test erlaubt"
+    fail "pre-reserved networks are allowed only in the local or isolated pilot test"
   [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ] ||
-    fail "Vorab reservierte Netzwerke fehlen"
+    fail "pre-reserved networks missing"
 elif [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
-  fail "Restore-Ziel besitzt bereits Netzwerke"
+  fail "restore target already has networks"
 fi
 
 if [ "$reserve_test_networks" = true ]; then
   [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = true ] ||
-    fail "Netzwerkreservierung ist nur im lokalen Test erlaubt"
+    fail "network reservation is allowed only in the local test"
   [ -n "$compose_overlay" ] ||
-    fail "Netzwerkreservierung benötigt ein primäres Compose-Overlay"
+    fail "network reservation requires a primary Compose overlay"
   [ -z "$compose_overlay_secondary" ] && [ -z "$recovery_overlay_list" ] ||
-    fail "Netzwerkreservierung unterstützt genau ein Test-Overlay"
+    fail "network reservation supports exactly one test overlay"
   compose --profile '*' config --format json |
     python3 "$root/tools/testing/reserve_compose_networks.py" \
       "$target_project" "$compose_overlay"
@@ -185,7 +185,7 @@ restic_run() {
   shift
   if [ "$local_repository" = "true" ]; then
     if [ -n "$credentials_file" ]; then
-      [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
+      [ -f "$credentials_file" ] || fail "backup credentials file missing"
       docker run --rm \
         --user "$(id -u):$(id -g)" \
         -e RESTIC_CACHE_DIR=/tmp/restic-cache \
@@ -209,7 +209,7 @@ restic_run() {
     fi
   else
     if [ -n "$credentials_file" ]; then
-      [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
+      [ -f "$credentials_file" ] || fail "backup credentials file missing"
       # host-write-user: restic restores the recorded owners, which needs root
       docker run --rm \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
@@ -236,7 +236,7 @@ restic_run restore latest \
   --target /restore
 
 backup_root=$(find "$stage" -type f -name manifest.json -print | head -n 1)
-[ -n "$backup_root" ] || fail "Backup-Manifest fehlt"
+[ -n "$backup_root" ] || fail "backup manifest missing"
 backup_root=$(dirname "$backup_root")
 
 docker run --rm \
@@ -250,7 +250,7 @@ docker run --rm \
 
 if [ -n "${LEONAID_RESTORE_EXPECTED_MANIFEST:-}" ]; then
   cmp -s "$backup_root/manifest.json" "$LEONAID_RESTORE_EXPECTED_MANIFEST" ||
-    fail "Restic-Backup entspricht nicht dem bestätigten Manifest"
+    fail "Restic backup does not match the confirmed manifest"
 fi
 
 if [ "$topology" = emdash ] && [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
@@ -367,4 +367,4 @@ fi
 
 if [ "${LEONAID_RESTORE_START_APP:-true}" = "true" ]; then restore_state complete; fi
 
-echo "restore: OK: $source_project wurde nach $target_project wiederhergestellt"
+echo "restore: OK: $source_project was restored into $target_project"

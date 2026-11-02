@@ -45,7 +45,7 @@ async function expectTouchTargets(page) {
   expect(undersized).toEqual([]);
 }
 
-test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Engine fachlich gleich", async ({
+test("active, inactive and archived public pages stay functionally identical in every browser engine", async ({
   browserName,
   page,
 }) => {
@@ -159,13 +159,13 @@ test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Eng
   }
 });
 
-test("öffentliche Aktionsseite bleibt von 320 bis 1440 Pixeln lesbar", async ({
+test("public action page stays readable from 320 to 1440 pixels", async ({
   browserName,
   page,
 }) => {
   test.skip(
     browserName !== "chromium",
-    "Die Browser-Parität ist oben bewiesen; dieser Lauf archiviert die visuellen Randbreiten.",
+    "Browser parity is proven above; this run archives the visual edge widths.",
   );
 
   await page.setViewportSize({ width: 320, height: 760 });

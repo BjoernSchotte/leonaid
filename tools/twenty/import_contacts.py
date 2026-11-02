@@ -97,7 +97,7 @@ class ImportResolution:
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ImportFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ImportFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -120,13 +120,13 @@ def load_mapping(path: Path) -> JsonObject:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ImportFailure(f"Mapping ist nicht lesbar: {path}") from error
+        raise ImportFailure(f"mapping is not readable: {path}") from error
     if not isinstance(value, dict) or value.get("schemaVersion") != 1:
-        raise ImportFailure("Import-Mapping besitzt nicht schemaVersion 1")
+        raise ImportFailure("import mapping does not have schemaVersion 1")
     columns = value.get("columns")
     required = value.get("required")
     if not isinstance(columns, dict) or not isinstance(required, dict):
-        raise ImportFailure("Import-Mapping enthält keine columns/required")
+        raise ImportFailure("import mapping has no columns/required")
     return value
 
 
@@ -144,60 +144,60 @@ def load_resolutions(path: Path | None) -> dict[str, ImportResolution]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ImportFailure(f"Resolution-Datei ist nicht lesbar: {path}") from error
+        raise ImportFailure(f"resolution file is not readable: {path}") from error
     if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
-        raise ImportFailure("Resolution-Datei besitzt nicht schemaVersion 1")
+        raise ImportFailure("resolution file does not have schemaVersion 1")
     decisions = payload.get("decisions")
     if not isinstance(decisions, list):
-        raise ImportFailure("Resolution-Datei enthält keine decisions-Liste")
+        raise ImportFailure("resolution file has no decisions list")
     result: dict[str, ImportResolution] = {}
     for item in decisions:
         if not isinstance(item, dict):
-            raise ImportFailure("Resolution-Entscheidung ist kein Objekt")
+            raise ImportFailure("resolution decision is not an object")
         source_id = item.get("sourceId")
         decision = item.get("decision")
         if not isinstance(source_id, str):
-            raise ImportFailure("Resolution-Entscheidung enthält keine sourceId")
+            raise ImportFailure("resolution decision has no sourceId")
         try:
             normalized_source_id = str(UUID(source_id))
         except ValueError as error:
-            raise ImportFailure("Resolution-sourceId ist keine UUID") from error
+            raise ImportFailure("resolution sourceId is not a UUID") from error
         if normalized_source_id in result:
-            raise ImportFailure("Resolution-sourceId ist doppelt")
+            raise ImportFailure("resolution sourceId is duplicated")
         if decision not in {"use-existing", "create-new"}:
-            raise ImportFailure("Resolution-decision ist ungültig")
+            raise ImportFailure("resolution decision is invalid")
         decided_by = item.get("decidedBy")
         if (
             not isinstance(decided_by, str)
             or OPAQUE_ACTOR_ID.fullmatch(decided_by) is None
         ):
-            raise ImportFailure("Resolution-decidedBy ist keine opake Actor-ID")
+            raise ImportFailure("resolution decidedBy is not an opaque actor ID")
         decided_at = item.get("decidedAt")
         if not isinstance(decided_at, str):
-            raise ImportFailure("Resolution-decidedAt fehlt")
+            raise ImportFailure("resolution decidedAt missing")
         try:
             parsed_decision_time = datetime.fromisoformat(
                 decided_at.replace("Z", "+00:00")
             )
         except ValueError as error:
             raise ImportFailure(
-                "Resolution-decidedAt ist kein ISO-8601-Zeitpunkt"
+                "resolution decidedAt is not an ISO 8601 timestamp"
             ) from error
         if parsed_decision_time.tzinfo is None:
-            raise ImportFailure("Resolution-decidedAt benötigt eine Zeitzone")
+            raise ImportFailure("resolution decidedAt needs a time zone")
         raw_target = item.get("targetTwentyId")
         target: UUID | None = None
         if decision == "use-existing":
             if not isinstance(raw_target, str):
-                raise ImportFailure("use-existing benötigt eine targetTwentyId")
+                raise ImportFailure("use-existing needs a targetTwentyId")
             try:
                 target = UUID(raw_target)
             except ValueError as error:
                 raise ImportFailure(
-                    "Resolution-targetTwentyId ist keine UUID"
+                    "resolution targetTwentyId is not a UUID"
                 ) from error
         elif raw_target is not None:
-            raise ImportFailure("create-new darf keine targetTwentyId besitzen")
+            raise ImportFailure("create-new must not have a targetTwentyId")
         result[normalized_source_id] = ImportResolution(
             decision=decision,
             target_twenty_id=target,
@@ -209,11 +209,11 @@ def xlsx_rows(path: Path, sheet_name: str) -> tuple[list[str], list[list[object]
     try:
         workbook = load_workbook(path, read_only=True, data_only=False)
     except (OSError, ValueError) as error:
-        raise ImportFailure(f"Excel-Datei ist nicht lesbar: {path}") from error
+        raise ImportFailure(f"Excel file is not readable: {path}") from error
     try:
         if sheet_name not in workbook.sheetnames:
             raise ImportFailure(
-                f"Excel-Blatt fehlt: {sheet_name}; vorhanden: "
+                f"Excel sheet missing: {sheet_name}; available: "
                 + ", ".join(workbook.sheetnames)
             )
         worksheet = workbook[sheet_name]
@@ -226,13 +226,14 @@ def xlsx_rows(path: Path, sheet_name: str) -> tuple[list[str], list[list[object]
             ]
             if formulas:
                 raise ImportFailure(
-                    "Formeln sind im Importblatt verboten: " + ", ".join(formulas)
+                    "formulas are not allowed in the import sheet: "
+                    + ", ".join(formulas)
                 )
             values.append(tuple(cell.value for cell in row))
     finally:
         workbook.close()
     if not values:
-        raise ImportFailure(f"Excel-Blatt ist leer: {sheet_name}")
+        raise ImportFailure(f"Excel sheet is empty: {sheet_name}")
     headers = [str(value).strip() if value is not None else "" for value in values[0]]
     rows = [list(row) for row in values[1:] if any(value is not None for value in row)]
     return headers, rows
@@ -247,9 +248,9 @@ def csv_rows(path: Path) -> tuple[list[str], list[list[object]]]:
             reader = csv.reader(handle, dialect)
             values = list(reader)
     except (OSError, csv.Error) as error:
-        raise ImportFailure(f"CSV-Datei ist nicht lesbar: {path}") from error
+        raise ImportFailure(f"CSV file is not readable: {path}") from error
     if not values:
-        raise ImportFailure("CSV-Datei ist leer")
+        raise ImportFailure("CSV file is empty")
     return [value.strip() for value in values[0]], [
         cast(list[object], row)
         for row in values[1:]
@@ -264,14 +265,14 @@ def load_rows(path: Path, sheet_name: str, mapping: JsonObject) -> list[ImportRo
     elif suffix in {".csv", ".tsv"}:
         headers, raw_rows = csv_rows(path)
     else:
-        raise ImportFailure("unterstützte Formate sind .xlsx, .csv und .tsv")
+        raise ImportFailure("supported formats are .xlsx, .csv and .tsv")
     if len(headers) != len(set(headers)) or "" in headers:
-        raise ImportFailure("Header müssen eindeutig und nicht leer sein")
+        raise ImportFailure("headers must be unique and not empty")
     header_indexes = {name: index for index, name in enumerate(headers)}
     columns = cast(dict[str, str], mapping["columns"])
     missing_headers = sorted(set(columns.values()) - set(header_indexes))
     if missing_headers:
-        raise ImportFailure("Pflichtspalten fehlen: " + ", ".join(missing_headers))
+        raise ImportFailure("required columns missing: " + ", ".join(missing_headers))
 
     result: list[ImportRow] = []
     source_counts: Counter[str] = Counter()
@@ -288,32 +289,32 @@ def load_rows(path: Path, sheet_name: str, mapping: JsonObject) -> list[ImportRo
         source_id: UUID | None = None
         errors: list[str] = []
         if raw_source_id is None:
-            errors.append("source_id fehlt")
+            errors.append("source_id missing")
         else:
             try:
                 source_id = UUID(raw_source_id)
             except ValueError:
-                errors.append("source_id ist keine UUID")
+                errors.append("source_id is not a UUID")
             else:
                 if source_id.version != 4:
-                    errors.append("source_id muss UUIDv4 sein")
+                    errors.append("source_id must be UUIDv4")
                 source_counts[str(source_id)] += 1
         record_type = (values["recordType"] or "").upper()
         if record_type not in {"COMPANY", "PERSON"}:
-            errors.append("record_type muss COMPANY oder PERSON sein")
+            errors.append("record_type must be COMPANY or PERSON")
         if record_type == "COMPANY" and values["companyName"] is None:
-            errors.append("company_name fehlt für COMPANY")
+            errors.append("company_name missing for COMPANY")
         if record_type == "PERSON":
             if values["givenName"] is None:
-                errors.append("given_name fehlt für PERSON")
+                errors.append("given_name missing for PERSON")
             if values["familyName"] is None:
-                errors.append("family_name fehlt für PERSON")
+                errors.append("family_name missing for PERSON")
             if values["email"] is not None and (
                 "@" not in values["email"]
                 or values["email"].startswith("@")
                 or values["email"].endswith("@")
             ):
-                errors.append("email ist ungültig")
+                errors.append("email is invalid")
         result.append(
             ImportRow(
                 row_number=len(result) + 2,
@@ -339,7 +340,7 @@ def load_rows(path: Path, sheet_name: str, mapping: JsonObject) -> list[ImportRo
                     row,
                     validation_errors=(
                         *row.validation_errors,
-                        "source_id ist innerhalb der Datei doppelt",
+                        "source_id is duplicated within the file",
                     ),
                 )
                 if row.source_id is not None and str(row.source_id) in duplicate_ids
@@ -407,12 +408,12 @@ class ContactImporter:
                 message="; ".join(row.validation_errors),
             )
         if row.source_id is None:
-            raise AssertionError("validierte Zeile benötigt source_id")
+            raise AssertionError("validated row needs source_id")
         if row.record_type == "COMPANY":
             return await self._company(row)
         if row.record_type == "PERSON":
             return await self._person(row)
-        raise AssertionError("validierte Zeile benötigt bekannten record_type")
+        raise AssertionError("validated row needs a known record_type")
 
     async def _company(self, row: ImportRow) -> RowPlan:
         assert row.source_id is not None
@@ -434,8 +435,8 @@ class ContactImporter:
             candidate_ids = {record.twenty_id for record in found}
             if resolution.target_twenty_id not in candidate_ids:
                 raise ImportFailure(
-                    f"Resolution für Zeile {row.row_number} verweist nicht auf "
-                    "einen gemeldeten Firmenkandidaten"
+                    f"resolution for row {row.row_number} does not point to "
+                    "a reported company candidate"
                 )
             selected = await self._gateway.get_company(
                 resolution.target_twenty_id,
@@ -443,8 +444,7 @@ class ContactImporter:
             )
             if selected is None:
                 raise ImportFailure(
-                    f"Resolution für Zeile {row.row_number} verweist auf "
-                    "eine fehlende Firma"
+                    f"resolution for row {row.row_number} points to a missing company"
                 )
             matches = (selected,)
         else:
@@ -455,7 +455,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
-                message="ähnliche Firmen benötigen eine explizite Entscheidung",
+                message="similar companies need an explicit decision",
                 candidates=tuple(
                     company_candidate(record)
                     for record in sorted(found, key=lambda item: str(item.twenty_id))
@@ -467,7 +467,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
-                message="mehrere Firmen besitzen denselben normalisierten Namen",
+                message="several companies have the same normalized name",
                 candidates=tuple(
                     company_candidate(record)
                     for record in sorted(
@@ -491,7 +491,7 @@ class ContactImporter:
                     source_id=str(row.source_id),
                     record_type=row.record_type,
                     status=RowStatus.NEW,
-                    message="neue Firma angelegt",
+                    message="new company created",
                     target_twenty_id=str(receipt.twenty_id),
                     applied=True,
                 )
@@ -500,7 +500,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.NEW,
-                message="neue Firma würde angelegt",
+                message="new company would be created",
             )
 
         existing = matches[0]
@@ -511,7 +511,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.UNCHANGED,
-                message="bestehende Firma ist bereits aktuell",
+                message="existing company is already up to date",
                 candidates=(company_candidate(existing),),
                 target_twenty_id=str(existing.twenty_id),
             )
@@ -527,7 +527,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.UPDATE,
-                message="bestehende Firma kontrolliert aktualisiert",
+                message="existing company updated in a controlled way",
                 candidates=(company_candidate(updated),),
                 target_twenty_id=str(receipt.twenty_id),
                 applied=True,
@@ -537,7 +537,7 @@ class ContactImporter:
             source_id=str(row.source_id),
             record_type=row.record_type,
             status=RowStatus.UPDATE,
-            message="bestehende Firma würde kontrolliert aktualisiert",
+            message="existing company would be updated in a controlled way",
             candidates=(company_candidate(existing),),
             target_twenty_id=str(existing.twenty_id),
         )
@@ -567,9 +567,9 @@ class ContactImporter:
                         RowStatus.CONFLICT if company_matches else RowStatus.REJECTED
                     ),
                     message=(
-                        "mehrere passende Firmen für Person"
+                        "several matching companies for person"
                         if company_matches
-                        else "angegebene Firma für Person existiert nicht"
+                        else "given company for person does not exist"
                     ),
                     candidates=tuple(
                         company_candidate(record) for record in company_matches
@@ -597,8 +597,8 @@ class ContactImporter:
             candidate_ids = {record.twenty_id for record in people}
             if resolution.target_twenty_id not in candidate_ids:
                 raise ImportFailure(
-                    f"Resolution für Zeile {row.row_number} verweist nicht auf "
-                    "einen gemeldeten Personenkandidaten"
+                    f"resolution for row {row.row_number} does not point to "
+                    "a reported person candidate"
                 )
             selected = await self._gateway.get_person(
                 resolution.target_twenty_id,
@@ -606,8 +606,7 @@ class ContactImporter:
             )
             if selected is None:
                 raise ImportFailure(
-                    f"Resolution für Zeile {row.row_number} verweist auf "
-                    "eine fehlende Person"
+                    f"resolution for row {row.row_number} points to a missing person"
                 )
             matches = (selected,)
         else:
@@ -618,7 +617,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
-                message="ähnliche Personen benötigen eine explizite Entscheidung",
+                message="similar people need an explicit decision",
                 candidates=tuple(
                     person_candidate(record)
                     for record in sorted(people, key=lambda item: str(item.twenty_id))
@@ -630,7 +629,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
-                message="mehrere Personen besitzen denselben Namensschlüssel",
+                message="several people have the same name key",
                 candidates=tuple(
                     person_candidate(record)
                     for record in sorted(
@@ -657,7 +656,7 @@ class ContactImporter:
                     source_id=str(row.source_id),
                     record_type=row.record_type,
                     status=RowStatus.NEW,
-                    message="neue Person angelegt",
+                    message="new person created",
                     candidates=(person_candidate(created),),
                     target_twenty_id=str(receipt.twenty_id),
                     applied=True,
@@ -667,7 +666,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.NEW,
-                message="neue Person würde angelegt",
+                message="new person would be created",
             )
 
         existing = matches[0]
@@ -681,7 +680,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.UNCHANGED,
-                message="bestehende Person ist bereits aktuell",
+                message="existing person is already up to date",
                 candidates=(person_candidate(existing),),
                 target_twenty_id=str(existing.twenty_id),
             )
@@ -701,7 +700,7 @@ class ContactImporter:
                 source_id=str(row.source_id),
                 record_type=row.record_type,
                 status=RowStatus.UPDATE,
-                message="bestehende Person kontrolliert aktualisiert",
+                message="existing person updated in a controlled way",
                 candidates=(person_candidate(updated),),
                 target_twenty_id=str(receipt.twenty_id),
                 applied=True,
@@ -711,7 +710,7 @@ class ContactImporter:
             source_id=str(row.source_id),
             record_type=row.record_type,
             status=RowStatus.UPDATE,
-            message="bestehende Person würde kontrolliert aktualisiert",
+            message="existing person would be updated in a controlled way",
             candidates=(person_candidate(existing),),
             target_twenty_id=str(existing.twenty_id),
         )
@@ -764,7 +763,7 @@ async def run(arguments: argparse.Namespace) -> None:
     unused_resolutions = sorted(set(resolutions) - row_source_ids)
     if unused_resolutions:
         raise ImportFailure(
-            "Resolution-Datei enthält Source-IDs außerhalb der Quelldatei"
+            "resolution file contains source IDs outside the source file"
         )
     settings = TwentyGatewaySettings(
         base_url=require_env("TWENTY_BASE_URL"),

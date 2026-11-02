@@ -35,21 +35,21 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
 def storage_credential(name: str, fallback: str) -> str:
     value = os.environ.get(name) or os.environ.get(fallback)
     if not value:
-        raise ContractFailure(f"Storage-Zugang fehlt: {name}/{fallback}")
+        raise ContractFailure(f"storage credential missing: {name}/{fallback}")
     return value
 
 
 def load_snapshot(path: Path) -> InvoiceDocumentSnapshot:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ContractFailure("Golden-Rechnung ist kein JSON-Objekt")
+        raise ContractFailure("golden invoice is not a JSON object")
     return InvoiceDocumentSnapshot.from_payload(value)
 
 
@@ -86,35 +86,31 @@ async def exercise(
     )
     stored = await storage.put_immutable(write)
     if not stored.location.version_id:
-        raise ContractFailure(f"{provider}: Version-ID fehlt")
+        raise ContractFailure(f"{provider}: version ID missing")
     if await storage.put_immutable(write) != stored:
-        raise ContractFailure(f"{provider}: idempotentes Put änderte die Version")
+        raise ContractFailure(f"{provider}: idempotent put changed the version")
     headed = await storage.head(stored.location)
     if headed != stored:
-        raise ContractFailure(f"{provider}: Head bewahrt Metadaten nicht")
+        raise ContractFailure(f"{provider}: head does not preserve metadata")
     retrieved = await storage.get(stored.location)
     if retrieved.content != content or retrieved.stored != stored:
-        raise ContractFailure(f"{provider}: Get bewahrt Bytes/Metadaten nicht")
+        raise ContractFailure(f"{provider}: get does not preserve bytes/metadata")
 
     signed_url = await storage.protected_download_url(
         stored.location,
         expires_in=timedelta(seconds=60),
     )
     if "X-Amz-Signature=" not in signed_url or "versionId=" not in signed_url:
-        raise ContractFailure(
-            f"{provider}: geschützte URL ist nicht signiert/versioniert"
-        )
+        raise ContractFailure(f"{provider}: protected URL is not signed/versioned")
     async with httpx.AsyncClient(timeout=30) as client:
         signed = await client.get(signed_url)
         if signed.status_code != 200 or signed.content != content:
-            raise ContractFailure(
-                f"{provider}: signierter Download ist nicht byteidentisch"
-            )
+            raise ContractFailure(f"{provider}: signed download is not byte-identical")
         anonymous = await client.get(
             f"{endpoint_url.rstrip('/')}/{quote(bucket)}/{quote(key, safe='/')}"
         )
         if anonymous.status_code not in {401, 403, 404} or anonymous.content == content:
-            raise ContractFailure(f"{provider}: Bucket/Object ist öffentlich lesbar")
+            raise ContractFailure(f"{provider}: bucket/object is publicly readable")
 
     changed = content + b"\n% forbidden replacement\n"
     try:
@@ -130,9 +126,9 @@ async def exercise(
     except ObjectStorageConflict:
         pass
     else:
-        raise ContractFailure(f"{provider}: unveränderlicher Key wurde überschrieben")
+        raise ContractFailure(f"{provider}: immutable key was overwritten")
     if (await storage.get(stored.location)).content != content:
-        raise ContractFailure(f"{provider}: Kollision veränderte Originalversion")
+        raise ContractFailure(f"{provider}: collision changed the original version")
 
     try:
         await storage.head(
@@ -145,7 +141,7 @@ async def exercise(
     except ObjectStorageConflict:
         pass
     else:
-        raise ContractFailure(f"{provider}: Zugriff auf fremden Bucket wurde erlaubt")
+        raise ContractFailure(f"{provider}: access to a foreign bucket was allowed")
 
     delete_key = f"contracts/poc092/{provider}/controlled-delete-{sha256}.pdf"
     deletable = await storage.put_immutable(
@@ -161,14 +157,14 @@ async def exercise(
         deletable.location,
         authorization=ObjectDeletionAuthorization(
             actor_user_id=OPERATOR_ID,
-            reason="POC-092 Vertragsobjekt nach erfolgreicher Prüfung entfernen",
+            reason="remove POC-092 contract object after successful check",
         ),
     )
     if await storage.head(deletable.location) is not None:
-        raise ContractFailure(f"{provider}: kontrollierte Löschung blieb sichtbar")
+        raise ContractFailure(f"{provider}: controlled deletion stayed visible")
     print(
-        f"storage-contract: {provider}: Put/Head/Get/Version/Signatur/"
-        "Privatheit/Immutabilität/Löschung OK"
+        f"storage-contract: {provider}: put/head/get/version/signature/"
+        "privacy/immutability/deletion OK"
     )
 
 
@@ -195,7 +191,7 @@ async def main(arguments: argparse.Namespace) -> None:
             media_type=rendered.media_type,
             sha256=rendered.sha256,
         )
-    print("storage-contract: OK: zwei echte S3-kompatible Implementierungen")
+    print("storage-contract: OK: two real S3-compatible implementations")
 
 
 def parser() -> argparse.ArgumentParser:

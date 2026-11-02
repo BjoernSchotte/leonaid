@@ -5,23 +5,23 @@ Current bilingual installation tutorial:
 [English](../../apps/docs/src/content/docs/en/ops/tutorials/local-demo.md).
 This file remains the low-level Compose reference.
 
-`compose.yml` ist die einzige Definition für lokale Entwicklung und
-Integrationstests.
+`compose.yml` is the only definition for local development and integration
+tests.
 
-Der Standardstart enthält Caddy, FastAPI, Core-Worker/-PostgreSQL, Web, PWA,
-Public Web, Twenty Server/Worker/PostgreSQL/Valkey (Dienst `twenty-redis`) und RustFS:
+The default start contains Caddy, FastAPI, core worker/PostgreSQL, web, PWA,
+public web, Twenty server/worker/PostgreSQL/Valkey (service `twenty-redis`)
+and RustFS:
 
 ```sh
 ./leonaid dev
 ```
 
-Die Mitgliederoberflächen sind anschließend unter
-`https://localhost:8443` erreichbar. Caddy erzeugt für die lokale Entwicklung
-ein internes Zertifikat; Diagnosezugriffe bleiben zusätzlich auf
-`http://localhost:8080` möglich. Ausschließlich der Proxy veröffentlicht diese
-beiden Ports am Loopback-Interface.
+The member interfaces are then reachable at `https://localhost:8443`. Caddy
+creates an internal certificate for local development; diagnostic access also
+stays possible at `http://localhost:8080`. Only the proxy publishes these two
+ports, and only on the loopback interface.
 
-Optionale Dienste werden explizit zugeschaltet:
+Optional services are enabled explicitly:
 
 ```sh
 docker compose --env-file .env.local -f infra/compose/compose.yml \
@@ -32,116 +32,110 @@ docker compose --env-file .env.local -f infra/compose/compose.yml \
   --profile observability up -d --wait
 ```
 
-`./leonaid test-integration` verwendet ein isoliertes Compose-Projekt und
-räumt nur dessen Container, Netze und Volumes auf. Der Test startet aus
-leeren Volumes, prüft sämtliche Healthchecks und Host-Portbindungen, schreibt
-Golden Data über PostgreSQL und die echte S3-API und verifiziert sie nach
-einem Neustart aller Standardcontainer. Anschließend beweist er
-Reset-Sicherheit, idempotentes Seeding über die offizielle Twenty API, echte
-Typst-PDFs in RustFS, einen leeren Mailpit-Stand sowie die exakte
-Wiederherstellung nach realen Mutationen aller vier Systeme.
+`./leonaid test-integration` uses an isolated Compose project and cleans up
+only its own containers, networks and volumes. The test starts from empty
+volumes, checks all health checks and host port bindings, writes golden data
+through PostgreSQL and the real S3 API and verifies it after a restart of all
+default containers. It then proves reset safety, idempotent seeding through
+the official Twenty API, real Typst PDFs in RustFS, an empty Mailpit state and
+exact recovery after real mutations of all four systems.
 
-Der gezielte Identitätsnachweis läuft mit:
+The targeted identity evidence runs with:
 
 ```sh
 ./leonaid test-identity
 ```
 
-Er startet ebenfalls aus leeren Volumes, sät Golden-Benutzer und -Aktionen,
-prüft serverseitige Sitzungen, Rollenänderungen und AuditEvents gegen
-PostgreSQL/FastAPI und bedient anschließend Admin- und PWA-Shell mit einem
-echten Chromium. Laufzeit-Sitzungstoken liegen nur in einer temporären Datei
-mit Modus `0600`; die geheimnisfreien Screenshots bleiben ignoriert unter
-`.artifacts/poc040/`.
+It also starts from empty volumes, seeds golden users and actions, checks
+server-side sessions, role changes and AuditEvents against PostgreSQL/FastAPI
+and then drives the admin and PWA shells with a real Chromium. Runtime
+session tokens live only in a temporary file with mode `0600`; the secret-free
+screenshots stay ignored under `.artifacts/poc040/`.
 
-Der gezielte Einladungsnachweis läuft mit:
+The targeted invitation evidence runs with:
 
 ```sh
 ./leonaid test-invitations
 ```
 
-Er startet PostgreSQL, FastAPI, Worker, Mailpit, Caddy und die Web-Oberflächen
-aus leeren isolierten Volumes. Der Vertrag lädt echte Einladungsmails aus
-Mailpit, nimmt getrennte Einladungen per Link und Code an und prüft Ablauf,
-Widerruf, Wiederverwendung, Fehlversuchssperre, atomare
-Account-/Membership-Aktivierung und AuditEvents. Anschließend beweist Chromium
-bei Desktop- und Mobilbreite die serverseitig begrenzte Aktionsauswahl sowie
-die öffentliche Code-Eingabe. Geheimnisfreie Screenshots bleiben unter
-`.artifacts/poc041/`.
+It starts PostgreSQL, FastAPI, worker, Mailpit, Caddy and the web interfaces
+from empty isolated volumes. The contract loads real invitation emails from
+Mailpit, accepts separate invitations by link and by code and checks expiry,
+revocation, reuse, the lockout after failed attempts, atomic
+account/membership activation and AuditEvents. Chromium then proves, at
+desktop and mobile width, the server-side limited action selection and the
+public code entry. Secret-free screenshots stay under `.artifacts/poc041/`.
 
-Der gezielte Sitzungsnachweis läuft mit:
+The targeted session evidence runs with:
 
 ```sh
 ./leonaid test-sessions
 ```
 
-Er startet PostgreSQL, FastAPI, Worker, Mailpit und die Oberflächen mit echtem
-HTTPS aus leeren, isolierten Volumes. Vertrag und Chromium beweisen den
-generischen passwortlosen Login, das geschützte `__Host-`-Cookie, das absolute
-90-Tage-Ende, normalen Zugriff nach abgelaufener Fresh-Frist, die erneute
-Code-Anmeldung für eine sensible Admin-Aktion, Tokenrotation, Logout und
-administrativen Sofortwiderruf. Geheimnisfreie Screenshots bleiben unter
+It starts PostgreSQL, FastAPI, worker, Mailpit and the interfaces with real
+HTTPS from empty, isolated volumes. The contract and Chromium prove the
+generic passwordless login, the protected `__Host-` cookie, the absolute
+90-day end, normal access after the fresh period has expired, the new code
+sign-in for a sensitive admin action, token rotation, logout and immediate
+administrative revocation. Secret-free screenshots stay under
 `.artifacts/poc042/`.
 
-Der gezielte Row-Level-Policy-Nachweis läuft mit:
+The targeted row-level policy evidence runs with:
 
 ```sh
 ./leonaid test-policy
 ```
 
-Er provisioniert eine neue gepinnte Twenty-Instanz samt eingeschränktem
-Integrations-Key, sät das vollständige Golden Dataset mit echten
-Typst-Dokumenten und prüft den gemeinsamen serverseitigen Scope für Listen,
-Suche, Counts, Export, Aktivität und Dokumente. Akquisiteure authentifizieren
-sich ausschließlich am LeonAid Core; der Twenty-Key wird nur in den
-Core-Container injiziert. Entfernte Memberships und Assignments wirken im
-nächsten Request ohne neue Anmeldung.
+It provisions a new pinned Twenty instance with a restricted integration key,
+seeds the complete golden dataset with real Typst documents and checks the
+shared server-side scope for lists, search, counts, export, activity and
+documents. Acquirers authenticate only against LeonAid Core; the Twenty key
+is injected only into the core container. Removed memberships and
+assignments take effect on the next request without a new sign-in.
 
-Der gezielte Nachweis des neutralen Charity-Aktionskerns läuft mit:
+The targeted evidence for the neutral charity action core runs with:
 
 ```sh
 ./leonaid test-actions
 ```
 
-Er startet die gepinnten Standarddienste aus leeren isolierten Volumes,
-persistiert Lifecycle, Capabilities, Zielwerte, mehrere Begünstigte und
-AuditEvents über FastAPI/PostgreSQL und erstellt anschließend mit echtem
-Chromium eine vollständige Aktion unter `/admin/actions/new`. Der Browser
-verifiziert das Ergebnis ausschließlich über die Core-API. Der
-geheimnisfreie Screenshot bleibt unter `.artifacts/poc050/`.
+It starts the pinned default services from empty isolated volumes, persists
+lifecycle, capabilities, target values, multiple beneficiaries and
+AuditEvents through FastAPI/PostgreSQL and then creates a complete action at
+`/admin/actions/new` with a real Chromium. The browser verifies the result
+only through the core API. The secret-free screenshot stays under
+`.artifacts/poc050/`.
 
-Der gezielte Nachweis der versionierten Aktionstemplates läuft mit:
+The targeted evidence for versioned action templates runs with:
 
 ```sh
 ./leonaid test-templates
 ```
 
-Er startet Twenty, Core-PostgreSQL, FastAPI und RustFS aus leeren isolierten
-Volumes. Ein echter API-/PostgreSQL-Vertrag beweist die neutrale und die
-Krapfentaxi-Vorlage, unveränderliche publizierte Versionen, historisch stabile
-Konfigurations-Snapshots sowie eine Vorjahreskopie ohne Bestellungen,
-Rechnungen, Dokumente, laufende Nummern oder fremde Aktionszuordnungen.
+It starts Twenty, core PostgreSQL, FastAPI and RustFS from empty isolated
+volumes. A real API/PostgreSQL contract proves the neutral and the
+Krapfentaxi template, immutable published versions, historically stable
+configuration snapshots and a previous-year copy without orders, invoices,
+documents, sequence numbers or unrelated action assignments.
 
-Der reale Upgrade- und Recovery-Nachweis läuft mit:
+The real upgrade and recovery evidence runs with:
 
 ```sh
 ./leonaid test-upgrade
 ```
 
-Er aktualisiert gepinnte Twenty- und RustFS-Quellversionen hinter einer
-serverseitigen Wartungsgrenze, führt Twenty Instance- und
-Workspace-Migrationen fail-closed aus und verifiziert Golden-Contract sowie
-Chromium vor und nach dem Upgrade. Ein separater Upgrade-Klon wird
-absichtlich verändert und aus dem verschlüsselten Recovery Point auf leere
-Volumes zurückgesetzt. Das Betriebsverfahren steht in
+It upgrades pinned Twenty and RustFS source versions behind a server-side
+maintenance boundary, runs the Twenty instance and workspace migrations
+fail-closed and verifies the golden contract and Chromium before and after the
+upgrade. A separate upgrade clone is deliberately changed and reset from the
+encrypted recovery point onto empty volumes. The operating procedure is in
 [`infra/upgrade/README.md`](../upgrade/README.md).
 
-`./leonaid provision-twenty` rotiert den lokalen Integrations-Key in einem
-isolierten Staging-Verzeichnis und ersetzt
-`.local/twenty/integration.env` erst, nachdem erlaubte CRM-Zugriffe und
-verweigerte fachfremde beziehungsweise administrative Zugriffe gegen das echte
-Twenty bewiesen wurden. Die Datei besitzt restriktive Rechte. Alle folgenden
-`./leonaid`-Compose-Kommandos lesen sie automatisch ein, ohne den Key in
-`.env.local`, Prozessargumente oder Browserkonfiguration zu kopieren. Nach
-einer Rotation lädt `./leonaid dev` den Key in API und Worker. Eine explizite
-Prozessvariable `TWENTY_INTEGRATION_API_KEY` hat für CI weiterhin Vorrang.
+`./leonaid provision-twenty` rotates the local integration key in an isolated
+staging directory and replaces `.local/twenty/integration.env` only after
+allowed CRM access and denied unrelated or administrative access have been
+proven against the real Twenty. The file has restrictive permissions. All
+following `./leonaid` Compose commands read it automatically, without copying
+the key into `.env.local`, process arguments or browser configuration. After
+a rotation, `./leonaid dev` loads the key into the API and worker. An explicit
+process variable `TWENTY_INTEGRATION_API_KEY` still takes precedence for CI.
