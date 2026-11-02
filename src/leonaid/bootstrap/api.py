@@ -8,13 +8,15 @@ import asyncpg
 from fastapi import APIRouter, FastAPI
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.postgres.survey_checkpoint_publisher import (
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
 )
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.application.object_storage import ObjectStorage
-from leonaid.application.surveys import SurveyService
+from leonaid.modules.surveys.api import SurveyExportService, SurveyService
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
     NavigationContribution,
@@ -41,7 +43,7 @@ def module_navigation() -> NavigationContribution:
 
 def build_survey_services(
     pool: asyncpg.Pool[Any], settings: Settings, storage: ObjectStorage
-) -> tuple[SurveyService, AsyncpgSurveyExports, AsyncpgErasureCheckpointPublisher]:
+) -> tuple[SurveyService, SurveyExportService, AsyncpgErasureCheckpointPublisher]:
     publisher = AsyncpgErasureCheckpointPublisher(
         pool,
         settings.survey_erasure_archive_dir,
@@ -57,4 +59,4 @@ def build_survey_services(
             checkpoint_publisher=publisher,
         )
     )
-    return surveys, AsyncpgSurveyExports(pool, storage), publisher
+    return surveys, SurveyExportService(AsyncpgSurveyExports(pool, storage)), publisher

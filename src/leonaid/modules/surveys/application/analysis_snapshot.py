@@ -6,7 +6,10 @@ from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
-from leonaid.application.surveys.analysis import AggregateModel, QuestionAggregate
+from leonaid.modules.surveys.application.analysis import (
+    AggregateModel,
+    QuestionAggregate,
+)
 
 ResponseStatus = Literal["in_progress", "partial", "completed"]
 

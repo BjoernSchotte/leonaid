@@ -7,7 +7,9 @@
     "noEmit": true,
     "strict": true,
     "target": "ES2023",
-    "types": ["react"]
+    "types": ["react"],
+    "resolveJsonModule": true,
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

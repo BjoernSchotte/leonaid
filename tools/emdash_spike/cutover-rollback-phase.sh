@@ -110,6 +110,10 @@ compose run --rm --no-deps --volume "$proof/recovery-control:/recovery-control" 
   admin-browser node tools/emdash_spike/recovery-app-browser-proof.mjs
 wait "$recovery_authority_pid"
 recovery_authority_pid=
+# With cutover-browser and recovery-app before it, the isolation logins exceed
+# Core's five login requests per ten minutes for one engine (same container
+# address and User-Agent); recovery-app alone stays below the limit.
+fixture /repo/tools/emdash_spike/core_auth_fixture.py reset-login-rate-limits
 compose run --rm --no-deps admin-browser node tools/emdash_spike/recovery-isolation-browser-proof.mjs
 LEONAID_ENV=test fixture /repo/tools/emdash_spike/cutover_state.py verify
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --before-recovery

@@ -4,8 +4,8 @@ from typing import Any
 
 from pydantic import Field
 
-from leonaid.application.surveys.analysis import AggregateModel
-from leonaid.application.surveys.analysis_snapshot import (
+from leonaid.modules.surveys.application.analysis import AggregateModel
+from leonaid.modules.surveys.application.analysis_snapshot import (
     ResolvedAnalysisFilter,
     ResponseStatus,
 )

@@ -5,7 +5,10 @@ from pathlib import Path
 import pytest
 
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import validate_answers, validate_definition
+from leonaid.modules.surveys.domain.validation import (
+    validate_answers,
+    validate_definition,
+)
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "surveys"
 
