@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import {
   prepareRecoveryMedia,
@@ -53,7 +54,7 @@ async function login(browser, actor) {
 for (const [name, engine] of Object.entries(
   prepare ? { chromium } : { chromium, firefox, webkit },
 )) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     if (prepare) {
       const { context, page } = await login(browser, actors[1]);

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;

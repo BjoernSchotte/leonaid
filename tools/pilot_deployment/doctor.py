@@ -25,6 +25,7 @@ from tools.pilot_decisions.check import (
 )
 from tools.pilot_deployment.validate import (
     DeploymentContractError,
+    is_placeholder,
     object_value,
     validate,
 )
@@ -76,10 +77,13 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "MAIL_REPLY_TO",
     "MAIL_SMTP_HOST",
     "MAIL_SMTP_MODE",
+    "MAIL_SMTP_PORT",
     "RESTIC_REPOSITORY",
     "RUSTFS_BUCKET",
     "TWENTY_PUBLIC_BASE_URL",
     "TWENTY_PUBLIC_DOMAIN",
+    "TWENTY_MAIL_FROM_ADDRESS",
+    "TWENTY_MAIL_FROM_NAME",
     *SECRET_KEYS,
 )
 
@@ -194,7 +198,6 @@ def validate_environment(
     ):
         raise DoctorError("release_commit_mismatch")
 
-    placeholders = ("__", "changeme", "replace-me", "default-secret")
     secret_values: list[str] = []
     for key in SECRET_KEYS:
         value = values[key]
@@ -204,9 +207,7 @@ def validate_environment(
             and value == PENDING_INTEGRATION_KEY
         ):
             continue
-        if len(value) < 24 or any(
-            marker in value.casefold() for marker in placeholders
-        ):
+        if len(value) < 24 or is_placeholder(value):
             raise DoctorError(f"secret_invalid:{key}")
         secret_values.append(value)
     if len(secret_values) != len(set(secret_values)):

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const origin = "https://proxy:8443";
 const revoked = process.argv.includes("--revoked");
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     // The separate bootstrap HTTP proof verifies the project CA. These browser
     // contexts exercise UI/session behavior with the ephemeral local certificate.

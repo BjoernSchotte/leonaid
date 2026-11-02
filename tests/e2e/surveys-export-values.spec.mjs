@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./csp-guard.mjs";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 // Download, independently verify/revoke, then prove denial in the same run.

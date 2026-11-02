@@ -42,8 +42,15 @@ const IMMUTABLE = "public, max-age=31536000, immutable";
 const REVALIDATE = "no-cache";
 
 const staticFiles = {
-  web: new Set(["/favicon.svg"]),
-  pwa: new Set(["/manifest.webmanifest", "/sw.js", "/offline.html"]),
+  web: new Set(["/favicon.svg", "/theme-init.js"]),
+  pwa: new Set([
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/offline.html",
+    "/offline.css",
+    "/offline.js",
+    "/theme-init.js",
+  ]),
 };
 const staticPrefixes = {
   web: ["/assets/"],

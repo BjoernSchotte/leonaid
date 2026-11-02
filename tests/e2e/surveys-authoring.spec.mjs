@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 const baseURL = process.env.LEONAID_E2E_BASE_URL,
   token = process.env.SURVEY_ADMIN_SESSION;
 if (!baseURL || !token) throw new Error("Survey member fixture required");

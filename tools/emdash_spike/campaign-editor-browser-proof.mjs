@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import {
   browserLogin,
   browserFreshLogin,
@@ -16,7 +17,7 @@ const login = process.argv.includes("--login");
 const charity = process.argv.includes("--charity");
 const loginEmail = charity ? "klara.kern@leonaid.invalid" : undefined;
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     // Native Node TLS proofs separately verify this unique project's CA.
     const context = await browser.newContext({

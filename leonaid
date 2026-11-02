@@ -175,6 +175,9 @@ Commands:
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
                     Back up the productive pilot and publish a fresh manifest
+  pilot-repair-crm-match-keys --env-file FILE [--changed-within MINUTES]
+                    Repair CRM match keys in the running pilot; skips while
+                    maintenance mode is on (leonaid-crm-repair*.timer)
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
                 --password-file FILE --confirm RESTORE:TARGET [--resume]
                     Restore fresh, or resume a verified quarantined pilot target
@@ -1025,20 +1028,7 @@ pilot_doctor() {
   status=$?
   # The deploy and release gates run against the started stack: prove the
   # running API reaches Twenty and that the match key field is provisioned.
-  skip_crm_check=${LEONAID_PILOT_TEST_SKIP_CRM_CHECK:-}
-  if [ -n "$skip_crm_check" ]; then
-    # Test-only: deployment tests that never provision Twenty run with a dummy
-    # key. Product projects cannot switch the CRM check off.
-    case "$project" in
-      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
-      *)
-        echo "pilot-doctor: BLOCKED: the CRM check can only be skipped in isolated test projects" >&2
-        status=1
-        ;;
-    esac
-  fi
-  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ] &&
-    [ -z "$skip_crm_check" ]; then
+  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ]; then
     case "$gate" in
       pilot-deploy|pilot-release)
         if ! pilot_compose_command "$project" "$env_file" \
@@ -1755,7 +1745,7 @@ pilot_install() {
   (pilot_doctor --env-file "$install_env" --backup-manifest "$install_manifest" \
     --gate pilot-deploy)
   echo "pilot-install: OK: $install_project runs release $install_commit with a verified Twenty admin, a provisioned integration key and a first backup"
-  echo "pilot-install: next: enable leonaid-backup.timer and check that the external heartbeat receives pings"
+  echo "pilot-install: next: enable leonaid-backup.timer, leonaid-crm-repair.timer and leonaid-crm-repair-full.timer (infra/pilot/systemd) and check that the external heartbeat receives pings"
 }
 
 pilot_backup() {
@@ -1878,6 +1868,91 @@ assert set(value.get("files",{}))=={
     --backup-manifest "$backup_manifest" \
     --gate pilot-backup
   echo "pilot-backup: OK: $project ist verschlüsselt gesichert und das Doctor-Manifest ist aktuell"
+}
+
+# Runs the match key repair inside the running API container of the pilot:
+# it already holds the Twenty URL and the integration key, so no secret passes
+# through the command line. While maintenance mode is on (pilot-release,
+# upgrades) Twenty is stopped on purpose; the repair then skips with status 0
+# instead of failing, and the next scheduled run or the nightly full run
+# catches up.
+pilot_repair_maintenance_enabled() {
+  pilot_compose_command "$1" "$2" \
+    exec -T api test -f /run/leonaid-maintenance/enabled 2>/dev/null
+}
+
+pilot_repair_crm_match_keys() {
+  require_docker
+  env_file=
+  changed_within=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-repair-crm-match-keys: ERROR: --env-file needs a path" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      --changed-within)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-repair-crm-match-keys: ERROR: --changed-within needs minutes" >&2
+          exit 64
+        }
+        changed_within=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-repair-crm-match-keys: ERROR: unknown option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-repair-crm-match-keys: ERROR: --env-file is missing" >&2
+    exit 64
+  }
+  case "$changed_within" in
+    '') ;;
+    0*|*[!0-9]*)
+      echo "pilot-repair-crm-match-keys: ERROR: --changed-within needs a positive number of minutes" >&2
+      exit 64
+      ;;
+  esac
+  env_file=$(pilot_absolute_file pilot-repair-crm-match-keys "$env_file")
+  pilot_require_private_external pilot-repair-crm-match-keys "$env_file" "environment file"
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-repair-crm-match-keys: BLOCKED: LEONAID_COMPOSE_PROJECT must start with leonaid-production or leonaid-staging" >&2
+      exit 1
+      ;;
+  esac
+  if [ -z "$(pilot_compose_command "$project" "$env_file" ps --status running --quiet api)" ]; then
+    echo "pilot-repair-crm-match-keys: ERROR: the api service of $project is not running" >&2
+    exit 1
+  fi
+  if pilot_repair_maintenance_enabled "$project" "$env_file"; then
+    echo "pilot-repair-crm-match-keys: SKIPPED: $project is in maintenance mode; Twenty is stopped"
+    return 0
+  fi
+  if [ -n "$changed_within" ]; then
+    set -- --changed-within "$changed_within"
+  else
+    set --
+  fi
+  status=0
+  pilot_compose_command "$project" "$env_file" \
+    exec -T api python -m leonaid.entrypoints.crm_match_keys "$@" || status=$?
+  [ "$status" -ne 0 ] || return 0
+  # Maintenance started during the run and stopped Twenty under it.
+  if pilot_repair_maintenance_enabled "$project" "$env_file"; then
+    echo "pilot-repair-crm-match-keys: SKIPPED: maintenance mode began during the run; the next run repairs the rest"
+    return 0
+  fi
+  return "$status"
 }
 
 pilot_record_release_event() (
@@ -2031,9 +2106,11 @@ print(value["schemas"]["coreAlembicHead"])'
     up --detach --no-build --pull missing --force-recreate \
     --wait --wait-timeout 420 twenty-server
   pilot_compose_command "$project" "$env_file" stop twenty-server >/dev/null
-  pilot_compose_command "$project" "$env_file" \
-    run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
-    command:prod run-instance-commands
+  # "upgrade" runs Twenty's whole sequence, instance commands included, along
+  # its own cursors; Twenty's entrypoint uses it the same way. A separate
+  # run-instance-commands refuses every workspace created on 2.24: its safety
+  # check wants the last 2.23 workspace command, while a new workspace starts
+  # at the instance cursor. It would block every release of a fresh pilot.
   pilot_compose_command "$project" "$env_file" \
     run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
     command:prod upgrade
@@ -3290,6 +3367,10 @@ case "$command" in
   pilot-backup)
     shift
     pilot_backup "$@"
+    ;;
+  pilot-repair-crm-match-keys)
+    shift
+    pilot_repair_crm_match_keys "$@"
     ;;
   pilot-restore)
     shift

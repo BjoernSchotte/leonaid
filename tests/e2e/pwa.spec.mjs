@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
