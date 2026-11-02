@@ -168,6 +168,24 @@ export function patchEditorSource(source) {
 \t\t\tconst refreshed = await fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale });
 \t\t\tleonaidRevisions.current.set(id, refreshed._rev);`,
   );
+  // Upstream mounts the editor as soon as the live item arrives and merges the
+  // draft revision one request later. The merge resets the form to the draft,
+  // silently discarding anything typed in between. Mount the editor once per
+  // entry only after its draft has loaded (or failed), so the first editable
+  // form already shows the draft. Later draft revisions keep the editor
+  // mounted; a failed draft fetch keeps upstream's live-data fallback.
+  replace(
+    "\tconst { data: draftRevision } = useQuery({",
+    "\tconst { data: draftRevision, isLoading: leonaidDraftLoading } = useQuery({",
+  );
+  replace(
+    "\tif (isLoading) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {\n\t\tcollection,\n\t\tcollectionLabel:",
+    "\tif (rawItem && (!rawItem.draftRevisionId || !leonaidDraftLoading)) leonaidDraftEntry.current = id;\n\tif (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {\n\t\tcollection,\n\t\tcollectionLabel:",
+  );
+  replace(
+    "\tconst item = React$1.useMemo(() => {\n\t\tif (!rawItem) return void 0;\n\t\tif (!draftRevision?.data) return rawItem;",
+    '\tconst leonaidDraftEntry = React$1.useRef("");\n\tconst item = React$1.useMemo(() => {\n\t\tif (!rawItem) return void 0;\n\t\tif (!draftRevision?.data) return rawItem;',
+  );
   return patchRepeaterEditor(patchCampaignMediaEditor(source));
 }
 
