@@ -744,7 +744,6 @@ source_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade source primary
 verify_valkey "$source_project"
-verify_postgres "$source_project"
 verify_image "${source_project}-twenty-server-1" "$TWENTY_IMAGE"
 verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
 LEONAID_COMPOSE_PROJECT="$source_project" \
@@ -754,6 +753,8 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$source_isolation" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
 source_target --profile dev-mail up --detach --wait --wait-timeout 420
+# The full release start recreates the data services on the target image.
+verify_postgres "$source_project"
 # Restart both writers like a release does: their startup publishes the
 # erasure checkpoint into the handed-over archive.
 source_target up --detach --force-recreate --no-deps --wait --wait-timeout 420 \
@@ -833,7 +834,6 @@ rollback_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade rollback failure-clone
 verify_valkey "$rollback_project"
-verify_postgres "$rollback_project"
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -841,6 +841,7 @@ LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
 rollback_target --profile dev-mail up --detach --wait --wait-timeout 420
+verify_postgres "$rollback_project"
 run_dashboard_contract rollback
 snapshot_and_verify rollback production-v2 golden
 record_release_event \
