@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 root=$1
+. "$root/tools/testing/owned_teardown.sh"
 case "$2" in Caddyfile|Caddyfile.test) config=$2 ;; *) exit 2 ;; esac
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -21,11 +22,13 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
   exit 1
 fi
 cleanup() {
-  compose down --volumes >/dev/null
+  compose --profile '*' down --volumes --remove-orphans >/dev/null || leak_detected=1
+  verify_owned_project_removed "$project" || leak_detected=1
   rm -f "$proof/root.crt"
   rmdir "$proof"
 }
-trap cleanup EXIT
+# A teardown leak fails the run even when the test itself passed.
+trap 'cleanup; [ "${leak_detected:-0}" -eq 0 ] || exit 1' EXIT
 trap 'exit 130' HUP INT TERM
 compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   node --input-type=module -e '

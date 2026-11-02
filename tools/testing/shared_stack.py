@@ -101,6 +101,57 @@ class SharedStack:
             ).split()
         )
 
+    def remove_owned(self):
+        """Force-remove everything labelled with this project; return what was left.
+
+        Containers go first (including stopped one-off `compose run`
+        containers) because they hold networks and volumes. Only objects that
+        carry this project's Compose label are touched.
+        """
+        found = {}
+        for resource, command in (
+            ("containers", ["docker", "rm", "--force", "--volumes"]),
+            ("networks", ["docker", "network", "rm"]),
+            ("volumes", ["docker", "volume", "rm", "--force"]),
+        ):
+            names = self.inventory(resource)
+            if names:
+                found[resource] = names
+                self.call([*command, *names])
+            if self.inventory(resource):
+                raise RuntimeError(f"Owned {resource} could not be removed")
+        return found
+
+    def remove_built_images(self):
+        """Remove the `<project>-<service>` images Compose built for this project."""
+        tags = self.call(
+            [
+                "docker",
+                "image",
+                "ls",
+                "--filter",
+                f"label=com.docker.compose.project={self.project}",
+                "--format",
+                "{{.Repository}}:{{.Tag}}",
+            ],
+            capture=True,
+        ).split()
+        for tag in tags:
+            if tag.startswith(self.project + "-") and (
+                subprocess.run(
+                    ["docker", "image", "rm", tag],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                ).returncode
+                != 0
+            ):
+                print(
+                    f"shared-stack: built image {tag} is still in use; kept",
+                    flush=True,
+                    file=self.output,
+                )
+
     def initialize(self):
         start = time.monotonic()
         # All three read-only guards precede any mutation, including network reservation.
@@ -462,21 +513,30 @@ class SharedStack:
     def close(self):
         try:
             if self.owned:
-                self.call(
-                    [
-                        *self.compose,
-                        "--profile",
-                        "*",
-                        "down",
-                        "--volumes",
-                        "--remove-orphans",
-                    ]
-                )
-                for resource in ("containers", "volumes", "networks"):
-                    if self.inventory(resource):
-                        raise RuntimeError(
-                            f"Owned {resource} remain after shared test group"
-                        )
+                down_failed = None
+                try:
+                    self.call(
+                        [
+                            *self.compose,
+                            "--profile",
+                            "*",
+                            "down",
+                            "--volumes",
+                            "--remove-orphans",
+                        ]
+                    )
+                except subprocess.CalledProcessError as error:
+                    down_failed = error
+                # Runs even when `down` failed, so no failure path leaks.
+                leftovers = self.remove_owned()
+                self.remove_built_images()
+                if down_failed is not None:
+                    raise down_failed
+                if leftovers:
+                    raise RuntimeError(
+                        "Owned resources remained after shared test group and were "
+                        f"removed: {leftovers}"
+                    )
                 print(
                     "shared-stack: owned containers, volumes and networks removed",
                     flush=True,
