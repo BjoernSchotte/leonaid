@@ -1,30 +1,29 @@
 # API
 
-FastAPI ist der HTTP-Adapter vor den frameworkfreien LeonAid Application
-Services. Der Composition Root validiert die typisierte Konfiguration beim
-Start und verdrahtet reale PostgreSQL- und HTTP-Adapter.
+FastAPI is the HTTP adapter in front of the framework-free LeonAid application
+services. The composition root validates the typed configuration at startup and
+wires real PostgreSQL and HTTP adapters.
 
-Aktuelle Plattform-Endpunkte:
+Current platform endpoints:
 
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /api/v1/platform`
 
-Aktionstemplates werden ausschließlich über den Core bedient:
+Action templates are served only through the Core:
 
-- `GET /api/v1/action-templates` liefert je Typ die neueste verfügbare,
-  veröffentlichte Version.
-- `POST /api/v1/actions/from-template` legt Aktion, effektive Angebote,
-  Formularkonfiguration, Template-Snapshot und Admin-Zuordnung atomar an.
-- `GET /api/v1/actions/{action_id}/configuration` liefert die für diese
-  Aktion unveränderlich festgehaltene Konfiguration.
-- `POST /api/v1/actions/{action_id}/copies` erzeugt eine neue Draft-Aktion
-  mit eigener Konfiguration und neuen IDs, jedoch ohne operative Vorgänge.
+- `GET /api/v1/action-templates` returns the newest available, published
+  version per type.
+- `POST /api/v1/actions/from-template` creates the action, effective offers,
+  form configuration, template snapshot and admin assignment atomically.
+- `GET /api/v1/actions/{action_id}/configuration` returns the configuration
+  frozen for this action.
+- `POST /api/v1/actions/{action_id}/copies` creates a new draft action with its
+  own configuration and new IDs, but without operational records.
 
-Die veröffentlichten Template-Versionen und die Aktions-Snapshots sind in
-PostgreSQL unveränderlich. Neue fachliche Vorgaben werden deshalb als neue
-Version angelegt und ändern bestehende Aktionen nicht rückwirkend.
+The published template versions and the action snapshots are immutable in
+PostgreSQL. New business rules are therefore created as a new version and do
+not change existing actions retroactively.
 
-Jede Antwort trägt `X-Request-ID`. Fehler verwenden ausschließlich das
-einheitliche, geheimnisfreie Format `error.code`, `error.message` und
-`error.requestId`.
+Every response carries `X-Request-ID`. Errors use only the uniform,
+secret-free format `error.code`, `error.message` and `error.requestId`.

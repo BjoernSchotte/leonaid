@@ -1,24 +1,23 @@
 ---
-title: <Zusammenhang oder Konzept>
-description: <Welche Beziehung oder Entscheidung diese Seite verständlich macht.>
+title: <Relationship or concept>
+description: <Which relationship or decision this page makes understandable.>
 docId: DOC-P000
 audience: [ops]
 diataxis: explanation
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: <vollständiger-produkt-commit>
+verifiedAgainst: <full-product-commit>
 reviewer: <name>
 ---
 
-## Ausgangspunkt
+## Starting point
 
-Das konkrete Problem oder die Frage.
+The concrete problem or question.
 
-## Zusammenhang
+## How it fits together
 
-Wie die beteiligten Teile zusammenwirken und warum der Code diese Grenze
-zieht.
+How the parts involved work together and why the code draws this boundary.
 
-## Konsequenzen
+## Consequences
 
-Was die Erklärung für Entscheidungen und Fehlersuche bedeutet.
+What the explanation means for decisions and troubleshooting.

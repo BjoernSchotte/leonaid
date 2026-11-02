@@ -1,3 +1,3 @@
 # Worker
 
-Durable Outbox- und Job-Verarbeitung über dieselben Application Services.
+Durable outbox and job processing through the same application services.

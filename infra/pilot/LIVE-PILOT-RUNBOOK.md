@@ -1,83 +1,83 @@
-# Live-Pilot: technischer Tagescheck
+# Live pilot: daily technical check
 
-Dieses Runbook beschreibt den technischen Tagescheck für einen begrenzten
-LeonAid-Pilot. Es ersetzt weder die fachliche Pilotfreigabe noch die offenen
-Träger-, Steuer-, Datenschutz- oder Betriebsentscheidungen.
+This runbook describes the daily technical check for a limited LeonAid
+pilot. It replaces neither the functional pilot approval nor the open
+decisions on legal entity, tax, privacy or operations.
 
-## Verantwortlichkeit und Rhythmus
+## Responsibility and schedule
 
-Ein benannter System-Admin führt den Check an jedem Pilottag vor Beginn des
-Nutzungsfensters und nach jedem P0-/P1-Vorfall aus:
+A named system admin runs the check on every pilot day before the usage
+window starts, and after every P0/P1 incident:
 
-1. im Portal `System & Betrieb` öffnen;
-2. `Tagesreport erstellen` wählen;
-3. Status, sechs Betriebsbereiche, Stop-Gründe und nächsten Schritt lesen;
-4. den JSON-Report herunterladen;
-5. ihn im privaten, zugriffsbeschränkten Pilot-Evidence-Bereich ablegen;
-6. bei `blockiert` den Pilot nicht starten beziehungsweise sofort stoppen;
-7. bei `Aufmerksamkeit` den Befund einem Owner und Termin zuordnen.
+1. open `System & Betrieb` (System & operations) in the portal;
+2. select `Tagesreport erstellen` (Create daily report);
+3. read the status, the six operations areas, the stop reasons and the next
+   step;
+4. download the JSON report;
+5. store it in the private, access-restricted pilot evidence area;
+6. on `blocked`, do not start the pilot, or stop it immediately;
+7. on `attention`, assign the finding to an owner and a due date.
 
-Der Report wird immer neu aus dem aktuellen Systemzustand erzeugt. Alte
-Downloads sind keine Aussage über den heutigen Zustand.
+The report is always generated fresh from the current system state. Old
+downloads say nothing about today's state.
 
-## Abgedeckte Bereiche
+## Covered areas
 
-Der Report führt ausschließlich technische und aggregierte Werte zusammen:
+The report combines only technical and aggregated values:
 
-- jüngster Backupstatus;
-- offene Alerts nach Priorität;
-- Outbox-Bestand und Dead Letters;
-- verfügbarer Speicher;
-- TLS-Zertifikatsstatus;
-- Erreichbarkeit von Core-Datenbank, Twenty, RustFS und Mail-Provider.
+- latest backup status;
+- open alerts by priority;
+- outbox backlog and dead letters;
+- available storage;
+- TLS certificate status;
+- reachability of the core database, Twenty, RustFS and the mail provider.
 
-Er enthält keine Namen, E-Mail-Adressen, Sponsor-, Bestell-, Rechnungs-,
-Zahlungs-, Request- oder Response-Payloads.
+It contains no names, email addresses, or sponsor, order, invoice,
+payment, request or response payloads.
 
-## Status und Stop-Gründe
+## Status and stop reasons
 
-- `bereit`: kein technischer Blocker und kein technischer
-  Aufmerksamkeitsbefund;
-- `Aufmerksamkeit`: der Pilot kann technisch weiterlaufen, der Befund braucht
-  aber Owner und Termin;
-- `blockiert`: mindestens ein stabiler Stop-Grund liegt vor.
+The report's `technicalStatus` is one of:
 
-Ein P0/P1-Alert, ein kritischer oder fehlender Backup-, Speicher- oder
-TLS-Check, ein Dead Letter, ein inaktiver beziehungsweise nicht erreichbarer
-Monitor oder eine nicht erreichbare Kernabhängigkeit blockiert. Die
-maschinenlesbaren Stop-Gründe im Report sind die führende Diagnose. Der
-angezeigte nächste Schritt nennt die sichere Operatoraktion.
+- `ready`: no technical blocker and no technical finding that needs
+  attention;
+- `attention`: the pilot can technically continue, but the finding needs an
+  owner and a due date;
+- `blocked`: at least one stable stop reason is present.
 
-`bereit` bedeutet ausdrücklich nicht, dass der Live-Pilot fachlich,
-datenschutzrechtlich oder organisatorisch freigegeben ist. Dafür bleiben die
-Freigaben und Stopkriterien aus `PILOT-001`, `PILOT-044`, `PILOT-050` bis
-`PILOT-053` maßgeblich.
+A P0/P1 alert, a critical or missing backup, storage or TLS check, a dead
+letter, an inactive or unreachable monitor, or an unreachable core
+dependency blocks. The machine-readable stop reasons in the report are the
+leading diagnosis. The displayed next step names the safe operator action.
 
-## Integritätsprüfung
+`ready` explicitly does not mean that the live pilot is approved
+functionally, for privacy or organizationally. For that, the approvals and
+stop criteria from `PILOT-001`, `PILOT-044`, `PILOT-050` to `PILOT-053`
+remain authoritative.
 
-Der Response-Header `X-Content-SHA256` und das Feld `checksumSha256` enthalten
-dieselbe Prüfsumme. Sie wird über die UTF-8-kodierte, kompakte JSON-Darstellung
-des Reports ohne `checksumSha256` berechnet; Objektschlüssel werden
-lexikografisch sortiert, Nicht-ASCII-Zeichen als JSON-Escapes geschrieben.
+## Integrity check
 
-Ein abweichender Hash macht den Download als Evidence ungültig. Der Report
-wird dann erneut direkt aus dem Portal erzeugt. Wiederholt sich die
-Abweichung, wird der Pilot gestoppt und ein P1-Incident eröffnet.
+The response header `X-Content-SHA256` and the field `checksumSha256` contain
+the same checksum. It is computed over the UTF-8 encoded, compact JSON form
+of the report without `checksumSha256`; object keys are sorted
+lexicographically, non-ASCII characters are written as JSON escapes.
 
-## Incident und Tagesabschluss
+A diverging hash makes the download invalid as evidence. Generate the report
+again directly from the portal. If the mismatch repeats, stop the pilot and
+open a P1 incident.
 
-Bei einem Stop-Grund gilt:
+## Incident and end of day
 
-1. keine technische Freigabe erteilen beziehungsweise Pilot stoppen;
-2. Support-Code, Release, Stop-Grund und Zeitpunkt ohne Personenbezug
-   festhalten;
-3. das zuständige Runbook für Backup, Alert, Outbox, Speicher, TLS oder
-   Abhängigkeit ausführen;
-4. nach Behebung einen neuen Tagesreport erzeugen;
-5. nur mit geschlossenem P0/P1 und den erforderlichen fachlichen Freigaben
-   fortfahren.
+On a stop reason:
 
-Zum Tagesabschluss werden Volumen, Fehlerraten, Supportfälle, Wiederanläufe
-und offene P2/P3 aggregiert erfasst. Ein einzelner Tagesreport ist noch kein
-Abschlussreport und beweist noch keinen tatsächlich durchgeführten
-Live-Pilot.
+1. do not grant technical approval, or stop the pilot;
+2. record support code, release, stop reason and time without personal data;
+3. run the matching runbook for backup, alert, outbox, storage, TLS or
+   dependency;
+4. after the fix, generate a new daily report;
+5. continue only with P0/P1 closed and the required functional approvals in
+   place.
+
+At the end of the day, volume, error rates, support cases, restarts and open
+P2/P3 items are recorded in aggregate. A single daily report is not yet a
+final report and does not yet prove that a live pilot actually took place.
