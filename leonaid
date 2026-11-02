@@ -1013,7 +1013,20 @@ pilot_doctor() {
   status=$?
   # The deploy and release gates run against the started stack: prove the
   # running API reaches Twenty and that the match key field is provisioned.
-  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ]; then
+  skip_crm_check=${LEONAID_PILOT_TEST_SKIP_CRM_CHECK:-}
+  if [ -n "$skip_crm_check" ]; then
+    # Test-only: deployment tests that never provision Twenty run with a dummy
+    # key. Product projects cannot switch the CRM check off.
+    case "$project" in
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
+      *)
+        echo "pilot-doctor: BLOCKED: the CRM check can only be skipped in isolated test projects" >&2
+        status=1
+        ;;
+    esac
+  fi
+  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ] &&
+    [ -z "$skip_crm_check" ]; then
     case "$gate" in
       pilot-deploy|pilot-release)
         if ! pilot_compose_command "$project" "$env_file" \
