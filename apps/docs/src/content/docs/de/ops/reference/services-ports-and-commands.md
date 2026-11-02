@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 417858db2e419436eb003e8ccb4eb83fbaf3125d
 reviewer: Björn Schotte
 ---
 
@@ -78,29 +78,32 @@ Jeder dauerhaft laufende Dienst hat eine Speicher-, CPU- und Prozessgrenze
 (`mem_limit`, `cpus`, `pids_limit`) und rotierte Logs (Treiber `local`,
 5 × 10 MB). Die Grenzen sind Obergrenzen, keine Reservierungen. Der Pilotumfang
 einschließlich Monitoring-Profil passt auf einen VPS mit 8 GB und lässt etwa
-1,5 GiB für Betriebssystem und Docker frei. „Spitze“ ist der höchste unter Last
-gemessene Working Set (Upgrade, Installation, CRM-Import, Golden Journey,
-Backup und Restore).
+1,6 GiB für Betriebssystem und Docker frei. Der Deployment-Vertrag
+(`pilot-doctor`, `pilot-deploy`) lehnt Grenzen ab, deren Summe weniger als
+1,5 GiB frei lässt. „Spitze“ ist der höchste unter Last gemessene Working Set
+(Upgrade, Installation, CRM-Import mit 3000 Zeilen, Golden Journey, Backup und
+Restore; gemessen am 2. November 2026 mit Twenty 2.54). „Leerlauf“ reicht vom
+5. Perzentil bis zum Median aller Messpunkte.
 
 | Dienst                         | Beobachtet (Leerlauf) | Spitze (Last) | Speichergrenze | CPUs | PIDs |
 | ------------------------------ | --------------------- | ------------- | -------------- | ---- | ---- |
-| twenty-server                  | 270–780 MiB           | 956 MiB       | 1600 MiB       | 2    | 512  |
-| twenty-worker                  | 630–670 MiB           | 1022 MiB      | 1400 MiB       | 1,5  | 512  |
-| worker (inkl. Typst)           | 70 MiB                | 91 MiB        | 512 MiB        | 1,5  | 256  |
-| api                            | 115 MiB               | 135 MiB       | 384 MiB        | 1,5  | 256  |
-| core-postgres                  | 27 MiB                | 70 MiB        | 384 MiB        | 1,5  | 256  |
-| twenty-postgres                | 35 MiB                | 142 MiB       | 384 MiB        | 1,5  | 256  |
-| twenty-redis (Valkey)          | 4–31 MiB              | 110 MiB       | 512 MiB        | 0,5  | 64   |
-| rustfs                         | 40 MiB                | 57 MiB        | 256 MiB        | 1    | 256  |
-| survey-validator               | 21 MiB                | 64 MiB        | 128 MiB        | 1    | 64   |
-| proxy (Caddy)                  | 16 MiB                | 21 MiB        | 128 MiB        | 1    | 128  |
-| public                         | 29 MiB                | 68 MiB        | 128 MiB        | 1    | 64   |
-| web, pwa                       | je 16–17 MiB          | 22 MiB        | je 64 MiB      | 0,5  | 64   |
-| **Summe Core**                 | ca. 2,5 GiB           | 2,4 GiB¹      | **5,8 GiB**    |      |      |
-| prometheus                     | —                     | 33 MiB        | 256 MiB        | 0,5  | 128  |
-| pilot-exporter                 | —                     | 18 MiB        | 128 MiB        | 0,5  | 64   |
-| alertmanager                   | —                     | 12 MiB        | 64 MiB         | 0,25 | 64   |
-| **Summe Pilot mit Monitoring** |                       |               | **6,2 GiB**    |      |      |
+| twenty-server                  | 330–680 MiB           | 1223 MiB      | 1728 MiB       | 2    | 512  |
+| twenty-worker                  | 590–640 MiB           | 960 MiB       | 1400 MiB       | 1,5  | 512  |
+| worker (inkl. Typst)           | 70 MiB                | 94 MiB        | 512 MiB        | 1,5  | 256  |
+| api                            | 105–110 MiB           | 151 MiB       | 384 MiB        | 1,5  | 256  |
+| core-postgres                  | 20–22 MiB             | 70 MiB        | 384 MiB        | 1,5  | 256  |
+| twenty-postgres                | 29–65 MiB             | 139 MiB       | 384 MiB        | 1,5  | 256  |
+| twenty-redis (Valkey)          | 4–15 MiB              | 30 MiB        | 512 MiB        | 0,5  | 64   |
+| rustfs                         | 22–23 MiB             | 49 MiB        | 256 MiB        | 1    | 256  |
+| survey-validator               | 14–17 MiB             | 27 MiB        | 128 MiB        | 1    | 64   |
+| proxy (Caddy)                  | 13–18 MiB             | 31 MiB        | 128 MiB        | 1    | 128  |
+| public                         | 23–25 MiB             | 75 MiB        | 128 MiB        | 1    | 64   |
+| web, pwa                       | je 13–14 MiB          | 20 MiB        | je 64 MiB      | 0,5  | 64   |
+| **Summe Core**                 | ca. 1,7 GiB           | 2,4 GiB¹      | **5,9 GiB**    |      |      |
+| prometheus                     | 59–63 MiB             | 69 MiB        | 256 MiB        | 0,5  | 128  |
+| pilot-exporter                 | 18–19 MiB             | 30 MiB        | 128 MiB        | 0,5  | 64   |
+| alertmanager                   | 22–25 MiB             | 27 MiB        | 64 MiB         | 0,25 | 64   |
+| **Summe Pilot mit Monitoring** |                       |               | **6,4 GiB**    |      |      |
 
 ¹ Höchste Summe aller Working Sets zum selben Zeitpunkt, nicht die Summe der
 Spitzen.
@@ -112,9 +115,14 @@ Summe weiter auf den Host passt.
 
 Node bemisst den V8-Heap ohne Vorgabe nach der Containergrenze.
 `twenty-server` setzt deshalb `NODE_OPTIONS=--max-old-space-size=1024` und
-`twenty-worker` `--max-old-space-size=768` (gemessene Heap-Spitzen: 671 und
-553 MiB). Senke eine Twenty-Speichergrenze nie, ohne diesen Wert zu prüfen;
-sonst bricht Twenty mit „JavaScript heap out of memory“ ab. `twenty-worker`
+`twenty-worker` `--max-old-space-size=768`. Gemessene Heap-Spitzen: 742 von
+1072 MiB Heap-Grenze (69 %) für `twenty-server` und 560 von 816 MiB (69 %) für
+`twenty-worker`. Die Spitze von `twenty-server` entsteht bei jedem Start:
+Vor `node dist/main` läuft `yarn command:prod upgrade` mit bis zu 1085 MiB
+RSS plus yarn-Hülle; deshalb liegt die Grenze bei 1728 MiB. Senke eine
+Twenty-Speichergrenze nie, ohne diesen Wert zu prüfen; sonst bricht Twenty mit
+„JavaScript heap out of memory“ ab. Der Deployment-Vertrag verlangt
+mindestens 256 MiB zwischen `--max-old-space-size` und `mem_limit`. `twenty-worker`
 startet `node dist/queue-worker/queue-worker` direkt, ohne die
 yarn-Hüllprozesse (etwa 200 MiB). Beide Twenty-Dienste laufen mit
 `init: true`; `docker stop` lässt Twenty deshalb aktive Jobs beenden und

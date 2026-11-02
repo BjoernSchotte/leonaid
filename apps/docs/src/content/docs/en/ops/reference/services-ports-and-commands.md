@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: 417858db2e419436eb003e8ccb4eb83fbaf3125d
 reviewer: Björn Schotte
 ---
 
@@ -73,29 +73,32 @@ leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 Every long-running service has a memory, CPU, and process limit
 (`mem_limit`, `cpus`, `pids_limit`) and rotated logs (`local` driver, 5 × 10 MB).
 The limits are ceilings, not reservations. The pilot set, including the
-monitoring profile, fits an 8 GB VPS and leaves about 1.5 GiB for the operating
-system and Docker. "Peak" is the highest working set measured under load
-(upgrade, installation, CRM import, golden journey, backup and restore).
+monitoring profile, fits an 8 GB VPS and leaves about 1.6 GiB for the operating
+system and Docker. The deployment contract (`pilot-doctor`, `pilot-deploy`)
+rejects limits whose sum leaves less than 1.5 GiB. "Peak" is the highest working set
+measured under load (upgrade, installation, CRM import of 3000 rows, golden
+journey, backup and restore; measured on 2 November 2026 with Twenty 2.54).
+"Idle" ranges from the 5th percentile to the median of all samples.
 
 | Service                       | Observed (idle) | Peak (load) | Memory limit | CPUs | PIDs |
 | ----------------------------- | --------------- | ----------- | ------------ | ---- | ---- |
-| twenty-server                 | 270–780 MiB     | 956 MiB     | 1600 MiB     | 2    | 512  |
-| twenty-worker                 | 630–670 MiB     | 1022 MiB    | 1400 MiB     | 1.5  | 512  |
-| worker (incl. Typst)          | 70 MiB          | 91 MiB      | 512 MiB      | 1.5  | 256  |
-| api                           | 115 MiB         | 135 MiB     | 384 MiB      | 1.5  | 256  |
-| core-postgres                 | 27 MiB          | 70 MiB      | 384 MiB      | 1.5  | 256  |
-| twenty-postgres               | 35 MiB          | 142 MiB     | 384 MiB      | 1.5  | 256  |
-| twenty-redis (Valkey)         | 4–31 MiB        | 110 MiB     | 512 MiB      | 0.5  | 64   |
-| rustfs                        | 40 MiB          | 57 MiB      | 256 MiB      | 1    | 256  |
-| survey-validator              | 21 MiB          | 64 MiB      | 128 MiB      | 1    | 64   |
-| proxy (Caddy)                 | 16 MiB          | 21 MiB      | 128 MiB      | 1    | 128  |
-| public                        | 29 MiB          | 68 MiB      | 128 MiB      | 1    | 64   |
-| web, pwa                      | 16–17 MiB each  | 22 MiB      | 64 MiB each  | 0.5  | 64   |
-| **Core sum**                  | ~2.5 GiB        | 2.4 GiB¹    | **5.8 GiB**  |      |      |
-| prometheus                    | —               | 33 MiB      | 256 MiB      | 0.5  | 128  |
-| pilot-exporter                | —               | 18 MiB      | 128 MiB      | 0.5  | 64   |
-| alertmanager                  | —               | 12 MiB      | 64 MiB       | 0.25 | 64   |
-| **Pilot sum with monitoring** |                 |             | **6.2 GiB**  |      |      |
+| twenty-server                 | 330–680 MiB     | 1223 MiB    | 1728 MiB     | 2    | 512  |
+| twenty-worker                 | 590–640 MiB     | 960 MiB     | 1400 MiB     | 1.5  | 512  |
+| worker (incl. Typst)          | 70 MiB          | 94 MiB      | 512 MiB      | 1.5  | 256  |
+| api                           | 105–110 MiB     | 151 MiB     | 384 MiB      | 1.5  | 256  |
+| core-postgres                 | 20–22 MiB       | 70 MiB      | 384 MiB      | 1.5  | 256  |
+| twenty-postgres               | 29–65 MiB       | 139 MiB     | 384 MiB      | 1.5  | 256  |
+| twenty-redis (Valkey)         | 4–15 MiB        | 30 MiB      | 512 MiB      | 0.5  | 64   |
+| rustfs                        | 22–23 MiB       | 49 MiB      | 256 MiB      | 1    | 256  |
+| survey-validator              | 14–17 MiB       | 27 MiB      | 128 MiB      | 1    | 64   |
+| proxy (Caddy)                 | 13–18 MiB       | 31 MiB      | 128 MiB      | 1    | 128  |
+| public                        | 23–25 MiB       | 75 MiB      | 128 MiB      | 1    | 64   |
+| web, pwa                      | 13–14 MiB each  | 20 MiB      | 64 MiB each  | 0.5  | 64   |
+| **Core sum**                  | ~1.7 GiB        | 2.4 GiB¹    | **5.9 GiB**  |      |      |
+| prometheus                    | 59–63 MiB       | 69 MiB      | 256 MiB      | 0.5  | 128  |
+| pilot-exporter                | 18–19 MiB       | 30 MiB      | 128 MiB      | 0.5  | 64   |
+| alertmanager                  | 22–25 MiB       | 27 MiB      | 64 MiB       | 0.25 | 64   |
+| **Pilot sum with monitoring** |                 |             | **6.4 GiB**  |      |      |
 
 ¹ Highest sum of all working sets at the same moment, not the sum of the peaks.
 
@@ -105,9 +108,14 @@ lower another one so that the sum still fits the host.
 
 Node sizes the V8 heap from the container limit unless told otherwise.
 `twenty-server` therefore sets `NODE_OPTIONS=--max-old-space-size=1024` and
-`twenty-worker` sets `--max-old-space-size=768` (measured heap peaks: 671 and
-553 MiB). Never lower a Twenty memory limit without checking this value;
-otherwise Twenty stops with "JavaScript heap out of memory". `twenty-worker`
+`twenty-worker` sets `--max-old-space-size=768`. Measured heap peaks: 742 of
+the 1072 MiB heap limit (69 %) for `twenty-server` and 560 of 816 MiB (69 %)
+for `twenty-worker`. The `twenty-server` peak comes with every start: before
+`node dist/main`, `yarn command:prod upgrade` runs with up to 1085 MiB RSS
+plus the yarn wrapper, so the limit is 1728 MiB. Never lower a Twenty memory
+limit without checking this value; otherwise Twenty stops with "JavaScript
+heap out of memory". The deployment contract requires at least 256 MiB
+between `--max-old-space-size` and `mem_limit`. `twenty-worker`
 starts `node dist/queue-worker/queue-worker` directly, without the yarn
 wrapper processes (about 200 MiB). Both Twenty services run with `init: true`,
 so `docker stop` lets Twenty finish its active jobs and exit cleanly.
