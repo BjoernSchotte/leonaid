@@ -98,11 +98,13 @@ async def main() -> None:
         await connection.execute(
             """
             INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
-            -- A fixed local day time in the past: a window may not cross local midnight.
+            -- A fixed local day time in the past: a window may not cross local
+            -- midnight. Windows survive the golden reset, so this day differs
+            -- from the server contract window to avoid an overlap.
             VALUES ($1, $2,
-                ((now() AT TIME ZONE 'Europe/Berlin')::date - 2 + time '10:00')
+                ((now() AT TIME ZONE 'Europe/Berlin')::date - 3 + time '10:00')
                     AT TIME ZONE 'Europe/Berlin',
-                ((now() AT TIME ZONE 'Europe/Berlin')::date - 2 + time '12:00')
+                ((now() AT TIME ZONE 'Europe/Berlin')::date - 3 + time '12:00')
                     AT TIME ZONE 'Europe/Berlin')
             ON CONFLICT (id) DO NOTHING
             """,
