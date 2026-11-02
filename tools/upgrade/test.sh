@@ -597,7 +597,7 @@ integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
 source_old up --detach --wait --wait-timeout 420 api
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${source_project}-api"
-source_old --profile dev-mail run --rm --no-deps \
+source_old --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof/pdfs:/proof/pdfs:ro" \

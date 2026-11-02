@@ -93,7 +93,7 @@ start_golden() {
     test "$journey_generation" -eq 1
     # The parallel repeat job still proves a completely fresh installation.
     # This job proves the same journey from a private initialized template.
-    compose run --rm --no-deps \
+    compose run --rm --user "$(id -u):$(id -g)" --no-deps \
       --env-from-file "$env_file" \
       --volume "$root:/repo:ro" --volume "$proof/pdfs:/proof/pdfs:ro" \
       --entrypoint python api /repo/tools/seed/golden.py seed \
@@ -142,7 +142,7 @@ start_golden() {
     exit 1
   fi
 
-  compose run --rm --no-deps \
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env PYTHONPATH=/repo:/workspace/src \
     --env TWENTY_BASE_URL=http://twenty-server:3000 \
@@ -154,7 +154,7 @@ start_golden() {
     --token-file "/proof/$token_filename"
 
   compose up --detach --force-recreate --wait --wait-timeout 420 api
-  compose run --rm --no-deps \
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --volume "$root:/repo:ro" \
     --volume "$proof/pdfs:/proof/pdfs:ro" \

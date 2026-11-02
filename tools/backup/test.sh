@@ -161,7 +161,7 @@ source_compose up --detach --wait --wait-timeout 420 api
 
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${source_project}-api"
-source_compose --profile dev-mail run --rm --no-deps \
+source_compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof/pdfs:/proof/pdfs:ro" \
@@ -290,7 +290,7 @@ target_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   api tools/backup/inventory.py capture \
   --output /proof/after.json \
   --twenty-storage /twenty-storage
-target_compose run --rm --no-deps \
+target_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --volume "$proof:/proof:ro" \
   --workdir /repo \
