@@ -4,7 +4,14 @@ root=$1
 . "$root/infra/locks/images.env"
 # Build only this checkout's campaign image; create no named project, ports or
 # networks. Keep Docker's content-addressed image/cache for later release proof.
-image_id=$(docker build --quiet --file "$root/infra/compose/Dockerfile.campaign-site" "$root")
+# --load: a docker-container Buildx builder (CI cache) otherwise keeps the
+# result only in its cache and reports no local image.
+build=$(mktemp -d)
+docker buildx build --quiet --load --iidfile "$build/image" \
+  --file "$root/infra/compose/Dockerfile.campaign-site" "$root" >/dev/null
+image_id=$(cat "$build/image")
+rm -f "$build/image"
+rmdir "$build"
 case "$image_id" in sha256:*) ;; *) echo "cms-image: missing built identity" >&2; exit 1 ;; esac
 read_identity() {
   docker run --rm --read-only --network none --cap-drop ALL \
