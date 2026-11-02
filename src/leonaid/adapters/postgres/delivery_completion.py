@@ -13,6 +13,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.retry import (
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import lock_configuration, write_order_delivery
 from leonaid.application.delivery_completion import (
@@ -44,7 +48,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
         occurred_at: datetime,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._complete_once(
@@ -59,12 +63,13 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
                             "Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Die Liefervervollständigung wurde nicht ausgeführt.")
 
     @staticmethod

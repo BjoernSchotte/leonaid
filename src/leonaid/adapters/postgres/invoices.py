@@ -9,6 +9,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.retry import (
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.adapters.postgres.delivery import lock_configuration
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
@@ -191,7 +195,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         occurred_at: datetime,
     ) -> Invoice:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._issue_once(
@@ -206,12 +210,13 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_concurrent_retry",
                             "Die Rechnung wurde gleichzeitig verarbeitet. "
                             "Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Die Rechnungstransaktion wurde nicht ausgeführt.")
 
     async def _issue_once(
