@@ -124,7 +124,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   api tools/twenty/provision.py verify-key \
   --token-file /proof/integration.env
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$proof_dir/integration.env" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \

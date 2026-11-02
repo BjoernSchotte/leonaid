@@ -70,7 +70,7 @@ compose --profile '*' config --format json | python3 "$root/tools/testing/reserv
 echo "poc020-test: startet realen ASGI-Server aus leeren Compose-Volumes"
 compose up --build --detach --wait --wait-timeout 420
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env LEONAID_INTEGRATION_BASE_URL=http://api:8000 \
   --volume "$root:/repo:ro" \
   --entrypoint python \

@@ -270,7 +270,7 @@ run_dashboard_contract() {
     rollback) runner=rollback_target ;;
     *) fail "Unbekannter Contract-Modus: $mode" ;;
   esac
-  $runner run --rm --no-deps \
+  $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env API_BASE_URL=http://api:8000 \
     --env PYTHONPATH=/repo:/workspace/src \
@@ -278,7 +278,7 @@ run_dashboard_contract() {
     --workdir /repo \
     --entrypoint python \
     api tools/dashboard/contract.py
-  $runner run --rm --no-deps \
+  $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env PYTHONPATH=/repo:/workspace/src \
     --volume "$root:/repo:ro" \
@@ -295,7 +295,7 @@ run_maintenance_contract() {
     rollback) runner=rollback_target ;;
     *) fail "Unbekannter Wartungsmodus: $mode" ;;
   esac
-  $runner run --rm --no-deps \
+  $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env-from-file "$env_file" \
     --env API_BASE_URL=http://api:8000 \
     --env PYTHONPATH=/repo:/workspace/src \
@@ -758,7 +758,7 @@ snapshot_and_verify rollback production-v2 golden
 record_release_event \
   "$release_v2" production_verified passed PILOT-043-PRODUCTION-V2 \
   2026-07-28T09:40:00Z
-rollback_target --profile dev-mail run --rm --no-deps \
+rollback_target --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env MAIL_SMTP_HOST=mailpit \
   --env MAIL_SMTP_PORT=1025 \

@@ -119,7 +119,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env PYTHONPATH=/repo:/workspace/src \
   --env RUSTFS_CONTRACT_ENDPOINT_URL=http://rustfs:9000 \
   --env RUSTFS_CONTRACT_BUCKET=leonaid-contract-rustfs \
