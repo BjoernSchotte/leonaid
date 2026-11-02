@@ -6,6 +6,25 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "5"
 
+# Runtime hardening for LeonAid's own images: immutable root filesystem, no
+# Linux capabilities and no privilege gain through setuid binaries. Services
+# that need scratch space add their own tmpfs.
+x-hardened-runtime: &hardened-runtime
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+# Every long-running service has a memory, CPU and process ceiling. The budget
+# for an 8 GB VPS is documented in
+# apps/docs/src/content/docs/{en,de}/ops/reference/services-ports-and-commands.md;
+# change both together.
+
+# The core image runs as this fixed unprivileged uid:gid. Isolated test stacks
+# whose harness writes recovery volumes from one-off containers may override it
+# with their own host uid; production must keep the default, and the pilot
+# deployment contract (tools/pilot_deployment/validate.py) rejects anything else.
+x-core-user: &core-user ${LEONAID_CORE_RUNTIME_USER:-10001:10001}
+
 services:
   campaign-site:
     profiles: [emdash]
@@ -14,6 +33,11 @@ services:
       dockerfile: infra/compose/Dockerfile.campaign-site
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 384m
+    cpus: 1
+    pids_limit: 128
     environment:
       PGHOST: core-postgres
       PGDATABASE: emdash
@@ -47,6 +71,15 @@ services:
       context: ../proxy/image
     logging: *default-logging
     restart: unless-stopped
+    # Caddy keeps running as root inside the container because it owns the
+    # certificate volumes of existing installs; it gets no capability except
+    # binding the pilot's ports 80/443.
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 128
     environment:
       LEONAID_HTTPS_PORT: ${LEONAID_HTTPS_PORT:-8443}
       LEONAID_LAN_HOST: ${LEONAID_LAN_HOST:-127.0.0.1}
@@ -81,9 +114,7 @@ services:
       dockerfile: infra/compose/Dockerfile.survey-validator
     logging: *default-logging
     restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *hardened-runtime
     mem_limit: 256m
     cpus: 1
     pids_limit: 64
@@ -101,6 +132,13 @@ services:
       dockerfile: infra/compose/Dockerfile.core
     logging: *default-logging
     restart: unless-stopped
+    <<: *hardened-runtime
+    user: *core-user
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m
+    mem_limit: 384m
+    cpus: 1.5
+    pids_limit: 256
     command: ["/workspace/infra/compose/start-api.sh"]
     environment:
       LEONAID_ENV: ${LEONAID_ENV:-local}
@@ -148,6 +186,8 @@ services:
       - mail-data
       - telemetry
     depends_on:
+      core-volume-init:
+        condition: service_completed_successfully
       survey-validator:
         condition: service_healthy
       core-postgres:
@@ -172,6 +212,14 @@ services:
       dockerfile: infra/compose/Dockerfile.core
     logging: *default-logging
     restart: unless-stopped
+    <<: *hardened-runtime
+    user: *core-user
+    # Typst renders invoices and survey reports in temporary directories.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 256
     command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
     environment:
       LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
@@ -211,6 +259,8 @@ services:
       - mail-data
       - telemetry
     depends_on:
+      core-volume-init:
+        condition: service_completed_successfully
       core-postgres:
         condition: service_healthy
     healthcheck:
@@ -223,10 +273,40 @@ services:
       timeout: 4s
       retries: 20
 
+  # One-shot ownership handover for volumes the unprivileged core writes to.
+  # Releases before the non-root core image wrote them as root; an existing
+  # install's api would otherwise fail to publish the erasure checkpoint at
+  # startup and its worker on every retention sweep. It runs before every api/worker start, is idempotent
+  # and has no network and only the capabilities chown needs.
+  core-volume-init:
+    image: docker.io/library/alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+    logging: *default-logging
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 32m
+    cpus: 0.5
+    pids_limit: 16
+    command:
+      - chown
+      - -R
+      - *core-user
+      - /recovery/survey-erasure
+    volumes:
+      - survey-erasure-archive:/recovery/survey-erasure
+
   core-postgres:
     image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 1.5
+    pids_limit: 256
     environment:
       POSTGRES_DB: ${CORE_POSTGRES_DB:-leonaid}
       POSTGRES_USER: ${CORE_POSTGRES_USER:-leonaid}
@@ -250,6 +330,12 @@ services:
       dockerfile: infra/compose/Dockerfile.web
     logging: *default-logging
     restart: unless-stopped
+    <<: *hardened-runtime
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       APP_NAME: "LeonAid Verwaltung"
       APP_KIND: web
@@ -267,6 +353,12 @@ services:
       dockerfile: infra/compose/Dockerfile.pwa
     logging: *default-logging
     restart: unless-stopped
+    <<: *hardened-runtime
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       APP_NAME: "LeonAid Akquise"
       APP_KIND: pwa
@@ -280,6 +372,12 @@ services:
       dockerfile: infra/compose/Dockerfile.public
     logging: *default-logging
     restart: unless-stopped
+    <<: *hardened-runtime
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 64
     environment:
       CORE_API_URL: http://api:8000
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
@@ -296,6 +394,10 @@ services:
     image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1600m
+    cpus: 2
+    pids_limit: 512
     environment: &twenty-environment
       NODE_PORT: "3000"
       PG_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
@@ -331,6 +433,10 @@ services:
     image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1400m
+    cpus: 1.5
+    pids_limit: 512
     command: ["yarn", "worker:prod"]
     environment:
       <<: *twenty-environment
@@ -357,6 +463,10 @@ services:
     image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 1.5
+    pids_limit: 256
     environment:
       POSTGRES_DB: ${TWENTY_POSTGRES_DB:-default}
       POSTGRES_USER: ${TWENTY_POSTGRES_USER:-twenty}
@@ -377,7 +487,14 @@ services:
     image: docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
     logging: *default-logging
     restart: unless-stopped
-    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    # maxmemory stays below mem_limit: with noeviction, Redis then rejects
+    # writes with an error instead of being OOM-killed with queued jobs.
+    command:
+      ["redis-server", "--maxmemory", "192mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - twenty-redis-data:/data
     networks:
@@ -392,6 +509,10 @@ services:
     image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
     logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 256
     command: ["/data"]
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
@@ -412,6 +533,9 @@ services:
     image: docker.io/chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602
     logging: *default-logging
     profiles: ["storage-contract"]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
     command: ["mini", "-dir=/data"]
     environment:
       AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
@@ -433,6 +557,9 @@ services:
     logging: *default-logging
     profiles: ["dev-mail"]
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       MP_MAX_MESSAGES: "500"
       MP_DATABASE: /data/mailpit.db
@@ -452,6 +579,9 @@ services:
     image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
     logging: *default-logging
     profiles: ["mail-contract"]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       MP_DATABASE: /tmp/mailpit.db
       MP_SMTP_TLS_CERT: sans:mailpit-contract-starttls
@@ -470,6 +600,9 @@ services:
     image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
     logging: *default-logging
     profiles: ["mail-contract"]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       MP_DATABASE: /tmp/mailpit.db
       MP_CHAOS_TRIGGERS: Recipient:452:100
@@ -485,6 +618,9 @@ services:
     image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
     logging: *default-logging
     profiles: ["mail-contract"]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
     environment:
       MP_DATABASE: /tmp/mailpit.db
       MP_SMTP_TLS_CERT: sans:mailpit-contract-tls
@@ -503,6 +639,9 @@ services:
     image: docker.io/library/alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
     logging: *default-logging
     profiles: ["mail-contract"]
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 16
     command:
       - /bin/sh
       - -c
@@ -515,6 +654,9 @@ services:
     logging: *default-logging
     profiles: ["mailing"]
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
     command:
       - sh
       - -c
@@ -544,6 +686,9 @@ services:
     logging: *default-logging
     profiles: ["mailing"]
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
     environment:
       POSTGRES_DB: listmonk
       POSTGRES_USER: listmonk
@@ -563,6 +708,9 @@ services:
     logging: *default-logging
     profiles: ["observability"]
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro

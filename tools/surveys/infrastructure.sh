@@ -3,6 +3,11 @@ set -eu
 root=${1:-$(pwd)}
 mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
+# The harness writes recovery proofs and the survey-erasure archive from
+# one-off core containers. The whole isolated stack therefore runs as the
+# invoking user instead of the production core uid (compose.yml x-core-user).
+LEONAID_CORE_RUNTIME_USER="$(id -u):$(id -g)"
+export LEONAID_CORE_RUNTIME_USER
 . "$root/infra/locks/images.env"
 . "$root/tools/testing/phase.sh"
 # Standalone invocations own fresh resources; the gate can lend a reset fixture.

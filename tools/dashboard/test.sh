@@ -113,7 +113,7 @@ compose up --detach --wait --wait-timeout 420 api
   "$root" "$proof/pdfs" "${project}-api"
 fi
 
-compose --profile dev-mail run --rm --no-deps \
+compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof/pdfs:/proof/pdfs:ro" \
@@ -122,7 +122,7 @@ compose --profile dev-mail run --rm --no-deps \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \

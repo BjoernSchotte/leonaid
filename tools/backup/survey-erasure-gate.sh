@@ -33,7 +33,8 @@ apply_survey_erasure_gate() (
   else
     compose build api || exit 1
   fi
-  compose run --rm --no-deps \
+  # As the operator: the checkpoint is the operator's private (0600) file.
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" \
     --volume "$root:/repo:ro" \
     --volume "$checkpoint:/run/survey-recovery/checkpoint.json:ro" \
     --workdir /repo --entrypoint python api tools/surveys/recovery.py reapply \

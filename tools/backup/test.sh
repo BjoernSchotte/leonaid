@@ -161,7 +161,7 @@ source_compose up --detach --wait --wait-timeout 420 api
 
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${source_project}-api"
-source_compose --profile dev-mail run --rm --no-deps \
+source_compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof/pdfs:/proof/pdfs:ro" \
@@ -169,7 +169,7 @@ source_compose --profile dev-mail run --rm --no-deps \
   api /repo/tools/seed/golden.py seed \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
-source_compose run --rm --no-deps \
+source_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -181,7 +181,7 @@ source_compose run --rm --no-deps \
 source_compose stop \
   proxy api worker public pwa web twenty-worker twenty-server \
   >/dev/null
-source_compose run --rm --no-deps \
+source_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env "TWENTY_DATABASE_URL=postgresql://twenty:${twenty_password}@twenty-postgres:5432/default" \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -278,7 +278,7 @@ LEONAID_HTTP_PORT="$target_http_port" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
 
 target_compose build api public pwa web
-target_compose run --rm --no-deps \
+target_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env "TWENTY_DATABASE_URL=postgresql://twenty:${twenty_password}@twenty-postgres:5432/default" \
   --env PYTHONPATH=/repo:/workspace/src \
@@ -290,7 +290,7 @@ target_compose run --rm --no-deps \
   api tools/backup/inventory.py capture \
   --output /proof/after.json \
   --twenty-storage /twenty-storage
-target_compose run --rm --no-deps \
+target_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --volume "$proof:/proof:ro" \
   --workdir /repo \
@@ -300,7 +300,7 @@ target_compose run --rm --no-deps \
   --after /proof/after.json
 
 target_compose --profile dev-mail up --detach --wait --wait-timeout 420
-target_compose --profile dev-mail run --rm --no-deps \
+target_compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof:/proof" \

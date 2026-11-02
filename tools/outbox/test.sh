@@ -23,7 +23,7 @@ compose() {
 }
 
 api_probe() {
-  compose run --rm --no-deps \
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     --env MAIL_SMTP_HOST=mailpit \
     --env MAIL_SMTP_PORT=1025 \
     --volume "$root:/repo:ro" \

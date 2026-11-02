@@ -21,6 +21,7 @@ compose() {
   LEONAID_HTTP_PORT=18142 \
     LEONAID_HTTPS_PORT=18442 \
     LEONAID_ALERT_TEST_PROJECT="$project" \
+    LEONAID_ALERT_TEST_USER="$(id -u):$(id -g)" \
     LEONAID_ALERT_TEST_EVENTS_DIR="$events_dir" \
     LEONAID_ALERT_TEST_BACKUP_MANIFEST="$manifest" \
     docker compose \

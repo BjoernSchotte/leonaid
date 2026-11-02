@@ -33,9 +33,9 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   console.log("emdash-identity-profile: isolated API/SQL, no host ports");'
 compose up --detach --wait core-postgres
 compose up --no-deps --build --detach --wait api
-compose run --rm --no-deps --volume "$root:/repo:ro" \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
   --env PYTHONPATH=/repo:/workspace/src --entrypoint python \
   api /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
-compose run --rm --no-deps --volume "$root:/repo:ro" \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
   --env PYTHONPATH=/repo:/workspace/src --entrypoint python \
   api /repo/tools/emdash_spike/identity_profile_proof.py
