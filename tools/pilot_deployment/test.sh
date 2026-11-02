@@ -368,8 +368,59 @@ docker compose \
   --file "$root/infra/compose/compose.yml" \
   build api web pwa public survey-validator proxy
 
-echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
+# The pilot-deploy and pilot-release gates ask the running API whether Twenty
+# accepts its integration key and has the match key field. Provision Twenty
+# exactly as pilot-install does: bootstrap overlay (no verification, no
+# proxy), real schema, roles and key; then the real key replaces the
+# placeholder in the env file before the production topology starts.
+echo "pilot-deployment-test: provisioniert Twenty wie pilot-install"
 runtime_owned=true
+bootstrap_compose() {
+  runtime_compose --file "$root/infra/pilot/compose.bootstrap.yml" "$@"
+}
+bootstrap_file="$workspace/twenty-bootstrap.env"
+provision_directory="$workspace/provision"
+mkdir -p "$provision_directory"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import pathlib, secrets, string
+alphabet = string.ascii_letters + string.digits
+path = pathlib.Path("/proof/twenty-bootstrap.env")
+path.write_text(
+    "TWENTY_BOOTSTRAP_EMAIL=deploy-admin@leonaid.org\n"
+    "TWENTY_BOOTSTRAP_PASSWORD="
+    + "".join(secrets.choice(alphabet) for _ in range(32)) + "\n",
+    encoding="utf-8",
+)
+path.chmod(0o600)'
+bootstrap_compose up --detach --no-build --wait --wait-timeout 420 \
+  twenty-postgres twenty-redis twenty-server twenty-worker
+for action in "apply --token-output" "verify-key --token-file"; do
+  # shellcheck disable=SC2086 # the action carries the subcommand and flag
+  bootstrap_compose run --rm --no-deps \
+    --user "$(id -u):$(id -g)" --env HOME=/tmp \
+    --env-from-file "$bootstrap_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$provision_directory:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py $action /install/integration.env
+done
+grep -q '^TWENTY_INTEGRATION_API_KEY=[A-Za-z0-9._-]\{32,\}$' \
+  "$provision_directory/integration.env" || {
+  echo "pilot-deployment-test: ERROR: Twenty lieferte keinen gültigen Key" >&2
+  exit 1
+}
+provisioned_env="$workspace/production.env.provisioned"
+grep -v '^TWENTY_INTEGRATION_API_KEY=' "$env_file" >"$provisioned_env"
+cat "$provision_directory/integration.env" >>"$provisioned_env"
+chmod 600 "$provisioned_env"
+mv -f "$provisioned_env" "$env_file"
+rm -rf "$provision_directory"
+
+echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
