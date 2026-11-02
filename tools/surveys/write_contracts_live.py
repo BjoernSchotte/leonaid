@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
-from leonaid.entrypoints.fastapi.surveys import router
+from leonaid.modules.surveys.routes import router
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
 
 

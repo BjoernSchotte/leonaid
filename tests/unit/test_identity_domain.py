@@ -8,6 +8,7 @@ from uuid import UUID
 
 import pytest
 
+from leonaid.bootstrap.api import module_navigation
 from leonaid.application.errors import ApplicationError
 from leonaid.application.identity import (
     AccountStatusChange,
@@ -288,7 +289,7 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         ),
     )
 
-    navigation = navigation_for(acquirer)
+    navigation = navigation_for(acquirer, module_navigation()(acquirer))
 
     assert {item.key for item in navigation if item.surface == "web"} == {"surveys"}
     assert {(item.surface, item.key) for item in navigation} >= {

@@ -26,7 +26,7 @@ from leonaid.adapters.storage.survey_checkpoint_archive import FileCheckpointArc
 from leonaid.application.object_storage import ObjectLocation
 from leonaid.application.outbox import OutboxWorker
 from leonaid.application.surveys.recovery import seal, verify
-from leonaid.entrypoints.worker.outbox import build_worker
+from leonaid.bootstrap.worker import build_worker
 from leonaid.domain.outbox import RetryPolicy
 
 PROOF = Path("/proof")
