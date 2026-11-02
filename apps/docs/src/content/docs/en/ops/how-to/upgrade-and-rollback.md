@@ -4,9 +4,9 @@ description: Update pinned Core, Twenty, and RustFS versions behind a maintenanc
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 2fe1a1b7930207925afe13bab77da89d37111c56
 reviewer: Björn Schotte
 ---
 
@@ -22,8 +22,8 @@ window, owner, and a fresh recovery point.
    `pilot-release`). It drains the queues of a Redis 7.4 store with the old
    Twenty worker and empties the volume, because Valkey cannot load it.
 3. Update RustFS and start Twenty once to initialise its prerequisites.
-   Compose recreates `core-postgres` and `twenty-postgres` with the new
-   PostgreSQL image on the same volumes. A minor release within major
+   Starting the target services makes Compose recreate `core-postgres` and
+   `twenty-postgres` with the new PostgreSQL image on the same volumes. A minor release within major
    version 16 keeps the data format, so no dump or `pg_upgrade` runs.
    `./leonaid test-upgrade` proves this from the previous pinned release.
 4. Stop Twenty Server and run its official `command:prod

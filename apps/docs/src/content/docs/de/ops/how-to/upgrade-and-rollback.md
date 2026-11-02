@@ -4,9 +4,9 @@ description: Gepinnte Core-, Twenty- und RustFS-Versionen mit Wartungsgrenze und
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 2fe1a1b7930207925afe13bab77da89d37111c56
 reviewer: Björn Schotte
 ---
 
@@ -23,8 +23,8 @@ Verantwortlichen und einen frischen Recovery Point.
    `pilot-release`). Es arbeitet die Queues eines Redis-7.4-Speichers mit dem
    alten Twenty-Worker ab und leert das Volume, weil Valkey es nicht laden kann.
 3. Aktualisiere RustFS und starte Twenty einmal für seine Voraussetzungen.
-   Compose erzeugt `core-postgres` und `twenty-postgres` mit dem neuen
-   PostgreSQL-Image auf denselben Volumes neu. Ein Minor-Release innerhalb der
+   Beim Start der Zieldienste erzeugt Compose `core-postgres` und
+   `twenty-postgres` mit dem neuen PostgreSQL-Image auf denselben Volumes neu. Ein Minor-Release innerhalb der
    Hauptversion 16 behält das Datenformat; Dump oder `pg_upgrade` entfallen.
    `./leonaid test-upgrade` weist das ab dem vorherigen gepinnten Release nach.
 4. Stoppe Twenty Server und führe dessen offizielle Befehle
