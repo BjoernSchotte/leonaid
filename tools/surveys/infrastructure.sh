@@ -115,7 +115,7 @@ fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 fi
-compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 if [ "$mode" = contracts ]; then
   compose stop worker
@@ -200,9 +200,9 @@ if [ "$mode" = permissions ]; then
   compose up --detach --wait --wait-timeout 60 worker
 fi
 if [ "$foundation" = true ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
-  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" --env SURVEY_FOUNDATION_MEMBER=1 \
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
@@ -210,13 +210,13 @@ browser_workers=1
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = journeys ]; then
   browser_workers=2
-  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" --env SURVEY_FOUNDATION_MEMBER=1 \
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
   browser_specs="$browser_specs tests/e2e/surveys-journey.spec.mjs"
 fi
 if [ "$mode" = branding ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs tests/e2e/surveys-completion-message.spec.mjs"
 fi
@@ -479,7 +479,7 @@ if [ "$mode" = editor ]; then
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
