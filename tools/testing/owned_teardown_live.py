@@ -12,6 +12,9 @@ and builds the api image):
    must find nothing and remove the built images.
 3. A planted leak (stopped one-off container, network, volume) is listed,
    removed by label and reported as a failure.
+4. A tag named after the project but built under another project's label
+   (EmDash recovery targets reuse the source's image names) is removed; a tag
+   of a project whose name extends "<project>-" is kept.
 
 Usage: python3 tools/testing/owned_teardown_live.py
 """
@@ -175,6 +178,53 @@ def planted_leak_is_reported_and_removed(project: str, image: str) -> None:
     print("owned-teardown-live: planted leak was listed, removed and failed the check")
 
 
+def labelled_image(base: str, tag: str, builder: str) -> None:
+    subprocess.run(
+        [
+            "docker",
+            "build",
+            "--quiet",
+            "--network",
+            "none",
+            "--label",
+            f"com.docker.compose.project={builder}",
+            "--tag",
+            tag,
+            "-",
+        ],
+        input=f"FROM {base}\n",
+        text=True,
+        check=True,
+        capture_output=True,
+    )
+
+
+def cross_labelled_images_are_removed(project: str, image: str) -> None:
+    # An EmDash recovery target builds under the source's image names.
+    borrowed = f"{project}-api:latest"
+    labelled_image(image, borrowed, f"leonaid-restore-{project}")
+    # A project named "<project>-child" owns its own tags.
+    foreign = f"{project}-child-api:latest"
+    labelled_image(image, foreign, f"{project}-child")
+    try:
+        result = verify(project)
+        assert result.returncode == 0, result.stderr
+        tags = docker(
+            "image", "ls", "--filter", f"reference={project}-*",
+            "--format", "{{.Repository}}:{{.Tag}}",
+        ).split()
+        assert borrowed not in tags, tags
+        assert foreign in tags, tags
+    finally:
+        subprocess.run(
+            ["docker", "image", "rm", borrowed, foreign], capture_output=True
+        )
+    print(
+        "owned-teardown-live: tag built under another project's label removed; "
+        "a longer project's tag kept"
+    )
+
+
 def main() -> None:
     suffix = os.getpid()
     projects = [f"leonaid-teardown-live-{suffix}", f"leonaid-teardown-leak-{suffix}"]
@@ -190,6 +240,7 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as directory:
             diagnostics_do_not_leak(projects[0], Path(directory))
         planted_leak_is_reported_and_removed(projects[1], image)
+        cross_labelled_images_are_removed(projects[1], image)
     finally:
         # Never leave this proof's own objects behind, even when it fails.
         for project in projects:
