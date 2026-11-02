@@ -87,7 +87,9 @@ def main() -> None:
     if versions == 0:
         raise SystemExit("object-inventory: ERROR: the store holds no object versions")
     Path(sys.argv[1]).write_text(json.dumps(inventory, indent=1, sort_keys=True) + "\n")
-    print(f"object-inventory: {len(buckets)} buckets, {versions} object versions hashed")
+    print(
+        f"object-inventory: {len(buckets)} buckets, {versions} object versions hashed"
+    )
 
 
 if __name__ == "__main__":
