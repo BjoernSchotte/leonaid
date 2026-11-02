@@ -492,9 +492,7 @@ async def exercise(
             headers=request_headers("create-invalid"),
         )
         if unknown.status_code not in {404, 422} or invalid.status_code != 422:
-            raise ContractFailure(
-                "unknown or invalid template keys were accepted"
-            )
+            raise ContractFailure("unknown or invalid template keys were accepted")
 
         historical = await client.get(
             f"/api/v1/actions/{v1_action_id}/configuration",

@@ -168,7 +168,9 @@ def main() -> int:
         require_non_production_environment()
         if args.check:
             check_test_logins(args.dataset, args.output)
-            print("test-login-handoff: OK: golden personas, content and mode up to date")
+            print(
+                "test-login-handoff: OK: golden personas, content and mode up to date"
+            )
             return 0
         write_test_logins(args.dataset, args.output)
     except (OSError, ValueError) as error:

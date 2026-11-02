@@ -16,10 +16,7 @@ test.use({
   viewport: { width: 390, height: 844 },
 });
 
-test("POC-062 explains a real Twenty outage", async ({
-  context,
-  page,
-}) => {
+test("POC-062 explains a real Twenty outage", async ({ context, page }) => {
   await context.addCookies([
     {
       name: "__Host-leonaid_session",

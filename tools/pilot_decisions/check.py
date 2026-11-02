@@ -281,10 +281,7 @@ def main() -> int:
         )
         return 2
     if args.ready:
-        print(
-            f"pilot-doctor: OK ({args.gate}): "
-            "all due pilot decisions are approved"
-        )
+        print(f"pilot-doctor: OK ({args.gate}): all due pilot decisions are approved")
     else:
         print(
             "pilot-decisions: OK: "

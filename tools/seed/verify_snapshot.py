@@ -103,7 +103,9 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
         raise SnapshotError("RustFS objects missing")
     objects = rustfs["objects"]
     if len(objects) != len(dataset["invoices"]):
-        raise SnapshotError("RustFS does not contain exactly one PDF per golden invoice")
+        raise SnapshotError(
+            "RustFS does not contain exactly one PDF per golden invoice"
+        )
     core_documents = core.get("documentManifest")
     if not isinstance(core_documents, list):
         raise SnapshotError("core document manifest missing")
@@ -168,9 +170,7 @@ def verify_mutated(snapshot: JsonObject, fixture: Path) -> None:
 
 def verify_equivalent(first: JsonObject, second: JsonObject) -> None:
     if normalized_business_snapshot(first) != normalized_business_snapshot(second):
-        raise SnapshotError(
-            "full reset did not restore the business snapshot exactly"
-        )
+        raise SnapshotError("full reset did not restore the business snapshot exactly")
 
 
 def main() -> int:

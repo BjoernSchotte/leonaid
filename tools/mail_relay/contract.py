@@ -59,9 +59,7 @@ def expect_failure(
         send.send(message(subject))
     except MailTransportError as error:
         if error.code != expected_code or error.retryable != expected_retryable:
-            raise RuntimeError(
-                "Unsafe or wrong SMTP error classification."
-            ) from error
+            raise RuntimeError("Unsafe or wrong SMTP error classification.") from error
         if str(error) != expected_code:
             raise RuntimeError("SMTP error contains provider details.")
         return
@@ -105,8 +103,7 @@ def assert_delivery_identity(api_url: str) -> None:
         or str(payload.get("MessageID", "")).strip("<>") != MESSAGE_ID.strip("<>")
     ):
         raise RuntimeError(
-            "SMTP server received a wrong From, Reply-To, "
-            "Envelope-From or Message-ID."
+            "SMTP server received a wrong From, Reply-To, Envelope-From or Message-ID."
         )
 
 
@@ -134,9 +131,7 @@ def main() -> None:
     )
     transport(plain_host).send(message("Successful retry"))
     if message_count(plain_api) != before_plain + 1:
-        raise RuntimeError(
-            "The successful retry was not accepted exactly once."
-        )
+        raise RuntimeError("The successful retry was not accepted exactly once.")
     assert_delivery_identity(plain_api)
 
     # STARTTLS plus authentication runs for real against Mailpit. For this

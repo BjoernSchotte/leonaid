@@ -118,9 +118,7 @@ def text_problems(path: Path, *, reviewed_network_fault: bool = False) -> list[s
             f"require('{package}')",
         ):
             if marker in text:
-                problems.append(
-                    f"{path}: forbidden response/mock library {package}"
-                )
+                problems.append(f"{path}: forbidden response/mock library {package}")
                 break
     for marker, label in FORBIDDEN_NETWORK_MARKERS.items():
         if marker in text:

@@ -498,7 +498,9 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     "poc022:commitment:golden-v1",
                 )
                 if returned_commitment != COMMITMENT:
-                    raise RuntimeError("Commitment idempotency returned a different ID.")
+                    raise RuntimeError(
+                        "Commitment idempotency returned a different ID."
+                    )
             for candidate_invoice, candidate_number in (
                 (INVOICE, "KT26-POC022"),
                 (

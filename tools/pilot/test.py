@@ -45,9 +45,7 @@ def prove_permissions_and_manifest(workspace: Path) -> None:
     pilot_root = initialize(workspace)
     for directory in (pilot_root, *pilot_root.iterdir()):
         if not directory.is_dir() or mode(directory) != 0o700:
-            raise AssertionError(
-                f"private directory is not mode 0700: {directory}"
-            )
+            raise AssertionError(f"private directory is not mode 0700: {directory}")
 
     source = pilot_root / "intake" / "club-export.xlsx"
     source.write_bytes(b"synthetic private workbook bytes")

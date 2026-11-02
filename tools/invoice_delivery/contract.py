@@ -307,9 +307,7 @@ async def assert_failed(
         or delivery.get("lastErrorDetail") != "mail_unavailable"
         or delivery.get("messageId") is not None
     ):
-        raise ContractFailure(
-            f"SMTP outage is not fully visible: {delivery}"
-        )
+        raise ContractFailure(f"SMTP outage is not fully visible: {delivery}")
     row = await connection.fetchrow(
         """
         SELECT event.status, event.attempts, event.last_error_code,
@@ -330,9 +328,7 @@ async def assert_failed(
         or row["last_error_detail"] != "mail_unavailable"
         or row["mail_id"] is not None
     ):
-        raise ContractFailure(
-            f"Durable error state is inconsistent: {dict(row or {})}"
-        )
+        raise ContractFailure(f"Durable error state is inconsistent: {dict(row or {})}")
     print(
         "invoice-delivery-contract: really stopped Mailpit gave a visible "
         "error, attempt 1 and an admin retry"
@@ -463,9 +459,7 @@ async def assert_delivered(
             or delivery.get("lastErrorCode") is not None
             or delivery.get("lastErrorDetail") is not None
         ):
-            raise ContractFailure(
-                f"Retry did not give a clear success: {delivery}"
-            )
+            raise ContractFailure(f"Retry did not give a clear success: {delivery}")
         await assert_mime_message(
             mailpit,
             messages[0],
@@ -628,9 +622,7 @@ async def assert_resend(
         "deliveries": 2,
         "sent": 2,
     }:
-        raise ContractFailure(
-            f"Resend counts are inconsistent: {dict(counts or {})}"
-        )
+        raise ContractFailure(f"Resend counts are inconsistent: {dict(counts or {})}")
     print(
         "invoice-delivery-contract: two deliberate deliveries, two Message-IDs "
         "and still exactly one unchanged Typst PDF"

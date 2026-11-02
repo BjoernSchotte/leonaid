@@ -51,7 +51,9 @@ def session_from_response(response: httpx.Response) -> str:
         if value.startswith(f"{SESSION_COOKIE_NAME}=")
     ]
     if len(matching) != 1:
-        raise ContractFailure("response does not set exactly one host-only session cookie")
+        raise ContractFailure(
+            "response does not set exactly one host-only session cookie"
+        )
     parsed = SimpleCookie()
     parsed.load(matching[0])
     morsel = parsed.get(SESSION_COOKIE_NAME)
@@ -178,9 +180,7 @@ async def request_login(
     if first.status_code != 202 or first.json() != expected:
         raise ContractFailure("login request does not return the generic 202 contract")
     if second.status_code != 202 or second.json() != expected:
-        raise ContractFailure(
-            "repeated login request is not generic/idempotent"
-        )
+        raise ContractFailure("repeated login request is not generic/idempotent")
     return credentials_from_mail(
         await wait_for_new_mail(
             mailpit,
@@ -242,9 +242,7 @@ async def require_identity(
         },
     )
     if response.status_code != 200:
-        raise ContractFailure(
-            f"valid 90-day session was rejected: {response.text}"
-        )
+        raise ContractFailure(f"valid 90-day session was rejected: {response.text}")
     payload = response.json()
     if not isinstance(payload, dict):
         raise ContractFailure("identity response is not an object")
@@ -286,9 +284,7 @@ async def run() -> None:
                 json={"email": UNKNOWN_EMAIL},
             )
             if unknown.status_code != 202 or unknown.json() != {"status": "queued"}:
-                raise ContractFailure(
-                    "unknown account received a different response"
-                )
+                raise ContractFailure("unknown account received a different response")
             if await message_ids(mailpit) != unknown_before:
                 raise ContractFailure("unknown account triggered an email")
 
@@ -448,9 +444,7 @@ async def run() -> None:
                 },
             )
             if revoked.status_code != 200 or revoked.json().get("revokedCount") != 1:
-                raise ContractFailure(
-                    "admin session revocation had no effect"
-                )
+                raise ContractFailure("admin session revocation had no effect")
             stolen = await client.get(
                 "/api/v1/identity/me",
                 headers={

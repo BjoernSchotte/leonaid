@@ -210,7 +210,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             rejected.status_code != 409
             or error_code(rejected) != "sponsor_match_confirmation_required"
         ):
-            raise ContractFailure("Multiple assignment was possible without confirmation")
+            raise ContractFailure(
+                "Multiple assignment was possible without confirmation"
+            )
         premature = await connection.fetchval(
             """
             SELECT count(*)
@@ -257,9 +259,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             address.get("addressPostcode") != "10243"
             or address.get("addressCity") != "Beispielstadt"
         ):
-            raise ContractFailure(
-                "Extra data silently overwrote existing CRM data"
-            )
+            raise ContractFailure("Extra data silently overwrote existing CRM data")
 
         person_draft = {
             "givenName": "  MAX ",
@@ -408,9 +408,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "poc032:new-company-idempotency-conflict",
         )
         if changed.status_code != 409 or error_code(changed) != "idempotency_conflict":
-            raise ContractFailure(
-                "The same operation ID accepted different input"
-            )
+            raise ContractFailure("The same operation ID accepted different input")
 
         created_company_record = await twenty_record(
             twenty,

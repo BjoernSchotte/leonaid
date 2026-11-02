@@ -193,9 +193,7 @@ async def assert_seeded_sources(connection: asyncpg.Connection[Any]) -> None:
         or totals["piece_count"] != 600
         or totals["total_minor"] != 90_000
     ):
-        raise ContractFailure(
-            "Golden quantities and amounts were not fully persisted"
-        )
+        raise ContractFailure("Golden quantities and amounts were not fully persisted")
     offering = await connection.fetchrow(
         """
         SELECT
@@ -248,9 +246,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             headers=session_headers(tokens[ANNA_ID]),
         )
         if forbidden_list.status_code != 403:
-            raise ContractFailure(
-                "Acquirer could read the full admin work queue"
-            )
+            raise ContractFailure("Acquirer could read the full admin work queue")
 
         seeded_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/commitments",
@@ -313,9 +309,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             UUID(str(replay_value["id"])) != commitment_id
             or not replay_value["replayed"]
         ):
-            raise ContractFailure(
-                "Idempotent retry created a new commitment"
-            )
+            raise ContractFailure("Idempotent retry created a new commitment")
 
         conflict_body = body_for(
             source="acquisition",
@@ -334,9 +328,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             conflict.status_code != 409
             or error_code(conflict) != "idempotency_conflict"
         ):
-            raise ContractFailure(
-                "Diverging idempotent retry was accepted"
-            )
+            raise ContractFailure("Diverging idempotent retry was accepted")
 
         forbidden_admin = await post_commitment(
             api,

@@ -159,9 +159,7 @@ class Settings(BaseSettings):
             return None
         raw = value.get_secret_value() if isinstance(value, SecretStr) else value
         if not isinstance(raw, str) or re.fullmatch(r"[0-9a-f]{64}", raw) is None:
-            raise ValueError(
-                "Order submission key must be 32 random bytes as hex."
-            )
+            raise ValueError("Order submission key must be 32 random bytes as hex.")
         return value
 
     @field_validator("core_database_url")
@@ -183,8 +181,7 @@ class Settings(BaseSettings):
             self.pilot_alertmanager_url is None
         ):
             raise ValueError(
-                "Pilot monitor status and Alertmanager must be configured "
-                "together."
+                "Pilot monitor status and Alertmanager must be configured together."
             )
         if self.environment != "production":
             return self
@@ -208,9 +205,7 @@ class Settings(BaseSettings):
         for origin in self.allowed_origins:
             parsed = urlparse(origin)
             if parsed.scheme != "https" or _is_forbidden_public_host(parsed.hostname):
-                raise ValueError(
-                    "Production origins must be public HTTPS origins."
-                )
+                raise ValueError("Production origins must be public HTTPS origins.")
         if (self.mail_health_url.host or "").casefold() == "mailpit":
             raise ValueError("Mailpit is not allowed in production.")
         if self.object_storage_bucket == "leonaid":
@@ -221,9 +216,7 @@ class Settings(BaseSettings):
             self.invitation_hmac_secret.get_secret_value()
             == self.mail_payload_secret.get_secret_value()
         ):
-            raise ValueError(
-                "Production HMAC and payload secrets must differ."
-            )
+            raise ValueError("Production HMAC and payload secrets must differ.")
         return self
 
     def safe_summary(self) -> dict[str, str]:
@@ -335,9 +328,7 @@ class MailTransportSettings(BaseSettings):
 
     def model_post_init(self, __context: object) -> None:
         if (self.username is None) != (self.password is None):
-            raise ValueError(
-                "SMTP username and password must be set together."
-            )
+            raise ValueError("SMTP username and password must be set together.")
         if self.environment == "production":
             if self.mode == "plain":
                 raise ValueError("Production SMTP delivery requires TLS.")
@@ -367,8 +358,7 @@ class MailTransportSettings(BaseSettings):
                 )
                 if not domain or _is_forbidden_public_host(domain):
                     raise ValueError(
-                        f"Production requires an explicit {label} "
-                        "with a real domain."
+                        f"Production requires an explicit {label} with a real domain."
                     )
             if self.host.casefold() in {"mailpit", "localhost"}:
                 raise ValueError(

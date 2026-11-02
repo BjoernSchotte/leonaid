@@ -124,7 +124,9 @@ async def create_invitation(
         )
     payload = response.json()
     if set(payload) != {"invitationId", "status"} or payload["status"] != "queued":
-        raise ContractFailure("invitation response reveals unexpected account information")
+        raise ContractFailure(
+            "invitation response reveals unexpected account information"
+        )
     return UUID(str(payload["invitationId"])), payload
 
 
@@ -174,8 +176,7 @@ async def wait_for_mail(
                         "support@leonaid.invalid"
                     }:
                         raise ContractFailure(
-                            "invitation/change mail has the wrong "
-                            "From or Reply-To"
+                            "invitation/change mail has the wrong From or Reply-To"
                         )
                     text = detail.get("Text")
                     if not isinstance(text, str):
@@ -251,7 +252,9 @@ async def verify_accepted(
         "membership_role": role,
     }
     if row is None or dict(row) != expected:
-        raise ContractFailure(f"acceptance was not visible atomically: {dict(row or {})}")
+        raise ContractFailure(
+            f"acceptance was not visible atomically: {dict(row or {})}"
+        )
 
 
 async def run(arguments: argparse.Namespace) -> None:
@@ -394,7 +397,9 @@ async def run(arguments: argparse.Namespace) -> None:
             or forbidden.json().get("error", {}).get("code")
             != "invitation_action_forbidden"
         ):
-            raise ContractFailure("direct request for a foreign action was not forbidden")
+            raise ContractFailure(
+                "direct request for a foreign action was not forbidden"
+            )
 
         link_id, link_dispatch = await create_invitation(
             client,
@@ -734,7 +739,9 @@ async def run(arguments: argparse.Namespace) -> None:
         if system_list.status_code != 200 or foreign_id not in {
             UUID(str(item["id"])) for item in system_list.json().get("items", [])
         }:
-            raise ContractFailure("system admin filter does not contain the foreign action")
+            raise ContractFailure(
+                "system admin filter does not contain the foreign action"
+            )
 
         connection = await asyncpg.connect(database_url, timeout=10)
         try:
@@ -908,9 +915,7 @@ async def run(arguments: argparse.Namespace) -> None:
             or duplicate_change.json().get("error", {}).get("code")
             != "email_change_already_pending"
         ):
-            raise ContractFailure(
-                "concurrent email correction was not rejected"
-            )
+            raise ContractFailure("concurrent email correction was not rejected")
         occupied_change = await client.post(
             f"/api/v1/identity/members/{UI_EMAIL_START_USER_ID}/email-change",
             cookies=cookies(system_session),

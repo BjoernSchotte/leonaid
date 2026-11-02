@@ -327,7 +327,10 @@ def validate_manifest(
         revisions.append(revision)
         if root is not None:
             actual_path = root / path
-            _require(actual_path.is_file(), f"{revision}: migration is missing from the checkout")
+            _require(
+                actual_path.is_file(),
+                f"{revision}: migration is missing from the checkout",
+            )
             _require(
                 _migration_revision(actual_path) == revision,
                 f"{revision}: migration identity differs from the checkout",
@@ -354,7 +357,9 @@ def validate_manifest(
             raise InvalidManifest(f"{label}: SHA is missing")
         if root is not None:
             actual_path = root / path
-            _require(actual_path.is_file(), f"{label}: artifact is missing from the checkout")
+            _require(
+                actual_path.is_file(), f"{label}: artifact is missing from the checkout"
+            )
             _require(
                 _sha256(actual_path) == digest,
                 f"{label}: artifact differs from the manifest",

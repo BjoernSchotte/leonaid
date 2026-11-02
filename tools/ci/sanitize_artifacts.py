@@ -266,9 +266,7 @@ def sanitize_zip_bytes(
                     )
                 total_uncompressed += entry.file_size
                 if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
-                    raise SanitizationFailure(
-                        f"ZIP exceeds extraction limit: {label}"
-                    )
+                    raise SanitizationFailure(f"ZIP exceeds extraction limit: {label}")
                 if entry.is_dir():
                     entry.comment = b""
                     entry.extra = b""

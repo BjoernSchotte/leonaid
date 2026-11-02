@@ -244,7 +244,9 @@ async def prove() -> None:
             for _ in range(6)
         ]
         if login_statuses[:5] != [202] * 5 or login_statuses[5] != 429:
-            raise ContractFailure("login rate limit does not apply at the sixth attempt")
+            raise ContractFailure(
+                "login rate limit does not apply at the sixth attempt"
+            )
 
         leaked = await client.post(
             f"/api/v1/does-not-exist?probe={canary}",

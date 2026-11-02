@@ -173,9 +173,7 @@ async def prepare(
             or error_code(missing_configuration)
             != "privacy_legal_configuration_missing"
         ):
-            raise ContractFailure(
-                "Privacy request ran without active retention rules"
-            )
+            raise ContractFailure("Privacy request ran without active retention rules")
         await connection.execute(
             """
             UPDATE legal_configuration_state
@@ -207,7 +205,9 @@ async def prepare(
                 "auditDays": 3650,
             }
         ):
-            raise ContractFailure("Privacy lookup hides retention periods or PoC limits")
+            raise ContractFailure(
+                "Privacy lookup hides retention periods or PoC limits"
+            )
 
         export = await api.post(
             "/api/v1/admin/privacy/exports",
@@ -222,9 +222,7 @@ async def prepare(
             or str(INVOICE_ID) not in serialized
             or str(LEGAL_CONFIGURATION_ID) not in serialized
         ):
-            raise ContractFailure(
-                "Data export contains foreign or incomplete data"
-            )
+            raise ContractFailure("Data export contains foreign or incomplete data")
 
         forbidden = await api.post(
             "/api/v1/admin/privacy/lookup",
@@ -252,9 +250,7 @@ async def assert_result(
 ) -> None:
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     if await immutable_hashes(connection) != baseline:
-        raise ContractFailure(
-            "Invoice or invoice PDF changed during erasure"
-        )
+        raise ContractFailure("Invoice or invoice PDF changed during erasure")
 
     evidence = await connection.fetchrow(
         "SELECT revoked_at FROM consent_record WHERE id = $1",
@@ -349,7 +345,9 @@ async def assert_result(
             None,
         )
         if work_item is None or "email" not in work_item.get("suppressedChannels", []):
-            raise ContractFailure("Acquirer UI does not receive the contact suppression")
+            raise ContractFailure(
+                "Acquirer UI does not receive the contact suppression"
+            )
         blocked = await api.post(
             f"/api/v1/actions/{ACTION_ID}/acquisition/activities",
             headers=headers(anna),

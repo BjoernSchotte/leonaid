@@ -51,9 +51,7 @@ def main() -> None:
         )
         sponsor = api.get("sponsor")
         if not isinstance(sponsor, dict):
-            raise context.failure(
-                "proof-compare", "API proof has no sponsor."
-            )
+            raise context.failure("proof-compare", "API proof has no sponsor.")
         expected_id = sponsor.get("expectedTwentyId")
         ids = {
             "UI": ui.get("partyId"),

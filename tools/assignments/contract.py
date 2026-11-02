@@ -169,7 +169,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             carla_assignment_id,
         )
         if carla_count != 1 or carla_history_count != 1:
-            raise ContractFailure("Concurrency created a duplicate or duplicate history")
+            raise ContractFailure(
+                "Concurrency created a duplicate or duplicate history"
+            )
 
         bernd = await request(
             api,
@@ -187,9 +189,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             raise ContractFailure("Proactive admin assignment to Bernd failed")
         bernd_assignment_id = UUID(bernd.json()["assignment"]["id"])
         if bernd_assignment_id == carla_assignment_id:
-            raise ContractFailure(
-                "Several acquirers wrongly share one assignment ID"
-            )
+            raise ContractFailure("Several acquirers wrongly share one assignment ID")
 
         due_at = datetime(2026, 8, 3, 8, 30, tzinfo=timezone.utc)
         updated = await request(
@@ -278,9 +278,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or handover_body["target"]["nextAction"] != "Angebot persönlich nachfassen"
             or handover_body["targetCreated"] is not True
         ):
-            raise ContractFailure(
-                "Handover does not keep ownership and follow-up"
-            )
+            raise ContractFailure("Handover does not keep ownership and follow-up")
         anna_assignment_id = UUID(handover_body["target"]["id"])
 
         concealed = await request(
@@ -370,9 +368,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             ],
         )
         if audit_count != 4:
-            raise ContractFailure(
-                "Idempotent assignments/updates are audited wrongly"
-            )
+            raise ContractFailure("Idempotent assignments/updates are audited wrongly")
 
         print(
             "assignment-contract: OK:",

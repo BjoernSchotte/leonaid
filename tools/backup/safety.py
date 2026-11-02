@@ -67,7 +67,9 @@ def backup(arguments: argparse.Namespace) -> None:
 def restore(arguments: argparse.Namespace) -> None:
     validate_project(arguments.source_project)
     if not SAFE_RESTORE_PROJECT.fullmatch(arguments.target_project):
-        raise SafetyError("restore target must be named explicitly 'leonaid-restore-<name>'")
+        raise SafetyError(
+            "restore target must be named explicitly 'leonaid-restore-<name>'"
+        )
     if arguments.source_project == arguments.target_project:
         raise SafetyError("restore must not overwrite the source environment")
     expected = f"RESTORE:{arguments.target_project}"

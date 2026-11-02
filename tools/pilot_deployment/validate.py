@@ -156,9 +156,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         service = object_value(raw_service, f"services.{service_name}")
         validate_runtime_limits(service_name, service)
         if "build" in service:
-            raise DeploymentContractError(
-                f"{service_name} contains a production build"
-            )
+            raise DeploymentContractError(f"{service_name} contains a production build")
         image = string_value(service, "image")
         if IMAGE_DIGEST.search(image) is None and not (
             isolated_test_mode and LOCAL_IMAGE_ID.fullmatch(image) is not None
@@ -272,9 +270,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         validate_public_url(origin.strip(), "LEONAID_ALLOWED_ORIGINS")
     release_commit = string_value(api_environment, "LEONAID_RELEASE_COMMIT")
     if FULL_COMMIT.fullmatch(release_commit) is None:
-        raise DeploymentContractError(
-            "release is not bound to a full commit"
-        )
+        raise DeploymentContractError("release is not bound to a full commit")
 
     bucket = string_value(api_environment, "OBJECT_STORAGE_BUCKET")
     if bucket == "leonaid" or "__" in bucket:

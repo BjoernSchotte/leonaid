@@ -409,9 +409,7 @@ async def assert_recovered(
         or row["manual_retry_count"] != 1
         or row["last_manual_retry_by"] != str(SIMONE_ID)
     ):
-        raise ContractFailure(
-            f"UI retry was not processed safely: {dict(row or {})}"
-        )
+        raise ContractFailure(f"UI retry was not processed safely: {dict(row or {})}")
     delivered = await connection.fetchval(
         "SELECT count(*) FROM mail_delivery WHERE outbox_event_id = $1",
         event_id,

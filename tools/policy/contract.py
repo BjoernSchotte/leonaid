@@ -191,7 +191,9 @@ async def exercise(
                 str(ANNA_ID),
                 str(BERND_ID),
             }:
-                raise ContractFailure("Shared assignment is not visible to both acquirers")
+                raise ContractFailure(
+                    "Shared assignment is not visible to both acquirers"
+                )
 
         anna_detail = await get(
             client,
@@ -340,7 +342,9 @@ async def exercise(
         after_assignment_removal = await get(client, list_path, anna)
         after_assignment_removal.raise_for_status()
         if item_ids(after_assignment_removal.json()) != {COMPANY_SHARED}:
-            raise ContractFailure("Assignment removal does not take effect without a new login")
+            raise ContractFailure(
+                "Assignment removal does not take effect without a new login"
+            )
         await connection.execute(
             """
             INSERT INTO acquisition_assignment (
@@ -370,7 +374,9 @@ async def exercise(
             raise ContractFailure("Golden membership is missing")
         after_membership_removal = await get(client, list_path, anna)
         if error_signature(after_membership_removal) != error_signature(unknown_action):
-            raise ContractFailure("Membership removal does not take effect without a new login")
+            raise ContractFailure(
+                "Membership removal does not take effect without a new login"
+            )
         await connection.execute(
             """
             UPDATE action_membership

@@ -1879,7 +1879,9 @@ def verify_seed_snapshot(
     if core.get("documentManifest") != documents:
         raise SeedError("core document mappings differ from the PDF manifest")
     if value.get("twenty") != expected_twenty(dataset):
-        raise SeedError("Twenty does not contain exactly the golden companies and contacts")
+        raise SeedError(
+            "Twenty does not contain exactly the golden companies and contacts"
+        )
     rustfs = value.get("rustfs")
     if not isinstance(rustfs, dict):
         raise SeedError("RustFS snapshot missing")

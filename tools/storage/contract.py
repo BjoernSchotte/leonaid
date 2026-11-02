@@ -101,15 +101,11 @@ async def exercise(
         expires_in=timedelta(seconds=60),
     )
     if "X-Amz-Signature=" not in signed_url or "versionId=" not in signed_url:
-        raise ContractFailure(
-            f"{provider}: protected URL is not signed/versioned"
-        )
+        raise ContractFailure(f"{provider}: protected URL is not signed/versioned")
     async with httpx.AsyncClient(timeout=30) as client:
         signed = await client.get(signed_url)
         if signed.status_code != 200 or signed.content != content:
-            raise ContractFailure(
-                f"{provider}: signed download is not byte-identical"
-            )
+            raise ContractFailure(f"{provider}: signed download is not byte-identical")
         anonymous = await client.get(
             f"{endpoint_url.rstrip('/')}/{quote(bucket)}/{quote(key, safe='/')}"
         )

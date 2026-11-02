@@ -152,8 +152,7 @@ async def create_order(
     )
     if response.status_code != 201:
         raise ContractFailure(
-            f"Public order {label} failed: "
-            f"{response.status_code} {response.text}"
+            f"Public order {label} failed: {response.status_code} {response.text}"
         )
     payload = response.json()
     if not isinstance(payload, dict):
@@ -183,9 +182,7 @@ async def assert_recipients(
         or event["twenty_company_id"] != party_id
         or event["twenty_person_id"] is not None
     ):
-        raise ContractFailure(
-            "ActivityEvent references the wrong action or CRM party"
-        )
+        raise ContractFailure("ActivityEvent references the wrong action or CRM party")
     recipients = await connection.fetch(
         """
         SELECT user_id, read_at
@@ -198,7 +195,9 @@ async def assert_recipients(
     if {row["user_id"] for row in recipients} != expected_recipients or any(
         row["read_at"] is not None for row in recipients
     ):
-        raise ContractFailure("ActivityEvent recipients are not exactly right for the domain")
+        raise ContractFailure(
+            "ActivityEvent recipients are not exactly right for the domain"
+        )
     return UUID(str(event["id"]))
 
 

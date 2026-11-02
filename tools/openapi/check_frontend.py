@@ -54,7 +54,9 @@ def violations(
                         text,
                     )
             if DIRECT_API_FETCH.search(transport_text):
-                problems.append(f"{path}: direct API fetch instead of @leonaid/api-client")
+                problems.append(
+                    f"{path}: direct API fetch instead of @leonaid/api-client"
+                )
             if GENERATED_IMPORT.search(text):
                 problems.append(
                     f"{path}: generated transport artifact imported directly"

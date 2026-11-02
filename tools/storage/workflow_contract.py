@@ -137,9 +137,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
             invoice_id,
         )
         if row is None:
-            raise ContractFailure(
-                "invoice, pending document and outbox are not atomic"
-            )
+            raise ContractFailure("invoice, pending document and outbox are not atomic")
         if (
             row["status"] != "pending"
             or row["outbox_status"] != "pending"
@@ -248,9 +246,7 @@ async def assert_failed(
             )
         )
     ):
-        raise ContractFailure(
-            "RustFS outage left a false success or no retry state"
-        )
+        raise ContractFailure("RustFS outage left a false success or no retry state")
     detail = str(row["last_error_detail"])
     if require_env("OBJECT_STORAGE_SECRET_KEY") in detail:
         raise ContractFailure("outbox error text contains storage credentials")
@@ -310,9 +306,7 @@ async def assert_success(
         or row["outbox_completed_at"] is None
         or any(row[column] is None for column in required)
     ):
-        raise ContractFailure(
-            "retried render job did not complete fully"
-        )
+        raise ContractFailure("retried render job did not complete fully")
     location = ObjectLocation(
         bucket=str(row["storage_bucket"]),
         key=str(row["object_key"]),
@@ -327,9 +321,7 @@ async def assert_success(
         or retrieved.stored.media_type != "application/pdf"
         or not retrieved.content.startswith(b"%PDF-")
     ):
-        raise ContractFailure(
-            "RustFS object and GeneratedDocument differ"
-        )
+        raise ContractFailure("RustFS object and GeneratedDocument differ")
 
     tokens = {str(key): str(value) for key, value in state["tokens"].items()}
     async with httpx.AsyncClient(
@@ -455,9 +447,7 @@ async def assert_success(
         document_id,
     )
     if audit_count != 1:
-        raise ContractFailure(
-            "document generation has no unique audit record"
-        )
+        raise ContractFailure("document generation has no unique audit record")
     pdf_path.write_bytes(retrieved.content)
     print(
         "storage-workflow: SUCCESS: retry, byte-identical core download, "

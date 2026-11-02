@@ -7,9 +7,7 @@ if (!baseUrl || !artifactDirectory) {
   throw new Error("POC-110 browser environment is incomplete");
 }
 
-test("login rate limit explains the safe next step", async ({
-  page,
-}) => {
+test("login rate limit explains the safe next step", async ({ page }) => {
   await page.goto(`${baseUrl}/login`);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Bei LeonAid anmelden",

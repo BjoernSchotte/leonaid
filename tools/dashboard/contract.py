@@ -403,16 +403,12 @@ async def run() -> None:
                 or empty_goal.get("actualValue") != "125"
                 or as_object(empty_admin["pipeline"], "Empty pipeline").get("total")
                 != 0
-                or as_object(empty_admin["commitments"], "Empty orders").get(
-                    "total"
-                )
+                or as_object(empty_admin["commitments"], "Empty orders").get("total")
                 != 0
                 or as_object(empty_admin["invoices"], "Empty invoices").get("total")
                 != 0
             ):
-                raise ContractFailure(
-                    "Empty or partly configured action is not stable"
-                )
+                raise ContractFailure("Empty or partly configured action is not stable")
     finally:
         await connection.close()
 

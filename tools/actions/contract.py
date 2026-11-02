@@ -190,9 +190,7 @@ async def exercise(
             409,
             "action_archive_slug_conflict",
         ):
-            raise ContractFailure(
-                "duplicate archive slug has no conflict contract"
-            )
+            raise ContractFailure("duplicate archive slug has no conflict contract")
 
         direct_membership = await connection.fetchval(
             """

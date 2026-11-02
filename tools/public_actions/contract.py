@@ -127,9 +127,7 @@ async def assert_astro_matches(
         )
     expected_state = str(direct["availability"])
     if response.headers.get("X-LeonAid-Public-State") != expected_state:
-        raise ContractFailure(
-            f"Astro route {path} and Core decide differently"
-        )
+        raise ContractFailure(f"Astro route {path} and Core decide differently")
     source = response.text
     has_client_script = "<script" in source.casefold()
     submissions_allowed = direct.get("submissionsAllowed") is True
@@ -150,9 +148,7 @@ async def assert_astro_matches(
             )
         for offering in action.get("offerings", []):
             if html.escape(str(offering["name"])) not in source:
-                raise ContractFailure(
-                    f"Astro route {path} drops a public offering"
-                )
+                raise ContractFailure(f"Astro route {path} drops a public offering")
         if submissions_allowed:
             order_form = action.get("orderForm")
             expected_submit_label = (
@@ -176,9 +172,7 @@ async def assert_astro_matches(
     canonical_path = str(direct["canonicalPath"])
     canonical_url = response.url.join(canonical_path)
     if f'rel="canonical" href="{canonical_url}"' not in source:
-        raise ContractFailure(
-            f"Astro route {path} has no matching canonical URL"
-        )
+        raise ContractFailure(f"Astro route {path} has no matching canonical URL")
 
 
 async def exercise(
@@ -302,7 +296,9 @@ async def exercise(
             follow_up_id,
         )
         if updated != "UPDATE 1":
-            raise ContractFailure("Golden follow-up year has no offering that can be activated")
+            raise ContractFailure(
+                "Golden follow-up year has no offering that can be activated"
+            )
 
         delivery_configuration = await client.get(
             f"/api/v1/actions/{follow_up_id}/delivery-configuration",

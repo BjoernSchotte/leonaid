@@ -136,9 +136,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 or int(line["pieces_per_unit_snapshot"]) != 24
                 or int(line["unit_price_minor"]) != 3_600
             ):
-                raise VerificationFailure(
-                    f"UI order is incomplete: {scenario}"
-                )
+                raise VerificationFailure(f"UI order is incomplete: {scenario}")
             recipients = await connection.fetch(
                 """
                 SELECT recipient.user_id
@@ -166,9 +164,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                     raise VerificationFailure("UI company is missing in Twenty")
             else:
                 if row["twenty_company_id"] is not None:
-                    raise VerificationFailure(
-                        "Private person was stored as a company"
-                    )
+                    raise VerificationFailure("Private person was stored as a company")
                 record = await twenty_record(
                     twenty,
                     "people",

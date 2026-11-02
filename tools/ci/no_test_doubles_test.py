@@ -29,9 +29,7 @@ def expect_failure(checker: Path, root: Path, expected: str) -> None:
     )
     output = result.stdout + result.stderr
     if result.returncode == 0 or expected not in output:
-        raise AssertionError(
-            f"Policy case {expected!r} was not rejected: {output}"
-        )
+        raise AssertionError(f"Policy case {expected!r} was not rejected: {output}")
 
 
 def write_review(root: Path, source: str) -> Path:

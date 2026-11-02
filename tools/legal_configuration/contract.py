@@ -256,9 +256,7 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             stale.status_code != 409
             or error_code(stale) != "legal_configuration_revision_conflict"
         ):
-            raise ContractFailure(
-                "Optimistic revision did not prevent a lost update"
-            )
+            raise ContractFailure("Optimistic revision did not prevent a lost update")
 
 
 async def assert_result(connection: asyncpg.Connection[Any]) -> None:

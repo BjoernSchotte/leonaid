@@ -241,9 +241,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "Musterwerk GmbH",
             "Doppelkontakt AG",
         ] or [item["urgency"] for item in items[:2]] != ["overdue", "today"]:
-            raise ContractFailure(
-                "Overdue/today follow-ups are sorted wrongly"
-            )
+            raise ContractFailure("Overdue/today follow-ups are sorted wrongly")
         activities = board_body["activities"]
         if (
             len(activities) != 2

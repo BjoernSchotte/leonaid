@@ -259,7 +259,9 @@ async def prepare(
         response.raise_for_status()
         invoice = response.json()
     if invoice.get("number") != "KT26-0004" or invoice.get("status") != "issued":
-        raise ContractFailure(f"Invoice for the cancellation case was not issued: {invoice}")
+        raise ContractFailure(
+            f"Invoice for the cancellation case was not issued: {invoice}"
+        )
     state = {
         "cancellationInvoiceId": str(invoice["id"]),
         "openInvoiceId": str(OPEN_INVOICE_ID),
@@ -303,7 +305,9 @@ async def capture(
         invoice_id,
     )
     if invoice_snapshot is None or document_snapshot is None:
-        raise ContractFailure("Typst PDF and invoice snapshot are missing before cancellation")
+        raise ContractFailure(
+            "Typst PDF and invoice snapshot are missing before cancellation"
+        )
     state["invoiceSnapshot"] = json_object(
         invoice_snapshot,
         label="Invoice snapshot",

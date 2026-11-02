@@ -51,9 +51,7 @@ try {
     error.detail.requestId !== requestId ||
     !error.detail.message.includes("existiert nicht")
   ) {
-    throw new Error(
-      `Error response is not typed: ${JSON.stringify(error)}`,
-    );
+    throw new Error(`Error response is not typed: ${JSON.stringify(error)}`);
   }
 }
 

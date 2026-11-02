@@ -47,9 +47,7 @@ def git_lines(root: Path, *arguments: str) -> list[str]:
         text=True,
     )
     if result.returncode != 0:
-        raise BoundaryError(
-            f"git {arguments[0]} failed: {result.stderr.strip()}"
-        )
+        raise BoundaryError(f"git {arguments[0]} failed: {result.stderr.strip()}")
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -92,7 +90,9 @@ def check_ignored_paths(root: Path) -> None:
 def check_git_index_and_history(root: Path) -> None:
     indexed = private_paths(git_lines(root, "ls-files", "--cached"))
     if indexed:
-        raise BoundaryError(f"private pilot files in the Git index: {', '.join(indexed)}")
+        raise BoundaryError(
+            f"private pilot files in the Git index: {', '.join(indexed)}"
+        )
     historical = private_paths(
         git_lines(root, "log", "--all", "--format=", "--name-only")
     )
@@ -149,9 +149,7 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
             )
         if is_cache:
             if path != SYNTHETIC_FIXTURE_CACHE:
-                raise BoundaryError(
-                    f"{workflow}: cache path not allowed: {path}"
-                )
+                raise BoundaryError(f"{workflow}: cache path not allowed: {path}")
         else:
             paths.append(path)
     return paths
@@ -180,9 +178,7 @@ def check_workflows(root: Path) -> None:
                 path.startswith(prefix) for prefix in ALLOWED_PUBLIC_UPLOAD_PREFIXES
             ):
                 continue
-            raise BoundaryError(
-                f"{workflow}: public upload path not allowed: {path}"
-            )
+            raise BoundaryError(f"{workflow}: public upload path not allowed: {path}")
     if upload_count == 0:
         raise BoundaryError("GitHub workflows contain no checked upload")
 

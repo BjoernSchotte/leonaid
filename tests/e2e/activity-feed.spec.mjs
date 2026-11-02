@@ -46,9 +46,7 @@ async function expectNoSeriousA11yIssues(page) {
   ).toEqual([]);
 }
 
-test("Anna sees exclusive and shared public orders", async ({
-  browser,
-}) => {
+test("Anna sees exclusive and shared public orders", async ({ browser }) => {
   const { context, page } = await pageFor(browser, annaSession, {
     width: 390,
     height: 844,

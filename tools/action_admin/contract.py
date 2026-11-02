@@ -229,9 +229,7 @@ async def exercise(
             422,
             "action_publication_window_incomplete",
         ):
-            raise ContractFailure(
-                "incomplete publication window was accepted"
-            )
+            raise ContractFailure("incomplete publication window was accepted")
 
         await connection.execute(
             """
@@ -304,7 +302,9 @@ async def exercise(
         responsibles.raise_for_status()
         revision = int(responsibles.json()["action"]["revision"])
         if revision != 4:
-            raise ContractFailure("change of responsible person did not increase the revision")
+            raise ContractFailure(
+                "change of responsible person did not increase the revision"
+            )
 
         felix_access = await client.get(
             f"/api/v1/actions/{action_id}/management",

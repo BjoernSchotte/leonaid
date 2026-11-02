@@ -165,9 +165,7 @@ def path_parameters(
         result.append((name, camel_identifier(name), ts_type(schema)))
     placeholders = set(re.findall(r"\{([^{}]+)\}", path))
     if placeholders != seen:
-        raise GenerationError(
-            f"Path parameters do not match the path: {path}"
-        )
+        raise GenerationError(f"Path parameters do not match the path: {path}")
     return result
 
 
@@ -231,9 +229,7 @@ def request_body_type(operation: dict[str, Any]) -> str | None:
     if request_body is None:
         return None
     if not isinstance(request_body, dict) or request_body.get("required") is not True:
-        raise GenerationError(
-            "Only required JSON request bodies are supported."
-        )
+        raise GenerationError("Only required JSON request bodies are supported.")
     content = request_body.get("content")
     if not isinstance(content, dict):
         raise GenerationError("RequestBody without content.")

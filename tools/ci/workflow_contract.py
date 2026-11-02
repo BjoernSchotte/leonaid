@@ -62,17 +62,13 @@ def check(path: Path) -> list[str]:
     if "docker system prune --all --volumes --force" not in cold:
         problems.append("Cold run does not clear Docker system state and caches.")
     if "./leonaid test-pilot-rehearsal --synthetic" not in cold:
-        problems.append(
-            "Cold run does not execute the full synthetic dress rehearsal."
-        )
+        problems.append("Cold run does not execute the full synthetic dress rehearsal.")
     if "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR" not in cold:
         problems.append(
             "Cold run does not publish the sanitized dress-rehearsal evidence."
         )
     if "services:" in text:
-        problems.append(
-            "Workflow must not define services that differ from Compose."
-        )
+        problems.append("Workflow must not define services that differ from Compose.")
     integration = job_block(text, "integration")
     for required in (
         "needs: integration-shards",
@@ -98,9 +94,7 @@ def check_emdash(text: str) -> list[str]:
     if "paths:" in text or "paths-ignore:" in text:
         problems.append("Required CI must not use path filters.")
     if "continue-on-error" in cases or re.search(r"(?i)retry", cases):
-        problems.append(
-            "EmDash proofs must not retry or ignore failures."
-        )
+        problems.append("EmDash proofs must not retry or ignore failures.")
     summary = job_block(text, "emdash-proofs")
     for required in (
         "needs: emdash-cases",

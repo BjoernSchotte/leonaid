@@ -110,9 +110,7 @@ def flags_by_key(payload: object) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for item in payload["flags"]:
         if not isinstance(item, dict) or not isinstance(item.get("key"), str):
-            raise ContractFailure(
-                "Feature flag response contains an invalid entry"
-            )
+            raise ContractFailure("Feature flag response contains an invalid entry")
         result[item["key"]] = item
     return result
 
@@ -149,7 +147,9 @@ async def prepare(
             or flag.get("provider") != "leonaid-postgres-snapshot"
             for flag in evaluated.values()
         ):
-            raise ContractFailure("OpenFeature evaluates the golden start value wrongly")
+            raise ContractFailure(
+                "OpenFeature evaluates the golden start value wrongly"
+            )
 
         forbidden = await api.get(
             "/api/v1/admin/feature-flags",

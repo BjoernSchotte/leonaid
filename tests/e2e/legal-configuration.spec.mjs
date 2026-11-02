@@ -33,9 +33,7 @@ async function expectNoSeriousAccessibilityViolations(page) {
   ).toEqual([]);
 }
 
-test("two system admins activate a legal basis", async ({
-  browser,
-}) => {
+test("two system admins activate a legal basis", async ({ browser }) => {
   const klaraContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     ignoreHTTPSErrors: true,

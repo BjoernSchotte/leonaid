@@ -106,9 +106,7 @@ async def add_real_phone() -> None:
             correlation_id="poc062:golden-phone",
         )
         if record.data.phone != MARA_PHONE or receipt.twenty_id != MARA_ID:
-            raise ContractFailure(
-                "Phone number was not persisted through the CRM port"
-            )
+            raise ContractFailure("Phone number was not persisted through the CRM port")
         reread = await crm.get_person(
             MARA_ID,
             correlation_id="poc062:golden-phone-reread",
@@ -160,11 +158,17 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         gesa = await request_board(api, GESA_ID, "poc062:empty-board")
 
     if names(anna) != {"Musterwerk GmbH", "Doppelkontakt AG"}:
-        raise ContractFailure(f"Anna's visibility boundary is wrong: {sorted(names(anna))}")
+        raise ContractFailure(
+            f"Anna's visibility boundary is wrong: {sorted(names(anna))}"
+        )
     if names(bernd) != {"Bäckerei Sonnenseite KG", "Doppelkontakt AG"}:
-        raise ContractFailure(f"Bernd's visibility boundary is wrong: {sorted(names(bernd))}")
+        raise ContractFailure(
+            f"Bernd's visibility boundary is wrong: {sorted(names(bernd))}"
+        )
     if names(carla) != {"Sophie Sponsor"}:
-        raise ContractFailure(f"Carla's visibility boundary is wrong: {sorted(names(carla))}")
+        raise ContractFailure(
+            f"Carla's visibility boundary is wrong: {sorted(names(carla))}"
+        )
     if names(gesa):
         raise ContractFailure(f"Empty persona has unexpected data: {names(gesa)}")
 
@@ -177,7 +181,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         or musterwerk["email"] != "mara.muster@musterwerk.leonaid.invalid"
         or musterwerk["phone"] != MARA_PHONE
     ):
-        raise ContractFailure("Twenty contact channels are missing in Anna's sponsor row")
+        raise ContractFailure(
+            "Twenty contact channels are missing in Anna's sponsor row"
+        )
 
     shared = next(
         item for item in anna_items if item["partyDisplayName"] == "Doppelkontakt AG"
