@@ -36,15 +36,15 @@ esac
 assert_equal typst "typst 0.13.1 (unknown hash)" "$typst_version"
 
 browser_versions=$(docker run --rm "$PLAYWRIGHT_IMAGE" /bin/bash -lc '
-  chromium=$(/ms-playwright/chromium-1181/chrome-linux/chrome --version)
-  firefox=$(/ms-playwright/firefox-1489/firefox/firefox --version)
-  test -x /ms-playwright/webkit-2191/pw_run.sh
-  printf "%s\n%s\nwebkit-revision 2191\n" "$chromium" "$firefox"
+  chromium=$(/ms-playwright/chromium-1248/chrome-linux64/chrome --version)
+  firefox=$(/ms-playwright/firefox-1555/firefox/firefox --version 2>/dev/null)
+  test -x /ms-playwright/webkit-2370/pw_run.sh
+  printf "%s\n%s\nwebkit-revision 2370\n" "$chromium" "$firefox"
 ')
 expected_browsers=$(printf '%s\n%s\n%s' \
-  "Chromium 139.0.7258.5 " \
-  "Mozilla Firefox 140.0.2" \
-  "webkit-revision 2191")
+  "Google Chrome for Testing 156.0.8078.80 " \
+  "Mozilla Firefox 157.0" \
+  "webkit-revision 2370")
 assert_equal browsers "$expected_browsers" "$browser_versions"
 
 echo "runtime-version: OK: Python, Node, Bun, uv, Typst and Playwright browsers"

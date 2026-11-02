@@ -471,7 +471,7 @@ test("Drei Kernoberflächen erfüllen reproduzierbare mobile Performancebudgets"
         },
         measured,
         profile: {
-          browser: "Chromium via Playwright 1.54.1",
+          browser: "Chromium via Playwright 1.64.1",
           cpuThrottlingRate: 4,
           network: {
             downloadMbps: 10,

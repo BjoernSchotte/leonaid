@@ -177,11 +177,11 @@
     },
     {
       "id": "playwright",
-      "version": "1.54.1-noble",
-      "image": "mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f",
-      "digest": "sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f",
+      "version": "1.64.1-noble",
+      "image": "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f",
+      "digest": "sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f",
       "license": "Apache-2.0",
-      "upstream": "https://github.com/microsoft/playwright/releases/tag/v1.54.1",
+      "upstream": "https://github.com/microsoft/playwright/releases/tag/v1.64.1",
       "roles": [
         "e2e-browsers"
       ]

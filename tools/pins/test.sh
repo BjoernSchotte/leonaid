@@ -52,7 +52,7 @@ sed -i 's/\"prettier\": \"3\.6\.2\"/\"prettier\": \"^3.6.2\"/' \
 expect_failure frontend-range "is not exactly pinned"
 
 make_fixture python-range
-sed -i 's/\"fastapi==0\.116\.1\"/\"fastapi>=0.116.1\"/' \
+sed -i 's/\"fastapi==\([^\"]*\)\"/\"fastapi>=\1\"/' \
   "$tmp/python-range/pyproject.toml"
 expect_failure python-range "is not exactly pinned with =="
 

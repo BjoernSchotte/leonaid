@@ -5,7 +5,7 @@ services:
   public:
     depends_on: !reset {}
   admin-browser:
-    image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
+    image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     working_dir: /workspace
     networks: [edge]
     volumes:
