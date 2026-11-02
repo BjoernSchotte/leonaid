@@ -525,8 +525,18 @@ async def exercise_match_keys(
                 json={"name": STALE_COMPANY_NEW_NAME},
             )
         )
+        before_repair = await gateway.match_key_field_status(
+            correlation_id="poc031:keys:status-before",
+        )
     if unkeyed_company.get("leonaidMatchKey") or unkeyed_person.get("leonaidMatchKey"):
         raise ContractFailure("Rohdatensätze dürfen noch keinen Schlüssel besitzen")
+    if len(before_repair) != 2 or any(
+        status.unkeyed < 1 or status.total < status.unkeyed for status in before_repair
+    ):
+        raise ContractFailure(
+            "field status must count the raw records without a key: "
+            + repr(before_repair)
+        )
     if renamed.get("leonaidMatchKey") != company_match_key(STALE_COMPANY_OLD_NAME):
         raise ContractFailure(
             "Umbenennung außerhalb LeonAids muss den Schlüssel veralten"
@@ -587,6 +597,9 @@ async def verify_match_key_repair(state_path: Path) -> None:
             updated_since=None,
             correlation_id="poc031:repair:idempotent",
         )
+        after_repair = await gateway.match_key_field_status(
+            correlation_id="poc031:repair:status-after",
+        )
     if ids(company) != {UUID(str(state["unkeyedCompanyId"]))}:
         raise ContractFailure("Backfill machte die Bestandsfirma nicht auffindbar")
     if ids(person) != {UUID(str(state["unkeyedPersonId"]))}:
@@ -597,6 +610,10 @@ async def verify_match_key_repair(state_path: Path) -> None:
         report.scanned for report in second_run
     ):
         raise ContractFailure("zweiter Reparaturlauf war nicht idempotent")
+    if any(status.unkeyed for status in after_repair):
+        raise ContractFailure(
+            "records without a key remain after the repair: " + repr(after_repair)
+        )
     print(
         "twenty-gateway-contract: Backfill/Reparatur macht Bestandsdatensätze "
         "auffindbar und ist idempotent"

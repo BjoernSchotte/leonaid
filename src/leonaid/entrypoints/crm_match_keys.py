@@ -9,6 +9,10 @@ Usage inside the Core image::
 
     python -m leonaid.entrypoints.crm_match_keys                      # full run
     python -m leonaid.entrypoints.crm_match_keys --changed-within 30  # minutes
+    python -m leonaid.entrypoints.crm_match_keys --check              # read-only
+
+``--check`` changes nothing: it fails when Twenty lacks the provisioned match
+key field and reports how many records still have no key.
 """
 
 from __future__ import annotations
@@ -68,6 +72,11 @@ def parser() -> argparse.ArgumentParser:
     )
     scope = result.add_mutually_exclusive_group()
     scope.add_argument(
+        "--check",
+        action="store_true",
+        help="read-only: verify the match key field and count unkeyed records",
+    )
+    scope.add_argument(
         "--changed-since",
         type=_instant,
         help="only records updated at or after this ISO-8601 instant",
@@ -87,19 +96,37 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+def _settings(arguments: argparse.Namespace) -> TwentyGatewaySettings:
+    return TwentyGatewaySettings(
+        base_url=_required_env("TWENTY_BASE_URL"),
+        api_key=SecretStr(_required_env("TWENTY_INTEGRATION_API_KEY")),
+        timeout_seconds=15.0,
+        requests_per_minute=arguments.requests_per_minute,
+    )
+
+
+async def check(arguments: argparse.Namespace) -> list[dict[str, object]]:
+    async with TwentyCrmGateway(_settings(arguments)) as gateway:
+        statuses = await gateway.match_key_field_status(
+            correlation_id=f"crm-match-keys-check:{uuid4()}",
+        )
+    return [
+        {
+            "partyKind": status.party_kind.value,
+            "total": status.total,
+            "unkeyed": status.unkeyed,
+        }
+        for status in statuses
+    ]
+
+
 async def run(arguments: argparse.Namespace) -> list[dict[str, object]]:
     updated_since: datetime | None = arguments.changed_since
     if arguments.changed_within is not None:
         updated_since = datetime.now(timezone.utc) - timedelta(
             minutes=arguments.changed_within
         )
-    settings = TwentyGatewaySettings(
-        base_url=_required_env("TWENTY_BASE_URL"),
-        api_key=SecretStr(_required_env("TWENTY_INTEGRATION_API_KEY")),
-        timeout_seconds=15.0,
-        requests_per_minute=arguments.requests_per_minute,
-    )
-    async with TwentyCrmGateway(settings) as gateway:
+    async with TwentyCrmGateway(_settings(arguments)) as gateway:
         reports = await gateway.repair_match_keys(
             updated_since=updated_since,
             correlation_id=f"crm-match-keys:{uuid4()}",
@@ -117,8 +144,16 @@ async def run(arguments: argparse.Namespace) -> list[dict[str, object]]:
 def main() -> int:
     arguments = parser().parse_args()
     try:
-        summary = asyncio.run(run(arguments))
+        summary = asyncio.run(check(arguments) if arguments.check else run(arguments))
     except CrmGatewayError as error:
+        if error.code == "crm_match_key_field_missing":
+            print(
+                "crm-match-keys: ERROR: Twenty lacks the leonaidMatchKey field. "
+                "Run './leonaid provision-twenty' (production: "
+                "'./leonaid pilot-release --twenty-bootstrap-file FILE').",
+                file=sys.stderr,
+            )
+            return 1
         print(
             "crm-match-keys: ERROR: "
             + json.dumps(
@@ -135,7 +170,12 @@ def main() -> int:
     except ValueError as error:
         print(f"crm-match-keys: ERROR: {error}", file=sys.stderr)
         return 1
-    print("crm-match-keys: OK: " + json.dumps(summary, separators=(",", ":")))
+    prefix = (
+        "crm-match-keys: OK: field present: "
+        if arguments.check
+        else "crm-match-keys: OK: "
+    )
+    print(prefix + json.dumps(summary, separators=(",", ":")))
     return 0
 
 

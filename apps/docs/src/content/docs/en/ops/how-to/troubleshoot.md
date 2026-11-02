@@ -4,9 +4,9 @@ description: Diagnose common operational failures with Doctor, health checks, an
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
 reviewer: Björn Schotte
 ---
 
@@ -25,6 +25,12 @@ email addresses, or document bytes.
 - **Public TLS:** Use Pilot Doctor to check DNS, hostname, full trust chain,
   security headers, and at least 14 days of certificate validity. Port 80 stays
   available for ACME and the HTTPS redirect.
+- **Twenty CRM check fails:** `doctor` (with the dev stack running) and the
+  `pilot-deploy`/`pilot-release` gates of Pilot Doctor ask the running API
+  whether Twenty has the `leonaidMatchKey` field and accepts its integration
+  key. Locally run `./leonaid provision-twenty`; in a pilot run
+  `./leonaid pilot-release --twenty-bootstrap-file FILE`. The check also
+  counts records without a key; run `repair-crm-match-keys` to close that gap.
 - **Writes return 503:** Check `infra/upgrade/maintenance.sh status`. Disable
   maintenance only after dependencies are healthy and contracts pass.
 

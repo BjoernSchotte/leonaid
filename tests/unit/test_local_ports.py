@@ -40,23 +40,30 @@ def test_ports_come_from_host_once_and_are_kept(tmp_path: Path) -> None:
 
 def test_verify_rejects_invalid_ports(tmp_path: Path) -> None:
     template = tmp_path / "template"
-    network = "LEONAID_BIND_ADDRESS=127.0.0.1\nLEONAID_LAN_HOST=127.0.0.1\n"
+    network = (
+        "LEONAID_BIND_ADDRESS=127.0.0.1\nLEONAID_LAN_HOST=127.0.0.1\n"
+        "LEONAID_REMOTE_HOST=127.0.0.1\n"
+    )
     template.write_text(
         "LEONAID_ENV=local\nLEONAID_RESET_ALLOWED=true\n" + TEMPLATE + network
     )
-    for ports, bind, lan, status in (
-        ("28080", "127.0.0.1", "127.0.0.1", 0),
-        ("28080", "0.0.0.0", "192.168.178.110", 0),
-        ("28081", "127.0.0.1", "127.0.0.1", 1),  # same port twice
-        ("80", "127.0.0.1", "127.0.0.1", 1),  # privileged
-        ("28080", "lan", "127.0.0.1", 1),  # bind must be an IP
-        ("28080", "0.0.0.0", "a,b", 1),  # would inject extra origins
+    for ports, bind, lan, remote, status in (
+        ("28080", "127.0.0.1", "127.0.0.1", "127.0.0.1", 0),
+        ("28080", "0.0.0.0", "192.168.178.110", "127.0.0.1", 0),
+        ("28080", "0.0.0.0", "host.local", "host.tailnet.ts.net", 0),
+        ("28081", "127.0.0.1", "127.0.0.1", "127.0.0.1", 1),  # same port twice
+        ("80", "127.0.0.1", "127.0.0.1", "127.0.0.1", 1),  # privileged
+        ("28080", "lan", "127.0.0.1", "127.0.0.1", 1),  # bind must be an IP
+        ("28080", "0.0.0.0", "a,b", "127.0.0.1", 1),  # would inject extra origins
+        ("28080", "0.0.0.0", "a", "b/c", 1),  # remote host is checked as well
+        ("28080", "0.0.0.0", "a", "", 1),  # remote host must not be empty
     ):
         actual = tmp_path / "actual"
         actual.write_text(
             "LEONAID_ENV=local\nLEONAID_RESET_ALLOWED=true\n"
             f"LEONAID_HTTP_PORT=28081\nLEONAID_HTTPS_PORT={ports}\n"
             f"LEONAID_BIND_ADDRESS={bind}\nLEONAID_LAN_HOST={lan}\n"
+            f"LEONAID_REMOTE_HOST={remote}\n"
         )
         result = subprocess.run(
             [
