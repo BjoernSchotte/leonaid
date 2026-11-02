@@ -33,7 +33,13 @@ MIN_REASON_LENGTH = 40
 BLOCKING_SEVERITIES = {"HIGH", "CRITICAL"}
 VULN_ID = re.compile(r"^[A-Z][A-Z0-9]*-[A-Za-z0-9][A-Za-z0-9:._-]*$")
 IMAGE_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-EXCLUSION_KINDS = {"toolchain", "base-image", "test-only", "upgrade-source"}
+EXCLUSION_KINDS = {
+    "toolchain",
+    "base-image",
+    "test-only",
+    "upgrade-source",
+    "optional-profile",
+}
 FS_TARGET = "fs"
 OSV_TARGET = "osv"
 

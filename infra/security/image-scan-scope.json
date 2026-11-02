@@ -15,9 +15,7 @@
     "postgres",
     "valkey",
     "rustfs",
-    "caddy",
     "mailpit",
-    "listmonk",
     "otel",
     "prometheus",
     "alertmanager",
@@ -81,6 +79,14 @@
     "osv-scanner": {
       "kind": "toolchain",
       "reason": "Lockfile vulnerability scanner that runs in CI only; it is never deployed."
+    },
+    "caddy": {
+      "kind": "base-image",
+      "reason": "Runtime base of leonaid-proxy, which is built from it, patched and scanned; the raw image runs only in the observability test compose."
+    },
+    "listmonk": {
+      "kind": "optional-profile",
+      "reason": "Only in the opt-in 'mailing' Compose profile, which no pilot deployment enables. Move it to runtime (scanned) before enabling the profile anywhere."
     }
   }
 }
