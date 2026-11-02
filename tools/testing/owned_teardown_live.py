@@ -210,8 +210,12 @@ def cross_labelled_images_are_removed(project: str, image: str) -> None:
         result = verify(project)
         assert result.returncode == 0, result.stderr
         tags = docker(
-            "image", "ls", "--filter", f"reference={project}-*",
-            "--format", "{{.Repository}}:{{.Tag}}",
+            "image",
+            "ls",
+            "--filter",
+            f"reference={project}-*",
+            "--format",
+            "{{.Repository}}:{{.Tag}}",
         ).split()
         assert borrowed not in tags, tags
         assert foreign in tags, tags
