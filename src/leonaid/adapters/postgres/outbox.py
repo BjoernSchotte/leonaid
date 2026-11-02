@@ -15,6 +15,47 @@ from leonaid.domain.outbox import (
     json_payload,
 )
 
+# Every table that points at an outbox row, with or without a foreign key.
+# A referenced row is evidence (sent mail, invoice delivery, survey export,
+# survey erasure) and is never removed by retention. The outbox acceptance
+# probe compares the foreign keys in this list against pg_constraint, so a
+# new reference fails the proof until retention accounts for it.
+OUTBOX_REFERENCES: tuple[tuple[str, str, bool], ...] = (
+    # References that keep a completed job: (table, column, enforced by a
+    # foreign key).
+    ("invoice_delivery", "outbox_event_id", True),
+    ("survey_export_job", "event_id", True),
+    ("survey_deletion", "event_id", False),
+)
+
+# Foreign keys that retention detaches: the referencing row stays as evidence
+# and its link becomes NULL when the job is deleted (ON DELETE SET NULL).
+OUTBOX_DETACHED_REFERENCES: tuple[tuple[str, str], ...] = (
+    ("mail_delivery", "outbox_event_id"),
+)
+
+_UNREFERENCED = "\n".join(
+    f"  AND NOT EXISTS (SELECT 1 FROM {table} AS ref WHERE ref.{column} = event.id)"
+    for table, column, _ in OUTBOX_REFERENCES
+)
+
+PURGE_COMPLETED_SQL = f"""
+WITH doomed AS (
+  SELECT event.id
+  FROM outbox_event AS event
+  WHERE event.status = 'completed'
+    AND event.completed_at < $1
+{_UNREFERENCED}
+  ORDER BY event.completed_at, event.id
+  LIMIT $2
+  FOR UPDATE OF event SKIP LOCKED
+)
+DELETE FROM outbox_event AS event
+USING doomed
+WHERE event.id = doomed.id
+  AND event.status = 'completed'
+"""
+
 
 class AsyncpgOutboxQueue:
     def __init__(
@@ -162,6 +203,27 @@ class AsyncpgOutboxQueue:
                 error_detail,
             )
         self._require_fenced_update(status, "als fehlgeschlagen markieren")
+
+    async def purge_completed(
+        self,
+        *,
+        completed_before: datetime,
+        limit: int,
+    ) -> int:
+        """Delete at most ``limit`` completed, unreferenced jobs; return the count.
+
+        One short transaction per batch. Rows locked by another session are
+        skipped instead of waited for, so neither a worker claim nor an
+        operator update ever blocks on retention.
+        """
+
+        if limit < 1:
+            raise ValueError("limit must be at least 1.")
+        async with self._pool.acquire() as connection:
+            status = await connection.execute(
+                PURGE_COMPLETED_SQL, completed_before, limit
+            )
+        return int(status.rsplit(" ", 1)[-1])
 
     async def manual_retry(
         self,

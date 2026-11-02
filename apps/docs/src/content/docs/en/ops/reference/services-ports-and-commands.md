@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 790abe3056486af138602e89a740419c6f6caf90
 reviewer: Björn Schotte
 ---
 
@@ -35,3 +35,22 @@ Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-restore`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
 `./leonaid help` for the current complete list; the CLI is authoritative when
 this reference differs.
+
+## Worker retention
+
+The worker runs a `retention` loop next to `outbox`, `survey_sweep`, and the
+PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
+`3600`) it deletes outbox jobs that completed successfully more than
+`OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
+two days. It never deletes pending, processing, or dead-letter jobs, nor
+completed jobs that an invoice delivery, a survey export, or a survey
+erasure still references. For a sent mail it deletes the job but keeps the
+`mail_delivery` record as evidence, without the link to the job. It deletes in batches of
+`OUTBOX_RETENTION_BATCH_SIZE` (default `500`) rows, at most
+`OUTBOX_RETENTION_MAX_BATCHES` (default `20`) batches per sweep, and skips
+rows that another session holds locked. Invalid values stop the worker at
+start with `worker.configuration.invalid`. The metric
+`leonaid_worker_retention_deleted_total{table=...}` counts deleted rows; the
+outbox counters on `/admin/system` therefore show completed jobs of the
+retention window only. `docker compose run --rm worker python -m
+leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.

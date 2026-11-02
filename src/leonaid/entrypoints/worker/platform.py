@@ -6,17 +6,25 @@ import asyncio
 import json
 import os
 import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import asyncpg
 
 from leonaid.adapters.operations import structured_event
+from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.adapters.postgres.survey_retention import sweep_retention
 from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
 from leonaid.entrypoints.worker.health import LoopHealth, error_location
+from leonaid.configuration import ConfigurationError, load_retention_settings
 from leonaid.entrypoints.worker.outbox import build_worker, configuration_problems
+from leonaid.entrypoints.worker.retention import (
+    RetentionResult,
+    sweep_operational_retention,
+)
 
 CLAIM_LEASE_SECONDS = float(os.environ.get("OUTBOX_CLAIM_LEASE_SECONDS", "300"))
 
@@ -25,7 +33,40 @@ CLAIM_LEASE_SECONDS = float(os.environ.get("OUTBOX_CLAIM_LEASE_SECONDS", "300"))
 postgres_health = LoopHealth("postgres", stall_after_seconds=10)
 outbox_health = LoopHealth("outbox", stall_after_seconds=CLAIM_LEASE_SECONDS + 30)
 survey_health = LoopHealth("survey_sweep", stall_after_seconds=60)
-LOOPS = (postgres_health, outbox_health, survey_health)
+
+
+def _retention_interval_seconds() -> float:
+    # Invalid settings stop the worker at startup (configuration_problems);
+    # the default only keeps this module importable for that check.
+    try:
+        return load_retention_settings().interval_seconds
+    except ConfigurationError:
+        return 3600.0
+
+
+# The retention loop sleeps a whole interval between sweeps, so it counts as
+# stalled only after it missed one sweep by a clear margin.
+retention_health = LoopHealth(
+    "retention",
+    stall_after_seconds=_retention_interval_seconds() + 300,
+)
+LOOPS = (postgres_health, outbox_health, survey_health, retention_health)
+RETENTION_DELETED = {"outbox_event": 0, "security_rate_attempt": 0}
+
+
+def record_retention(result: RetentionResult) -> None:
+    RETENTION_DELETED["outbox_event"] += result.outbox_events_deleted
+    RETENTION_DELETED["security_rate_attempt"] += result.rate_attempts_deleted
+    if result.outbox_events_deleted or result.rate_attempts_deleted:
+        print(
+            structured_event(
+                "worker.retention.swept",
+                outboxEventsDeleted=result.outbox_events_deleted,
+                rateAttemptsDeleted=result.rate_attempts_deleted,
+                complete=result.complete,
+            ),
+            flush=True,
+        )
 
 
 def worker_ready() -> bool:
@@ -66,6 +107,16 @@ def metrics_document() -> str:
             lines.append(
                 f'leonaid_worker_loop_last_success_age_seconds{{loop="{loop.name}"}} {age:.3f}'
             )
+    lines.extend(
+        [
+            "# HELP leonaid_worker_retention_deleted_total Rows deleted by the retention loop since worker start.",
+            "# TYPE leonaid_worker_retention_deleted_total counter",
+        ]
+    )
+    lines.extend(
+        f'leonaid_worker_retention_deleted_total{{table="{table}"}} {count}'
+        for table, count in RETENTION_DELETED.items()
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -208,9 +259,42 @@ async def survey_timeout_loop() -> None:
                 await pool.close()
 
 
+async def retention_loop() -> None:
+    """Hourly by default; a sweep stopped by its batch cap resumes after 1 s."""
+    settings = load_retention_settings()
+    while True:
+        pool = None
+        try:
+            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=1)
+            queue = AsyncpgOutboxQueue(pool)
+            rate_limits = AsyncpgSecurityRateLimitRepository(pool)
+            while True:
+                result = await sweep_operational_retention(
+                    queue=queue,
+                    rate_limits=rate_limits,
+                    settings=settings,
+                    now=datetime.now(timezone.utc),
+                )
+                record_retention(result)
+                record_success(retention_health)
+                await asyncio.sleep(
+                    settings.interval_seconds if result.complete else 1.0
+                )
+        except Exception as error:
+            # Logged by type and location only, never with row data.
+            delay = record_failure(retention_health, error)
+            await asyncio.sleep(delay)
+        finally:
+            if pool is not None:
+                await pool.close()
+
+
 async def service_loop() -> None:
     await asyncio.gather(
-        durable_worker_loop(), database_readiness_loop(), survey_timeout_loop()
+        durable_worker_loop(),
+        database_readiness_loop(),
+        survey_timeout_loop(),
+        retention_loop(),
     )
 
 

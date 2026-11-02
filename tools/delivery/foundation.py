@@ -345,7 +345,7 @@ def main() -> None:
             (historical_action,),
         ).fetchone() == (False,)
         assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [
-            ("0038_open_action_templates",)
+            ("0040_mail_delivery_set_null",)
         ]
     asyncio.run(prove())
 
