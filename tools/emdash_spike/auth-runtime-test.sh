@@ -210,7 +210,7 @@ cleanup() {
     rm -f "$proof/native-order-deadline/orders-ui.json"
     rmdir "$proof/native-order-deadline"
   fi
-  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
+  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/erasure-checkpoint.json" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
 }
 # A teardown leak fails the run even when the test itself passed.
@@ -298,6 +298,10 @@ if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media
   compose up --detach --wait rustfs
   compose run --rm --no-deps cms-storage-operator
 fi
+# --no-deps skips Core's one-off volume owner fix; run it explicitly. Its
+# exited container must also exist for later dependency-checked starts
+# (backup.sh resumes writers). `up --wait` rejects an exited one-off.
+compose up --no-deps --exit-code-from core-volume-init core-volume-init
 compose up --no-deps --build --detach --wait api campaign-site
 fixture() {
   compose run --rm --no-deps --volume "$root:/repo:ro" \
