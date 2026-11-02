@@ -12,14 +12,20 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.adapters.surveyjs_validation import validate_answers
+from leonaid.modules.surveys.adapters.surveyjs_validation import validate_answers
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.postgres.survey_analysis import create_snapshot, read_snapshot
-from leonaid.adapters.postgres.survey_deletion import deletion_payload, request_deletion
-from leonaid.application.surveys.analysis_snapshot import AnalysisFilter
-from leonaid.application.surveys.exports import SurveyExportSelection
-from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
-from leonaid.adapters.postgres.survey_responses import (
+from leonaid.modules.surveys.adapters.postgres.survey_analysis import (
+    create_snapshot,
+    read_snapshot,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
+    deletion_payload,
+    request_deletion,
+)
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisFilter
+from leonaid.modules.surveys.application.exports import SurveyExportSelection
+from leonaid.modules.surveys.application.recovery import ErasureCheckpointPublisher
+from leonaid.modules.surveys.adapters.postgres.survey_responses import (
     read_responses,
     selection_metadata,
 )
@@ -28,14 +34,14 @@ from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFo
 from leonaid.domain.identity import GlobalRole, IdentityPrincipal
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.policies import may_manage_action
-from leonaid.domain.surveys import (
+from leonaid.modules.surveys.domain import (
     Capability,
     SurveyStatus,
     require_transition,
     effective_response_status,
     may_access_survey,
 )
-from leonaid.domain.surveys.validation import (
+from leonaid.modules.surveys.domain.validation import (
     PROFILE,
     validate_definition,
 )

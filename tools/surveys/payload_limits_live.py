@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
-from leonaid.domain.surveys.validation import json_size
+from leonaid.modules.surveys.domain.validation import json_size
 
 
 async def main():

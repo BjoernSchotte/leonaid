@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import sys
 
-import leonaid.adapters.storage.survey_checkpoint_archive as archive
+import leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive as archive
 from recovery import execute
 
 original = archive.atomic_write

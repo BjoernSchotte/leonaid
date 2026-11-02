@@ -6,7 +6,7 @@ import math
 import sys
 from pathlib import Path
 
-from leonaid.adapters.surveyjs_validation import aggregate_batch
+from leonaid.modules.surveys.adapters.surveyjs_validation import aggregate_batch
 from leonaid.application.errors import DependencyUnavailable
 from leonaid.domain.errors import DomainInvariantError
 

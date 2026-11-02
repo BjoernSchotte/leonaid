@@ -6,8 +6,8 @@ from typing import Any
 
 import asyncpg
 
-from leonaid.adapters.postgres.survey_deletion import request_deletion
-from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import request_deletion
+from leonaid.modules.surveys.application.recovery import ErasureCheckpointPublisher
 
 
 async def sweep_retention(

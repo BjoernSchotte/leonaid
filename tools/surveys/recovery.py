@@ -9,16 +9,20 @@ import sys
 from uuid import UUID
 
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.survey_recovery import (
+from leonaid.modules.surveys.adapters.postgres.survey_recovery import (
     export_checkpoint,
     reapply_checkpoint,
 )
 from leonaid.adapters.storage.s3 import S3ObjectStorage
-from leonaid.adapters.storage.survey_checkpoint_archive import (
+from leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive import (
     FileCheckpointArchive,
     atomic_write,
 )
-from leonaid.application.surveys.recovery import MAX_DOCUMENT_BYTES, seal, verify
+from leonaid.modules.surveys.application.recovery import (
+    MAX_DOCUMENT_BYTES,
+    seal,
+    verify,
+)
 
 
 async def execute(args):
