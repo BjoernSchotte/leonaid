@@ -2090,9 +2090,11 @@ print(value["schemas"]["coreAlembicHead"])'
     up --detach --no-build --pull missing --force-recreate \
     --wait --wait-timeout 420 twenty-server
   pilot_compose_command "$project" "$env_file" stop twenty-server >/dev/null
-  pilot_compose_command "$project" "$env_file" \
-    run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
-    command:prod run-instance-commands
+  # "upgrade" runs Twenty's whole sequence, instance commands included, along
+  # its own cursors; Twenty's entrypoint uses it the same way. A separate
+  # run-instance-commands refuses every workspace created on 2.24: its safety
+  # check wants the last 2.23 workspace command, while a new workspace starts
+  # at the instance cursor. It would block every release of a fresh pilot.
   pilot_compose_command "$project" "$env_file" \
     run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
     command:prod upgrade
