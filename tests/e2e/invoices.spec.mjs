@@ -204,7 +204,9 @@ test("manager completes missing delivery details and recovers from a competing e
     expect(order.status).toBe("review_ready");
     expect(order.deliveryContact.name).toBe("Lager Süd");
     expect(order.deliveryRecipient.streetLine1).toBe("Lagerweg 4");
-    expect(order.deliveryWindowId).toBe("98000000-0000-4000-8000-000000000002");
+    // The competing desktop edit booked the window; it stays fixed.
+    expect(order.deliveryWindowId).toMatch(/^98000000-/);
+    expect(order.deliveryWindowSnapshot.windowId).toBe(order.deliveryWindowId);
     expect(order.invoiceRecipient.streetLine1).toBe("Sonnenstraße 2");
     expect(order.totalMinor).toBe(before.totalMinor);
     expect(order.lines).toEqual(before.lines);
@@ -216,7 +218,7 @@ test("manager completes missing delivery details and recovers from a competing e
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `${artifactDirectory}/delivery-completion-mobile.png`,
+      path: `${artifactDirectory}/invoice-delivery-completion-mobile.png`,
       fullPage: true,
     });
     const accessibility = await new AxeBuilder({ page })

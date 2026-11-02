@@ -32,7 +32,7 @@ function invoiceDraft(order: CommitmentResponse): InvoiceDraft {
     postalCode: recipient?.postalCode ?? "",
     city: recipient?.city ?? "",
     countryCode: recipient?.countryCode ?? "DE",
-    email: recipient?.email ?? order.buyer.email ?? "",
+    email: recipient?.email ?? "",
   };
 }
 
@@ -249,7 +249,6 @@ export function DeliveryCompletion({
           </Button>
         </section>
       ) : null}
-      {lockedWindow ? <DeliverySummary order={baseline} /> : null}
       {configuration.isPending ? (
         <p role="status">Lieferplanung wird geladen …</p>
       ) : configuration.isError ? (

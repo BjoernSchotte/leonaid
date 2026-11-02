@@ -246,7 +246,8 @@ async def exercise_delivery_completion(
     await connection.execute(
         """
         INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
-        VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 2 hours')
+        VALUES ($1, $2, date_trunc('hour', now()) + interval '1 day',
+                date_trunc('hour', now()) + interval '1 day 2 hours')
         """,
         window_id,
         ACTION_ID,
@@ -260,7 +261,9 @@ async def exercise_delivery_completion(
         blocked.status_code != 409
         or error_code(blocked) != "invoice_delivery_incomplete"
     ):
-        raise ContractFailure("Invoice was issued without delivery details")
+        raise ContractFailure(
+            f"Invoice was issued without delivery details: {blocked.status_code} {blocked.text}"
+        )
     if await connection.fetchval(
         "SELECT count(*) FROM invoice WHERE commitment_id = $1", COMMITMENT_ID
     ):
