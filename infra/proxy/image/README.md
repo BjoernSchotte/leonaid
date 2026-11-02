@@ -1,7 +1,7 @@
 # LeonAid proxy image
 
 The development Compose service builds this directory. It uses the standard
-Caddy 2.11.4 modules with `golang.org/x/crypto` pinned to v0.55.0. The compiler and
+Caddy 2.11.7 modules with `golang.org/x/crypto` pinned to v0.57.0. The compiler and
 runtime base images are pinned by digest, and `go.sum` locks module content.
 The runtime base supplies the operating system; its Caddy executable is replaced
 by the executable compiled here. `CADDY_IMAGE` remains the upstream base pin,

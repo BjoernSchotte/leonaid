@@ -3,34 +3,22 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-. "$root/infra/locks/images.env"
+env_file="$root/infra/locks/images.env"
 
-images="$TWENTY_IMAGE
-$POSTGRES_IMAGE
-$VALKEY_IMAGE
-$REDIS_UPGRADE_SOURCE_IMAGE
-$RUSTFS_IMAGE
-$SEAWEEDFS_IMAGE
-$MAILPIT_IMAGE
-$CADDY_IMAGE
-$PYTHON_IMAGE
-$UV_IMAGE
-$NODE_IMAGE
-$BUN_IMAGE
-$TYPST_IMAGE
-$PLAYWRIGHT_IMAGE
-$SYFT_IMAGE
-$TRIVY_IMAGE
-$ALPINE_IMAGE
-$LISTMONK_IMAGE
-$OTEL_IMAGE"
-
+# Every locked image is verified. images.env is generated from
+# external-systems.lock and tools/pins/check.py enforces their parity, so a new
+# lock entry cannot silently escape this registry check.
 count=0
-old_ifs=$IFS
-IFS='
-'
-for image in $images; do
-  IFS=$old_ifs
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    '' | '#'*) continue ;;
+    *_IMAGE=*) ;;
+    *)
+      echo "image-digest: ERROR: unexpected line in $env_file: $line" >&2
+      exit 1
+      ;;
+  esac
+  image=${line#*=}
   tagged=${image%@*}
   expected=${image##*@}
   actual=$(docker buildx imagetools inspect "$tagged" | awk '/^Digest:/ {print $2; exit}')
@@ -39,9 +27,10 @@ for image in $images; do
     exit 1
   fi
   count=$((count + 1))
-  IFS='
-'
-done
-IFS=$old_ifs
+done <"$env_file"
 
+[ "$count" -gt 0 ] || {
+  echo "image-digest: ERROR: no images found in $env_file" >&2
+  exit 1
+}
 echo "image-digest: OK: $count version tags resolve to their recorded digests"

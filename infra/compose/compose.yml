@@ -309,7 +309,7 @@ services:
       - survey-erasure-archive:/recovery/survey-erasure
 
   core-postgres:
-    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    image: docker.io/library/postgres:16.15-alpine3.24@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -486,7 +486,7 @@ services:
       retries: 200
 
   twenty-postgres:
-    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    image: docker.io/library/postgres:16.15-alpine3.24@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -715,7 +715,7 @@ services:
       retries: 30
 
   listmonk-postgres:
-    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    image: docker.io/library/postgres:16.15-alpine3.24@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     logging: *default-logging
     profiles: ["mailing"]
     restart: unless-stopped

@@ -1,6 +1,6 @@
 services:
   core-auth-probe:
-    image: docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55
+    image: docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a
     working_dir: /workspace
     # Do not mount .env.local: Bun automatically loads env files from cwd.
     volumes:
