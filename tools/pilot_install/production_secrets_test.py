@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import stat
 import subprocess
 import sys
@@ -64,7 +65,9 @@ def main() -> None:
             raise AssertionError(f"secrets without generator: {expected - generated}")
         for key in generated:
             value = values[key]
-            if len(value) < 24 or "__" in value:
+            # token_urlsafe output may contain "__" by chance; only an
+            # unreplaced placeholder is a failure.
+            if len(value) < 24 or re.fullmatch(r"__[A-Z0-9_]+__", value):
                 raise AssertionError(f"{key} is not a strong fresh value")
             if value in result.stdout + result.stderr:
                 raise AssertionError("pilot-secrets printed a secret")
