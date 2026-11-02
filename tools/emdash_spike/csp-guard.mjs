@@ -31,6 +31,9 @@ export function guardCsp(browser) {
         }
       }).observe(document, { childList: true, subtree: true });
       document.addEventListener("securitypolicyviolation", (event) => {
+        // Browsers render non-HTML responses (JSON, plain text) in a generated
+        // viewer document whose own inline styles the policy blocks.
+        if (!/html|xml/.test(document.contentType)) return;
         if (
           event.effectiveDirective === "style-src-elem" &&
           harnessStyles > 0 &&
