@@ -49,6 +49,98 @@ def quote(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+async def unvalidated_foreign_keys(
+    connection: asyncpg.Connection,
+) -> list[JsonObject]:
+    rows = await connection.fetch(
+        """
+        SELECT
+            c.conname AS name,
+            child_ns.nspname AS child_schema,
+            child.relname AS child_table,
+            parent_ns.nspname AS parent_schema,
+            parent.relname AS parent_table,
+            ARRAY(
+                SELECT a.attname
+                FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, position)
+                JOIN pg_attribute a
+                  ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+                ORDER BY k.position
+            ) AS child_columns,
+            ARRAY(
+                SELECT a.attname
+                FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, position)
+                JOIN pg_attribute a
+                  ON a.attrelid = c.confrelid AND a.attnum = k.attnum
+                ORDER BY k.position
+            ) AS parent_columns
+        FROM pg_constraint c
+        JOIN pg_class child ON child.oid = c.conrelid
+        JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+        JOIN pg_class parent ON parent.oid = c.confrelid
+        JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+        WHERE c.contype = 'f' AND NOT c.convalidated
+        ORDER BY child_ns.nspname, child.relname, c.conname
+        """
+    )
+    return [
+        {
+            "name": str(row["name"]),
+            "table": f"{row['child_schema']}.{row['child_table']}",
+            "child": (str(row["child_schema"]), str(row["child_table"])),
+            "parent": (str(row["parent_schema"]), str(row["parent_table"])),
+            "childColumns": [str(column) for column in row["child_columns"]],
+            "parentColumns": [str(column) for column in row["parent_columns"]],
+        }
+        for row in rows
+    ]
+
+
+async def require_foreign_key_holds(
+    connection: asyncpg.Connection,
+    constraint: JsonObject,
+    *,
+    label: str,
+) -> None:
+    """Prove a NOT VALID foreign key for every existing row (MATCH SIMPLE).
+
+    Twenty 2.54 creates relation foreign keys NOT VALID and validates them in a
+    deferred worker job. That job reads cached workspace metadata; when a
+    relation field is created right after another one, the cache can still
+    lack the new field, the job ends as "completed" without running
+    VALIDATE CONSTRAINT, and the key stays NOT VALID for good. PostgreSQL
+    still enforces such a key for every new or changed row, so only rows that
+    existed before the key was added are unchecked. This query checks them.
+    """
+    child_schema, child_table = constraint["child"]
+    parent_schema, parent_table = constraint["parent"]
+    child_columns = constraint["childColumns"]
+    parent_columns = constraint["parentColumns"]
+    if not child_columns or len(child_columns) != len(parent_columns):
+        raise InventoryError(
+            f"{label}: Fremdschlüssel {constraint['name']} ist nicht lesbar"
+        )
+    not_null = " AND ".join(f"child.{quote(column)} IS NOT NULL" for column in child_columns)
+    matches = " AND ".join(
+        f"parent.{quote(parent_column)} = child.{quote(child_column)}"
+        for child_column, parent_column in zip(child_columns, parent_columns)
+    )
+    violations = int(
+        await connection.fetchval(
+            f"SELECT count(*) FROM {quote(child_schema)}.{quote(child_table)} AS child "
+            f"WHERE {not_null} AND NOT EXISTS ("
+            f"SELECT 1 FROM {quote(parent_schema)}.{quote(parent_table)} AS parent "
+            f"WHERE {matches})"
+        )
+        or 0
+    )
+    if violations:
+        raise InventoryError(
+            f"{label}: Fremdschlüssel {constraint['table']}.{constraint['name']} "
+            f"ist nicht validiert und von {violations} Zeilen verletzt"
+        )
+
+
 async def database_inventory(url: str, *, label: str) -> JsonObject:
     connection = await asyncpg.connect(url, timeout=30)
     try:
@@ -80,20 +172,13 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
             }
             if schema == "public":
                 public_names.add(name)
-        unvalidated_foreign_keys = int(
-            await connection.fetchval(
-                """
-                SELECT count(*)
-                FROM pg_constraint
-                WHERE contype = 'f' AND NOT convalidated
-                """
-            )
-            or 0
-        )
-        if unvalidated_foreign_keys:
+        unvalidated = await unvalidated_foreign_keys(connection)
+        if unvalidated and label != "twenty":
             raise InventoryError(
-                f"{label}: {unvalidated_foreign_keys} Fremdschlüssel sind nicht validiert"
+                f"{label}: {len(unvalidated)} Fremdschlüssel sind nicht validiert"
             )
+        for constraint in unvalidated:
+            await require_foreign_key_holds(connection, constraint, label=label)
         if label == "core":
             missing = sorted(CRITICAL_CORE_TABLES - public_names)
             if missing:
@@ -107,7 +192,10 @@ async def database_inventory(url: str, *, label: str) -> JsonObject:
             ),
             "tableCount": len(tables),
             "tables": tables,
-            "unvalidatedForeignKeys": unvalidated_foreign_keys,
+            "unvalidatedForeignKeys": len(unvalidated),
+            "rowCheckedForeignKeys": sorted(
+                f"{item['table']}.{item['name']}" for item in unvalidated
+            ),
         }
     finally:
         await connection.close()
