@@ -36,7 +36,9 @@ def _snippet_policy(caddyfile: str, snippet: str) -> tuple[str, str]:
     text = (ROOT / caddyfile).read_text(encoding="utf-8")
     block = re.search(rf"^\({snippet}\) \{{\n(.*?)^\}}", text, re.M | re.S)
     assert block, f"{caddyfile} lacks ({snippet})"
-    match = re.search(r'^\s*([?+]?)Content-Security-Policy "([^"]+)"', block.group(1), re.M)
+    match = re.search(
+        r'^\s*([?+]?)Content-Security-Policy "([^"]+)"', block.group(1), re.M
+    )
     assert match, f"{caddyfile} ({snippet}) lacks a Content-Security-Policy"
     return match.group(1), match.group(2)
 
@@ -69,7 +71,9 @@ def test_caddy_policies_are_strict_and_identical(caddyfile: str) -> None:
     for token in UNSAFE:
         assert token not in strict
     # Scheme-wide sources would allow any host.
-    assert not re.search(r"(^|\s)(ws|wss|https?|data|blob):(\s|$)", directives["connect-src"])
+    assert not re.search(
+        r"(^|\s)(ws|wss|https?|data|blob):(\s|$)", directives["connect-src"]
+    )
     # No other route may define its own, weaker policy.
     policy_lines = [
         line
@@ -80,7 +84,10 @@ def test_caddy_policies_are_strict_and_identical(caddyfile: str) -> None:
 
 
 def test_all_caddyfiles_send_the_same_policy() -> None:
-    policies = {caddyfile: _snippet_policy(caddyfile, "leonaid_headers")[1] for caddyfile in CADDYFILES}
+    policies = {
+        caddyfile: _snippet_policy(caddyfile, "leonaid_headers")[1]
+        for caddyfile in CADDYFILES
+    }
     assert len(set(policies.values())) == 1, policies
 
 
@@ -100,11 +107,15 @@ def test_astro_served_routes_use_the_fallback_policy(caddyfile: str) -> None:
         if "reverse_proxy public:3000" in handle:
             assert "import astro_headers" in handle
             assert "import leonaid_headers" not in handle
-    for handle in re.findall(r"\n\thandle @campaign_routes \{\n(.*?)\n\t\}", text, re.S):
+    for handle in re.findall(
+        r"\n\thandle @campaign_routes \{\n(.*?)\n\t\}", text, re.S
+    ):
         assert "import astro_headers" in handle
         assert "import leonaid_headers" not in handle
     for prefix, upstream in (("/app/*", "pwa:3000"), ("/admin/*", "web:3000")):
-        block = re.search(rf"\n\thandle_path {re.escape(prefix)} \{{\n(.*?)\n\t\}}", text, re.S)
+        block = re.search(
+            rf"\n\thandle_path {re.escape(prefix)} \{{\n(.*?)\n\t\}}", text, re.S
+        )
         assert block and upstream in block.group(1)
         assert "import leonaid_headers" in block.group(1)
 
@@ -123,7 +134,9 @@ class _InlineCode(HTMLParser):
             self.findings.append("<style>")
         if "style" in names:
             self.findings.append(f"style attribute on <{tag}>")
-        self.findings.extend(f"{name} handler on <{tag}>" for name in names if name.startswith("on"))
+        self.findings.extend(
+            f"{name} handler on <{tag}>" for name in names if name.startswith("on")
+        )
 
     def handle_endtag(self, tag: str) -> None:
         self._in_inline_script = False
