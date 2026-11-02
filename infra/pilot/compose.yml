@@ -41,6 +41,10 @@ services:
   worker:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
     build: !reset null
+    # Every network of the base stack is internal. The external SMTP relay is
+    # only reachable through this dedicated egress network.
+    networks:
+      - mail-egress
     environment:
       LEONAID_ENV: production
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
@@ -69,15 +73,30 @@ services:
     image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE fehlt}
     build: !reset null
 
+  # Twenty sends its own mail (address verification, password reset,
+  # invitations) through the SMTP relay of the core worker. Twenty 2.24 hands
+  # host, port and credentials to nodemailer: port 465 means implicit TLS,
+  # any other port upgrades with STARTTLS when the relay offers it, and the
+  # certificate is always verified against the public CA store.
+  # tools/pilot_deployment/validate.py enforces the port for MAIL_SMTP_MODE.
   twenty-server:
-    environment:
+    environment: &twenty-production-mail
       SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
       IS_EMAIL_VERIFICATION_REQUIRED: "true"
+      EMAIL_DRIVER: SMTP
+      EMAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
+      EMAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT fehlt}
+      EMAIL_SMTP_USER: ${MAIL_SMTP_USERNAME:-}
+      EMAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
+      EMAIL_SMTP_NO_TLS: "false"
+      EMAIL_FROM_ADDRESS: ${TWENTY_MAIL_FROM_ADDRESS:?TWENTY_MAIL_FROM_ADDRESS is missing}
+      EMAIL_FROM_NAME: ${TWENTY_MAIL_FROM_NAME:?TWENTY_MAIL_FROM_NAME is missing}
 
   twenty-worker:
-    environment:
-      SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
-      IS_EMAIL_VERIFICATION_REQUIRED: "true"
+    environment: *twenty-production-mail
+    # Twenty's e-mail queue runs in the worker; it needs the relay.
+    networks:
+      - mail-egress
 
   pilot-exporter:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
@@ -139,6 +158,11 @@ services:
       - alertmanager-data:/alertmanager
     networks:
       - telemetry
+
+networks:
+  # The only egress of the mail senders (core worker, twenty-worker); no
+  # other service joins it.
+  mail-egress: {}
 
 volumes:
   caddy-data:

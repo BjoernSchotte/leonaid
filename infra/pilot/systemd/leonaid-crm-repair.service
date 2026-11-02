@@ -1,0 +1,29 @@
+# Incremental repair of the LeonAid match keys in Twenty, started every 15
+# minutes by leonaid-crm-repair.timer. Records created or renamed directly in
+# Twenty (UI, CSV import) get their leonaidMatchKey within minutes; the
+# 30-minute window overlaps two runs, so one late or skipped run loses nothing.
+# The command skips with success while maintenance mode is on; the nightly
+# leonaid-crm-repair-full.service catches up on everything after that.
+# Install: copy the four crm-repair units to /etc/systemd/system/, create
+# /etc/leonaid/crm-repair.env from crm-repair.env.example and run
+#   systemctl daemon-reload
+#   systemctl enable --now leonaid-crm-repair.timer leonaid-crm-repair-full.timer
+# The operator account is called "leonaid". For another name, override User=
+# and Group= with "systemctl edit".
+[Unit]
+Description=LeonAid CRM match key repair (recent changes)
+Documentation=https://github.com/BjoernSchotte/leonaid/blob/main/apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=leonaid
+Group=leonaid
+EnvironmentFile=/etc/leonaid/crm-repair.env
+UMask=0077
+NoNewPrivileges=yes
+Nice=10
+TimeoutStartSec=10min
+# $$ hands the variables to the shell unexpanded; they come from crm-repair.env.
+ExecStart=/bin/sh -eu -c 'cd "$$LEONAID_CHECKOUT" && exec ./leonaid pilot-repair-crm-match-keys --env-file "$$LEONAID_ENV_FILE" --changed-within 30'

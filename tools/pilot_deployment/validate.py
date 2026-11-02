@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import sys
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -26,6 +27,14 @@ REQUIRED_SERVICES = {
     "worker",
 }
 PRIVATE_NETWORKS = {"core-data", "crm-data", "mail-data", "storage-data", "telemetry"}
+# The only network with a route out of the host besides the public edge. It
+# carries SMTP of the two mail senders and nothing else.
+MAIL_EGRESS_NETWORK = "mail-egress"
+MAIL_EGRESS_SERVICES = {"twenty-worker", "worker"}
+# Twenty 2.24 hands host, port and credentials to nodemailer, which uses
+# implicit TLS exactly on port 465 and otherwise upgrades with STARTTLS.
+IMPLICIT_TLS_PORT = "465"
+TWENTY_MAIL_SERVICES = ("twenty-server", "twenty-worker")
 IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 FULL_COMMIT = re.compile(r"[0-9a-f]{40}$")
@@ -207,6 +216,100 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         raise DeploymentContractError("produktiver SMTP-Transport ist unverschlüsselt")
     if worker_environment.get("MAIL_SMTP_VERIFY_CERTIFICATES") != "true":
         raise DeploymentContractError("produktive SMTP-Zertifikatsprüfung ist aus")
+    validate_mail_egress(services, networks)
+    validate_twenty_mail(services, worker_environment)
+
+
+def service_networks(service: dict[str, Any]) -> set[str]:
+    networks = service.get("networks") or {}
+    return set(networks) if isinstance(networks, (dict, list)) else set()
+
+
+def validate_mail_egress(
+    services: dict[str, Any], networks: dict[str, Any]
+) -> None:
+    egress = object_value(
+        networks.get(MAIL_EGRESS_NETWORK), f"networks.{MAIL_EGRESS_NETWORK}"
+    )
+    if egress.get("internal") is True:
+        raise DeploymentContractError(
+            "mail-egress is internal; no SMTP relay is reachable"
+        )
+    attached = {
+        name
+        for name, service in services.items()
+        if MAIL_EGRESS_NETWORK in service_networks(object_value(service, name))
+    }
+    if attached != MAIL_EGRESS_SERVICES:
+        raise DeploymentContractError(
+            "mail-egress must connect exactly worker and twenty-worker, found "
+            + ",".join(sorted(attached))
+        )
+
+
+def address_domain(value: str) -> str:
+    address = parseaddr(value)[1]
+    if address.count("@") != 1:
+        return ""
+    return address.rsplit("@", 1)[1].rstrip(".").casefold()
+
+
+def validate_twenty_mail(
+    services: dict[str, Any], worker_environment: dict[str, Any]
+) -> None:
+    """Twenty must send through the core relay with TLS and an aligned sender."""
+
+    mode = worker_environment.get("MAIL_SMTP_MODE")
+    port = str(worker_environment.get("MAIL_SMTP_PORT", ""))
+    if mode == "tls" and port != IMPLICIT_TLS_PORT:
+        raise DeploymentContractError(
+            "MAIL_SMTP_MODE=tls needs port 465; Twenty uses implicit TLS only there"
+        )
+    if mode == "starttls" and port == IMPLICIT_TLS_PORT:
+        raise DeploymentContractError(
+            "MAIL_SMTP_MODE=starttls cannot use port 465, which Twenty treats as implicit TLS"
+        )
+    if mode not in {"starttls", "tls"}:
+        raise DeploymentContractError("MAIL_SMTP_MODE must be starttls or tls")
+    if worker_environment.get("MAIL_SMTP_CA_FILE"):
+        raise DeploymentContractError(
+            "MAIL_SMTP_CA_FILE is not supported in the pilot; Twenty trusts only public CAs"
+        )
+    sender_domain = address_domain(string_value(worker_environment, "MAIL_FROM"))
+    expected = {
+        "EMAIL_DRIVER": "SMTP",
+        "EMAIL_SMTP_NO_TLS": "false",
+        "EMAIL_SMTP_HOST": string_value(worker_environment, "MAIL_SMTP_HOST"),
+        "EMAIL_SMTP_PORT": port,
+        "EMAIL_SMTP_USER": str(worker_environment.get("MAIL_SMTP_USERNAME") or ""),
+        "EMAIL_SMTP_PASSWORD": str(
+            worker_environment.get("MAIL_SMTP_PASSWORD") or ""
+        ),
+    }
+    for service_name in TWENTY_MAIL_SERVICES:
+        service = object_value(services[service_name], f"services.{service_name}")
+        environment = object_value(
+            service.get("environment"), f"{service_name}.environment"
+        )
+        for key, value in expected.items():
+            if str(environment.get(key) or "") != value:
+                # Never echo the value: the password is among the keys.
+                raise DeploymentContractError(
+                    f"{service_name} {key} differs from the core SMTP relay"
+                )
+        from_address = str(environment.get("EMAIL_FROM_ADDRESS") or "")
+        if (
+            not sender_domain
+            or ".invalid" in from_address.casefold()
+            or address_domain(from_address) != sender_domain
+            or parseaddr(from_address)[1] != from_address
+        ):
+            raise DeploymentContractError(
+                f"{service_name} EMAIL_FROM_ADDRESS must be a bare address "
+                "in the MAIL_FROM domain"
+            )
+        if not str(environment.get("EMAIL_FROM_NAME") or "").strip():
+            raise DeploymentContractError(f"{service_name} EMAIL_FROM_NAME is missing")
 
 
 def parse_args() -> argparse.Namespace:

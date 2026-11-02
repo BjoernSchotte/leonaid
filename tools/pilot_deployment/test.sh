@@ -76,6 +76,7 @@ backup_owned=false
 build_owned=false
 make_overlay() {
   destination=$1
+  LEONAID_TEST_EXTRA_NETWORKS=mail-egress \
   python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
   python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$destination" <<'OVERLAY'
 from pathlib import Path
@@ -316,6 +317,8 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "MAIL_REPLY_TO=support@leonaid.org" \
     "MAIL_SMTP_MODE=starttls" \
     "MAIL_SMTP_USERNAME=pilot-smtp" \
+    "TWENTY_MAIL_FROM_ADDRESS=crm@leonaid.org" \
+    "TWENTY_MAIL_FROM_NAME=LeonAid CRM" \
     "RESTIC_REPOSITORY=$backup_repository" \
     "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
     "LEONAID_MONITORED_DISK_PATH=$workspace" \

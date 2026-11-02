@@ -1,0 +1,14 @@
+# Every 15 minutes. Interval, random delay and accuracy stay well inside the
+# 30-minute window of leonaid-crm-repair.service, so consecutive runs overlap.
+[Unit]
+Description=LeonAid CRM match key repair every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00
+RandomizedDelaySec=2min
+AccuracySec=1min
+Persistent=true
+Unit=leonaid-crm-repair.service
+
+[Install]
+WantedBy=timers.target

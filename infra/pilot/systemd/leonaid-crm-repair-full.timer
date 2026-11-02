@@ -1,0 +1,14 @@
+# Daily at 04:00, after the 02:30 backup and its random delay. Persistent=true
+# catches up a run that was missed while the host was down.
+[Unit]
+Description=Nightly LeonAid CRM match key full repair
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=30min
+AccuracySec=1min
+Persistent=true
+Unit=leonaid-crm-repair-full.service
+
+[Install]
+WantedBy=timers.target

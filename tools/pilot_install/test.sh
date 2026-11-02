@@ -1,7 +1,10 @@
 #!/bin/sh
 # End-to-end proof of ./leonaid pilot-install against real services in an
 # isolated, owned Compose project: real Twenty with e-mail verification, real
-# S3/Restic backup target, real TLS proxy, real Prometheus/Alertmanager.
+# S3/Restic backup target, real TLS proxy, real Prometheus/Alertmanager, a real
+# STARTTLS+AUTH SMTP relay (Mailpit) that receives mail from Twenty and the
+# core worker over the mail egress network, and the scheduled CRM match key
+# repair including its maintenance-mode skip.
 set -eu
 
 root=${1:-$(pwd)}
@@ -14,6 +17,8 @@ operator_backup_project="leonaid-pilot-install-backup-$suffix"
 operator_backup_container="$operator_backup_project-rustfs"
 operator_backup_volume="$operator_backup_project-rustfs-data"
 operator_backup_bucket=leonaid-pilot-install
+operator_mail_project="leonaid-pilot-install-mail-$suffix"
+operator_mail_container="$operator_mail_project-mailpit"
 set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
   "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" <<'PORTS'
 import socket, sys
@@ -47,6 +52,9 @@ image_services="api web pwa public survey-validator proxy"
 runtime_owned=false
 backup_owned=false
 build_owned=false
+mail_owned=false
+mail_directory="$workspace/smtp"
+mail_host=smtp.leonaid.org
 
 export LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$overlay"
 
@@ -81,6 +89,9 @@ cleanup() {
     runtime_compose --profile monitoring ps --all >&2 || true
     runtime_compose --profile monitoring logs --no-color --tail=60 \
       twenty-server api proxy alertmanager >&2 || true
+  fi
+  if [ "$mail_owned" = true ]; then
+    docker rm --force "$operator_mail_container" >/dev/null 2>&1 || status=1
   fi
   if [ "$runtime_owned" = true ]; then
     runtime_compose --profile monitoring down --volumes --remove-orphans \
@@ -122,7 +133,7 @@ expect_refusal() {
   echo "pilot-install-test: refused as expected: $label"
 }
 
-for owned in "$project" "$build_project" "$operator_backup_project"; do
+for owned in "$project" "$build_project" "$operator_backup_project" "$operator_mail_project"; do
   verify_project_absent "$owned"
 done
 
@@ -146,13 +157,8 @@ export LEONAID_TEST_CORE_IMAGE LEONAID_TEST_WEB_IMAGE LEONAID_TEST_PWA_IMAGE \
   LEONAID_TEST_PUBLIC_IMAGE LEONAID_TEST_SURVEY_VALIDATOR_IMAGE \
   LEONAID_TEST_PROXY_IMAGE
 
-python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
-python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$overlay" <<'OVERLAY'
-from pathlib import Path
-import sys
-base, network, target = map(Path, sys.argv[1:])
-target.write_text(base.read_text() + "\nnetworks:\n" + network.read_text().split("\nnetworks:\n", 1)[1])
-OVERLAY
+LEONAID_TEST_EXTRA_NETWORKS=mail-egress \
+  python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
 
 echo "pilot-install-test: starts the operator's external S3 backup target"
 backup_owned=true
@@ -242,6 +248,7 @@ values = {
   "LEONAID_ALERT_HEARTBEAT_URL_FILE": w + "/alert-heartbeat-url",
   "MAIL_HEALTH_URL": "https://portal.leonaid.org/_health",
   "MAIL_SMTP_HOST": "smtp.leonaid.org",
+  "TWENTY_MAIL_FROM_ADDRESS": "crm@leonaid.org",
   "MAIL_FROM": "LeonAid <noreply@leonaid.org>",
   "MAIL_ENVELOPE_FROM": "bounces@leonaid.org",
   "MAIL_REPLY_TO": "support@leonaid.org",
@@ -278,6 +285,65 @@ if grep -q '__[A-Z0-9_]*__' "$env_file"; then
   echo 'pilot-install-test: ERROR: placeholders remain in the env file' >&2
   exit 1
 fi
+
+echo "pilot-install-test: starts the operator's SMTP relay (STARTTLS, AUTH, test CA)"
+mkdir -p "$mail_directory"
+chmod 755 "$mail_directory"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$root:/repo:ro" \
+  --volume "$mail_directory:/smtp" \
+  --entrypoint python \
+  "$LEONAID_TEST_CORE_IMAGE" \
+  /repo/tools/pilot_install/mail_proof.py certificates /smtp "$mail_host"
+smtp_user=$(sed -n 's/^MAIL_SMTP_USERNAME=//p' "$env_file")
+smtp_password=$(sed -n 's/^MAIL_SMTP_PASSWORD=//p' "$env_file")
+# Credentials reach Mailpit through a private env file, not the process list.
+printf 'MP_SMTP_AUTH=%s:%s\n' "$smtp_user" "$smtp_password" >"$workspace/mailpit.env"
+chmod 600 "$workspace/mailpit.env"
+mail_owned=true
+docker run --detach \
+  --name "$operator_mail_container" \
+  --label "com.docker.compose.project=$operator_mail_project" \
+  --env-file "$workspace/mailpit.env" \
+  --env MP_SMTP_BIND_ADDR=0.0.0.0:587 \
+  --env MP_SMTP_TLS_CERT=/smtp/cert.pem \
+  --env MP_SMTP_TLS_KEY=/smtp/key.pem \
+  --env MP_SMTP_REQUIRE_STARTTLS=true \
+  --env MP_DATABASE=/tmp/mailpit.db \
+  --volume "$mail_directory:/smtp:ro" \
+  "$MAILPIT_IMAGE" >/dev/null
+rm -f "$workspace/mailpit.env"
+
+# Test-only additions: Twenty and the core worker trust the relay's test CA.
+# Production relays need a certificate from a public CA.
+python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$overlay" "$mail_directory/ca.pem" <<'OVERLAY'
+from pathlib import Path
+import sys
+base, network, target, ca = sys.argv[1:]
+text = Path(base).read_text()
+anchor = "  worker:\n    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}\n"
+assert text.count(anchor) == 1
+mount = (
+    "    configs:\n"
+    "      - source: smtp-test-ca\n"
+    "        target: /run/leonaid-test/smtp-ca.pem\n"
+)
+text = text.replace(
+    anchor,
+    anchor
+    + mount
+    + "\n  twenty-worker:\n"
+    + "    environment:\n"
+    + "      NODE_EXTRA_CA_CERTS: /run/leonaid-test/smtp-ca.pem\n"
+    + mount,
+)
+text += (
+    "\nconfigs:\n  smtp-test-ca:\n    file: " + ca + "\n"
+    "\nnetworks:\n" + Path(network).read_text().split("\nnetworks:\n", 1)[1]
+)
+Path(target).write_text(text)
+OVERLAY
 
 docker run --rm \
   --user "$(id -u):$(id -g)" \
@@ -431,6 +497,101 @@ value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-
 assert value["sourceProject"] == os.environ["EXPECTED_PROJECT"]
 assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar"}'
 
+echo "pilot-install-test: proves mail from Twenty and the core worker through the relay"
+# The relay joins the egress network under its public name, like an external
+# provider that only the mail egress can reach.
+docker network connect --alias "$mail_host" "${project}_mail-egress" \
+  "$operator_mail_container"
+mail_api="http://$mail_host:8025"
+assert_delivered() {
+  docker run --rm --network "${project}_mail-egress" \
+    --volume "$root:/workspace:ro" --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/pilot_install/mail_proof.py assert-delivered "$mail_api" "$@"
+}
+runtime_compose exec -T api python - twenty-reset install-admin@leonaid.org \
+  <"$root/tools/pilot_install/mail_proof.py"
+assert_delivered install-admin@leonaid.org crm@leonaid.org assword
+runtime_compose exec -T \
+  --env MAIL_SMTP_CA_FILE=/run/leonaid-test/smtp-ca.pem \
+  worker python - core-send relay-probe@leonaid.org \
+  <"$root/tools/pilot_install/mail_proof.py"
+assert_delivered relay-probe@leonaid.org noreply@leonaid.org "relay probe"
+
+echo "pilot-install-test: proves the scheduled CRM match key repair"
+expect_repair_refusal() {
+  label=$1
+  expected=$2
+  shift 2
+  set +e
+  output=$(leonaid_test pilot-repair-crm-match-keys "$@" 2>&1)
+  refusal_status=$?
+  set -e
+  if [ "$refusal_status" -eq 0 ] || ! printf '%s' "$output" | grep -Fq "$expected"; then
+    echo "pilot-install-test: ERROR: repair $label was not refused with '$expected':" >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  echo "pilot-install-test: refused as expected: repair $label"
+}
+expect_repair_refusal "without env file" "--env-file is missing"
+expect_repair_refusal "with a zero window" "positive number of minutes" \
+  --env-file "$env_file" --changed-within 0
+chmod 644 "$env_file"
+expect_repair_refusal "with a world-readable env file" "must have mode 0600" \
+  --env-file "$env_file"
+chmod 600 "$env_file"
+crm_check() {
+  runtime_compose exec -T api python -m leonaid.entrypoints.crm_match_keys --check
+}
+# A company created directly in Twenty, as an operator would in the CRM UI,
+# carries no match key until the repair runs.
+runtime_compose exec -T api python -c 'import json, os, urllib.request
+request = urllib.request.Request(
+    os.environ["TWENTY_BASE_URL"] + "/rest/companies",
+    data=json.dumps({"name": "Repair Proof Pharmacy"}).encode(),
+    headers={
+        "Authorization": "Bearer " + os.environ["TWENTY_INTEGRATION_API_KEY"],
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+urllib.request.urlopen(request, timeout=30).read()'
+crm_check | grep -q '"unkeyed":[1-9]' || {
+  echo 'pilot-install-test: ERROR: the directly created company already has a key' >&2
+  exit 1
+}
+leonaid_test pilot-repair-crm-match-keys --env-file "$env_file" --changed-within 30 \
+  | tee "$workspace/repair.log"
+grep -Fq 'crm-match-keys: OK:' "$workspace/repair.log"
+if crm_check | grep -q '"unkeyed":[1-9]'; then
+  echo 'pilot-install-test: ERROR: the repair left records without a key' >&2
+  exit 1
+fi
+leonaid_test pilot-repair-crm-match-keys --env-file "$env_file" \
+  | grep -Fq 'crm-match-keys: OK:'
+# Maintenance mode stops Twenty on purpose: the timer run must skip with
+# success instead of failing, and run again once maintenance ends.
+maintenance() {
+  LEONAID_ENV_FILE="$env_file" \
+    LEONAID_COMPOSE_PROJECT="$project" \
+    LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_MAINTENANCE_COMPOSE_OVERLAY_SECONDARY="$overlay" \
+    LEONAID_MAINTENANCE_NO_BUILD=true \
+    /bin/sh "$root/infra/upgrade/maintenance.sh" "$1" "$root"
+}
+maintenance enable
+leonaid_test pilot-repair-crm-match-keys --env-file "$env_file" --changed-within 30 \
+  >"$workspace/repair-maintenance.log"
+grep -Fq 'SKIPPED: '"$project"' is in maintenance mode' "$workspace/repair-maintenance.log" || {
+  echo 'pilot-install-test: ERROR: the repair did not skip during maintenance' >&2
+  cat "$workspace/repair-maintenance.log" >&2
+  exit 1
+}
+maintenance disable
+leonaid_test pilot-repair-crm-match-keys --env-file "$env_file" --changed-within 30 \
+  | grep -Fq 'crm-match-keys: OK:'
+
 echo "pilot-install-test: waits for the always-firing Watchdog in Alertmanager"
 attempts=0
 until docker run --rm --network "${project}_telemetry" \
@@ -468,4 +629,5 @@ expect_refusal "install with the provisioned env file" "is not PENDING_PILOT_INS
   --twenty-bootstrap-file "$bootstrap_file" --password-file "$restic_password_file"
 
 echo "pilot-install-test: OK: empty project to verified Twenty admin, provisioned key,"
-echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog"
+echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog,"
+echo "pilot-install-test:     Twenty and core mail over STARTTLS, scheduled CRM repair"

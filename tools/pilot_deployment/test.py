@@ -75,12 +75,60 @@ def main() -> None:
     )
     mutations.append(("Live-Code-Mount", changed))
 
+    changed = copy.deepcopy(config)
+    changed["networks"]["mail-egress"]["internal"] = True
+    mutations.append(("internal mail egress", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["api"]["networks"]["mail-egress"] = None
+    mutations.append(("API on the mail egress", changed))
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["twenty-worker"]["networks"]["mail-egress"]
+    mutations.append(("twenty-worker without egress", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["environment"]["EMAIL_DRIVER"] = "LOGGER"
+    mutations.append(("Twenty logger mail driver", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-server"]["environment"]["EMAIL_SMTP_NO_TLS"] = "true"
+    mutations.append(("Twenty without TLS", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["environment"]["EMAIL_SMTP_HOST"] = (
+        "other-relay.leonaid.org"
+    )
+    mutations.append(("Twenty on another relay", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["environment"]["EMAIL_FROM_ADDRESS"] = (
+        "crm@unaligned.leonaid.net"
+    )
+    mutations.append(("unaligned Twenty sender", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["worker"]["environment"]["MAIL_SMTP_MODE"] = "tls"
+    mutations.append(("implicit TLS on a STARTTLS port", changed))
+
+    changed = copy.deepcopy(config)
+    for service in ("worker", "twenty-server", "twenty-worker"):
+        key = "MAIL_SMTP_PORT" if service == "worker" else "EMAIL_SMTP_PORT"
+        changed["services"][service]["environment"][key] = "465"
+    mutations.append(("STARTTLS on the implicit TLS port", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["worker"]["environment"]["MAIL_SMTP_CA_FILE"] = (
+        "/run/secrets/smtp-ca.pem"
+    )
+    mutations.append(("private SMTP CA", changed))
+
     for label, mutation in mutations:
         rejected(mutation, label)
 
     print(
-        "pilot-deployment-contract-test: OK: neun reale Compose-Mutationen "
-        "fail-closed abgewiesen"
+        f"pilot-deployment-contract-test: OK: {len(mutations)} real Compose "
+        "mutations rejected fail-closed"
     )
 
 
