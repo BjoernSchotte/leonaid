@@ -527,7 +527,7 @@ expect_repair_refusal() {
   output=$(leonaid_test pilot-repair-crm-match-keys "$@" 2>&1)
   refusal_status=$?
   set -e
-  if [ "$refusal_status" -eq 0 ] || ! printf '%s' "$output" | grep -Fq "$expected"; then
+  if [ "$refusal_status" -eq 0 ] || ! printf '%s' "$output" | grep -Fq -- "$expected"; then
     echo "pilot-install-test: ERROR: repair $label was not refused with '$expected':" >&2
     printf '%s\n' "$output" >&2
     exit 1
