@@ -62,6 +62,8 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
             "MAIL_REPLY_TO": "support@leonaid.org",
             "MAIL_SMTP_MODE": "starttls",
             "MAIL_SMTP_USERNAME": "synthetic-preflight",
+            "TWENTY_MAIL_FROM_ADDRESS": "crm@leonaid.org",
+            "TWENTY_MAIL_FROM_NAME": "LeonAid CRM",
             "MAIL_SMTP_PASSWORD": secrets.token_hex(32),
             "RESTIC_REPOSITORY": "s3:https://backup.leonaid.org/synthetic-preflight",
             "LEONAID_BACKUP_MANIFEST_PATH": "/proof/backup-manifest.json",

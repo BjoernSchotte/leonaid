@@ -8,8 +8,12 @@ Testinfrastruktur.
 ## Konfigurationsgrenze
 
 Die API erhält nur `MAIL_HEALTH_URL`. SMTP-Host, sichtbarer Absender,
-Envelope-From, Reply-To, Transportmodus und Zugangsdaten werden ausschließlich
-in den Worker injiziert. Eine befüllte
+Envelope-From, Reply-To, Transportmodus und Zugangsdaten werden in den Worker
+injiziert; im Pilot erhalten `twenty-server` und `twenty-worker` dasselbe
+Relay samt Zugangsdaten für Twentys eigene Mails (Adressbestätigung,
+Passwort-Reset, Einladungen) mit dem Absender `TWENTY_MAIL_FROM_ADDRESS` aus
+der Domain von `MAIL_FROM`. Nur `worker` und `twenty-worker` hängen am
+nicht-internen Netz `mail-egress`, dem einzigen Weg zum Relay. Eine befüllte
 Kopie von `mail.env.example`, Providerverträge, Zugangsdaten und
 Testpostfach-Inhalte dürfen weder in Git noch in öffentliche CI-Artefakte
 gelangen.
@@ -20,8 +24,14 @@ Unterstützte Modi:
 - `tls`: TLS besteht ab Verbindungsaufbau;
 - `plain`: nur für lokale/isolierte Tests, in Produktion abgewiesen.
 
-In Produktion ist Zertifikatsprüfung zwingend. Eine private CA kann als
-Worker-only-Datei gemountet und über `MAIL_SMTP_CA_FILE` referenziert werden.
+Twenty 2.24 (nodemailer) nutzt auf Port 465 implizites TLS und sonst
+STARTTLS, sofern das Relay es anbietet; erzwingen kann Twenty STARTTLS nicht.
+Der Deployment-Vertrag verlangt deshalb `tls` genau mit Port 465 und
+`starttls` mit einem anderen Port.
+
+In Produktion ist Zertifikatsprüfung zwingend. Lokal und in isolierten Tests
+kann eine private CA über `MAIL_SMTP_CA_FILE` referenziert werden; im Pilot ist
+das abgewiesen, weil Twenty nur öffentlichen CAs vertraut.
 Benutzername und Passwort müssen gemeinsam gesetzt oder gemeinsam leer sein.
 In Produktion sind außerdem alle drei Versandidentitäten explizit:
 

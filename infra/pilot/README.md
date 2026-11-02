@@ -84,7 +84,12 @@ eigene Mutation `verifyEmailAndGetLoginToken` mit einem einmaligen Token und
 startet danach den vollständigen Stack mit aktiver Verifizierung. Es folgen
 erstes Backup, Monitoring mit Watchdog-Heartbeat und der vollständige Doctor.
 
-Tägliche Backups plant `systemd/leonaid-backup.timer`. Der Alarm
+Tägliche Backups plant `systemd/leonaid-backup.timer`. Die CRM-Abgleichschlüssel
+repariert `./leonaid pilot-repair-crm-match-keys`: `systemd/leonaid-crm-repair.timer`
+alle 15 Minuten mit einem 30-Minuten-Fenster, `leonaid-crm-repair-full.timer`
+nächtlich vollständig. Im Wartungsmodus setzt der Befehl mit Status 0 aus.
+Weitere CRM-Benutzer bestätigen ihre Adresse per Mail über dasselbe
+SMTP-Relay wie der Core (siehe `MAIL-RUNBOOK.md`). Der Alarm
 `LeonAidWatchdog` feuert ständig und geht ausschließlich an die externe URL aus
 `LEONAID_ALERT_HEARTBEAT_URL_FILE`; bleiben die Pings aus, alarmiert der
 externe Dienst.

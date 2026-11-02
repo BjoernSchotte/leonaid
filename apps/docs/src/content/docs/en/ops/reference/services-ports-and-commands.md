@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 6d3891e2a7f6497307f1cd2927bb6efe1b4b97aa
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -17,7 +17,7 @@ reviewer: Björn Schotte
 | Web / PWA / Public / Campaign | admin, acquisition, and public UIs        | no authoritative domain data       |
 | Twenty Server/Worker          | companies and people                      | Twenty PostgreSQL and files        |
 | RustFS                        | private immutable document bytes          | RustFS volume                      |
-| Mail relay                    | login, invitation, and invoice mail       | external provider; local Mailpit   |
+| Mail relay                    | LeonAid and Twenty CRM mail               | external provider; local Mailpit   |
 
 Locally only Caddy publishes `127.0.0.1:8443` for HTTPS and
 `127.0.0.1:8080` for diagnostic HTTP. If either port is taken, `bootstrap`
@@ -29,11 +29,12 @@ name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev 
 Tailscale or VPN name `myhost.tailnet.ts.net`; keep `127.0.0.1` when unused.
 Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443.
 Databases, the Valkey queue store, S3, and internal APIs stay inside Compose
-networks.
+networks. In the pilot, only the worker and the Twenty worker join the `mail-egress`
+network, the only route to the external SMTP relay.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-doctor`, `pilot-deploy`, `pilot-release`, `pilot-backup`,
-`pilot-restore`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
+`pilot-restore`, `pilot-repair-crm-match-keys`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
 `./leonaid help` for the current complete list; the CLI is authoritative when
 this reference differs.
 
