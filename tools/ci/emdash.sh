@@ -8,8 +8,13 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 group=${1:-}
 
 case "$group" in
-  krapfentaxi-orders|krapfentaxi-migration)
+  krapfentaxi-orders)
     cases=$group
+    ;;
+  krapfentaxi-migration)
+    # redirect-aliases: three-browser alias editor on /admin/actions/<id>
+    # under the strict CSP (short case, shares the browser bootstrap).
+    cases="krapfentaxi-migration redirect-aliases"
     ;;
   static)
     # Stack-free proofs (dependency pins, source fixtures, authorization
