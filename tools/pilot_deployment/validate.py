@@ -386,10 +386,11 @@ def validate_twenty_admin_access(
             object_value(services[service_name], service_name).get("environment"),
             f"{service_name}.environment",
         )
-        if environment.get("SERVER_URL") != tunnel_url:
-            raise DeploymentContractError(
-                f"{service_name} SERVER_URL must be the admin tunnel URL {tunnel_url}"
-            )
+        for key in ("SERVER_URL", "AUTH_COOKIE_ALLOWED_ORIGINS"):
+            if environment.get(key) != tunnel_url:
+                raise DeploymentContractError(
+                    f"{service_name} {key} must be the admin tunnel URL {tunnel_url}"
+                )
     if api_environment.get("TWENTY_ORIGIN") != tunnel_url:
         raise DeploymentContractError(
             f"api TWENTY_ORIGIN must be the admin tunnel URL {tunnel_url}"

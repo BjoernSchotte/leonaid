@@ -31,8 +31,8 @@ Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443
 publicly. The Twenty CRM has no public domain: `twenty-server` publishes its
 port only on the host's loopback address, `127.0.0.1:TWENTY_ADMIN_PORT`
 (default 3020), and joins the `crm-data` network and its own `crm-admin`
-network, never the proxy's `edge` network. Its `SERVER_URL` is
-`http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file FILE`
+network, never the proxy's `edge` network. Its `SERVER_URL` and
+`AUTH_COOKIE_ALLOWED_ORIGINS` are `http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file FILE`
 checks the loopback binding and prints the `ssh -N -L PORT:127.0.0.1:PORT`
 command that the system administrator runs on a workstation before opening
 `http://localhost:PORT`.

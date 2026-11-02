@@ -115,6 +115,11 @@ services:
       - crm-admin
     environment: &twenty-production-mail
       SERVER_URL: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
+      # In production Twenty refuses a loopback SERVER_URL as credentialed
+      # origin unless it is listed here. The browser behind the tunnel is
+      # same-origin anyway; LeonAid's own tools reach twenty-server:3000 with
+      # this Origin header (TWENTY_ORIGIN) and need the explicit entry.
+      AUTH_COOKIE_ALLOWED_ORIGINS: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       IS_EMAIL_VERIFICATION_REQUIRED: "true"
       # Read by the mail policy above; the core worker uses the same value.
       MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE fehlt}

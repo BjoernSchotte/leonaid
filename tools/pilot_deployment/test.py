@@ -133,6 +133,12 @@ def main() -> None:
     mutations.append(("public Twenty SERVER_URL", changed))
 
     changed = copy.deepcopy(config)
+    changed["services"]["twenty-server"]["environment"][
+        "AUTH_COOKIE_ALLOWED_ORIGINS"
+    ] = "http://localhost:3020,https://evil.leonaid.org"
+    mutations.append(("extra Twenty credentialed origin", changed))
+
+    changed = copy.deepcopy(config)
     changed["services"]["api"]["environment"]["TWENTY_ORIGIN"] = (
         "https://crm.leonaid.org"
     )

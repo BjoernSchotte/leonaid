@@ -32,8 +32,8 @@ VPN-Namen `myhost.tailnet.ts.net`; ungenutzt bleibt er `127.0.0.1`. Änderungen
 80/443 öffentlich. Das Twenty CRM hat keine öffentliche Domain: `twenty-server`
 veröffentlicht seinen Port nur auf der Loopback-Adresse des Hosts,
 `127.0.0.1:TWENTY_ADMIN_PORT` (Standard 3020), und ist in `crm-data` und im
-eigenen Netz `crm-admin`, nie im Proxy-Netz `edge`. Sein `SERVER_URL` ist
-`http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file DATEI`
+eigenen Netz `crm-admin`, nie im Proxy-Netz `edge`. `SERVER_URL` und
+`AUTH_COOKIE_ALLOWED_ORIGINS` sind `http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file DATEI`
 prüft die Loopback-Bindung und gibt den Befehl
 `ssh -N -L PORT:127.0.0.1:PORT` aus, den die Systemadministration auf ihrem
 Arbeitsplatz startet, bevor sie `http://localhost:PORT` öffnet.
