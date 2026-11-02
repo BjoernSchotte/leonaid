@@ -1,4 +1,17 @@
-"""Allocate explicit non-overlapping survey test subnets; never prune networks."""
+"""Allocate explicit non-overlapping survey test subnets; never prune networks.
+
+Usage:
+  network_override.py OVERRIDE [VOLUME]   write a Compose override with subnets
+  network_override.py --single            print one currently unused subnet
+  network_override.py --create-internal NAME
+                                          create the internal network NAME
+
+A written override only selects subnets that are free at that moment; the
+caller must reserve them with tools/testing/reserve_compose_networks.py before
+anything else can create networks. --create-internal creates the network
+itself and retries with the next candidate when a concurrent stack took the
+subnet in between ("Pool overlaps"), so the Docker daemon arbitrates.
+"""
 
 import ipaddress
 import json
@@ -34,6 +47,30 @@ names = [
     "telemetry",
     "mailing-data",
 ]
+if sys.argv[1] == "--create-internal":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: network_override.py --create-internal NAME")
+    for subnet in candidate_subnets(used):
+        created = subprocess.run(
+            [
+                "docker",
+                "network",
+                "create",
+                "--internal",
+                "--subnet",
+                str(subnet),
+                sys.argv[2],
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if created.returncode == 0:
+            print(subnet)
+            raise SystemExit(0)
+        if "Pool overlaps" not in created.stderr:
+            sys.stderr.write(created.stderr)
+            raise SystemExit("Creating the test network failed")
+    raise SystemExit("No free survey test subnet; existing networks are untouched")
 # Overlays for stacks with extra networks (the pilot's mail-egress) name them
 # here so they also get an explicit subnet from the test pools.
 names += [

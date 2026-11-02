@@ -28,9 +28,8 @@ trap 'exit 143' TERM
 image=true
 phase survey-aggregate-build docker buildx build --load \
   --file "$root/infra/compose/Dockerfile.survey-validator" --tag "$project" "$root"
-subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
 network=true
-docker network create --internal --subnet "$subnet" "$project" >/dev/null
+python3 "$root/tools/surveys/network_override.py" --create-internal "$project" >/dev/null
 container=true
 docker run --detach --name "$project" --network "$project" --network-alias survey-validator \
   --user bun --cap-drop ALL --security-opt no-new-privileges:true \
@@ -44,7 +43,8 @@ ready() {
   done
 }
 check() {
-  docker run --rm --network "$project" --env PYTHONPATH=/workspace/src \
+  docker run --rm --network "$project" --user "$(id -u):$(id -g)" \
+    --env HOME=/tmp --env UV_CACHE_DIR=/tmp/uv-cache --env PYTHONPATH=/workspace/src \
     --volume "$root:/workspace:ro" --volume "$proof:/proof" --workdir /workspace \
     "$UV_IMAGE" uv run --frozen --no-sync python tools/surveys/analysis_live.py "$1"
 }

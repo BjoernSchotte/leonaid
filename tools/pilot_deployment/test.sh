@@ -178,11 +178,11 @@ print(
     fi
   fi
   if [ "$runtime_owned" = true ]; then
-    runtime_compose --profile monitoring down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    runtime_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || status=1
     verify_project_absent "$project" || status=1
   fi
   if [ "$restore_owned" = true ]; then
-    restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    restore_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || status=1
     verify_project_absent "$restore_project" || status=1
   fi
   if [ "$backup_owned" = true ]; then
@@ -375,6 +375,8 @@ docker compose \
 # placeholder in the env file before the production topology starts.
 echo "pilot-deployment-test: provisioniert Twenty wie pilot-install"
 runtime_owned=true
+runtime_compose --profile '*' config --format json |
+  python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$source_overlay"
 bootstrap_compose() {
   runtime_compose --file "$root/infra/pilot/compose.bootstrap.yml" "$@"
 }
@@ -465,7 +467,7 @@ proxy_container=${proxy_container#/}
 runtime_compose exec --no-TTY proxy \
   cat /data/caddy/pki/authorities/local/root.crt >"$ca_file"
 chmod 600 "$ca_file"
-docker run --rm \
+docker run --rm --user "$(id -u):$(id -g)" \
   --env "BACKUP_SOURCE_PROJECT=$project" \
   --volume "$workspace:/proof" \
   "$PYTHON_IMAGE" \
@@ -910,8 +912,16 @@ if ! printf '%s' "$wrong_restore_output" |
 fi
 restore_doctor_network="container:$proxy_container"
 run_pilot_restore() {
+# Every fresh restore after a teardown needs its networks again; reserve them
+# here (with collision retry) instead of letting Compose create them later
+# from subnets another stack may have taken in the meantime.
+if [ -z "$(docker network ls -q --filter "label=com.docker.compose.project=$restore_project")" ]; then
+  restore_compose --profile '*' config --format json |
+    python3 "$root/tools/testing/reserve_compose_networks.py" "$restore_project" "$target_overlay"
+fi
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
+  LEONAID_PILOT_TEST_NETWORKS_PRERESERVED=true \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="$restore_doctor_network" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -932,7 +942,7 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
 if [ "$mode" = surveys ]; then
   # Both DBs, objects, writers and source archive are gone. Only independently
   # retained encrypted backups, explicit checkpoint and operator inputs remain.
-  runtime_compose --profile monitoring down --volumes --remove-orphans
+  runtime_compose --profile '*' down --volumes --remove-orphans
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
   [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
   runtime_owned=false
@@ -1002,7 +1012,7 @@ if [ "$mode" = surveys ]; then
       survey_probe restore_compose online-restic
       echo 'pilot-survey-recovery: interrupted reapplication resumed without reimport; original marker preserved'
     fi
-    restore_compose down --volumes --remove-orphans
+    restore_compose --profile '*' down --volumes --remove-orphans
     [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$restore_project")" ]
     LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$valid_cutoff
     echo "pilot-survey-recovery: $invalid input rejected; old survey/object verified offline"

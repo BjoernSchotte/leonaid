@@ -346,7 +346,7 @@ rto_seconds=$((restore_verified - restore_started))
   echo "backup-test: ERROR: RTO-Ziel von 2 Stunden verfehlt" >&2
   exit 1
 }
-docker run --rm \
+docker run --rm --user "$(id -u):$(id -g)" \
   -e "RPO_SECONDS=$rpo_seconds" \
   -e "RTO_SECONDS=$rto_seconds" \
   -v "$proof:/proof" \

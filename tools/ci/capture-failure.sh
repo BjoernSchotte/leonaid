@@ -51,7 +51,7 @@ docker compose \
   api /repo/tools/ci/runtime_diagnostics.py /ci/runtime-diagnostics.json \
   >"$destination/runtime-diagnostics.log" 2>&1 || true
 
-docker run --rm \
+docker run --rm --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof:ro" \
   --volume "$destination:/ci" \

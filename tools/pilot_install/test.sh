@@ -94,7 +94,7 @@ cleanup() {
     docker rm --force "$operator_mail_container" >/dev/null 2>&1 || status=1
   fi
   if [ "$runtime_owned" = true ]; then
-    runtime_compose --profile monitoring down --volumes --remove-orphans \
+    runtime_compose --profile '*' down --volumes --remove-orphans \
       >/dev/null 2>&1 || status=1
     verify_project_absent "$project" || status=1
   fi
@@ -214,6 +214,7 @@ printf '%s\n' "https://heartbeat.leonaid.org/pilot-install" >"$alert_heartbeat_f
 chmod 600 "$alert_webhook_file" "$alert_heartbeat_file"
 # As in the runbook: Alertmanager runs as nobody (65534) and reads both URL
 # files, which stay private (0400) to that account.
+# host-write-user: chown to the Alertmanager uid requires root
 docker run --rm --volume "$workspace:/secrets" "$ALPINE_IMAGE" \
   sh -eu -c 'chown 65534:65534 /secrets/alert-webhook-url /secrets/alert-heartbeat-url
 chmod 0400 /secrets/alert-webhook-url /secrets/alert-heartbeat-url'
@@ -421,6 +422,10 @@ verify_project_absent "$project" || {
 
 echo "pilot-install-test: runs pilot-install on the empty project"
 runtime_owned=true
+# The subnets were only free when the overlay was written; reserve them now so
+# a concurrent stack cannot take them before Compose creates the networks.
+runtime_compose --profile '*' config --format json |
+  python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$overlay"
 leonaid_test pilot-install \
   --env-file "$env_file" --release-manifest "$release_manifest" \
   --twenty-bootstrap-file "$bootstrap_file" --password-file "$restic_password_file" \

@@ -15,7 +15,7 @@ if [ "$orders" = false ]; then
     --label com.docker.compose.volume=twenty-server-data \
     "${project}_twenty-server-data" >/dev/null
 fi
-docker run --rm --network none --volume "$proof:/proof" "$NODE_IMAGE" \
+docker run --rm --network none --user "$(id -u):$(id -g)" --volume "$proof:/proof" "$NODE_IMAGE" \
   node -e 'require("node:fs").writeFileSync("/proof/restic-password",require("node:crypto").randomBytes(48).toString("hex"),{mode:0o600})'
 overlay_list="$root/infra/emdash-spike/recovery-app.overlays"
 if [ "$orders" = true ]; then overlay_list="$root/infra/emdash-spike/recovery-orders.overlays"; fi

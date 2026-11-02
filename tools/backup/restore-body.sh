@@ -154,7 +154,8 @@ fi
 # so; the container and volume checks above still prove the target is empty.
 if [ "${LEONAID_RESTORE_NETWORKS_PRERESERVED:-false}" = true ]; then
   [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = true ] ||
-    fail "Vorab reservierte Netzwerke sind nur im lokalen Test erlaubt"
+    [ "${LEONAID_RESTORE_ISOLATED_PILOT_TEST:-false}" = true ] ||
+    fail "Vorab reservierte Netzwerke sind nur im lokalen oder isolierten Pilot-Test erlaubt"
   [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ] ||
     fail "Vorab reservierte Netzwerke fehlen"
 elif [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
@@ -209,6 +210,7 @@ restic_run() {
   else
     if [ -n "$credentials_file" ]; then
       [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
+      # host-write-user: restic restores the recorded owners, which needs root
       docker run --rm \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
         -e "RESTIC_REPOSITORY=$repository" \
@@ -217,6 +219,7 @@ restic_run() {
         -v "$stage:/restore" \
         "$RESTIC_IMAGE" "$restic_command" "$@"
     else
+      # host-write-user: restic restores the recorded owners, which needs root
       docker run --rm \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
         -e "RESTIC_REPOSITORY=$repository" \

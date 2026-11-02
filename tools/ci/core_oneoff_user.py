@@ -11,6 +11,14 @@ the invoking user, so their compose one-offs inherit it; their plain
 `docker run` calls still need `--user`. Deliberate exceptions carry the marker
 comment `# core-oneoff-user: <reason>` on the line before the command.
 
+Any other `docker run` (Playwright, Python, Node, Alpine, ...) that mounts a
+host path writable runs as root by default and leaves root-owned files in
+proof, artifact or fixture directories that the invoking user can no longer
+delete. Those calls must pass `--user` as well; a container that needs root
+on purpose (chown, restoring foreign ownership) carries the marker comment
+`# host-write-user: <reason>` on the line before the command. Archives of
+named volumes stream to stdout so the host shell creates the file.
+
 Usage: core_oneoff_user.py ROOT
 """
 
@@ -22,6 +30,7 @@ import sys
 from pathlib import Path
 
 MARKER = "core-oneoff-user:"
+HOST_WRITE_MARKER = "host-write-user:"
 SKIPPED_PARTS = {".git", ".venv", ".artifacts", ".cache", "node_modules"}
 # A compose service of the core image used as the run target.
 CORE_SERVICE = re.compile(
@@ -33,6 +42,7 @@ CORE_IMAGE = re.compile(
 )
 VOLUME = re.compile(r'(?:--volume[ =]|(?:^|\s)-v\s+)"?([^"\s]+)"?')
 BIND_MOUNT = re.compile(r"--mount[ =]\"?type=bind")
+BIND_MOUNT_SPEC = re.compile(r"--mount[ =](\"?type=bind\S*)")
 USER = re.compile(r"(?:--user[ =]|(?:^|\s)-u\s)")
 # Named volumes: Compose-prefixed names and variables that hold volume names.
 NAMED_VOLUME = re.compile(
@@ -64,6 +74,26 @@ def host_mount(command: str) -> bool:
     return any(not NAMED_VOLUME.match(source) for source in VOLUME.findall(command))
 
 
+def read_only(spec: str) -> bool:
+    """True when a -v/--volume spec carries the ro option."""
+    parts = spec.split(":")
+    return len(parts) >= 3 and "ro" in parts[-1].split(",")
+
+
+def writable_host_mount(command: str) -> bool:
+    for mount in BIND_MOUNT_SPEC.findall(command):
+        options = mount.replace('"', "").split(",")
+        if not ({"readonly", "ro", "readonly=true", "ro=true"} & set(options)):
+            return True
+    return any(
+        not NAMED_VOLUME.match(spec)
+        and not read_only(spec)
+        # A bind-mounted socket (docker.sock) creates no files on the host.
+        and not spec.split(":")[0].endswith(".sock")
+        for spec in VOLUME.findall(command)
+    )
+
+
 # Suites that run their whole isolated stack as the invoking user: compose
 # one-offs inherit that user from compose.yml (x-core-user).
 STACK_USER = re.compile(
@@ -78,6 +108,14 @@ def shell_violations(path: Path, text: str) -> list[str]:
     for line, command, previous in shell_commands(text):
         if not re.search(r"\brun\b", command):
             continue
+        if (
+            "docker run" in command
+            and writable_host_mount(command)
+            and not USER.search(command)
+            and HOST_WRITE_MARKER not in previous
+        ):
+            violations.append(f"{path}:{line}: writable host mount")
+            continue
         is_compose_run = re.search(r"\brun\b[^|;&]*?\s--rm\b", command) and (
             CORE_SERVICE.search(command.split(" run ", 1)[-1])
         )
@@ -90,7 +128,7 @@ def shell_violations(path: Path, text: str) -> list[str]:
             continue
         if MARKER in previous:
             continue
-        violations.append(f"{path}:{line}")
+        violations.append(f"{path}:{line}: core image")
     return violations
 
 
@@ -109,24 +147,35 @@ def python_violations(path: Path, text: str) -> list[str]:
             for element in node.elts
             if isinstance(element, ast.Constant) and isinstance(element.value, str)
         ]
-        if "run" not in strings or not ({"api", "worker"} & set(strings)):
+        if "run" not in strings:
             continue
-        has_host_mount = False
+        docker_run = strings[:2] == ["docker", "run"]
+        core = bool({"api", "worker"} & set(strings))
+        if not (docker_run or core):
+            continue
+        has_host_mount = has_writable_host_mount = False
         for flag, source in zip(node.elts, node.elts[1:]):
             if not (
                 isinstance(flag, ast.Constant) and flag.value in {"--volume", "-v"}
             ):
                 continue
             if isinstance(source, ast.Constant) and isinstance(source.value, str):
-                has_host_mount |= NAMED_VOLUME.match(source.value) is None
+                host = NAMED_VOLUME.match(source.value) is None
+                has_host_mount |= host
+                has_writable_host_mount |= host and not read_only(source.value)
             else:
-                # f-strings and expressions build host paths at runtime.
+                # f-strings and expressions build host paths at runtime; the
+                # mode is the literal text after the last placeholder.
                 has_host_mount = True
-        if not has_host_mount or {"--user", "-u"} & set(strings):
+                tail = ast.get_source_segment(text, source) or ""
+                has_writable_host_mount |= not re.search(r":ro[\"']$", tail)
+        if {"--user", "-u"} & set(strings):
             continue
-        if node.lineno > 1 and MARKER in lines[node.lineno - 2]:
-            continue
-        violations.append(f"{path}:{node.lineno}")
+        previous = lines[node.lineno - 2] if node.lineno > 1 else ""
+        if docker_run and has_writable_host_mount and HOST_WRITE_MARKER not in previous:
+            violations.append(f"{path}:{node.lineno}: writable host mount")
+        elif core and has_host_mount and MARKER not in previous:
+            violations.append(f"{path}:{node.lineno}: core image")
     return violations
 
 
@@ -163,14 +212,22 @@ def main() -> int:
     violations = check(Path(sys.argv[1]))
     if violations:
         for violation in violations:
+            marker = (
+                HOST_WRITE_MARKER
+                if violation.endswith("writable host mount")
+                else MARKER
+            )
             print(
-                f"core-oneoff-user: ERROR: {violation}: core one-off mounts a "
-                'host path without --user; add --user "$(id -u):$(id -g)" or '
-                f"mark a deliberate exception with '# {MARKER} <reason>'",
+                f"core-oneoff-user: ERROR: {violation}: one-off container mounts "
+                'a host path without --user; add --user "$(id -u):$(id -g)" or '
+                f"mark a deliberate exception with '# {marker} <reason>'",
                 file=sys.stderr,
             )
         return 1
-    print("core-oneoff-user: OK: every core one-off with a host mount sets --user")
+    print(
+        "core-oneoff-user: OK: every core one-off with a host mount and every "
+        "docker run with a writable host mount sets --user"
+    )
     return 0
 
 

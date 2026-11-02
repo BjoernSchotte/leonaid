@@ -102,8 +102,17 @@ services:
         condition: service_healthy
       twenty-server:
         condition: service_healthy
+    # Caddy opens :8443 before `tls internal` has issued the certificates;
+    # until then a TLS handshake fails (ERR_SSL_PROTOCOL_ERROR). Healthy means
+    # HTTP and TLS for both names the tests and the browser use. BusyBox wget
+    # sends the URL host as SNI and does not verify the internal CA.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/_health"]
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://localhost:8080/_health &&
+          wget -qO- https://proxy:8443/_health &&
+          wget -qO- https://localhost:8443/_health
       interval: 5s
       timeout: 3s
       retries: 20

@@ -204,7 +204,7 @@ run_step pilot-release \
 current_step=evidence
 write_summary passed ""
 
-docker run --rm \
+docker run --rm --user "$(id -u):$(id -g)" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$artifact_directory:/proof" \

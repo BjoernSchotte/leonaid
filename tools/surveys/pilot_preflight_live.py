@@ -251,6 +251,8 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
                 "--rm",
                 "--network",
                 "none",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
                 "-e",
                 "PYTHONPATH=/workspace",
                 "-v",

@@ -232,7 +232,7 @@ for service, config in json.loads((directory / 'images.json').read_text())['serv
     ).strip()
     assert actual == config['image'], service
 PY
-docker run --rm --network "${target_project}_edge" --env-file "$proof/session.env" \
+docker run --rm --user "$(id -u):$(id -g)" --network "${target_project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
