@@ -41,11 +41,11 @@
     },
     {
       "id": "redis",
-      "version": "7.4.5-alpine3.21",
-      "image": "docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
-      "digest": "sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
+      "version": "7.4.12-alpine3.21",
+      "image": "docker.io/library/redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "digest": "sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
       "license": "RSALv2 OR SSPL-1.0",
-      "upstream": "https://github.com/redis/docker-library-redis/tree/732a2608af90db97efa8ddd993fcbb63f5d2883b",
+      "upstream": "https://github.com/redis/docker-library-redis/tree/786872f8c248c1f0990f93244cbcb3949329016d",
       "roles": [
         "twenty-redis"
       ]
