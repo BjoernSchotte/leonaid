@@ -182,6 +182,16 @@ def main() -> None:
     mutations.append(("missing memory limit", changed))
 
     changed = copy.deepcopy(config)
+    changed["services"]["twenty-postgres"]["mem_limit"] = str(8 * 1024**3)
+    mutations.append(("memory limits beyond the pilot budget", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-server"]["environment"]["NODE_OPTIONS"] = (
+        "--max-old-space-size=4096"
+    )
+    mutations.append(("V8 heap above the memory limit", changed))
+
+    changed = copy.deepcopy(config)
     del changed["services"]["rustfs"]["logging"]
     mutations.append(("missing log rotation", changed))
 
