@@ -7,15 +7,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from leonaid.adapters.surveyjs_validation import aggregate_batch
+from leonaid.modules.surveys.adapters.surveyjs_validation import aggregate_batch
 from leonaid.application.errors import Conflict, ResourceNotFound
-from leonaid.application.surveys.analysis import QuestionAggregate
-from leonaid.application.surveys.analysis_snapshot import (
+from leonaid.modules.surveys.application.analysis import QuestionAggregate
+from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisFilter,
     AnalysisSnapshot,
 )
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import json_size
+from leonaid.modules.surveys.domain.validation import json_size
 
 
 async def aggregate_selection(

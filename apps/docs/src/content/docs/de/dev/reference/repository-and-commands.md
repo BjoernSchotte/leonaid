@@ -4,28 +4,28 @@ description: Referenz der wichtigsten LeonAid-Verzeichnisse, Toolchains und Wrap
 docId: DOC-P036
 audience: [dev]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 0a06f45bee5c54a299a6605b7d5df085c00889d1
 reviewer: Björn Schotte
 ---
 
-| Pfad                                  | Inhalt                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------ |
-| `src/leonaid/domain`                  | Fachmodelle und Regeln ohne Transportdetails                                   |
-| `src/leonaid/adapters`                | PostgreSQL-, Twenty-, Storage- und weitere Adapter                             |
-| `src/leonaid/entrypoints`             | FastAPI- und Worker-Einstiege                                                  |
-| `src/leonaid/platform`                | geteilte technische Verträge (Navigation, HTTP-Fehlerformat, Worker-Schleifen) |
-| `src/leonaid/modules`                 | Fachmodule mit Routen, Jobs und Navigation                                     |
-| `src/leonaid/bootstrap`               | statische Modulregistrierung für API und Worker                                |
-| `apps/web`, `apps/pwa`, `apps/public` | Admin-, Akquise- und öffentliche Oberflächen                                   |
-| `apps/campaign-site`                  | Astro/EmDash-Kampagnendarstellung                                              |
-| `apps/docs`                           | diese Starlight-Site und ihre Qualitätsgates                                   |
-| `packages/api-client`                 | kanonisches OpenAPI und generierter TypeScript-Client                          |
-| `packages/features`, `packages/ui`    | geteilte Funktions- und UI-Bausteine                                           |
-| `migrations`                          | Alembic-Revisionsgraph des Core                                                |
-| `infra`                               | Compose, Pilot, Locks, Backup, Upgrade und Twenty-Schema                       |
-| `tools` / `tests`                     | ausführbare Verträge, Generatoren und Testdaten                                |
+| Pfad                                  | Inhalt                                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/leonaid/domain`                  | Fachmodelle und Regeln ohne Transportdetails                                      |
+| `src/leonaid/adapters`                | PostgreSQL-, Twenty-, Storage- und weitere Adapter                                |
+| `src/leonaid/entrypoints`             | FastAPI- und Worker-Einstiege                                                     |
+| `src/leonaid/platform`                | geteilte technische Verträge (Navigation, HTTP-Fehlerformat, Worker-Schleifen)    |
+| `src/leonaid/modules`                 | Fachmodule; jedes besitzt seine Domain-, Application-, Adapter- und Routendateien |
+| `src/leonaid/bootstrap`               | statische Modulregistrierung für API und Worker                                   |
+| `apps/web`, `apps/pwa`, `apps/public` | Admin-, Akquise- und öffentliche Oberflächen                                      |
+| `apps/campaign-site`                  | Astro/EmDash-Kampagnendarstellung                                                 |
+| `apps/docs`                           | diese Starlight-Site und ihre Qualitätsgates                                      |
+| `packages/api-client`                 | kanonisches OpenAPI und generierter TypeScript-Client                             |
+| `packages/features`, `packages/ui`    | geteilte Funktions- und UI-Bausteine                                              |
+| `migrations`                          | Alembic-Revisionsgraph des Core                                                   |
+| `infra`                               | Compose, Pilot, Locks, Backup, Upgrade und Twenty-Schema                          |
+| `tools` / `tests`                     | ausführbare Verträge, Generatoren und Testdaten                                   |
 
 Module werden explizit in `src/leonaid/bootstrap/api.py` (Routen, Navigation)
 und `src/leonaid/bootstrap/worker.py` (Outbox-Handler, Hintergrundschleifen)
@@ -34,7 +34,9 @@ Modulabhängigkeiten, kollidierenden Routen, doppelten Handlern und doppelten
 Schleifen ab. Weboberflächen eines Moduls registrieren sich in der Web-Shell als
 `UiModule` (`packages/features/src/modules.ts`).
 `tests/unit/test_architecture_boundaries.py` erzwingt die Importrichtung
-`entrypoints → bootstrap → modules → platform`.
+`entrypoints → bootstrap → modules → platform`. Andere Module nutzen ein Modul nur
+über dessen `api.py`, zum Beispiel
+`leonaid.modules.surveys.api.SurveyService`.
 
 `./leonaid bootstrap`, `doctor`, `dev` und `check` bilden den allgemeinen
 Entwicklungsweg. `generate-api-client` aktualisiert die API-Artefakte.

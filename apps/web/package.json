@@ -15,7 +15,6 @@
     "@leonaid/ui": "workspace:*",
     "@tanstack/react-query": "5.101.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@leonaid/surveys": "workspace:*"
+    "react-dom": "19.2.8"
   }
 }

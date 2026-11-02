@@ -12,7 +12,9 @@ import asyncpg
 import httpx
 
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import validate_answers as baseline_answers
+from leonaid.modules.surveys.domain.validation import (
+    validate_answers as baseline_answers,
+)
 
 
 async def main() -> None:
