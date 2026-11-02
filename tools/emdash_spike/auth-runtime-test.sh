@@ -140,7 +140,25 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
   echo "emdash-auth-runtime: project collision; refusing" >&2
   exit 1
 fi
+. "$root/tools/emdash_spike/failure-capture.sh"
 cleanup() {
+  cleanup_status=$?
+  if [ "$cleanup_status" -ne 0 ]; then
+    if [ "$recovery" = true ]; then
+      capture_project=$project
+      capture_prefix=$LEONAID_RECOVERY_PREFIX
+      project=$recovery_target
+      LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
+      emdash_capture_failure
+      project=$recovery_source
+      LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
+    fi
+    emdash_capture_failure
+    if [ "$recovery" = true ]; then
+      project=$capture_project
+      LEONAID_RECOVERY_PREFIX=$capture_prefix
+    fi
+  fi
   if [ -n "${native_deadline_pid:-}" ]; then
     native_deadline_container=$(docker ps -aq \
       --filter "name=^/${native_deadline_name}$" \
