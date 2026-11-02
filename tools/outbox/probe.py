@@ -21,7 +21,11 @@ from leonaid.adapters.postgres.action_progress import (
     AsyncpgActionProgressUnitOfWorkFactory,
     AsyncpgTransactionalOutboxRepository,
 )
-from leonaid.adapters.postgres.outbox import OUTBOX_REFERENCES, AsyncpgOutboxQueue
+from leonaid.adapters.postgres.outbox import (
+    OUTBOX_DETACHED_REFERENCES,
+    OUTBOX_REFERENCES,
+    AsyncpgOutboxQueue,
+)
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.application.action_progress import RecordActionProgress
@@ -717,7 +721,8 @@ async def verify_retention_references(connection: asyncpg.Connection[Any]) -> No
     rows = await connection.fetch(
         """
         SELECT constraint_row.conrelid::regclass::text AS table_name,
-               attribute.attname AS column_name
+               attribute.attname AS column_name,
+               constraint_row.confdeltype::text AS on_delete
         FROM pg_constraint AS constraint_row
         JOIN pg_attribute AS attribute
           ON attribute.attrelid = constraint_row.conrelid
@@ -726,10 +731,16 @@ async def verify_retention_references(connection: asyncpg.Connection[Any]) -> No
           AND constraint_row.confrelid = 'outbox_event'::regclass
         """
     )
-    actual = {(str(row["table_name"]), str(row["column_name"])) for row in rows}
-    expected = {
-        (table, column) for table, column, enforced in OUTBOX_REFERENCES if enforced
+    # confdeltype: 'n' = SET NULL; every other kept reference must block deletes.
+    actual = {
+        (str(row["table_name"]), str(row["column_name"]), row["on_delete"] == "n")
+        for row in rows
     }
+    expected = {
+        (table, column, False)
+        for table, column, enforced in OUTBOX_REFERENCES
+        if enforced
+    } | {(table, column, True) for table, column in OUTBOX_DETACHED_REFERENCES}
     if actual != expected:
         raise RuntimeError(
             "Outbox foreign keys differ from the retention reference list: "
@@ -811,14 +822,24 @@ async def verify_retention() -> None:
                     kept["old completed survey erasure"],
                     old,
                 )
-                # The sent mail of the earlier steps is evidence (mail_delivery).
+                # The sent mail of the earlier steps: its job expires, while
+                # the mail_delivery evidence stays without the link.
+                # Younger than the batch rows above, so the bounded batch
+                # below still takes exactly the three oldest of those.
                 await connection.execute(
                     "UPDATE outbox_event SET completed_at = $2 WHERE id = $1 "
                     "AND status = 'completed'",
                     MAIL_EVENT,
-                    old,
+                    old + timedelta(hours=2),
                 )
-                kept["old completed sent mail"] = MAIL_EVENT
+                sent_mail_delivery_id = await connection.fetchval(
+                    "SELECT id FROM mail_delivery WHERE outbox_event_id = $1",
+                    MAIL_EVENT,
+                )
+                if sent_mail_delivery_id is None:
+                    raise RuntimeError(
+                        "The sent-mail job has no mail_delivery to detach."
+                    )
                 claimable = await insert_retention_event(
                     connection,
                     status="pending",
@@ -913,7 +934,7 @@ async def verify_retention() -> None:
         finally:
             await holder.close()
         if (
-            result.outbox_events_deleted != 4
+            result.outbox_events_deleted != 5
             or result.rate_attempts_deleted != 5
             or not result.complete
         ):
@@ -954,7 +975,7 @@ async def verify_retention() -> None:
         )
         if final.outbox_events_deleted != 1 or not final.complete:
             raise RuntimeError(f"Remaining backlog was not finished: {final}")
-        for event_id in (locked_completed, *extra, *old_completed):
+        for event_id in (locked_completed, *extra, *old_completed, MAIL_EVENT):
             if await outbox_status(pool, event_id) is not None:
                 raise RuntimeError(f"Expired completed job {event_id} survived.")
 
@@ -964,16 +985,27 @@ async def verify_retention() -> None:
             "old pending retry": "pending",
             "old processing": "processing",
             "old completed survey erasure": "completed",
-            "old completed sent mail": "completed",
         }
         for name, event_id in kept.items():
             status = await outbox_status(pool, event_id)
             if status != expected_status[name]:
                 raise RuntimeError(f"Retention touched the {name} job: {status}")
         async with pool.acquire() as connection:
+            detached = await connection.fetchrow(
+                "SELECT outbox_event_id, status FROM mail_delivery WHERE id = $1",
+                sent_mail_delivery_id,
+            )
             remaining_attempts = await connection.fetchval(
                 "SELECT count(*) FROM security_rate_attempt WHERE scope = $1",
                 RETENTION_SCOPE,
+            )
+        if (
+            detached is None
+            or detached["outbox_event_id"] is not None
+            or detached["status"] != "sent"
+        ):
+            raise RuntimeError(
+                f"The sent-mail evidence was not kept detached: {detached}"
             )
         if remaining_attempts != 3:
             raise RuntimeError(

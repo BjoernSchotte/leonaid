@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 790abe3056486af138602e89a740419c6f6caf90
 reviewer: Björn Schotte
 ---
 
@@ -43,8 +43,9 @@ PostgreSQL probe. Once per `OUTBOX_RETENTION_INTERVAL_SECONDS` (default
 `3600`) it deletes outbox jobs that completed successfully more than
 `OUTBOX_RETENTION_DAYS` (default `30`) ago, and rate-limit attempts older than
 two days. It never deletes pending, processing, or dead-letter jobs, nor
-completed jobs that a sent mail, an invoice delivery, a survey export, or a
-survey erasure still references. It deletes in batches of
+completed jobs that an invoice delivery, a survey export, or a survey
+erasure still references. For a sent mail it deletes the job but keeps the
+`mail_delivery` record as evidence, without the link to the job. It deletes in batches of
 `OUTBOX_RETENTION_BATCH_SIZE` (default `500`) rows, at most
 `OUTBOX_RETENTION_MAX_BATCHES` (default `20`) batches per sweep, and skips
 rows that another session holds locked. Invalid values stop the worker at
