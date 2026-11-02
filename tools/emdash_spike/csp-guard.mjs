@@ -17,13 +17,39 @@ export function guardCsp(browser) {
       violations.push({ ...violation, frame: frame.url() });
     });
     await context.addInitScript((binding) => {
+      // Before every WebKit screenshot, Playwright briefly inserts
+      // <style>body {}</style> to sync animations; the policy rightly blocks
+      // it. Such harness styles are counted here and their violations skipped.
+      let harnessStyles = 0;
+      new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node.nodeName === "STYLE" && node.textContent === "body {}") {
+              harnessStyles += 1;
+            }
+          }
+        }
+      }).observe(document, { childList: true, subtree: true });
       document.addEventListener("securitypolicyviolation", (event) => {
+        if (
+          event.effectiveDirective === "style-src-elem" &&
+          harnessStyles > 0 &&
+          !(event.target instanceof Element && event.target.isConnected)
+        ) {
+          harnessStyles -= 1;
+          return;
+        }
         window[binding]?.({
           directive: event.effectiveDirective,
           blocked: event.blockedURI,
           source: event.sourceFile,
           line: event.lineNumber,
           sample: event.sample,
+          // The element that carried the blocked inline code, if any.
+          element:
+            event.target instanceof Element
+              ? event.target.outerHTML.slice(0, 160)
+              : "",
           document: event.documentURI,
         });
       });
@@ -35,12 +61,13 @@ export function guardCsp(browser) {
     await close(options);
     if (violations.length === 0) return;
     process.exitCode = 1;
-    for (const { directive, blocked, document, source, line, sample } of violations) {
+    for (const { directive, blocked, document, source, line, sample, element } of violations) {
       console.error(
         `csp-guard: ${browser.browserType().name()}: ${directive} blocked ` +
           `${blocked || "inline"} on ${document}` +
           (source ? ` (${source}:${line})` : "") +
-          (sample ? ` sample=${JSON.stringify(sample)}` : ""),
+          (sample ? ` sample=${JSON.stringify(sample)}` : "") +
+          (element ? ` element=${element}` : ""),
       );
     }
     violations.length = 0;

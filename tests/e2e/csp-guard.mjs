@@ -11,15 +11,44 @@ import { expect, test as base } from "@playwright/test";
 const BINDING = "__leonaidReportCspViolation";
 const guarded = new WeakSet();
 const violations = [];
+// Browser console reports of the same violations; they often name the
+// blocked resource more precisely than the event and explain failures.
+const consoleReports = [];
 
 async function guard(context) {
   if (guarded.has(context)) return context;
   guarded.add(context);
+  context.on("console", (message) => {
+    if (/content.security.policy/i.test(message.text())) {
+      consoleReports.push(message.text());
+    }
+  });
   await context.exposeBinding(BINDING, ({ frame }, violation) => {
     violations.push({ ...violation, frame: frame.url() });
   });
   await context.addInitScript((binding) => {
+    // Before every WebKit screenshot, Playwright briefly inserts
+    // <style>body {}</style> to sync animations; the policy rightly blocks it.
+    // Such harness styles are counted here and their violations skipped.
+    let harnessStyles = 0;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeName === "STYLE" && node.textContent === "body {}") {
+            harnessStyles += 1;
+          }
+        }
+      }
+    }).observe(document, { childList: true, subtree: true });
     document.addEventListener("securitypolicyviolation", (event) => {
+      if (
+        event.effectiveDirective === "style-src-elem" &&
+        harnessStyles > 0 &&
+        !(event.target instanceof Element && event.target.isConnected)
+      ) {
+        harnessStyles -= 1;
+        return;
+      }
       window[binding]?.({
         directive: event.effectiveDirective,
         blocked: event.blockedURI,
@@ -27,6 +56,11 @@ async function guard(context) {
         line: event.lineNumber,
         sample: event.sample,
         disposition: event.disposition,
+        // The element that carried the blocked inline code, if any.
+        element:
+          event.target instanceof Element
+            ? event.target.outerHTML.slice(0, 160)
+            : "",
         document: event.documentURI,
       });
     });
@@ -35,18 +69,29 @@ async function guard(context) {
 }
 
 function takeViolations() {
-  return violations.splice(0, violations.length);
+  const found = violations.splice(0, violations.length);
+  const reports = consoleReports.splice(0, consoleReports.length);
+  if (found.length > 0 && reports.length > 0) {
+    found.push({ console: reports });
+  }
+  return found;
 }
 
 function describe(found) {
   return found
-    .map(
-      ({ directive, blocked, document, source, line, sample }) =>
-        `${directive} blocked ${blocked || "inline"} on ${document}` +
-        (source ? ` (${source}:${line})` : "") +
-        (sample ? ` sample=${JSON.stringify(sample)}` : ""),
+    .map(({ console: reports, ...violation }) =>
+      reports ? `browser console:\n  ${reports.join("\n  ")}` : describeOne(violation),
     )
     .join("\n");
+}
+
+function describeOne({ directive, blocked, document, source, line, sample, element }) {
+  return (
+    `${directive} blocked ${blocked || "inline"} on ${document}` +
+    (source ? ` (${source}:${line})` : "") +
+    (sample ? ` sample=${JSON.stringify(sample)}` : "") +
+    (element ? ` element=${element}` : "")
+  );
 }
 
 export const test = base.extend({
