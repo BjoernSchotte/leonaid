@@ -146,7 +146,7 @@ async def main():
             for route in routes:
                 body = bodies[route.operation_id]
                 # Validate the supposedly valid sample using the actual DTO too.
-                model = route.body_field.type_
+                model = route.body_field.field_info.annotation
                 model.model_validate(body)
                 path = route.path.format(
                     survey_id=sid, participation_id=pid, invitation_id=iid
