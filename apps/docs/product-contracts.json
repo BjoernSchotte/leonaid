@@ -222,7 +222,15 @@
       "file": "leonaid",
       "contains": [
         "backup            Create encrypted",
-        "test-upgrade      Prove pinned"
+        "test-upgrade      Prove pinned",
+        "crm-admin --env-file FILE"
+      ]
+    },
+    {
+      "file": "infra/pilot/compose.yml",
+      "contains": [
+        "127.0.0.1:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}:3000",
+        "x-twenty-mail-policy"
       ]
     },
     {

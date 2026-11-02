@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Real-system mail proof for ./leonaid test-pilot-install.
 
-The pilot's SMTP relay is played by Mailpit with STARTTLS required, SMTP AUTH
-required and a certificate from a throwaway test CA. The subcommands run in
+The pilot's SMTP relay is played by Mailpit with implicit TLS (port 465), SMTP
+AUTH required and a certificate from a throwaway test CA. The subcommands run in
 different containers of the isolated test project:
 
 - ``certificates DIR`` (core image): write the test CA and the relay's

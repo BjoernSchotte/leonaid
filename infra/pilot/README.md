@@ -8,12 +8,15 @@ This file remains the detailed pilot contract.
 Diese additive Konfiguration härtet den bestehenden LeonAid-Core für genau
 eine Staging- oder Produktionsinstallation. Sie baut keine Images auf dem
 Server und veröffentlicht ausschließlich Caddy auf Port 80/443.
+The Twenty CRM UI is admin-only and has no public domain: `twenty-server`
+publishes its port on `127.0.0.1:TWENTY_ADMIN_PORT` only, and
+`./leonaid crm-admin --env-file FILE` prints the SSH tunnel to it.
 
 ## Umgebungsgrenze
 
 Staging und Produktion erhalten jeweils eigene:
 
-- Domains für Portal und Twenty;
+- Portal-Domain und Twenty-Admin-Port;
 - Compose-Projekte und damit eigene Netzwerke, Volumes und Datenbanken;
 - RustFS-Buckets und Restic-Repositories;
 - Anwendungs-, Datenbank-, Twenty-, RustFS- und SMTP-Secrets;
@@ -89,7 +92,8 @@ repariert `./leonaid pilot-repair-crm-match-keys`: `systemd/leonaid-crm-repair.t
 alle 15 Minuten mit einem 30-Minuten-Fenster, `leonaid-crm-repair-full.timer`
 nächtlich vollständig. Im Wartungsmodus setzt der Befehl mit Status 0 aus.
 Weitere CRM-Benutzer bestätigen ihre Adresse per Mail über dasselbe
-SMTP-Relay wie der Core (siehe `MAIL-RUNBOOK.md`). Der Alarm
+SMTP-Relay wie der Core (siehe `MAIL-RUNBOOK.md`); Twenty sends mail only with
+`MAIL_SMTP_MODE=tls`. Der Alarm
 `LeonAidWatchdog` feuert ständig und geht ausschließlich an die externe URL aus
 `LEONAID_ALERT_HEARTBEAT_URL_FILE`; bleiben die Pings aus, alarmiert der
 externe Dienst.
@@ -196,7 +200,9 @@ Der Doctor prüft ohne Secret-Ausgabe:
 - DNS-Auflösung, Hostname-validiertes TLS und mindestens 14 Tage
   Zertifikatsrestlaufzeit;
 - HSTS, CSP und weitere Sicherheitsheader;
-- Portal, API-/Datenbank-Readiness, Twenty und Mail-Provider;
+- Portal, API-/Datenbank-Readiness (includes Twenty's `/healthz`) und Mail-Provider;
+- warns (exit status unchanged) when `MAIL_SMTP_MODE` is not `tls`, because
+  Twenty then sends no mail;
 - Uhrversatz gegen den `Date`-Header des externen Mail-Providers;
 - alle für das gewählte Gate fälligen fachlichen Entscheidungen.
 

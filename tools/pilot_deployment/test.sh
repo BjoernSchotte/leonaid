@@ -15,7 +15,9 @@ build_project="leonaid-pilot-release-$suffix"
 set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
   "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" \
   "${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-0}" \
-  "${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-0}" <<'PORTS'
+  "${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-0}" \
+  "${LEONAID_PILOT_TEST_ADMIN_PORT:-0}" \
+  "${LEONAID_PILOT_RESTORE_TEST_ADMIN_PORT:-0}" <<'PORTS'
 import socket, sys
 sockets = []
 for value in sys.argv[1:]:
@@ -25,11 +27,14 @@ for value in sys.argv[1:]:
 print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
 PORTS
 )
-[ "$#" -eq 4 ] || { echo 'Pilot test port allocation failed' >&2; exit 1; }
+[ "$#" -eq 6 ] || { echo 'Pilot test port allocation failed' >&2; exit 1; }
 http_port=$1
 https_port=$2
 restore_http_port=$3
 restore_https_port=$4
+# Loopback ports of the admin-only Twenty UI (TWENTY_ADMIN_PORT).
+admin_port=$5
+restore_admin_port=$6
 export LEONAID_PILOT_TEST_HTTP_PORT="$http_port"
 export LEONAID_PILOT_TEST_HTTPS_PORT="$https_port"
 workspace=$(mktemp -d)
@@ -76,7 +81,7 @@ backup_owned=false
 build_owned=false
 make_overlay() {
   destination=$1
-  LEONAID_TEST_EXTRA_NETWORKS=mail-egress \
+  LEONAID_TEST_EXTRA_NETWORKS=mail-egress,crm-admin \
   python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
   python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$destination" <<'OVERLAY'
 from pathlib import Path
@@ -305,8 +310,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://portal.leonaid.org" \
-    "TWENTY_PUBLIC_DOMAIN=crm.leonaid.org" \
-    "TWENTY_PUBLIC_BASE_URL=https://crm.leonaid.org" \
+    "TWENTY_ADMIN_PORT=$admin_port" \
     "CADDY_ACME_EMAIL=operations@leonaid.org" \
     "RUSTFS_BUCKET=leonaid-production-club-111" \
     "MAIL_HEALTH_URL=https://portal.leonaid.org/_health" \
@@ -444,7 +448,6 @@ for service in $expected_services; do
 done
 
 base_url="portal.leonaid.org"
-crm_url="crm.leonaid.org"
 curl --fail --silent --insecure \
   --resolve "$base_url:$https_port:127.0.0.1" \
   "https://$base_url:$https_port/_health" | grep -q "ready"
@@ -454,9 +457,33 @@ curl --fail --silent --insecure \
 curl --fail --silent --insecure \
   --resolve "$base_url:$https_port:127.0.0.1" \
   "https://$base_url:$https_port/api/health/ready" | grep -q '"status"'
-curl --fail --silent --insecure \
-  --resolve "$crm_url:$https_port:127.0.0.1" \
-  "https://$crm_url:$https_port/healthz" | grep -q '"status":"ok"'
+# The CRM UI is admin-only: Twenty answers on the loopback port with its
+# tunnel URL, and the proxy serves no CRM host at all.
+curl --fail --silent "http://127.0.0.1:$admin_port/healthz" | grep -q '"status":"ok"'
+twenty_publish=$(docker port "$(runtime_compose ps --quiet twenty-server)" 3000/tcp)
+[ "$twenty_publish" = "127.0.0.1:$admin_port" ] || {
+  echo "pilot-deployment-test: ERROR: twenty-server publishes '$twenty_publish'" >&2
+  exit 1
+}
+if curl --silent --insecure --max-time 10 \
+  --resolve "crm.leonaid.org:$https_port:127.0.0.1" \
+  "https://crm.leonaid.org:$https_port/healthz" | grep -q '"status"'; then
+  echo "pilot-deployment-test: ERROR: the proxy still serves the CRM" >&2
+  exit 1
+fi
+crm_admin_output=$("$root/leonaid" crm-admin --env-file "$env_file" \
+  --ssh-target operator@portal.leonaid.org)
+printf '%s\n' "$crm_admin_output" |
+  grep -Fq "ssh -N -L $admin_port:127.0.0.1:$admin_port operator@portal.leonaid.org" || {
+  echo "pilot-deployment-test: ERROR: crm-admin printed no tunnel command" >&2
+  printf '%s\n' "$crm_admin_output" >&2
+  exit 1
+}
+printf '%s\n' "$crm_admin_output" |
+  grep -Fq "listens on 127.0.0.1:$admin_port of this host only" || {
+  echo "pilot-deployment-test: ERROR: crm-admin did not verify the loopback port" >&2
+  exit 1
+}
 
 proxy_id=$(runtime_compose ps --quiet proxy)
 # Compose may recreate the proxy during immutable-image deployment. Resolve its
@@ -494,7 +521,9 @@ docker run --rm \
     "$release_commit"
 
 echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
-docker run --rm \
+# This test runs MAIL_SMTP_MODE=starttls: Twenty sends no mail, and the doctor
+# passes with a warning instead of an error.
+doctor_output=$(docker run --rm \
   --network "container:$proxy_container" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
@@ -510,10 +539,24 @@ docker run --rm \
     --deployment-only \
     --ca-file /proof/caddy-root.crt \
     --resolve portal.leonaid.org=127.0.0.1:443 \
-    --resolve crm.leonaid.org=127.0.0.1:443 \
     --disk-path /proof \
     --minimum-free-bytes 1048576 \
-    --minimum-certificate-validity-hours 1
+    --minimum-certificate-validity-hours 1 2>&1)
+printf '%s\n' "$doctor_output"
+printf '%s\n' "$doctor_output" |
+  grep -Fq "pilot-doctor: WARNING: MAIL_SMTP_MODE is not tls, so Twenty sends no mail" || {
+  echo "pilot-deployment-test: ERROR: the doctor did not warn about Twenty mail" >&2
+  exit 1
+}
+for service in twenty-server twenty-worker; do
+  # The policy runs in the entrypoint shell; node inherits EMAIL_DRIVER.
+  driver=$(runtime_compose exec -T "$service" sh -c \
+    'for p in /proc/[0-9]*; do tr "\\0" "\\n" <"$p/environ" 2>/dev/null; done | sed -n "s/^EMAIL_DRIVER=//p" | sort -u')
+  [ "$driver" = logger ] || {
+    echo "pilot-deployment-test: ERROR: $service runs EMAIL_DRIVER '$driver' with STARTTLS" >&2
+    exit 1
+  }
+done
 
 unsafe_env="$workspace/unsafe.env"
 cp "$env_file" "$unsafe_env"
@@ -876,7 +919,8 @@ fi
 make_overlay "$target_overlay"
 restore_owned=true
 cp "$env_file" "$target_env_file"
-printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" >>"$target_env_file"
+printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" \
+  "TWENTY_ADMIN_PORT=$restore_admin_port" >>"$target_env_file"
 chmod 600 "$target_env_file"
 set +e
 wrong_restore_output=$(

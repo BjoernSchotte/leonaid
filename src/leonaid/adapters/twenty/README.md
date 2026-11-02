@@ -23,7 +23,7 @@ Der Gateway implementiert den fachlichen Port aus
   Sie erhalten weder einen Twenty-Login noch einen Twenty-API-Key. Der
   eingeschränkte Integrations-Key wird nur serverseitig injiziert.
 
-## Transportvertrag für Twenty 2.24.0
+## Transportvertrag für Twenty 2.54.0
 
 - REST Data API für Suche, Read, einzelnes Create und kontrolliertes Patch.
 - GraphQL Data API für Create-Batches.
@@ -64,7 +64,7 @@ and maintenance only.
   renamed outside LeonAid. It is idempotent and patches only records whose
   stored key differs from their name.
 
-Twenty 2.24.0 benötigt für die People-Batch-Projektion das direkte Feld
+Twenty 2.54.0 benötigt für die People-Batch-Projektion das direkte Feld
 `companyId`. Eine GraphQL-Auswahl der Relation `company { id }` versucht
 zusätzlich das nicht freigegebene technische Company-Feld `deletedAt` zu lesen
 und wird von der Least-Privilege-Rolle korrekt verweigert. Der Gateway fordert

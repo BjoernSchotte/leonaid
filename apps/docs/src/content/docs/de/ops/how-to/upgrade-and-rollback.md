@@ -79,3 +79,16 @@ stoppe das fehlerhafte Projekt und stelle denselben Recovery Point in ein neues,
 explizit bestätigtes Projekt wieder her. Redis 7.4 kann auch die Datendateien
 von Valkey nicht lesen; ein älteres Release startet deshalb nie auf einem
 migrierten Queue-Volume, das restaurierte Projekt beginnt mit einem leeren.
+
+## Twenty 2.24 auf 2.54
+
+Twenty 2.54 schließt mehrere Sicherheitslücken, darunter eine Übernahme von
+Einladungen ohne Anmeldung in Versionen bis 2.47. Seine Upgrade-Sequenz
+enthält jeden Instanz- und Workspace-Befehl seit 1.21, deshalb migriert
+`command:prod upgrade` eine 2.24-Datenbank in einem Schritt; ein
+Zwischenrelease ist nicht nötig. `./leonaid test-upgrade` beweist genau diesen
+Sprung mit Golden Data. Twenty 2.54 entfernt die Spalte `isCustom` der Views
+und baut Indizes und Fremdschlüsselprüfungen einer Schemaänderung jetzt in
+Hintergrundjobs. Bis diese fertig sind, lehnt es weitere Schemaänderungen ab;
+`tools/twenty/provision.py` wartet und wiederholt die abgelehnte Anfrage. Die
+Umgebungsvariablen, die LeonAid setzt, bleiben unverändert.

@@ -178,6 +178,9 @@ Commands:
   pilot-repair-crm-match-keys --env-file FILE [--changed-within MINUTES]
                     Repair CRM match keys in the running pilot; skips while
                     maintenance mode is on (leonaid-crm-repair*.timer)
+  crm-admin --env-file FILE [--ssh-target USER@HOST]
+                    Print the SSH tunnel to the admin-only Twenty CRM UI
+                    (no public CRM domain; Twenty listens on 127.0.0.1)
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
                 --password-file FILE --confirm RESTORE:TARGET [--resume]
                     Restore fresh, or resume a verified quarantined pilot target
@@ -997,7 +1000,6 @@ pilot_doctor() {
       return 1
     }
     portal_domain=$(pilot_environment_value LEONAID_PUBLIC_DOMAIN "$env_file")
-    crm_domain=$(pilot_environment_value TWENTY_PUBLIC_DOMAIN "$env_file")
     # Test-only: same real TLS endpoints and decision parser, isolated inside
     # the proxy network namespace. Product projects cannot activate this path.
     # shellcheck disable=SC2086
@@ -1024,7 +1026,6 @@ pilot_doctor() {
         --isolated-test-mode \
         --ca-file "$test_ca_path" \
         --resolve "$portal_domain=127.0.0.1:443" \
-        --resolve "$crm_domain=127.0.0.1:443" \
         --disk-path /workspace \
         --minimum-free-bytes 1048576 \
         --minimum-certificate-validity-hours 1 $json_argument $first_install_argument
@@ -1980,6 +1981,84 @@ pilot_repair_crm_match_keys() {
     return 0
   fi
   return "$status"
+}
+
+# The Twenty CRM UI is admin-only and has no public domain. twenty-server
+# publishes its port on the host's loopback interface only (infra/pilot/
+# compose.yml); the system administrator reaches it through SSH port
+# forwarding. Twenty's SERVER_URL is http://localhost:TWENTY_ADMIN_PORT, so
+# the local end of the tunnel must use the same port.
+crm_admin() {
+  env_file=
+  ssh_target=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file|--ssh-target)
+        [ "$#" -ge 2 ] || {
+          echo "crm-admin: ERROR: $1 needs a value" >&2
+          return 64
+        }
+        if [ "$1" = --env-file ]; then env_file=$2; else ssh_target=$2; fi
+        shift 2
+        ;;
+      *)
+        echo "crm-admin: ERROR: unknown option '$1'" >&2
+        return 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "crm-admin: ERROR: --env-file is missing" >&2
+    return 64
+  }
+  env_file=$(pilot_absolute_file crm-admin "$env_file") || return
+  pilot_require_private_external crm-admin "$env_file" "environment file" ||
+    return
+  port=$(pilot_environment_value TWENTY_ADMIN_PORT "$env_file")
+  case "$port" in
+    [1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
+    *)
+      echo "crm-admin: BLOCKED: TWENTY_ADMIN_PORT must be a port from 1024 to 65535" >&2
+      return 1
+      ;;
+  esac
+  [ "$port" -le 65535 ] || {
+    echo "crm-admin: BLOCKED: TWENTY_ADMIN_PORT must be a port from 1024 to 65535" >&2
+    return 1
+  }
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  if [ -z "$ssh_target" ]; then
+    ssh_target="ADMIN@$(pilot_environment_value LEONAID_PUBLIC_DOMAIN "$env_file")"
+  fi
+  case "$ssh_target" in
+    -*|*[!A-Za-z0-9@._:-]*)
+      echo "crm-admin: ERROR: --ssh-target must look like user@host" >&2
+      return 64
+      ;;
+  esac
+  if command -v docker >/dev/null 2>&1 && [ -n "$project" ]; then
+    container=$(docker ps --quiet \
+      --filter "label=com.docker.compose.project=$project" \
+      --filter "label=com.docker.compose.service=twenty-server")
+    if [ -z "$container" ]; then
+      echo "crm-admin: WARNING: twenty-server of $project is not running on this host; start it with pilot-deploy" >&2
+    else
+      binding=$(docker port "$container" 3000/tcp 2>/dev/null || true)
+      if [ "$binding" != "127.0.0.1:$port" ]; then
+        echo "crm-admin: BLOCKED: twenty-server of $project publishes '$binding' instead of 127.0.0.1:$port only; redeploy with this env file" >&2
+        return 1
+      fi
+      echo "crm-admin: OK: twenty-server of $project listens on 127.0.0.1:$port of this host only"
+    fi
+  fi
+  cat <<EOF
+crm-admin: The Twenty CRM has no public address. Open it through SSH:
+  1. On your workstation, run and keep open:
+       ssh -N -L $port:127.0.0.1:$port $ssh_target
+  2. Open http://localhost:$port in your browser and sign in to Twenty.
+  The local port must be $port: Twenty builds its URLs from
+  SERVER_URL=http://localhost:$port. Stop the tunnel with Ctrl+C.
+EOF
 }
 
 pilot_record_release_event() (
@@ -3412,6 +3491,10 @@ case "$command" in
   pilot-repair-crm-match-keys)
     shift
     pilot_repair_crm_match_keys "$@"
+    ;;
+  crm-admin)
+    shift
+    crm_admin "$@"
     ;;
   pilot-restore)
     shift

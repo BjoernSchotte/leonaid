@@ -341,13 +341,15 @@ run_twenty_upgrade() {
   fi
   $runner up --detach --force-recreate --wait --wait-timeout 420 \
     twenty-server twenty-worker
+  # Exactly two of three columns: keyValuePair.applicationId (since 2.24) and
+  # userSession.country (2.54) exist, view.isCustom (dropped in 2.54) not.
   $runner exec -T twenty-postgres psql \
     --username "${TWENTY_POSTGRES_USER:-twenty}" \
     --dbname "${TWENTY_POSTGRES_DB:-default}" \
     --tuples-only \
     --no-align \
-    --command "SELECT count(*) FROM information_schema.columns WHERE table_schema='core' AND table_name='keyValuePair' AND column_name='applicationId'" \
-    | grep -Fx "1" >/dev/null ||
+    --command "SELECT count(*) FROM information_schema.columns WHERE table_schema='core' AND ((table_name='keyValuePair' AND column_name='applicationId') OR (table_name='userSession' AND column_name='country') OR (table_name='view' AND column_name='isCustom'))" \
+    | grep -Fx "2" >/dev/null ||
     fail "Twenty-Zielschema fehlt nach Upgrade-Command: $label"
   echo "upgrade-test: Twenty-Upgrade-Command und Zielschema OK: $label"
 }
@@ -897,8 +899,8 @@ docker run --rm \
 pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "schemaVersion":1,
   "result":"passed",
-  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12"},
-  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3"},
+  "source":{"twenty":"2.24.0","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12"},
+  "target":{"twenty":"2.54.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3"},
   "queueStoreMigration":"passed",
   "preContract":"passed",
   "preE2e":"passed",
