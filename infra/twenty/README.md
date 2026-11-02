@@ -5,10 +5,10 @@
 LeonAid provisioniert ausschließlich die in
 [`schema.json`](./schema.json) deklarierte Teilmenge der Twenty-API. Geprüft ist:
 
-- Twenty `2.24.0`, Upstream-Tag `twenty/v2.24.0`
-  (`b91c2a6457578ea4a017242fc1fe8efd1f463eb0`)
+- Twenty `2.54.0`, Upstream-Tag `twenty/v2.54.0`
+  (`c75ef7bfd0589219bd22e8f134df458af0af3445`)
 - Container-Digest
-  `sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c`
+  `sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e`
 - GraphQL Metadata API unter `/metadata`
 - REST Metadata API unter `/rest/metadata`
 - generierte REST Data API unter `/rest/<objectPlural>`
@@ -23,7 +23,7 @@ dokumentiert und wird durch `./leonaid test-twenty-gateway` real geprüft.
 
 ## Einmaliger Kontaktimport
 
-Twenty 2.24.0 kann über seine Oberfläche CSV-, XLSX- und XLS-Dateien
+Twenty 2.54.0 kann über seine Oberfläche CSV-, XLSX- und XLS-Dateien
 importieren, allerdings jeweils nur für ein Objekt. LeonAid verwendet für den
 PoC bewusst den eigenen API-Importpfad, weil er die fachlichen
 Primärschlüssel, einen prüfbaren Dry Run und einen gemeinsamen zeilenbezogenen
@@ -202,7 +202,7 @@ Bestehender Drift wird nicht stillschweigend durch Umbenennen oder Löschen
 kaschiert. Eine gewollte Änderung braucht ein angepasstes Manifest, eine
 bewusste Migration und den vollständigen Contracttest.
 
-## Verifizierte Grenzen von Twenty 2.24.0
+## Verifizierte Grenzen von Twenty 2.54.0
 
 - Custom Fields können im Produkt nicht als fachlich verpflichtend markiert
   werden. Pflichtfeldregeln bleiben deshalb im LeonAid Core.
@@ -217,12 +217,19 @@ bewusste Migration und den vollständigen Contracttest.
   ausgelegt. POC-031 muss Pagination, Backoff und Batching innerhalb dieser
   Grenzen umsetzen.
 - Workflows, Webhooks und Twenty-Mailversand gehören nicht zu POC-030.
+- Since 2.54 views have no `isCustom` field; a LeonAid view is identified by
+  its fixed id from `schema.json`.
+- Since 2.54 Twenty builds indexes and validates foreign keys of a schema
+  change in deferred worker jobs and refuses further schema mutations of the
+  workspace ("deferred schema action(s) are still running") until they
+  finish. The refusal happens before any change; the provisioning client
+  (`tools/seed/golden.py`) repeats the request for up to 180 seconds.
 
 Referenzen:
 
 - [Twenty APIs](https://docs.twenty.com/developers/extend/api)
 - [Twenty Custom Objects](https://docs.twenty.com/developers/contribute/capabilities/backend-development/custom-objects)
-- [Twenty v2.24.0 source](https://github.com/twentyhq/twenty/tree/twenty/v2.24.0)
+- [Twenty v2.54.0 source](https://github.com/twentyhq/twenty/tree/twenty/v2.54.0)
 
 ## Reale Prüfung
 

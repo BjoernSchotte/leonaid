@@ -147,8 +147,3 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 		}
 	}
 }
-
-{$TWENTY_PUBLIC_DOMAIN} {
-	import common_headers
-	reverse_proxy twenty-server:3000
-}

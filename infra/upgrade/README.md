@@ -97,8 +97,8 @@ Hashes, Sessions und Browser-Journey geben die Umgebung wieder frei.
 ./leonaid test-upgrade
 ```
 
-Der Test verwendet keine Mocks. Er startet Twenty 2.23.2 und RustFS
-1.0.0-beta.10 mit echten Golden Data, aktualisiert auf Twenty 2.24.0 und
+Der Test verwendet keine Mocks. Er startet Twenty 2.24.0 und RustFS
+1.0.0-beta.10 mit echten Golden Data, aktualisiert auf Twenty 2.54.0 und
 RustFS 1.0.0-beta.11, prüft Contracts und Chromium vor/nach dem Upgrade,
 beschädigt einen separaten Zielklon absichtlich und restauriert ihn aus dem
 verschlüsselten Recovery Point. Geheimnisfreie Ergebnisse liegen unter

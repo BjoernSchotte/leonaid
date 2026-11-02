@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-07-27",
+  "reviewedAt": "2026-11-02",
   "changeWindow": {
     "backupRequired": true,
     "goldenCloneRequired": true,
@@ -11,18 +11,19 @@
   "components": [
     {
       "id": "twenty",
-      "sourceVersion": "2.23.2",
-      "sourceImage": "docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
-      "targetVersion": "2.24.0",
-      "targetImage": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "sourceVersion": "2.24.0",
+      "sourceImage": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "targetVersion": "2.54.0",
+      "targetImage": "docker.io/twentycrm/twenty:v2.54.0@sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e",
       "releaseNotes": [
-        "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.23.2",
-        "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.24.0",
-        "https://github.com/twentyhq/twenty/compare/twenty/v2.23.2...twenty/v2.24.0"
+        "https://github.com/twentyhq/twenty/releases/tag/twenty/v2.54.0",
+        "https://docs.twenty.com/developers/self-hosting/upgrade-guide",
+        "https://github.com/twentyhq/twenty/security/advisories",
+        "https://github.com/twentyhq/twenty/compare/twenty/v2.24.0...twenty/v2.54.0"
       ],
       "migration": {
         "owner": "Twenty entrypoint bootstrap followed by fail-closed instance and workspace command runners",
-        "command": "Twenty target entrypoint, then yarn command:prod run-instance-commands, then yarn command:prod upgrade",
+        "command": "Twenty target entrypoint, then yarn command:prod run-instance-commands, then yarn command:prod upgrade; the 2.54 upgrade sequence contains every instance and workspace command from 1.21 on, so 2.24 upgrades in one step",
         "reviewed": true,
         "expectedDataChange": true
       },

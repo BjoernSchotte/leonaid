@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "twenty": {
-    "version": "2.24.0",
-    "imageDigest": "sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+    "version": "2.54.0",
+    "imageDigest": "sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e",
     "metadataGraphqlPath": "/metadata",
     "metadataRestPath": "/rest/metadata"
   },

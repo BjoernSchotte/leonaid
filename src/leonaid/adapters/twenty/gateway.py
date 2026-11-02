@@ -1,4 +1,4 @@
-"""Twenty 2.24.0 adapter for LeonAid's semantic CRM port."""
+"""Twenty 2.54.0 adapter for LeonAid's semantic CRM port."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ OperationKind = Literal["read", "write"]
 logger = logging.getLogger(__name__)
 
 TWENTY_RATE_LIMIT_PER_MINUTE = 100
-# Twenty 2.24 caps batch mutations at 60 records and REST list pages at 200.
+# Twenty 2.54 caps batch mutations at 60 records and REST list pages at 200.
 TWENTY_BATCH_LIMIT = 60
 TWENTY_PAGE_LIMIT = 200
 # Keeps `id[in]:[...]` filters well below common URL length limits.
@@ -122,7 +122,7 @@ class TwentyCrmGateway:
             headers={
                 "Authorization": (f"Bearer {settings.api_key.get_secret_value()}"),
                 "Accept": "application/json",
-                "User-Agent": "LeonAid/0.0.0 TwentyGateway/2.24.0",
+                "User-Agent": "LeonAid/0.0.0 TwentyGateway/2.54.0",
             },
         )
         self._rate_limiter = _SlidingWindowRateLimiter(settings.requests_per_minute)

@@ -2,9 +2,9 @@
 # End-to-end proof of ./leonaid pilot-install against real services in an
 # isolated, owned Compose project: real Twenty with e-mail verification, real
 # S3/Restic backup target, real TLS proxy, real Prometheus/Alertmanager, a real
-# STARTTLS+AUTH SMTP relay (Mailpit) that receives mail from Twenty and the
-# core worker over the mail egress network, and the scheduled CRM match key
-# repair including its maintenance-mode skip.
+# implicit-TLS+AUTH SMTP relay (Mailpit, port 465) that receives mail from
+# Twenty and the core worker over the mail egress network, and the scheduled
+# CRM match key repair including its maintenance-mode skip.
 set -eu
 
 root=${1:-$(pwd)}
@@ -20,7 +20,8 @@ operator_backup_bucket=leonaid-pilot-install
 operator_mail_project="leonaid-pilot-install-mail-$suffix"
 operator_mail_container="$operator_mail_project-mailpit"
 set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
-  "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" <<'PORTS'
+  "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" \
+  "${LEONAID_PILOT_TEST_ADMIN_PORT:-0}" <<'PORTS'
 import socket, sys
 sockets = []
 for value in sys.argv[1:]:
@@ -30,9 +31,11 @@ for value in sys.argv[1:]:
 print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
 PORTS
 )
-[ "$#" -eq 2 ] || { echo 'pilot-install-test: port allocation failed' >&2; exit 1; }
+[ "$#" -eq 3 ] || { echo 'pilot-install-test: port allocation failed' >&2; exit 1; }
 export LEONAID_PILOT_TEST_HTTP_PORT="$1"
 export LEONAID_PILOT_TEST_HTTPS_PORT="$2"
+# Loopback port of the admin-only Twenty UI (TWENTY_ADMIN_PORT).
+admin_port=$3
 workspace=$(mktemp -d)
 mkdir -p "$workspace/evidence" "$root/.artifacts"
 overlay_directory=$(mktemp -d "$root/.artifacts/pilot-install.XXXXXX")
@@ -157,7 +160,7 @@ export LEONAID_TEST_CORE_IMAGE LEONAID_TEST_WEB_IMAGE LEONAID_TEST_PWA_IMAGE \
   LEONAID_TEST_PUBLIC_IMAGE LEONAID_TEST_SURVEY_VALIDATOR_IMAGE \
   LEONAID_TEST_PROXY_IMAGE
 
-LEONAID_TEST_EXTRA_NETWORKS=mail-egress \
+LEONAID_TEST_EXTRA_NETWORKS=mail-egress,crm-admin \
   python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
 
 echo "pilot-install-test: starts the operator's external S3 backup target"
@@ -226,6 +229,7 @@ docker run --rm \
   --env "DIGEST=$digest" \
   --env "REPOSITORY=s3:http://$backup_ip:9000/$operator_backup_bucket" \
   --env "WORKSPACE=$workspace" \
+  --env "ADMIN_PORT=$admin_port" \
   --volume "$workspace:$workspace" \
   "$PYTHON_IMAGE" \
   python -c 'import os, pathlib, secrets, string
@@ -238,8 +242,7 @@ values = {
   "LEONAID_PUBLIC_DOMAIN": "portal.leonaid.org",
   "LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.org",
   "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
-  "TWENTY_PUBLIC_DOMAIN": "crm.leonaid.org",
-  "TWENTY_PUBLIC_BASE_URL": "https://crm.leonaid.org",
+  "TWENTY_ADMIN_PORT": os.environ["ADMIN_PORT"],
   "CADDY_ACME_EMAIL": "operations@leonaid.org",
   "RUSTFS_BUCKET": "leonaid-production-club-111",
   "RESTIC_REPOSITORY": os.environ["REPOSITORY"],
@@ -287,7 +290,13 @@ if grep -q '__[A-Z0-9_]*__' "$env_file"; then
   exit 1
 fi
 
-echo "pilot-install-test: starts the operator's SMTP relay (STARTTLS, AUTH, test CA)"
+# The template's MAIL_SMTP_MODE=tls on port 465 stays: only implicit TLS lets
+# Twenty send mail.
+grep -qx 'MAIL_SMTP_MODE=tls' "$env_file" && grep -qx 'MAIL_SMTP_PORT=465' "$env_file" || {
+  echo 'pilot-install-test: ERROR: the template does not default to implicit TLS' >&2
+  exit 1
+}
+echo "pilot-install-test: starts the operator's SMTP relay (implicit TLS, AUTH, test CA)"
 mkdir -p "$mail_directory"
 chmod 755 "$mail_directory"
 docker run --rm \
@@ -307,10 +316,10 @@ docker run --detach \
   --name "$operator_mail_container" \
   --label "com.docker.compose.project=$operator_mail_project" \
   --env-file "$workspace/mailpit.env" \
-  --env MP_SMTP_BIND_ADDR=0.0.0.0:587 \
+  --env MP_SMTP_BIND_ADDR=0.0.0.0:465 \
   --env MP_SMTP_TLS_CERT=/smtp/cert.pem \
   --env MP_SMTP_TLS_KEY=/smtp/key.pem \
-  --env MP_SMTP_REQUIRE_STARTTLS=true \
+  --env MP_SMTP_REQUIRE_TLS=true \
   --env MP_DATABASE=/tmp/mailpit.db \
   --volume "$mail_directory:/smtp:ro" \
   "$MAILPIT_IMAGE" >/dev/null
@@ -469,7 +478,16 @@ for service in twenty-server twenty-worker; do
     echo "pilot-install-test: ERROR: $service runs without e-mail verification" >&2
     exit 1
   }
+  # The mail policy in the entrypoint exports the driver; node inherits it.
+  driver=$(runtime_compose exec -T "$service" sh -c \
+    'for p in /proc/[0-9]*; do tr "\\0" "\\n" <"$p/environ" 2>/dev/null; done | sed -n "s/^EMAIL_DRIVER=//p" | sort -u')
+  [ "$driver" = SMTP ] || {
+    echo "pilot-install-test: ERROR: $service runs EMAIL_DRIVER '$driver' with implicit TLS" >&2
+    exit 1
+  }
 done
+# Admin-only CRM: Twenty answers on the loopback port, not through the proxy.
+curl --fail --silent "http://127.0.0.1:$admin_port/healthz" | grep -q '"status":"ok"'
 
 verification_probe() {
   runtime_compose run --rm --no-deps \
@@ -635,4 +653,4 @@ expect_refusal "install with the provisioned env file" "is not PENDING_PILOT_INS
 
 echo "pilot-install-test: OK: empty project to verified Twenty admin, provisioned key,"
 echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog,"
-echo "pilot-install-test:     Twenty and core mail over STARTTLS, scheduled CRM repair"
+echo "pilot-install-test:     Twenty and core mail over implicit TLS, scheduled CRM repair"
