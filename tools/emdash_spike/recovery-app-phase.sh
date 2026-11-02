@@ -23,6 +23,10 @@ LEONAID_COMPOSE_PROJECT="$project" LEONAID_BACKUP_TOPOLOGY=emdash \
   LEONAID_BACKUP_COMPOSE_OVERLAY_LIST="$overlay_list" LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   LEONAID_BACKUP_REPOSITORY="$proof/repository" LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
   /bin/sh "$root/tools/backup/backup.sh" "$root"
+# restore.sh refuses to start a Core with the survey module without an
+# independent erasure checkpoint; capture the synthetic one like test-backup.
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture compose "$proof"
 restore_target() {
   LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recovery_target" \
   LEONAID_RESTORE_CMS_IMAGE="$1" \
@@ -101,6 +105,8 @@ if [ "$orders" = true ]; then
     console.log("recovery-orders: target has no host ports, one isolated CRM pool and Twenty migrations disabled");'
   compose up --no-build --pull never --detach --wait --wait-timeout 420 twenty-server twenty-worker
 fi
+# Restored Core volumes get the same one-off owner fix as every api/worker start.
+compose up --no-deps --no-build --pull never --exit-code-from core-volume-init core-volume-init
 compose up --no-deps --no-build --detach --wait api campaign-site public mailpit worker proxy
 cms_container=$(compose ps --quiet campaign-site)
 [ -n "$cms_container" ] && \
