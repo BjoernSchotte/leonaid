@@ -123,4 +123,18 @@ api_probe replay-and-verify-mail
 echo "poc022-test: a worker whose lease expired must not overwrite the new claim"
 api_probe verify-claim-loss
 
-echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter und Idempotenz bewiesen"
+echo "poc022-test: retention deletes only expired completed jobs, in bounded batches"
+api_probe verify-retention
+api_probe seed-retention-cli
+retention_output=$(outbox_cli retention-sweep)
+printf '%s\n' "$retention_output"
+case "$retention_output" in
+  *'"outbox_events_deleted":2,'*'"complete":true'*) ;;
+  *)
+    echo "poc022-test: ERROR: unexpected retention-sweep result" >&2
+    exit 1
+    ;;
+esac
+api_probe verify-retention-cli
+
+echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter, Idempotenz und Retention bewiesen"

@@ -396,6 +396,47 @@ class MailTransportSettings(BaseSettings):
         }
 
 
+class RetentionSettings(BaseSettings):
+    """Worker-only retention of finished technical rows.
+
+    Only successfully completed outbox jobs that nothing references any more
+    are deleted after ``outbox_days``; pending, processing and dead-letter jobs
+    stay until they are handled. Expired rate-limit attempts are removed on
+    the same cadence instead of on every API request.
+    """
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    outbox_days: int = Field(
+        default=30,
+        ge=1,
+        le=3650,
+        alias="OUTBOX_RETENTION_DAYS",
+    )
+    interval_seconds: float = Field(
+        default=3600,
+        ge=1,
+        le=86400,
+        alias="OUTBOX_RETENTION_INTERVAL_SECONDS",
+    )
+    batch_size: int = Field(
+        default=500,
+        ge=1,
+        le=10000,
+        alias="OUTBOX_RETENTION_BATCH_SIZE",
+    )
+    max_batches: int = Field(
+        default=20,
+        ge=1,
+        le=1000,
+        alias="OUTBOX_RETENTION_MAX_BATCHES",
+    )
+
+
 def load_settings() -> Settings:
     try:
         # BaseSettings resolves required aliases from the process environment.
@@ -424,4 +465,19 @@ def load_mail_transport_settings() -> MailTransportSettings:
         )
         raise ConfigurationError(
             "LeonAid-Mailkonfiguration ist ungültig: " + ", ".join(diagnostics)
+        ) from None
+
+
+def load_retention_settings() -> RetentionSettings:
+    try:
+        return RetentionSettings()
+    except ValidationError as error:
+        diagnostics = sorted(
+            {
+                f"{'.'.join(str(part) for part in item['loc'])}:{item['type']}"
+                for item in error.errors(include_url=False, include_input=False)
+            }
+        )
+        raise ConfigurationError(
+            "LeonAid retention configuration is invalid: " + ", ".join(diagnostics)
         ) from None

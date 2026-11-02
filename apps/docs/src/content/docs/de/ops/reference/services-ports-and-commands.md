@@ -38,3 +38,23 @@ Wichtige Befehle: `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-restore`, `pilot-repair-crm-match-keys`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
 vollständige Liste liefert `./leonaid help`; sie ist maßgeblich, wenn diese
 Referenz abweicht.
+
+## Worker-Aufbewahrung
+
+Der Worker betreibt neben `outbox`, `survey_sweep` und der PostgreSQL-Probe
+eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
+(Standard `3600`) löscht sie Outbox-Jobs, die vor mehr als
+`OUTBOX_RETENTION_DAYS` (Standard `30`) Tagen erfolgreich abgeschlossen
+wurden, sowie Rate-Limit-Versuche, die älter als zwei Tage sind. Sie löscht
+nie wartende, laufende oder Dead-Letter-Jobs und keine abgeschlossenen Jobs,
+auf die noch eine versendete E-Mail, ein Rechnungsversand, ein Umfrage-Export
+oder eine Umfrage-Löschung verweist. Sie löscht in Stapeln von
+`OUTBOX_RETENTION_BATCH_SIZE` (Standard `500`) Zeilen, höchstens
+`OUTBOX_RETENTION_MAX_BATCHES` (Standard `20`) Stapel pro Durchlauf, und
+überspringt Zeilen, die eine andere Sitzung gesperrt hält. Ungültige Werte
+beenden den Worker beim Start mit `worker.configuration.invalid`. Die Metrik
+`leonaid_worker_retention_deleted_total{table=...}` zählt gelöschte Zeilen;
+die Outbox-Zähler unter `/admin/system` zeigen abgeschlossene Jobs daher nur
+für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
+leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
+Hand.

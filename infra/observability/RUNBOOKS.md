@@ -26,7 +26,11 @@ never belongs in metrics or alerts.
 ## Worker
 
 The worker is ready only while PostgreSQL is reachable and each background
-loop (`outbox`, `survey_sweep`) keeps completing iterations.
+loop (`outbox`, `survey_sweep`, `retention`) keeps completing iterations.
+The `retention` loop runs hourly by default and counts as stalled only after
+it missed a sweep by five minutes; it deletes only expired, successfully
+completed and unreferenced outbox jobs and expired rate-limit attempts
+(`leonaid_worker_retention_deleted_total`).
 
 1. Read `GET /health/ready` on the worker (port 8010): `checks` names the
    failing loop.
