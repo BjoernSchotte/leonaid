@@ -123,6 +123,31 @@ def main() -> None:
     )
     mutations.append(("private SMTP CA", changed))
 
+    changed = copy.deepcopy(config)
+    del changed["services"]["twenty-server"]["mem_limit"]
+    mutations.append(("missing memory limit", changed))
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["rustfs"]["logging"]
+    mutations.append(("missing log rotation", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["worker"]["user"] = "0:0"
+    mutations.append(("root core worker", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["api"]["read_only"] = False
+    mutations.append(("writable core root filesystem", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["core-volume-init"]["command"] = [
+        "chown",
+        "-R",
+        "0:0",
+        "/recovery/survey-erasure",
+    ]
+    mutations.append(("volume handover to root", changed))
+
     for label, mutation in mutations:
         rejected(mutation, label)
 

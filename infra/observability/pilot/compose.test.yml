@@ -26,6 +26,8 @@ services:
     profiles: ["monitoring"]
     restart: unless-stopped
     command: ["python", "-m", "leonaid.entrypoints.monitoring.sink"]
+    # Writes the events file into the harness's private host directory.
+    user: ${LEONAID_ALERT_TEST_USER:?LEONAID_ALERT_TEST_USER is missing}
     environment:
       ALERT_SINK_EVENTS_PATH: /events/events.jsonl
     volumes:
@@ -49,6 +51,9 @@ services:
     profiles: ["monitoring"]
     restart: unless-stopped
     command: ["python", "-m", "leonaid.entrypoints.monitoring.exporter"]
+    # Test only: it trusts the tls-probe's local CA, which Caddy stores 0600 as
+    # root. Production probes a public ACME certificate and needs no CA file.
+    user: "0:0"
     environment:
       PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
       PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_ALERT_TEST_PROJECT:?LEONAID_ALERT_TEST_PROJECT fehlt}

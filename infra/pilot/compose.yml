@@ -1,3 +1,11 @@
+# Compose overlays cannot reference anchors of compose.yml, so the logging
+# rotation is repeated here for the services this overlay adds.
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   proxy:
     image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE fehlt}
@@ -101,7 +109,21 @@ services:
   pilot-exporter:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
     profiles: ["monitoring"]
+    logging: *default-logging
     restart: unless-stopped
+    # The exporter reads the operator's 0600 backup manifest, so it runs as
+    # the operator account. ./leonaid sets LEONAID_OPERATOR_USER to the uid:gid
+    # of its caller; without it the exporter falls back to the core uid and
+    # the backup alert fires instead of silently passing.
+    user: ${LEONAID_OPERATOR_USER:-10001:10001}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
     command: ["python", "-m", "leonaid.entrypoints.monitoring.exporter"]
     environment:
       PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
@@ -129,7 +151,12 @@ services:
   prometheus:
     image: docker.io/prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
     profiles: ["monitoring"]
+    logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -147,7 +174,12 @@ services:
   alertmanager:
     image: docker.io/prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
     profiles: ["monitoring"]
+    logging: *default-logging
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager

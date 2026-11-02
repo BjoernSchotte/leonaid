@@ -122,7 +122,7 @@ restore_compose() {
 survey_probe() {
   compose_runner=$1
   shift
-  "$compose_runner" run --rm --no-deps --volume "$root:/repo:ro" \
+  "$compose_runner" run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
     --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
     tools/surveys/recovery_live.py "$@"
 }
@@ -562,7 +562,7 @@ python3 - "$config" <<'CONFIG'
 import hashlib, json, pathlib, sys
 data = pathlib.Path(sys.argv[1]).read_bytes()
 value = json.loads(data)
-assert len([service for service in value["services"].values() if not service.get("profiles")]) == 13
+assert len([service for service in value["services"].values() if not service.get("profiles")]) == 14
 print(f"pilot-deployment-test: runtime config valid, bytes={len(data)}, sha256={hashlib.sha256(data).hexdigest()}")
 CONFIG
 # Send the complete host snapshot through stdin: the same shared directory was
@@ -731,7 +731,7 @@ docker run --rm \
   sh -eu -c 'printf "%s\n" "twenty-storage-operator-backup" > /data/pilot-operator-probe'
 if [ "$mode" = surveys ]; then
   runtime_compose stop worker
-  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+  runtime_compose run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
     --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
     tools/surveys/infrastructure.py
   survey_probe runtime_compose seed
@@ -861,7 +861,7 @@ assert set(value["files"])=={
 if [ "$mode" = surveys ]; then
   runtime_compose stop worker
   survey_probe runtime_compose delete
-  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+  runtime_compose run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
     --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
     tools/surveys/recovery.py export --output /proof/recovery-checkpoint.json
   survey_probe runtime_compose pilot-inputs

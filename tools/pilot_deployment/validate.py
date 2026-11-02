@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 REQUIRED_SERVICES = {
     "api",
     "core-postgres",
+    "core-volume-init",
     "proxy",
     "public",
     "pwa",
@@ -49,6 +50,8 @@ def is_placeholder(value: str) -> bool:
     return TEMPLATE_PLACEHOLDER.search(value) is not None or any(
         word in value.casefold() for word in PLACEHOLDER_WORDS
     )
+CORE_RUNTIME_USER = "10001:10001"
+HARDENED_SERVICES = {"api", "worker", "web", "pwa", "public", "survey-validator"}
 
 
 class DeploymentContractError(RuntimeError):
@@ -86,6 +89,40 @@ def validate_public_url(value: str, label: str) -> None:
         raise DeploymentContractError(f"{label} ist keine produktive HTTPS-URL")
 
 
+def positive_number(value: object) -> bool:
+    try:
+        return float(str(value)) > 0
+    except ValueError:
+        return False
+
+
+def validate_runtime_limits(service_name: str, service: dict[str, Any]) -> None:
+    for key in ("mem_limit", "cpus", "pids_limit"):
+        if not positive_number(service.get(key)):
+            raise DeploymentContractError(f"{service_name} has no {key}")
+    logging = service.get("logging")
+    if (
+        not isinstance(logging, dict)
+        or logging.get("driver") != "local"
+        or not isinstance(logging.get("options"), dict)
+        or "max-size" not in logging["options"]
+    ):
+        raise DeploymentContractError(f"{service_name} has no log rotation")
+
+
+def validate_hardened_runtime(service_name: str, service: dict[str, Any]) -> None:
+    if (
+        service.get("read_only") is not True
+        or "ALL" not in service.get("cap_drop", [])
+        or service.get("cap_add")
+        or "no-new-privileges:true" not in service.get("security_opt", [])
+    ):
+        raise DeploymentContractError(
+            f"{service_name} runs without a read-only root filesystem, "
+            "dropped capabilities or no-new-privileges"
+        )
+
+
 def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> None:
     project = string_value(config, "name")
     if project == "leonaid" or not project.startswith("leonaid-"):
@@ -99,6 +136,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     published_hosts: list[str] = []
     for service_name, raw_service in services.items():
         service = object_value(raw_service, f"services.{service_name}")
+        validate_runtime_limits(service_name, service)
         if "build" in service:
             raise DeploymentContractError(
                 f"{service_name} enthält einen produktiven Build"
@@ -162,6 +200,19 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         network = object_value(networks.get(network_name), f"networks.{network_name}")
         if network.get("internal") is not True:
             raise DeploymentContractError(f"{network_name} ist nicht intern")
+
+    for service_name in sorted(HARDENED_SERVICES):
+        validate_hardened_runtime(service_name, services[service_name])
+    for service_name in ("api", "worker"):
+        if services[service_name].get("user") != CORE_RUNTIME_USER:
+            raise DeploymentContractError(
+                f"{service_name} does not run as core user {CORE_RUNTIME_USER}"
+            )
+    init_command = services["core-volume-init"].get("command")
+    if not isinstance(init_command, list) or CORE_RUNTIME_USER not in init_command:
+        raise DeploymentContractError(
+            "core-volume-init does not hand the volumes to the core user"
+        )
 
     api = object_value(services["api"], "services.api")
     api_environment = object_value(api.get("environment"), "api.environment")

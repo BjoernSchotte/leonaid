@@ -83,7 +83,7 @@ compose --profile '*' config --format json | python3 "$root/tools/testing/reserv
 compose up --build --detach --wait --wait-timeout 420 proxy
 fi
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
