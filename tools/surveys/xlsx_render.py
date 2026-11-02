@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 
-from leonaid.adapters.survey_tabular_exports import render_tabular
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import SurveyExportSource
+from leonaid.modules.surveys.adapters.survey_tabular_exports import render_tabular
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import SurveyExportSource
 
 
 def main():

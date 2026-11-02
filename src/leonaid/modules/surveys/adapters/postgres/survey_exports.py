@@ -11,23 +11,26 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.identity import account_from_record
-from leonaid.adapters.postgres.survey_analysis import read_snapshot
-from leonaid.adapters.survey_tabular_exports import render_tabular
-from leonaid.adapters.typst.survey_renderer import TypstSurveyRenderer
+from leonaid.modules.surveys.adapters.postgres.survey_analysis import read_snapshot
+from leonaid.modules.surveys.adapters.survey_tabular_exports import render_tabular
+from leonaid.modules.surveys.adapters.typst.survey_renderer import TypstSurveyRenderer
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.object_storage import (
     ObjectLocation,
     ObjectStorage,
     ObjectWrite,
 )
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportArtifact,
     SurveyExportSource,
     export_filename,
 )
-from leonaid.application.surveys.exports import CreateSurveyExport, SurveyExportJob
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.exports import (
+    CreateSurveyExport,
+    SurveyExportJob,
+)
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 from leonaid.domain.identity import (
     ActionMembership,
     ActionRole,
@@ -35,7 +38,7 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
 )
 from leonaid.domain.outbox import ClaimedOutboxEvent
-from leonaid.domain.surveys import Capability, may_access_survey
+from leonaid.modules.surveys.domain import Capability, may_access_survey
 
 
 class SurveyExportJobError(RuntimeError):

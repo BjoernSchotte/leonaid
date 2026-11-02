@@ -12,13 +12,13 @@ from uuid import NAMESPACE_URL, uuid5
 import pytest
 from openpyxl import load_workbook
 
-from leonaid.adapters.survey_tabular_exports import render_tabular
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.adapters.survey_tabular_exports import render_tabular
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportRenderError,
     SurveyExportSource,
 )
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "surveys"
 
