@@ -12,9 +12,10 @@ case "$group" in
     cases=$group
     ;;
   static)
-    # Stack-free proofs: dependency pins, source fixtures, authorization
-    # inventory, release identity/manifest contracts and the closed runtime.
-    cases="dependencies krapfentaxi-source authorization-inventory release-manifest-compatibility release-legacy-boundary release-image-identity closed-runtime"
+    # Stack-free proofs (dependency pins, source fixtures, authorization
+    # inventory, release identity/manifest contracts, closed runtime) plus the
+    # small database-free proxy/public/CMS routing stack.
+    cases="dependencies krapfentaxi-source authorization-inventory release-manifest-compatibility release-legacy-boundary release-image-identity closed-runtime proxy-routing"
     ;;
   *)
     echo "ci-emdash: ERROR: group krapfentaxi-orders|krapfentaxi-migration|static required" >&2
