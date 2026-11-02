@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
+contentRevision: 9
+reviewedRevision: 9
+verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
 reviewer: Björn Schotte
 ---
 
@@ -72,6 +72,16 @@ für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
 
+## Joblaufzeit und Fehlerangaben
+
+Ein Modul kann die Laufzeit seiner Outbox-Handler begrenzen. Der Worker
+kappt jede Grenze bei 80 % von `OUTBOX_CLAIM_LEASE_SECONDS` (Standard `300`).
+Das Rendern von Umfrage-Exporten ist auf 240 s begrenzt. Ein Job, der seine
+Grenze überschreitet, wird abgebrochen und mit dem Fehlercode `job_timeout`
+erneut versucht. Jobs speichern als Fehlerangabe nur den sicheren Fehlercode,
+nie Ausnahmetext. Jede Joblogzeile (`outbox.job.*`) enthält `durationMs`,
+wenn der Job abgeschlossen wurde, fehlschlug oder seinen Claim verlor.
+
 ## Laufzeitgrenzen und Identität
 
 Jeder dauerhaft laufende Dienst hat eine Speicher-, CPU- und Prozessgrenze
@@ -82,8 +92,7 @@ einschließlich Monitoring-Profil passt auf einen VPS mit 8 GB und lässt etwa
 (`pilot-doctor`, `pilot-deploy`) lehnt Grenzen ab, deren Summe weniger als
 1,5 GiB frei lässt. „Spitze“ ist der höchste unter Last gemessene Working Set
 (Upgrade, Installation, CRM-Import mit 3000 Zeilen, Golden Journey, Backup und
-Restore; gemessen am 2. November 2026 mit Twenty 2.54). „Leerlauf“ reicht vom
-5. Perzentil bis zum Median aller Messpunkte.
+Restore; gemessen am 2. November 2026 mit Twenty 2.54). „Leerlauf“ reicht vom 5. Perzentil bis zum Median aller Messpunkte.
 
 | Dienst                         | Beobachtet (Leerlauf) | Spitze (Last) | Speichergrenze | CPUs | PIDs |
 | ------------------------------ | --------------------- | ------------- | -------------- | ---- | ---- |

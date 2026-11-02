@@ -9,6 +9,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 from uuid import UUID, uuid4, uuid5
 
@@ -16,6 +17,9 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.postgres.activity_projection import (
+    ActionProgressActivityHandler,
+)
 from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.action_progress import (
     AsyncpgActionProgressUnitOfWorkFactory,
@@ -617,7 +621,7 @@ async def verify_claim_loss() -> None:
                 base_delay=timedelta(0),
                 maximum_delay=timedelta(0),
             ),
-            observer=lambda name, _event, _code: observed.append(name),
+            observer=lambda name, _event, _code, _duration: observed.append(name),
         )
         if not await worker.run_once():
             raise RuntimeError("Claim-loss event was not claimed.")
@@ -1053,8 +1057,65 @@ async def verify_retention_cli() -> None:
     print("poc022: worker retention CLI removed the expired completed jobs")
 
 
+async def verify_handler_timeout() -> None:
+    """Cancel a real handler blocked in PostgreSQL and retry it once."""
+    pool = await create_pool(database_url(), maximum_size=3)
+    try:
+        event = progress_command(
+            uuid5(COMMAND_NAMESPACE, "timeout"), Decimal("1200")
+        ).outbox_event()
+        async with pool.acquire() as connection, connection.transaction():
+            await AsyncpgTransactionalOutboxRepository(connection).append(event)
+        queue = AsyncpgOutboxQueue(pool, claim_lease=timedelta(seconds=5))
+        worker = OutboxWorker(
+            worker_id="bounded-progress",
+            queue=queue,
+            handlers={event.event_type: ActionProgressActivityHandler(pool)},
+            retry_policy=RetryPolicy(base_delay=timedelta(0)),
+            handler_timeouts={event.event_type: 0.2},
+        )
+        projected = (
+            "SELECT count(*) FROM activity_event WHERE source_outbox_event_id=$1"
+        )
+        async with pool.acquire() as blocker, blocker.transaction():
+            await blocker.execute("LOCK TABLE activity_event IN ACCESS EXCLUSIVE MODE")
+            started = perf_counter()
+            if not await worker.run_once():
+                raise RuntimeError("Timeout proof found no job.")
+            elapsed = perf_counter() - started
+            if elapsed >= 5:
+                raise RuntimeError("Blocked handler ran past its claim lease.")
+            state = await queue.state(event.id)
+            if (
+                state is None
+                or state.status != "pending"
+                or state.attempts != 1
+                or state.last_error_code != "job_timeout"
+                or state.last_error_detail != "job_timeout"
+            ):
+                raise RuntimeError("Timed-out job is not pending with a safe code.")
+            if await blocker.fetchval(projected, event.id) != 0:
+                raise RuntimeError("Timed-out handler left a projection.")
+        if not await worker.run_once():
+            raise RuntimeError("Timed-out job was not retried.")
+        state = await queue.state(event.id)
+        if state is None or state.status != "completed" or state.attempts != 2:
+            raise RuntimeError("Retried job did not complete.")
+        async with pool.acquire() as connection:
+            if await connection.fetchval(projected, event.id) != 1:
+                raise RuntimeError("Retry did not project exactly once.")
+    finally:
+        await pool.close()
+    print(
+        "poc022: real handler cancelled under a database lock after "
+        f"{elapsed:.2f}s, stored only job_timeout and completed on retry"
+    )
+
+
 async def run(arguments: argparse.Namespace) -> None:
-    if arguments.command == "prepare":
+    if arguments.command == "handler-timeout":
+        await verify_handler_timeout()
+    elif arguments.command == "prepare":
         await prepare()
     elif arguments.command == "produce-crash":
         await produce_crash()
@@ -1089,6 +1150,7 @@ def parser() -> argparse.ArgumentParser:
     subcommands = command_parser.add_subparsers(dest="command", required=True)
     for name in (
         "prepare",
+        "handler-timeout",
         "produce-crash",
         "verify-crash",
         "verify-recovery",
