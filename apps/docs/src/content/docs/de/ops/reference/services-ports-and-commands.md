@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 790abe3056486af138602e89a740419c6f6caf90
 reviewer: Björn Schotte
 ---
 
@@ -37,6 +37,26 @@ Wichtige Befehle: `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-restore`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
 vollständige Liste liefert `./leonaid help`; sie ist maßgeblich, wenn diese
 Referenz abweicht.
+
+## Worker-Aufbewahrung
+
+Der Worker betreibt neben `outbox`, `survey_sweep` und der PostgreSQL-Probe
+eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
+(Standard `3600`) löscht sie Outbox-Jobs, die vor mehr als
+`OUTBOX_RETENTION_DAYS` (Standard `30`) Tagen erfolgreich abgeschlossen
+wurden, sowie Rate-Limit-Versuche, die älter als zwei Tage sind. Sie löscht
+nie wartende, laufende oder Dead-Letter-Jobs und keine abgeschlossenen Jobs,
+auf die noch eine versendete E-Mail, ein Rechnungsversand, ein Umfrage-Export
+oder eine Umfrage-Löschung verweist. Sie löscht in Stapeln von
+`OUTBOX_RETENTION_BATCH_SIZE` (Standard `500`) Zeilen, höchstens
+`OUTBOX_RETENTION_MAX_BATCHES` (Standard `20`) Stapel pro Durchlauf, und
+überspringt Zeilen, die eine andere Sitzung gesperrt hält. Ungültige Werte
+beenden den Worker beim Start mit `worker.configuration.invalid`. Die Metrik
+`leonaid_worker_retention_deleted_total{table=...}` zählt gelöschte Zeilen;
+die Outbox-Zähler unter `/admin/system` zeigen abgeschlossene Jobs daher nur
+für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
+leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
+Hand.
 
 ## Laufzeitgrenzen und Identität
 
@@ -82,3 +102,4 @@ schrieben das Survey-Löscharchiv als root. Der einmalige Dienst
 `api`/`worker` an `10001:10001`; bestehende Installationen brauchen keinen
 manuellen Schritt. `pilot-exporter` läuft als das Konto, das `./leonaid`
 aufruft, weil er dessen Backup-Manifest mit Modus `0600` liest.
+||||||| 387fe47

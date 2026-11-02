@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 import asyncpg
 import httpx
@@ -21,11 +21,13 @@ from leonaid.adapters.postgres.action_progress import (
     AsyncpgActionProgressUnitOfWorkFactory,
     AsyncpgTransactionalOutboxRepository,
 )
-from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
+from leonaid.adapters.postgres.outbox import OUTBOX_REFERENCES, AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.application.action_progress import RecordActionProgress
 from leonaid.application.errors import ApplicationError
 from leonaid.application.outbox import OutboxWorker
+from leonaid.configuration import RetentionSettings
 from leonaid.domain.action_progress import RecordActionProgressCommand
 from leonaid.domain.outbox import (
     ClaimedOutboxEvent,
@@ -33,6 +35,7 @@ from leonaid.domain.outbox import (
     RetryPolicy,
     json_payload,
 )
+from leonaid.entrypoints.worker.retention import sweep_operational_retention
 
 USER_ADMIN = UUID("10000000-0000-4000-8000-000000000002")
 USER_ACQUIRER = UUID("10000000-0000-4000-8000-000000000004")
@@ -643,6 +646,379 @@ async def verify_claim_loss() -> None:
     print("poc022: stale claim was reported as lost and left to the new owner")
 
 
+RETENTION_EVENT_TYPE = "probe.retention.v1"
+RETENTION_CLAIM_EVENT_TYPE = "probe.retention.claim.v1"
+RETENTION_SCOPE = "probe.retention"
+RETENTION_FINGERPRINT = "ab" * 32
+RETENTION_CLI_EVENTS = (
+    UUID("f4000000-0000-4000-8000-000000000101"),
+    UUID("f4000000-0000-4000-8000-000000000102"),
+)
+
+
+async def insert_retention_event(
+    connection: asyncpg.Connection[Any],
+    *,
+    status: str,
+    created_at: datetime,
+    completed_at: datetime | None = None,
+    dead_lettered_at: datetime | None = None,
+    available_at: datetime | None = None,
+    claimed_at: datetime | None = None,
+    event_id: UUID | None = None,
+    event_type: str = RETENTION_EVENT_TYPE,
+) -> UUID:
+    identifier = event_id or uuid4()
+    processing = status == "processing"
+    await connection.execute(
+        """
+        INSERT INTO outbox_event (
+            id, aggregate_type, aggregate_id, event_type, idempotency_key,
+            payload, status, attempts, available_at, created_at, completed_at,
+            dead_lettered_at, claimed_at, claim_token, claimed_by
+        )
+        VALUES (
+            $1, 'charity_action', $2, $3, $4, '{}'::json, $5, 1, $6, $7, $8,
+            $9, $10, $11, $12
+        )
+        """,
+        identifier,
+        ACTION,
+        event_type,
+        f"poc022:retention:{identifier}",
+        status,
+        available_at or created_at,
+        created_at,
+        completed_at,
+        dead_lettered_at,
+        claimed_at,
+        uuid4() if processing else None,
+        "poc022-retention-holder" if processing else None,
+    )
+    return identifier
+
+
+def retention_settings(*, batch_size: int, max_batches: int) -> RetentionSettings:
+    # model_validate skips the environment, so the proof is deterministic.
+    return RetentionSettings.model_validate(
+        {"outbox_days": 30, "batch_size": batch_size, "max_batches": max_batches}
+    )
+
+
+async def outbox_status(pool: asyncpg.Pool[Any], event_id: UUID) -> str | None:
+    async with pool.acquire() as connection:
+        value = await connection.fetchval(
+            "SELECT status FROM outbox_event WHERE id = $1", event_id
+        )
+    return None if value is None else str(value)
+
+
+async def verify_retention_references(connection: asyncpg.Connection[Any]) -> None:
+    rows = await connection.fetch(
+        """
+        SELECT constraint_row.conrelid::regclass::text AS table_name,
+               attribute.attname AS column_name
+        FROM pg_constraint AS constraint_row
+        JOIN pg_attribute AS attribute
+          ON attribute.attrelid = constraint_row.conrelid
+         AND attribute.attnum = ANY (constraint_row.conkey)
+        WHERE constraint_row.contype = 'f'
+          AND constraint_row.confrelid = 'outbox_event'::regclass
+        """
+    )
+    actual = {(str(row["table_name"]), str(row["column_name"])) for row in rows}
+    expected = {
+        (table, column) for table, column, enforced in OUTBOX_REFERENCES if enforced
+    }
+    if actual != expected:
+        raise RuntimeError(
+            "Outbox foreign keys differ from the retention reference list: "
+            f"database={sorted(actual)} retention={sorted(expected)}"
+        )
+
+
+async def verify_retention() -> None:
+    """Prove what retention deletes, what it keeps and that it never blocks."""
+
+    pool = await create_pool(database_url())
+    queue = AsyncpgOutboxQueue(pool, claim_lease=timedelta(minutes=5))
+    rate_limits = AsyncpgSecurityRateLimitRepository(pool)
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(days=31)
+    recent = now - timedelta(days=1)
+    try:
+        async with pool.acquire() as connection:
+            await verify_retention_references(connection)
+            async with connection.transaction():
+                old_completed = [
+                    await insert_retention_event(
+                        connection,
+                        status="completed",
+                        created_at=old - timedelta(hours=1),
+                        completed_at=old + timedelta(minutes=index),
+                    )
+                    for index in range(7)
+                ]
+                locked_completed = await insert_retention_event(
+                    connection,
+                    status="completed",
+                    created_at=old - timedelta(hours=1),
+                    completed_at=old + timedelta(hours=1),
+                )
+                kept = {
+                    "recent completed": await insert_retention_event(
+                        connection,
+                        status="completed",
+                        created_at=recent,
+                        completed_at=recent,
+                    ),
+                    "old dead letter": await insert_retention_event(
+                        connection,
+                        status="dead_letter",
+                        created_at=old,
+                        dead_lettered_at=old,
+                    ),
+                    "old pending retry": await insert_retention_event(
+                        connection,
+                        status="pending",
+                        created_at=old,
+                        available_at=now + timedelta(days=1),
+                    ),
+                    "old processing": await insert_retention_event(
+                        connection,
+                        status="processing",
+                        created_at=old,
+                        claimed_at=now,
+                    ),
+                    "old completed survey erasure": await insert_retention_event(
+                        connection,
+                        status="completed",
+                        created_at=old,
+                        completed_at=old,
+                    ),
+                }
+                await connection.execute(
+                    """
+                    INSERT INTO survey_deletion (
+                        survey_id, requested_by, operation_hash,
+                        expected_revision, event_id, requested_at, completed_at
+                    )
+                    VALUES ($1, $2, $3, 1, $4, $5, $5)
+                    """,
+                    uuid4(),
+                    USER_ADMIN,
+                    "0" * 64,
+                    kept["old completed survey erasure"],
+                    old,
+                )
+                # The sent mail of the earlier steps is evidence (mail_delivery).
+                await connection.execute(
+                    "UPDATE outbox_event SET completed_at = $2 WHERE id = $1 "
+                    "AND status = 'completed'",
+                    MAIL_EVENT,
+                    old,
+                )
+                kept["old completed sent mail"] = MAIL_EVENT
+                claimable = await insert_retention_event(
+                    connection,
+                    status="pending",
+                    created_at=now - timedelta(seconds=1),
+                    event_type=RETENTION_CLAIM_EVENT_TYPE,
+                )
+                await connection.executemany(
+                    """
+                    INSERT INTO security_rate_attempt (
+                        id, scope, fingerprint_hash, attempted_at
+                    )
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    [
+                        (
+                            uuid4(),
+                            RETENTION_SCOPE,
+                            RETENTION_FINGERPRINT,
+                            now - timedelta(days=3, minutes=index),
+                        )
+                        for index in range(5)
+                    ]
+                    + [
+                        (
+                            uuid4(),
+                            RETENTION_SCOPE,
+                            RETENTION_FINGERPRINT,
+                            now - timedelta(minutes=30 + index),
+                        )
+                        for index in range(2)
+                    ],
+                )
+
+        # The request path only counts and inserts; it no longer deletes.
+        allowed = await rate_limits.consume(
+            scope=RETENTION_SCOPE,
+            fingerprint_hash=RETENTION_FINGERPRINT,
+            attempted_at=now,
+            window=timedelta(hours=1),
+            limit=10,
+        )
+        async with pool.acquire() as connection:
+            attempts = await connection.fetchval(
+                "SELECT count(*) FROM security_rate_attempt WHERE scope = $1",
+                RETENTION_SCOPE,
+            )
+        if not allowed or attempts != 8:
+            raise RuntimeError(
+                f"Rate-limit request path changed: allowed={allowed} rows={attempts}"
+            )
+
+        # One batch never deletes more than its limit, oldest first.
+        deleted = await queue.purge_completed(
+            completed_before=now - timedelta(days=30), limit=3
+        )
+        survivors = [
+            event_id
+            for event_id in old_completed
+            if await outbox_status(pool, event_id) is not None
+        ]
+        if deleted != 3 or survivors != old_completed[3:]:
+            raise RuntimeError(
+                f"Batch was not bounded: deleted={deleted} survivors={len(survivors)}"
+            )
+
+        # A row locked by another session is skipped, not waited for, and a
+        # worker claim runs concurrently with the sweep.
+        holder = await asyncpg.connect(database_url())
+        try:
+            async with holder.transaction():
+                await holder.execute(
+                    "SELECT 1 FROM outbox_event WHERE id = $1 FOR UPDATE",
+                    locked_completed,
+                )
+                settings = retention_settings(batch_size=2, max_batches=100)
+                result, claim = await asyncio.wait_for(
+                    asyncio.gather(
+                        sweep_operational_retention(
+                            queue=queue,
+                            rate_limits=rate_limits,
+                            settings=settings,
+                            now=now,
+                        ),
+                        queue.claim_next(worker_id="poc022-retention-claimer", now=now),
+                    ),
+                    timeout=15,
+                )
+                if await outbox_status(pool, locked_completed) != "completed":
+                    raise RuntimeError(
+                        "Retention deleted a row another session locked."
+                    )
+        finally:
+            await holder.close()
+        if (
+            result.outbox_events_deleted != 4
+            or result.rate_attempts_deleted != 5
+            or not result.complete
+        ):
+            raise RuntimeError(f"Unexpected retention sweep result: {result}")
+        if claim is None or claim.id != claimable:
+            raise RuntimeError(f"Concurrent claim was disturbed: {claim}")
+        await queue.complete(
+            event_id=claim.id,
+            claim_token=claim.claim_token,
+            completed_at=datetime.now(timezone.utc),
+        )
+
+        # The released row goes with a later sweep. Three expired rows with a
+        # cap of two one-row batches leave one behind and report it.
+        async with pool.acquire() as connection:
+            extra = [
+                await insert_retention_event(
+                    connection,
+                    status="completed",
+                    created_at=old,
+                    completed_at=old + timedelta(seconds=index + 1),
+                )
+                for index in range(2)
+            ]
+        capped = await sweep_operational_retention(
+            queue=queue,
+            rate_limits=rate_limits,
+            settings=retention_settings(batch_size=1, max_batches=2),
+            now=now,
+        )
+        if capped.outbox_events_deleted != 2 or capped.complete:
+            raise RuntimeError(f"Batch cap was not honoured: {capped}")
+        final = await sweep_operational_retention(
+            queue=queue,
+            rate_limits=rate_limits,
+            settings=retention_settings(batch_size=1, max_batches=2),
+            now=now,
+        )
+        if final.outbox_events_deleted != 1 or not final.complete:
+            raise RuntimeError(f"Remaining backlog was not finished: {final}")
+        for event_id in (locked_completed, *extra, *old_completed):
+            if await outbox_status(pool, event_id) is not None:
+                raise RuntimeError(f"Expired completed job {event_id} survived.")
+
+        expected_status = {
+            "recent completed": "completed",
+            "old dead letter": "dead_letter",
+            "old pending retry": "pending",
+            "old processing": "processing",
+            "old completed survey erasure": "completed",
+            "old completed sent mail": "completed",
+        }
+        for name, event_id in kept.items():
+            status = await outbox_status(pool, event_id)
+            if status != expected_status[name]:
+                raise RuntimeError(f"Retention touched the {name} job: {status}")
+        async with pool.acquire() as connection:
+            remaining_attempts = await connection.fetchval(
+                "SELECT count(*) FROM security_rate_attempt WHERE scope = $1",
+                RETENTION_SCOPE,
+            )
+        if remaining_attempts != 3:
+            raise RuntimeError(
+                f"Rate-limit retention kept {remaining_attempts} attempts, expected 3."
+            )
+    finally:
+        await pool.close()
+    print(
+        "poc022: retention deletes only expired completed jobs in bounded, "
+        "non-blocking batches and keeps evidence, failures and open work"
+    )
+
+
+async def seed_retention_cli() -> None:
+    old = datetime.now(timezone.utc) - timedelta(days=31)
+    connection = await asyncpg.connect(database_url())
+    try:
+        async with connection.transaction():
+            for event_id in RETENTION_CLI_EVENTS:
+                await insert_retention_event(
+                    connection,
+                    status="completed",
+                    created_at=old,
+                    completed_at=old,
+                    event_id=event_id,
+                )
+    finally:
+        await connection.close()
+    print("poc022: expired completed jobs for the worker CLI seeded")
+
+
+async def verify_retention_cli() -> None:
+    connection = await asyncpg.connect(database_url())
+    try:
+        remaining = await connection.fetchval(
+            "SELECT count(*) FROM outbox_event WHERE id = ANY($1::uuid[])",
+            list(RETENTION_CLI_EVENTS),
+        )
+    finally:
+        await connection.close()
+    if remaining != 0:
+        raise RuntimeError(f"Worker retention CLI left {remaining} expired jobs.")
+    print("poc022: worker retention CLI removed the expired completed jobs")
+
+
 async def run(arguments: argparse.Namespace) -> None:
     if arguments.command == "prepare":
         await prepare()
@@ -664,6 +1040,12 @@ async def run(arguments: argparse.Namespace) -> None:
         await replay_and_verify_mail()
     elif arguments.command == "verify-claim-loss":
         await verify_claim_loss()
+    elif arguments.command == "verify-retention":
+        await verify_retention()
+    elif arguments.command == "seed-retention-cli":
+        await seed_retention_cli()
+    elif arguments.command == "verify-retention-cli":
+        await verify_retention_cli()
     else:
         raise RuntimeError(f"Unbekannter Probe-Befehl: {arguments.command}")
 
@@ -680,6 +1062,9 @@ def parser() -> argparse.ArgumentParser:
         "verify-dead-letter",
         "replay-and-verify-mail",
         "verify-claim-loss",
+        "verify-retention",
+        "seed-retention-cli",
+        "verify-retention-cli",
     ):
         subcommands.add_parser(name)
     produce_many_command = subcommands.add_parser("produce-many")
