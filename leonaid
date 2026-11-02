@@ -697,6 +697,12 @@ check_all() {
     python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/core_oneoff_user.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/core_oneoff_user_test.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/backup/compose_overlays_test.py
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
