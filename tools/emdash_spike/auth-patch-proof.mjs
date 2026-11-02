@@ -43,6 +43,12 @@ assert.ok(header.includes('jsx("a", { href: "/admin/"'));
 assert.ok(header.includes('children: "Zurück zu LeonAid"'));
 assert.ok(!header.includes("external: true"));
 assert.ok(!header.includes('message: "View Site"'));
+// The editor mounts only after the entry's draft revision has been merged.
+assert.ok(
+  revisioned.includes(
+    "if (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {",
+  ),
+);
 const guard = revisioned.match(
   /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !leonaidUnsaved\)[\s\S]+?\}, \[collection, leonaidUnsaved\]\);/,
 );
