@@ -66,7 +66,7 @@ def _require(condition: bool, message: str) -> None:
 
 def _object(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise InvalidManifest(f"{label} muss ein Objekt sein")
+        raise InvalidManifest(f"{label} must be an object")
     return value
 
 
@@ -74,7 +74,7 @@ def _load_object(path: Path) -> dict[str, Any]:
     try:
         return _object(json.loads(path.read_text(encoding="utf-8")), str(path))
     except (OSError, json.JSONDecodeError) as error:
-        raise InvalidManifest(f"{path}: ungültiges JSON: {error}") from error
+        raise InvalidManifest(f"{path}: invalid JSON: {error}") from error
 
 
 def _sha256(path: Path) -> str:
@@ -92,7 +92,7 @@ def manifest_sha256(value: dict[str, Any]) -> str:
 def _image_inventory(schema_version: object) -> set[str]:
     _require(
         type(schema_version) is int and schema_version in (1, 2),
-        "Release-Version muss 1 oder 2 sein",
+        "release version must be 1 or 2",
     )
     return REQUIRED_IMAGES | ({"campaign-site"} if schema_version == 2 else set())
 
@@ -105,14 +105,14 @@ def images_from_compose(
     # silently omit a configured CMS service while approving the legacy stack.
     _require(
         schema_version == 2 or "campaign-site" not in services,
-        "Release-Vertrag v1 erlaubt keine campaign-site; CMS-Release-Vertrag fehlt",
+        "release contract v1 does not allow campaign-site; CMS release contract is missing",
     )
     images: dict[str, str] = {}
     for service in _image_inventory(schema_version):
         configuration = _object(services.get(service), f"Compose service {service}")
         image = configuration.get("image")
         if not isinstance(image, str) or not image:
-            raise InvalidManifest(f"{service}: Compose-Image fehlt")
+            raise InvalidManifest(f"{service}: Compose image is missing")
         images[service] = image
     return images
 
@@ -127,13 +127,13 @@ def validate_compose_images(
     manifest_images = _object(manifest.get("images"), "images")
     _require(
         manifest_images == compose_images,
-        "Manifest-Images weichen von der effektiven Compose-Konfiguration ab",
+        "manifest images differ from the effective Compose configuration",
     )
 
 
 def _migration_inventory(root: Path) -> list[dict[str, str]]:
     paths = sorted((root / "migrations" / "versions").glob("*.py"))
-    _require(bool(paths), "Alembic-Migrationen fehlen")
+    _require(bool(paths), "Alembic migrations are missing")
     return [
         {
             "revision": _migration_revision(path),
@@ -160,9 +160,9 @@ def _migration_revision(path: Path) -> str:
         ):
             assert isinstance(node, (ast.Assign, ast.AnnAssign))
             value = ast.literal_eval(node.value) if node.value is not None else None
-            _require(isinstance(value, str), f"{path.name}: Revision fehlt")
+            _require(isinstance(value, str), f"{path.name}: revision is missing")
             return str(value)
-    raise InvalidManifest(f"{path.name}: Revision fehlt")
+    raise InvalidManifest(f"{path.name}: revision is missing")
 
 
 def _artifact_inventory(root: Path) -> dict[str, dict[str, str]]:
@@ -174,7 +174,7 @@ def _artifact_inventory(root: Path) -> dict[str, dict[str, str]]:
         "openapi": root / "packages/api-client/openapi.json",
     }
     for label, path in paths.items():
-        _require(path.is_file(), f"Release-Artefakt fehlt: {label}")
+        _require(path.is_file(), f"release artifact is missing: {label}")
     return {
         label: {
             "path": path.relative_to(root).as_posix(),
@@ -220,7 +220,7 @@ def create_manifest(
         try:
             value["cms"] = create_cms_identity(root)
         except (ValueError, KeyError, TypeError, OSError) as error:
-            raise InvalidManifest("CMS-Release-Identität ist ungültig") from error
+            raise InvalidManifest("CMS release identity is invalid") from error
         value["requiredGates"].extend(CMS_GATES)
         value["rollback"]["cms"] = CMS_ROLLBACK
     validate_manifest(value, root=root)
@@ -239,72 +239,72 @@ def validate_manifest(
     if expected_schema_version is not None:
         _require(
             schema_version == expected_schema_version,
-            "Release-Version entspricht nicht dem expliziten Aufrufvertrag",
+            "release version does not match the explicit caller contract",
         )
     _require(
         (schema_version == 2 or "cms" not in value) and "emdash" not in value,
-        "Release-Vertrag v1 erlaubt keine CMS-Metadaten",
+        "release contract v1 does not allow CMS metadata",
     )
     if schema_version == 2:
         try:
             validate_cms_identity(value.get("cms"), root)
         except (ValueError, KeyError, TypeError, OSError) as error:
-            raise InvalidManifest("CMS-Release-Identität ist ungültig") from error
+            raise InvalidManifest("CMS release identity is invalid") from error
     release_id = value.get("releaseId")
     _require(
         isinstance(release_id, str) and RELEASE_ID.fullmatch(release_id) is not None,
-        "releaseId ist ungültig",
+        "releaseId is invalid",
     )
     version = value.get("version")
     _require(
         isinstance(version, str) and bool(version.strip()),
-        "version fehlt",
+        "version is missing",
     )
     git_commit = value.get("gitCommit")
     _require(
         isinstance(git_commit, str) and GIT_COMMIT.fullmatch(git_commit) is not None,
-        "gitCommit muss ein vollständiger SHA sein",
+        "gitCommit must be a full SHA",
     )
     if expected_commit is not None:
-        _require(git_commit == expected_commit, "gitCommit weicht vom Checkout ab")
+        _require(git_commit == expected_commit, "gitCommit differs from the checkout")
 
     mode = value.get("deploymentMode")
-    _require(mode in {"production", "test"}, "deploymentMode ist ungültig")
+    _require(mode in {"production", "test"}, "deploymentMode is invalid")
     images = _object(value.get("images"), "images")
-    _require(set(images) == required_images, "Image-Inventar ist unvollständig")
+    _require(set(images) == required_images, "image inventory is incomplete")
     for service, image in images.items():
-        _require(isinstance(image, str), f"{service}: Image ist kein String")
+        _require(isinstance(image, str), f"{service}: image is not a string")
         if mode == "production":
             _require(
                 PINNED_IMAGE.fullmatch(image) is not None,
-                f"{service}: Produktionsimage benötigt Tag und Digest",
+                f"{service}: production image requires tag and digest",
             )
         else:
             _require(
                 PINNED_IMAGE.fullmatch(image) is not None
                 or LOCAL_IMAGE_ID.fullmatch(image) is not None,
-                f"{service}: Testimage ist nicht unveränderlich gebunden",
+                f"{service}: test image is not immutably pinned",
             )
 
     schemas = _object(value.get("schemas"), "schemas")
     _require(
         set(schemas) == {"coreAlembicHead", "goldenData"},
-        "Release-Vertrag v1 erlaubt nur das bestehende Core-Schemainventar",
+        "release contract v1 allows only the existing core schema inventory",
     )
     head = schemas.get("coreAlembicHead")
     _require(
         isinstance(head, str) and MIGRATION_REVISION.fullmatch(head) is not None,
-        "Core-Schemaziel ist ungültig",
+        "core schema target is invalid",
     )
-    _require(schemas.get("goldenData") == 1, "Golden-Datensatzversion fehlt")
+    _require(schemas.get("goldenData") == 1, "golden dataset version is missing")
     _require(
         value.get("templates") == {"invoice": "invoice-v2"},
-        "Rechnungstemplate ist nicht gebunden",
+        "invoice template is not pinned",
     )
 
     migrations = value.get("migrations")
     if not isinstance(migrations, list) or not migrations:
-        raise InvalidManifest("Migrationsinventar fehlt")
+        raise InvalidManifest("migration inventory is missing")
     revisions: list[str] = []
     for item in migrations:
         migration = _object(item, "Migration")
@@ -315,55 +315,60 @@ def validate_manifest(
             not isinstance(revision, str)
             or MIGRATION_REVISION.fullmatch(revision) is None
         ):
-            raise InvalidManifest("Migrationsrevision ist ungültig")
+            raise InvalidManifest("migration revision is invalid")
         if (
             not isinstance(path, str)
             or not path.startswith("migrations/versions/")
             or not path.endswith(".py")
         ):
-            raise InvalidManifest(f"{revision}: Migrationspfad ist ungültig")
+            raise InvalidManifest(f"{revision}: migration path is invalid")
         if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
-            raise InvalidManifest(f"{revision}: Migrations-SHA ist ungültig")
+            raise InvalidManifest(f"{revision}: migration SHA is invalid")
         revisions.append(revision)
         if root is not None:
             actual_path = root / path
-            _require(actual_path.is_file(), f"{revision}: Migration fehlt im Checkout")
+            _require(
+                actual_path.is_file(),
+                f"{revision}: migration is missing from the checkout",
+            )
             _require(
                 _migration_revision(actual_path) == revision,
-                f"{revision}: Migrationsidentität weicht vom Checkout ab",
+                f"{revision}: migration identity differs from the checkout",
             )
             _require(
                 _sha256(actual_path) == digest,
-                f"{revision}: Migration weicht vom Manifest ab",
+                f"{revision}: migration differs from the manifest",
             )
-    _require(revisions == sorted(set(revisions)), "Migrationen sind nicht eindeutig")
-    _require(revisions[-1] == head, "Core-Schemaziel ist nicht der Manifest-Head")
+    _require(revisions == sorted(set(revisions)), "migrations are not unique")
+    _require(revisions[-1] == head, "core schema target is not the manifest head")
 
     artifacts = _object(value.get("artifacts"), "artifacts")
     _require(
         set(artifacts) == {"compatibilityMatrix", "invoiceTemplate", "openapi"},
-        "Release-Artefaktinventar ist unvollständig",
+        "release artifact inventory is incomplete",
     )
     for label, item in artifacts.items():
         artifact = _object(item, label)
         path = artifact.get("path")
         digest = artifact.get("sha256")
         if not isinstance(path, str) or not path:
-            raise InvalidManifest(f"{label}: Pfad fehlt")
+            raise InvalidManifest(f"{label}: path is missing")
         if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
-            raise InvalidManifest(f"{label}: SHA fehlt")
+            raise InvalidManifest(f"{label}: SHA is missing")
         if root is not None:
             actual_path = root / path
-            _require(actual_path.is_file(), f"{label}: Artefakt fehlt im Checkout")
+            _require(
+                actual_path.is_file(), f"{label}: artifact is missing from the checkout"
+            )
             _require(
                 _sha256(actual_path) == digest,
-                f"{label}: Artefakt weicht vom Manifest ab",
+                f"{label}: artifact differs from the manifest",
             )
 
     _require(
         value.get("requiredGates")
         == list(REQUIRED_GATES + (CMS_GATES if schema_version == 2 else ())),
-        "Release-Gates sind unvollständig oder ungeordnet",
+        "release gates are incomplete or out of order",
     )
     _require(
         value.get("rollback")
@@ -373,7 +378,7 @@ def validate_manifest(
             "twenty": "backup_restore_after_migration",
             **({"cms": CMS_ROLLBACK} if schema_version == 2 else {}),
         },
-        "Rollbackgrenzen sind unvollständig",
+        "rollback boundaries are incomplete",
     )
 
 
@@ -420,7 +425,7 @@ def main() -> int:
                 )
             else:
                 if arguments.images is None:
-                    raise InvalidManifest("Imagequelle fehlt")
+                    raise InvalidManifest("image source is missing")
                 images = _load_object(arguments.images)
             manifest = create_manifest(
                 root=root,

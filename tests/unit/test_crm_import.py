@@ -43,7 +43,7 @@ def test_golden_workbook_is_read_as_typed_real_xlsx() -> None:
     assert update[0].city == "Münster-Ost"
     assert initial[2].given_name == "Max"
     assert initial[2].validation_errors == ()
-    assert initial[3].validation_errors == ("family_name fehlt für PERSON",)
+    assert initial[3].validation_errors == ("family_name missing for PERSON",)
 
 
 def test_golden_semicolon_csv_uses_the_same_mapping() -> None:
@@ -54,4 +54,4 @@ def test_golden_semicolon_csv_uses_the_same_mapping() -> None:
     assert rows[0].company_name == "Nordstern Handel GmbH"
     assert rows[0].postal_code == "48155"
     assert rows[2].given_name == "Max"
-    assert rows[3].validation_errors == ("family_name fehlt für PERSON",)
+    assert rows[3].validation_errors == ("family_name missing for PERSON",)

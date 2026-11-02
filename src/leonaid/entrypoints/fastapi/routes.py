@@ -1915,7 +1915,7 @@ def public_order_result_response(
 ) -> PublicOrderResultResponse:
     reference = result.commitment.public_reference
     if reference is None:
-        raise RuntimeError("Öffentliche Bestellung besitzt keine Referenz.")
+        raise RuntimeError("Public order has no reference.")
     return PublicOrderResultResponse(
         commitment_id=result.commitment.id,
         public_reference=reference,

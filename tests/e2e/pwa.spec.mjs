@@ -43,7 +43,7 @@ async function assertNoSeriousAxeFindings(page) {
   ).toEqual([]);
 }
 
-test("POC-062 Sponsorliste erfüllt Sicht-, Responsive- und A11y-Budgets", async ({
+test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   context,
   page,
 }, testInfo) => {
@@ -146,13 +146,13 @@ test("POC-062 Sponsorliste erfüllt Sicht-, Responsive- und A11y-Budgets", async
   await expect(actionSelector.locator("option")).toHaveCount(1);
 });
 
-test("POC-062 zeigt einen echten leeren Arbeitsvorrat", async ({
+test("POC-062 shows a real empty work queue", async ({
   context,
   page,
 }, testInfo) => {
   test.skip(
     testInfo.project.name !== "chromium-390",
-    "Der reale Leerzustand wird einmal im mobilen Leitbrowser belegt.",
+    "The real empty state is proven once in the lead mobile browser.",
   );
   await authenticate(context, gesaSession);
   await page.goto(`${baseUrl}/app/sponsors`);

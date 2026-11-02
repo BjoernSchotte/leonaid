@@ -35,7 +35,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "commitment-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "commitment-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=160 \
       api core-postgres twenty-server twenty-worker >&2 || true
@@ -56,7 +56,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "commitment-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "commitment-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -92,7 +92,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "commitment-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "commitment-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -160,7 +160,7 @@ for screenshot in \
   commitment-success-mobile.png \
   commitment-admin-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "commitment-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "commitment-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -168,7 +168,7 @@ for browser in chromium firefox webkit; do
   for width in 390 768 1440; do
     screenshot="$proof/commitment-capture-$browser-$width.png"
     if [ ! -s "$screenshot" ]; then
-      echo "commitment-test: ERROR: Browsermatrix fehlt: $screenshot" >&2
+      echo "commitment-test: ERROR: browser matrix is missing: $screenshot" >&2
       exit 1
     fi
   done
@@ -178,5 +178,5 @@ mkdir -p "$root/.artifacts/poc081"
 cp "$proof"/commitment-*.png "$root/.artifacts/poc081/"
 cp "$proof/poc081-created.json" "$root/.artifacts/poc081/"
 
-echo "commitment-test: OK: Serververtrag, Browsererfassung, Admin-Sicht,"
-echo "commitment-test:     Golden-Summen und 9 Browser/Viewports real bewiesen"
+echo "commitment-test: OK: server contract, browser capture, admin view,"
+echo "commitment-test:     golden totals and 9 browsers/viewports proven for real"

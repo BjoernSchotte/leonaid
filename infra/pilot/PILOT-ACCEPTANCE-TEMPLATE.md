@@ -1,44 +1,43 @@
-# Privates Pilot-Abnahmeprotokoll – Vorlage
+# Private pilot acceptance record – template
 
-Diese Vorlage wird ausschließlich in den zugriffsgeschützten Evidence Store
-kopiert und dort ausgefüllt. Keine privaten Inhalte oder Signaturen werden in
-Git übernommen.
+Copy this template only into the access-protected evidence store and fill it
+in there. No private contents or signatures go into Git.
 
-## Technischer Bezug
+## Technical reference
 
-- Abschlusscommit: `PENDING`
-- Release-Manifest-ID und SHA-256: `PENDING`
-- Image-/Dependency-Lock-SHA-256: `PENDING`
-- Golden-Dataset-Version: `PENDING`
-- Readiness-Report-ID und SHA-256: `PENDING`
-- CI-Run-IDs und Ergebnis: `PENDING`
-- Restore-Evidence-ID, RPO und RTO: `PENDING`
-- Screenshot-/Beleg-Evidence-IDs und SHA-256: `PENDING`
-- geltende Runbook-Versionen: `PENDING`
+- Final commit: `PENDING`
+- Release manifest ID and SHA-256: `PENDING`
+- Image/dependency lock SHA-256: `PENDING`
+- Golden dataset version: `PENDING`
+- Readiness report ID and SHA-256: `PENDING`
+- CI run IDs and result: `PENDING`
+- Restore evidence ID, RPO and RTO: `PENDING`
+- Screenshot/record evidence IDs and SHA-256: `PENDING`
+- Applicable runbook versions: `PENDING`
 
-## Fachliche und betriebliche Abnahme
+## Functional and operational acceptance
 
-- Produktverantwortung: `PENDING`
-- Betrieb: `PENDING`
-- rechtlicher Träger: `PENDING`
-- Steuerentscheidung: `PENDING`
-- Datenschutz: `PENDING`
-- offene P0/P1: `PENDING`
-- offene P2/P3 mit Owner und Termin: `PENDING`
-- private Evidence vollständig und Zugriff geprüft: `PENDING`
-- Aufbewahrung und Löschung bestätigt: `PENDING`
+- Product ownership: `PENDING`
+- Operations: `PENDING`
+- Legal entity: `PENDING`
+- Tax decision: `PENDING`
+- Privacy: `PENDING`
+- Open P0/P1: `PENDING`
+- Open P2/P3 with owner and due date: `PENDING`
+- Private evidence complete and access checked: `PENDING`
+- Retention and deletion confirmed: `PENDING`
 
-## Ergebnis
+## Result
 
-- Pilotentscheidung (`go`, `no-go`, `stop`): `PENDING`
-- nächster Milestone (`krapfentaxi-delivery`, `pilot-hardening`,
+- Pilot decision (`go`, `no-go`, `stop`): `PENDING`
+- Next milestone (`krapfentaxi-delivery`, `pilot-hardening`,
   `lions-open-discovery`): `PENDING`
-- Pilotende beziehungsweise nächste Reviewfrist: `PENDING`
-- Betriebs- und Verantwortungsübergang: `PENDING`
-- unbefristete Produktivfreigabe ausdrücklich entschieden: `PENDING`
+- Pilot end or next review deadline: `PENDING`
+- Handover of operations and responsibility: `PENDING`
+- Open-ended production approval explicitly decided: `PENDING`
 
-## Signaturen
+## Signatures
 
-Signaturen, Namen und konkrete Kontaktdaten bleiben ausschließlich im privaten
-Original. Das öffentliche Proof-Dokument referenziert später nur opake
-Evidence-IDs und nicht-personenbezogene Summen.
+Signatures, names and specific contact details stay only in the private
+original. The public proof document later references only opaque evidence
+IDs and totals without personal data.

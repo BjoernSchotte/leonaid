@@ -1,13 +1,12 @@
 # PWA
 
-Mobile-first React-PWA für Akquisiteure und aktionsbezogene Rollen.
+Mobile-first React PWA for acquirers and action-scoped roles.
 
-POC-062 beweist Installierbarkeit, Update- und Offline-Hinweis sowie die
-fachliche Sponsor- und Aktivitätenoberfläche gegen echte Core-Sitzungen,
-Twenty und das versionierte Golden Dataset.
+POC-062 proves installability, the update and offline notice, and the business
+sponsor and activity interface against real Core sessions, Twenty and the
+versioned golden dataset.
 
-POC-043 stellt dafür den abgesicherten Datenzugang bereit: Die PWA
-spricht ausschließlich mit der LeonAid-Core-API und kennt weder Twenty-Login
-noch Twenty-Key. Listen, Suche, Counts, Export, Aktivitäten und Dokumente
-verwenden dort denselben aus Sitzung, Membership und Assignment abgeleiteten
-Scope.
+POC-043 provides the secured data access for this: the PWA talks only to the
+LeonAid Core API and knows neither a Twenty login nor a Twenty key. Lists,
+search, counts, export, activities and documents there use the same scope,
+derived from session, membership and assignment.

@@ -122,8 +122,10 @@ def backup_options(cli: Path) -> tuple[set[str], set[str]]:
     text = cli.read_text(encoding="utf-8")
     body = text.split("\npilot_backup() {\n", 1)[1].split("\n}\n", 1)[0]
     accepted = set(re.findall(r"^      (--[a-z-]+)\)$", body, re.MULTILINE))
-    required = set(re.findall(r'echo "pilot-backup: ERROR: (--[a-z-]+) fehlt"', body))
-    if not accepted or not required <= accepted:
+    required = set(
+        re.findall(r'echo "pilot-backup: ERROR: (--[a-z-]+) is missing"', body)
+    )
+    if not accepted or not required or not required <= accepted:
         raise UnitError("cannot read the pilot-backup options from ./leonaid")
     return accepted, required
 

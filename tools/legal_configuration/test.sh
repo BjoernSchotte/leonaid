@@ -28,7 +28,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "legal-configuration-test: Diagnose:" >&2
+    echo "legal-configuration-test: diagnostics:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=260 \
       api core-postgres web proxy twenty-server twenty-worker >&2 || true
@@ -43,7 +43,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "legal-configuration-test: ERROR: .env.local fehlt" >&2
+  echo "legal-configuration-test: ERROR: .env.local is missing" >&2
   exit 1
 fi
 
@@ -60,7 +60,7 @@ compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || tr
 compose build api public pwa web
 if ! compose --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker; then
-  echo "legal-configuration-test: Twenty-Start wird einmal wiederholt"
+  echo "legal-configuration-test: retrying Twenty start once"
   compose --profile dev-mail up --detach --wait --wait-timeout 420 \
     core-postgres rustfs mailpit twenty-server twenty-worker
 fi
@@ -79,7 +79,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "legal-configuration-test: ERROR: Twenty-Key fehlt" >&2
+  echo "legal-configuration-test: ERROR: Twenty key is missing" >&2
   exit 1
 fi
 
@@ -133,7 +133,7 @@ docker run --rm \
 
 for screenshot in legal-draft-desktop.png legal-active-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "legal-configuration-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "legal-configuration-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -150,5 +150,5 @@ compose run --rm --no-deps \
 mkdir -p "$root/.artifacts/pilot044"
 cp "$proof"/legal-*.png "$root/.artifacts/pilot044/"
 
-echo "legal-configuration-test: OK: reale PostgreSQL-Versionierung,"
-echo "legal-configuration-test:     Vier-Augen-Aktivierung und Browser-UX bewiesen"
+echo "legal-configuration-test: OK: real PostgreSQL versioning,"
+echo "legal-configuration-test:     four-eyes activation and browser UX proven"

@@ -58,7 +58,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -108,13 +108,13 @@ def assert_receipt(
     correlation_id: str,
 ) -> None:
     if receipt.leonaid_id != expected_local_id:
-        raise ContractFailure("Sync-Receipt verlor die LeonAid-ID")
+        raise ContractFailure("sync receipt lost the LeonAid ID")
     if receipt.party_kind is not expected_kind:
-        raise ContractFailure("Sync-Receipt enthält den falschen Party-Typ")
+        raise ContractFailure("sync receipt has the wrong party type")
     if receipt.status is not CrmSyncStatus.SYNCED:
-        raise ContractFailure("Sync-Receipt ist nicht als synchron markiert")
+        raise ContractFailure("sync receipt is not marked as synced")
     if receipt.correlation_id != correlation_id:
-        raise ContractFailure("Sync-Receipt verlor die Korrelation")
+        raise ContractFailure("sync receipt lost the correlation")
 
 
 def write_state(path: Path, state: JsonObject) -> None:
@@ -130,9 +130,9 @@ def read_state(path: Path) -> JsonObject:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ContractFailure(f"Contract-State ist nicht lesbar: {path}") from error
+        raise ContractFailure(f"contract state is not readable: {path}") from error
     if not isinstance(value, dict):
-        raise ContractFailure("Contract-State muss ein JSON-Objekt sein")
+        raise ContractFailure("contract state must be a JSON object")
     return value
 
 
@@ -148,7 +148,7 @@ async def exercise(state_path: Path) -> None:
             correlation_id=correlation,
         )
         if len(created) != COMPANY_COUNT:
-            raise ContractFailure("Company-Batch ist unvollständig")
+            raise ContractFailure("company batch is incomplete")
         for (expected_id, _), (_, receipt) in zip(batch_input, created, strict=True):
             assert_receipt(
                 receipt,
@@ -164,11 +164,11 @@ async def exercise(state_path: Path) -> None:
         found_ids = [record.twenty_id for record in found]
         if len(found_ids) != COMPANY_COUNT or len(set(found_ids)) != COMPANY_COUNT:
             raise ContractFailure(
-                "Cursor-Pagination fand die 65 Companies nicht genau einmal"
+                "cursor pagination did not find the 65 companies exactly once"
             )
         expected_ids = {record.twenty_id for record, _ in created}
         if set(found_ids) != expected_ids:
-            raise ContractFailure("Company-Pagination verlor oder erfand IDs")
+            raise ContractFailure("company pagination lost or invented IDs")
 
         first_record, first_receipt = created[0]
         updated, update_receipt = await gateway.update_company(
@@ -189,7 +189,7 @@ async def exercise(state_path: Path) -> None:
             updated.data.name != f"{COMPANY_PREFIX} 001 aktualisiert"
             or updated.data.address.postal_code != "48143"
         ):
-            raise ContractFailure("kontrolliertes Company-Update ist nicht sichtbar")
+            raise ContractFailure("controlled company update is not visible")
         assert_receipt(
             update_receipt,
             expected_local_id=first_receipt.leonaid_id,
@@ -201,7 +201,7 @@ async def exercise(state_path: Path) -> None:
             correlation_id="poc031:contract:get-company",
         )
         if loaded_company != updated:
-            raise ContractFailure("Company-Read stimmt nicht mit Update überein")
+            raise ContractFailure("company read does not match the update")
 
         single_company_local_id = local_id("company-single", 1)
         single_company, single_company_receipt = await gateway.create_company(
@@ -229,7 +229,7 @@ async def exercise(state_path: Path) -> None:
             )
             != single_company
         ):
-            raise ContractFailure("einzeln angelegte Company ist nicht lesbar")
+            raise ContractFailure("individually created company is not readable")
 
         people_input = tuple(
             (
@@ -243,7 +243,7 @@ async def exercise(state_path: Path) -> None:
             correlation_id="poc031:contract:people-batch",
         )
         if len(created_people) != PERSON_COUNT:
-            raise ContractFailure("People-Batch ist unvollständig")
+            raise ContractFailure("people batch is incomplete")
         for (expected_id, _), (_, receipt) in zip(
             people_input, created_people, strict=True
         ):
@@ -262,7 +262,7 @@ async def exercise(state_path: Path) -> None:
         people_ids = [record.twenty_id for record in people_found]
         if len(people_ids) != PERSON_COUNT or len(set(people_ids)) != PERSON_COUNT:
             raise ContractFailure(
-                "Cursor-Pagination fand die 61 People nicht genau einmal"
+                "cursor pagination did not find the 61 people exactly once"
             )
 
         first_person, first_person_receipt = created_people[0]
@@ -283,7 +283,7 @@ async def exercise(state_path: Path) -> None:
             or updated_person.data.company_twenty_id != first_record.twenty_id
             or updated_person.data.phone != "+4915110099999"
         ):
-            raise ContractFailure("kontrolliertes Person-Update ist nicht sichtbar")
+            raise ContractFailure("controlled person update is not visible")
         assert_receipt(
             person_update_receipt,
             expected_local_id=first_person_receipt.leonaid_id,
@@ -295,7 +295,7 @@ async def exercise(state_path: Path) -> None:
             correlation_id="poc031:contract:get-person",
         )
         if loaded_person != updated_person:
-            raise ContractFailure("Person-Read stimmt nicht mit Update überein")
+            raise ContractFailure("person read does not match the update")
 
         single_person_local_id = local_id("person-single", 1)
         single_person, single_person_receipt = await gateway.create_person(
@@ -322,7 +322,7 @@ async def exercise(state_path: Path) -> None:
             )
             != single_person
         ):
-            raise ContractFailure("einzeln angelegte Person ist nicht lesbar")
+            raise ContractFailure("individually created person is not readable")
 
         match_state = await exercise_match_keys(
             gateway,
@@ -351,8 +351,8 @@ async def exercise(state_path: Path) -> None:
         },
     )
     print(
-        "twenty-gateway-contract: CRUD, 60er-Batches, Korrelation und "
-        "Cursor-Pagination real bewiesen"
+        "twenty-gateway-contract: CRUD, batches of 60, correlation and "
+        "cursor pagination proven for real"
     )
 
 
@@ -369,7 +369,7 @@ def raw_client() -> httpx.AsyncClient:
 def raw_record(response: httpx.Response) -> JsonObject:
     if response.status_code not in {200, 201}:
         raise ContractFailure(
-            f"Twenty-Rohzugriff scheiterte: HTTP {response.status_code} "
+            f"raw Twenty access failed: HTTP {response.status_code} "
             f"{response.text[:300]}"
         )
     payload = response.json()
@@ -379,7 +379,7 @@ def raw_record(response: httpx.Response) -> JsonObject:
         if isinstance(nested, dict):
             return nested
     if not isinstance(data, dict):
-        raise ContractFailure("Twenty-Rohzugriff lieferte keinen Datensatz")
+        raise ContractFailure("raw Twenty access returned no record")
     return data
 
 
@@ -405,7 +405,7 @@ async def exercise_match_keys(
             correlation_id="poc031:keys:renamed-company",
         )
     ) != {first_company.twenty_id}:
-        raise ContractFailure("Company-Update pflegte den Match-Schlüssel nicht")
+        raise ContractFailure("company update did not maintain the match key")
     # The person update changed only the given name; the gateway must still
     # store the key of the complete new name.
     if ids(
@@ -416,7 +416,7 @@ async def exercise_match_keys(
             correlation_id="poc031:keys:renamed-person",
         )
     ) != {first_person.twenty_id}:
-        raise ContractFailure("Teil-Umbenennung pflegte den Person-Schlüssel nicht")
+        raise ContractFailure("partial rename did not maintain the person key")
 
     variant, _ = await gateway.create_company(
         local_id("company-variant", 1),
@@ -433,9 +433,7 @@ async def exercise_match_keys(
         correlation_id="poc031:keys:variant-match",
     )
     if ids(by_key) != {variant.twenty_id} or ids(found) != {variant.twenty_id}:
-        raise ContractFailure(
-            "Schreibvariante wurde nicht exakt über den Schlüssel gefunden"
-        )
+        raise ContractFailure("spelling variant was not found exactly via the key")
 
     twins = await gateway.create_companies(
         (
@@ -451,7 +449,7 @@ async def exercise_match_keys(
     )
     if ids(ambiguous) != {record.twenty_id for record, _ in twins}:
         raise ContractFailure(
-            "Batch-Anlage pflegte keine Schlüssel oder Mehrdeutigkeit fehlt"
+            "batch create did not maintain keys, or ambiguity is missing"
         )
 
     missing_id = local_id("company-missing", 1)
@@ -460,21 +458,21 @@ async def exercise_match_keys(
         correlation_id="poc031:keys:get-companies",
     )
     if ids(companies) != {*company_ids, single_company_id}:
-        raise ContractFailure("gebündelter Company-Read über 50 IDs ist unvollständig")
+        raise ContractFailure("batched company read over 50 IDs is incomplete")
     people = await gateway.get_people(
         (*person_ids, single_person_id),
         correlation_id="poc031:keys:get-people",
     )
     if ids(people) != {*person_ids, single_person_id}:
-        raise ContractFailure("gebündelter Person-Read über 50 IDs ist unvollständig")
+        raise ContractFailure("batched person read over 50 IDs is incomplete")
     contacts = await gateway.list_company_contacts(
         (first_company.twenty_id, single_company_id),
         correlation_id="poc031:keys:contacts",
     )
     if ids(contacts) != {*person_ids, single_person_id}:
-        raise ContractFailure("Kontakte der angefragten Firmen sind unvollständig")
+        raise ContractFailure("contacts of the requested companies are incomplete")
     if await gateway.get_companies((), correlation_id="poc031:keys:empty") != ():
-        raise ContractFailure("leere ID-Liste muss ohne Treffer bleiben")
+        raise ContractFailure("empty ID list must return no matches")
 
     async with raw_client() as twenty:
         page = await twenty.get(
@@ -491,7 +489,7 @@ async def exercise_match_keys(
             len(page_records) != COMPANY_COUNT
             or page_payload["pageInfo"]["hasNextPage"] is not False
         ):
-            raise ContractFailure("Twenty liefert keine Seite mit 200 Datensätzen")
+            raise ContractFailure("Twenty does not return a page with 200 records")
 
         unkeyed_company = raw_record(
             await twenty.post(
@@ -529,7 +527,7 @@ async def exercise_match_keys(
             correlation_id="poc031:keys:status-before",
         )
     if unkeyed_company.get("leonaidMatchKey") or unkeyed_person.get("leonaidMatchKey"):
-        raise ContractFailure("Rohdatensätze dürfen noch keinen Schlüssel besitzen")
+        raise ContractFailure("raw records must not have a key yet")
     if len(before_repair) != 2 or any(
         status.unkeyed < 1 or status.total < status.unkeyed for status in before_repair
     ):
@@ -538,9 +536,7 @@ async def exercise_match_keys(
             + repr(before_repair)
         )
     if renamed.get("leonaidMatchKey") != company_match_key(STALE_COMPANY_OLD_NAME):
-        raise ContractFailure(
-            "Umbenennung außerhalb LeonAids muss den Schlüssel veralten"
-        )
+        raise ContractFailure("a rename outside LeonAid must make the key stale")
     # Without a stored key neither the key lookup nor the literal name search
     # can see these spelling variants; the repair run must close that gap.
     if await find_company_matches(
@@ -548,17 +544,17 @@ async def exercise_match_keys(
         UNKEYED_COMPANY_INPUT,
         correlation_id="poc031:keys:unkeyed-before",
     ):
-        raise ContractFailure("ungepflegte Schreibvariante wurde unerwartet gefunden")
+        raise ContractFailure("unkeyed spelling variant was found unexpectedly")
     # A stale stored key must never produce a match for the old name.
     if await find_company_matches(
         gateway,
         STALE_COMPANY_OLD_NAME,
         correlation_id="poc031:keys:stale-before",
     ):
-        raise ContractFailure("veralteter Schlüssel erzeugte einen falschen Treffer")
+        raise ContractFailure("stale key produced a false match")
     print(
-        "twenty-gateway-contract: Match-Schlüssel, exakte Varianten, "
-        "Mehrdeutigkeit, ID-Batches und 200er-Seite real bewiesen"
+        "twenty-gateway-contract: match keys, exact variants, "
+        "ambiguity, ID batches and 200-record page proven for real"
     )
     return {
         "unkeyedCompanyId": str(unkeyed_company["id"]),
@@ -601,22 +597,22 @@ async def verify_match_key_repair(state_path: Path) -> None:
             correlation_id="poc031:repair:status-after",
         )
     if ids(company) != {UUID(str(state["unkeyedCompanyId"]))}:
-        raise ContractFailure("Backfill machte die Bestandsfirma nicht auffindbar")
+        raise ContractFailure("backfill did not make the existing company findable")
     if ids(person) != {UUID(str(state["unkeyedPersonId"]))}:
-        raise ContractFailure("Backfill machte die Bestandsperson nicht auffindbar")
+        raise ContractFailure("backfill did not make the existing person findable")
     if ids(renamed) != {UUID(str(state["staleCompanyId"]))} or old_name:
-        raise ContractFailure("Reparatur korrigierte den veralteten Schlüssel nicht")
+        raise ContractFailure("repair did not fix the stale key")
     if any(report.repaired for report in second_run) or not all(
         report.scanned for report in second_run
     ):
-        raise ContractFailure("zweiter Reparaturlauf war nicht idempotent")
+        raise ContractFailure("second repair run was not idempotent")
     if any(status.unkeyed for status in after_repair):
         raise ContractFailure(
             "records without a key remain after the repair: " + repr(after_repair)
         )
     print(
-        "twenty-gateway-contract: Backfill/Reparatur macht Bestandsdatensätze "
-        "auffindbar und ist idempotent"
+        "twenty-gateway-contract: backfill/repair makes existing records "
+        "findable and is idempotent"
     )
 
 
@@ -642,13 +638,13 @@ async def expect_outage(state_path: Path) -> None:
                     or error.correlation_id != correlation
                 ):
                     raise ContractFailure(
-                        "Twenty-Ausfall erzeugte keinen stabilen Read-Fehler"
+                        "Twenty outage did not produce a stable read error"
                     ) from error
                 if api_key in str(error) or api_key in repr(error.__dict__):
-                    raise ContractFailure("Gateway-Fehler enthält den API-Key")
+                    raise ContractFailure("gateway error contains the API key")
                 read_codes.append(error.code)
             else:
-                raise ContractFailure("gestopptes Twenty beantwortete einen Read")
+                raise ContractFailure("stopped Twenty answered a read")
         try:
             await gateway.update_company(
                 leonaid_id,
@@ -664,19 +660,19 @@ async def expect_outage(state_path: Path) -> None:
                 or error.sync_status is not CrmSyncStatus.OUTCOME_UNKNOWN
             ):
                 raise ContractFailure(
-                    "Twenty-Ausfall markierte den Schreibausgang nicht als unbekannt"
+                    "Twenty outage did not mark the write outcome as unknown"
                 ) from error
             if error.leonaid_id != leonaid_id or error.twenty_id != company_id:
-                raise ContractFailure("Ausfallfehler verlor LeonAid-/Twenty-ID")
+                raise ContractFailure("outage error lost the LeonAid/Twenty ID")
             if api_key in str(error) or api_key in repr(error.__dict__):
-                raise ContractFailure("Gateway-Fehler enthält den API-Key")
+                raise ContractFailure("gateway error contains the API key")
         else:
-            raise ContractFailure("gestopptes Twenty beantwortete einen Write")
+            raise ContractFailure("stopped Twenty answered a write")
     if len(set(read_codes)) != 1:
-        raise ContractFailure("wiederholter Twenty-Ausfall war nicht stabil")
+        raise ContractFailure("repeated Twenty outage was not stable")
     print(
-        "twenty-gateway-outage: wiederholbarer Read-Fehler und "
-        "outcome_unknown für Write bewiesen"
+        "twenty-gateway-outage: retryable read error and "
+        "outcome_unknown for write proven"
     )
 
 
@@ -705,16 +701,16 @@ async def verify_after_restart(state_path: Path) -> None:
             correlation_id="poc031:restart:single-person",
         )
     if {record.twenty_id for record in companies} != expected_company_ids:
-        raise ContractFailure("Company-Daten gingen beim Twenty-Ausfall verloren")
+        raise ContractFailure("company data was lost during the Twenty outage")
     if {record.twenty_id for record in people} != expected_person_ids:
-        raise ContractFailure("Person-Daten gingen beim Twenty-Ausfall verloren")
+        raise ContractFailure("person data was lost during the Twenty outage")
     if single_company is None or single_company.twenty_id != single_company_id:
-        raise ContractFailure("einzeln angelegte Company ging beim Ausfall verloren")
+        raise ContractFailure("individually created company was lost during the outage")
     if single_person is None or single_person.twenty_id != single_person_id:
-        raise ContractFailure("einzeln angelegte Person ging beim Ausfall verloren")
+        raise ContractFailure("individually created person was lost during the outage")
     print(
-        "twenty-gateway-restart: alle zuvor bestätigten CRM-Datensätze "
-        "sind exakt erhalten"
+        "twenty-gateway-restart: all previously confirmed CRM records "
+        "are preserved exactly"
     )
 
 
@@ -743,7 +739,7 @@ async def async_main() -> None:
     elif arguments.command == "verify-after-restart":
         await verify_after_restart(arguments.state)
     else:
-        raise AssertionError("unbekanntes Contract-Kommando")
+        raise AssertionError("unknown contract command")
 
 
 def main() -> None:

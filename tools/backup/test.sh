@@ -55,7 +55,7 @@ target_compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "backup-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
+    echo "backup-test: diagnostics for the failed owned services:" >&2
     if [ "$source_owned" = true ]; then
       source_compose ps --all >&2 || true
       source_compose logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
@@ -86,7 +86,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 [ -f "$env_file" ] || {
-  echo "backup-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "backup-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 }
 # Check both resource identities before acquiring either one.
@@ -111,7 +111,7 @@ docker run --rm \
   python tools/backup/manifest_test.py
 twenty_password=$(sed -n 's/^TWENTY_POSTGRES_PASSWORD=//p' "$env_file" | tail -n 1)
 [ -n "$twenty_password" ] || {
-  echo "backup-test: ERROR: TWENTY_POSTGRES_PASSWORD fehlt" >&2
+  echo "backup-test: ERROR: TWENTY_POSTGRES_PASSWORD missing" >&2
   exit 1
 }
 
@@ -140,7 +140,7 @@ source_compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 [ "${#integration_key}" -ge 32 ] || {
-  echo "backup-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "backup-test: ERROR: restricted Twenty key missing" >&2
   exit 1
 }
 source_compose up --detach --wait --wait-timeout 420 api
@@ -205,14 +205,14 @@ if docker run --rm \
   -v "$repository:/repository:ro" \
   -v "$proof/wrong-password:/run/secrets/password:ro" \
   "$RESTIC_IMAGE" snapshots >/dev/null 2>&1; then
-  echo "backup-test: ERROR: falsches Restic-Passwort wurde akzeptiert" >&2
+  echo "backup-test: ERROR: wrong Restic password was accepted" >&2
   exit 1
 fi
 if docker run --rm \
   -v "$repository:/repository:ro" \
   "$ALPINE_IMAGE" \
   grep -R -a -F "Lions Club LeonAid Golden" /repository >/dev/null 2>&1; then
-  echo "backup-test: ERROR: Klartext aus Golden Data im Repository gefunden" >&2
+  echo "backup-test: ERROR: plaintext from golden data found in the repository" >&2
   exit 1
 fi
 if docker run --rm \
@@ -223,7 +223,7 @@ if docker run --rm \
   --project leonaid \
   --repository "$repository" \
   --password-file /run/secrets/password >/dev/null 2>&1; then
-  echo "backup-test: ERROR: Produktion akzeptiert lokales Backup-Ziel" >&2
+  echo "backup-test: ERROR: production accepts a local backup target" >&2
   exit 1
 fi
 if docker run --rm \
@@ -237,7 +237,7 @@ if docker run --rm \
   --password-file /run/secrets/password \
   --confirm RESTORE:irgendwo \
   --allow-local-test >/dev/null 2>&1; then
-  echo "backup-test: ERROR: unklare Restore-Bestätigung wurde akzeptiert" >&2
+  echo "backup-test: ERROR: ambiguous restore confirmation was accepted" >&2
   exit 1
 fi
 
@@ -325,11 +325,11 @@ restore_verified=$(date +%s)
 rpo_seconds=$((backup_finished - recovery_checkpoint))
 rto_seconds=$((restore_verified - restore_started))
 [ "$rpo_seconds" -le 86400 ] || {
-  echo "backup-test: ERROR: RPO-Ziel von 24 Stunden verfehlt" >&2
+  echo "backup-test: ERROR: RPO target of 24 hours missed" >&2
   exit 1
 }
 [ "$rto_seconds" -le 7200 ] || {
-  echo "backup-test: ERROR: RTO-Ziel von 2 Stunden verfehlt" >&2
+  echo "backup-test: ERROR: RTO target of 2 hours missed" >&2
   exit 1
 }
 docker run --rm --user "$(id -u):$(id -g)" \
@@ -354,6 +354,6 @@ cp "$proof/backup-restored-admin.png" \
   "$proof/after.json" \
   "$artifact_directory/"
 
-echo "backup-test: OK: verschlüsselter externer Zielvertrag, vollständiger"
-echo "backup-test:     Fresh-Volume-Restore, PDF-SHAs, Sitzungen, Audit,"
-echo "backup-test:     Outbox, Twenty und RPO=$rpo_seconds s/RTO=$rto_seconds s bewiesen"
+echo "backup-test: OK: encrypted external target contract, full"
+echo "backup-test:     fresh-volume restore, PDF SHAs, sessions, audit,"
+echo "backup-test:     outbox, Twenty and RPO=$rpo_seconds s/RTO=$rto_seconds s proven"

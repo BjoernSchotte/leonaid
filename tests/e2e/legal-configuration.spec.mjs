@@ -7,7 +7,7 @@ const simoneSession = process.env.SIMONE_SESSION;
 const klaraSession = process.env.KLARA_SESSION;
 
 if (!baseUrl || !artifactDirectory || !simoneSession || !klaraSession) {
-  throw new Error("PILOT-044 Browserumgebung ist unvollständig");
+  throw new Error("PILOT-044 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -33,9 +33,7 @@ async function expectNoSeriousAccessibilityViolations(page) {
   ).toEqual([]);
 }
 
-test("zwei System-Admins aktivieren eine rechtliche Grundlage", async ({
-  browser,
-}) => {
+test("two system admins activate a legal basis", async ({ browser }) => {
   const klaraContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     ignoreHTTPSErrors: true,

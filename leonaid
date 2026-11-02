@@ -99,9 +99,9 @@ Commands:
   test-emdash-spike --case release-legacy-boundary
   test-emdash-spike --case release-manifest-compatibility
   test-emdash-spike --case release-image-identity
-  export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
-  export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
+  export-campaign-schema      Export only the versioned CMS schema as JSON
+  export-campaign-types       Export TypeScript field types from the CMS schema
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX
   test-testkit      Prove shared clients against all real PoC dependencies
@@ -234,11 +234,11 @@ EOF
 
 require_docker() {
   if ! command -v docker >/dev/null 2>&1; then
-    echo "leonaid: ERROR: Docker fehlt. Installiere/startet OrbStack oder Docker Desktop." >&2
+    echo "leonaid: ERROR: Docker is missing. Install or start OrbStack or Docker Desktop." >&2
     exit 1
   fi
   if ! docker version >/dev/null 2>&1; then
-    echo "leonaid: ERROR: Docker ist nicht erreichbar. Starte OrbStack und wiederhole den Befehl." >&2
+    echo "leonaid: ERROR: Docker is not reachable. Start OrbStack and repeat the command." >&2
     exit 1
   fi
 }
@@ -257,7 +257,7 @@ docker_retry() {
       return "$status"
     fi
     attempt=$((attempt + 1))
-    echo "leonaid: Docker-Registry/Daemon vorübergehend nicht erreichbar; Versuch $attempt/$max_attempts …" >&2
+    echo "leonaid: Docker registry/daemon temporarily unreachable; attempt $attempt/$max_attempts …" >&2
     sleep 2
   done
 }
@@ -520,7 +520,7 @@ choose_local_ports() {
     fi
     candidate=$((candidate + 2))
   done
-  echo "bootstrap: ERROR: kein freies Portpaar zwischen 28080 und 29000" >&2
+  echo "bootstrap: ERROR: no free port pair between 28080 and 29000" >&2
   exit 1
 }
 
@@ -535,7 +535,7 @@ bootstrap() {
     local_https_port=
   else
     choose_local_ports
-    echo "bootstrap: lokale Ports HTTP $local_http_port, HTTPS $local_https_port"
+    echo "bootstrap: local ports HTTP $local_http_port, HTTPS $local_https_port"
   fi
   docker_retry docker run --rm \
     --user "$host_user_id:$host_group_id" \
@@ -549,7 +549,7 @@ bootstrap() {
   repair_ownership
   run_python uv sync --frozen --all-groups --no-install-project
   run_bun bun install --frozen-lockfile --ignore-scripts
-  echo "bootstrap: OK: ausschließlich gelockte Docker-Toolchains verwendet"
+  echo "bootstrap: OK: used locked Docker toolchains only"
   "$root/leonaid" doctor
 }
 
@@ -558,54 +558,54 @@ doctor() {
   failures=0
 
   if ! docker compose version >/dev/null 2>&1; then
-    echo "doctor: FEHLER: Docker Compose Plugin fehlt. Aktualisiere OrbStack/Docker Desktop." >&2
+    echo "doctor: ERROR: Docker Compose plugin is missing. Update OrbStack/Docker Desktop." >&2
     failures=$((failures + 1))
   else
-    echo "doctor: OK: Docker und Compose erreichbar"
+    echo "doctor: OK: Docker and Compose reachable"
   fi
 
   if [ ! -f "$root/.env.local" ]; then
-    echo "doctor: FEHLER: .env.local fehlt. Führe './leonaid bootstrap' aus." >&2
+    echo "doctor: ERROR: .env.local is missing. Run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   elif grep -E '__GENERATE_|change-me|CHANGE_ME' "$root/.env.local" >/dev/null 2>&1; then
-    echo "doctor: FEHLER: .env.local enthält Vorlagenwerte. Lösche sie und führe './leonaid bootstrap' aus." >&2
+    echo "doctor: ERROR: .env.local contains template values. Delete it and run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   elif git -C "$root" ls-files --error-unmatch .env.local >/dev/null 2>&1; then
-    echo "doctor: FEHLER: .env.local ist versioniert. Entferne sie sofort aus dem Git-Index." >&2
+    echo "doctor: ERROR: .env.local is tracked by Git. Remove it from the Git index immediately." >&2
     failures=$((failures + 1))
   elif ! git -C "$root" check-ignore -q .env.local; then
-    echo "doctor: FEHLER: .env.local wird nicht von Git ignoriert. Prüfe .gitignore." >&2
+    echo "doctor: ERROR: .env.local is not ignored by Git. Check .gitignore." >&2
     failures=$((failures + 1))
   elif ! docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     python /workspace/tools/dx/verify_secrets.py \
     /workspace/.env.example /workspace/.env.local; then
-    echo "doctor: FEHLER: lokale Secrets sind unvollständig, zu kurz oder nicht eindeutig. Erzeuge sie mit './leonaid bootstrap' neu." >&2
+    echo "doctor: ERROR: local secrets are incomplete, too short or not unique. Regenerate them with './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   else
-    echo "doctor: OK: lokale Secrets vorhanden, generiert und ignoriert"
+    echo "doctor: OK: local secrets present, generated and ignored"
   fi
 
   if [ -f "$root/.env.local" ] && ! compose config --quiet; then
-    echo "doctor: FEHLER: Compose-Konfiguration oder Umgebungsvariablen sind ungültig." >&2
+    echo "doctor: ERROR: Compose configuration or environment variables are invalid." >&2
     failures=$((failures + 1))
   elif [ -f "$root/.env.local" ]; then
-    echo "doctor: OK: Compose-Corestack ist vollständig auflösbar"
+    echo "doctor: OK: Compose core stack resolves completely"
   fi
 
   if [ ! -L "$root/.venv/bin/python" ] && [ ! -x "$root/.venv/bin/python" ]; then
-    echo "doctor: FEHLER: Python-Umgebung fehlt. Führe './leonaid bootstrap' aus." >&2
+    echo "doctor: ERROR: Python environment is missing. Run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   else
-    echo "doctor: OK: gelockte Python-Umgebung vorhanden"
+    echo "doctor: OK: locked Python environment present"
   fi
 
   if [ ! -x "$root/node_modules/.bin/tsc" ]; then
-    echo "doctor: FEHLER: Frontend-Pakete fehlen. Führe './leonaid bootstrap' aus." >&2
+    echo "doctor: ERROR: frontend packages are missing. Run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   else
-    echo "doctor: OK: gelockte Frontend-Pakete vorhanden"
+    echo "doctor: OK: locked frontend packages present"
   fi
 
   if [ "$(id -u)" != 0 ] && [ -n "$(root_owned_paths | head -n 1)" ]; then
@@ -619,7 +619,7 @@ doctor() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     python /workspace/tools/pins/check.py /workspace; then
-    echo "doctor: FEHLER: Dependency-Locks sind inkonsistent. Führe './leonaid check' aus." >&2
+    echo "doctor: ERROR: dependency locks are inconsistent. Run './leonaid check'." >&2
     failures=$((failures + 1))
   fi
 
@@ -638,18 +638,18 @@ doctor() {
   fi
 
   if [ "$failures" -ne 0 ]; then
-    echo "doctor: FEHLGESCHLAGEN: $failures Problem(e), jeweils mit Korrekturhinweis." >&2
+    echo "doctor: FAILED: $failures problem(s), each with a fix hint." >&2
     exit 1
   fi
-  echo "doctor: OK: Entwicklungsumgebung ist einsatzbereit"
+  echo "doctor: OK: development environment is ready"
 }
 
 check_clean_tree() {
   dirty=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ -n "$dirty" ]; then
-    echo "check: FEHLER: Arbeitsbaum ist nicht sauber; Prüfung würde Ursache und erzeugte Änderungen vermischen." >&2
+    echo "check: ERROR: working tree is not clean; the check would mix the cause with generated changes." >&2
     printf '%s\n' "$dirty" >&2
-    echo "check: Committe/stashe Änderungen oder teste einen frischen Checkout." >&2
+    echo "check: commit/stash the changes or test a fresh checkout." >&2
     exit 1
   fi
 }
@@ -807,18 +807,18 @@ check_all() {
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ "$before" != "$after" ] || [ -n "$after" ]; then
-    echo "check: FEHLER: Eine Prüfung hat den Arbeitsbaum verändert:" >&2
+    echo "check: ERROR: a check changed the working tree:" >&2
     git -C "$root" status --short >&2
     exit 1
   fi
-  echo "check: OK: alle Gates grün; Arbeitsbaum unverändert"
+  echo "check: OK: all gates green; working tree unchanged"
 }
 
 future_command() {
   command_name=$1
   task=$2
-  echo "leonaid: '$command_name' ist verdrahtet, wird aber erst mit $task ausführbar." >&2
-  echo "leonaid: Nutze './leonaid help' für den aktuellen Meilenstein." >&2
+  echo "leonaid: '$command_name' is wired up but becomes runnable only with $task." >&2
+  echo "leonaid: use './leonaid help' for the current milestone." >&2
   exit 64
 }
 
@@ -833,7 +833,7 @@ pilot_doctor() {
     case "$1" in
       --env-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-doctor: ERROR: --env-file benötigt einen Pfad" >&2
+          echo "pilot-doctor: ERROR: --env-file needs a path" >&2
           exit 64
         }
         env_file=$2
@@ -841,7 +841,7 @@ pilot_doctor() {
         ;;
       --backup-manifest)
         [ "$#" -ge 2 ] || {
-          echo "pilot-doctor: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          echo "pilot-doctor: ERROR: --backup-manifest needs a path" >&2
           exit 64
         }
         backup_manifest=$2
@@ -849,7 +849,7 @@ pilot_doctor() {
         ;;
       --gate)
         [ "$#" -ge 2 ] || {
-          echo "pilot-doctor: ERROR: --gate benötigt einen Wert" >&2
+          echo "pilot-doctor: ERROR: --gate needs a value" >&2
           exit 64
         }
         gate=$2
@@ -864,40 +864,40 @@ pilot_doctor() {
         shift
         ;;
       *)
-        echo "pilot-doctor: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-doctor: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-doctor: BLOCKED: --env-file mit privater 0600-Konfiguration fehlt" >&2
+    echo "pilot-doctor: BLOCKED: --env-file with the private 0600 configuration is missing" >&2
     exit 1
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-doctor: BLOCKED: --backup-manifest des letzten Backups fehlt" >&2
+    echo "pilot-doctor: BLOCKED: --backup-manifest of the latest backup is missing" >&2
     exit 1
   }
   [ -f "$env_file" ] || {
-    echo "pilot-doctor: BLOCKED: Environment-Datei fehlt" >&2
+    echo "pilot-doctor: BLOCKED: the environment file is missing" >&2
     exit 1
   }
   # A first install has no backup yet, and a new backup is the remedy for a
   # missing one; every other gate requires the manifest.
   if [ ! -f "$backup_manifest" ] &&
     [ "$gate" != pilot-backup ] && [ -z "$first_install_argument" ]; then
-    echo "pilot-doctor: BLOCKED: Backup-Manifest fehlt" >&2
+    echo "pilot-doctor: BLOCKED: the backup manifest is missing" >&2
     exit 1
   fi
   env_file=$(CDPATH= cd -- "$(dirname -- "$env_file")" && pwd)/$(basename -- "$env_file")
   backup_manifest=$(pilot_absolute_path pilot-doctor "$backup_manifest") || {
-    echo "pilot-doctor: BLOCKED: Verzeichnis des Backup-Manifests fehlt" >&2
+    echo "pilot-doctor: BLOCKED: directory of the backup manifest is missing" >&2
     exit 1
   }
   project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$env_file" | tail -n 1)
   case "$project" in
     leonaid-production*|leonaid-staging*) ;;
     *)
-      echo "pilot-doctor: BLOCKED: Compose-Projekt ist nicht umgebungsspezifisch" >&2
+      echo "pilot-doctor: BLOCKED: the Compose project is not environment-specific" >&2
       exit 1
       ;;
   esac
@@ -914,7 +914,7 @@ pilot_doctor() {
   case "$alert_webhook_file" in
     /*) ;;
     *)
-      echo "pilot-doctor: BLOCKED: Alert-Webhook-Pfad muss absolut sein" >&2
+      echo "pilot-doctor: BLOCKED: the alert webhook path must be absolute" >&2
       return 1
       ;;
   esac
@@ -932,16 +932,16 @@ pilot_doctor() {
   case "$monitored_disk_path" in
     /*) ;;
     *)
-      echo "pilot-doctor: BLOCKED: Monitoring-Pfad muss absolut sein" >&2
+      echo "pilot-doctor: BLOCKED: the monitoring path must be absolute" >&2
       return 1
       ;;
   esac
   [ -f "$alert_webhook_file" ] || {
-    echo "pilot-doctor: BLOCKED: Alert-Webhook-Datei fehlt" >&2
+    echo "pilot-doctor: BLOCKED: the alert webhook file is missing" >&2
     return 1
   }
   [ -d "$monitored_disk_path" ] || {
-    echo "pilot-doctor: BLOCKED: Monitoring-Pfad fehlt" >&2
+    echo "pilot-doctor: BLOCKED: the monitoring path is missing" >&2
     return 1
   }
   config_file=$(mktemp)
@@ -959,7 +959,7 @@ pilot_doctor() {
     case "$project" in
       leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
-        echo "pilot-doctor: BLOCKED: Testdiagnose ist nur in isolierten Testprojekten zulässig" >&2
+        echo "pilot-doctor: BLOCKED: test diagnosis is allowed only in isolated test projects" >&2
         rm -f "$config_file"
         rm -rf "$doctor_input_directory"
         trap - EXIT HUP INT TERM
@@ -967,7 +967,7 @@ pilot_doctor() {
         ;;
     esac
     if [ -z "$test_network" ] || [ -z "$test_ca_file" ] || [ -z "$test_decisions_file" ]; then
-      echo "pilot-doctor: BLOCKED: Testdiagnose benötigt Netzwerk, CA und Entscheidungsregister" >&2
+      echo "pilot-doctor: BLOCKED: test diagnosis needs network, CA and decision register" >&2
       rm -f "$config_file"
       rm -rf "$doctor_input_directory"
       trap - EXIT HUP INT TERM
@@ -1088,11 +1088,11 @@ pilot_absolute_file() {
   label=$1
   path=$2
   [ -n "$path" ] || {
-    echo "$label: ERROR: Pfad fehlt" >&2
+    echo "$label: ERROR: path is missing" >&2
     return 64
   }
   [ -f "$path" ] || {
-    echo "$label: ERROR: Datei fehlt" >&2
+    echo "$label: ERROR: file is missing" >&2
     return 1
   }
   directory=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd)
@@ -1105,7 +1105,7 @@ pilot_absolute_path() {
   label=$1
   path=$2
   [ -n "$path" ] || {
-    echo "$label: ERROR: Pfad fehlt" >&2
+    echo "$label: ERROR: path is missing" >&2
     return 64
   }
   [ -d "$(dirname -- "$path")" ] || {
@@ -1150,19 +1150,19 @@ pilot_test_overlay() {
   case "$project" in
     leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
     *)
-      echo "pilot: BLOCKED: Test-Overlay ist nur für isolierte Testprojekte zulässig" >&2
+      echo "pilot: BLOCKED: the test overlay is allowed only for isolated test projects" >&2
       return 1
       ;;
   esac
   case "$overlay" in
     "$root"/*) ;;
     *)
-      echo "pilot: BLOCKED: Test-Overlay muss innerhalb des Repositories liegen" >&2
+      echo "pilot: BLOCKED: the test overlay must be inside the repository" >&2
       return 1
       ;;
   esac
   [ -f "$overlay" ] || {
-    echo "pilot: BLOCKED: Test-Overlay fehlt" >&2
+    echo "pilot: BLOCKED: the test overlay is missing" >&2
     return 1
   }
   printf '%s\n' "$overlay"
@@ -1244,7 +1244,7 @@ pilot_decision_gate() {
     case "$project" in
       leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
-        echo "pilot-doctor: BLOCKED: Testentscheidungen sind nur in isolierten Testprojekten zulässig" >&2
+        echo "pilot-doctor: BLOCKED: test decisions are allowed only in isolated test projects" >&2
         return 1
         ;;
     esac
@@ -1295,7 +1295,7 @@ pilot_deploy() {
     case "$1" in
       --env-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-deploy: ERROR: --env-file benötigt einen Pfad" >&2
+          echo "pilot-deploy: ERROR: --env-file needs a path" >&2
           exit 64
         }
         env_file=$2
@@ -1303,7 +1303,7 @@ pilot_deploy() {
         ;;
       --backup-manifest)
         [ "$#" -ge 2 ] || {
-          echo "pilot-deploy: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          echo "pilot-deploy: ERROR: --backup-manifest needs a path" >&2
           exit 64
         }
         backup_manifest=$2
@@ -1311,28 +1311,28 @@ pilot_deploy() {
         ;;
       --release-manifest)
         [ "$#" -ge 2 ] || {
-          echo "pilot-deploy: ERROR: --release-manifest benötigt einen Pfad" >&2
+          echo "pilot-deploy: ERROR: --release-manifest needs a path" >&2
           exit 64
         }
         release_manifest=$2
         shift 2
         ;;
       *)
-        echo "pilot-deploy: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-deploy: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-deploy: ERROR: --env-file fehlt" >&2
+    echo "pilot-deploy: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-deploy: ERROR: --backup-manifest fehlt" >&2
+    echo "pilot-deploy: ERROR: --backup-manifest is missing" >&2
     exit 64
   }
   [ -n "$release_manifest" ] || {
-    echo "pilot-deploy: ERROR: --release-manifest fehlt" >&2
+    echo "pilot-deploy: ERROR: --release-manifest is missing" >&2
     exit 64
   }
   env_file=$(pilot_absolute_file pilot-deploy "$env_file")
@@ -1342,7 +1342,7 @@ pilot_deploy() {
   case "$project" in
     leonaid-production*|leonaid-staging*) ;;
     *)
-      echo "pilot-deploy: BLOCKED: Compose-Projekt ist nicht umgebungsspezifisch" >&2
+      echo "pilot-deploy: BLOCKED: the Compose project is not environment-specific" >&2
       exit 1
       ;;
   esac
@@ -1367,7 +1367,7 @@ pilot_deploy() {
   pilot_monitoring_up "$project" "$env_file"
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
-  echo "pilot-deploy: OK: $project läuft exakt aus dem verifizierten Release-Manifest"
+  echo "pilot-deploy: OK: $project runs exactly from the verified release manifest"
 }
 
 # Only pilot-install may use this: it adds the bootstrap override that lifts
@@ -1787,7 +1787,7 @@ pilot_backup() {
     case "$1" in
       --env-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-backup: ERROR: --env-file benötigt einen Pfad" >&2
+          echo "pilot-backup: ERROR: --env-file needs a path" >&2
           exit 64
         }
         env_file=$2
@@ -1795,7 +1795,7 @@ pilot_backup() {
         ;;
       --backup-manifest)
         [ "$#" -ge 2 ] || {
-          echo "pilot-backup: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          echo "pilot-backup: ERROR: --backup-manifest needs a path" >&2
           exit 64
         }
         backup_manifest=$2
@@ -1803,7 +1803,7 @@ pilot_backup() {
         ;;
       --password-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-backup: ERROR: --password-file benötigt einen Pfad" >&2
+          echo "pilot-backup: ERROR: --password-file needs a path" >&2
           exit 64
         }
         password_file=$2
@@ -1811,28 +1811,28 @@ pilot_backup() {
         ;;
       --credentials-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-backup: ERROR: --credentials-file benötigt einen Pfad" >&2
+          echo "pilot-backup: ERROR: --credentials-file needs a path" >&2
           exit 64
         }
         credentials_file=$2
         shift 2
         ;;
       *)
-        echo "pilot-backup: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-backup: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-backup: ERROR: --env-file fehlt" >&2
+    echo "pilot-backup: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-backup: ERROR: --backup-manifest fehlt" >&2
+    echo "pilot-backup: ERROR: --backup-manifest is missing" >&2
     exit 64
   }
   [ -n "$password_file" ] || {
-    echo "pilot-backup: ERROR: --password-file fehlt" >&2
+    echo "pilot-backup: ERROR: --password-file is missing" >&2
     exit 64
   }
   env_file=$(pilot_absolute_file pilot-backup "$env_file")
@@ -1852,7 +1852,7 @@ pilot_backup() {
     pilot_absolute_path pilot-backup "$configured_manifest"
   )
   [ "$configured_manifest" = "$backup_manifest" ] || {
-    echo "pilot-backup: BLOCKED: --backup-manifest weicht von der Environment-Konfiguration ab" >&2
+    echo "pilot-backup: BLOCKED: --backup-manifest differs from the environment configuration" >&2
     exit 1
   }
   pilot_doctor \
@@ -1896,7 +1896,7 @@ assert set(value.get("files",{}))=={
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
     --gate pilot-backup
-  echo "pilot-backup: OK: $project ist verschlüsselt gesichert und das Doctor-Manifest ist aktuell"
+  echo "pilot-backup: OK: $project is backed up encrypted and the doctor manifest is current"
 }
 
 # Runs the match key repair inside the running API container of the pilot:
@@ -2107,7 +2107,7 @@ pilot_release_record() {
     case "$1" in
       --manifest|--ledger|--event|--result|--evidence-id|--occurred-at)
         [ "$#" -ge 2 ] || {
-          echo "pilot-release-record: ERROR: $1 benötigt einen Wert" >&2
+          echo "pilot-release-record: ERROR: $1 needs a value" >&2
           exit 64
         }
         option=$1
@@ -2123,33 +2123,33 @@ pilot_release_record() {
         esac
         ;;
       *)
-        echo "pilot-release-record: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-release-record: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$release_manifest" ] || {
-    echo "pilot-release-record: ERROR: --manifest fehlt" >&2
+    echo "pilot-release-record: ERROR: --manifest is missing" >&2
     exit 64
   }
   [ -n "$ledger" ] || {
-    echo "pilot-release-record: ERROR: --ledger fehlt" >&2
+    echo "pilot-release-record: ERROR: --ledger is missing" >&2
     exit 64
   }
   [ -n "$event" ] || {
-    echo "pilot-release-record: ERROR: --event fehlt" >&2
+    echo "pilot-release-record: ERROR: --event is missing" >&2
     exit 64
   }
   [ -n "$result" ] || {
-    echo "pilot-release-record: ERROR: --result fehlt" >&2
+    echo "pilot-release-record: ERROR: --result is missing" >&2
     exit 64
   }
   [ -n "$evidence_id" ] || {
-    echo "pilot-release-record: ERROR: --evidence-id fehlt" >&2
+    echo "pilot-release-record: ERROR: --evidence-id is missing" >&2
     exit 64
   }
   [ -n "$occurred_at" ] || {
-    echo "pilot-release-record: ERROR: --occurred-at fehlt" >&2
+    echo "pilot-release-record: ERROR: --occurred-at is missing" >&2
     exit 64
   }
   release_manifest=$(
@@ -2161,7 +2161,7 @@ pilot_release_record() {
   esac
   ledger_directory=$(dirname -- "$ledger")
   [ -d "$ledger_directory" ] || {
-    echo "pilot-release-record: ERROR: Ledger-Verzeichnis fehlt" >&2
+    echo "pilot-release-record: ERROR: ledger directory is missing" >&2
     exit 1
   }
   ledger="$(
@@ -2201,7 +2201,7 @@ print(value["schemas"]["coreAlembicHead"])'
   case "$core_head_valid" in
     true) ;;
     *)
-      echo "pilot-release: BLOCKED: Core-Migrationsziel ist ungültig" >&2
+      echo "pilot-release: BLOCKED: the core migration target is invalid" >&2
       return 1
       ;;
   esac
@@ -2234,10 +2234,10 @@ print(value["schemas"]["coreAlembicHead"])'
       run --frozen --no-sync alembic current
   )
   echo "$current_revision" | grep -F "$core_head" >/dev/null || {
-    echo "pilot-release: BLOCKED: Core-Schema entspricht nicht dem Manifest-Head" >&2
+    echo "pilot-release: BLOCKED: the core schema does not match the manifest head" >&2
     return 1
   }
-  echo "pilot-release: OK: RustFS, Twenty und Core wurden explizit auf das Manifestziel migriert"
+  echo "pilot-release: OK: RustFS, Twenty and Core were explicitly migrated to the manifest target"
 )
 
 # Apply the versioned Twenty schema with the admin bootstrap credentials and
@@ -2284,7 +2284,7 @@ pilot_release() {
     case "$1" in
       --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-release: ERROR: $1 benötigt einen Wert" >&2
+          echo "pilot-release: ERROR: $1 needs a value" >&2
           exit 64
         }
         option=$1
@@ -2303,33 +2303,33 @@ pilot_release() {
         esac
         ;;
       *)
-        echo "pilot-release: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-release: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-release: ERROR: --env-file fehlt" >&2
+    echo "pilot-release: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-release: ERROR: --backup-manifest fehlt" >&2
+    echo "pilot-release: ERROR: --backup-manifest is missing" >&2
     exit 64
   }
   [ -n "$release_manifest" ] || {
-    echo "pilot-release: ERROR: --release-manifest fehlt" >&2
+    echo "pilot-release: ERROR: --release-manifest is missing" >&2
     exit 64
   }
   [ -n "$ledger" ] || {
-    echo "pilot-release: ERROR: --ledger fehlt" >&2
+    echo "pilot-release: ERROR: --ledger is missing" >&2
     exit 64
   }
   [ -n "$password_file" ] || {
-    echo "pilot-release: ERROR: --password-file fehlt" >&2
+    echo "pilot-release: ERROR: --password-file is missing" >&2
     exit 64
   }
   [ -n "$evidence_id" ] || {
-    echo "pilot-release: ERROR: --evidence-id fehlt" >&2
+    echo "pilot-release: ERROR: --evidence-id is missing" >&2
     exit 64
   }
   env_file=$(pilot_absolute_file pilot-release "$env_file")
@@ -2342,13 +2342,13 @@ pilot_release() {
   case "$ledger" in
     /*) ;;
     *)
-      echo "pilot-release: ERROR: --ledger muss absolut sein" >&2
+      echo "pilot-release: ERROR: --ledger must be absolute" >&2
       exit 64
       ;;
   esac
   ledger_directory=$(dirname -- "$ledger")
   [ -d "$ledger_directory" ] || {
-    echo "pilot-release: ERROR: Ledger-Verzeichnis fehlt" >&2
+    echo "pilot-release: ERROR: ledger directory is missing" >&2
     exit 1
   }
   ledger="$(
@@ -2371,7 +2371,7 @@ pilot_release() {
       failed_event=production_failed
       ;;
     *)
-      echo "pilot-release: BLOCKED: Projekt ist weder Staging noch Produktion" >&2
+      echo "pilot-release: BLOCKED: the project is neither staging nor production" >&2
       exit 1
       ;;
   esac
@@ -2488,11 +2488,11 @@ pilot_release() {
     rm -f "$config_file"
     trap - EXIT HUP INT TERM
     if [ "$maintenance_attempted" = false ]; then
-      echo "pilot-release: BLOCKED: Release vor dem Wartungsmodus fehlgeschlagen" >&2
+      echo "pilot-release: BLOCKED: release failed before maintenance mode" >&2
     elif [ "$maintenance_disabled" = true ]; then
-      echo "pilot-release: BLOCKED: Nachprüfung nach beendetem Wartungsmodus fehlgeschlagen" >&2
+      echo "pilot-release: BLOCKED: post-check after maintenance mode ended failed" >&2
     else
-      echo "pilot-release: BLOCKED: Wartungsmodus wird nicht automatisch aufgehoben; Zustand prüfen" >&2
+      echo "pilot-release: BLOCKED: maintenance mode is not lifted automatically; check the state" >&2
     fi
     return "$status"
   fi
@@ -2501,7 +2501,7 @@ pilot_release() {
     "$evidence_id" "$occurred_at"
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
-  echo "pilot-release: OK: $project ist manifestgebunden, migriert und freigegeben"
+  echo "pilot-release: OK: $project is manifest-bound, migrated and released"
 }
 
 pilot_restore() {
@@ -2521,7 +2521,7 @@ pilot_restore() {
         ;;
       --env-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --env-file benötigt einen Pfad" >&2
+          echo "pilot-restore: ERROR: --env-file needs a path" >&2
           exit 64
         }
         env_file=$2
@@ -2529,7 +2529,7 @@ pilot_restore() {
         ;;
       --backup-manifest)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          echo "pilot-restore: ERROR: --backup-manifest needs a path" >&2
           exit 64
         }
         backup_manifest=$2
@@ -2537,7 +2537,7 @@ pilot_restore() {
         ;;
       --target-env-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --target-env-file benötigt einen Pfad" >&2
+          echo "pilot-restore: ERROR: --target-env-file needs a path" >&2
           exit 64
         }
         target_env_file=$2
@@ -2545,7 +2545,7 @@ pilot_restore() {
         ;;
       --password-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --password-file benötigt einen Pfad" >&2
+          echo "pilot-restore: ERROR: --password-file needs a path" >&2
           exit 64
         }
         password_file=$2
@@ -2553,7 +2553,7 @@ pilot_restore() {
         ;;
       --credentials-file)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --credentials-file benötigt einen Pfad" >&2
+          echo "pilot-restore: ERROR: --credentials-file needs a path" >&2
           exit 64
         }
         credentials_file=$2
@@ -2561,36 +2561,36 @@ pilot_restore() {
         ;;
       --confirm)
         [ "$#" -ge 2 ] || {
-          echo "pilot-restore: ERROR: --confirm benötigt einen Wert" >&2
+          echo "pilot-restore: ERROR: --confirm needs a value" >&2
           exit 64
         }
         confirm=$2
         shift 2
         ;;
       *)
-        echo "pilot-restore: ERROR: unbekannte Option '$1'" >&2
+        echo "pilot-restore: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$env_file" ] || {
-    echo "pilot-restore: ERROR: --env-file fehlt" >&2
+    echo "pilot-restore: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -n "$backup_manifest" ] || {
-    echo "pilot-restore: ERROR: --backup-manifest fehlt" >&2
+    echo "pilot-restore: ERROR: --backup-manifest is missing" >&2
     exit 64
   }
   [ -n "$target_env_file" ] || {
-    echo "pilot-restore: ERROR: --target-env-file fehlt" >&2
+    echo "pilot-restore: ERROR: --target-env-file is missing" >&2
     exit 64
   }
   [ -n "$password_file" ] || {
-    echo "pilot-restore: ERROR: --password-file fehlt" >&2
+    echo "pilot-restore: ERROR: --password-file is missing" >&2
     exit 64
   }
   [ -n "$confirm" ] || {
-    echo "pilot-restore: ERROR: --confirm fehlt" >&2
+    echo "pilot-restore: ERROR: --confirm is missing" >&2
     exit 64
   }
   env_file=$(pilot_absolute_file pilot-restore "$env_file")
@@ -2609,18 +2609,18 @@ pilot_restore() {
     pilot_environment_value RESTIC_REPOSITORY "$target_env_file"
   )
   [ "$repository" = "$target_repository" ] || {
-    echo "pilot-restore: BLOCKED: Quell- und Zielkonfiguration verwenden verschiedene Backup-Repositories" >&2
+    echo "pilot-restore: BLOCKED: source and target configuration use different backup repositories" >&2
     exit 1
   }
   case "$target_project" in
     leonaid-restore-*) ;;
     *)
-      echo "pilot-restore: BLOCKED: Zielprojekt muss leonaid-restore-<name> heißen" >&2
+      echo "pilot-restore: BLOCKED: the target project must be named leonaid-restore-<name>" >&2
       exit 1
       ;;
   esac
   [ "$confirm" = "RESTORE:$target_project" ] || {
-    echo "pilot-restore: BLOCKED: --confirm muss exakt RESTORE:$target_project sein" >&2
+    echo "pilot-restore: BLOCKED: --confirm must be exactly RESTORE:$target_project" >&2
     exit 1
   }
   pilot_doctor \
@@ -2637,7 +2637,7 @@ pilot_restore() {
     case "$source_project" in
       leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
-        echo "pilot-restore: BLOCKED: Test-Restore-Overlay ist nur für isolierte Testprojekte zulässig" >&2
+        echo "pilot-restore: BLOCKED: the test restore overlay is allowed only for isolated test projects" >&2
         exit 1
         ;;
     esac
@@ -2659,20 +2659,20 @@ pilot_restore() {
     LEONAID_RESTORE_NO_BUILD=true \
     LEONAID_RESTORE_PROFILE=none \
     /bin/sh "$root/tools/backup/restore.sh" "$root"
-  echo "pilot-restore: OK: $source_project wurde buildfrei nach $target_project restauriert"
+  echo "pilot-restore: OK: $source_project was restored without a build into $target_project"
 }
 
 pilot_import() {
   require_docker
   [ "$#" -ge 2 ] || {
-    echo "pilot-import: ERROR: Nutzung: ./leonaid pilot-import <dry-run|apply|verify> SOURCE --env-file FILE --manifest FILE --mapping FILE --batch-id ID --target-environment ENV --sheet NAME --report FILE" >&2
+    echo "pilot-import: ERROR: usage: ./leonaid pilot-import <dry-run|apply|verify> SOURCE --env-file FILE --manifest FILE --mapping FILE --batch-id ID --target-environment ENV --sheet NAME --report FILE" >&2
     exit 64
   }
   mode=$1
   case "$mode" in
     dry-run|apply|verify) ;;
     *)
-      echo "pilot-import: ERROR: Modus muss dry-run, apply oder verify sein" >&2
+      echo "pilot-import: ERROR: mode must be dry-run, apply or verify" >&2
       exit 64
       ;;
   esac
@@ -2689,16 +2689,16 @@ pilot_import() {
     previous=$argument
   done
   [ -n "$env_file" ] || {
-    echo "pilot-import: ERROR: --env-file fehlt" >&2
+    echo "pilot-import: ERROR: --env-file is missing" >&2
     exit 64
   }
   [ -f "$env_file" ] || {
-    echo "pilot-import: ERROR: Environment-Datei fehlt" >&2
+    echo "pilot-import: ERROR: the environment file is missing" >&2
     exit 1
   }
   if [ "$mode" = apply ] || [ "$mode" = verify ]; then
     [ -n "$backup_manifest" ] || {
-      echo "pilot-import: ERROR: --backup-manifest fehlt für $mode" >&2
+      echo "pilot-import: ERROR: --backup-manifest is missing for $mode" >&2
       exit 64
     }
     pilot_doctor \
@@ -2710,16 +2710,16 @@ pilot_import() {
   case "$project" in
     leonaid-production*|leonaid-staging*) ;;
     *)
-      echo "pilot-import: BLOCKED: Compose-Projekt ist nicht staging-/produktionsspezifisch" >&2
+      echo "pilot-import: BLOCKED: the Compose project is not staging/production-specific" >&2
       exit 1
       ;;
   esac
   [ -n "$target_environment" ] || {
-    echo "pilot-import: ERROR: --target-environment fehlt" >&2
+    echo "pilot-import: ERROR: --target-environment is missing" >&2
     exit 64
   }
   if [ "$project" != "leonaid-$target_environment" ]; then
-    echo "pilot-import: BLOCKED: Zielumgebung stimmt nicht mit LEONAID_COMPOSE_PROJECT überein" >&2
+    echo "pilot-import: BLOCKED: the target environment does not match LEONAID_COMPOSE_PROJECT" >&2
     exit 1
   fi
   host_user_id=$(id -u)
@@ -2741,7 +2741,7 @@ pilot_import() {
 
 pilot_release_manifest() {
   [ "$#" -ge 1 ] || {
-    echo "pilot-release-manifest: ERROR: create oder verify fehlt" >&2
+    echo "pilot-release-manifest: ERROR: create or verify is missing" >&2
     exit 64
   }
   action=$1
@@ -2752,7 +2752,7 @@ pilot_release_manifest() {
         "$action" --root /workspace "$@"
       ;;
     *)
-      echo "pilot-release-manifest: ERROR: unbekannte Aktion '$action'" >&2
+      echo "pilot-release-manifest: ERROR: unknown action '$action'" >&2
       exit 64
       ;;
   esac
@@ -2761,7 +2761,7 @@ pilot_release_manifest() {
 dev() {
   require_docker
   if [ ! -f "$root/.env.local" ]; then
-    echo "leonaid: ERROR: .env.local fehlt. Führe './leonaid bootstrap' aus." >&2
+    echo "leonaid: ERROR: .env.local is missing. Run './leonaid bootstrap'." >&2
     exit 1
   fi
   compose up --build --detach --wait --wait-timeout 420
@@ -2769,7 +2769,7 @@ dev() {
   port=${port:-8080}
   https_port=$(sed -n 's/^LEONAID_HTTPS_PORT=//p' "$root/.env.local" | tail -n 1)
   https_port=${https_port:-8443}
-  echo "dev: OK: LeonAid ist bereit unter https://localhost:$https_port (HTTP-Diagnose: http://127.0.0.1:$port)"
+  echo "dev: OK: LeonAid is ready at https://localhost:$https_port (HTTP diagnostics: http://127.0.0.1:$port)"
 }
 
 validate_reset_target() {
@@ -2791,7 +2791,7 @@ render_golden_pdfs() {
     api_image=$(docker image inspect --format '{{.Id}}' "$api_image")
   fi
   if [ -z "$api_image" ]; then
-    echo "seed: ERROR: gebautes Core-Image für Typst fehlt" >&2
+    echo "seed: ERROR: the built core image for Typst is missing" >&2
     exit 1
   fi
   /bin/sh "$root/tools/typst/render_golden.sh" \
@@ -2869,13 +2869,13 @@ provision_twenty() {
   if [ -n "$(compose ps --status running --quiet api)" ]; then
     compose up --detach --no-deps --force-recreate --wait --wait-timeout 420 api
   fi
-  echo "provision-twenty: OK: deklarationsgleicher, real verifizierter Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
+  echo "provision-twenty: OK: a key matching the declaration and verified against the real system is stored protected in .local/twenty/integration.env; ./leonaid uses it automatically"
 }
 
 repair_crm_match_keys() {
   require_docker
   if [ ! -f "$root/.local/twenty/integration.env" ]; then
-    echo "leonaid: ERROR: Twenty-Key fehlt. Führe zuerst './leonaid provision-twenty' aus." >&2
+    echo "leonaid: ERROR: Twenty key is missing. Run './leonaid provision-twenty' first." >&2
     exit 1
   fi
   host_user_id=$(id -u)
@@ -2896,18 +2896,18 @@ repair_crm_match_keys() {
 import_crm() {
   require_docker
   if [ "$#" -lt 2 ]; then
-    echo "leonaid: ERROR: Nutzung: ./leonaid import-crm <dry-run|apply> SOURCE --report .local/DATEI.json [--sheet NAME]" >&2
+    echo "leonaid: ERROR: usage: ./leonaid import-crm <dry-run|apply> SOURCE --report .local/FILE.json [--sheet NAME]" >&2
     exit 64
   fi
   case "$1" in
     dry-run|apply) ;;
     *)
-      echo "leonaid: ERROR: Importmodus muss 'dry-run' oder 'apply' sein." >&2
+      echo "leonaid: ERROR: import mode must be 'dry-run' or 'apply'." >&2
       exit 64
       ;;
   esac
   if [ ! -f "$root/.local/twenty/integration.env" ]; then
-    echo "leonaid: ERROR: Twenty-Key fehlt. Führe zuerst './leonaid provision-twenty' aus." >&2
+    echo "leonaid: ERROR: Twenty key is missing. Run './leonaid provision-twenty' first." >&2
     exit 1
   fi
   mkdir -p "$root/.local"
@@ -2951,7 +2951,7 @@ snapshot_systems() {
   name=${1:-golden-v1.json}
   case "$name" in
     *[!A-Za-z0-9._-]* | .* | *..*)
-      echo "snapshot: ERROR: NAME darf nur A-Z, a-z, 0-9, Punkt, Unterstrich und Bindestrich enthalten." >&2
+      echo "snapshot: ERROR: NAME may only contain A-Z, a-z, 0-9, dot, underscore and hyphen." >&2
       exit 64
       ;;
   esac
@@ -2986,7 +2986,7 @@ reset_systems() {
   phase reset-provision provision_twenty
   phase reset-seed seed_systems
   phase reset-snapshot snapshot_systems golden-v1.json
-  echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"
+  echo "reset: OK: Core PostgreSQL, Twenty, RustFS and Mailpit match Golden Data v1"
 }
 
 mail_domain_check() (
@@ -2998,7 +2998,7 @@ mail_domain_check() (
     case "$1" in
       --expectation)
         [ "$#" -ge 2 ] || {
-          echo "mail-domain-check: ERROR: --expectation benötigt einen Pfad" >&2
+          echo "mail-domain-check: ERROR: --expectation needs a path" >&2
           exit 64
         }
         expectation=$2
@@ -3006,7 +3006,7 @@ mail_domain_check() (
         ;;
       --report)
         [ "$#" -ge 2 ] || {
-          echo "mail-domain-check: ERROR: --report benötigt einen Pfad" >&2
+          echo "mail-domain-check: ERROR: --report needs a path" >&2
           exit 64
         }
         report=$2
@@ -3017,17 +3017,17 @@ mail_domain_check() (
         shift
         ;;
       *)
-        echo "mail-domain-check: ERROR: unbekannte Option '$1'" >&2
+        echo "mail-domain-check: ERROR: unknown option '$1'" >&2
         exit 64
         ;;
     esac
   done
   [ -n "$expectation" ] || {
-    echo "mail-domain-check: BLOCKED: --expectation fehlt" >&2
+    echo "mail-domain-check: BLOCKED: --expectation is missing" >&2
     exit 2
   }
   [ -f "$expectation" ] || {
-    echo "mail-domain-check: BLOCKED: Erwartungsdatei fehlt" >&2
+    echo "mail-domain-check: BLOCKED: the expectation file is missing" >&2
     exit 2
   }
   expectation=$(
@@ -3261,7 +3261,7 @@ case "$command" in
           artifact_relative=$LEONAID_CI_ARTIFACT_DIR
           ;;
         *)
-          echo "mail-domain-test: ERROR: CI-Artefaktpfad muss unter .artifacts/ liegen" >&2
+          echo "mail-domain-test: ERROR: the CI artefact path must be under .artifacts/" >&2
           exit 64
           ;;
       esac
@@ -3287,7 +3287,7 @@ case "$command" in
         --expectation "$root/tests/fixtures/mail-domain/public-resolver-smoke-v1.json" \
         --report "$wrapper_proof/mail-domain-readiness.json"
       [ -s "$wrapper_proof/mail-domain-readiness.json" ] || {
-        echo "mail-domain-test: ERROR: privater Host-Report fehlt" >&2
+        echo "mail-domain-test: ERROR: the private host report is missing" >&2
         exit 1
       }
       wrapper_report_mode=$(
@@ -3296,7 +3296,7 @@ case "$command" in
       case "$wrapper_report_mode" in
         -rw-------*) ;;
         *)
-          echo "mail-domain-test: ERROR: privater Host-Report ist nicht 0600" >&2
+          echo "mail-domain-test: ERROR: the private host report is not 0600" >&2
           exit 1
           ;;
       esac
@@ -3331,7 +3331,7 @@ case "$command" in
           artifact_relative=$LEONAID_CI_ARTIFACT_DIR
           ;;
         *)
-          echo "pilot-contract: ERROR: CI-Artefaktpfad muss unter .artifacts/ liegen" >&2
+          echo "pilot-contract: ERROR: the CI artefact path must be under .artifacts/" >&2
           exit 64
           ;;
       esac
@@ -3404,7 +3404,7 @@ case "$command" in
           artifact_relative=$LEONAID_CI_ARTIFACT_DIR
           ;;
         *)
-          echo "pilot-readiness: ERROR: CI-Artefaktpfad muss unter .artifacts/ liegen" >&2
+          echo "pilot-readiness: ERROR: the CI artefact path must be under .artifacts/" >&2
           exit 64
           ;;
       esac
@@ -3532,7 +3532,7 @@ case "$command" in
   reset) reset_systems ;;
   help|-h|--help) usage ;;
   *)
-    echo "leonaid: Unbekannter Befehl '$command'." >&2
+    echo "leonaid: unknown command '$command'." >&2
     usage >&2
     exit 64
     ;;

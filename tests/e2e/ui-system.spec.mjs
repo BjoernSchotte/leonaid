@@ -6,7 +6,7 @@ const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const simoneSession = process.env.SIMONE_SESSION;
 
 if (!baseUrl || !artifactDirectory || !simoneSession) {
-  throw new Error("POC-100 Browserumgebung ist unvollständig");
+  throw new Error("POC-100 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -53,7 +53,7 @@ async function createCatalogPage(browser, viewport) {
   return { context, page, pageErrors };
 }
 
-test("UI-Katalog belegt alle Basiszustände mit realer Identität", async ({
+test("UI catalog proves all base states with real identity", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await createCatalogPage(browser, {
@@ -163,7 +163,7 @@ test("UI-Katalog belegt alle Basiszustände mit realer Identität", async ({
   }
 });
 
-test("mobile Shell hält Rolle und Arbeitskontext sichtbar", async ({
+test("mobile shell keeps role and work context visible", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await createCatalogPage(browser, {

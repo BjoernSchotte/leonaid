@@ -51,7 +51,7 @@ docker run --rm \
   /workspace/migrations/versions
 
 if git -C "$root" ls-files | grep -E '(^|/)(\\.env\\.local|sessions?\\.env)$'; then
-  echo "ci-security: ERROR: lokale Secrets oder Sitzungen sind versioniert" >&2
+  echo "ci-security: ERROR: local secrets or sessions are tracked in git" >&2
   exit 1
 fi
 

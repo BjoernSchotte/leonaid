@@ -26,7 +26,7 @@ if (
   !paymentKey ||
   !cancellationKey
 ) {
-  throw new Error("POC-095 Browserumgebung ist unvollständig");
+  throw new Error("POC-095 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -56,7 +56,7 @@ async function expectNoSeriousAccessibilityViolations(page) {
   ).toEqual([]);
 }
 
-test("Charity-Admin verbucht exakt und storniert nachvollziehbar", async ({
+test("charity admin books payments exactly and reverses them traceably", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -182,7 +182,7 @@ test("Charity-Admin verbucht exakt und storniert nachvollziehbar", async ({
   }
 });
 
-test("Finanz-Leser versteht den Status mobil ohne Buchungsrechte", async ({
+test("finance reader understands the status on mobile without booking rights", async ({
   browser,
 }) => {
   const context = await browser.newContext({

@@ -25,10 +25,10 @@ def test_renders_every_internal_poc_persona_from_golden_data() -> None:
         assert f"## {persona.heading}" in content
         assert f"`{persona.email}`" in content
         assert persona.destination_url in content
-    assert "## Öffentlicher Besteller oder Sponsor" in content
-    assert "Kein Login erforderlich" in content
+    assert "## Public customer or sponsor" in content
+    assert "No login required" in content
     assert "http://127.0.0.1:8080/mail/" in content
-    assert "sechsstelligen Code" in content
+    assert "six-digit code" in content
 
 
 def test_writes_private_deterministic_local_handoff(tmp_path: Path) -> None:
@@ -53,5 +53,5 @@ def test_rejects_missing_or_misconfigured_persona(tmp_path: Path) -> None:
     corrupted = tmp_path / "dataset.json"
     corrupted.write_text(json.dumps(dataset), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Golden-Login fehlt"):
+    with pytest.raises(ValueError, match="Golden login missing"):
         render_test_logins(load_dataset(corrupted))

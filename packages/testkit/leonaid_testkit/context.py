@@ -45,7 +45,7 @@ async def poll_until(
     """Poll a semantic target state until a monotonic deadline is reached."""
 
     if timeout_seconds <= 0 or interval_seconds <= 0:
-        raise context.failure(step, "Polling benötigt positive Zeitgrenzen.")
+        raise context.failure(step, "Polling requires positive time limits.")
     deadline = time.monotonic() + timeout_seconds
     last_value: T | None = None
     last_error: Exception | None = None
@@ -61,11 +61,11 @@ async def poll_until(
         if remaining > 0:
             await asyncio.sleep(min(interval_seconds, remaining))
     diagnostic = (
-        f"letzter Fehler: {last_error}"
+        f"last error: {last_error}"
         if last_error is not None
-        else f"letzter Zustand: {last_value!r}"
+        else f"last state: {last_value!r}"
     )
     raise context.failure(
         step,
-        f"Fachlicher Zielzustand wurde vor der Deadline nicht erreicht; {diagnostic}.",
+        f"Target domain state was not reached before the deadline; {diagnostic}.",
     )

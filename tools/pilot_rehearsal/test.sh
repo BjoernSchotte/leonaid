@@ -7,10 +7,10 @@ root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
 if [ "$mode" != "--synthetic" ]; then
-  echo "pilot-rehearsal-test: BLOCKED: Die produktionsnahe Generalprobe benötigt" >&2
-  echo "pilot-rehearsal-test: reale Provider, DNS/TLS, privaten Import sowie" >&2
-  echo "pilot-rehearsal-test: Fach- und Betreiberfreigaben. Für den lokalen" >&2
-  echo "pilot-rehearsal-test: Echtdienstnachweis explizit --synthetic verwenden." >&2
+  echo "pilot-rehearsal-test: BLOCKED: the production-like dress rehearsal needs" >&2
+  echo "pilot-rehearsal-test: real providers, DNS/TLS, a private import and" >&2
+  echo "pilot-rehearsal-test: business and operator approvals. For the local" >&2
+  echo "pilot-rehearsal-test: real-service proof, pass --synthetic explicitly." >&2
   exit 78
 fi
 
@@ -22,7 +22,7 @@ esac
 case "$artifact_directory" in
   "$root"/.artifacts/*) ;;
   *)
-    echo "pilot-rehearsal-test: ERROR: Evidence-Pfad muss unter .artifacts/ liegen" >&2
+    echo "pilot-rehearsal-test: ERROR: evidence path must be below .artifacts/" >&2
     exit 64
     ;;
 esac
@@ -117,17 +117,17 @@ assert_clean() {
   for project in $projects; do
     if docker ps --all --quiet \
       --filter "label=com.docker.compose.project=$project" | grep -q .; then
-      echo "pilot-rehearsal-test: ERROR: Container-Reste für $project" >&2
+      echo "pilot-rehearsal-test: ERROR: leftover containers for $project" >&2
       return 1
     fi
     if docker network ls --quiet \
       --filter "label=com.docker.compose.project=$project" | grep -q .; then
-      echo "pilot-rehearsal-test: ERROR: Netzwerk-Reste für $project" >&2
+      echo "pilot-rehearsal-test: ERROR: leftover networks for $project" >&2
       return 1
     fi
     if docker volume ls --quiet \
       --filter "label=com.docker.compose.project=$project" | grep -q .; then
-      echo "pilot-rehearsal-test: ERROR: Volume-Reste für $project" >&2
+      echo "pilot-rehearsal-test: ERROR: leftover volumes for $project" >&2
       return 1
     fi
   done
@@ -223,5 +223,5 @@ docker run --rm \
 
 summary_written=true
 current_step=
-echo "pilot-rehearsal-test: OK: vollständige synthetische Krapfentaxi-Generalprobe"
-echo "pilot-rehearsal-test:     auf realen Diensten, leerem Zustand und drei Browsern"
+echo "pilot-rehearsal-test: OK: complete synthetic Krapfentaxi dress rehearsal"
+echo "pilot-rehearsal-test:     on real services, empty state and three browsers"

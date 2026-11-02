@@ -1,42 +1,38 @@
 # Twenty CRM Gateway
 
-Der Gateway implementiert den fachlichen Port aus
-`leonaid.application.crm`. Application Services sprechen ausschließlich über
-`CompanyData`, `PersonData`, kontrollierte Update-Typen und
-`CrmSyncReceipt`. Twentys Wire-Felder und Transportdetails bleiben in
+The gateway implements the domain port from
+`leonaid.application.crm`. Application services talk only through
+`CompanyData`, `PersonData`, controlled update types and
+`CrmSyncReceipt`. Twenty's wire fields and transport details stay in
 `gateway.py`.
 
-## Bewusste Grenzen
+## Deliberate boundaries
 
-- Companies und People bleiben in Twenty fachlich führend.
-- LeonAid dupliziert keine CRM-Partei. Ein `CrmSyncReceipt` verbindet die ID
-  des auslösenden LeonAid-Fachobjekts mit der Twenty-Record-ID, Status und
-  Korrelation.
-- Create und Update akzeptieren ausschließlich die expliziten semantischen
-  Felder des jeweiligen Datentyps. Beliebige Twenty-Payloads sind nicht Teil
-  des Ports.
-- Ein partielles Personen-Update sendet nur tatsächlich gesetzte Bestandteile
-  des zusammengesetzten Namens; ein Vorname-Update leert nicht stillschweigend
-  den Nachnamen.
-- Löschen, Merge und freie Metadata-Operationen gehören nicht zum Gateway.
-- Browser und Akquisiteure sprechen ausschließlich mit der LeonAid-Core-API.
-  Sie erhalten weder einen Twenty-Login noch einen Twenty-API-Key. Der
-  eingeschränkte Integrations-Key wird nur serverseitig injiziert.
+- Companies and people stay authoritative in Twenty.
+- LeonAid does not duplicate any CRM party. A `CrmSyncReceipt` links the ID
+  of the triggering LeonAid domain object to the Twenty record ID, status and
+  correlation.
+- Create and update accept only the explicit semantic fields of each data
+  type. Arbitrary Twenty payloads are not part of the port.
+- A partial person update sends only the parts of the composite name that are
+  actually set; a first-name update does not silently clear the last name.
+- Delete, merge and free metadata operations are not part of the gateway.
+- Browsers and acquirers talk only to the LeonAid Core API. They get neither a
+  Twenty login nor a Twenty API key. The restricted integration key is injected
+  on the server side only.
 
-## Transportvertrag für Twenty 2.54.0
+## Transport contract for Twenty 2.54.0
 
-- REST Data API für Suche, Read, einzelnes Create und kontrolliertes Patch.
-- GraphQL Data API für Create-Batches.
-- maximal 60 Records je Batch; größere Eingaben werden in stabile 60er-Chunks
-  geteilt.
-- maximal 100 Requests pro Minute und Gateway-Prozess durch Sliding-Window-
-  Throttling.
-- konfigurierbarer Gesamt-/Connect-/Read-/Write-/Pool-Timeout.
-- `429` wird nur nach einem begrenzten, gedeckelten `Retry-After` erneut
-  versucht.
-- REST-Pagination folgt ausschließlich `pageInfo.endCursor` über
-  `starting_after`. Doppelte IDs, wiederholte Cursor, fehlende Folgecursor und
-  eine unendliche Seitenfolge werden abgewiesen.
+- REST Data API for search, read, single create and controlled patch.
+- GraphQL Data API for create batches.
+- At most 60 records per batch; larger inputs are split into stable chunks of 60.
+- At most 100 requests per minute and gateway process, enforced by
+  sliding-window throttling.
+- Configurable total/connect/read/write/pool timeout.
+- `429` is retried only after a bounded, capped `Retry-After`.
+- REST pagination follows only `pageInfo.endCursor` via `starting_after`.
+  Duplicate IDs, repeated cursors, missing next cursors and an endless page
+  sequence are rejected.
 
 ## Bounded queries and match keys
 
@@ -64,42 +60,40 @@ and maintenance only.
   renamed outside LeonAid. It is idempotent and patches only records whose
   stored key differs from their name.
 
-Twenty 2.54.0 benötigt für die People-Batch-Projektion das direkte Feld
-`companyId`. Eine GraphQL-Auswahl der Relation `company { id }` versucht
-zusätzlich das nicht freigegebene technische Company-Feld `deletedAt` zu lesen
-und wird von der Least-Privilege-Rolle korrekt verweigert. Der Gateway fordert
-deshalb keine weitergehenden Rechte an.
+For the people batch projection, Twenty 2.54.0 needs the direct field
+`companyId`. A GraphQL selection of the relation `company { id }` also tries to
+read the technical company field `deletedAt`, which is not granted, and the
+least-privilege role correctly denies it. The gateway therefore requests no
+further permissions.
 
-## Fehler- und Korrelationsvertrag
+## Error and correlation contract
 
-Jeder Request trägt `X-Request-ID` und `X-Correlation-ID`. Erfolgreiche Writes
-geben `CrmSyncReceipt(status=SYNCED)` zurück und loggen ausschließlich
-Operation, Korrelation, LeonAid-ID, Twenty-ID, Party-Typ und Status.
+Every request carries `X-Request-ID` and `X-Correlation-ID`. Successful writes
+return `CrmSyncReceipt(status=SYNCED)` and log only operation, correlation,
+LeonAid ID, Twenty ID, party type and status.
 
-`CrmGatewayError` enthält einen stabilen Code, Retry-Hinweis, HTTP-Status,
-Korrelation und – soweit bekannt – beide IDs. Response-Bodies, Nutzdaten und
-API-Keys werden weder in Fehlertexte noch in Logs übernommen.
+`CrmGatewayError` contains a stable code, a retry hint, the HTTP status, the
+correlation and, where known, both IDs. Response bodies, payload data and API
+keys never go into error texts or logs.
 
-Transportfehler während Reads sind sicher wiederholbar. Bei Writes führt der
-Gateway keinen blinden Retry aus, weil die Antwort nach erfolgreicher
-Verarbeitung verloren gegangen sein könnte. Der Fehler trägt dann
-`outcome_unknown=True`; der aufrufende Use Case muss anhand der fachlichen
-Matching-/Idempotenzregeln reconciliieren. Bei mehreren 60er-Chunks enthält ein
-Fehler zusätzlich die bereits bestätigten Receipts.
+Transport errors during reads are safe to retry. For writes the gateway does
+not retry blindly, because the response may have been lost after successful
+processing. The error then carries `outcome_unknown=True`; the calling use case
+must reconcile based on the domain matching/idempotency rules. With several
+chunks of 60, an error also contains the receipts that were already confirmed.
 
-## Reale Prüfung
+## Real-system check
 
 ```sh
 ./leonaid test-twenty-gateway
 ```
 
-Der Test startet eine leere, isolierte gepinnte Twenty-Instanz, provisioniert
-die Least-Privilege-Rolle und prüft reale Batches, CRUD, Suche, Pagination,
-Korrelation, Ausfall und Neustart. Es werden keine Mocks, HTTP-Fixtures,
-direkten Datenbankzugriffe oder festen Sleeps verwendet.
+The test starts an empty, isolated, pinned Twenty instance, provisions the
+least-privilege role and checks real batches, CRUD, search, pagination,
+correlation, outage and restart. It uses no mocks, HTTP fixtures, direct
+database access or fixed sleeps.
 
-`./leonaid test-policy` ergänzt diesen Transportnachweis um die
-fachdatensatzgenauen Core-Policies gegen dasselbe echte Twenty und echtes
-PostgreSQL. Twenty stellt dabei ausschließlich die bereits autorisierten
-Firmen und Kontakte bereit; der Core leitet diese IDs bei jedem Request aus
-Membership und Assignment ab.
+`./leonaid test-policy` adds the record-level Core policies to this transport
+proof, against the same real Twenty and real PostgreSQL. Twenty only provides
+the companies and contacts that are already authorized; the Core derives these
+IDs from membership and assignment on every request.

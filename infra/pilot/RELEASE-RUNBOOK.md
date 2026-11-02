@@ -1,33 +1,33 @@
-# Pilot-Release, Migration und Rollback
+# Pilot release, migration and rollback
 
-Dieses Runbook ist die verbindliche Betriebsstrecke für ein LeonAid-Release.
-Es verbindet die gehärtete Pilot-Topologie, den Deployment Doctor, den
-verschlüsselten Recovery Point, den Wartungsmodus und die bestehenden
-Core-/Twenty-/RustFS-Migrationen. Es ersetzt keine fachliche Freigabe und
-keine der in `specs/leonaid-pilot/DECISIONS.md` fälligen Entscheidungen.
+This runbook is the binding operations path for a LeonAid release.
+It connects the hardened pilot topology, the deployment doctor, the
+encrypted recovery point, maintenance mode and the existing
+core/Twenty/RustFS migrations. It replaces neither a functional approval nor
+any of the decisions due in `specs/leonaid-pilot/DECISIONS.md`.
 
-## Rollen und harte Grenzen
+## Roles and hard limits
 
-- **Release-Verantwortlicher** startet mit `./leonaid release` ein
-  CalVer-Release. Der Workflow `Release` baut und publiziert die sechs
-  LeonAid-Images (Core, Web, PWA, Public, Proxy und Survey-Validator) mit Tag
-  und Digest und hängt `release-images.env` und `release-manifest.json` an das
-  GitHub-Release (siehe `apps/docs/.../ops/how-to/release-a-version.md`).
-- **Operator** promoted exakt dieses Manifest zuerst nach Staging und erst
-  nach grünen Gates nach Produktion.
-- **Fachliche Freigabe** bestätigt Golden Journey, Rechnungsinhalt und
-  relevante Konfiguration; sie arbeitet nicht direkt in der Datenbank.
-- Auf dem Zielsystem laufen ausschließlich `pull`, `up --no-build`,
-  dokumentierte Migrationen, Smokes und bei Bedarf Restore. Ein Build,
-  Live-Code-Mount oder spontanes Auflösen neuer Abhängigkeiten ist verboten.
-- Ein fehlgeschlagener Migrations-, Readiness- oder Fach-Smoke hebt den
-  Wartungsmodus nicht auf.
+- The **release owner** starts a CalVer release with `./leonaid release`.
+  The `Release` workflow builds and publishes the six LeonAid images (core,
+  web, PWA, public, proxy and survey validator) with tag and digest and
+  attaches `release-images.env` and `release-manifest.json` to the GitHub
+  release (see `apps/docs/.../ops/how-to/release-a-version.md`).
+- The **operator** promotes exactly this manifest to staging first, and to
+  production only after green gates.
+- The **functional approver** confirms the golden journey, invoice content
+  and relevant configuration; they do not work directly in the database.
+- On the target system only `pull`, `up --no-build`, documented migrations,
+  smoke tests and, if needed, restore run. A build, a live-code mount or
+  ad-hoc resolution of new dependencies is forbidden.
+- A failed migration, readiness or functional smoke test does not lift
+  maintenance mode.
 
-## 1. Manifest aus der effektiven Konfiguration erzeugen
+## 1. Create the manifest from the effective configuration
 
-Der freigegebene Commit, die private `0600`-Environment-Datei und alle
-publizierten Images mit Tag **und** Digest müssen bereits feststehen. Zuerst
-wird die effektive Compose-Konfiguration geschrieben:
+The approved commit, the private `0600` environment file and all published
+images with tag **and** digest must already be fixed. First, write the
+effective Compose configuration:
 
 ```sh
 docker compose \
@@ -38,14 +38,14 @@ docker compose \
   config --format json >.local/pilot/evidence/staging-compose.json
 ```
 
-Das Manifest übernimmt die zwölf tatsächlich verwendeten Service-Images und
-bindet zusätzlich:
+The manifest takes over the twelve service images actually in use and also
+binds:
 
-- vollständigen Git-Commit und Release-ID;
-- alle Alembic-Revisionen samt SHA-256 und erwarteten Head;
-- OpenAPI, Kompatibilitätsmatrix und Typst-Rechnungstemplate samt SHA-256;
-- Golden-Dataset- und Templateversion;
-- erforderliche Gates und Rollbackgrenze je zustandsbehafteter Komponente.
+- the full Git commit and release ID;
+- all Alembic revisions with SHA-256 and the expected head;
+- OpenAPI, the compatibility matrix and the Typst invoice template with SHA-256;
+- golden dataset and template version;
+- required gates and the rollback boundary per stateful component.
 
 ```sh
 ./leonaid pilot-release-manifest create \
@@ -62,12 +62,12 @@ bindet zusätzlich:
   --compose-config .local/pilot/evidence/staging-compose.json
 ```
 
-`production` akzeptiert kein lokales Image, keinen schwebenden Tag und keinen
-Digest ohne Tag. Eine abweichende Migration, ein verändertes Template oder
-eine Differenz zwischen Manifest und Compose blockiert vor dem ersten Write.
-`pilot-deploy` ist der technische, manifestgebundene Start/Reconcile ohne
-Migration. Er kann für den ersten Staging-Aufbau und die fachliche
-Vorabnahme verwendet werden:
+`production` accepts no local image, no floating tag and no digest without a
+tag. A diverging migration, a changed template or a difference between
+manifest and Compose blocks before the first write.
+`pilot-deploy` is the technical, manifest-bound start/reconcile without
+migration. It can be used for the first staging setup and the functional
+pre-acceptance:
 
 ```sh
 ./leonaid pilot-deploy \
@@ -76,27 +76,27 @@ Vorabnahme verwendet werden:
   --release-manifest .local/pilot/evidence/release-2026.1.0.json
 ```
 
-`pilot-deploy` prüft die fälligen Entscheidungen vor dem Start, verwendet
-kein `build`, wartet auf den realen Healthzustand und führt anschließend den
-vollständigen Doctor gegen die laufende Umgebung aus.
+`pilot-deploy` checks the due decisions before the start, uses no `build`,
+waits for the real health state and then runs the full doctor against the
+running environment.
 
-Die eigentliche Promotion erfolgt ausschließlich mit `pilot-release`. Der
-Befehl verifiziert Manifest und Doctor, schreibt das Started-Ereignis,
-erzeugt einen frischen verschlüsselten Recovery Point, aktiviert den
-Wartungsmodus, führt die expliziten Twenty- und Core-Migrationen aus, startet
-buildfrei und hebt den Wartungsmodus erst nach grünem Abschluss-Doctor auf.
-`--evidence-id` ist die Referenz auf den privaten, bereits abgeschlossenen
-fachlichen Browser-/Dokumentnachweis für genau diesen Manifest-SHA; der
-Befehl selbst simuliert keine menschliche Abnahme.
+The promotion itself runs only through `pilot-release`. The command verifies
+manifest and doctor, writes the started event, creates a fresh encrypted
+recovery point, activates maintenance mode, runs the explicit Twenty and
+core migrations, starts without a build and lifts maintenance mode only after
+a green final doctor run.
+`--evidence-id` references the private, already completed functional
+browser/document evidence for exactly this manifest SHA; the command itself
+does not simulate human acceptance.
 
 ## 2. Staging
 
-1. Mit `pilot-deploy` das freigegebene Manifest erstmals in Staging
-   bereitstellen.
-2. Vollständige Golden Journey, relevante Dokumente und fachliche
-   Konfiguration prüfen; den privaten Beleg fest mit Manifest-SHA und
-   Evidence-ID verbinden.
-3. Anschließend die technische Promotion desselben Manifests ausführen:
+1. Deploy the approved manifest to staging for the first time with
+   `pilot-deploy`.
+2. Check the full golden journey, relevant documents and functional
+   configuration; bind the private record firmly to the manifest SHA and
+   evidence ID.
+3. Then run the technical promotion of the same manifest:
 
 ```sh
 ./leonaid pilot-release \
@@ -109,28 +109,27 @@ Befehl selbst simuliert keine menschliche Abnahme.
   --evidence-id PILOT-RELEASE-STAGING-2026-01 \
 ```
 
-Der Befehl erzwingt die oben beschriebene Reihenfolge und protokolliert
-`staging_started` sowie erst nach dem grünen Abschluss-Doctor
-`staging_verified`. Das Ledger enthält nur Sequenz, Zeitpunkt, Release-ID,
-Manifest-SHA, Ereignis, Ergebnis und externe Evidence-ID.
+The command enforces the order described above and records
+`staging_started`, and `staging_verified` only after the green final doctor
+run. The ledger holds only sequence, timestamp, release ID, manifest SHA,
+event, result and external evidence ID.
 
-## 3. Produktion
+## 3. Production
 
-Vor `production_started` prüft das Ledger, dass **derselbe Manifest-SHA**
-bereits als `staging_verified` vorliegt. Danach gilt dieselbe Reihenfolge wie
-in Staging. Ein neues Manifest, auch bei vermeintlich identischen Images,
-beginnt wieder bei Staging.
+Before `production_started`, the ledger checks that **the same manifest SHA**
+is already recorded as `staging_verified`. After that the same order as in
+staging applies. A new manifest, even with seemingly identical images,
+starts again at staging.
 
-Vor jedem Write werden festgehalten:
+Before every write, record:
 
-- Wartungsfenster und Operator;
-- Manifest-SHA und freigegebener Commit;
-- externer, integritätsgeprüfter Recovery Point;
-- private Evidence-ID der Freigabe.
+- maintenance window and operator;
+- manifest SHA and approved commit;
+- external, integrity-checked recovery point;
+- private evidence ID of the approval.
 
-Produktion baut keine Images und führt keine ungebundene Migration `head`
-aus. Zielrevision, Dateien und SHAs stammen aus dem bereits verifizierten
-Manifest.
+Production builds no images and runs no unbound `head` migration. Target
+revision, files and SHAs come from the already verified manifest.
 
 ```sh
 ./leonaid pilot-release \
@@ -143,50 +142,49 @@ Manifest.
   --evidence-id PILOT-RELEASE-PRODUCTION-2026-01
 ```
 
-Fehlt im Ledger das `staging_verified` desselben Manifest-SHA, endet der
-Befehl vor Started-Ereignis, Backup, Wartungsmodus und Deployment.
+If the ledger lacks `staging_verified` for the same manifest SHA, the command
+stops before the started event, backup, maintenance mode and deployment.
 
-`pilot-release` und `pilot-deploy` lassen das Monitoring-Profil unverändert.
-Nach jedem erfolgreichen Release startet
-`./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` Exporter,
-Prometheus und Alertmanager mit dem neuen Release-Image; der
-Watchdog-Heartbeat läuft dabei weiter.
+`pilot-release` and `pilot-deploy` leave the monitoring profile unchanged.
+After every successful release,
+`./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` starts
+the exporters, Prometheus and Alertmanager with the new release image; the
+watchdog heartbeat keeps running meanwhile.
 
-## 4. Fehler und Rollback
+## 4. Failure and rollback
 
-Bei einem Fehler:
+On a failure:
 
-1. Falls der Wartungsmodus bereits angefordert wurde, dessen Zustand prüfen
-   und ihn aktiv lassen. Ein Fehler vor dem Backup aktiviert ihn nicht; ein
-   fehlgeschlagener Abschluss-Doctor kann nach bereits beendetem
-   Wartungsmodus auftreten und wird ausdrücklich so gemeldet.
-2. `production_failed` mit stabiler Fehlerklasse und privater Evidence-ID
-   protokollieren; keine Logs oder Payloads ins öffentliche Ledger kopieren.
-3. Fehlerhaftes Projekt stoppen. Keine manuelle Datenkorrektur durchführen.
-4. `rollback_started` protokollieren.
-5. Nach den Grenzen aus
-   [`../upgrade/README.md`](../upgrade/README.md) alle betroffenen
-   Zustandskomponenten gemeinsam aus dem frischen Recovery Point in das
-   explizit bestätigte Ziel restaurieren.
-6. Quellrelease mit dessen unverändertem Manifest und `--no-build` starten.
-7. Golden Snapshot, Dokument-SHAs, Readiness und Browser-Journey wiederholen.
-8. Erst bei vollständigem Erfolg Wartungsmodus deaktivieren und
-   `rollback_verified` protokollieren.
+1. If maintenance mode was already requested, check its state and leave it
+   active. A failure before the backup does not activate it; a failed final
+   doctor run can occur after maintenance mode has already ended and is
+   reported explicitly as such.
+2. Record `production_failed` with a stable error class and the private
+   evidence ID; do not copy logs or payloads into the public ledger.
+3. Stop the faulty project. Do not correct data manually.
+4. Record `rollback_started`.
+5. Following the boundaries in
+   [`../upgrade/README.md`](../upgrade/README.md), restore all affected
+   stateful components together from the fresh recovery point into the
+   explicitly confirmed target.
+6. Start the source release with its unchanged manifest and `--no-build`.
+7. Repeat the golden snapshot, document SHAs, readiness and browser journey.
+8. Only on full success, deactivate maintenance mode and record
+   `rollback_verified`.
 
-Ein Operator benötigt dafür keinen SQL-Zugriff. Direkte Datenbankarbeit gilt
-als fehlgeschlagener Betriebsnachweis.
+An operator needs no SQL access for this. Direct database work counts as a
+failed operations proof.
 
-## Reproduzierbarer technischer Nachweis
+## Reproducible technical proof
 
 ```sh
 ./leonaid test-pilot-release
 ```
 
-Der Test verwendet keine Mocks. Er führt Release v1 und v2 mit realem Core
-PostgreSQL, Twenty, RustFS, Restic, Typst-PDFs und Chromium aus. Er erzeugt
-eine echte fehlende Alembic-Revision, beweist die fortbestehende
-Schreibsperre, restauriert, promoted denselben Manifest-SHA erneut, erzeugt
-zusätzlich einen systemübergreifenden Post-Smoke-Fehler und restauriert
-nochmals. Beide isolierten Compose-Projekte und ihre Volumes werden
-anschließend entfernt. Sanitizte lokale Evidence liegt unter
-`.artifacts/pilot043/`.
+The test uses no mocks. It runs release v1 and v2 with real core
+PostgreSQL, Twenty, RustFS, Restic, Typst PDFs and Chromium. It creates a
+real missing Alembic revision, proves that the write lock stays in place,
+restores, promotes the same manifest SHA again, also creates a cross-system
+post-smoke failure and restores again. Both isolated Compose projects and
+their volumes are removed afterwards. Sanitized local evidence is stored
+under `.artifacts/pilot043/`.

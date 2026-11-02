@@ -1,29 +1,29 @@
 ---
-title: <Aufgabe als Handlungsziel>
-description: <Wann und mit welchem Ergebnis diese Anleitung verwendet wird.>
+title: <Task as a goal>
+description: <When this guide is used and with which result.>
 docId: DOC-P000
 audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: <vollständiger-produkt-commit>
+verifiedAgainst: <full-product-commit>
 reviewer: <name>
 ---
 
-## Voraussetzungen
+## Prerequisites
 
-Benötigte Rolle, Daten und sicherer Ausgangszustand.
+Required role, data and safe starting state.
 
-## Vorgehen
+## Steps
 
-1. Konkreter Schritt mit tatsächlichem UI-Label oder Befehl.
-2. Nächster Schritt.
+1. Concrete step with the actual UI label or command.
+2. Next step.
 
-## Ergebnis prüfen
+## Check the result
 
-Das direkt beobachtbare Erfolgskriterium.
+The directly observable success criterion.
 
-## Wenn es nicht funktioniert
+## If it does not work
 
-Problem, Auswirkung und sicherer nächster Schritt. Destruktive Handlungen
-erklären hier auch ihren Rückweg.
+Problem, effect and safe next step. Destructive actions also explain their way
+back here.

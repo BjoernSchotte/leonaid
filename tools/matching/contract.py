@@ -35,7 +35,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -100,7 +100,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -121,7 +121,7 @@ async def twenty_record(
         else:
             record = data
     if not isinstance(record, dict):
-        raise ContractFailure(f"Twenty-{collection}-Datensatz fehlt")
+        raise ContractFailure(f"Twenty {collection} record is missing")
     return record
 
 
@@ -137,7 +137,7 @@ async def twenty_collection(
     if not isinstance(records, list) or not all(
         isinstance(record, dict) for record in records
     ):
-        raise ContractFailure(f"Twenty-{collection}-Liste fehlt")
+        raise ContractFailure(f"Twenty {collection} list is missing")
     return records
 
 
@@ -178,7 +178,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or company_match["input"]["postalCode"] != "99999"
             or len(company_match["candidates"]) != 1
         ):
-            raise ContractFailure("Normalisiertes Company-Matching ist nicht eindeutig")
+            raise ContractFailure("Normalized company matching is not unique")
         candidate = company_match["candidates"][0]
         if (
             UUID(candidate["twentyId"]) != GOLDEN_COMPANY_ID
@@ -188,7 +188,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != [{"userId": str(BERND_ID), "displayName": "Bernd Binder"}]
         ):
             raise ContractFailure(
-                "Company-Treffer zeigt Bestand/Zuständigkeit nicht unverändert: "
+                "Company match does not show existing data/ownership unchanged: "
                 f"{candidate!r}"
             )
 
@@ -210,7 +210,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             rejected.status_code != 409
             or error_code(rejected) != "sponsor_match_confirmation_required"
         ):
-            raise ContractFailure("Mehrfachzuordnung war ohne Bestätigung möglich")
+            raise ContractFailure(
+                "Multiple assignment was possible without confirmation"
+            )
         premature = await connection.fetchval(
             """
             SELECT count(*)
@@ -224,7 +226,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             ANNA_ID,
         )
         if premature != 0:
-            raise ContractFailure("Abgelehnte Bestätigung hat dennoch zugeordnet")
+            raise ContractFailure("Declined confirmation still created an assignment")
 
         resolve_body["commandId"] = command_id("reuse-confirmed")
         resolve_body["confirmExistingAssignments"] = True
@@ -243,7 +245,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or reused_payload["priorAssignees"]
             != [{"userId": str(BERND_ID), "displayName": "Bernd Binder"}]
         ):
-            raise ContractFailure("Bestätigte Wiederverwendung ist nicht transparent")
+            raise ContractFailure("Confirmed reuse is not transparent")
 
         company_after = await twenty_record(
             twenty,
@@ -252,14 +254,12 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         address = company_after.get("address")
         if not isinstance(address, dict):
-            raise ContractFailure("Golden-Company besitzt keine Twenty-Adresse")
+            raise ContractFailure("Golden company has no Twenty address")
         if (
             address.get("addressPostcode") != "10243"
             or address.get("addressCity") != "Beispielstadt"
         ):
-            raise ContractFailure(
-                "Zusatzdaten haben den CRM-Bestand still überschrieben"
-            )
+            raise ContractFailure("Extra data silently overwrote existing CRM data")
 
         person_draft = {
             "givenName": "  MAX ",
@@ -279,7 +279,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             people_payload["status"] != "ambiguous_match"
             or len(people_payload["candidates"]) != 2
         ):
-            raise ContractFailure("Golden-Personenkonflikt ist nicht mehrdeutig")
+            raise ContractFailure("Golden person conflict is not ambiguous")
         missing_selection = await post(
             api,
             f"{path}/resolve",
@@ -297,7 +297,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             missing_selection.status_code != 409
             or error_code(missing_selection) != "sponsor_match_selection_required"
         ):
-            raise ContractFailure("Mehrdeutiger Personentreffer brauchte keine Auswahl")
+            raise ContractFailure("Ambiguous person match did not require a selection")
         selected_person = await post(
             api,
             f"{path}/resolve",
@@ -313,11 +313,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         selected_person.raise_for_status()
         if UUID(selected_person.json()["twentyId"]) != PRIVATE_MAX_ID:
-            raise ContractFailure("Ausgewählter Personentreffer wurde nicht verwendet")
+            raise ContractFailure("Selected person match was not used")
         private_person = await twenty_record(twenty, "people", str(PRIVATE_MAX_ID))
         primary_email = private_person.get("emails", {}).get("primaryEmail")
         if primary_email != "max.mustermann.privat@leonaid.invalid":
-            raise ContractFailure("Zusatz-E-Mail hat bestehenden Kontakt überschrieben")
+            raise ContractFailure("Extra email overwrote an existing contact")
 
         new_company_draft = {
             "companyName": "POC032 Nordlicht Werkstatt GmbH",
@@ -337,7 +337,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         no_company.raise_for_status()
         if no_company.json()["status"] != "no_match":
-            raise ContractFailure("Neue Company wurde fälschlich gematcht")
+            raise ContractFailure("New company was matched by mistake")
         new_company_command = command_id("new-company")
         new_company_body = {
             "commandId": new_company_command,
@@ -372,7 +372,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or len({payload["assignmentId"] for payload in company_payloads}) != 1
         ):
             raise ContractFailure(
-                "Paralleler Retry wurde nicht als identischer Vorgang wiedergegeben"
+                "Parallel retry was not replayed as the same operation"
             )
         created_company_payload = company_payloads[0]
         if (
@@ -380,7 +380,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or not created_company_payload["contactTwentyId"]
         ):
             raise ContractFailure(
-                "Neue Company wurde nicht mit Zuordnung und Kontakt angelegt"
+                "New company was not created with assignment and contact"
             )
 
         replay = await post(
@@ -396,7 +396,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or replay.json()["twentyId"] != created_company_payload["twentyId"]
             or replay.json()["assignmentId"] != created_company_payload["assignmentId"]
         ):
-            raise ContractFailure("Sequentieller Retry ist nicht idempotent")
+            raise ContractFailure("Sequential retry is not idempotent")
 
         changed_body = dict(new_company_body)
         changed_body["sponsor"] = {**new_company_draft, "city": "Anderer Ort"}
@@ -408,9 +408,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "poc032:new-company-idempotency-conflict",
         )
         if changed.status_code != 409 or error_code(changed) != "idempotency_conflict":
-            raise ContractFailure(
-                "Dieselbe Vorgangs-ID akzeptierte abweichende Eingaben"
-            )
+            raise ContractFailure("The same operation ID accepted different input")
 
         created_company_record = await twenty_record(
             twenty,
@@ -418,7 +416,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             created_company_payload["twentyId"],
         )
         if created_company_record.get("name") != new_company_draft["companyName"]:
-            raise ContractFailure("Twenty-Company besitzt nicht den exakten Namen")
+            raise ContractFailure("Twenty company does not have the exact name")
         created_contact = await twenty_record(
             twenty,
             "people",
@@ -432,7 +430,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or created_contact.get("companyId") != created_company_payload["twentyId"]
         ):
             raise ContractFailure(
-                "Twenty-Kontakt ist nicht exakt mit der neuen Company verknüpft"
+                "Twenty contact is not linked exactly to the new company"
             )
         company_duplicates = [
             record
@@ -446,7 +444,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             == "nora.nordlicht@leonaid.invalid"
         ]
         if len(company_duplicates) != 1 or len(contact_duplicates) != 1:
-            raise ContractFailure("Retry erzeugte Duplikate in Twenty")
+            raise ContractFailure("Retry created duplicates in Twenty")
         assignment_count = await connection.fetchval(
             """
             SELECT count(*)
@@ -460,7 +458,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             ANNA_ID,
         )
         if assignment_count != 1:
-            raise ContractFailure("Retry erzeugte doppelte Zuordnungen")
+            raise ContractFailure("Retry created duplicate assignments")
 
         new_person_draft = {
             "givenName": "Noah",
@@ -476,7 +474,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         no_person.raise_for_status()
         if no_person.json()["status"] != "no_match":
-            raise ContractFailure("Neue Person wurde fälschlich gematcht")
+            raise ContractFailure("New person was matched by mistake")
         created_person = await post(
             api,
             f"{path}/resolve",
@@ -492,7 +490,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         created_person.raise_for_status()
         if created_person.json()["outcome"] != "created":
-            raise ContractFailure("Neue Person wurde nicht real angelegt")
+            raise ContractFailure("New person was not actually created")
         await twenty_record(twenty, "people", created_person.json()["twentyId"])
 
         # A spelling variant that the literal name search cannot see must be
@@ -527,7 +525,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != [umlaut_person.json()["twentyId"]]
         ):
             raise ContractFailure(
-                "Schreibvariante wurde nicht über den Match-Schlüssel erkannt"
+                "Spelling variant was not found through the match key"
             )
 
         unauthorized = await post(
@@ -538,7 +536,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "poc032:admin-no-self-assignment",
         )
         if unauthorized.status_code != 404:
-            raise ContractFailure("Charity-Admin konnte sich als Akquisiteur zuordnen")
+            raise ContractFailure("Charity admin could assign themselves as acquirer")
 
         audit_rows = await connection.fetch(
             """
@@ -559,7 +557,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "sponsor_party_created",
             "sponsor_party_reused",
         }:
-            raise ContractFailure("Neuanlage/Wiederverwendung ist nicht auditiert")
+            raise ContractFailure("Creation/reuse is not audited")
         history_count = await connection.fetchval(
             """
             SELECT count(*)
@@ -574,7 +572,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             ANNA_ID,
         )
         if history_count < 4:
-            raise ContractFailure("Initiale Zuordnungen besitzen keine Historie")
+            raise ContractFailure("Initial assignments have no history")
 
         await connection.execute(
             """
@@ -589,8 +587,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         print(
             "matching-contract: OK:",
-            "single/ambiguous/no-match, echte Neuanlage, unveränderte Zusatzdaten,",
-            "explizite Mehrfachzuordnung und Audit bewiesen",
+            "single/ambiguous/no-match, real creation, unchanged extra data,",
+            "explicit multiple assignment and audit proven",
         )
 
 

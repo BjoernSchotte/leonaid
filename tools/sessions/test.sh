@@ -21,7 +21,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "session-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "session-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -48,7 +48,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "session-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "session-test: diagnostics for the failed real services:" >&2
     diagnose
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
@@ -125,10 +125,10 @@ for screenshot in \
   session-login.png \
   session-finance-default-route.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "session-test: ERROR: Browser-Screenshot fehlt: $screenshot" >&2
+    echo "session-test: ERROR: browser screenshot missing: $screenshot" >&2
     exit 1
   fi
   cp "$proof/$screenshot" "$artifact_directory/"
 done
 
-echo "session-test: OK: Login, 90 Tage, Fresh Login und Widerruf real bewiesen"
+echo "session-test: OK: login, 90 days, fresh login and revocation proven against real services"

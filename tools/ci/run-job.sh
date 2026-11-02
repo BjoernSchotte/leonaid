@@ -13,7 +13,7 @@ esac
 case "$artifact_directory" in
   "$root"/*) artifact_relative=${artifact_directory#"$root/"} ;;
   *)
-    echo "ci-run-job: ERROR: Artefaktpfad muss im Repository liegen" >&2
+    echo "ci-run-job: ERROR: artifact path must be inside the repository" >&2
     exit 64
     ;;
 esac
@@ -49,7 +49,7 @@ if ! docker run --rm \
   "/workspace/$artifact_relative" /workspace/.env.local; then
   find "$artifact_directory" -type f -delete
   printf '%s\n' \
-    "Artefakte aus Sicherheitsgründen verworfen: Redaktionsprüfung fehlgeschlagen." \
+    "Artifacts discarded for security reasons: redaction check failed." \
     >"$artifact_directory/SANITIZATION-FAILED.txt"
   exit 70
 fi

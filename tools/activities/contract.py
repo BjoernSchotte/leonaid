@@ -41,7 +41,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -106,7 +106,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -133,7 +133,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         initial_names = {item["partyDisplayName"] for item in initial_body["workItems"]}
         if initial_names != {"Musterwerk GmbH", "Doppelkontakt AG"}:
             raise ContractFailure(
-                f"Annas Arbeitsvorrat ist falsch: {sorted(initial_names)}"
+                f"Anna's work queue is wrong: {sorted(initial_names)}"
             )
 
         overdue = await request(
@@ -163,7 +163,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or overdue_body["activity"]["nextAction"] != "Angebot per E-Mail senden"
             or overdue_body["activity"]["assignmentRevision"] != 2
         ):
-            raise ContractFailure("Überfällige Aktivität wurde nicht normalisiert")
+            raise ContractFailure("Overdue activity was not normalized")
 
         today_activity = await request(
             api,
@@ -205,7 +205,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             stale.status_code != 409
             or error_code(stale) != "assignment_revision_conflict"
         ):
-            raise ContractFailure("Veraltete Aktivitätsrevision wurde akzeptiert")
+            raise ContractFailure("Stale activity revision was accepted")
 
         incomplete = await request(
             api,
@@ -225,7 +225,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             },
         )
         if incomplete.status_code != 422:
-            raise ContractFailure("Unvollständige Wiedervorlage wurde akzeptiert")
+            raise ContractFailure("Incomplete follow-up was accepted")
 
         board = await request(
             api,
@@ -241,9 +241,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             "Musterwerk GmbH",
             "Doppelkontakt AG",
         ] or [item["urgency"] for item in items[:2]] != ["overdue", "today"]:
-            raise ContractFailure(
-                "Überfällige/heutige Wiedervorlagen sind falsch sortiert"
-            )
+            raise ContractFailure("Overdue/today follow-ups are sorted wrongly")
         activities = board_body["activities"]
         if (
             len(activities) != 2
@@ -251,7 +249,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or activities[1]["partyDisplayName"] != "Musterwerk GmbH"
             or activities[0]["actorDisplayName"] != "Anna Akquise"
         ):
-            raise ContractFailure("Append-only Aktivitätsverlauf ist falsch sortiert")
+            raise ContractFailure("Append-only activity history is sorted wrongly")
 
         shared = await request(
             api,
@@ -267,7 +265,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or shared_activities[0]["partyDisplayName"] != "Doppelkontakt AG"
             or shared_activities[0]["actorDisplayName"] != "Anna Akquise"
         ):
-            raise ContractFailure("Mitzugeordneter sieht gemeinsamen Verlauf nicht")
+            raise ContractFailure("Co-assignee does not see the shared history")
 
         concealed = await request(
             api,
@@ -278,7 +276,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         concealed.raise_for_status()
         if concealed.json()["activities"]:
-            raise ContractFailure("Fremde Persona sieht Annas Aktivitäten")
+            raise ContractFailure("Unrelated persona sees Anna's activities")
 
         admin_forbidden = await request(
             api,
@@ -291,7 +289,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             admin_forbidden.status_code != 403
             or error_code(admin_forbidden) != "acquirer_required"
         ):
-            raise ContractFailure("Charity-Admin erhielt Akquisiteur-Arbeitsvorrat")
+            raise ContractFailure("Charity admin received the acquirer work queue")
 
         database_rows = await connection.fetch(
             """
@@ -323,7 +321,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         if len(database_rows) != 2:
             raise ContractFailure(
-                "Aktivität, AuditEvent und Historie wurden nicht atomar geschrieben"
+                "Activity, AuditEvent and history were not written atomically"
             )
         for row in database_rows:
             payload = (
@@ -339,7 +337,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 or "note" in payload
                 or int(payload.get("noteLength", -1)) < 0
             ):
-                raise ContractFailure("Audit enthält falsche oder sensible Nutzdaten")
+                raise ContractFailure("Audit contains wrong or sensitive payload data")
 
         history_counts = await connection.fetch(
             """
@@ -354,12 +352,12 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         if len(history_counts) != 2 or any(
             int(row["entries"]) != 2 for row in history_counts
         ):
-            raise ContractFailure("Aktivitäten überschreiben statt Historie anzuhängen")
+            raise ContractFailure("Activities overwrite instead of appending history")
 
         print(
             "activity-contract: OK:",
-            "append-only Verlauf, Reminder-Priorität, Mitzuordnung,",
-            "Sichtgrenzen, Revision, Historie und Audit atomar bewiesen",
+            "append-only history, reminder priority, co-assignment,",
+            "visibility limits, revision, history and audit proven atomic",
         )
 
 

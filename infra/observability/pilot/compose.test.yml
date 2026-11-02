@@ -31,7 +31,7 @@ services:
     environment:
       ALERT_SINK_EVENTS_PATH: /events/events.jsonl
     volumes:
-      - ${LEONAID_ALERT_TEST_EVENTS_DIR:?LEONAID_ALERT_TEST_EVENTS_DIR fehlt}:/events
+      - ${LEONAID_ALERT_TEST_EVENTS_DIR:?LEONAID_ALERT_TEST_EVENTS_DIR is missing}:/events
     networks:
       - telemetry
     healthcheck:
@@ -56,13 +56,13 @@ services:
     user: "0:0"
     environment:
       PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
-      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_ALERT_TEST_PROJECT:?LEONAID_ALERT_TEST_PROJECT fehlt}
+      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_ALERT_TEST_PROJECT:?LEONAID_ALERT_TEST_PROJECT is missing}
       PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
       PILOT_TLS_HOST: tls-probe
       PILOT_TLS_PORT: "8443"
       PILOT_TLS_CA_FILE: /caddy-data/caddy/pki/authorities/local/root.crt
     volumes:
-      - ${LEONAID_ALERT_TEST_BACKUP_MANIFEST:?LEONAID_ALERT_TEST_BACKUP_MANIFEST fehlt}:/run/leonaid-monitor/backup-manifest.json:ro
+      - ${LEONAID_ALERT_TEST_BACKUP_MANIFEST:?LEONAID_ALERT_TEST_BACKUP_MANIFEST is missing}:/run/leonaid-monitor/backup-manifest.json:ro
       - alerting-caddy-data:/caddy-data:ro
     tmpfs:
       - /run/leonaid-monitor/disk:size=16777216

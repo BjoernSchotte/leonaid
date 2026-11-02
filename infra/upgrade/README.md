@@ -1,57 +1,55 @@
-# Upgrade und Rollback
+# Upgrade and rollback
 
 Current bilingual task guide:
 [Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/upgrade-and-rollback.md) ·
 [English](../../apps/docs/src/content/docs/en/ops/how-to/upgrade-and-rollback.md).
 This file remains the detailed upgrade contract.
 
-Dieses Runbook beschreibt den fail-closed Upgradepfad für LeonAid Core,
-Twenty und RustFS. Es ergänzt das
-[`Backup-/Restore-Runbook`](../backup/README.md). Ein Upgrade ohne frischen,
-integritätsgeprüften Recovery Point ist nicht zulässig.
+This runbook describes the fail-closed upgrade path for LeonAid Core, Twenty
+and RustFS. It extends the
+[`backup/restore runbook`](../backup/README.md). An upgrade without a fresh,
+integrity-checked recovery point is not allowed.
 
-## Verbindliche Vorbereitung
+## Mandatory preparation
 
-1. Quell- und Zielimages mit Tag und Digest in
-   `infra/locks/external-systems.lock` und `infra/locks/images.env` pinnen.
-2. Release Notes und Migrationen lesen und die Entscheidung in
-   `compatibility-matrix.json` aktualisieren.
-3. `./leonaid check` auf einem sauberen Checkout ausführen.
-4. `./leonaid test-upgrade` gegen einen Golden-Data-Klon ausführen.
-5. Wartungsfenster, Verantwortlichen und geprüften Recovery Point
-   protokollieren.
+1. Pin source and target images with tag and digest in
+   `infra/locks/external-systems.lock` and `infra/locks/images.env`.
+2. Read release notes and migrations and update the decision in
+   `compatibility-matrix.json`.
+3. Run `./leonaid check` on a clean checkout.
+4. Run `./leonaid test-upgrade` against a golden-data clone.
+5. Record the maintenance window, the responsible person and the verified
+   recovery point.
 
-Die maschinenlesbare Matrix verweigert fehlende Release Notes, ungeprüfte
-Migrationen, unvollständige Gates, ungenaue Images und Komponenten ohne
-Backup-Restore-Strategie.
+The machine-readable matrix rejects missing release notes, unreviewed
+migrations, incomplete gates, imprecise images and components without a
+backup-restore strategy.
 
-## Wartungsgrenze
+## Maintenance boundary
 
 ```sh
 infra/upgrade/maintenance.sh enable
 infra/upgrade/maintenance.sh status
 ```
 
-Der Modus legt seinen Zustand in einem eigenen Compose-Volume ab. FastAPI
-beantwortet lesende Requests weiterhin, weist `POST`, `PUT`, `PATCH` und
-`DELETE` jedoch mit `503 maintenance_mode` und `Retry-After` ab. Core-Worker,
-Twenty Server und Twenty Worker werden gestoppt. Erst wenn die Abhängigkeiten
-wieder bereit sind, hebt folgender Befehl die Schreibsperre auf:
+The mode stores its state in its own Compose volume. FastAPI still answers
+read requests but rejects `POST`, `PUT`, `PATCH` and `DELETE` with
+`503 maintenance_mode` and `Retry-After`. The core worker, Twenty server and
+Twenty worker are stopped. Only when the dependencies are ready again does
+this command lift the write lock:
 
 ```sh
 infra/upgrade/maintenance.sh disable
 ```
 
-## Reihenfolge im Änderungsfenster
+## Order in the change window
 
-1. Wartungsmodus aktivieren und die Schreibsperre mit einem echten Request
-   verifizieren.
-2. Verschlüsselten Recovery Point mit `./leonaid backup` erzeugen und prüfen.
-3. RustFS-Zielimage starten und Healthcheck abwarten.
-4. Twenty-Zielserver einmal starten, damit dessen Entrypoint die
-   Schema-Voraussetzungen initialisiert.
-5. Twenty Server wieder stoppen und beide offiziellen Befehle fail-closed
-   ausführen:
+1. Enable maintenance mode and verify the write lock with a real request.
+2. Create and verify an encrypted recovery point with `./leonaid backup`.
+3. Start the RustFS target image and wait for its health check.
+4. Start the Twenty target server once so that its entrypoint initializes
+   the schema prerequisites.
+5. Stop the Twenty server again and run both official commands fail-closed:
 
    ```sh
    docker compose --env-file .env.local -f infra/compose/compose.yml \
@@ -62,56 +60,54 @@ infra/upgrade/maintenance.sh disable
      command:prod upgrade
    ```
 
-6. Twenty Server/Worker und LeonAid starten; Images, Schema und Healthchecks
-   prüfen.
-7. Contract-Suite, Golden-Snapshot und Browser-Journey ausführen.
-8. Erst danach den Wartungsmodus deaktivieren.
+6. Start the Twenty server/worker and LeonAid; check images, schema and
+   health checks.
+7. Run the contract suite, golden snapshot and browser journey.
+8. Only then disable maintenance mode.
 
-Twenty schreibt fehlgeschlagene Entrypoint-Upgrades nur als Warnung und kann
-trotzdem gesund erscheinen. LeonAid akzeptiert deshalb weder den Healthcheck
-noch den Entrypoint allein als Migrationsbeweis: Beide Befehle müssen mit
-Exitcode 0 enden, das erwartete Zielschema muss vorhanden sein und der
-fachliche Contract muss unverändert bestehen.
+Twenty logs failed entrypoint upgrades only as a warning and can still look
+healthy. LeonAid therefore accepts neither the health check nor the
+entrypoint alone as proof of migration: both commands must exit with code 0,
+the expected target schema must exist and the business contract must still
+pass unchanged.
 
-## Rollbackgrenzen
+## Rollback boundaries
 
-- **Twenty:** Nach dem ersten Instance- oder Workspace-Migrationsschritt wird
-  kein älteres Image gegen die vorwärts migrierte Datenbank gestartet.
-  Rollback bedeutet Restore von Twenty-PostgreSQL und Twenty-Dateien aus
-  demselben Recovery Point.
-- **RustFS:** Vor einem Schreibzugriff der Zielversion ist ein Binär-Rollback
-  möglich. Danach wird das vollständige RustFS-Volume restauriert.
-- **LeonAid Core:** Nach `alembic upgrade head` wird kein älterer Core gegen
-  das neue Schema behauptet. Core-PostgreSQL wird aus dem Recovery Point
-  wiederhergestellt.
+- **Twenty:** After the first instance or workspace migration step, no older
+  image is started against the forward-migrated database. Rollback means
+  restoring Twenty PostgreSQL and the Twenty files from the same recovery
+  point.
+- **RustFS:** A binary rollback is possible before the target version writes.
+  After that, the complete RustFS volume is restored.
+- **LeonAid Core:** After `alembic upgrade head`, no older core is claimed to
+  work against the new schema. Core PostgreSQL is restored from the recovery
+  point.
 
-Bei Fehlern bleibt die Schreibsperre aktiv. Das fehlerhafte Projekt wird
-gestoppt, nicht weiter beschrieben und nach
-[`infra/backup/README.md`](../backup/README.md) in ein neues, explizit
-bestätigtes Compose-Projekt restauriert. Erst Golden-Contract, Dokument-
-Hashes, Sessions und Browser-Journey geben die Umgebung wieder frei.
+On failure, the write lock stays active. The failed project is stopped,
+receives no further writes and is restored into a new, explicitly confirmed
+Compose project as described in
+[`infra/backup/README.md`](../backup/README.md). Only the golden contract,
+document hashes, sessions and browser journey release the environment again.
 
-## Reproduzierbarer PoC-Nachweis
+## Reproducible PoC evidence
 
 ```sh
 ./leonaid test-upgrade
 ```
 
-Der Test verwendet keine Mocks. Er startet Twenty 2.24.0 und RustFS
-1.0.0-beta.10 mit echten Golden Data, aktualisiert auf Twenty 2.54.0 und
-RustFS 1.0.0-beta.11, prüft Contracts und Chromium vor/nach dem Upgrade,
-beschädigt einen separaten Zielklon absichtlich und restauriert ihn aus dem
-verschlüsselten Recovery Point. Geheimnisfreie Ergebnisse liegen unter
-`.artifacts/poc113/`.
+The test uses no mocks. It starts Twenty 2.24.0 and RustFS 1.0.0-beta.10
+with real golden data, upgrades to Twenty 2.54.0 and RustFS 1.0.0-beta.11,
+checks contracts and Chromium before and after the upgrade, deliberately
+damages a separate target clone and restores it from the encrypted recovery
+point. Secret-free results are stored under `.artifacts/poc113/`.
 
-Der Pilot-Release-Nachweis ergänzt diesen Komponentenvertrag um ein
-unveränderliches Release-Manifest, identische Staging-/Produktionspromotion,
-einen real fehlgeschlagenen Alembic-Lauf und ein secretsfreies
-Promotion-Ledger:
+The pilot release evidence extends this component contract with an immutable
+release manifest, identical staging/production promotion, a real failed
+Alembic run and a secret-free promotion ledger:
 
 ```sh
 ./leonaid test-pilot-release
 ```
 
-Die Betriebsstrecke ist in
-[`../pilot/RELEASE-RUNBOOK.md`](../pilot/RELEASE-RUNBOOK.md) beschrieben.
+The operating procedure is described in
+[`../pilot/RELEASE-RUNBOOK.md`](../pilot/RELEASE-RUNBOOK.md).

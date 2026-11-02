@@ -26,7 +26,7 @@ class VerificationFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise VerificationFailure(f"Umgebungsvariable fehlt: {name}")
+        raise VerificationFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -47,7 +47,7 @@ async def twenty_record(
         else:
             record = data
     if not isinstance(record, dict):
-        raise VerificationFailure(f"Twenty-{collection}-Datensatz fehlt")
+        raise VerificationFailure(f"Twenty {collection} record is missing")
     return record
 
 
@@ -60,11 +60,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         "firstFocusedField": "givenName",
         "retainedCompanyName": "POC072 Browseratelier GmbH",
     }:
-        raise VerificationFailure("Browser bewies Eingabe-Erhalt und Fokus nicht")
+        raise VerificationFailure("Browser did not prove input retention and focus")
     if not isinstance(orders, list) or {
         item.get("scenario") for item in orders if isinstance(item, dict)
     } != {"new-company", "existing-company", "person-without-company"}:
-        raise VerificationFailure("Die drei öffentlichen E2E-Personas fehlen")
+        raise VerificationFailure("The three public E2E personas are missing")
 
     expected: dict[str, dict[str, str | int | UUID]] = {
         "new-company": {
@@ -92,7 +92,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     ) as twenty:
         for item in orders:
             if not isinstance(item, dict):
-                raise VerificationFailure("UI-Nachweis enthält keinen Bestellfall")
+                raise VerificationFailure("UI evidence contains no order case")
             scenario = str(item["scenario"])
             reference = str(item["publicReference"])
             configured = expected[scenario]
@@ -109,7 +109,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 reference,
             )
             if row is None:
-                raise VerificationFailure(f"UI-Bestellung fehlt: {scenario}")
+                raise VerificationFailure(f"UI order is missing: {scenario}")
             line = await connection.fetchrow(
                 """
                 SELECT quantity, pieces_per_unit_snapshot, unit_price_minor
@@ -123,7 +123,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 snapshot = json.loads(snapshot)
             quantity_value = configured["quantity"]
             if not isinstance(quantity_value, int):
-                raise VerificationFailure("Testmenge ist ungültig")
+                raise VerificationFailure("Test quantity is invalid")
             quantity = quantity_value
             if (
                 not isinstance(snapshot, dict)
@@ -136,9 +136,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 or int(line["pieces_per_unit_snapshot"]) != 24
                 or int(line["unit_price_minor"]) != 3_600
             ):
-                raise VerificationFailure(
-                    f"UI-Bestellung ist fachlich unvollständig: {scenario}"
-                )
+                raise VerificationFailure(f"UI order is incomplete: {scenario}")
             recipients = await connection.fetch(
                 """
                 SELECT recipient.user_id
@@ -151,11 +149,11 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if {entry["user_id"] for entry in recipients} != {configured["recipient"]}:
                 raise VerificationFailure(
-                    f"UI-Bestellung adressiert falsche Aktivität: {scenario}"
+                    f"UI order addresses the wrong activity recipients: {scenario}"
                 )
             if scenario == "existing-company":
                 if row["twenty_company_id"] != MUSTERWERK_ID:
-                    raise VerificationFailure("UI hat bestehende Firma nicht verwendet")
+                    raise VerificationFailure("UI did not use the existing company")
             elif scenario == "new-company":
                 record = await twenty_record(
                     twenty,
@@ -163,12 +161,10 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                     row["twenty_company_id"],
                 )
                 if record.get("name") != configured["name"]:
-                    raise VerificationFailure("UI-Firma fehlt direkt in Twenty")
+                    raise VerificationFailure("UI company is missing in Twenty")
             else:
                 if row["twenty_company_id"] is not None:
-                    raise VerificationFailure(
-                        "Privatperson wurde als Firma gespeichert"
-                    )
+                    raise VerificationFailure("Private person was stored as a company")
                 record = await twenty_record(
                     twenty,
                     "people",
@@ -179,10 +175,10 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                     or record.get("name", {}).get("lastName") != "Privat"
                     or record.get("companyId") not in {None, ""}
                 ):
-                    raise VerificationFailure("UI-Privatperson fehlt direkt in Twenty")
+                    raise VerificationFailure("UI private person is missing in Twenty")
     print(
         "public-orders-ui: OK:",
-        "drei sichtbare Bestellwege, Fokus/Eingabe-Erhalt und reale Persistenz bewiesen",
+        "three visible order paths, focus/input retention and real persistence proven",
     )
 
 

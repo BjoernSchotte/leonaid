@@ -1,8 +1,8 @@
 # `@leonaid/web`
 
-React-Einstieg für das Charity-Admin-Backoffice. Der PoC bindet den Build
-zunächst gezielt unter `/admin/actions…` ein; bestehende Identitätsrouten
-bleiben bis zu ihrer eigenen Migration im schlanken Server.
+React entry point for the charity admin back office. For now, the PoC mounts
+the build only under `/admin/actions…`; existing identity routes stay in the
+lean server until their own migration.
 
-Fachliche Mutationen laufen ausschließlich über den generierten
-`@leonaid/api-client` und den FastAPI-Core.
+Business mutations run only through the generated `@leonaid/api-client` and the
+FastAPI Core.

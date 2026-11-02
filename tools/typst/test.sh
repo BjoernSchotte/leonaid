@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "typst-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "typst-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
       api core-postgres twenty-server twenty-worker rustfs >&2 || true
@@ -51,7 +51,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "typst-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "typst-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -88,7 +88,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "typst-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "typst-test: ERROR: restricted Twenty key missing" >&2
   exit 1
 fi
 
@@ -159,7 +159,7 @@ verify_pdfs() {
 }
 
 if [ "${LEONAID_TYPST_APPROVAL_CANDIDATE:-0}" = "1" ]; then
-  echo "typst-test: HINWEIS: Erzeuge nur visuelle Freigabekandidaten."
+  echo "typst-test: NOTE: generating visual approval candidates only."
   verify_pdfs
 else
   verify_pdfs --golden-directory tests/fixtures/typst/v1/golden
@@ -171,8 +171,8 @@ cp "$proof/rendered/contract-manifest.json" "$root/.artifacts/poc091/"
 cp "$proof/rendered/"*.pdf "$root/.artifacts/poc091/"
 cp "$proof/pages/"*.png "$root/.artifacts/poc091/"
 
-echo "typst-test: OK: echter Typst $(
+echo "typst-test: OK: real Typst $(
   docker run --rm --entrypoint typst "${project}-api" --version
 )"
-echo "typst-test:     Datenbank-Snapshots, Determinismus, Golden-Layout,"
-echo "typst-test:     Metadaten, eingebettete Fonts und zwei PDF-Engines bewiesen"
+echo "typst-test:     database snapshots, determinism, golden layout,"
+echo "typst-test:     metadata, embedded fonts and two PDF engines proven"

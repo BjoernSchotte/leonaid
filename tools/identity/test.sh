@@ -21,7 +21,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "identity-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "identity-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -47,7 +47,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "identity-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "identity-test: diagnostics for the failed real services:" >&2
     diagnose
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
@@ -106,7 +106,7 @@ else
   session_mode=$(stat -f '%Lp' "$proof/sessions.env")
 fi
 if [ "$session_mode" != "600" ]; then
-  echo "identity-test: ERROR: Sitzungsdatei besitzt nicht Dateimodus 0600" >&2
+  echo "identity-test: ERROR: session file does not have file mode 0600" >&2
   exit 1
 fi
 
@@ -144,7 +144,7 @@ for screenshot in \
   account-status-suspended.png \
   account-status-reactivated.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "identity-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "identity-test: ERROR: browser evidence missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -165,4 +165,4 @@ for screenshot in \
   chmod 600 "$artifact_directory/$screenshot"
 done
 
-echo "identity-test: OK: Mitgliederübersicht, Rollen-Offboarding, Statusworkflow, Konkurrenz, Sitzungsentzug und Persona-Navigation real bewiesen"
+echo "identity-test: OK: member overview, role offboarding, status workflow, concurrency, session revocation and persona navigation proven against real services"

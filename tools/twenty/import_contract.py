@@ -28,7 +28,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"erforderliche Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"required environment variable missing: {name}")
     return value
 
 
@@ -36,9 +36,9 @@ def load_report(path: Path) -> JsonObject:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ContractFailure(f"Importreport ist nicht lesbar: {path}") from error
+        raise ContractFailure(f"import report is not readable: {path}") from error
     if not isinstance(value, dict):
-        raise ContractFailure(f"Importreport ist kein JSON-Objekt: {path}")
+        raise ContractFailure(f"import report is not a JSON object: {path}")
     return value
 
 
@@ -61,7 +61,7 @@ def expect_summary(
     }
     if report.get("summary") != expected or report.get("appliedCount") != applied:
         raise ContractFailure(
-            f"unerwarteter Importreport: summary={report.get('summary')} "
+            f"unexpected import report: summary={report.get('summary')} "
             f"applied={report.get('appliedCount')}"
         )
 
@@ -69,14 +69,14 @@ def expect_summary(
 def rows(report: JsonObject) -> list[JsonObject]:
     value = report.get("rows")
     if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
-        raise ContractFailure("Importreport enthält keine gültigen Zeilen")
+        raise ContractFailure("import report has no valid rows")
     return value
 
 
 def row_by_source(report: JsonObject, source_id: str) -> JsonObject:
     found = [item for item in rows(report) if item.get("source_id") == source_id]
     if len(found) != 1:
-        raise ContractFailure(f"Reportzeile fehlt oder ist doppelt: {source_id}")
+        raise ContractFailure(f"report row missing or duplicated: {source_id}")
     return found[0]
 
 
@@ -130,20 +130,16 @@ async def verify(arguments: argparse.Namespace) -> None:
         for item in (first_nordstern, second_nordstern, repeat_nordstern)
     }
     if len(target_ids) != 1 or None in target_ids:
-        raise ContractFailure(
-            "Nordstern verlor beim Wiederholungsimport seine Twenty-ID"
-        )
+        raise ContractFailure("Nordstern lost its Twenty ID on the repeat import")
 
     conflict_rows = [item for item in rows(dry) if item.get("status") == "conflict"]
     if len(conflict_rows) != 1 or len(conflict_rows[0].get("candidates", [])) != 2:
-        raise ContractFailure("Dry Run zeigt den Golden-Personenkonflikt nicht")
+        raise ContractFailure("dry run does not show the golden person conflict")
     rejected_rows = [item for item in rows(dry) if item.get("status") == "rejected"]
-    if len(rejected_rows) != 1 or "family_name fehlt" not in str(
+    if len(rejected_rows) != 1 or "family_name missing" not in str(
         rejected_rows[0].get("message")
     ):
-        raise ContractFailure(
-            "Dry Run besitzt keinen zeilenbezogenen Pflichtfeldfehler"
-        )
+        raise ContractFailure("dry run has no row-level required field error")
 
     settings = TwentyGatewaySettings(
         base_url=require_env("TWENTY_BASE_URL"),
@@ -182,28 +178,28 @@ async def verify(arguments: argparse.Namespace) -> None:
         )
 
     if len(nordstern) != 1:
-        raise ContractFailure("Nordstern wurde nicht exakt einmal angelegt")
+        raise ContractFailure("Nordstern was not created exactly once")
     if (
         nordstern[0].data.address.postal_code != "48157"
         or nordstern[0].data.address.city != "Münster-Ost"
         or nordstern[0].twenty_id != UUID(str(next(iter(target_ids))))
     ):
-        raise ContractFailure("Nordstern besitzt nicht exakt das zweite Update")
+        raise ContractFailure("Nordstern does not have exactly the second update")
     if len(musterwerk) != 1:
-        raise ContractFailure("Musterwerk wurde dupliziert")
+        raise ContractFailure("Musterwerk was duplicated")
     if (
         musterwerk[0].data.address.postal_code != "10117"
         or musterwerk[0].data.address.city != "Beispielstadt"
         or musterwerk[0].data.address.country != "Deutschland"
     ):
-        raise ContractFailure("Musterwerk wurde nicht kontrolliert aktualisiert")
+        raise ContractFailure("Musterwerk was not updated in a controlled way")
     if len(max_people) != 2:
-        raise ContractFailure("Personenkonflikt wurde verändert statt beibehalten")
+        raise ContractFailure("person conflict was changed instead of kept")
     if invalid_people:
-        raise ContractFailure("verworfene Zeile wurde dennoch in Twenty angelegt")
+        raise ContractFailure("rejected row was still created in Twenty")
     print(
-        "crm-import-contract: Reports, Update, Konflikt, Ablehnung und "
-        "Idempotenz real bewiesen"
+        "crm-import-contract: reports, update, conflict, rejection and "
+        "idempotency proven for real"
     )
 
 

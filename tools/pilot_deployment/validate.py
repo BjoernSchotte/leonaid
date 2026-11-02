@@ -78,14 +78,14 @@ class DeploymentContractError(RuntimeError):
 
 def object_value(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise DeploymentContractError(f"{label} fehlt oder ist kein Objekt")
+        raise DeploymentContractError(f"{label} is missing or not an object")
     return value
 
 
 def string_value(values: dict[str, Any], key: str) -> str:
     value = values.get(key)
     if not isinstance(value, str) or not value:
-        raise DeploymentContractError(f"{key} fehlt")
+        raise DeploymentContractError(f"{key} is missing")
     return value
 
 
@@ -104,7 +104,7 @@ def validate_public_url(value: str, label: str) -> None:
             for candidate in reserved_examples
         )
     ):
-        raise DeploymentContractError(f"{label} ist keine produktive HTTPS-URL")
+        raise DeploymentContractError(f"{label} is not a production HTTPS URL")
 
 
 def positive_number(value: object) -> bool:
@@ -195,11 +195,11 @@ def validate_hardened_runtime(service_name: str, service: dict[str, Any]) -> Non
 def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> None:
     project = string_value(config, "name")
     if project == "leonaid" or not project.startswith("leonaid-"):
-        raise DeploymentContractError("Compose-Projekt ist nicht umgebungsspezifisch")
+        raise DeploymentContractError("Compose project is not environment-specific")
 
     services = object_value(config.get("services"), "services")
     if set(services) != REQUIRED_SERVICES:
-        raise DeploymentContractError("aktive Service-Menge weicht vom Pilot-Core ab")
+        raise DeploymentContractError("active service set differs from the pilot core")
 
     published: list[tuple[str, int, int]] = []
     published_hosts: list[tuple[str, str]] = []
@@ -207,14 +207,12 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         service = object_value(raw_service, f"services.{service_name}")
         validate_runtime_limits(service_name, service)
         if "build" in service:
-            raise DeploymentContractError(
-                f"{service_name} enthält einen produktiven Build"
-            )
+            raise DeploymentContractError(f"{service_name} contains a production build")
         image = string_value(service, "image")
         if IMAGE_DIGEST.search(image) is None and not (
             isolated_test_mode and LOCAL_IMAGE_ID.fullmatch(image) is not None
         ):
-            raise DeploymentContractError(f"{service_name} ist nicht digest-gepinnt")
+            raise DeploymentContractError(f"{service_name} is not pinned by digest")
         for raw_port in service.get("ports", []):
             port = object_value(raw_port, f"{service_name}.ports")
             published.append(
@@ -245,7 +243,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                 or volume.get("read_only") is not True
             ):
                 raise DeploymentContractError(
-                    f"{service_name} enthält einen nicht freigegebenen Bind-Mount"
+                    f"{service_name} contains an unapproved bind mount"
                 )
 
     validate_memory_budget(services)
@@ -281,16 +279,16 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
             or any(host != LOOPBACK for _, host in published_hosts)
         ):
             raise DeploymentContractError(
-                "isolierter Test darf nur Caddys Zielports 80/443 veröffentlichen"
+                "isolated test may publish only Caddy target ports 80/443"
             )
     elif sorted(others) != [("proxy", 80, 80), ("proxy", 443, 443)]:
-        raise DeploymentContractError("nur Caddy darf exakt 80/443 veröffentlichen")
+        raise DeploymentContractError("only Caddy may publish exactly 80/443")
 
     networks = object_value(config.get("networks"), "networks")
     for network_name in PRIVATE_NETWORKS:
         network = object_value(networks.get(network_name), f"networks.{network_name}")
         if network.get("internal") is not True:
-            raise DeploymentContractError(f"{network_name} ist nicht intern")
+            raise DeploymentContractError(f"{network_name} is not internal")
 
     for service_name in sorted(HARDENED_SERVICES):
         validate_hardened_runtime(service_name, services[service_name])
@@ -313,11 +311,11 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         "worker.environment",
     )
     if api_environment.get("LEONAID_ENV") != "production":
-        raise DeploymentContractError("API läuft nicht mit LEONAID_ENV=production")
+        raise DeploymentContractError("API does not run with LEONAID_ENV=production")
     if worker_environment.get("LEONAID_ENV") != "production":
-        raise DeploymentContractError("Worker läuft nicht mit LEONAID_ENV=production")
+        raise DeploymentContractError("worker does not run with LEONAID_ENV=production")
     if "MAIL_TEST_API_URL" in api_environment:
-        raise DeploymentContractError("produktive API enthält eine Mail-Test-API")
+        raise DeploymentContractError("production API contains a mail test API")
 
     public_url = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
     validate_public_url(public_url, "LEONAID_PUBLIC_BASE_URL")
@@ -325,17 +323,15 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         validate_public_url(origin.strip(), "LEONAID_ALLOWED_ORIGINS")
     release_commit = string_value(api_environment, "LEONAID_RELEASE_COMMIT")
     if FULL_COMMIT.fullmatch(release_commit) is None:
-        raise DeploymentContractError(
-            "Release ist nicht an einen vollständigen Commit gebunden"
-        )
+        raise DeploymentContractError("release is not bound to a full commit")
 
     bucket = string_value(api_environment, "OBJECT_STORAGE_BUCKET")
     if bucket == "leonaid" or "__" in bucket:
         raise DeploymentContractError(
-            "Object-Store-Bucket ist nicht umgebungsspezifisch"
+            "object storage bucket is not environment-specific"
         )
     if worker_environment.get("OBJECT_STORAGE_BUCKET") != bucket:
-        raise DeploymentContractError("API und Worker verwenden verschiedene Buckets")
+        raise DeploymentContractError("API and worker use different buckets")
 
     secret_keys = (
         "LEONAID_SECRET_KEY",
@@ -345,12 +341,12 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     for key in secret_keys:
         value = string_value(api_environment, key)
         if is_placeholder(value) or len(value) < 24:
-            raise DeploymentContractError(f"{key} ist ein Placeholder oder zu kurz")
+            raise DeploymentContractError(f"{key} is a placeholder or too short")
     if (
         api_environment["LEONAID_SECRET_KEY"]
         == api_environment["LEONAID_SESSION_ENCRYPTION_KEY"]
     ):
-        raise DeploymentContractError("produktive Anwendungsecrets sind nicht getrennt")
+        raise DeploymentContractError("production application secrets are not distinct")
 
     mail_host = string_value(worker_environment, "MAIL_SMTP_HOST").casefold()
     mail_from = string_value(worker_environment, "MAIL_FROM").casefold()
@@ -359,16 +355,16 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     ).casefold()
     mail_reply_to = string_value(worker_environment, "MAIL_REPLY_TO").casefold()
     if mail_host in {"mailpit", "localhost"} or mail_host.startswith("127."):
-        raise DeploymentContractError("produktiver SMTP-Host ist lokal")
+        raise DeploymentContractError("production SMTP host is local")
     if any(
         ".invalid" in identity
         for identity in (mail_from, mail_envelope_from, mail_reply_to)
     ):
-        raise DeploymentContractError("produktive Mailidentität verwendet .invalid")
+        raise DeploymentContractError("production mail identity uses .invalid")
     if worker_environment.get("MAIL_SMTP_MODE") == "plain":
-        raise DeploymentContractError("produktiver SMTP-Transport ist unverschlüsselt")
+        raise DeploymentContractError("production SMTP transport is unencrypted")
     if worker_environment.get("MAIL_SMTP_VERIFY_CERTIFICATES") != "true":
-        raise DeploymentContractError("produktive SMTP-Zertifikatsprüfung ist aus")
+        raise DeploymentContractError("production SMTP certificate verification is off")
     validate_mail_egress(services, networks)
     validate_twenty_admin_access(services, networks, api_environment, admin_port)
     validate_twenty_mail(services, worker_environment)
@@ -553,12 +549,12 @@ def main() -> int:
     arguments = parse_args()
     try:
         payload = json.loads(arguments.config.read_text(encoding="utf-8"))
-        validate(object_value(payload, "Compose-Konfiguration"))
+        validate(object_value(payload, "Compose configuration"))
     except (DeploymentContractError, json.JSONDecodeError, OSError) as error:
         print(f"pilot-deployment-contract: BLOCKED: {error}", file=sys.stderr)
         return 1
     print(
-        "pilot-deployment-contract: OK: Release-, Port-, Netz-, Mount- und Produktionsgrenzen"
+        "pilot-deployment-contract: OK: release, port, network, mount and production boundaries"
     )
     return 0
 

@@ -10,7 +10,7 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
   );
 }
 
-test("Akquisiteurin prüft Neuanlage, Mehrdeutigkeit, Abbruch und Mehrfachzuordnung", async ({
+test("acquirer checks new record, ambiguity, cancel and multiple assignment", async ({
   browser,
 }) => {
   test.setTimeout(90_000);

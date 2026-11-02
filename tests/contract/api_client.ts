@@ -21,7 +21,7 @@ if (
 
 const live = await client.getHealthLive();
 if (live.status !== "live") {
-  throw new Error(`API ist nicht live: ${JSON.stringify(live)}`);
+  throw new Error(`API is not live: ${JSON.stringify(live)}`);
 }
 
 const ready = await client.getHealthReady();
@@ -31,7 +31,7 @@ if (
   ready.checks.twenty?.status !== "ready" ||
   ready.checks.rustfs?.status !== "ready"
 ) {
-  throw new Error(`API ist nicht bereit: ${JSON.stringify(ready)}`);
+  throw new Error(`API is not ready: ${JSON.stringify(ready)}`);
 }
 
 try {
@@ -40,7 +40,7 @@ try {
     { method: "GET" },
     { headers: { "X-Request-ID": requestId } },
   );
-  throw new Error("Fehlerantwort wurde als Erfolg behandelt.");
+  throw new Error("Error response was treated as success.");
 } catch (error: unknown) {
   if (!(error instanceof ApiError)) {
     throw error;
@@ -51,9 +51,7 @@ try {
     error.detail.requestId !== requestId ||
     !error.detail.message.includes("existiert nicht")
   ) {
-    throw new Error(
-      `Fehlerantwort ist nicht typisiert: ${JSON.stringify(error)}`,
-    );
+    throw new Error(`Error response is not typed: ${JSON.stringify(error)}`);
   }
 }
 

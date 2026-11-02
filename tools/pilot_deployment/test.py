@@ -16,7 +16,7 @@ def rejected(config: dict[str, Any], label: str) -> None:
         validate(config)
     except DeploymentContractError:
         return
-    raise AssertionError(f"unsichere Deployment-Mutation wurde erlaubt: {label}")
+    raise AssertionError(f"unsafe deployment mutation was allowed: {label}")
 
 
 def main() -> None:
@@ -28,31 +28,31 @@ def main() -> None:
 
     changed = copy.deepcopy(config)
     changed["services"]["proxy"]["build"] = {"context": "../proxy/image"}
-    mutations.append(("Proxy-Live-Build", changed))
+    mutations.append(("proxy live build", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["proxy"]["image"] = "registry.example.org/leonaid/proxy:latest"
-    mutations.append(("ungepinntes Proxy-Image", changed))
+    mutations.append(("unpinned proxy image", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["api"]["ports"] = [
         {"target": 8000, "published": "8000", "protocol": "tcp"}
     ]
-    mutations.append(("interner Hostport", changed))
+    mutations.append(("internal host port", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["api"]["build"] = {"context": "."}
-    mutations.append(("Live-Build", changed))
+    mutations.append(("live build", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["web"]["image"] = "registry.example.org/leonaid/web:latest"
-    mutations.append(("ungepinntes Image", changed))
+    mutations.append(("unpinned image", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["api"]["environment"]["LEONAID_PUBLIC_BASE_URL"] = (
         "http://127.0.0.1:8080"
     )
-    mutations.append(("Loopback-Public-URL", changed))
+    mutations.append(("loopback public URL", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["worker"]["environment"]["MAIL_SMTP_HOST"] = "mailpit"
@@ -62,7 +62,7 @@ def main() -> None:
     changed["services"]["api"]["environment"]["LEONAID_SECRET_KEY"] = (
         "__DEFAULT_SECRET__"
     )
-    mutations.append(("Default-Secret", changed))
+    mutations.append(("default secret", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["api"]["volumes"].append(
@@ -73,7 +73,7 @@ def main() -> None:
             "read_only": True,
         }
     )
-    mutations.append(("Live-Code-Mount", changed))
+    mutations.append(("live code mount", changed))
 
     changed = copy.deepcopy(config)
     changed["networks"]["mail-egress"]["internal"] = True

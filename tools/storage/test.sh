@@ -33,7 +33,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "storage-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "storage-test: diagnostics for the failed real services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres rustfs seaweedfs twenty-server twenty-worker >&2 || true
@@ -54,7 +54,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "storage-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "storage-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -90,7 +90,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "storage-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "storage-test: ERROR: restricted Twenty key missing" >&2
   exit 1
 fi
 
@@ -134,7 +134,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 state_mode=$(stat -c '%a' "$proof/state.json" 2>/dev/null || \
   stat -f '%Lp' "$proof/state.json")
 if [ "$state_mode" != "600" ]; then
-  echo "storage-test: ERROR: temporäre Sitzungen sind nicht auf Modus 600 begrenzt" >&2
+  echo "storage-test: ERROR: temporary sessions are not limited to mode 600" >&2
   exit 1
 fi
 
@@ -173,12 +173,12 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   /proof/state.json /proof/KT26-0004.pdf
 
 if [ ! -s "$proof/KT26-0004.pdf" ]; then
-  echo "storage-test: ERROR: geschützter PDF-Nachweis fehlt" >&2
+  echo "storage-test: ERROR: protected PDF proof missing" >&2
   exit 1
 fi
 
 mkdir -p "$root/.artifacts/poc092"
 cp "$proof/KT26-0004.pdf" "$root/.artifacts/poc092/"
 
-echo "storage-test: OK: RustFS und SeaweedFS, privater/versionierter Port,"
-echo "storage-test:     realer Ausfall/Retry, Core-RBAC und unveränderliches PDF"
+echo "storage-test: OK: RustFS and SeaweedFS, private/versioned port,"
+echo "storage-test:     real outage/retry, core RBAC and immutable PDF"

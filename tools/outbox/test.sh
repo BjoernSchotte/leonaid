@@ -63,9 +63,9 @@ compose up --detach --wait --wait-timeout 120 core-postgres mailpit
 compose run --rm --no-deps api alembic upgrade head
 api_probe prepare
 
-echo "poc022-test: beendet den Producer nach Commit und vor Dispatch"
+echo "poc022-test: stops the producer after commit and before dispatch"
 if api_probe produce-crash; then
-  echo "poc022-test: ERROR: Crash-Probe endete unerwartet erfolgreich" >&2
+  echo "poc022-test: ERROR: crash probe ended successfully, which was not expected" >&2
   exit 1
 fi
 api_probe verify-crash
@@ -75,7 +75,7 @@ outbox_cli \
   run-until-idle
 api_probe verify-recovery
 
-echo "poc022-test: startet zwei reale Worker-Prozesse gegen dieselbe Queue"
+echo "poc022-test: starts two real worker processes against the same queue"
 api_probe produce-many --count 20
 outbox_cli \
   --worker-id poc022-worker-a \
@@ -91,7 +91,7 @@ wait "$worker_a_pid"
 wait "$worker_b_pid"
 api_probe verify-concurrency --count 20
 
-echo "poc022-test: erzwingt SMTP-Retries und Dead Letter durch echten Ausfall"
+echo "poc022-test: forces SMTP retries and dead letter through a real outage"
 compose stop mailpit
 api_probe enqueue-mail
 outbox_cli \
@@ -128,4 +128,4 @@ case "$retention_output" in
 esac
 api_probe verify-retention-cli
 
-echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter, Idempotenz und Retention bewiesen"
+echo "poc022-test: OK: UoW, crash recovery, worker fencing, retry, dead letter, idempotency and retention proven"

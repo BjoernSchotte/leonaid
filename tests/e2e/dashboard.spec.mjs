@@ -16,7 +16,7 @@ if (
   !klaraSession ||
   !felixSession
 ) {
-  throw new Error("POC-101 Browserumgebung ist unvollständig");
+  throw new Error("POC-101 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -69,7 +69,7 @@ async function expectNoSeriousAccessibilityViolations(page, label) {
   ).toEqual([]);
 }
 
-test("Akquisiteurin arbeitet vom persönlichen Dashboard in die gefilterte Pipeline", async ({
+test("acquirer works from the personal dashboard into the filtered pipeline", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await pageFor(browser, annaSession, {
@@ -126,7 +126,7 @@ test("Akquisiteurin arbeitet vom persönlichen Dashboard in die gefilterte Pipel
   }
 });
 
-test("Charity-Admin prüft aktionsweite Zahlen und offene Rechnungen", async ({
+test("charity admin checks action-wide figures and open invoices", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await pageFor(browser, klaraSession, {
@@ -187,7 +187,7 @@ test("Charity-Admin prüft aktionsweite Zahlen und offene Rechnungen", async ({
   }
 });
 
-test("Teilkonfigurierte leere Aktion erklärt den Zustand ohne leere Grafik", async ({
+test("partly configured empty action explains its state without an empty chart", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await pageFor(browser, felixSession, {

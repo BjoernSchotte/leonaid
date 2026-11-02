@@ -36,7 +36,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -88,7 +88,7 @@ async def overview(
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Operations-Antwort ist kein Objekt")
+        raise ContractFailure("Operations response is not an object")
     return payload
 
 
@@ -104,7 +104,7 @@ async def daily_report(
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
-        raise ContractFailure("Tagesreport ist kein Objekt")
+        raise ContractFailure("Daily report is not an object")
     checksum = payload.get("checksumSha256")
     content = dict(payload)
     content.pop("checksumSha256", None)
@@ -117,18 +117,18 @@ async def daily_report(
         ).encode()
     ).hexdigest()
     if checksum != expected_checksum:
-        raise ContractFailure("Tagesreport-SHA ist nicht reproduzierbar")
+        raise ContractFailure("Daily report SHA is not reproducible")
     if response.headers.get("X-Content-SHA256") != expected_checksum:
-        raise ContractFailure("Tagesreport-Header und Inhalt weichen ab")
+        raise ContractFailure("Daily report header and content differ")
     if response.headers.get("Cache-Control") != "no-store":
-        raise ContractFailure("Tagesreport darf nicht gecacht werden")
+        raise ContractFailure("Daily report must not be cached")
     return payload
 
 
 def dependency_states(payload: dict[str, Any]) -> dict[str, str]:
     dependencies = payload.get("dependencies")
     if not isinstance(dependencies, list):
-        raise ContractFailure("Operations-Antwort enthält keine Abhängigkeiten")
+        raise ContractFailure("Operations response contains no dependencies")
     return {
         str(item["dependency"]): str(item["status"])
         for item in dependencies
@@ -153,33 +153,33 @@ async def prepare(
             "mail": "ready",
             "worker": "ready",
         }:
-            raise ContractFailure(f"Startzustand nicht bereit: {states}")
+            raise ContractFailure(f"Initial state not ready: {states}")
         if payload.get("requestId") != CONTRACT_REQUEST_ID:
-            raise ContractFailure("Korrelations-ID ging im API-Vertrag verloren")
+            raise ContractFailure("Correlation ID was lost in the API contract")
         if any(
             item.get("requestId") != CONTRACT_REQUEST_ID
             for item in payload["dependencies"]
         ):
-            raise ContractFailure("Abhängigkeitsprobes teilen nicht dieselbe ID")
+            raise ContractFailure("Dependency probes do not share the same ID")
 
         report = await daily_report(
             api,
             request_id="pilot052-daily-contract",
         )
         if report.get("schemaVersion") != "leonaid.pilot.daily-report/v1":
-            raise ContractFailure("Tagesreport-Schemaversion fehlt")
+            raise ContractFailure("Daily report schema version is missing")
         if report.get("scope") != "technical-daily-check":
-            raise ContractFailure("Tagesreport behauptet einen falschen Scope")
+            raise ContractFailure("Daily report claims a wrong scope")
         if report.get("technicalStatus") != "blocked":
             raise ContractFailure(
-                "Inaktives Pilot-Monitoring muss den Tagesreport blockieren"
+                "Inactive pilot monitoring must block the daily report"
             )
         if report.get("dependencies") != {
             "ready": 4,
             "total": 4,
             "unavailable": [],
         }:
-            raise ContractFailure("Tagesreport deckt Abhängigkeiten nicht korrekt ab")
+            raise ContractFailure("Daily report does not cover dependencies correctly")
         expected_reasons = {
             "monitoring_inactive",
             "backup_unavailable",
@@ -188,7 +188,7 @@ async def prepare(
         }
         reasons = report.get("stopReasons")
         if not isinstance(reasons, list) or not expected_reasons.issubset(reasons):
-            raise ContractFailure(f"Tagesreport-Stopgründe unvollständig: {reasons}")
+            raise ContractFailure(f"Daily report stop reasons incomplete: {reasons}")
         serialized_report = json.dumps(report, sort_keys=True).casefold()
         forbidden_report = (
             "klara.kern@",
@@ -200,20 +200,20 @@ async def prepare(
             "sponsor",
         )
         if any(value in serialized_report for value in forbidden_report):
-            raise ContractFailure("Tagesreport enthält Payload oder Identität")
+            raise ContractFailure("Daily report contains payload or identity")
 
         unauthorized = await api.get(
             "/api/v1/admin/operations",
             headers={"X-Request-ID": "poc114-anonymous"},
         )
         if unauthorized.status_code != 401:
-            raise ContractFailure("Operations-Daten waren anonym lesbar")
+            raise ContractFailure("Operations data was readable anonymously")
         anonymous_report = await api.get(
             "/api/v1/admin/pilot/reports/daily",
             headers={"X-Request-ID": "pilot052-daily-anonymous"},
         )
         if anonymous_report.status_code != 401:
-            raise ContractFailure("Tagesreport war anonym lesbar")
+            raise ContractFailure("Daily report was readable anonymously")
 
         probe = await api.post(
             "/api/v1/admin/support/probe",
@@ -221,7 +221,7 @@ async def prepare(
         )
         if probe.status_code != 503:
             raise ContractFailure(
-                f"Support-Probe lieferte HTTP {probe.status_code} statt 503"
+                f"Support probe returned HTTP {probe.status_code} instead of 503"
             )
         probe_error = probe.json().get("error", {})
         if probe_error != {
@@ -233,7 +233,7 @@ async def prepare(
             ),
             "requestId": SUPPORT_PROBE_REQUEST_ID,
         }:
-            raise ContractFailure(f"Unsicherer Support-Probe-Vertrag: {probe_error}")
+            raise ContractFailure(f"Unsafe support probe contract: {probe_error}")
 
         diagnostic = await api.get(
             f"/api/v1/admin/support/requests/{SUPPORT_PROBE_REQUEST_ID}",
@@ -252,7 +252,7 @@ async def prepare(
         for key, value in expected.items():
             if support.get(key) != value:
                 raise ContractFailure(
-                    f"Supportdiagnose {key}={support.get(key)!r}, erwartet {value!r}"
+                    f"Support diagnostics {key}={support.get(key)!r}, expected {value!r}"
                 )
         serialized = json.dumps(support, sort_keys=True).casefold()
         forbidden = (
@@ -265,14 +265,14 @@ async def prepare(
             "sponsor",
         )
         if any(value in serialized for value in forbidden):
-            raise ContractFailure("Supportdiagnose enthält Payload oder Identität")
+            raise ContractFailure("Support diagnostics contain payload or identity")
 
         anonymous_diagnostic = await api.get(
             f"/api/v1/admin/support/requests/{SUPPORT_PROBE_REQUEST_ID}",
             headers={"X-Request-ID": "pilot051-support-anonymous"},
         )
         if anonymous_diagnostic.status_code != 401:
-            raise ContractFailure("Supportdiagnose war anonym lesbar")
+            raise ContractFailure("Support diagnostics were readable anonymously")
 
 
 async def expect_dependency(dependency: str) -> None:
@@ -289,18 +289,18 @@ async def expect_dependency(dependency: str) -> None:
     ) as api:
         live = await api.get("/health/live")
         if live.status_code != 200:
-            raise ContractFailure(f"Liveness fiel mit {dependency} aus")
+            raise ContractFailure(f"Liveness failed together with {dependency}")
         ready = await api.get("/health/ready")
         expected_ready = 200 if dependency in {"mail", "worker"} else 503
         if ready.status_code != expected_ready:
             raise ContractFailure(
-                f"Readiness für {dependency}: HTTP {ready.status_code}, "
-                f"erwartet {expected_ready}"
+                f"Readiness for {dependency}: HTTP {ready.status_code}, "
+                f"expected {expected_ready}"
             )
         states = dependency_states(await overview(api))
         if states != expected:
             raise ContractFailure(
-                f"Ausfallsignal für {dependency} nicht trennscharf: {states}"
+                f"Outage signal for {dependency} is not distinct: {states}"
             )
         report = await daily_report(
             api,
@@ -311,7 +311,7 @@ async def expect_dependency(dependency: str) -> None:
             "stopReasons", []
         ):
             raise ContractFailure(
-                f"Tagesreport blockierte {dependency}-Ausfall nicht: {report}"
+                f"Daily report did not block the {dependency} outage: {report}"
             )
 
 
@@ -330,7 +330,7 @@ async def create_failed_mail(
         )
         if response.status_code != 202:
             raise ContractFailure(
-                f"Realer Login-Mail-Job entstand nicht: {response.status_code}"
+                f"Real login mail job was not created: {response.status_code}"
             )
     row = await connection.fetchrow(
         """
@@ -342,7 +342,7 @@ async def create_failed_mail(
         """
     )
     if row is None:
-        raise ContractFailure("Login erzeugte keinen pending Outbox-Job")
+        raise ContractFailure("Login did not create a pending outbox job")
     state_path.write_text(
         json.dumps({"eventId": str(row["id"])}, separators=(",", ":")),
         encoding="utf-8",
@@ -370,7 +370,7 @@ async def assert_dead_letter(
         or not row["last_error_detail"]
     ):
         raise ContractFailure(
-            f"Realer Mail-Ausfall ist kein Dead Letter: {dict(row or {})}"
+            f"Real mail failure is not a dead letter: {dict(row or {})}"
         )
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -379,7 +379,7 @@ async def assert_dead_letter(
         payload = await overview(api)
         failed_ids = {item["id"] for item in payload.get("failedJobs", [])}
         if str(event_id) not in failed_ids:
-            raise ContractFailure("Dead Letter fehlt im Admin-Vertrag")
+            raise ContractFailure("Dead letter is missing in the admin contract")
 
 
 async def assert_recovered(
@@ -409,9 +409,7 @@ async def assert_recovered(
         or row["manual_retry_count"] != 1
         or row["last_manual_retry_by"] != str(SIMONE_ID)
     ):
-        raise ContractFailure(
-            f"UI-Retry wurde nicht sicher verarbeitet: {dict(row or {})}"
-        )
+        raise ContractFailure(f"UI retry was not processed safely: {dict(row or {})}")
     delivered = await connection.fetchval(
         "SELECT count(*) FROM mail_delivery WHERE outbox_event_id = $1",
         event_id,
@@ -428,7 +426,7 @@ async def assert_recovered(
     )
     if delivered != 1 or audited != 1:
         raise ContractFailure(
-            f"Retry-Nachweise unvollständig: delivery={delivered}, audit={audited}"
+            f"Retry evidence incomplete: delivery={delivered}, audit={audited}"
         )
     async with httpx.AsyncClient(
         base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
@@ -437,7 +435,7 @@ async def assert_recovered(
         response = await mailpit.get("/api/v1/messages")
         response.raise_for_status()
         if not response.json().get("messages"):
-            raise ContractFailure("Mailpit enthält die real wiederholte Mail nicht")
+            raise ContractFailure("Mailpit does not contain the actually retried mail")
 
 
 async def execute(arguments: argparse.Namespace) -> None:
@@ -454,7 +452,7 @@ async def execute(arguments: argparse.Namespace) -> None:
         elif arguments.command == "assert-recovered":
             await assert_recovered(connection, arguments.state)
         else:
-            raise ContractFailure(f"Unbekannter Befehl: {arguments.command}")
+            raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
         await connection.close()
 

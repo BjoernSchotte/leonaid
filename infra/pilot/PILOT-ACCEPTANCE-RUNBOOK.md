@@ -1,64 +1,63 @@
-# Pilot-Abnahme und Readiness-Dossier
+# Pilot acceptance and readiness dossier
 
-Dieses Runbook führt technische Nachweise und ausdrückliche Entscheidungen
-für `PILOT-053` zusammen. Es erteilt selbst keine fachliche, rechtliche oder
-betriebliche Freigabe.
+This runbook brings together technical evidence and explicit decisions for
+`PILOT-053`. It does not itself grant any functional, legal or operational
+approval.
 
-## Technischen Stand bewerten
+## Assess the technical state
 
-Auf dem vorgesehenen Abschlusscommit:
+On the intended final commit:
 
 ```sh
 ./leonaid pilot-readiness --report .local/pilot/evidence/pilot-readiness.json
 ```
 
-Der Report bewertet fail-closed:
+The report assesses, fail-closed:
 
-- alle 21 Pilot-Tasks und ihre offenen Kriterien beziehungsweise
-  Abhängigkeiten;
-- alle 16 Hard-Gates und ihre zugeordneten Tasks;
-- jeden reservierten Proof-Link als `missing`, `partial` oder `complete`;
-- alle für `pilot-release` fälligen öffentlichen Entscheidungs-IDs;
-- Branch, Commit, sauberen Arbeitsbaum und Gleichstand mit `origin/main`;
-- eine kanonische SHA-256-Prüfsumme des vollständigen sanitizten Reports.
+- all 21 pilot tasks and their open criteria or dependencies;
+- all 16 hard gates and their assigned tasks;
+- every reserved proof link as `missing`, `partial` or `complete`;
+- all public decision IDs due for `pilot-release`;
+- branch, commit, clean working tree and being level with `origin/main`;
+- a canonical SHA-256 checksum of the full sanitized report.
 
-Exit `0` bedeutet technisch `ready`, Exit `2` `blocked`, Exit `3` eine
-fachliche `stop`-Entscheidung und Exit `1` einen ungültigen Vertrag. Auch Exit
-`0` ersetzt keine Unterschrift und keine explizite Go-Live-Entscheidung.
+Exit `0` means technically `ready`, exit `2` `blocked`, exit `3` a
+functional `stop` decision and exit `1` an invalid contract. Even exit `0`
+replaces no signature and no explicit go-live decision.
 
-Der maschinenlesbare Report enthält nur öffentliche IDs, Status, Proof-Pfade
-und Commit-SHAs. Private Pilot-Evidence, URLs, Zugangsdaten, Namen,
-E-Mail-Adressen und Fachpayloads bleiben außerhalb des Reports.
+The machine-readable report contains only public IDs, status values, proof
+paths and commit SHAs. Private pilot evidence, URLs, credentials, names,
+email addresses and functional payloads stay outside the report.
 
-## Abschlussprotokoll vorbereiten
+## Prepare the final record
 
-Die Vorlage
-[`PILOT-ACCEPTANCE-TEMPLATE.md`](PILOT-ACCEPTANCE-TEMPLATE.md) wird in den
-privaten Evidence Store kopiert und dort ausgefüllt. Im Repository bleibt nur
-die leere Vorlage.
+The template
+[`PILOT-ACCEPTANCE-TEMPLATE.md`](PILOT-ACCEPTANCE-TEMPLATE.md) is copied into
+the private evidence store and filled in there. Only the empty template stays
+in the repository.
 
-Vor der Abnahme müssen mindestens referenziert sein:
+Before acceptance, at least the following must be referenced:
 
-1. Abschlusscommit und Release-Manifest;
-2. Image- und Dependency-Locks;
-3. Golden-Dataset-Version;
-4. private Evidence-IDs ohne private URLs;
-5. terminale CI-Läufe;
-6. externer Restore-Nachweis;
-7. sanitizte Screenshot- und Beleg-SHAs;
-8. geltende Runbooks;
-9. offene P2/P3 mit Owner und Termin;
-10. Entscheidung zum nächsten Milestone und zum Betriebsübergang.
+1. final commit and release manifest;
+2. image and dependency locks;
+3. golden dataset version;
+4. private evidence IDs without private URLs;
+5. completed CI runs;
+6. external restore evidence;
+7. SHAs of sanitized screenshots and records;
+8. applicable runbooks;
+9. open P2/P3 items with owner and due date;
+10. decision on the next milestone and the operations handover.
 
-## Entscheidung
+## Decision
 
-Produktverantwortung, Betrieb und die erforderlichen Fachrollen bestätigen
-oder stoppen den Pilot ausdrücklich. Zulässige nächste Milestones sind:
+Product ownership, operations and the required functional roles explicitly
+confirm or stop the pilot. Permitted next milestones are:
 
-- Krapfentaxi-Delivery;
-- weiteres Pilothardening;
-- Lions-Open-Discovery.
+- Krapfentaxi delivery;
+- further pilot hardening;
+- Lions Open discovery.
 
-Eine erfolgreiche Pilotabnahme ist keine automatische unbefristete
-Produktivfreigabe. Laufzeit, Nutzerkreis, Verantwortungsübergang, Betrieb,
-Aufbewahrung und erneute Stopkriterien werden separat bestätigt.
+A successful pilot acceptance is not an automatic open-ended production
+approval. Duration, user group, handover of responsibility, operations,
+retention and renewed stop criteria are confirmed separately.

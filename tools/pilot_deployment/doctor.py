@@ -532,8 +532,8 @@ def report_json(
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description=(
-            "Prüft Pilot-Deployment, TLS, Abhängigkeiten, Backup und "
-            "Produktentscheidungen fail-closed und ohne Secret-Ausgabe."
+            "Checks the pilot deployment, TLS, dependencies, backup and "
+            "product decisions fail-closed and without printing secrets."
         )
     )
     result.add_argument("root", nargs="?", default=".", type=Path)
@@ -564,7 +564,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--deployment-only",
         action="store_true",
-        help="nur Infrastruktur diagnostizieren; autorisiert keine produktive Aktion",
+        help="diagnose infrastructure only; authorizes no production action",
     )
     result.add_argument(
         "--isolated-test-mode",
@@ -658,7 +658,7 @@ def main() -> int:
         compose_config = json.loads(
             arguments.compose_config.read_text(encoding="utf-8")
         )
-        compose_config = object_value(compose_config, "Compose-Konfiguration")
+        compose_config = object_value(compose_config, "Compose configuration")
         environment = read_dotenv(arguments.env_file)
         project = validate_environment(
             environment,
@@ -726,14 +726,14 @@ def main() -> int:
             )
         elif arguments.gate == "pilot-restore":
             decision_scope = (
-                "Entscheidungen nicht geprüft (nur Diagnose)"
+                "decisions not checked (diagnosis only)"
                 if arguments.deployment_only
-                else "erforderliche Entscheidungen geprüft"
+                else "required decisions checked"
             )
             print(
-                "pilot-restore-preflight: OK: Konfiguration, Backup-Alter und Speicher geprüft; "
-                f"{decision_scope}; Quell-Erreichbarkeit "
-                "und Ziel-Betriebsbereitschaft sind nicht geprüft"
+                "pilot-restore-preflight: OK: configuration, backup age and disk checked; "
+                f"{decision_scope}; source reachability "
+                "and target readiness are not checked"
             )
         elif arguments.first_install:
             print(
@@ -743,13 +743,13 @@ def main() -> int:
             )
         elif arguments.deployment_only:
             print(
-                "pilot-deployment-doctor: OK: DNS, TLS, Secrets, Uhrzeit, "
-                "Speicher, Backup und Abhängigkeiten"
+                "pilot-deployment-doctor: OK: DNS, TLS, secrets, time, "
+                "disk, backup and dependencies"
             )
         else:
             print(
                 f"pilot-doctor: OK ({arguments.gate}): "
-                "Deployment und Entscheidungen sind freigegeben"
+                "deployment and decisions are approved"
             )
         if stop_ids:
             return 3

@@ -67,7 +67,7 @@ Astro.response.headers.set("Cache-Control", "no-store");
   function requiredElement<T extends Element>(selector: string): T {
     const element = document.querySelector<T>(selector);
     if (!element) {
-      throw new Error(`LeonAid Einladungs-Element fehlt: ${selector}`);
+      throw new Error(`LeonAid invitation element missing: ${selector}`);
     }
     return element;
   }

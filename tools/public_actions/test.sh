@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "public-actions-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "public-actions-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 core-postgres api public proxy >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
@@ -52,7 +52,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "public-actions-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "public-actions-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -139,18 +139,18 @@ for screenshot in \
   public-archive-chromium-1440.png \
   public-inactive-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "public-actions-test: ERROR: Browsernachweis $screenshot fehlt" >&2
+    echo "public-actions-test: ERROR: browser evidence $screenshot is missing" >&2
     exit 1
   fi
 done
 for report in accessibility-report.json performance-report.json; do
   if [ ! -s "$proof/$report" ]; then
-    echo "public-actions-test: ERROR: Qualitätsbericht $report fehlt" >&2
+    echo "public-actions-test: ERROR: quality report $report is missing" >&2
     exit 1
   fi
 done
 mkdir -p "$artifact_directory"
 cp "$proof/"*.png "$proof/"*.json "$artifact_directory/"
 
-echo "public-actions-test: OK: Astro/Core-Parität, drei Browser, responsive Public UX,"
-echo "public-actions-test:     Alias/Archiv, WCAG 2.2 AA und Web-Vitals real bewiesen"
+echo "public-actions-test: OK: Astro/Core parity, three browsers, responsive public UX,"
+echo "public-actions-test:     alias/archive, WCAG 2.2 AA and Web Vitals proven for real"

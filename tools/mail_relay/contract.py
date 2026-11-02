@@ -20,7 +20,7 @@ def message(subject: str) -> EmailMessage:
     value["To"] = "controlled-recipient@leonaid.invalid"
     value["Subject"] = subject
     value["Message-ID"] = MESSAGE_ID
-    value.set_content("Synthetischer Pilot-Mailvertrag ohne reale Personendaten.")
+    value.set_content("Synthetic pilot mail contract without real personal data.")
     return value
 
 
@@ -34,7 +34,7 @@ def transport(
     verify: bool = True,
 ) -> SmtpTransport:
     if mode not in {"plain", "starttls", "tls"}:
-        raise RuntimeError("Ungültiger Test-Transportmodus.")
+        raise RuntimeError("Invalid test transport mode.")
     return SmtpTransport(
         host=host,
         port=1025,
@@ -59,20 +59,18 @@ def expect_failure(
         send.send(message(subject))
     except MailTransportError as error:
         if error.code != expected_code or error.retryable != expected_retryable:
-            raise RuntimeError(
-                "Unsichere oder falsche SMTP-Fehlerklassifikation."
-            ) from error
+            raise RuntimeError("Unsafe or wrong SMTP error classification.") from error
         if str(error) != expected_code:
-            raise RuntimeError("SMTP-Fehler enthält Providerdetails.")
+            raise RuntimeError("SMTP error contains provider details.")
         return
-    raise RuntimeError(f"Erwarteter SMTP-Fehler blieb aus: {expected_code}")
+    raise RuntimeError(f"Expected SMTP error did not occur: {expected_code}")
 
 
 def message_count(api_url: str) -> int:
     with urlopen(f"{api_url.rstrip('/')}/api/v1/messages", timeout=5) as response:
         payload = json.load(response)
     if not isinstance(payload, dict) or not isinstance(payload.get("total"), int):
-        raise RuntimeError("Mailpit-Vertrag lieferte keinen Zähler.")
+        raise RuntimeError("Mailpit contract returned no counter.")
     return int(payload["total"])
 
 
@@ -83,13 +81,13 @@ def latest_message(api_url: str) -> dict[str, object]:
     ) as response:
         payload = json.load(response)
     if not isinstance(payload, dict):
-        raise RuntimeError("Mailpit-Vertrag lieferte keine Nachricht.")
+        raise RuntimeError("Mailpit contract returned no message.")
     return payload
 
 
 def address(payload: object) -> str:
     if not isinstance(payload, dict) or not isinstance(payload.get("Address"), str):
-        raise RuntimeError("Mailpit-Vertrag lieferte keine Mailadresse.")
+        raise RuntimeError("Mailpit contract returned no mail address.")
     return str(payload["Address"])
 
 
@@ -105,8 +103,7 @@ def assert_delivery_identity(api_url: str) -> None:
         or str(payload.get("MessageID", "")).strip("<>") != MESSAGE_ID.strip("<>")
     ):
         raise RuntimeError(
-            "SMTP-Server empfing falsches From, Reply-To, "
-            "Envelope-From oder Message-ID."
+            "SMTP server received a wrong From, Reply-To, Envelope-From or Message-ID."
         )
 
 
@@ -124,33 +121,31 @@ def main() -> None:
     before_starttls = message_count(starttls_api)
     before_tls = message_count(tls_api)
 
-    # Der erste Versuch wird vom echten SMTP-Server vor der Annahme mit einem
-    # Provider-Limit abgewiesen; der Retry wird genau einmal angenommen.
+    # The real SMTP server rejects the first attempt with a provider limit
+    # before accepting it; the retry is accepted exactly once.
     expect_failure(
         "mail_provider_limited",
         True,
         transport(chaos_host),
-        "Limitierter Erstversuch",
+        "Limited first attempt",
     )
-    transport(plain_host).send(message("Erfolgreicher Retry"))
+    transport(plain_host).send(message("Successful retry"))
     if message_count(plain_api) != before_plain + 1:
-        raise RuntimeError(
-            "Der erfolgreiche Retry wurde nicht exakt einmal angenommen."
-        )
+        raise RuntimeError("The successful retry was not accepted exactly once.")
     assert_delivery_identity(plain_api)
 
-    # STARTTLS plus Authentifizierung läuft real gegen Mailpit. Für diesen
-    # isolierten Positivtest ist dessen kurzlebiges Self-signed-Zertifikat
-    # bewusst erlaubt; Produktion erzwingt Verifikation.
+    # STARTTLS plus authentication runs for real against Mailpit. For this
+    # isolated positive test its short-lived self-signed certificate is
+    # allowed on purpose; production enforces verification.
     transport(
         starttls_host,
         mode="starttls",
         username="pilot-user",
         password="pilot-password",
         verify=False,
-    ).send(message("STARTTLS und Authentifizierung"))
+    ).send(message("STARTTLS and authentication"))
     if message_count(starttls_api) != before_starttls + 1:
-        raise RuntimeError("STARTTLS-Mail wurde nicht genau einmal angenommen.")
+        raise RuntimeError("STARTTLS mail was not accepted exactly once.")
     assert_delivery_identity(starttls_api)
 
     transport(
@@ -159,9 +154,9 @@ def main() -> None:
         username="pilot-user",
         password="pilot-password",
         verify=False,
-    ).send(message("Implizites TLS und Authentifizierung"))
+    ).send(message("Implicit TLS and authentication"))
     if message_count(tls_api) != before_tls + 1:
-        raise RuntimeError("TLS-Mail wurde nicht genau einmal angenommen.")
+        raise RuntimeError("TLS mail was not accepted exactly once.")
     assert_delivery_identity(tls_api)
 
     expect_failure(
@@ -174,7 +169,7 @@ def main() -> None:
             password="pilot-password",
             verify=True,
         ),
-        "Ungültiges Zertifikat",
+        "Invalid certificate",
     )
     expect_failure(
         "mail_authentication_failed",
@@ -186,7 +181,7 @@ def main() -> None:
             password="wrong-password",
             verify=False,
         ),
-        "Ungültige Authentifizierung",
+        "Invalid authentication",
     )
     expect_failure(
         "mail_timeout",

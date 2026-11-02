@@ -14,7 +14,7 @@ if (
   !invoiceId ||
   !deliveryId
 ) {
-  throw new Error("POC-094 Browserumgebung ist unvollständig");
+  throw new Error("POC-094 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -30,7 +30,7 @@ function sessionCookie(value) {
   };
 }
 
-test("Charity-Admin sieht SMTP-Ausfall und startet genau diesen Versand neu", async ({
+test("charity admin sees an SMTP outage and restarts exactly that delivery", async ({
   browser,
 }) => {
   const context = await browser.newContext({

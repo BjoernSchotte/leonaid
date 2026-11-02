@@ -13,7 +13,7 @@ depends_on = None
 DATA_MIGRATION_REFERENCE = (
     "Additive invitation relation; anonymous response rows remain unassociated."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:
