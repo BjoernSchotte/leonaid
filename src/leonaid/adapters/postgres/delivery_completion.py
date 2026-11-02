@@ -154,9 +154,12 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 "Die Bestellung wurde inzwischen geändert. Bitte den aktuellen "
                 "Stand laden und die Angaben abgleichen.",
             )
+        # Completing a draft confirms it. After the order period closed
+        # ("completed") a manager may still do so to record an order that was
+        # actually delivered; archived actions were rejected above.
         if order.status is CommitmentStatus.DRAFT and (
             not action["ordering_enabled"]
-            or str(action["status"]) not in {"draft", "scheduled", "active"}
+            or str(action["status"]) not in {"draft", "scheduled", "active", "completed"}
         ):
             raise Conflict(
                 "commitment_action_closed",
@@ -176,12 +179,14 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                     "Bitte Lieferadresse und Lieferfenster ergänzen.",
                 )
             snapshot = order.delivery_window_snapshot
+            historical = False
         else:
-            snapshot = delivery.validate_order(
+            # Unlike capture, a manager may select a window that has already
+            # started to record when the order was actually delivered.
+            snapshot, historical = delivery.validate_manager_completion(
                 window_id=draft.delivery_window_id,
                 has_address=draft.delivery_recipient is not None,
                 contact=draft.delivery_contact,
-                complete=True,
                 now=datetime.now(timezone.utc),
             )
         await connection.execute(
@@ -221,7 +226,11 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
             commitment_id,
             request_id,
             json.dumps(
-                {"previousStatus": order.status.value, "status": "review_ready"}
+                {
+                    "previousStatus": order.status.value,
+                    "status": "review_ready",
+                    "historical": historical,
+                }
             ),
             occurred_at,
         )

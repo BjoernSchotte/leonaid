@@ -301,6 +301,10 @@ async def prove() -> None:
                 pass
             else:
                 raise AssertionError("Database allowed immutable window mutation")
+        from tools.delivery.manager_completion import prove_historical_completion
+
+        # Last: it closes the action's order period, which cannot be undone.
+        await prove_historical_completion(pool, action.id, admin_id)
         print(
             "KLF-020 PASS: new/blank/copied actions, UTC, six windows, revision race, authorization, foreign IDs, activation, period rollback, retirement, stale booking serialization"
         )

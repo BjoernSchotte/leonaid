@@ -75,8 +75,9 @@ async def main() -> None:
                 fresh_login_at,
                 created_at,
             )
-        # Delivery planning was enabled after the golden orders were captured:
-        # the browser proof must complete the missing details before issuing.
+        # Delivery planning was enabled after the golden orders were captured
+        # and its only window has already passed: the browser proof records the
+        # delivery historically before issuing.
         await connection.execute(
             """
             INSERT INTO charity_action_capability (action_id, capability)
@@ -97,8 +98,11 @@ async def main() -> None:
         await connection.execute(
             """
             INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
-            VALUES ($1, $2, date_trunc('hour', now()) + interval '2 days',
-                    date_trunc('hour', now()) + interval '2 days 2 hours')
+            VALUES ($1, $2,
+                (date_trunc('day', now() AT TIME ZONE 'Europe/Berlin')
+                    - interval '2 days' + interval '9 hours') AT TIME ZONE 'Europe/Berlin',
+                (date_trunc('day', now() AT TIME ZONE 'Europe/Berlin')
+                    - interval '2 days' + interval '11 hours') AT TIME ZONE 'Europe/Berlin')
             ON CONFLICT (id) DO NOTHING
             """,
             DELIVERY_WINDOW_ID,
@@ -116,7 +120,7 @@ async def main() -> None:
     output.chmod(0o600)
     print(
         "invoice-browser-setup: OK: stale admin and finance reader sessions, "
-        "delivery planning enabled after capture"
+        "delivery planning enabled after capture, its window already past"
     )
 
 

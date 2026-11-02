@@ -9,6 +9,7 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import date, datetime, time, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -19,9 +20,19 @@ from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from leonaid.adapters.postgres.delivery_completion import (
     AsyncpgDeliveryCompletionRepository,
 )
-from leonaid.application.commitments import CommitmentDraft, CommitmentService
+from leonaid.application.commitments import (
+    CommitmentDraft,
+    CommitmentLineDraft,
+    CommitmentService,
+)
 from leonaid.application.delivery_completion import DeliveryCompletionService
-from leonaid.domain.commitments import CommitmentSource, CommitmentStatus
+from leonaid.domain.action_templates import OfferingUnit
+from leonaid.domain.commitments import (
+    BuyerSnapshot,
+    CommitmentPartyKind,
+    CommitmentSource,
+    CommitmentStatus,
+)
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.identity import (
     AccountStatus,
@@ -317,4 +328,246 @@ async def prove_manager_completion(
         "billing and delivery completion, preserved lines/prices, PII-free audit, "
         "replay after retirement, changed-key conflict, immutable booked time, "
         "draft completion, closed orders (synthetic identity)"
+    )
+
+
+async def prove_historical_completion(
+    pool: asyncpg.Pool, action_id: UUID, admin_id: UUID
+) -> None:
+    """All windows have passed: a manager records when an order was delivered.
+
+    Runs last on the foundation action: it inserts past windows (the schedule
+    API rightly refuses to create them, and time cannot be moved) and finally
+    closes the action's order period, which cannot be undone.
+    """
+    now = datetime.now(timezone.utc)
+    admin = IdentityPrincipal(
+        UserAccount(
+            admin_id, f"{admin_id}@example.invalid", "Test", AccountStatus.ACTIVE
+        ),
+        frozenset(),
+        (
+            ActionMembership(
+                uuid4(), action_id, "Test", admin_id, ActionRole.CHARITY_ADMIN, now
+            ),
+        ),
+    )
+    app, _identity = http_app(admin)
+    repo = AsyncpgCommitmentRepository(pool)
+    app.state.commitment_service = CommitmentService(repo)
+    app.state.delivery_completion_service = DeliveryCompletionService(
+        AsyncpgDeliveryCompletionRepository(pool)
+    )
+    schedules = AsyncpgDeliveryRepository(pool)
+    configuration = await schedules.get(action_id)
+    future_active, future_retired = (
+        DeliveryWindow(
+            uuid4(), action_id, date(2037, 12, 28), time(hour), time(hour + 2)
+        )
+        for hour in (8, 10)
+    )
+    configuration = await schedules.save(
+        replace(
+            configuration,
+            windows=(*configuration.windows, future_active, future_retired),
+        )
+    )
+    await schedules.save(
+        replace(
+            configuration,
+            windows=tuple(
+                replace(w, retired=True) if w.id == future_retired.id else w
+                for w in configuration.windows
+            ),
+        )
+    )
+    past, retired_past = uuid4(), uuid4()
+    for identifier, days_ago, retired in ((past, 3, False), (retired_past, 5, True)):
+        await pool.execute(
+            """INSERT INTO action_delivery_window(id, action_id, starts_at, ends_at, retired)
+            VALUES ($1, $2,
+                (date_trunc('day', now() AT TIME ZONE $3) - make_interval(days => $4)
+                    + interval '9 hours') AT TIME ZONE $3,
+                (date_trunc('day', now() AT TIME ZONE $3) - make_interval(days => $4)
+                    + interval '11 hours') AT TIME ZONE $3,
+                $5)""",
+            identifier,
+            action_id,
+            configuration.timezone,
+            days_ago,
+            retired,
+        )
+    configuration = await schedules.get(action_id)
+    snapshots = {
+        window.id: window.snapshot(configuration.timezone)
+        for window in configuration.windows
+    }
+    offering_id = await pool.fetchval(
+        "SELECT id FROM offering WHERE action_id=$1 AND status='active' LIMIT 1",
+        action_id,
+    )
+    draft = CommitmentDraft(
+        BuyerSnapshot(
+            CommitmentPartyKind.PERSON, uuid4(), "Late", "late@example.invalid"
+        ),
+        None,
+        (CommitmentLineDraft(offering_id, 1, OfferingUnit.BOX, 3600),),
+    )
+    billing = {
+        "recipientName": "Billing office",
+        "streetLine1": "Invoice road 9",
+        "postalCode": "54321",
+        "city": "Billing",
+        "countryCode": "DE",
+        "email": "billing@example.invalid",
+    }
+    delivery = {
+        "recipientName": "Warehouse",
+        "streetLine1": "Delivery road 2",
+        "postalCode": "12345",
+        "city": "Test",
+        "countryCode": "DE",
+    }
+    base = f"/api/v1/actions/{action_id}/commitments"
+
+    def headers() -> dict[str, str]:
+        return {"Idempotency-Key": f"delivery-completion:{uuid4()}"}
+
+    async def order(status: CommitmentStatus) -> str:
+        created = await repo.create(
+            action_id=action_id,
+            actor_user_id=admin_id,
+            source=CommitmentSource.ADMIN,
+            status=CommitmentStatus.DRAFT,
+            draft=draft,
+            idempotency_key=f"historical:{uuid4()}",
+            request_hash=uuid4().hex * 2,
+            request_id="historical-completion-proof",
+            occurred_at=now,
+        )
+        await pool.execute(
+            "UPDATE commitment SET status = $2 WHERE id = $1", created.id, status.value
+        )
+        return f"{base}/{created.id}"
+
+    async def audit(path: str) -> list[dict[str, object]]:
+        rows = await pool.fetch(
+            """SELECT payload FROM audit_event WHERE entity_id = $1
+            AND event_type = 'commitment_delivery_completed' ORDER BY occurred_at""",
+            UUID(path.rsplit("/", 1)[1]),
+        )
+        return [json.loads(row["payload"]) for row in rows]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+
+        async def complete(path: str, window: UUID, **extra: Any) -> httpx.Response:
+            version = (await client.get(path)).json()["deliveryCompletionVersion"]
+            return await client.post(
+                f"{path}/delivery-completion",
+                json={
+                    "expectedVersion": version,
+                    "invoiceRecipient": billing,
+                    "deliveryRecipient": delivery,
+                    "deliveryWindowId": str(window),
+                    **extra,
+                },
+                headers=headers(),
+            )
+
+        # Capture (the draft completion command) still rejects past windows,
+        # even for a manager; only the manager completion records history.
+        capture = await order(CommitmentStatus.DRAFT)
+        response = await client.post(
+            f"{capture}/complete",
+            json={"deliveryRecipient": delivery, "deliveryWindowId": str(past)},
+            headers=headers(),
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "delivery_window_unavailable"
+
+        # A configured past window and a retired past window are both history.
+        late = await order(CommitmentStatus.REVIEW_READY)
+        response = await complete(late, past)
+        assert response.status_code == 200, response.text
+        recorded = response.json()
+        assert recorded["status"] == "review_ready"
+        assert recorded["deliveryWindowId"] == str(past)
+        assert recorded["deliveryWindowSnapshot"] == snapshots[past]
+        assert await audit(late) == [
+            {
+                "previousStatus": "review_ready",
+                "status": "review_ready",
+                "historical": True,
+            }
+        ]
+        events = await pool.fetch(
+            "SELECT payload::text AS payload FROM audit_event WHERE entity_id = $1",
+            UUID(late.rsplit("/", 1)[1]),
+        )
+        assert all(
+            "Warehouse" not in row["payload"] and "Billing" not in row["payload"]
+            for row in events
+        )
+        retired_late = await order(CommitmentStatus.REVIEW_READY)
+        response = await complete(retired_late, retired_past)
+        assert response.status_code == 200, response.text
+        assert response.json()["deliveryWindowSnapshot"] == snapshots[retired_past]
+
+        # The recorded time is now booked and immutable; billing stays editable.
+        response = await complete(late, future_active.id)
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "delivery_completion_reschedule_forbidden"
+        response = await complete(
+            late, past, invoiceRecipient={**billing, "streetLine1": "Invoice road 11"}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["deliveryWindowSnapshot"] == snapshots[past]
+        assert (await audit(late))[-1]["historical"] is False
+
+        # A retired window that has not started yet is not history; a future
+        # window is an ordinary completion.
+        unused = await order(CommitmentStatus.REVIEW_READY)
+        response = await complete(unused, future_retired.id)
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "delivery_window_unavailable"
+        response = await complete(unused, future_active.id)
+        assert response.status_code == 200, response.text
+        assert await audit(unused) == [
+            {
+                "previousStatus": "review_ready",
+                "status": "review_ready",
+                "historical": False,
+            }
+        ]
+
+        # After the order period closed, capture is closed, but a manager can
+        # still complete a draft that was actually delivered.
+        closed_draft = await order(CommitmentStatus.DRAFT)
+        captured = await order(CommitmentStatus.DRAFT)
+        for status in ("active", "completed"):
+            await pool.execute(
+                "UPDATE charity_action SET status = $2 WHERE id = $1",
+                action_id,
+                status,
+            )
+        response = await client.post(
+            f"{captured}/complete",
+            json={"deliveryRecipient": delivery, "deliveryWindowId": str(past)},
+            headers=headers(),
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "commitment_action_closed"
+        response = await complete(closed_draft, past)
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "review_ready"
+        assert await audit(closed_draft) == [
+            {"previousStatus": "draft", "status": "review_ready", "historical": True}
+        ]
+    print(
+        "delivery-completion historical PASS: past and retired past windows recorded "
+        "by managers only, capture rejects past windows, retired future windows "
+        "rejected, recorded time immutable, historical audit flag without personal "
+        "data, draft completion after the order period closed (synthetic identity)"
     )
