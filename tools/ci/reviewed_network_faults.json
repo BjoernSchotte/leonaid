@@ -1,7 +1,7 @@
 [
   {
     "path": "tests/e2e/surveys-analytics.spec.mjs",
-    "sha256": "08ab38fa4bcbb96388e8583f032ef9a5cc037465099a836a6523b26e011699a4",
+    "sha256": "8152a497b8a8aa78c5c98999df5322534919a5840acb290a38de521d74089a32",
     "reason": "Drop one acknowledgement after a real analysis snapshot is committed; retry and verify the stored snapshot."
   },
   {
@@ -46,7 +46,7 @@
   },
   {
     "path": "tests/e2e/surveys-responses.spec.mjs",
-    "sha256": "a1f47f471aa9408c719224198cc105955660f2f2a5c9120b023596321bf2def8",
+    "sha256": "683f46fde8a7c23e32559f0eb8e95e1b95a5e4b513a894dea0ad02cd5b4632c3",
     "reason": "Abort one response read and one committed response-selection acknowledgement; validate stored selection and restored responses."
   },
   {

@@ -1,4 +1,4 @@
-import { expect, test } from "./csp-guard.mjs";
+import { expect, screenshotWithStaticTopbar, test } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
@@ -142,9 +142,8 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     path: `${proof}/surveys-analytics-desktop.png`,
     fullPage: true,
   });
-  await nps.screenshot({
+  await screenshotWithStaticTopbar(nps, {
     path: `${proof}/surveys-analytics-chart.png`,
-    style: ".ui-topbar { position: static !important; }",
   });
   await filters
     .getByLabel("Fragebogen-Version")

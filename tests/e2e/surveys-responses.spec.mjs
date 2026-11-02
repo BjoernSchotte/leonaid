@@ -1,4 +1,4 @@
-import { expect, test } from "./csp-guard.mjs";
+import { expect, screenshotWithStaticTopbar, test } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
@@ -55,9 +55,8 @@ test("raw reader browses frozen responses and literal free text without aggregat
   await expect(view.getByLabel("Antwortquelle")).toHaveCount(0);
   await expect(individual.locator("img")).toHaveCount(0);
   expect(await page.evaluate(() => window.rawAnswerExecuted)).toBeUndefined();
-  await individual.screenshot({
+  await screenshotWithStaticTopbar(individual, {
     path: `${proof}/surveys-responses-individual.png`,
-    style: ".ui-topbar { position: static !important; }",
   });
   await view
     .getByRole("button", { name: "Weitere Antworten", exact: true })
@@ -177,9 +176,8 @@ test("raw reader browses frozen responses and literal free text without aggregat
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await free.screenshot({
+  await screenshotWithStaticTopbar(free, {
     path: `${proof}/surveys-responses-mobile.png`,
-    style: ".ui-topbar { position: static !important; }",
   });
   expect(await page.evaluate(() => window.rawAnswerExecuted)).toBeUndefined();
   await context.close();
