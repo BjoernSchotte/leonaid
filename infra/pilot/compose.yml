@@ -96,6 +96,9 @@ services:
   public:
     image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE fehlt}
     build: !reset null
+    environment:
+      # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
 
   # The CRM UI is for the system administrator only and has no public domain.
   # twenty-server publishes its port on the host's loopback interface only;

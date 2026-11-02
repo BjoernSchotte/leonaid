@@ -83,7 +83,7 @@ async def main(competing=False):
         revision_routes = {
             name
             for name, route in routes.items()
-            if "expectedRevision" in route.body_field.type_.model_fields
+            if "expectedRevision" in route.body_field.field_info.annotation.model_fields
         }
         assert revision_routes == set(REVISION_POLICIES), "Revision inventory drift"
     env = dict(

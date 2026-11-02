@@ -121,7 +121,7 @@ test("WCAG- und Web-Vitals-Budgets werden im definierten mobilen Profil eingehal
         : "Keine Interaktion erreichte die 16-ms-Beobachtungsschwelle; ausgewiesen ist diese Obergrenze.",
     },
     profile: {
-      browser: "Chromium 138 via Playwright 1.54.1",
+      browser: "Chromium 156 via Playwright 1.64.1",
       cpuThrottlingRate: 4,
       interactionSamples,
       network: {

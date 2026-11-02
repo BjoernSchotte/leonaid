@@ -2,6 +2,7 @@ FROM docker.io/library/python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a8144
 WORKDIR /identity
 COPY bun.lock ./
 COPY apps/campaign-site ./apps/campaign-site
+COPY apps/public/runtime-allowed-domains.mjs ./apps/public/
 COPY tools/pilot_release/cms_identity.py tools/pilot_release/cms_image_identity.py ./tools/pilot_release/
 COPY tools/emdash_spike/krapfentaxi-import.mjs ./tools/emdash_spike/
 COPY tools/backup/cms-recovery.mjs ./tools/backup/

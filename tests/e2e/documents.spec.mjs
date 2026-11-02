@@ -13,6 +13,9 @@ const actionId = "20000000-0000-4000-8000-000000000001";
 const foreignActionId = "20000000-0000-4000-8000-000000000003";
 const documentId = "90000000-0000-4000-8000-000000000001";
 const assignedCompanyId = "40000000-0000-4000-8000-000000000001";
+// Chromium's built-in PDF viewer extension.
+const CHROMIUM_PDF_VIEWER_ORIGIN =
+  "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
 
 if (
   !baseUrl ||
@@ -90,7 +93,18 @@ async function expectStableTopLevelPreview(context, row) {
   await previewLink.click();
   const preview = await previewPromise;
   await preview.waitForURL(new URL(previewHref, baseUrl).toString());
-  await expect(preview.locator('embed[type="application/pdf"]')).toBeVisible();
+  expect(await preview.evaluate(() => document.contentType)).toBe(
+    "application/pdf",
+  );
+  // Since Chromium 156 the viewer's <embed> lives in a closed user-agent
+  // shadow root; the loaded viewer shows up as the PDF extension's frame.
+  await expect
+    .poll(() =>
+      preview
+        .frames()
+        .some((frame) => frame.url().startsWith(CHROMIUM_PDF_VIEWER_ORIGIN)),
+    )
+    .toBe(true);
   // The native PDF renderer paints outside the page DOM and has no DOM-ready event.
   await preview.waitForTimeout(1_000);
   expect(preview.isClosed()).toBe(false);
