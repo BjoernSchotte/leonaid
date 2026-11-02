@@ -3,6 +3,10 @@
 	admin off
 	servers {
 		strict_sni_host on
+		# Disabled here, applied per request by body_read_timeouts.
+		timeouts {
+			read_body_idle -1s
+		}
 	}
 }
 
@@ -38,8 +42,56 @@
 	}
 }
 
+# A public order whose declared body exceeds 64 KiB. Shared by the rejection
+# route and the request body read deadlines below.
+(oversized_order_match) {
+	method POST
+	expression `(path('/_actions/createPublicOrder', '/_actions/createPublicOrder/') || query({'_action': 'createPublicOrder'})) && {http.request.header.Content-Length} != '' && int({http.request.header.Content-Length}) > 65536`
+}
+
+# Request body read deadlines. Since Caddy 2.11.7 the server wraps every body
+# in its own idle read deadline (read_body_idle, default 1m) and re-arms it
+# after the handlers return. That outer deadline overrides any shorter
+# route-level one, so a rejected oversized order would keep its connection for
+# a minute while net/http drains the declared but never sent body. The global
+# options therefore disable the server-wide wrapper, and every site imports
+# these bounds instead: 1s for an oversized order (bounded post-response
+# drain), the upstream 1m idle default for every other request (slowloris
+# mitigation). The two matchers are disjoint, so only one deadline applies.
+(body_read_timeouts) {
+	@oversized_order_body {
+		import oversized_order_match
+	}
+	@regular_body {
+		not {
+			import oversized_order_match
+		}
+	}
+	timeouts @oversized_order_body {
+		read_timeout 1s
+	}
+	timeouts @regular_body {
+		read_timeout 1m
+	}
+}
+
+(order_declared_body_limit) {
+	@oversized_order {
+		import oversized_order_match
+	}
+	route @oversized_order {
+		# Reject before a proxy request-body reader is started. body_read_timeouts
+		# bounds the HTTP/1 server's post-response drain of this request to 1s.
+		header Cache-Control no-store
+		respond "Das Bestellformular ist zu groß. Diese Anfrage wurde nicht an die Bestellverarbeitung weitergeleitet." 413 {
+			close
+		}
+	}
+}
+
 # A host-specific HTTP route precedes Caddy's automatic HTTPS redirect.
 http://{$LEONAID_PUBLIC_DOMAIN} {
+	import body_read_timeouts
 	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
 	handle @internal_orders {
 		header Cache-Control no-store
@@ -53,25 +105,8 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 	}
 }
 
-(order_declared_body_limit) {
-	@oversized_order {
-		method POST
-		expression `(path('/_actions/createPublicOrder', '/_actions/createPublicOrder/') || query({'_action': 'createPublicOrder'})) && {http.request.header.Content-Length} != '' && int({http.request.header.Content-Length}) > 65536`
-	}
-	route @oversized_order {
-		# Reject before a proxy request-body reader is started. Bound the HTTP/1
-		# server's post-response drain as well as returning an immediate error.
-		timeouts {
-			read_timeout 1s
-		}
-		header Cache-Control no-store
-		respond "Das Bestellformular ist zu groß. Diese Anfrage wurde nicht an die Bestellverarbeitung weitergeleitet." 413 {
-			close
-		}
-	}
-}
-
 :80 {
+	import body_read_timeouts
 	handle /_health {
 		respond "ready" 200
 	}
@@ -81,6 +116,7 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 }
 
 {$LEONAID_PUBLIC_DOMAIN} {
+	import body_read_timeouts
 	import common_headers
 
 	handle /_health {
