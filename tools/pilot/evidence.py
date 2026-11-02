@@ -56,7 +56,7 @@ def initialize(root: Path) -> Path:
 def validate_opaque_id(value: str, label: str) -> str:
     if not OPAQUE_ID_PATTERN.fullmatch(value):
         raise EvidenceError(
-            f"{label} muss eine opake ID wie ACTOR-ADMIN-01 oder EVID-TAX-001 sein"
+            f"{label} must be an opaque ID such as ACTOR-ADMIN-01 or EVID-TAX-001"
         )
     return value
 
@@ -66,9 +66,9 @@ def validate_timestamp(value: str) -> str:
     try:
         parsed = datetime.fromisoformat(normalized)
     except ValueError as error:
-        raise EvidenceError("recorded-at ist kein ISO-8601-Zeitpunkt") from error
+        raise EvidenceError("recorded-at is not an ISO 8601 timestamp") from error
     if parsed.tzinfo is None:
-        raise EvidenceError("recorded-at benötigt eine Zeitzone")
+        raise EvidenceError("recorded-at requires a time zone")
     return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -89,13 +89,13 @@ def build_manifest(
     recorded_at: str,
 ) -> EvidenceManifest:
     if not source.is_file():
-        raise EvidenceError("private Evidence-Datei fehlt")
+        raise EvidenceError("private evidence file is missing")
     actor = validate_opaque_id(actor_id, "actor-id")
     evidence = validate_opaque_id(external_evidence_id, "external-evidence-id")
     normalized_errors: list[str] = []
     for error_class in error_classes:
         if not ERROR_CLASS_PATTERN.fullmatch(error_class):
-            raise EvidenceError(f"ungültige Fehlerklasse: {error_class!r}")
+            raise EvidenceError(f"invalid error class: {error_class!r}")
         normalized_errors.append(error_class)
     return {
         "sha256": sha256_file(source),
@@ -154,7 +154,7 @@ def main() -> None:
     try:
         if arguments.command == "init":
             pilot_root = initialize(arguments.root.resolve())
-            print(f"pilot-evidence: OK: private Pfade bereit: {pilot_root}")
+            print(f"pilot-evidence: OK: private paths ready: {pilot_root}")
             return
         manifest = build_manifest(
             arguments.source.resolve(),
@@ -165,8 +165,8 @@ def main() -> None:
         )
         write_private_json(arguments.output.resolve(), manifest)
         print(
-            "pilot-evidence: OK: minimales Manifest mit SHA-256 und "
-            "nicht-personenbezogenen Metadaten geschrieben"
+            "pilot-evidence: OK: wrote minimal manifest with SHA-256 and "
+            "non-personal metadata"
         )
     except EvidenceError as error:
         parser.exit(64, f"pilot-evidence: ERROR: {error}\n")

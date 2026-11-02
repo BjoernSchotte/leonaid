@@ -12,7 +12,7 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
   );
 }
 
-test("POC-013 liest denselben Golden-Sponsor sichtbar in der PWA", async ({
+test("POC-013 reads the same golden sponsor visibly in the PWA", async ({
   context,
   page,
 }) => {

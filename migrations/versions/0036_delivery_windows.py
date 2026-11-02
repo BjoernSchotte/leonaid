@@ -11,7 +11,7 @@ DATA_MIGRATION_REFERENCE = (
     "Existing actions remain delivery-disabled. Existing orders retain NULL "
     "window and contact snapshots; no historical delivery details are inferred."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

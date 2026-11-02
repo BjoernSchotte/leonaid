@@ -1,63 +1,60 @@
-# Backup, Restore und Disaster Recovery
+# Backup, restore and disaster recovery
 
 Current bilingual task guide:
 [Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/backup-and-restore.md) ·
 [English](../../apps/docs/src/content/docs/en/ops/how-to/backup-and-restore.md).
 This file remains the detailed recovery contract.
 
-Dieses Runbook ist der operative Vertrag für den LeonAid-PoC. Es umfasst die
-Core-PostgreSQL-Datenbank, die Twenty-PostgreSQL-Datenbank, Twenty lokale
-Dateien und das vollständige RustFS-Datenvolume. Restic verschlüsselt jeden
-Recovery Point vor dem Transport. Das Ziel muss außerhalb des LeonAid-VPS
-liegen.
+This runbook is the operational contract for the LeonAid PoC. It covers the
+core PostgreSQL database, the Twenty PostgreSQL database, Twenty local files
+and the complete RustFS data volume. Restic encrypts every recovery point
+before transport. The target must be outside the LeonAid VPS.
 
-Nicht gesichert werden Twentys Valkey-Store (Dienst `twenty-redis`, wiederaufbaubarer Cache/Queue), Mailpit
-(lokales Testsystem), Container-Images oder Klartext-Secrets.
+Not backed up: Twenty's Valkey store (service `twenty-redis`, a rebuildable
+cache/queue), Mailpit (local test system), container images and plaintext
+secrets.
 
-## Ziele und Aufbewahrung
+## Targets and retention
 
-| Kennzahl                                   |             PoC-Ziel |
+| Metric                                     |           PoC target |
 | ------------------------------------------ | -------------------: |
-| RPO                                        | höchstens 24 Stunden |
-| RTO bis verifizierter Mitgliederoberfläche |  höchstens 2 Stunden |
-| tägliche Recovery Points                   |                    7 |
-| wöchentliche Recovery Points               |                    5 |
-| monatliche Recovery Points                 |                   12 |
-| jährliche Recovery Points                  |                    3 |
+| RPO                                        |     at most 24 hours |
+| RTO to verified member interface           |      at most 2 hours |
+| Daily recovery points                      |                    7 |
+| Weekly recovery points                     |                    5 |
+| Monthly recovery points                    |                   12 |
+| Yearly recovery points                     |                    3 |
 
-`backup.sh` wendet diese Rotation nach jeder erfolgreichen Sicherung an und
-führt danach `restic check --read-data` aus. Die Produktion plant den Befehl
-mindestens täglich und alarmiert bei Ausbleiben oder Fehler. Ein vollständiger
-Fresh-Volume-Restore wird mindestens quartalsweise und vor
-schemaändernden Upgrades wiederholt.
+`backup.sh` applies this rotation after every successful backup and then runs
+`restic check --read-data`. Production schedules the command at least daily
+and alerts when it is missing or fails. A complete fresh-volume restore is
+repeated at least quarterly and before schema-changing upgrades.
 
-## Voraussetzungen und getrennte Secrets
+## Prerequisites and separate secrets
 
-Benötigt werden:
+Required:
 
-- ein von LeonAid unabhängiges Restic-Ziel, zum Beispiel S3-kompatibler
-  Object Storage oder SFTP auf einem anderen Host;
-- eine lokale Datei mit einem zufälligen Restic-Passwort, Modus `600`;
-- optional eine `KEY=VALUE`-Datei, Modus `600`, mit den Zugangsdaten des
-  Remote-Backends;
-- die normale, nicht versionierte `.env.local`;
-- der separat verwaltete Twenty-Integrations-Key.
+- a restic target independent of LeonAid, for example S3-compatible object
+  storage or SFTP on another host;
+- a local file with a random restic password, mode `600`;
+- optionally a `KEY=VALUE` file, mode `600`, with the credentials of the
+  remote backend;
+- the normal, unversioned `.env.local`;
+- the separately managed Twenty integration key.
 
-Restic-Passwort, Remote-Zugang, `.env.local` und Twenty-Key dürfen weder im
-Backup-Repository noch im Git-Repository liegen. Sie gehören in den
-Secret-Manager beziehungsweise in dessen unabhängige Notfallkopie.
+The restic password, remote access, `.env.local` and the Twenty key must be in
+neither the backup repository nor the Git repository. They belong in the
+secret manager and its independent emergency copy.
 
-Lokale Pfade werden für produktive Backups hart abgelehnt. Nur das isolierte
-Projektpräfix `leonaid-poc112-*` kann mit
-`LEONAID_BACKUP_ALLOW_LOCAL_TEST=true` den externen Speicher im
-Recovery-Test modellieren.
+Local paths are rejected outright for production backups. Only the isolated
+project prefix `leonaid-poc112-*` can model the external storage in the
+recovery test with `LEONAID_BACKUP_ALLOW_LOCAL_TEST=true`.
 
-## Backup ausführen
+## Run a backup
 
-Für eine Pilotinstallation ist ausschließlich der manifestgebundene
-Operatorbefehl vorgesehen. Er führt den vollständigen Pilot Doctor vor und
-nach der Sicherung aus und ersetzt das konfigurierte Doctor-Manifest erst
-nach erfolgreichem Restic-Datencheck:
+A pilot installation uses only the manifest-bound operator command. It runs
+the full pilot doctor before and after the backup and replaces the
+configured doctor manifest only after a successful restic data check:
 
 ```sh
 ./leonaid pilot-backup \
@@ -67,10 +64,10 @@ nach erfolgreichem Restic-Datencheck:
   --credentials-file /secure/leonaid/restic-backend.env
 ```
 
-Der Manifestpfad muss exakt `LEONAID_BACKUP_MANIFEST_PATH` aus der
-Environment-Datei entsprechen.
+The manifest path must match `LEONAID_BACKUP_MANIFEST_PATH` from the
+environment file exactly.
 
-Der folgende generische Befehl bleibt für die lokale PoC-Entwicklung:
+The following generic command remains for local PoC development:
 
 ```sh
 export LEONAID_COMPOSE_PROJECT=leonaid
@@ -80,29 +77,28 @@ export LEONAID_BACKUP_CREDENTIALS_FILE='/secure/leonaid/restic-backend.env'
 ./leonaid backup
 ```
 
-Der Befehl:
+The command:
 
-1. validiert Projekt, externes Ziel und Passwortdatei;
-2. hält Proxy, APIs, Worker, Frontends und Twenty-Writer kurz an;
-3. erzeugt Custom-Format-Dumps beider laufender PostgreSQL-Instanzen;
-4. archiviert Twenty-Dateien und das RustFS-Volume im selben Recovery Point;
-5. schreibt Manifest, Größen und SHA-256-Prüfsummen;
-6. verschlüsselt und überträgt mit dem gepinnten Restic-Image;
-7. rotiert, prüft alle gespeicherten Bytes und startet die Writer wieder.
+1. validates project, external target and password file;
+2. briefly stops proxy, APIs, worker, frontends and Twenty writers;
+3. creates custom-format dumps of both running PostgreSQL instances;
+4. archives Twenty files and the RustFS volume in the same recovery point;
+5. writes manifest, sizes and SHA-256 checksums;
+6. encrypts and transfers with the pinned restic image;
+7. rotates, checks all stored bytes and starts the writers again.
 
-Der kurze Schreibstopp ist die PoC-Konsistenzgrenze zwischen LeonAid, Twenty
-und RustFS. Ein fehlgeschlagenes Backup startet die angehaltenen Dienste über
-den Exit-Trap ebenfalls wieder.
+The short write stop is the PoC consistency boundary between LeonAid, Twenty
+and RustFS. A failed backup also restarts the stopped services through the
+exit trap.
 
-## Restore in eine frische Umgebung
+## Restore into a fresh environment
 
-Der Restore überschreibt nie eine bestehende Compose-Umgebung. Zielnamen
-müssen `leonaid-restore-<name>` entsprechen, dürfen keine Container oder
-Volumes besitzen und verlangen eine exakte Bestätigung.
+The restore never overwrites an existing Compose environment. Target names
+must match `leonaid-restore-<name>`, must not own any containers or volumes
+and require an exact confirmation.
 
-Der Pilot-Restore verwendet ein separates Ziel-Environment mit demselben
-externen Repository und ausschließlich bereits freigegebene Images. Auf dem
-Ziel wird nie gebaut:
+The pilot restore uses a separate target environment with the same external
+repository and only already approved images. Nothing is built on the target:
 
 ```sh
 ./leonaid pilot-restore \
@@ -114,7 +110,7 @@ Ziel wird nie gebaut:
   --confirm RESTORE:leonaid-restore-drill-2026-07
 ```
 
-Der folgende generische Restore bleibt für die lokale PoC-Entwicklung:
+The following generic restore remains for local PoC development:
 
 ```sh
 export LEONAID_BACKUP_SOURCE_PROJECT=leonaid
@@ -126,92 +122,92 @@ export LEONAID_BACKUP_CREDENTIALS_FILE='/secure/leonaid/restic-backend.env'
 ./leonaid restore
 ```
 
-Der Befehl prüft Restic- und Manifest-Prüfsummen, baut frische Volumes,
-restauriert Twenty/RustFS, startet frische PostgreSQL-Container, spielt beide
-Dumps mit Abbruch bei Fehlern ein und startet danach den vollständigen Core-Stack.
+The command checks restic and manifest checksums, builds fresh volumes,
+restores Twenty/RustFS, starts fresh PostgreSQL containers, loads both dumps
+with abort on error and then starts the complete core stack.
 
-Enthält die wiederhergestellte Datenbank das Umfragemodul, muss vor dem Restore
-zusätzlich `LEONAID_SURVEY_ERASURE_CHECKPOINT` auf ein unabhängig aufbewahrtes,
-authentifiziertes Löschverzeichnis zeigen. Mit
-`LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH` wird der unabhängig ermittelte
-erforderliche Aktualitätszeitpunkt als ISO-8601-Zeit mit Zeitzone angegeben.
-Beide Variablen gelten auch für `pilot-restore`. Ein altes Verzeichnis aus
-dem wiederhergestellten Backup genügt nicht für spätere Löschungen.
+If the restored database contains the survey module,
+`LEONAID_SURVEY_ERASURE_CHECKPOINT` must also point, before the restore, to an
+independently stored, authenticated erasure directory.
+`LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH` gives the independently determined
+required freshness point as an ISO 8601 time with time zone. Both variables
+also apply to `pilot-restore`. An old directory from the restored backup is
+not enough for later erasures.
 
-Der Restore wendet die Löschungen vor dem Anwendungsstart erneut an. Fehlende,
-ungültige oder zu alte Nachweise sowie fehlgeschlagene Löschungen brechen den
-Restore ab; die Anwendungsdienste bleiben gestoppt. Das gilt auch bei
-`LEONAID_RESTORE_START_APP=false`. Nach einem Fehler dürfen sie nicht manuell
-gestartet werden, bevor die Prüfung erfolgreich wiederholt wurde.
-Der [Recovery-Vertrag](../../specs/surveyjs-surveys-spike/RECOVERY.md) beschreibt
-die Eingaben, Wiederholung und noch offenen Nachweise für unabhängige
-Aufbewahrung, ältere Umfrage-Schemata und den vollständigen Operatorweg.
+The restore re-applies the erasures before the application starts. Missing,
+invalid or outdated evidence and failed erasures abort the restore; the
+application services stay stopped. This also applies with
+`LEONAID_RESTORE_START_APP=false`. After a failure, they must not be started
+manually before the check has been repeated successfully.
+The [recovery contract](../../specs/surveyjs-surveys-spike/RECOVERY.md)
+describes the inputs, repetition and still open evidence for independent
+storage, older survey schemas and the complete operator path.
 
-## Vollständiger Wiederanlauf
+## Full recovery
 
-1. Einen Ersatzhost mit Docker/Compose, diesem geprüften Commit und den
-   gepinnten Images bereitstellen.
-2. `.env.local`, Restic-Zugang und Twenty-Integrations-Key aus dem getrennten
-   Secret-Manager einspielen. Keine neuen LeonAid-Verschlüsselungskeys
-   erzeugen, da sonst bestehende Sitzungen beziehungsweise geschützte Daten
-   nicht lesbar sind.
-3. Den Restore mit einem neuen, exakt bestätigten Zielnamen ausführen.
-4. `./leonaid doctor` und `docker compose ps` prüfen.
-5. Intern zuerst `/_health`, `/health/ready`, Twenty `/healthz` und RustFS
-   `/health` prüfen.
-6. Dateninventar, Golden-Smoke-Test und Rechnungs-PDF-SHAs prüfen; anschließend
-   Anmeldung, Aktion, Bestellung, Dokumentdownload und CRM-Verknüpfung mit
-   Testkonten kontrollieren.
-7. Erst dann DNS auf die Ersatz-IP umstellen, TLS/Proxy von außen prüfen und
-   Schreibzugriffe freigeben. Niedrige DNS-TTL wird vor geplanten Übungen
-   gesetzt; die tatsächliche Umschaltzeit wird im Incident protokolliert.
-8. Alten Host isoliert lassen, Recovery Point und Logs gegen Löschung
-   schützen und Ursache dokumentieren.
+1. Provide a replacement host with Docker/Compose, this verified commit and
+   the pinned images.
+2. Load `.env.local`, restic access and the Twenty integration key from the
+   separate secret manager. Do not create new LeonAid encryption keys;
+   otherwise existing sessions or protected data become unreadable.
+3. Run the restore with a new, exactly confirmed target name.
+4. Check `./leonaid doctor` and `docker compose ps`.
+5. Internally, check `/_health`, `/health/ready`, Twenty `/healthz` and
+   RustFS `/health` first.
+6. Check the data inventory, golden smoke test and invoice PDF SHAs; then
+   check sign-in, action, order, document download and CRM link with test
+   accounts.
+7. Only then switch DNS to the replacement IP, check TLS/proxy from outside
+   and enable writes. A low DNS TTL is set before planned drills; the actual
+   switchover time is recorded in the incident.
+8. Keep the old host isolated, protect the recovery point and logs against
+   deletion and document the cause.
 
-Der automatische Nachweis ist:
+The automated evidence is:
 
 ```sh
 ./leonaid test-backup
 ```
 
-Er beginnt mit frischen Systemen, löscht die Quelle nach dem verschlüsselten
-Backup und vergleicht den Restore logisch sowie bytegenau. Das lokale
-Repository im Test ist ausdrücklich nur ein isoliertes Modell; den
-physischen Off-VPS-Standort muss der jeweilige Betreiber zusätzlich durch
-seine Remote-Konfiguration und Infrastruktur belegen.
+It starts with fresh systems, deletes the source after the encrypted backup
+and compares the restore logically and byte for byte. The local repository in
+the test is explicitly only an isolated model; each operator must also prove
+the physical off-VPS location through their remote configuration and
+infrastructure.
 
-Der Pilot-Gate kombiniert diesen vollständigen Restore mit einem echten
-netzgebundenen S3-Backend:
+The pilot gate combines this full restore with a real network-bound S3
+backend:
 
 ```sh
 ./leonaid test-pilot-backup
 ./leonaid test-pilot-deployment
 ```
 
-Das zusätzliche isolierte RustFS besitzt ein eigenes Netzwerk, Volume und
-rotierbare S3-Credentials. Restic initialisiert dort ein echtes
-S3-Repository, liest alle verschlüsselten Daten zur Integritätsprüfung und
-restauriert sie in ein frisches Ziel. Falsches Passwort, reale
-Netzunterbrechung, ein unvollständiger neuester Snapshot und die Rotation der
-S3-Zugangsdaten werden fail-closed geprüft. Dieser technische Remote-Vertrag
-ersetzt nicht den noch ausstehenden Betreibernachweis, dass das ausgewählte
-Produktiv-Repository physisch außerhalb des Pilot-VPS liegt.
+The additional isolated RustFS has its own network, volume and rotatable S3
+credentials. Restic initializes a real S3 repository there, reads all
+encrypted data for the integrity check and restores it into a fresh target.
+Wrong password, a real network interruption, an incomplete latest snapshot
+and the rotation of the S3 credentials are checked fail-closed. This
+technical remote contract does not replace the still outstanding operator
+evidence that the selected production repository is physically outside the
+pilot VPS.
 
-`test-pilot-deployment` beweist ergänzend den vollständigen Operatorweg:
-Doctor, Backup, frisch publiziertes Manifest und buildfreier Restore in ein
-unabhängiges Pilot-Ziel. Eindeutige Probe-Daten werden in beiden
-PostgreSQL-Datenbanken sowie in beiden Datei-Volumes bytegenau wiedergefunden.
-Der Test entfernt Quell-, Ziel- und Backup-Projekt samt Netzwerken und Volumes
-auch bei Fehlern.
+`test-pilot-deployment` also proves the complete operator path: doctor,
+backup, freshly published manifest and build-free restore into an independent
+pilot target. Unique probe data is found again byte for byte in both
+PostgreSQL databases and in both file volumes. The test removes the source,
+target and backup projects including networks and volumes, also on failure.
 
-## Schemaändernde Migrationen
+<a id="schemaändernde-migrationen"></a>
 
-Schemaändernde Migrationen dürfen nur auf wegwerfbaren PoC-Datenbanken oder
-nach einem erfolgreichen `./leonaid backup` ausgeführt werden. Vor der
-Produktionsmigration wird der Recovery Point mit `restic check --read-data`
-geprüft und mindestens in einer frischen Staging-Umgebung restauriert.
+## Schema-changing migrations
 
-Jede destruktive Vorwärtsmigration referenziert diesen Abschnitt und
-beschreibt zusätzlich ihre konkrete Datenüberführung im Modul. Der
-CI-Migrationstest beweist weiterhin sowohl den Leeraufbau als auch das Upgrade
-eines versionierten Vorgängersnapshots.
+Schema-changing migrations may run only on disposable PoC databases or after
+a successful `./leonaid backup`. Before the production migration, the
+recovery point is checked with `restic check --read-data` and restored at
+least into a fresh staging environment.
+
+Every destructive forward migration references this section and also
+describes its concrete data transfer in the module. The CI migration test
+still proves both the build from empty and the upgrade of a versioned
+predecessor snapshot.

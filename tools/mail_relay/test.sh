@@ -26,7 +26,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "mail-relay-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "mail-relay-test: diagnostics for the failed services:" >&2
     compose --profile dev-mail --profile mail-contract ps --all >&2 || true
     compose --profile dev-mail --profile mail-contract logs \
       --no-color --tail=200 \
@@ -45,7 +45,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "mail-relay-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "mail-relay-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -83,5 +83,5 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/mail_relay/contract.py
 
-echo "mail-relay-test: OK: Plain-SMTP, STARTTLS/TLS/Auth, Zertifikat,"
-echo "mail-relay-test:     Provider-Limit, Timeout und exakt-einmal Retry bewiesen"
+echo "mail-relay-test: OK: plain SMTP, STARTTLS/TLS/auth, certificate,"
+echo "mail-relay-test:     provider limit, timeout and exactly-once retry proven"

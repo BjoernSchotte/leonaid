@@ -8,5 +8,5 @@ root=$(cd "$root" && pwd)
 /bin/sh "$root/tools/invitations/test.sh" "$root"
 /bin/sh "$root/tools/sessions/test.sh" "$root"
 
-echo "user-admin-test: OK: Konten, Rollen, Sperre, Sitzungsentzug,"
-echo "user-admin-test:     Einladung und E-Mail-Korrektur über reale UI bewiesen"
+echo "user-admin-test: OK: accounts, roles, lockout, session revocation,"
+echo "user-admin-test:     invitation and email correction proven via the real UI"

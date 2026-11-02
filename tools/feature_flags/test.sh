@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "feature-flag-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "feature-flag-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=260 \
       api core-postgres web proxy twenty-server twenty-worker >&2 || true
@@ -53,7 +53,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "feature-flag-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "feature-flag-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -89,7 +89,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "feature-flag-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "feature-flag-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -122,7 +122,7 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "feature-flag-test: ERROR: Browser-Sitzungen sind nicht Modus 600" >&2
+  echo "feature-flag-test: ERROR: browser sessions are not mode 600" >&2
   exit 1
 fi
 
@@ -141,7 +141,7 @@ for _attempt in $(seq 1 90); do
   sleep 1
 done
 if [ "$https_ready" != "true" ]; then
-  echo "feature-flag-test: ERROR: HTTPS-Proxy wurde nicht bereit" >&2
+  echo "feature-flag-test: ERROR: HTTPS proxy did not become ready" >&2
   exit 1
 fi
 
@@ -167,7 +167,7 @@ docker run --rm \
 
 for screenshot in feature-flags-desktop.png feature-flags-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "feature-flag-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "feature-flag-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -188,5 +188,5 @@ compose run --rm --no-deps \
 mkdir -p "$root/.artifacts/poc096"
 cp "$proof"/feature-flags-*.png "$root/.artifacts/poc096/"
 
-echo "feature-flag-test: OK: OpenFeature Python/React, Persistenz, Audit,"
-echo "feature-flag-test:     Fresh-Login, RBAC und Browser-UX bewiesen"
+echo "feature-flag-test: OK: OpenFeature Python/React, persistence, audit,"
+echo "feature-flag-test:     fresh login, RBAC and browser UX proven"

@@ -24,7 +24,7 @@ SESSION_NAMESPACE = UUID("ab77cb61-0df1-4df7-a3fb-fbf8bddf58b4")
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise RuntimeError(f"Umgebungsvariable fehlt: {name}")
+        raise RuntimeError(f"Missing environment variable: {name}")
     return value
 
 
@@ -83,7 +83,7 @@ async def main() -> None:
         encoding="utf-8",
     )
     output.chmod(0o600)
-    print("invoice-browser-setup: OK: veraltete Admin- und Finanz-Lesesitzung")
+    print("invoice-browser-setup: OK: stale admin and finance reader sessions")
 
 
 if __name__ == "__main__":

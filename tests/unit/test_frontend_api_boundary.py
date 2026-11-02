@@ -22,8 +22,8 @@ def test_frontend_boundary_rejects_direct_fetch_and_generated_import(
     problems = violations((tmp_path,))
 
     assert len(problems) == 2
-    assert "direkter API-fetch" in problems[0]
-    assert "generiertes Transportartefakt" in problems[1]
+    assert "direct API fetch" in problems[0]
+    assert "generated transport artifact" in problems[1]
 
 
 @pytest.mark.parametrize(

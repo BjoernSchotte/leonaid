@@ -1,29 +1,28 @@
 # Public Web
 
-Serverseitig gerenderte öffentliche Astro-Aktionsseiten sowie die
-passwortlosen Einstiege für Mitglieder.
+Server-rendered public Astro action pages and the passwordless entry points for
+members.
 
-POC-041 stellt unter `/invite` eine responsive Aktivierungsseite für
-Magic Link und sechsstelligen Code bereit. Ein Link führt aus Schutz vor
-Mail-Scannern nicht automatisch eine schreibende Aktion aus: Das Token wird
-aus der sichtbaren URL entfernt und erst nach ausdrücklicher Bestätigung an
-die Core-API gesendet. Der erfolgreiche Abschluss aktiviert Konto und
-Aktionsrolle und startet unmittelbar eine sichere 90-Tage-Sitzung.
+POC-041 provides a responsive activation page under `/invite` for magic link
+and six-digit code. To protect against mail scanners, a link never runs a
+writing action automatically: the token is removed from the visible URL and
+sent to the Core API only after explicit confirmation. Successful completion
+activates the account and the action role and immediately starts a secure
+90-day session.
 
-POC-042 ergänzt unter `/login` den passwortlosen Mitglieder-Login per Magic
-Link oder sechsstelligen Code. Die Antwort verrät nicht, ob eine E-Mail
-registriert ist. `/fresh-login` bestätigt sensible Aktionen erneut, entfernt
-Magic-Link-Tokens vor der Bestätigung aus der sichtbaren URL und führt danach
-nur zu einem geprüften internen Rücksprungziel.
+POC-042 adds passwordless member login under `/login` by magic link or
+six-digit code. The response does not reveal whether an email is registered.
+`/fresh-login` confirms sensitive actions again, removes magic-link tokens from
+the visible URL before confirmation and then leads only to a checked internal
+return target.
 
-POC-071 liefert die öffentliche Aktionsdarstellung für Alias- und
-Archiv-Adressen. Astro fragt ausschließlich den FastAPI-Core über den
-generierten Client ab. Die fachliche Entscheidung über Veröffentlichung,
-Archiv und öffentliche Angebote bleibt vollständig im Core. Aktionsseiten
-enthalten kein Client-JavaScript; Schriften und Bildmotive werden lokal
-ausgeliefert.
+POC-071 delivers the public action presentation for alias and archive
+addresses. Astro queries only the FastAPI Core through the generated client.
+The business decision about publication, archive and public offers stays
+entirely in the Core. Action pages contain no client JavaScript; fonts and
+images are served locally.
 
-Das öffentliche Bestellformular folgt in POC-072. Seine Astro Action darf
-Transportdaten validieren, Spam-Signale erfassen und an den Core
-weiterleiten. Preise, Verfügbarkeit, Bestellfenster und alle weiteren
-Fachregeln werden dort erneut entschieden.
+The public order form follows in POC-072. Its Astro Action may validate
+transport data, record spam signals and forward to the Core. Prices,
+availability, order windows and all other business rules are decided again
+there.

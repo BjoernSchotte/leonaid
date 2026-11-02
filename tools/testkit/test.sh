@@ -34,7 +34,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "testkit-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "testkit-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
       api worker core-postgres rustfs mailpit \
@@ -56,7 +56,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "testkit-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "testkit-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -92,7 +92,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "testkit-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "testkit-test: ERROR: restricted Twenty key missing" >&2
   exit 1
 fi
 
@@ -165,7 +165,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 for artifact in api-proof.json ui-proof.json testkit-ui.png; do
   if [ ! -s "$proof/$artifact" ]; then
-    echo "testkit-test: ERROR: Nachweis fehlt: $artifact" >&2
+    echo "testkit-test: ERROR: proof missing: $artifact" >&2
     exit 1
   fi
 done
@@ -175,5 +175,5 @@ cp "$proof/api-proof.json" "$root/.artifacts/poc013/"
 cp "$proof/ui-proof.json" "$root/.artifacts/poc013/"
 cp "$proof/testkit-ui.png" "$root/.artifacts/poc013/"
 
-echo "testkit-test: OK: gemeinsame Echt-System-Clients, Magic-Link-Persona,"
-echo "testkit-test:     UI/API/Twenty/SQL-ID, SMTP/Mailpit und RustFS-Hash bewiesen"
+echo "testkit-test: OK: shared real-system clients, magic-link persona,"
+echo "testkit-test:     UI/API/Twenty/SQL ID, SMTP/Mailpit and RustFS hash proven"

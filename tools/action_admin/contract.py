@@ -37,7 +37,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
@@ -86,7 +86,7 @@ def error_signature(response: httpx.Response) -> tuple[int, str, str]:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Fehlervertrag")
+        raise ContractFailure("error response has no stable error contract")
     return response.status_code, str(error.get("code")), str(error.get("message"))
 
 
@@ -134,7 +134,7 @@ async def exercise(
         action_id = UUID(str(action["id"]))
         revision = int(action["revision"])
         if revision != 1:
-            raise ContractFailure("Neue Aktion beginnt nicht mit Revision 1")
+            raise ContractFailure("new action does not start at revision 1")
 
         own = await client.get(
             f"/api/v1/actions/{action_id}/management",
@@ -157,7 +157,7 @@ async def exercise(
                 for item in management["administratorOptions"]
             )
         ):
-            raise ContractFailure("Management-Sicht ist nicht vollständig")
+            raise ContractFailure("management view is incomplete")
 
         foreign = await client.get(
             f"/api/v1/actions/{action_id}/management",
@@ -170,7 +170,7 @@ async def exercise(
             headers=request_headers("management-unknown"),
         )
         if error_signature(foreign) != error_signature(unknown):
-            raise ContractFailure("Fremde Aktionsverwaltung ist erkennbar")
+            raise ContractFailure("foreign action management is detectable")
 
         details_payload = {
             "revision": revision,
@@ -189,7 +189,7 @@ async def exercise(
         details.raise_for_status()
         revision = int(details.json()["revision"])
         if revision != 2 or details.json()["name"] != details_payload["name"]:
-            raise ContractFailure("Grunddaten oder Revision wurden nicht gespeichert")
+            raise ContractFailure("basic data or revision was not saved")
 
         idempotent_retry = await client.put(
             f"/api/v1/actions/{action_id}/details",
@@ -199,7 +199,7 @@ async def exercise(
         )
         idempotent_retry.raise_for_status()
         if int(idempotent_retry.json()["revision"]) != revision:
-            raise ContractFailure("Idempotenter Retry erzeugte eine neue Revision")
+            raise ContractFailure("idempotent retry created a new revision")
 
         stale = {**details_payload, "name": "Veralteter Browserstand"}
         stale_update = await client.put(
@@ -212,7 +212,7 @@ async def exercise(
             409,
             "action_revision_conflict",
         ):
-            raise ContractFailure("Veraltete Bearbeitung wurde nicht abgefangen")
+            raise ContractFailure("stale edit was not rejected")
 
         incomplete_publication = await client.put(
             f"/api/v1/actions/{action_id}/publication",
@@ -229,9 +229,7 @@ async def exercise(
             422,
             "action_publication_window_incomplete",
         ):
-            raise ContractFailure(
-                "Unvollständiges Publikationsfenster wurde akzeptiert"
-            )
+            raise ContractFailure("incomplete publication window was accepted")
 
         await connection.execute(
             """
@@ -255,7 +253,7 @@ async def exercise(
             409,
             "action_public_alias_unavailable",
         ):
-            raise ContractFailure("Fremder öffentlicher Alias konnte übernommen werden")
+            raise ContractFailure("another action's public alias could be taken over")
 
         publication = await client.put(
             f"/api/v1/actions/{action_id}/publication",
@@ -272,7 +270,7 @@ async def exercise(
         publication_body = publication.json()
         revision = int(publication_body["action"]["revision"])
         if revision != 3 or publication_body["publicAlias"] != "krapfentaxi":
-            raise ContractFailure("Publikationsdaten wurden nicht atomar gespeichert")
+            raise ContractFailure("publication data was not saved atomically")
         alias_target = await connection.fetchval(
             "SELECT action_id FROM public_action_alias WHERE alias = 'krapfentaxi'"
         )
@@ -281,7 +279,7 @@ async def exercise(
             KLARA_ACTION_ID,
         )
         if alias_target != action_id or old_revision != 2:
-            raise ContractFailure("Alias wurde nicht nachvollziehbar umgeschaltet")
+            raise ContractFailure("alias switch was not traceable")
 
         unavailable_admin = await client.put(
             f"/api/v1/actions/{action_id}/responsible-administrators",
@@ -293,7 +291,7 @@ async def exercise(
             409,
             "action_responsible_administrator_unavailable",
         ):
-            raise ContractFailure("Gesperrtes Mitglied wurde verantwortlich")
+            raise ContractFailure("suspended member became responsible")
 
         responsibles = await client.put(
             f"/api/v1/actions/{action_id}/responsible-administrators",
@@ -304,7 +302,9 @@ async def exercise(
         responsibles.raise_for_status()
         revision = int(responsibles.json()["action"]["revision"])
         if revision != 4:
-            raise ContractFailure("Verantwortlichenwechsel erhöhte Revision nicht")
+            raise ContractFailure(
+                "change of responsible person did not increase the revision"
+            )
 
         felix_access = await client.get(
             f"/api/v1/actions/{action_id}/management",
@@ -322,7 +322,7 @@ async def exercise(
         felix_only.raise_for_status()
         revision = int(felix_only.json()["action"]["revision"])
         if revision != 5:
-            raise ContractFailure("Verantwortlichenhistorie erhielt keine Revision")
+            raise ContractFailure("responsible-person history did not get a revision")
 
         klara_removed = await client.get(
             f"/api/v1/actions/{action_id}/management",
@@ -330,7 +330,7 @@ async def exercise(
             headers=request_headers("klara-removed"),
         )
         if error_signature(klara_removed)[:2] != (404, "resource_not_found"):
-            raise ContractFailure("Entfernte Verantwortliche behielt Zugriff")
+            raise ContractFailure("removed responsible person kept access")
 
         persisted = await connection.fetchrow(
             """
@@ -378,7 +378,7 @@ async def exercise(
             or persisted["historical_admins"] != 1
             or persisted["management_audits"] != 4
         ):
-            raise ContractFailure("Management-Snapshot oder Audit ist unvollständig")
+            raise ContractFailure("management snapshot or audit is incomplete")
         return action_id
 
 
@@ -390,8 +390,8 @@ async def run() -> None:
     finally:
         await connection.close()
     print(
-        "action-admin-contract: Grunddaten, Revisionen, Publikation, Aliaswechsel "
-        "und Verantwortliche real bewiesen"
+        "action-admin-contract: basic data, revisions, publication, alias switch "
+        "and responsible persons proven against real services"
     )
 
 

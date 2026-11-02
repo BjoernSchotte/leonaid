@@ -1,274 +1,264 @@
-# LeonAid-Personas
+# LeonAid personas
 
-Dieses Dokument ist die zentrale, kurze Produktreferenz für alle Menschen,
-die LeonAid verwenden, betreiben oder von einer Charity-Aktion betroffen
-sind. Es übersetzt die ausführliche Konzeption in konkrete Ziele,
-Nutzungskontexte und Zugriffsgrenzen.
+This document is the central, short product reference for everyone who uses
+or operates LeonAid, or who is affected by a charity action. It turns the
+detailed product concept into concrete goals, usage contexts and access
+boundaries.
 
-Maßgeblich für Details bleiben
+The authoritative sources for details remain
 [`specs/produkt-und-architekturvorschlag.md`](specs/produkt-und-architekturvorschlag.md)
-und der bewiesene PoC-Stand in
+and the proven PoC state in
 [`specs/leonaid-poc/PLAN.md`](specs/leonaid-poc/PLAN.md).
 
-## Pflegevertrag
+## Maintenance contract
 
-`PERSONAS.md` wird im selben Task aktualisiert, wenn sich eine Persona, Rolle,
-Berechtigung, Navigation, Kernaufgabe oder PoC-Grenze ändert. Ein Task ist
-inhaltlich nicht vollständig, wenn seine Produkt- oder Rechteentscheidung
-diesem Dokument widerspricht.
+Update `PERSONAS.md` in the same task when a persona, role, permission,
+navigation, core task or PoC boundary changes. A task is not complete in
+substance if its product or permission decision contradicts this document.
 
-Dabei gelten vier Leitplanken:
+Four guardrails apply:
 
-1. Persona und technische Rolle sind nicht dasselbe. Eine Person kann mehrere
-   Rollen besitzen.
-2. Aktionsrollen gelten nur für die konkrete Charity-Aktion.
-3. Ausgeblendete UI-Elemente ersetzen nie die serverseitige Autorisierung.
-4. Aktionsspezifische Rollen erscheinen nur bei passender Capability.
+1. A persona and a technical role are not the same thing. One person can hold
+   several roles.
+2. Action roles apply only to the specific charity action.
+3. Hidden UI elements never replace server-side authorization.
+4. Action-specific roles appear only when the matching capability is active.
 
-## PoC-Personas
+## PoC personas
 
-### Charity-Admin
+### Charity admin
 
-**Ziel:** Eine Charity-Aktion vorbereiten, operativ steuern und
-nachvollziehbar abschließen.
+**Goal:** Prepare a charity action, run it day to day and close it in a
+traceable way.
 
-**Kontext:** Ehrenamtliches Lions-Mitglied, überwiegend am Desktop und häufig
-in kurzen Arbeitsfenstern. Der Charity-Admin verwaltet nur eigene Aktionen.
+**Context:** Volunteer Lions member, mostly on a desktop and often in short
+work sessions. The charity admin manages only their own actions.
 
-**Kernaufgaben im PoC:**
+**Core tasks in the PoC:**
 
-- Aktion, Zeitraum, Ziel, Beneficiaries und öffentliche Darstellung pflegen;
-- Mitglieder in selbst verwaltete Aktionen einladen;
-- Aktionsrollen ausschließlich in selbst verwalteten Aktionen zuweisen und
-  entziehen;
-- Firmen, Kontakte, Akquisiteure und Mehrfachzuordnungen überblicken;
-- interne und öffentliche Bestellungen prüfen;
-- Rechnungen nach frischer Anmeldung freigeben;
-- Rechnungs-PDF abrufen, versenden und den Versand kontrolliert wiederholen;
-- exakte Vollzahlung manuell verbuchen;
-- Rechnung begründet stornieren, ohne Beleg oder PDF zu überschreiben;
-- auf dem Dashboard aktionsweite Sponsor-Pipeline, Bestellungen,
-  Bestellwert, fakturierten Betrag und offene Posten verstehen;
-- von jeder Dashboard-Kennzahl in die bereits nach Aktion und Status
-  gefilterte Arbeitsliste wechseln.
+- maintain the action, period, goal, beneficiaries and public presentation;
+- invite members to actions they manage;
+- assign and revoke action roles only in actions they manage;
+- keep an overview of companies, contacts, acquirers and multiple assignments;
+- review internal and public orders;
+- approve invoices after a fresh sign-in;
+- download and send the invoice PDF, and retry sending in a controlled way;
+- record an exact full payment manually;
+- cancel an invoice with a reason, without overwriting the record or PDF;
+- understand the action-wide sponsor pipeline, orders, order value, invoiced
+  amount and open items on the dashboard;
+- move from any dashboard metric to the work list, already filtered by action
+  and status.
 
-**Zugriffsgrenze:** `charity_admin` ist eine Aktionsrolle. Sie gibt keine
-Rechte auf fremde Aktionen und keine globalen System- oder Finanzrollen. Der
-letzte Charity-Admin einer noch operativ veränderbaren Aktion kann nicht
-ersatzlos entfernt werden.
+**Access boundary:** `charity_admin` is an action role. It grants no rights on
+other actions and no global system or finance roles. The last charity admin of
+an action that can still change operationally cannot be removed without a
+replacement.
 
-**Oberfläche:** Responsive Backoffice-Web-App; einzelne CRM-Aufgaben können
-zusätzlich in Twenty stattfinden.
+**Interface:** Responsive back-office web app; some CRM tasks can also happen
+in Twenty.
 
-### Akquisiteur
+### Acquirer
 
-**Ziel:** Firmen oder persönliche Kontakte als Sponsoren gewinnen und den
-nächsten Schritt zuverlässig dokumentieren.
+**Goal:** Win companies or personal contacts as sponsors and reliably record
+the next step.
 
-**Kontext:** Lions-Mitglied, häufig mobil unterwegs und unterschiedlich
-technikaffin.
+**Context:** Lions member, often on the move, with varying technical
+confidence.
 
-**Kernaufgaben im PoC:**
+**Core tasks in the PoC:**
 
-- eigene und gemeinsam zugeordnete Firmen oder Personen sehen;
-- neuen Sponsor anlegen und bei einem Treffer bestehende Akquisiteure sehen;
-- sich nach expliziter Bestätigung zusätzlich zuordnen;
-- Kontaktversuch, Ergebnis und Wiedervorlage dokumentieren;
-- Bestellung oder Zusage erfassen;
-- öffentliche Bestellungen eigener Kontakte unter „Neues“ sehen;
-- auf dem persönlichen Dashboard eigene Pipeline, Wiedervorlagen,
-  Aktivitäten und den nächsten sinnvollen Schritt sehen;
-- Aktionsfortschritt mit Wert, Einheit und verständlichem Text als
-  Motivation verfolgen und direkt in eine gefilterte Sponsor-Liste wechseln.
+- see their own and jointly assigned companies or people;
+- create a new sponsor and see existing acquirers when a match is found;
+- add themselves as an additional acquirer after explicit confirmation;
+- record contact attempts, outcomes and follow-ups;
+- record an order or commitment;
+- see public orders from their own contacts under „Neues“ (new);
+- see their own pipeline, follow-ups, activities and the next sensible step on
+  the personal dashboard;
+- follow action progress with value, unit and plain text as motivation, and
+  move directly to a filtered sponsor list.
 
-**Zugriffsgrenze:** `acquirer` gilt je Aktion und nur für zugeordnete
-CRM-Parteien. Eine Zuordnung eröffnet keinen Zugriff auf Rechnungen,
-Finanzdokumente oder Charity-Administration. Akquisiteure erhalten im PoC
-keinen eigenen Twenty-Zugang.
+**Access boundary:** `acquirer` applies per action and only to assigned CRM
+parties. An assignment grants no access to invoices, finance documents or
+charity administration. Acquirers get no Twenty account of their own in the
+PoC.
 
-**Oberfläche:** Installierbare, mobile-first PWA; sie teilt Komponenten und
-Funktionen mit der responsiven Web-App.
+**Interface:** Installable, mobile-first PWA; it shares components and
+features with the responsive web app.
 
-### Öffentlicher Besteller oder Sponsor
+### Public customer or sponsor
 
-**Ziel:** Eine Charity-Aktion verstehen und ohne Account eine verbindliche
-Bestellung oder Zusage absenden.
+**Goal:** Understand a charity action and submit a binding order or commitment
+without an account.
 
-**Kontext:** Öffnet einen beworbenen Link oder QR-Code auf Smartphone oder
-Desktop und kennt LeonAid vorher nicht.
+**Context:** Opens a promoted link or QR code on a smartphone or desktop and
+does not know LeonAid beforehand.
 
-**Kernaufgaben im PoC:**
+**Core tasks in the PoC:**
 
-- Zweck, Zeitraum und Beneficiaries verstehen;
-- Angebot, Preis und Menge auswählen;
-- Firma oder persönliche Kontaktdaten sowie Liefer-/Rechnungsdaten angeben;
-- Formular gegen Doppelübermittlung geschützt absenden;
-- verständliche Bestätigung erhalten.
+- understand the purpose, period and beneficiaries;
+- choose offer, price and quantity;
+- enter company or personal contact details and delivery/billing details;
+- submit the form with protection against double submission;
+- receive a clear confirmation.
 
-**Zugriffsgrenze:** Kein LeonAid-Account und kein interner Datenzugriff. Nur
-veröffentlichte Aktionsseiten und explizite Formulare sind erreichbar.
+**Access boundary:** No LeonAid account and no access to internal data. Only
+published action pages and explicit forms are reachable.
 
-**Oberfläche:** Schlanke, barrierearme Astro-Aktionsseite.
+**Interface:** Lean, accessible Astro action page.
 
-### Finanzverantwortlicher oder Schatzmeister
+### Finance officer or treasurer
 
-**Ziel:** Ausgangsrechnungen, Versand, Zahlungen und offene Posten verlässlich
-prüfen.
+**Goal:** Reliably check outgoing invoices, sending, payments and open items.
 
-**Kontext:** Arbeitet überwiegend am Desktop und benötigt unveränderliche
-Belege sowie nachvollziehbare Exporte für weitere Buchhaltungsprozesse.
+**Context:** Works mostly on a desktop and needs immutable records and
+traceable exports for further accounting processes.
 
-**Kernaufgaben im PoC:**
+**Core tasks in the PoC:**
 
-- Rechnungsdaten und Typst-PDFs prüfen;
-- Freigabe und Versandstatus nachvollziehen;
-- offene und bezahlte Rechnungen unterscheiden;
-- Zahlungseingang, Storno und Korrekturhistorie kontrollieren.
+- check invoice data and Typst PDFs;
+- trace approval and sending status;
+- tell open and paid invoices apart;
+- check incoming payments, cancellations and correction history.
 
-**Aktueller Rechteschnitt:**
+**Current permission split:**
 
-- `finance_reader` – global oder je Aktion – liest Rechnungen,
-  Finanzdokumente und Status, darf aber nichts buchen;
-- `finance_manager` ist eine globale, nur vom System-Admin vergebbare Rolle
-  für Vollzahlung und Storno;
-- ein Charity-Admin besitzt dieselben Finanzaktionen ausschließlich in
-  selbst verwalteten Aktionen.
+- `finance_reader` (global or per action) reads invoices, finance documents
+  and status, but cannot record anything;
+- `finance_manager` is a global role, granted only by the system admin, for
+  full payment and cancellation;
+- a charity admin holds the same finance actions only in actions they manage.
 
-Der Golden-Data-Benutzer **Finn Finanzen** ist bewusst `finance_reader` und
-beweist den read-only Fall. Für `finance_manager` existiert im PoC noch kein
-dauerhaft gepflegter Golden-Login; die Rolle ist technisch vorgesehen.
+The golden-data user **Finn Finanzen** is `finance_reader` on purpose and
+proves the read-only case. The PoC has no permanently maintained golden login
+for `finance_manager` yet; the role exists technically.
 
-**Oberfläche:** ERP-light-Bereich der Backoffice-Web-App.
+**Interface:** ERP-light area of the back-office web app.
 
-### System-Admin
+### System admin
 
-**Ziel:** Eine einzelne Clubinstallation sicher, verfügbar und
-wiederherstellbar betreiben.
+**Goal:** Run a single club installation securely, available and recoverable.
 
-**Kontext:** Technisch erfahrenes Lions-Mitglied oder beauftragter Betreiber.
-Die Mandantentrennung erfolgt durch getrennte Installationen.
+**Context:** Technically experienced Lions member or a contracted operator.
+Tenants are separated by separate installations.
 
-**Kernaufgaben im PoC:**
+**Core tasks in the PoC:**
 
-- Docker-Compose-Deployment, Secrets und Integrationen betreiben;
-- Benutzer, globale Rollen, Aktionsrollen und Sitzungen verwalten;
-- offene, angenommene, abgelaufene und widerrufene Einladungen im jeweils
-  erlaubten Aktionsscope nachvollziehen, widerrufen oder kontrolliert neu
-  versenden;
-- eine falsche Login-E-Mail nach frischer Anmeldung als Pending Change
-  korrigieren, ohne die bisherige Adresse vor der Bestätigung zu deaktivieren;
-- Twenty, PostgreSQL, RustFS und Mail-Relay konfigurieren;
-- katalogisierte Feature-Flags für kontrollierte Rollouts ein- und
-  ausschalten sowie deren Revision und Wirkung prüfen;
-- Datenschutz-Nachweise und Kontaktsperren zu einer exakten E-Mail-Adresse
-  prüfen, eine portable Datenauskunft erzeugen und einen kontrollierten
-  Anonymisierungsworkflow ausführen;
-- dabei unveränderliche Rechnungsbelege bewusst erhalten und die im PoC noch
-  offenen Rechts-, Fristen- und Twenty-Löschentscheidungen sichtbar lassen;
-- Updates, Healthchecks, Diagnose, Backup und Restore durchführen.
+- operate the Docker Compose deployment, secrets and integrations;
+- manage users, global roles, action roles and sessions;
+- trace open, accepted, expired and revoked invitations within the permitted
+  action scope, revoke them or resend them in a controlled way;
+- correct a wrong login email after a fresh sign-in as a pending change,
+  without deactivating the previous address before confirmation;
+- configure Twenty, PostgreSQL, RustFS and the mail relay;
+- turn catalogued feature flags on and off for controlled rollouts and check
+  their revision and effect;
+- check privacy evidence and contact blocks for an exact email address,
+  generate a portable data access report and run a controlled anonymization
+  workflow;
+- keep immutable invoice records on purpose while doing so, and keep the
+  legal, retention-period and Twenty deletion decisions that are still open in
+  the PoC visible;
+- run updates, health checks, diagnostics, backup and restore.
 
-**Zugriffsgrenze:** `system_admin` ist systemweit und darf deshalb nicht als
-alltägliche Fachrolle verwendet werden. Kritische Aktionen benötigen eine
-frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
-Rollout, niemals Rollen- oder Datensatzberechtigungen. Der letzte aktive
-System-Admin kann nicht entfernt werden. Mitglieder können ihre Login-E-Mail
-im Pilot nicht selbst ändern. Ein vom System-Admin begonnener Wechsel wird erst
-nach Bestätigung durch Link oder Code an der neuen Adresse aktiv und widerruft
-nur die Sitzungen des betroffenen Kontos.
+**Access boundary:** `system_admin` is system-wide and therefore must not be
+used as an everyday business role. Critical actions require a fresh sign-in
+and an audit entry. Feature flags change visibility or rollout, never role or
+record permissions. The last active system admin cannot be removed. Members
+cannot change their own login email in the pilot. A change started by the
+system admin becomes active only after confirmation by link or code at the new
+address, and it revokes only the sessions of the affected account.
 
-**Oberfläche:** Systembereich der Web-App einschließlich geschütztem
-Datenschutz-Arbeitsbereich und UI-Prüfkatalog plus versionierte
-Docker-/Runbook-Werkzeuge.
+**Interface:** System area of the web app, including the protected privacy
+workspace and the UI review catalog, plus versioned Docker/runbook tools.
 
-## Nachgelagerte oder externe Personas
+## Downstream or external personas
 
-### Ausfahrer
+### Driver
 
-**Ziel:** Zugewiesene Bestellungen einer Aktion mit wenig
-Koordinationsaufwand ausliefern.
+**Goal:** Deliver the assigned orders of an action with little coordination
+effort.
 
-**Kontext:** Mobile, aktionsspezifische Persona des Krapfentaxis.
+**Context:** Mobile, action-specific persona of the Krapfentaxi.
 
-**Spätere Aufgaben:** Tour und Stopps sehen, nur notwendige Lieferdaten
-verwenden, Navigation öffnen und Zustellstatus dokumentieren.
+**Later tasks:** See the tour and stops, use only the necessary delivery data,
+open navigation and record delivery status.
 
-**Status:** Nach PoC/MVP zurückgestellt. `driver` ist ausschließlich eine
-Aktionsrolle bei aktiver `delivery`-Capability und erscheint beispielsweise
-bei Lions Open nicht automatisch.
+**Status:** Deferred until after PoC/MVP. `driver` is only an action role with
+an active `delivery` capability and does not appear automatically, for example
+for Lions Open.
 
-### Beneficiary-Ansprechpartner
+### Beneficiary contact
 
-**Ziel:** Die begünstigte Organisation korrekt darstellen und Informationen
-zum Aktionsergebnis erhalten.
+**Goal:** Present the beneficiary organization correctly and receive
+information on the action result.
 
-**Kontext:** Externe Kontaktperson ohne LeonAid-Account.
+**Context:** External contact person without a LeonAid account.
 
-**Aufgaben:** Stammdaten, Zweckbeschreibung und gegebenenfalls Bildmaterial
-zuliefern; Ergebnis entgegennehmen.
+**Tasks:** Supply master data, a description of the purpose and, if needed,
+images; receive the result.
 
-**Status:** Stakeholder, keine technische PoC-Rolle.
+**Status:** Stakeholder, not a technical PoC role.
 
-## Rollen und Geltungsbereich
+## Roles and scope
 
-| Technische Rolle  | Geltungsbereich       | Produktbedeutung                             |
-| ----------------- | --------------------- | -------------------------------------------- |
-| `system_admin`    | global                | Betrieb, Benutzer und Integrationen          |
-| `finance_reader`  | global oder Aktion    | Rechnungen und Finanzstatus lesen            |
-| `finance_manager` | global                | Finanzstatus buchen und Storno kontrollieren |
-| `charity_admin`   | Aktion                | eigene Charity-Aktion vollständig verwalten  |
-| `acquirer`        | Aktion                | zugeordnete Sponsoren akquirieren            |
-| `driver`          | Aktion mit `delivery` | spätere Auslieferung                         |
+| Technical role    | Scope                  | Product meaning                        |
+| ----------------- | ---------------------- | -------------------------------------- |
+| `system_admin`    | global                 | operations, users and integrations     |
+| `finance_reader`  | global or action       | read invoices and finance status       |
+| `finance_manager` | global                 | record finance status, control cancels |
+| `charity_admin`   | action                 | fully manage their own charity action  |
+| `acquirer`        | action                 | acquire assigned sponsors              |
+| `driver`          | action with `delivery` | later delivery                         |
 
-Weitere aktionsspezifische Rollen wie `player`, `tournament_admin`,
-`booth_operator` oder `volunteer` werden erst mit den entsprechenden
-Capabilities und den nachgelagerten Use-Cases Lions Open beziehungsweise
-Weihnachtsmarkt konkretisiert.
+Further action-specific roles such as `player`, `tournament_admin`,
+`booth_operator` or `volunteer` will be defined only with the matching
+capabilities and the downstream use cases Lions Open and Christmas market.
 
-### Verwaltung der Rollen
+### Role management
 
-- Nur ein System-Admin darf globale Rollen vergeben oder entziehen.
-- Ein System-Admin darf sämtliche für eine Aktion verfügbaren Aktionsrollen
-  verwalten.
-- Ein Charity-Admin darf ausschließlich Aktionsrollen in selbst verwalteten
-  Aktionen verwalten; globale Rollen und fremde Aktionen bleiben sowohl in der
-  Oberfläche als auch über direkte API-Aufrufe gesperrt.
-- `driver` wird nur angeboten, wenn die konkrete Aktion die
-  `delivery`-Capability besitzt. Der produktive Lieferworkflow bleibt im Pilot
-  weiterhin zurückgestellt.
-- Jede Änderung benötigt eine frisch bestätigte Anmeldung, einen
-  Idempotenzschlüssel und die erwartete Revision. Konflikte werden verständlich
-  angezeigt und erfolgreiche Änderungen auditiert.
-- Rollen wirken ohne erneute Anmeldung ab dem nächsten Request auf Navigation,
-  Listen, Exporte und Dokumentzugriff.
-- Ein Entzug beendet die Berechtigung, löscht aber weder die historische
-  Mitgliedschaft noch bestehende Fachzuordnungen, Aktivitäten, Rechnungen oder
-  Dokumentreferenzen.
+- Only a system admin may grant or revoke global roles.
+- A system admin may manage all action roles available for an action.
+- A charity admin may manage action roles only in actions they manage; global
+  roles and other actions stay blocked both in the interface and through
+  direct API calls.
+- `driver` is offered only when the specific action has the `delivery`
+  capability. The productive delivery workflow stays deferred in the pilot.
+- Every change requires a freshly confirmed sign-in, an idempotency key and
+  the expected revision. Conflicts are shown clearly and successful changes are
+  audited.
+- Roles take effect on navigation, lists, exports and document access from the
+  next request, without a new sign-in.
+- A revocation ends the permission but deletes neither the historical
+  membership nor existing business assignments, activities, invoices or
+  document references.
 
-## Gemeinsame UX-Anforderungen
+## Shared UX requirements
 
-- Fachbegriffe statt interner IDs, Twenty-Objektnamen oder Technikjargon;
-- Status, Konsequenz und nächster Schritt sind ohne Farberkennung verständlich;
-- mobile Kernaktionen bleiben mindestens 44 Pixel groß und erreichbar;
-- wichtige Admin- und Finanzaktionen verlangen eine frische Anmeldung;
-- Light, Dark und System Mode sind gleichwertig;
-- Fehler erklären Problem, Auswirkung und mögliche Korrektur;
-- historische Finanz- und Aktivitätsdaten bleiben auch nach Rollenwechsel,
-  Sperrung oder Archivierung nachvollziehbar.
+- business terms instead of internal IDs, Twenty object names or technical
+  jargon;
+- status, consequence and next step are clear without relying on color;
+- mobile core actions stay at least 44 pixels in size and reachable;
+- important admin and finance actions require a fresh sign-in;
+- light, dark and system mode are equal;
+- errors explain the problem, its effect and a possible correction;
+- historical finance and activity data stay traceable after role changes,
+  blocking or archiving.
 
-## Bewiesene Geräte- und Abnahmematrix
+## Proven device and acceptance matrix
 
-Der gemeinsame responsive Code wird nicht nur aus den primären
-Nutzungskontexten abgeleitet. POC-102 beweist die kritischen Wege bewusst auf
-beiden Gerätegrößen:
+The shared responsive code is not derived only from the primary usage
+contexts. POC-102 proves the critical paths on both device sizes on purpose:
 
-| Persona                | Primär nachgewiesen                         | Responsiver Gegencheck               |
-| ---------------------- | ------------------------------------------- | ------------------------------------ |
-| Charity-Admin          | Desktop-Dashboard und offene Rechnung       | Rechnungsliste auf dem Smartphone    |
-| Akquisiteur            | Smartphone-Pipeline und Bestellerfassung    | Bestellerfassung auf dem Desktop     |
-| Öffentlicher Besteller | Smartphone-Aktionsseite und Fehlerkorrektur | Desktop bleibt durch Astro responsiv |
+| Persona         | Primary proof                               | Responsive cross-check                 |
+| --------------- | ------------------------------------------- | -------------------------------------- |
+| Charity admin   | Desktop dashboard and open invoice          | Invoice list on a smartphone           |
+| Acquirer        | Smartphone pipeline and order entry         | Order entry on a desktop               |
+| Public customer | Smartphone action page and error correction | Desktop stays responsive through Astro |
 
-Für diese Wege sind Tastaturfokus, Screenreader-Texte, 200 Prozent
-Textvergrößerung, mindestens 44 Pixel große mobile Kernaktionen,
-WCAG-Automation und reproduzierbare Performancebudgets Bestandteil der
-Definition of Done. Der detaillierte Nachweis steht in
+For these paths, keyboard focus, screen reader texts, 200 percent text
+zoom, mobile core actions of at least 44 pixels, WCAG automation and
+reproducible performance budgets are part of the Definition of Done. The
+detailed proof is in
 [`specs/leonaid-poc/proofs/POC-102.md`](specs/leonaid-poc/proofs/POC-102.md).

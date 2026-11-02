@@ -25,7 +25,7 @@ fixture="$root/tests/fixtures/golden/v1"
 snapshot_directory="$root/.local/snapshots"
 
 if [ ! -f "$env_file" ]; then
-  echo "seed-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "seed-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -46,7 +46,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "seed-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
+    echo "seed-test: diagnostics for the failed own services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 >&2 || true
   fi
@@ -120,7 +120,7 @@ path.chmod(0o600)
 PY_NETWORKS
 isolation_file=""
 
-echo "seed-test: beweist Ablehnung eines Produktions-DSN vor jeder Löschung"
+echo "seed-test: proving a production DSN is refused before any deletion"
 if compose config --format json |
   sed 's/@core-postgres:/@production-db.example.com:/' |
   docker run --rm -i \
@@ -129,11 +129,11 @@ if compose config --format json |
     python /workspace/tools/seed/safety.py \
     --project-name "$project" \
     --env-file /workspace/.env.local; then
-  echo "seed-test: ERROR: Produktions-DSN wurde nicht abgewiesen" >&2
+  echo "seed-test: ERROR: production DSN was not refused" >&2
   exit 1
 fi
 
-echo "seed-test: setzt alle vier Systeme aus leeren Volumes auf Golden Data v1"
+echo "seed-test: resetting all four systems from empty volumes to Golden Data v1"
 if [ "$seed_part" = reset ]; then
   # Only the starting state is prepared. The reset after the real mutation below
   # still uses the unmodified operator CLI and creates new empty volumes.
@@ -165,7 +165,7 @@ docker run --rm \
   /workspace/.local/test-logins.md \
   --check
 if ! git -C "$root" check-ignore -q .local/test-logins.md; then
-  echo "seed-test: ERROR: lokale Testlogins sind nicht durch Git-Ignore geschützt" >&2
+  echo "seed-test: ERROR: local test logins are not protected by git ignore" >&2
   exit 1
 fi
 if compose run --rm --user "$(id -u):$(id -g)" --no-deps \
@@ -175,7 +175,7 @@ if compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/seed/golden.py \
   seed-core /repo/tests/fixtures/golden/v1; then
-  echo "seed-test: ERROR: Golden-Seeding wurde in Produktion nicht abgewiesen" >&2
+  echo "seed-test: ERROR: golden seeding was not refused in production" >&2
   exit 1
 fi
 "$root/leonaid" snapshot poc012-first.json
@@ -186,7 +186,7 @@ docker run --rm \
   /repo/.local/snapshots/poc012-first.json \
   /repo/tests/fixtures/golden/v1
 
-echo "seed-test: führt einen zweiten idempotenten Seed aus"
+echo "seed-test: running a second idempotent seed"
 if [ "$seed_part" != reset ]; then
 "$root/leonaid" seed
 "$root/leonaid" snapshot poc012-second.json
@@ -200,7 +200,7 @@ if [ "$seed_part" = cold ]; then
   exit 0
 fi
 
-echo "seed-test: verändert PostgreSQL, Twenty, RustFS und Mailpit real"
+echo "seed-test: changing PostgreSQL, Twenty, RustFS and Mailpit for real"
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env MAIL_SMTP_HOST=mailpit \
@@ -219,11 +219,11 @@ if docker run --rm \
   -v "$root/.local:/local:ro" \
   "$ALPINE_IMAGE" \
   cmp -s /local/snapshots/poc012-first.json /local/snapshots/poc012-mutated.json; then
-  echo "seed-test: ERROR: absichtliche Mutation änderte den Snapshot nicht" >&2
+  echo "seed-test: ERROR: intentional mutation did not change the snapshot" >&2
   exit 1
 fi
 
-echo "seed-test: Reset stellt den exakten fachlichen Snapshot wieder her"
+echo "seed-test: reset restores the exact business snapshot"
 "$root/leonaid" reset
 "$root/leonaid" snapshot poc012-restored.json
 docker run --rm \
@@ -239,4 +239,4 @@ docker run --rm \
   /repo/.local/snapshots/poc012-first.json \
   /repo/.local/snapshots/poc012-restored.json
 
-echo "seed-test: OK: Sicherheit, Idempotenz, Mutation und exakter Reset bewiesen"
+echo "seed-test: OK: safety, idempotence, mutation and exact reset proven"

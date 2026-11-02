@@ -22,12 +22,12 @@ class SafetyError(RuntimeError):
 def require_password_file(path: str) -> None:
     candidate = Path(path)
     if not candidate.is_file():
-        raise SafetyError("Restic-Passwortdatei fehlt")
+        raise SafetyError("Restic password file missing")
     mode = candidate.stat().st_mode & 0o777
     if mode & 0o077:
-        raise SafetyError("Restic-Passwortdatei muss Modus 600 besitzen")
+        raise SafetyError("Restic password file must have mode 600")
     if len(candidate.read_text(encoding="utf-8").strip()) < 24:
-        raise SafetyError("Restic-Passwort muss mindestens 24 Zeichen lang sein")
+        raise SafetyError("Restic password must be at least 24 characters long")
 
 
 def validate_repository(
@@ -37,21 +37,21 @@ def validate_repository(
         if repository.startswith(("rest:", "sftp:")):
             parsed = urlparse(repository.split(":", 1)[1])
             if not parsed.hostname:
-                raise SafetyError("Remote-Repository enthält keinen Host")
+                raise SafetyError("remote repository has no host")
         return
     if allow_local_test and project.startswith(("leonaid-poc112-", "leonaid-poc113-")):
         candidate = Path(repository)
         if candidate.is_absolute() and candidate != Path("/"):
             return
     raise SafetyError(
-        "Backup-Ziel muss außerhalb des VPS liegen "
-        "(s3:, sftp:, rest:, rclone:, b2:, azure: oder gs:)"
+        "backup target must be outside the VPS "
+        "(s3:, sftp:, rest:, rclone:, b2:, azure: or gs:)"
     )
 
 
 def validate_project(project: str) -> None:
     if not SAFE_PROJECT.fullmatch(project):
-        raise SafetyError("Compose-Projektname ist nicht eindeutig oder nicht LeonAid")
+        raise SafetyError("Compose project name is ambiguous or not LeonAid")
 
 
 def backup(arguments: argparse.Namespace) -> None:
@@ -67,12 +67,14 @@ def backup(arguments: argparse.Namespace) -> None:
 def restore(arguments: argparse.Namespace) -> None:
     validate_project(arguments.source_project)
     if not SAFE_RESTORE_PROJECT.fullmatch(arguments.target_project):
-        raise SafetyError("Restore-Ziel muss explizit 'leonaid-restore-<name>' heißen")
+        raise SafetyError(
+            "restore target must be named explicitly 'leonaid-restore-<name>'"
+        )
     if arguments.source_project == arguments.target_project:
-        raise SafetyError("Restore darf die Quellumgebung nicht überschreiben")
+        raise SafetyError("restore must not overwrite the source environment")
     expected = f"RESTORE:{arguments.target_project}"
     if arguments.confirm != expected:
-        raise SafetyError(f"Bestätigung muss exakt '{expected}' lauten")
+        raise SafetyError(f"confirmation must be exactly '{expected}'")
     validate_repository(
         arguments.repository,
         allow_local_test=arguments.allow_local_test,

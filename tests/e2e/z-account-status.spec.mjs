@@ -17,7 +17,7 @@ if (
   !staleSystemSession ||
   !annaSession
 ) {
-  throw new Error("PILOT-011 Browserumgebung ist unvollständig");
+  throw new Error("PILOT-011 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -151,7 +151,7 @@ async function restoreAnnaIfSuspended(request) {
   expect(response.ok()).toBeTruthy();
 }
 
-test("Fresh Login sperrt alle alten Sessions und Reaktivierung verlangt neue Anmeldung", async ({
+test("fresh login revokes all old sessions and reactivation requires a new sign-in", async ({
   browser,
 }) => {
   const systemContext = await browser.newContext({

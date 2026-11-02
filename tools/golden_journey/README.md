@@ -1,61 +1,58 @@
 # Krapfentaxi Golden Journey
 
-`./leonaid test-golden-journey` beweist den vollständigen PoC-Weg mit echten
-Diensten und ohne Mocks oder direkte fachliche Datenbankeingriffe.
+`./leonaid test-golden-journey` proves the complete PoC path with real
+services and without mocks or direct business-level database writes.
 
-## Voraussetzungen
+## Prerequisites
 
 ```sh
 ./leonaid bootstrap
 ```
 
-OrbStack oder Docker muss laufen. Der Test verwendet ein eigenes
-Compose-Projekt, eigene Volumes und die Ports `18142` sowie `18502`. Er
-verändert den normalen lokalen Entwicklungsstack nicht.
+OrbStack or Docker must be running. The test uses its own Compose project, its
+own volumes and the ports `18142` and `18502`. It does not change the normal
+local development stack.
 
-## Ablauf
+## Flow
 
-Der Test:
+The test:
 
-1. baut API, Worker, Web, PWA und Public Web aus dem aktuellen Stand;
-2. startet PostgreSQL, Twenty, RustFS und Mailpit auf leeren Volumes;
-3. provisioniert das eingeschränkte Twenty-Schema und Golden Dataset v1;
-4. führt die vollständige Journey nacheinander in Chromium, Firefox und
-   WebKit aus;
-5. prüft die Fachsummen und realen Artefakte nach der ersten Runde;
-6. führt eine zweite Runde ohne Reset aus und schließt technische Duplikate
-   aus;
-7. löscht alle Testvolumes, startet noch einmal vollständig leer und
-   wiederholt die erste Runde in allen drei Browsern;
-8. vergleicht die normalisierten Fachergebnisse bytegenau.
+1. builds API, worker, web, PWA and Public Web from the current state;
+2. starts PostgreSQL, Twenty, RustFS and Mailpit on empty volumes;
+3. provisions the restricted Twenty schema and Golden Dataset v1;
+4. runs the complete journey in Chromium, Firefox and WebKit, one after the
+   other;
+5. checks the business totals and real artifacts after the first round;
+6. runs a second round without a reset and rules out technical duplicates;
+7. deletes all test volumes, starts again fully empty and repeats the first
+   round in all three browsers;
+8. compares the normalized business results byte for byte.
 
-Jede frische Twenty-Instanz erhält eine eigene kurzlebige Token-Datei. So
-kann kein API-Key aus dem vorherigen, bereits gelöschten Workspace
-wiederverwendet werden.
+Every fresh Twenty instance gets its own short-lived token file. This way no
+API key from the previous, already deleted workspace can be reused.
 
-## Determinismus und Beweisartefakte
+## Determinism and proof artifacts
 
-Innerhalb jedes Laufs müssen Browserdownload, RustFS-Objekt und
-Mail-MIME-Anhang exakt denselben SHA-256 besitzen. Das vollständige
-Beweisprotokoll enthält diese laufbezogenen Hashes.
+Within each run, the browser download, the RustFS object and the mail MIME
+attachment must have exactly the same SHA-256. The complete proof log contains
+these per-run hashes.
 
-Beim Vergleich zweier zeitlich nacheinander ausgeführter Golden Resets werden
-die echten Ausstellungszeitpunkte und daraus abgeleiteten PDF-Hashes
-normalisiert. Verglichen werden Fachsummen, Firmen, Rechnungsnummern und
-PDF-Größen. Dadurch bleiben fachliche Abweichungen sichtbar, ohne einen
-identischen Echtzeitstempel vorzutäuschen.
+When two golden resets run one after the other are compared, the real issue
+timestamps and the PDF hashes derived from them are normalized. The comparison
+covers business totals, companies, invoice numbers and PDF sizes. This keeps
+business deviations visible without faking an identical real-time timestamp.
 
-Erfolgreiche Läufe legen die privaten, nicht versionierten Nachweise unter
-`.local/pilot/evidence/golden-journey/` ab:
+Successful runs store the private, unversioned evidence under
+`.local/pilot/evidence/golden-journey/`:
 
-- vollständige und normalisierte JSON-Protokolle;
-- Admin- und Akquisiteur-Screenshots aller Browser und Runden;
-- die im Browser heruntergeladenen Typst-PDFs;
-- Screenshots des sichtbaren In-App-Browser-Smokes.
+- complete and normalized JSON logs;
+- admin and acquirer screenshots of all browsers and rounds;
+- the Typst PDFs downloaded in the browser;
+- screenshots of the visible in-app browser smoke test.
 
-Die Verzeichnisse besitzen Modus `0700`, Dateien Modus `0600`. Screenshots,
-PDFs und Rohdaten werden nie als öffentliche GitHub-Artefakte hochgeladen.
-Bei einem Fehler entstehen zusätzlich sanitisierte Service-Diagnosen unter
-`.artifacts/failures/poc122/`. Sobald ein Screenshot, PDF, Trace oder anderes
-nicht sicher prüfbares Artefakt die öffentliche Grenze erreicht, verwirft der
-CI-Wrapper den gesamten öffentlichen Artefaktsatz fail-closed.
+The directories have mode `0700`, files mode `0600`. Screenshots, PDFs and raw
+data are never uploaded as public GitHub artifacts. On failure, sanitized
+service diagnostics are also written under `.artifacts/failures/poc122/`. As
+soon as a screenshot, PDF, trace or other artifact that cannot be safely
+checked reaches the public boundary, the CI wrapper discards the whole public
+artifact set (fail-closed).

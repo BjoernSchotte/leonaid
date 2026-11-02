@@ -33,7 +33,7 @@ SPONSOR_NAME = "Musterwerk GmbH"
 def require_env(name: str, context: TestContext) -> str:
     value = os.environ.get(name)
     if not value:
-        raise context.failure("configuration", f"Umgebungsvariable {name} fehlt.")
+        raise context.failure("configuration", f"Environment variable {name} missing.")
     return value
 
 
@@ -52,7 +52,7 @@ async def run() -> None:
         charity_action=ACTION_ID,
         golden_dataset=DATASET_VERSION,
     )
-    diagnostic = str(context.failure("diagnostic-contract", "Absichtliche Probe."))
+    diagnostic = str(context.failure("diagnostic-contract", "Intentional probe."))
     for expected_part in (
         context.request_id,
         context.persona,
@@ -63,7 +63,7 @@ async def run() -> None:
         if expected_part not in diagnostic:
             raise context.failure(
                 "diagnostic-contract",
-                f"Fehlerdiagnose enthält {expected_part!r} nicht.",
+                f"Failure diagnostic does not contain {expected_part!r}.",
             )
     dataset_path = Path(
         os.environ.get(
@@ -78,7 +78,7 @@ async def run() -> None:
     ):
         raise context.failure(
             "golden-dataset-load",
-            f"Golden Dataset {dataset_path} besitzt nicht Version {DATASET_VERSION}.",
+            f"Golden dataset {dataset_path} is not version {DATASET_VERSION}.",
         )
 
     output_directory = Path(require_env("TESTKIT_PROOF_DIR", context))
@@ -117,7 +117,7 @@ async def run() -> None:
         if not isinstance(items, list):
             raise context.failure(
                 "leonaid-sponsor-read",
-                "LeonAid API liefert keine Sponsor-Liste.",
+                "LeonAid API returns no sponsor list.",
             )
         matches = [
             item
@@ -127,14 +127,14 @@ async def run() -> None:
         if len(matches) != 1:
             raise context.failure(
                 "leonaid-sponsor-read",
-                f"Golden-Sponsor wurde {len(matches)}-mal statt genau einmal gefunden.",
+                f"Golden sponsor found {len(matches)} times instead of exactly once.",
             )
         api_sponsor = matches[0]
         api_twenty_id = api_sponsor.get("twentyId")
         if api_twenty_id != SPONSOR_ID:
             raise context.failure(
                 "leonaid-sponsor-read",
-                f"LeonAid API referenziert Twenty-ID {api_twenty_id!r}.",
+                f"LeonAid API references Twenty ID {api_twenty_id!r}.",
             )
 
         twenty_sponsor = await twenty.get_company(SPONSOR_ID)
@@ -144,7 +144,7 @@ async def run() -> None:
         ):
             raise context.failure(
                 "twenty-company-read",
-                "Twenty Golden-Firma stimmt nicht mit API und Fixture überein.",
+                "Twenty golden company does not match API and fixture.",
             )
 
         async with ReadOnlySqlClient(
@@ -174,7 +174,7 @@ async def run() -> None:
         if assignment.get("twenty_id") != SPONSOR_ID:
             raise context.failure(
                 "sql-sponsor-read",
-                "Read-only SQL findet nicht dieselbe Twenty-ID.",
+                "Read-only SQL does not find the same Twenty ID.",
             )
 
         mail_subject = f"POC-013 Testkit {context.request_id}"
@@ -183,14 +183,14 @@ async def run() -> None:
             recipient="poc013-smoke@leonaid.invalid",
             subject=mail_subject,
             text=(
-                "Realer SMTP/Mailpit-Smoke-Test für "
-                f"{context.golden_dataset} und {context.charity_action}."
+                "Real SMTP/Mailpit smoke test for "
+                f"{context.golden_dataset} and {context.charity_action}."
             ),
         )
         if delivered.subject != mail_subject:
             raise context.failure(
                 "mailpit-delivery",
-                "Mailpit lieferte nicht den versendeten Betreff zurück.",
+                "Mailpit did not return the sent subject.",
             )
 
         rustfs = RustFsClient(
@@ -250,8 +250,8 @@ async def run() -> None:
         await mailpit.close()
 
     print(
-        "testkit-smoke: OK: echter Login, API/Twenty/SQL-Sponsor, "
-        "SMTP/Mailpit und RustFS-Hash"
+        "testkit-smoke: OK: real login, API/Twenty/SQL sponsor, "
+        "SMTP/Mailpit and RustFS hash"
     )
 
 
@@ -270,7 +270,7 @@ def main() -> None:
         )
         print(
             f"testkit-smoke: ERROR: "
-            f"{fallback.failure('unhandled', f'Unerwarteter Fehler: {error}.')}",
+            f"{fallback.failure('unhandled', f'Unexpected error: {error}.')}",
             file=sys.stderr,
         )
         raise SystemExit(1) from error

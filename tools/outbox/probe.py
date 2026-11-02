@@ -120,7 +120,7 @@ async def prepare() -> None:
             )
     finally:
         await connection.close()
-    print("poc022: Golden-Data-Grundlage vorbereitet")
+    print("poc022: golden data baseline prepared")
 
 
 def progress_command(
@@ -178,8 +178,8 @@ async def verify_crash_boundary() -> None:
         "receipts": 1,
     }
     if row is None or dict(row) != expected:
-        raise RuntimeError(f"Commit/Dispatch-Grenze inkonsistent: {dict(row or {})}")
-    print("poc022: Commit überlebte Prozessende ohne vorgetäuschten Versand")
+        raise RuntimeError(f"commit/dispatch boundary inconsistent: {dict(row or {})}")
+    print("poc022: commit survived process exit without a faked send")
 
 
 async def verify_recovery() -> None:
@@ -189,7 +189,7 @@ async def verify_recovery() -> None:
             AsyncpgActionProgressUnitOfWorkFactory(pool)
         ).execute(progress_command())
         if not result.replayed:
-            raise RuntimeError("Wiederholter Befehl wurde nicht als Replay erkannt.")
+            raise RuntimeError("Repeated command was not detected as a replay.")
         try:
             await RecordActionProgress(
                 AsyncpgActionProgressUnitOfWorkFactory(pool)
@@ -198,7 +198,7 @@ async def verify_recovery() -> None:
             if error.code != "idempotency_conflict":
                 raise
         else:
-            raise RuntimeError("Abweichendes Replay wurde nicht abgewiesen.")
+            raise RuntimeError("Divergent replay was not rejected.")
         async with pool.acquire() as connection:
             row = await connection.fetchrow(
                 """
@@ -231,8 +231,8 @@ async def verify_recovery() -> None:
         "status": "completed",
     }
     if row is None or dict(row) != expected:
-        raise RuntimeError(f"Recovery war nicht genau-einmalig: {dict(row or {})}")
-    print("poc022: spätere fachliche Projektion genau einmal verarbeitet")
+        raise RuntimeError(f"Recovery was not exactly-once: {dict(row or {})}")
+    print("poc022: later domain projection processed exactly once")
 
 
 async def produce_many(count: int) -> None:
@@ -249,7 +249,7 @@ async def produce_many(count: int) -> None:
             )
     finally:
         await pool.close()
-    print(f"poc022: {count} konkurrierende Worker-Jobs erzeugt")
+    print(f"poc022: {count} competing worker jobs created")
 
 
 async def verify_concurrency(count: int) -> None:
@@ -290,10 +290,10 @@ async def verify_concurrency(count: int) -> None:
         "workers": 2,
         "multiple_attempts": 0,
     }:
-        raise RuntimeError(f"Worker-Konkurrenz inkonsistent: {dict(row or {})}")
+        raise RuntimeError(f"worker concurrency inconsistent: {dict(row or {})}")
     if activities != expected_total:
-        raise RuntimeError(f"Projektionen {activities} statt {expected_total}")
-    print("poc022: zwei zusätzliche Prozesse teilten Jobs ohne Doppelverarbeitung")
+        raise RuntimeError(f"projections {activities} instead of {expected_total}")
+    print("poc022: two extra processes shared jobs without double processing")
 
 
 def mail_event() -> PendingOutboxEvent:
@@ -305,8 +305,8 @@ def mail_event() -> PendingOutboxEvent:
         idempotency_key="poc022:mail:golden-v1",
         payload={
             "to": "sponsor@leonaid.invalid",
-            "subject": "LeonAid POC-022 Versandnachweis",
-            "text": "Diese synthetische Nachricht beweist Retry und Idempotenz.",
+            "subject": "LeonAid POC-022 delivery proof",
+            "text": "This synthetic message proves retry and idempotency.",
         },
     )
 
@@ -318,7 +318,7 @@ async def enqueue_mail() -> None:
             await AsyncpgTransactionalOutboxRepository(connection).append(mail_event())
     finally:
         await connection.close()
-    print("poc022: reale SMTP-Wirkung durable eingeplant")
+    print("poc022: real SMTP effect scheduled durably")
 
 
 async def verify_dead_letter() -> None:
@@ -337,7 +337,7 @@ async def verify_dead_letter() -> None:
     finally:
         await connection.close()
     if row is None:
-        raise RuntimeError("Mail-Outbox-Event fehlt.")
+        raise RuntimeError("Mail outbox event missing.")
     state = dict(row)
     if (
         state["status"] != "dead_letter"
@@ -346,9 +346,9 @@ async def verify_dead_letter() -> None:
         or state["detail"] is not True
         or state["manual_retry_count"] != 0
     ):
-        raise RuntimeError(f"Dead-Letter-Zustand inkonsistent: {state}")
+        raise RuntimeError(f"dead-letter state inconsistent: {state}")
     print(
-        "poc022: Retry, Versuchszahl, Fehlercode und Dead Letter real sichtbar "
+        "poc022: retry, attempt count, error code and dead letter visible for real "
         f"({state['last_error_code']})"
     )
 
@@ -363,7 +363,7 @@ async def replay_and_verify_mail() -> None:
                 MAIL_EVENT,
             )
         if row is None:
-            raise RuntimeError("Mail-Outbox-Event fehlt.")
+            raise RuntimeError("Mail outbox event missing.")
         handler = SmtpMailHandler(
             pool,
             transport=SmtpTransport(
@@ -422,7 +422,7 @@ async def replay_and_verify_mail() -> None:
     payload = response.json()
     messages = payload.get("messages") if isinstance(payload, dict) else None
     if not isinstance(messages, list) or len(messages) != 1:
-        raise RuntimeError(f"Mailpit enthält nicht exakt eine Mail: {payload}")
+        raise RuntimeError(f"Mailpit does not hold exactly one mail: {payload}")
     expected = {
         "status": "completed",
         "attempts": 4,
@@ -434,10 +434,10 @@ async def replay_and_verify_mail() -> None:
         "invoices": 1,
     }
     if state is None or dict(state) != expected:
-        raise RuntimeError(f"Idempotenznachweis inkonsistent: {dict(state or {})}")
+        raise RuntimeError(f"idempotency evidence inconsistent: {dict(state or {})}")
     print(
-        "poc022: manueller Wiederanlauf und Replay erzeugten je genau eine "
-        "Bestellung, Rechnung und Mail"
+        "poc022: manual restart and replay each created exactly one "
+        "order, invoice and mail"
     )
 
 
@@ -498,7 +498,9 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     "poc022:commitment:golden-v1",
                 )
                 if returned_commitment != COMMITMENT:
-                    raise RuntimeError("Commitment-Idempotenz lieferte eine andere ID.")
+                    raise RuntimeError(
+                        "Commitment idempotency returned a different ID."
+                    )
             for candidate_invoice, candidate_number in (
                 (INVOICE, "KT26-POC022"),
                 (
@@ -570,7 +572,7 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     "poc022:invoice:golden-v1",
                 )
                 if returned_invoice != INVOICE:
-                    raise RuntimeError("Rechnungs-Idempotenz lieferte eine andere ID.")
+                    raise RuntimeError("Invoice idempotency returned a different ID.")
 
 
 class LeaseTakeoverHandler:
@@ -1079,7 +1081,7 @@ async def run(arguments: argparse.Namespace) -> None:
     elif arguments.command == "verify-retention-cli":
         await verify_retention_cli()
     else:
-        raise RuntimeError(f"Unbekannter Probe-Befehl: {arguments.command}")
+        raise RuntimeError(f"Unknown probe command: {arguments.command}")
 
 
 def parser() -> argparse.ArgumentParser:

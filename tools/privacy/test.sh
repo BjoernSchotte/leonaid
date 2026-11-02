@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "privacy-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "privacy-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=260 \
       api core-postgres web proxy twenty-server twenty-worker >&2 || true
@@ -53,7 +53,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "privacy-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "privacy-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -89,7 +89,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "privacy-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "privacy-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -123,7 +123,7 @@ compose run --rm --no-deps \
 session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
   stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
-  echo "privacy-test: ERROR: Browser-Sitzungen sind nicht Modus 600" >&2
+  echo "privacy-test: ERROR: browser sessions are not mode 600" >&2
   exit 1
 fi
 
@@ -142,7 +142,7 @@ for _attempt in $(seq 1 90); do
   sleep 1
 done
 if [ "$https_ready" != "true" ]; then
-  echo "privacy-test: ERROR: HTTPS-Proxy wurde nicht bereit" >&2
+  echo "privacy-test: ERROR: HTTPS proxy did not become ready" >&2
   exit 1
 fi
 
@@ -168,7 +168,7 @@ docker run --rm \
 
 for screenshot in privacy-before-erasure.png privacy-after-erasure-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "privacy-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "privacy-test: ERROR: browser evidence is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -188,5 +188,5 @@ compose run --rm --no-deps \
 mkdir -p "$root/.artifacts/poc111"
 cp "$proof"/privacy-*.png "$root/.artifacts/poc111/"
 
-echo "privacy-test: OK: Nachweis, Export, Sperre, RBAC, Fresh-Login,"
-echo "privacy-test:     Anonymisierung und unveränderte Rechnungsbelege bewiesen"
+echo "privacy-test: OK: consent evidence, export, suppression, RBAC, fresh login,"
+echo "privacy-test:     anonymization and unchanged invoice records proven"

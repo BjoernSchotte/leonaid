@@ -37,7 +37,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -81,7 +81,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -162,7 +162,7 @@ async def assert_seeded_sources(connection: asyncpg.Connection[Any]) -> None:
     )
     counts = {str(row["source"]): int(row["count"]) for row in rows}
     if counts != {"acquisition": 3, "admin": 1, "public_form": 2}:
-        raise ContractFailure(f"Golden-Quellen sind unvollständig: {counts}")
+        raise ContractFailure(f"Golden sources are incomplete: {counts}")
     line_count = await connection.fetchval(
         """
         SELECT count(*)
@@ -172,7 +172,7 @@ async def assert_seeded_sources(connection: asyncpg.Connection[Any]) -> None:
     )
     if line_count != 6:
         raise ContractFailure(
-            f"Golden-Bestellpositionen wurden nicht vollständig persistiert: {line_count}"
+            f"Golden order lines were not fully persisted: {line_count}"
         )
     totals = await connection.fetchrow(
         """
@@ -193,9 +193,7 @@ async def assert_seeded_sources(connection: asyncpg.Connection[Any]) -> None:
         or totals["piece_count"] != 600
         or totals["total_minor"] != 90_000
     ):
-        raise ContractFailure(
-            "Golden-Mengen und -Beträge wurden nicht vollständig persistiert"
-        )
+        raise ContractFailure("Golden quantities and amounts were not fully persisted")
     offering = await connection.fetchrow(
         """
         SELECT
@@ -215,7 +213,7 @@ async def assert_seeded_sources(connection: asyncpg.Connection[Any]) -> None:
         or offering["unit_price_minor"] != 3_600
         or offering["currency"] != "EUR"
     ):
-        raise ContractFailure("Golden-Angebot besitzt keinen vollständigen Vertrag")
+        raise ContractFailure("Golden offer has no complete contract")
 
 
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
@@ -241,16 +239,14 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or capture_value["offerings"][0]["id"] != str(ACTIVE_OFFERING_ID)
             or capture_value["offerings"][0]["unitPriceMinor"] != 3_600
         ):
-            raise ContractFailure("Akquisiteur erhält keinen korrekten Bestellkontext")
+            raise ContractFailure("Acquirer does not get a correct order context")
 
         forbidden_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/commitments",
             headers=session_headers(tokens[ANNA_ID]),
         )
         if forbidden_list.status_code != 403:
-            raise ContractFailure(
-                "Akquisiteur konnte den vollständigen Admin-Arbeitsvorrat lesen"
-            )
+            raise ContractFailure("Acquirer could read the full admin work queue")
 
         seeded_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/commitments",
@@ -272,7 +268,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
         ):
             raise ContractFailure(
-                "Golden-Gesamtsummen oder Bestell-Snapshots fehlen in der Admin-API"
+                "Golden totals or order snapshots are missing in the admin API"
             )
 
         created = await post_commitment(
@@ -296,7 +292,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or value["replayed"]
         ):
             raise ContractFailure(
-                "Serverpreis, Mengen oder Quelle wurden falsch berechnet"
+                "Server price, quantities or source were calculated wrongly"
             )
         commitment_id = UUID(str(value["id"]))
 
@@ -313,9 +309,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             UUID(str(replay_value["id"])) != commitment_id
             or not replay_value["replayed"]
         ):
-            raise ContractFailure(
-                "Idempotente Wiederholung erzeugte ein neues Commitment"
-            )
+            raise ContractFailure("Idempotent retry created a new commitment")
 
         conflict_body = body_for(
             source="acquisition",
@@ -334,9 +328,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             conflict.status_code != 409
             or error_code(conflict) != "idempotency_conflict"
         ):
-            raise ContractFailure(
-                "Abweichende idempotente Wiederholung wurde akzeptiert"
-            )
+            raise ContractFailure("Diverging idempotent retry was accepted")
 
         forbidden_admin = await post_commitment(
             api,
@@ -353,7 +345,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             forbidden_admin.status_code != 403
             or error_code(forbidden_admin) != "action_management_required"
         ):
-            raise ContractFailure("Akquisiteur konnte eine Admin-Bestellung ausgeben")
+            raise ContractFailure("Acquirer could submit an admin order")
 
         unassigned = await post_commitment(
             api,
@@ -370,7 +362,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             unassigned.status_code != 403
             or error_code(unassigned) != "commitment_party_not_assigned"
         ):
-            raise ContractFailure("Nicht zugeordnete Firma wurde als Akquise erfasst")
+            raise ContractFailure("Unassigned company was recorded as an acquisition")
 
         inactive = await post_commitment(
             api,
@@ -388,7 +380,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             inactive.status_code != 422
             or error_code(inactive) != "offering_not_available"
         ):
-            raise ContractFailure("Inaktives Angebot wurde bestellt")
+            raise ContractFailure("Inactive offer was ordered")
 
         admin = await post_commitment(
             api,
@@ -412,7 +404,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or admin_value["totalMinor"] != 3_600
             or admin_value["lines"][0]["unitPriceMinor"] != 3_600
         ):
-            raise ContractFailure("Admin-Commitment verwendet keinen Serverpreis")
+            raise ContractFailure("Admin commitment does not use the server price")
 
         parallel_body = body_for(
             source="acquisition",
@@ -443,7 +435,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or any(item["totalMinor"] != 3_600 for item in parallel_values)
         ):
             raise ContractFailure(
-                "Parallele Submits erzeugten mehr als ein fachliches Commitment"
+                "Parallel submits created more than one domain commitment"
             )
 
         final_list = await api.get(
@@ -460,7 +452,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             != [{"currency": "EUR", "totalMinor": 104_400}]
         ):
             raise ContractFailure(
-                "API-Summen nach serieller und paralleler Erfassung sind falsch"
+                "API totals after serial and parallel capture are wrong"
             )
 
     persisted = await connection.fetchrow(
@@ -482,7 +474,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         commitment_id,
     )
     if persisted is None:
-        raise ContractFailure("Erzeugtes Commitment fehlt in PostgreSQL")
+        raise ContractFailure("Created commitment is missing in PostgreSQL")
     buyer_snapshot = persisted["customer_snapshot"]
     recipient_snapshot = persisted["invoice_recipient_snapshot"]
     if isinstance(buyer_snapshot, str):
@@ -490,7 +482,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     if isinstance(recipient_snapshot, str):
         recipient_snapshot = json.loads(recipient_snapshot)
     if not isinstance(buyer_snapshot, dict) or not isinstance(recipient_snapshot, dict):
-        raise ContractFailure("PostgreSQL-Snapshots besitzen kein JSON-Objekt")
+        raise ContractFailure("PostgreSQL snapshots are not JSON objects")
     if (
         buyer_snapshot["displayName"] != "Musterwerk GmbH"
         or recipient_snapshot["recipientName"] != "Musterwerk GmbH Rechnungseingang"
@@ -500,7 +492,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         or persisted["line_total_minor"] != 7_200
         or persisted["pieces_per_unit_snapshot"] != 24
     ):
-        raise ContractFailure("Persistierte Snapshots oder Serverbeträge sind falsch")
+        raise ContractFailure("Persisted snapshots or server amounts are wrong")
     duplicate_count = await connection.fetchval(
         "SELECT count(*) FROM commitment WHERE idempotency_key = $1",
         "poc080:acquisition:musterwerk",
@@ -536,13 +528,13 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         or parallel_audit_count != 1
     ):
         raise ContractFailure(
-            "Idempotenz oder transaktionaler Commitment-Audit ist unvollständig"
+            "Idempotency or transactional commitment audit is incomplete"
         )
 
     print(
-        "commitment-contract: drei Golden-Quellen, Capture-/Admin-API, "
-        "Serverpreise, 25 Boxen/600 Stück, getrennte Snapshots und zwölf "
-        "parallele Submits als genau ein Commitment real bewiesen"
+        "commitment-contract: three golden sources, capture/admin API, "
+        "server prices, 25 boxes/600 pieces, separate snapshots and twelve "
+        "parallel submits as exactly one commitment proven for real"
     )
 
 

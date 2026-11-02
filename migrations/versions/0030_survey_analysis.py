@@ -13,7 +13,7 @@ depends_on = None
 DATA_MIGRATION_REFERENCE = (
     "Additive immutable analysis storage; no response rows are rewritten."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

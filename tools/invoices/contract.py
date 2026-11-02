@@ -47,7 +47,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Missing environment variable: {name}")
     return value
 
 
@@ -63,7 +63,7 @@ def error_code(response: httpx.Response) -> str:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("Error response has no stable contract")
     return str(error.get("code"))
 
 
@@ -182,8 +182,8 @@ async def assert_database_result(
         != EXPECTED_PAYMENT_DETAILS
     ):
         raise ContractFailure(
-            "Rechnung, Nummernkreis, Bestellstatus, Audit oder "
-            "Befehlsnachweise sind nicht atomar"
+            "Invoice, number sequence, order status, audit or "
+            "command receipts are not atomic"
         )
 
 
@@ -211,7 +211,7 @@ async def mutate_twenty_company() -> None:
             updated.data.address.street_line_1 != "Nachträgliche CRM-Straße 99"
             or updated.data.address.postal_code != "99999"
         ):
-            raise ContractFailure("Die reale Twenty-Adresse wurde nicht geändert")
+            raise ContractFailure("The real Twenty address was not changed")
 
 
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
@@ -233,7 +233,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or context_value["profile"]["paymentDetails"] != EXPECTED_PAYMENT_DETAILS
             or not context_value["profile"]["readyToIssue"]
         ):
-            raise ContractFailure("Admin-Rechnungskontext ist unvollständig")
+            raise ContractFailure("Admin invoice context is incomplete")
 
         await connection.execute(
             """
@@ -253,7 +253,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or error_code(stale_profile) != "invoice_legal_configuration_stale"
         ):
             raise ContractFailure(
-                "Ungebundenes Rechnungsprofil wurde nicht fail-closed abgewiesen"
+                "Unbound invoice profile was not rejected fail-closed"
             )
         await connection.execute(
             """
@@ -271,7 +271,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         finance_context.raise_for_status()
         if finance_context.json()["mayIssue"]:
-            raise ContractFailure("Finanz-Leser erhielt Freigaberechte")
+            raise ContractFailure("Finance reader received issue rights")
 
         acquirer_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoices",
@@ -281,7 +281,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             acquirer_list.status_code != 403
             or error_code(acquirer_list) != "invoice_read_required"
         ):
-            raise ContractFailure("Akquisiteur konnte Rechnungen lesen")
+            raise ContractFailure("Acquirer could read invoices")
 
         finance_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoices",
@@ -289,7 +289,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         finance_list.raise_for_status()
         if len(finance_list.json()["items"]) != 3:
-            raise ContractFailure("Finanz-Leser sieht nicht alle Golden-Rechnungen")
+            raise ContractFailure("Finance reader does not see all golden invoices")
 
         finance_issue = await issue(
             api,
@@ -300,7 +300,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             finance_issue.status_code != 403
             or error_code(finance_issue) != "invoice_issue_required"
         ):
-            raise ContractFailure("Finanz-Leser konnte eine Rechnung freigeben")
+            raise ContractFailure("Finance reader could issue an invoice")
 
         stale_issue = await issue(
             api,
@@ -311,13 +311,13 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             stale_issue.status_code != 401
             or error_code(stale_issue) != "fresh_login_required"
         ):
-            raise ContractFailure("Rechnungsfreigabe verlangte keinen Fresh Login")
+            raise ContractFailure("Invoice issuing did not require a fresh login")
         before_count = await connection.fetchval(
             "SELECT count(*) FROM invoice WHERE commitment_id = $1",
             COMMITMENT_ID,
         )
         if before_count != 0:
-            raise ContractFailure("Abgewiesener Fresh Login erzeugte eine Rechnung")
+            raise ContractFailure("Rejected fresh login created an invoice")
 
         draft_issue = await api.post(
             f"/api/v1/actions/{ACTION_ID}/commitments/{DRAFT_COMMITMENT_ID}/invoice",
@@ -332,7 +332,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             draft_issue.status_code != 422
             or error_code(draft_issue) != "invoice_commitment_not_review_ready"
         ):
-            raise ContractFailure("Entwurfsbestellung konnte fakturiert werden")
+            raise ContractFailure("Draft order could be invoiced")
 
         first, second = await asyncio.gather(
             issue(
@@ -354,16 +354,16 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         replays = sorted(value["replayed"] for value in values)
         if len(ids) != 1 or numbers != {"KT26-0004"} or replays != [False, True]:
             raise ContractFailure(
-                "Konkurrierende Freigabe erzeugte mehr als eine Rechnung/Nummer"
+                "Concurrent issuing created more than one invoice/number"
             )
         invoice_id = UUID(str(values[0]["id"]))
         issued_snapshot = values[0]["recipient"]
         if values[0]["paymentDetails"] != EXPECTED_PAYMENT_DETAILS:
             raise ContractFailure(
-                "Rechnung enthält nicht die freigegebenen Zahlungsdaten"
+                "Invoice does not contain the approved payment details"
             )
         if issued_snapshot["streetLine1"] != "Sonnenstraße 2":
-            raise ContractFailure("Rechnung enthält nicht den erwarteten Snapshot")
+            raise ContractFailure("Invoice does not contain the expected snapshot")
         await assert_database_result(connection, invoice_id)
 
         replay = await issue(
@@ -373,7 +373,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         replay.raise_for_status()
         if replay.json()["id"] != str(invoice_id) or not replay.json()["replayed"]:
-            raise ContractFailure("Idempotente Wiederholung wurde nicht erkannt")
+            raise ContractFailure("Idempotent replay was not detected")
 
         conflicting_replay = await issue(
             api,
@@ -385,7 +385,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             conflicting_replay.status_code != 409
             or error_code(conflicting_replay) != "idempotency_conflict"
         ):
-            raise ContractFailure("Abweichende Wiederholung wurde akzeptiert")
+            raise ContractFailure("Conflicting replay was accepted")
 
         await mutate_twenty_company()
         after_crm_change = await api.get(
@@ -399,7 +399,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             if item["invoice"]["id"] == str(invoice_id)
         )
         if stored["recipient"] != issued_snapshot:
-            raise ContractFailure("Twenty-Änderung veränderte den Rechnungssnapshot")
+            raise ContractFailure("Twenty change altered the invoice snapshot")
 
         try:
             await connection.execute(
@@ -414,13 +414,13 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         except asyncpg.PostgresError:
             pass
         else:
-            raise ContractFailure("Datenbank erlaubte Snapshot-Überschreibung")
+            raise ContractFailure("Database allowed a snapshot overwrite")
         persisted_street = await connection.fetchval(
             "SELECT recipient_snapshot->>'streetLine1' FROM invoice WHERE id = $1",
             invoice_id,
         )
         if persisted_street != "Sonnenstraße 2":
-            raise ContractFailure("Unveränderlicher Snapshot wurde beschädigt")
+            raise ContractFailure("Immutable snapshot was corrupted")
         try:
             await connection.execute(
                 """
@@ -434,7 +434,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         except asyncpg.PostgresError:
             pass
         else:
-            raise ContractFailure("Datenbank erlaubte Änderung der Zahlungsdaten")
+            raise ContractFailure("Database allowed a payment details change")
         persisted_payment_details = await connection.fetchval(
             "SELECT payment_details_snapshot FROM invoice WHERE id = $1",
             invoice_id,
@@ -445,7 +445,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             else persisted_payment_details
         )
         if normalized_payment_details != EXPECTED_PAYMENT_DETAILS:
-            raise ContractFailure("Zahlungsdaten-Snapshot wurde beschädigt")
+            raise ContractFailure("Payment details snapshot was corrupted")
 
         final_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoices",
@@ -457,12 +457,12 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             {"currency": "EUR", "grossMinor": 64_800, "openMinor": 46_800}
         ]:
             raise ContractFailure(
-                f"Rechnungsliste oder Golden-Summe ist falsch: {final_value!r}"
+                f"Invoice list or golden total is wrong: {final_value!r}"
             )
 
     print(
-        "invoice-contract: OK: Fresh Login, Rollen, konkurrierende Freigabe, "
-        "Nummernkreis sowie Twenty- und Konfigurations-unabhängiger Snapshot"
+        "invoice-contract: OK: fresh login, roles, concurrent issuing, "
+        "number sequence and snapshot independent of Twenty and configuration"
     )
 
 

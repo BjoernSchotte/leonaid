@@ -20,11 +20,11 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "crm-import-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "crm-import-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 if [ ! -f "$workbook_host" ]; then
-  echo "crm-import-test: ERROR: Golden-Arbeitsmappe fehlt: $workbook_host" >&2
+  echo "crm-import-test: ERROR: golden workbook missing: $workbook_host" >&2
   exit 1
 fi
 
@@ -47,7 +47,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "crm-import-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "crm-import-test: diagnostics for the failed real services:" >&2
     diagnose
   fi
   if [ "$owned" = true ]; then
@@ -108,32 +108,32 @@ if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   . "$root/tools/testing/borrow_stack.sh"
 else
 compose build api
-echo "crm-import-test: wartet auf die TCP-Bereitschaft von Postgres und Valkey"
+echo "crm-import-test: waiting for Postgres and Valkey TCP readiness"
 compose up --detach --wait --wait-timeout 180 twenty-postgres twenty-redis
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision
 fi
 run_python tools/seed/golden.py seed-twenty /repo/tests/fixtures/golden/v1
 
-echo "crm-import-test: Dry Run zeigt new, update, conflict und rejected"
+echo "crm-import-test: dry run shows new, update, conflict and rejected"
 run_python tools/twenty/import_contacts.py dry-run \
   "$workbook_container" \
   --sheet Kontakte \
   --report /proof/dry.json
 
-echo "crm-import-test: erster Lauf legt neu an und aktualisiert kontrolliert"
+echo "crm-import-test: first run creates new records and applies controlled updates"
 run_python tools/twenty/import_contacts.py apply \
   "$workbook_container" \
   --sheet Kontakte \
   --report /proof/first.json
 
-echo "crm-import-test: zweiter Lauf aktualisiert genau einen Datensatz"
+echo "crm-import-test: second run updates exactly one record"
 run_python tools/twenty/import_contacts.py apply \
   "$workbook_container" \
   --sheet "Kontakte Update" \
   --report /proof/second.json
 
-echo "crm-import-test: Wiederholung ist idempotent"
+echo "crm-import-test: repeat run is idempotent"
 run_python tools/twenty/import_contacts.py apply \
   "$workbook_container" \
   --sheet "Kontakte Update" \
@@ -145,4 +145,4 @@ run_python tools/twenty/import_contract.py \
   --second /proof/second.json \
   --repeat /proof/repeat.json
 
-echo "crm-import-test: OK: Golden-XLSX über echte Twenty-API reproduzierbar importiert"
+echo "crm-import-test: OK: golden XLSX imported reproducibly via the real Twenty API"

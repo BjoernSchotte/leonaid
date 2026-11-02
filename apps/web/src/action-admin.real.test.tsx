@@ -8,7 +8,7 @@ import { ManageActionPage } from "@leonaid/features";
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
   if (!value)
-    throw new Error(`${name} ist für den echten Komponententest nötig`);
+    throw new Error(`${name} is required for the real component test`);
   return value;
 }
 

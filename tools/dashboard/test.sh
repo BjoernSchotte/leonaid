@@ -37,7 +37,7 @@ cleanup() {
     if [ -d "$proof/test-results" ]; then
       cp -R "$proof/test-results/." "$artifact_directory/failures/"
     fi
-    echo "dashboard-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "dashboard-test: diagnostics for the failed real services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=220 \
       api core-postgres pwa web proxy twenty-server twenty-worker >&2 || true
@@ -58,7 +58,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "dashboard-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "dashboard-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -94,7 +94,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "dashboard-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "dashboard-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -150,7 +150,7 @@ for screenshot in \
   dashboard-admin-desktop.png \
   dashboard-empty-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "dashboard-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "dashboard-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -158,5 +158,5 @@ done
 mkdir -p "$artifact_directory"
 cp "$proof"/dashboard-*.png "$artifact_directory/"
 
-echo "dashboard-test: OK: Golden-Kennzahlen gegen echte SQL-Aggregate,"
-echo "dashboard-test:     Rollen, Drilldowns, Leersicht und A11y bewiesen"
+echo "dashboard-test: OK: golden metrics against real SQL aggregates,"
+echo "dashboard-test:     roles, drilldowns, empty view and A11y proven"

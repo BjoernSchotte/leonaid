@@ -31,7 +31,7 @@ const ThemeIntro =
 const orderAlias = "orderAlias" in route ? route.orderAlias : route.routeValue;
 
 if (!action) {
-  throw new Error("Eine veröffentlichte Aktionsseite benötigt Aktionsdaten.");
+  throw new Error("A published action page requires action data.");
 }
 
 const isArchive = route.availability === "archive";

@@ -17,10 +17,10 @@ def load_json(path: Path, context: TestContext, step: str) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise context.failure(
-            step, f"Nachweis {path} ist nicht lesbar: {error}."
+            step, f"Proof {path} is not readable: {error}."
         ) from error
     if not isinstance(value, dict):
-        raise context.failure(step, f"Nachweis {path} ist kein JSON-Objekt.")
+        raise context.failure(step, f"Proof {path} is not a JSON object.")
     return value
 
 
@@ -51,9 +51,7 @@ def main() -> None:
         )
         sponsor = api.get("sponsor")
         if not isinstance(sponsor, dict):
-            raise context.failure(
-                "proof-compare", "API-Nachweis enthält keinen Sponsor."
-            )
+            raise context.failure("proof-compare", "API proof has no sponsor.")
         expected_id = sponsor.get("expectedTwentyId")
         ids = {
             "UI": ui.get("partyId"),
@@ -67,20 +65,20 @@ def main() -> None:
         if mismatches:
             raise context.failure(
                 "proof-compare",
-                f"Sponsor-IDs weichen von {expected_id} ab: {mismatches}.",
+                f"Sponsor IDs differ from {expected_id}: {mismatches}.",
             )
         if ui.get("displayName") != sponsor.get("expectedName"):
             raise context.failure(
                 "proof-compare",
-                "UI und Golden Dataset zeigen nicht denselben Sponsor-Namen.",
+                "UI and golden dataset do not show the same sponsor name.",
             )
     except TestkitFailure as error:
         print(f"testkit-ui-proof: ERROR: {error}", file=sys.stderr)
         raise SystemExit(1) from error
 
     print(
-        "testkit-ui-proof: OK: UI, LeonAid API, Twenty und read-only SQL "
-        "referenzieren denselben Golden-Sponsor"
+        "testkit-ui-proof: OK: UI, LeonAid API, Twenty and read-only SQL "
+        "reference the same golden sponsor"
     )
 
 

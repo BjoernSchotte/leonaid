@@ -21,9 +21,9 @@ if "$checkout/leonaid" doctor >"$tmp/pre-bootstrap-doctor.out" 2>&1; then
   exit 1
 fi
 for diagnosis in \
-  ".env.local fehlt" \
-  "Python-Umgebung fehlt" \
-  "Frontend-Pakete fehlen" \
+  ".env.local is missing" \
+  "Python environment is missing" \
+  "frontend packages are missing" \
   "./leonaid bootstrap"; do
   if ! grep -F "$diagnosis" "$tmp/pre-bootstrap-doctor.out" >/dev/null; then
     echo "dx-proof: ERROR: doctor missed actionable diagnosis '$diagnosis'" >&2
@@ -59,7 +59,7 @@ if "$checkout/leonaid" check >"$tmp/dirty.out" 2>&1; then
   echo "dx-proof: ERROR: dirty checkout unexpectedly passed check" >&2
   exit 1
 fi
-if ! grep -F "Arbeitsbaum ist nicht sauber" "$tmp/dirty.out" >/dev/null; then
+if ! grep -F "working tree is not clean" "$tmp/dirty.out" >/dev/null; then
   echo "dx-proof: ERROR: dirty checkout lacked actionable diagnosis" >&2
   cat "$tmp/dirty.out" >&2
   exit 1

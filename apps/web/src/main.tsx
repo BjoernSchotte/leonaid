@@ -18,7 +18,7 @@ const apiClient = new LeonAidApiClient("");
 const root = document.querySelector("#root");
 
 if (!root) {
-  throw new Error("LeonAid Web root element fehlt");
+  throw new Error("LeonAid Web root element missing");
 }
 
 createRoot(root).render(

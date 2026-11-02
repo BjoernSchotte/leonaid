@@ -8,7 +8,7 @@ const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const round = process.env.LEONAID_GOLDEN_JOURNEY_ROUND;
 
 if (!baseUrl || !mailpitBaseUrl || !artifactDirectory || !round) {
-  throw new Error("POC-122 Browserumgebung ist unvollständig");
+  throw new Error("POC-122 browser environment is incomplete");
 }
 
 test.setTimeout(180_000);
@@ -28,14 +28,14 @@ function browserKey(projectName) {
 
 function adminSession(projectName) {
   const value = process.env[`KLARA_${browserKey(projectName)}_SESSION`];
-  if (!value) throw new Error(`Klara-Sitzung fehlt für ${projectName}`);
+  if (!value) throw new Error(`Klara session missing for ${projectName}`);
   return value;
 }
 
 function staleAdminSession(projectName) {
   const value = process.env[`KLARA_${browserKey(projectName)}_STALE_SESSION`];
   if (!value) {
-    throw new Error(`Abgelaufene Klara-Sitzung fehlt für ${projectName}`);
+    throw new Error(`Expired Klara session missing for ${projectName}`);
   }
   return value;
 }
@@ -174,7 +174,7 @@ async function submitPublicOrder(page, identity) {
   return { publicReference };
 }
 
-test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
+test("complete Krapfentaxi journey without database intervention", async ({
   browser,
 }, testInfo) => {
   const engine = browserKey(testInfo.project.name).toLowerCase();

@@ -1,5 +1,5 @@
 # `@leonaid/features`
 
-Host-neutrale fachliche React-Features. Das Paket kennt UI-Zustand und den
-generierten Transportclient, enthält aber keine Berechtigungs- oder
-persistente Geschäftslogik.
+Host-neutral business React features. The package knows UI state and the
+generated transport client, but contains no permission or persistent business
+logic.

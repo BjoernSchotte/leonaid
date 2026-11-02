@@ -1,10 +1,10 @@
 # RustFS
 
-RustFS ist der S3-kompatible Objektspeicher des Corestacks. API und Worker
-erreichen ausschließlich den internen S3-Endpunkt; weder S3-Port noch
-Administrationskonsole werden am Host veröffentlicht.
+RustFS is the S3-compatible object store of the core stack. API and worker
+reach only the internal S3 endpoint; neither the S3 port nor the admin
+console is published on the host.
 
-Zugangsdaten entstehen lokal durch `./leonaid bootstrap`. Der
-POC-010-Integrationstest schreibt das vollständige Golden Dataset über Boto3
-als echtes Objekt und verifiziert Bytes, SHA-256 und Metadaten nach dem
-Neustart aller Container. Die fachliche Dokumentablage folgt in POC-092.
+Credentials are created locally by `./leonaid bootstrap`. The POC-010
+integration test writes the complete golden dataset as a real object through
+Boto3 and verifies bytes, SHA-256 and metadata after all containers restart.
+Business document storage follows in POC-092.

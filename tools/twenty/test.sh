@@ -18,7 +18,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 if [ ! -f "$env_file" ]; then
-  echo "twenty-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "twenty-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -41,7 +41,7 @@ diagnose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "twenty-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "twenty-test: diagnostics for the failed real services:" >&2
     diagnose
   fi
   if [ "$owned" = true ]; then
@@ -80,12 +80,12 @@ run_tool() {
 compose build api
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 
-echo "twenty-test: provisioniert eine leere Twenty-Instanz über die Metadata API"
+echo "twenty-test: provisions an empty Twenty instance via the Metadata API"
 run_tool apply \
   --token-output /proof/integration.env \
   --snapshot-output /proof/first.json
 
-echo "twenty-test: wiederholt die Provisionierung ohne Duplikate oder Drift"
+echo "twenty-test: repeats provisioning without duplicates or drift"
 run_tool apply \
   --token-output /proof/integration.env \
   --snapshot-output /proof/second.json
@@ -94,7 +94,7 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   cmp /proof/first.json /proof/second.json
 
-echo "twenty-test: verwirft den Workspace-Cache gezielt und Twenty berechnet ihn neu"
+echo "twenty-test: drops the workspace cache on purpose; Twenty rebuilds it"
 # The stale-cache repair of provision.py deletes exactly Twenty's
 # engine:workspace namespace; queues and other namespaces stay untouched.
 workspace_keys() {
@@ -115,10 +115,10 @@ docker run --rm \
   cmp /proof/first.json /proof/after-cache-flush.json
 [ "$(workspace_keys)" -gt 0 ]
 
-echo "twenty-test: beweist erlaubte und verweigerte Integrations-Key-Rechte"
+echo "twenty-test: proves allowed and denied integration key permissions"
 run_tool verify-key --token-file /proof/integration.env
 
-echo "twenty-test: verändert ein echtes Feld und erwartet verständlichen Drift"
+echo "twenty-test: changes a real field and expects a clear drift report"
 run_tool mutate-field \
   --object charityAction \
   --field goalValue \
@@ -128,23 +128,23 @@ run_tool mutate-field \
   --field leonaidMatchKey \
   --label "ABSICHTLICHER MATCH-KEY DRIFT"
 if run_tool check >"$proof/drift.log" 2>&1; then
-  echo "twenty-test: ERROR: absichtlicher Feld-Drift wurde nicht erkannt" >&2
+  echo "twenty-test: ERROR: intentional field drift was not detected" >&2
   exit 1
 fi
 if ! grep -F "objects.charityAction.fields.goalValue.label" "$proof/drift.log" >/dev/null; then
-  echo "twenty-test: ERROR: Drift-Diagnose nennt den Feldpfad nicht" >&2
+  echo "twenty-test: ERROR: drift diagnostics do not name the field path" >&2
   sed -n '1,120p' "$proof/drift.log" >&2
   exit 1
 fi
 if ! grep -F "objects.company.fields.leonaidMatchKey.label" "$proof/drift.log" >/dev/null; then
-  echo "twenty-test: ERROR: Drift am Standard-Object-Feld wurde nicht erkannt" >&2
+  echo "twenty-test: ERROR: drift on the standard object field was not detected" >&2
   sed -n '1,120p' "$proof/drift.log" >&2
   exit 1
 fi
 if ! grep -F "ABSICHTLICHER POC-030 DRIFT" "$proof/drift.log" >/dev/null; then
-  echo "twenty-test: ERROR: Drift-Diagnose nennt den vorhandenen Wert nicht" >&2
+  echo "twenty-test: ERROR: drift diagnostics do not name the current value" >&2
   sed -n '1,120p' "$proof/drift.log" >&2
   exit 1
 fi
 
-echo "twenty-test: OK: Idempotenz, Drift und Least Privilege real bewiesen"
+echo "twenty-test: OK: idempotency, drift and least privilege proven for real"

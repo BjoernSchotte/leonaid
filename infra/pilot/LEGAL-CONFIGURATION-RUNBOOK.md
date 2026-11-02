@@ -1,90 +1,88 @@
-# Organisation & Recht konfigurieren
+# Configure organization and legal settings
 
-Stand: 28. Juli 2026
+As of: 28 July 2026
 
-Dieses Runbook beschreibt die technische Pflege der installationsweiten
-Träger-, Rechnungs- und Datenschutzgrundlage. Es ersetzt keine Rechts- oder
-Steuerberatung. Reale Nachweisdokumente bleiben im privaten Evidence Store;
-LeonAid speichert ausschließlich deren neutrale Evidence-ID.
+This runbook describes the technical maintenance of the installation-wide
+basis for the legal entity, invoicing and privacy. It does not replace legal
+or tax advice. Real evidence documents stay in the private evidence store;
+LeonAid stores only their neutral evidence ID.
 
-## Fachlicher Schnitt
+## Functional scope
 
-Die Admin-Seite **Organisation & Recht** unter `/admin/legal` enthält:
+The admin page **Organisation & Recht** (Organization & legal) at
+`/admin/legal` contains:
 
-1. Träger- und Rechnungsausstellerdaten, Bankverbindung, Steuerfall,
-   Rechnungsnummernformat und Zahlungsziel;
-2. Rechtsgrundlage, Informationstext, Textversion, Datenschutzkontakt und
-   Aufbewahrungsfristen;
-3. die E-Rechnungsentscheidung und die zugehörigen Evidence-IDs.
+1. legal entity and invoice issuer data, bank details, tax case,
+   invoice number format and payment term;
+2. legal basis, notice text, text version, privacy contact and
+   retention periods;
+3. the e-invoicing decision and the related evidence IDs.
 
-Diese installationsweite Grundlage ist nicht dasselbe wie das
-aktionsbezogene Rechnungsprofil. Das Rechnungsprofil einer Charity-Aktion
-bleibt der heute aktive Vertrag für die konkrete Rechnungserzeugung. Es darf
-erst dann mit realen Werten bestätigt werden, wenn die installationsweite
-Grundlage fachlich aktiviert ist. Damit gibt es keine zweite, unkontrollierte
-Quelle für bereits ausgestellte Rechnungssnapshots.
+This installation-wide basis is not the same as the campaign-scoped invoice
+profile. The invoice profile of a charity campaign remains the currently
+active contract for the actual invoice generation. It may be confirmed with
+real values only once the installation-wide basis is functionally active.
+This way there is no second, uncontrolled source for invoice snapshots that
+were already issued.
 
-Betriebsdaten wie DNS, VPS, Mail-Relay, Backup-, Secret-, Monitoring- oder
-Incident-Owner gehören nicht in dieses Formular. Sie werden über
-Deployment-Konfiguration, Runbooks und das personenbezugsfreie
-Entscheidungsregister geführt.
+Operations data such as DNS, VPS, mail relay, backup, secret, monitoring or
+incident owners do not belong in this form. They are kept in the deployment
+configuration, the runbooks and the decision register, which contains no
+personal data.
 
-## Rollen und Freigabe
+## Roles and approval
 
-- Nur globale System-Admins dürfen die Konfiguration lesen oder verändern.
-- Jede Änderung erzeugt eine neue unveränderliche Version.
-- Der Ersteller kann seine eigene Version nicht freigeben.
-- Eine zweite System-Administration hinterlegt eine neutrale
-  Freigabe-Evidence-ID.
-- Erst danach kann die Version verbindlich aktiviert werden.
-- Schreibvorgänge verlangen einen frischen Login.
-- Parallele oder veraltete Änderungen werden über die erwartete Revision
-  abgewiesen.
+- Only global system admins may read or change the configuration.
+- Every change creates a new immutable version.
+- The author cannot approve their own version.
+- A second system admin records a neutral approval evidence ID.
+- Only then can the version be activated as binding.
+- Writes require a fresh login.
+- Parallel or stale changes are rejected through the expected revision.
 
-Audit-Ereignisse enthalten Version, Revision und technische IDs, aber keine
-IBAN, E-Mail-Adresse, Anschrift oder Rechtstexte.
+Audit events contain version, revision and technical IDs, but no IBAN,
+email address, postal address or legal texts.
 
-## Sicherer Ablauf
+## Safe procedure
 
-1. Die fachlich verantwortlichen Rollen beantworten die Fragen aus
-   `specs/leonaid-pilot/DECISION-INTAKE.md` und legen private Nachweise ab.
-2. Eine System-Administration öffnet `/admin/legal`, pflegt alle drei
-   geführten Schritte und kontrolliert die Zusammenfassung.
-3. Sie speichert den Entwurf. Der Entwurf ist noch nicht wirksam.
-4. Eine zweite System-Administration vergleicht Formular und privaten
-   Nachweis, trägt dessen Evidence-ID ein und gibt den Entwurf frei.
-5. Eine System-Administration aktiviert die freigegebene Version.
-6. Die zuständigen Fachrollen prüfen anschließend den realen Staging-Beleg,
-   das öffentliche Formular sowie Datenschutzexport und Löschworkflow.
+1. The functionally responsible roles answer the questions from
+   `specs/leonaid-pilot/DECISION-INTAKE.md` and store private evidence.
+2. A system admin opens `/admin/legal`, fills in all three guided steps and
+   checks the summary.
+3. They save the draft. The draft is not yet in effect.
+4. A second system admin compares the form with the private evidence, enters
+   its evidence ID and approves the draft.
+5. A system admin activates the approved version.
+6. The responsible functional roles then check the real staging record, the
+   public form, the privacy export and the erasure workflow.
 
-Eine offene E-Rechnungsentscheidung blockiert die Aktivierung. Das Ergebnis
-`required` blockiert den ERP-light-Piloten vollständig, weil XRechnung und
-ZUGFeRD nicht stillschweigend in diesen Scope aufgenommen werden.
+An open e-invoicing decision blocks activation. The result `required` blocks
+the ERP-light pilot completely, because XRechnung and ZUGFeRD are not added
+to this scope silently.
 
-In einer Produktionsumgebung blockiert LeonAid außerdem erkennbare
-Golden-/Test-/Platzhalterwerte wie `.invalid`, `.test`, `example.org`,
-`golden` oder `review-required`.
+In a production environment, LeonAid also blocks recognizable
+golden/test/placeholder values such as `.invalid`, `.test`, `example.org`,
+`golden` or `review-required`.
 
-## Reproduzierbarer technischer Nachweis
+## Reproducible technical proof
 
 ```sh
 ./leonaid test-pilot-legal-config
 ```
 
-Der Befehl startet einen isolierten realen Compose-Stack mit PostgreSQL,
-Twenty, RustFS und Chromium. Er prüft Rollen, unveränderliche Versionen,
-Vier-Augen-Freigabe, Aktivierungssperren, konkurrierende Revisionen,
-personenbezugsfreies Audit, Desktop-/Mobilbedienung und Accessibility. Nach
-dem Lauf werden genau die Testcontainer, -netze und -volumes entfernt.
+The command starts an isolated real Compose stack with PostgreSQL, Twenty,
+RustFS and Chromium. It checks roles, immutable versions, four-eyes
+approval, activation locks, competing revisions, audit without personal data,
+desktop/mobile use and accessibility. After the run, exactly the test
+containers, networks and volumes are removed.
 
-## Noch erforderliche Fachabnahme
+## Functional acceptance still required
 
-Die technische Aktivierung allein schließt PILOT-044 nicht. Vor der
-Produktivfreigabe müssen weiterhin:
+Technical activation alone does not close PILOT-044. Before production
+approval, the following are still required:
 
-- reale Träger-, Steuer-, Rechnungs- und Datenschutzwerte bestätigt werden;
-- Public Form und Consent-Nachweis die aktive Textversion verwenden;
-- Export und Erasure die aktivierten Fristen sowie Twenty-/RustFS-Referenzen
-  berücksichtigen;
-- ein realer Staging-Beleg durch die zuständige Fachperson abgenommen werden.
-
+- real legal entity, tax, invoice and privacy values are confirmed;
+- the public form and consent evidence use the active text version;
+- export and erasure respect the activated retention periods and the
+  Twenty/RustFS references;
+- the responsible functional owner accepts a real staging record.

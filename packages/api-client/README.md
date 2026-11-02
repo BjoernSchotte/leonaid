@@ -1,33 +1,32 @@
 # `@leonaid/api-client`
 
-Host-neutraler TypeScript-Client für die LeonAid-Core-API.
+Host-neutral TypeScript client for the LeonAid Core API.
 
-- `openapi.json` wird direkt aus FastAPI erzeugt.
-- `src/generated.ts` wird deterministisch aus diesem Vertrag generiert.
-- `src/index.ts` ist der einzige Importpfad für Web, PWA, Public Web und eine
-  spätere Tauri-App.
+- `openapi.json` is generated directly from FastAPI.
+- `src/generated.ts` is generated deterministically from this contract.
+- `src/index.ts` is the only import path for web, PWA, Public Web and a later
+  Tauri app.
 
-Beide generierten Dateien werden committed. Manuelle Änderungen sind
-unzulässig; `tools/openapi/generate.py --check` erkennt Drift.
+Both generated files are committed. Manual changes are not allowed;
+`tools/openapi/generate.py --check` detects drift.
 
-Der Generator unterstützt die im PoC verwendeten erforderlichen
-JSON-Request-Bodies, erforderlichen Pfadparameter sowie typisierte skalare
-Query-Parameter. Pfad- und Query-Werte werden URL-kodiert,
-Content-Type-Header mit Aufrufoptionen zusammengeführt und nicht unterstützte
-OpenAPI-Formen weiterhin explizit abgewiesen.
+The generator supports the required JSON request bodies, required path
+parameters and typed scalar query parameters used in the PoC. Path and query
+values are URL-encoded, Content-Type headers are merged with call options, and
+unsupported OpenAPI shapes are still rejected explicitly.
 
-Seit POC-042 enthält der Vertrag außerdem Login-Anforderung und -Abschluss,
-Fresh-Login-Status und -Abschluss, Logout sowie administrativen
-Sitzungswiderruf. Das eigentliche Sitzungstoken bleibt ausschließlich im
-`HttpOnly`-Cookie und ist deshalb kein Wert des TypeScript-Clients.
+Since POC-042, the contract also contains login request and completion,
+fresh-login status and completion, logout and administrative session
+revocation. The session token itself stays only in the `HttpOnly` cookie and is
+therefore not a value of the TypeScript client.
 
-Seit POC-043 umfasst der Vertrag die serverseitig zugeschnittenen
-Akquise-Endpunkte für Liste, Count, CSV-Export, Detail, Aktivitäten und
-Dokumentmetadaten. Der Client übermittelt keine Actor-, Rollen- oder
-Assignee-ID; die Core-Sitzung ist die einzige Identitätsquelle.
+Since POC-043, the contract covers the server-side scoped acquisition
+endpoints for list, count, CSV export, detail, activities and document
+metadata. The client sends no actor, role or assignee ID; the Core session is
+the only source of identity.
 
-Seit POC-050 umfasst der Vertrag außerdem das Erstellen und Lesen neutraler
-Charity-Aktionen sowie typisierte Änderungen an Ziel, Capabilities,
-Begünstigten und Lifecycle. Dezimalwerte werden verlustfrei als kanonische
-Strings übertragen. Schreibzugriffe bleiben serverseitig an eine frische
-Sitzung und die zentrale Aktionsberechtigung gebunden.
+Since POC-050, the contract also covers creating and reading neutral charity
+actions and typed changes to goal, capabilities, beneficiaries and lifecycle.
+Decimal values are transferred losslessly as canonical strings. Writes stay
+bound on the server side to a fresh session and the central action
+permission.

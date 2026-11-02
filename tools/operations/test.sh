@@ -32,7 +32,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "operations-test: Diagnose der fehlgeschlagenen Services:" >&2
+    echo "operations-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=300 \
       api worker proxy web core-postgres rustfs mailpit twenty-server >&2 || true
@@ -67,7 +67,7 @@ contract() {
 }
 
 if [ ! -f "$env_file" ]; then
-  echo "operations-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "operations-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -103,7 +103,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "operations-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "operations-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -186,22 +186,22 @@ compose logs --no-color worker >"$proof/worker.log"
 for dependency in twenty rustfs mail worker; do
   if ! grep -F "\"dependency\":\"$dependency\"" "$proof/api.log" \
     | grep -F '"requestId":"poc114-browser-correlation"' >/dev/null; then
-    echo "operations-test: ERROR: Browser-Korrelation zu $dependency fehlt" >&2
+    echo "operations-test: ERROR: browser correlation for $dependency is missing" >&2
     exit 1
   fi
 done
 if ! grep -F '"event":"http.request.completed"' "$proof/api.log" \
   | grep -F '"requestId":"poc114-browser-correlation"' >/dev/null; then
-  echo "operations-test: ERROR: korreliertes Browser-Request-Log fehlt" >&2
+  echo "operations-test: ERROR: correlated browser request log is missing" >&2
   exit 1
 fi
 if ! grep -F '"event":"outbox.job.dead_lettered"' \
   "$proof/worker-failure.log" >/dev/null; then
-  echo "operations-test: ERROR: strukturiertes Dead-Letter-Log fehlt" >&2
+  echo "operations-test: ERROR: structured dead-letter log is missing" >&2
   exit 1
 fi
 if ! grep -F '"event":"outbox.job.completed"' "$proof/worker.log" >/dev/null; then
-  echo "operations-test: ERROR: strukturiertes Recovery-Log fehlt" >&2
+  echo "operations-test: ERROR: structured recovery log is missing" >&2
   exit 1
 fi
 
@@ -209,7 +209,7 @@ if grep -E \
   'klara\.kern@|system-admin@|poc114-system-admin-|secureMail|%PDF-' \
   "$proof/api.log" "$proof/worker.log" "$proof/worker-failure.log" \
   >/dev/null; then
-  echo "operations-test: ERROR: Logs enthalten PII, Token oder Dokumentbytes" >&2
+  echo "operations-test: ERROR: logs contain PII, tokens or document bytes" >&2
   exit 1
 fi
 
@@ -217,7 +217,7 @@ for screenshot in \
   operations-dead-letter.png operations-recovered.png operations-mobile.png
 do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "operations-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "operations-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -227,5 +227,5 @@ cp "$proof"/operations-*.png "$root/.artifacts/poc114/"
 cp "$proof"/api.log "$proof"/worker.log "$proof"/worker-failure.log \
   "$root/.artifacts/poc114/"
 
-echo "operations-test: OK: korrelierte Logs, Metriken, trennscharfe Ausfälle,"
-echo "operations-test:     sicherer UI-Retry und loghygienische Browser-UX bewiesen"
+echo "operations-test: OK: correlated logs, metrics, distinct outages,"
+echo "operations-test:     safe UI retry and log-hygienic browser UX proven"

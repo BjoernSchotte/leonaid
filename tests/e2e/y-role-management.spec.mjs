@@ -17,7 +17,7 @@ if (
   !charityAdminSession ||
   !annaSession
 ) {
-  throw new Error("PILOT-012 Browserumgebung ist unvollständig");
+  throw new Error("PILOT-012 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -125,7 +125,7 @@ async function restoreAnnaRoles(request) {
   }
 }
 
-test("Charity-Admin verwaltet nur Aktionsrollen im eigenen Scope", async ({
+test("charity admin manages only action roles in their own scope", async ({
   browser,
 }) => {
   const context = await sessionContext(browser, charityAdminSession, {
@@ -205,7 +205,7 @@ test("Charity-Admin verwaltet nur Aktionsrollen im eigenen Scope", async ({
   }
 });
 
-test("System-Admin führt Rollenwechsel und vollständiges Offboarding über UI durch", async ({
+test("system admin performs a role change and full offboarding through the UI", async ({
   browser,
 }) => {
   const systemContext = await sessionContext(browser, systemSession, {

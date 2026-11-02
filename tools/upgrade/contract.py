@@ -23,7 +23,7 @@ class ContractFailure(RuntimeError):
 def required(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
@@ -38,13 +38,13 @@ async def counts(connection: asyncpg.Connection[Any]) -> dict[str, int]:
 async def assert_reads_available(client: httpx.AsyncClient) -> None:
     live = await client.get("/health/live")
     if live.status_code != 200:
-        raise ContractFailure(f"Liveness-Read liefert {live.status_code}")
+        raise ContractFailure(f"liveness read returns {live.status_code}")
     dashboard = await client.get(
         f"/api/v1/actions/{ACTION_ID}/dashboard",
         cookies={SESSION_COOKIE: KLARA_SESSION},
     )
     if dashboard.status_code != 200:
-        raise ContractFailure(f"Dashboard-Read liefert {dashboard.status_code}")
+        raise ContractFailure(f"dashboard read returns {dashboard.status_code}")
 
 
 async def verify(mode: str) -> None:
@@ -64,25 +64,23 @@ async def verify(mode: str) -> None:
                 )
                 if response.status_code != 503:
                     raise ContractFailure(
-                        f"Wartungsmodus akzeptiert POST mit {response.status_code}"
+                        f"maintenance mode accepts POST with {response.status_code}"
                     )
                 payload = response.json()
                 if payload.get("error", {}).get("code") != "maintenance_mode":
-                    raise ContractFailure(
-                        "Wartungsfehler hat keinen stabilen Fehlercode"
-                    )
+                    raise ContractFailure("maintenance error has no stable error code")
                 if response.headers.get("retry-after") != "60":
-                    raise ContractFailure("Wartungsfehler hat kein Retry-After")
+                    raise ContractFailure("maintenance error has no Retry-After")
                 after = await counts(connection)
                 if after != before:
                     raise ContractFailure(
-                        f"Blockierter Write hat Daten verändert: {before} -> {after}"
+                        f"blocked write changed data: {before} -> {after}"
                     )
             else:
                 response = await client.post("/api/v1/auth/login", json={})
                 if response.status_code != 422:
                     raise ContractFailure(
-                        f"Write-Grenze blieb nach Wartung aktiv: {response.status_code}"
+                        f"write block stayed active after maintenance: {response.status_code}"
                     )
     finally:
         await connection.close()

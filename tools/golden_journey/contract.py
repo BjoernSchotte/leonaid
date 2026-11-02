@@ -38,7 +38,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"Environment variable missing: {name}")
     return value
 
 
@@ -131,7 +131,7 @@ def load_artifacts(directory: Path, round_name: str) -> list[dict[str, Any]]:
         for path in sorted(directory.glob(f"golden-{round_name}-*.json"))
     ]
     if len(result) != 3 or {item.get("browser") for item in result} != set(ENGINES):
-        raise ContractFailure(f"Browserartefakte für {round_name} unvollständig")
+        raise ContractFailure(f"Browser artifacts for {round_name} incomplete")
     return result
 
 
@@ -154,7 +154,7 @@ async def mail_messages(mailpit: httpx.AsyncClient) -> list[dict[str, Any]]:
     response.raise_for_status()
     messages = response.json().get("messages", [])
     if not isinstance(messages, list):
-        raise ContractFailure("Mailpit-Nachrichtenliste fehlt")
+        raise ContractFailure("Mailpit message list missing")
     return [item for item in messages if isinstance(item, dict)]
 
 
@@ -172,7 +172,7 @@ async def assert_invoice_mail(
         and str(item.get("Subject", "")).startswith("Rechnung ")
     ]
     if len(candidates) != 1 or not isinstance(candidates[0].get("ID"), str):
-        raise ContractFailure(f"Rechnungs-Mail an {recipient} nicht eindeutig")
+        raise ContractFailure(f"Invoice mail to {recipient} is not unique")
     response = await mailpit.get(f"/api/v1/message/{candidates[0]['ID']}/raw")
     response.raise_for_status()
     message = BytesParser(policy=policy.default).parsebytes(response.content)
@@ -184,7 +184,7 @@ async def assert_invoice_mail(
         or not isinstance(payload, bytes)
         or hashlib.sha256(payload).hexdigest() != pdf_sha256
     ):
-        raise ContractFailure(f"MIME-PDF an {recipient} ist nicht byteidentisch")
+        raise ContractFailure(f"MIME PDF to {recipient} is not byte-identical")
 
 
 async def verify_round(
@@ -293,7 +293,7 @@ async def verify_round(
     }
     values = {key: int(row[key]) for key in expected} if row else {}
     if values != expected:
-        raise ContractFailure(f"PostgreSQL-Fachsummen für {round_name}: {values}")
+        raise ContractFailure(f"PostgreSQL business totals for {round_name}: {values}")
 
     integration_key = require_env("TWENTY_INTEGRATION_API_KEY")
     async with TwentyCrmGateway(
@@ -311,12 +311,12 @@ async def verify_round(
             )
             exact = [item for item in found if item.data.name == company]
             if len(exact) != 1:
-                raise ContractFailure(f"Twenty-Firma nicht eindeutig: {company}")
+                raise ContractFailure(f"Twenty company not unique: {company}")
             crm_records.append(exact[0])
     if {str(item.twenty_id) for item in crm_records} != {
         str(item["partyTwentyId"]) for item in artifacts
     }:
-        raise ContractFailure("Twenty-IDs weichen von Browserantworten ab")
+        raise ContractFailure("Twenty IDs differ from browser responses")
 
     storage = S3ObjectStorage(
         endpoint_url=require_env("OBJECT_STORAGE_ENDPOINT_URL"),
@@ -335,7 +335,7 @@ async def verify_round(
         invoice_ids,
     )
     if len(document_rows) != 3:
-        raise ContractFailure("Nicht alle Journey-PDFs sind verfügbar")
+        raise ContractFailure("Not all journey PDFs are available")
     pdf_evidence: dict[str, dict[str, object]] = {}
     normalized_pdfs: dict[str, dict[str, object]] = {}
     async with httpx.AsyncClient(
@@ -367,7 +367,7 @@ async def verify_round(
                 or str(artifact["invoiceNumber"]) not in text
                 or str(artifact["company"]) not in text
             ):
-                raise ContractFailure(f"PDF-Nachweis fehlerhaft: {invoice_id}")
+                raise ContractFailure(f"PDF evidence invalid: {invoice_id}")
             browser_pdf = artifacts_directory / (
                 f"golden-{round_name}-{artifact['browser']}-"
                 f"{artifact['invoiceNumber']}.pdf"
@@ -377,7 +377,7 @@ async def verify_round(
                 or hashlib.sha256(browser_pdf.read_bytes()).hexdigest() != digest
             ):
                 raise ContractFailure(
-                    f"Browser-PDF ist nicht byteidentisch: {invoice_id}"
+                    f"Browser PDF is not byte-identical: {invoice_id}"
                 )
             recipient = f"journey-{round_name}-{artifact['browser']}@leonaid.invalid"
             await assert_invoice_mail(
@@ -454,7 +454,7 @@ async def execute(arguments: argparse.Namespace) -> None:
                 normalized_output=arguments.normalized_output,
             )
         else:
-            raise ContractFailure(f"Unbekannter Befehl: {arguments.command}")
+            raise ContractFailure(f"Unknown command: {arguments.command}")
     finally:
         await connection.close()
 

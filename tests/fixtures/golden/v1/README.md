@@ -1,73 +1,70 @@
 # Golden Dataset v1
 
-Alle Namen, Firmen, Anschriften und E-Mail-Adressen sind synthetisch.
-E-Mail-Adressen verwenden ausschließlich die reservierte Testzone
-`leonaid.invalid`. Die Daten bilden keinen realen Lions Club und keine realen
-Sponsoren ab.
+All names, companies, addresses and email addresses are synthetic. Email
+addresses use only the reserved test zone `leonaid.invalid`. The data does not
+represent any real Lions Club or real sponsors.
 
 ## Personas
 
-- **Simone System** sieht alle drei Aktionen und dient später ausschließlich
-  der systemweiten Administration.
-- **Klara Kern** verwaltet die aktive und die archivierte Krapfentaxi-Aktion.
-- **Felix Fremd** verwaltet nur die fremde, noch nicht veröffentlichte
-  Testaktion. Damit werden negative Aktionsgrenzen beweisbar.
-- **Anna Akquise**, **Bernd Binder** und **Carla Club** sind aktive
-  Akquisiteure der laufenden Aktion.
-- **Finn Finanzen** besitzt die aktionsbezogene Finanzrolle.
-- **Gesa Gesperrt** hat zwar eine Membership, sieht wegen ihres gesperrten
-  Benutzerstatus aber keine Aktion.
+- **Simone System** sees all three actions and is later used only for
+  system-wide administration.
+- **Klara Kern** manages the active and the archived Krapfentaxi action.
+- **Felix Fremd** manages only the other, not yet published test action. This
+  makes negative action boundaries provable.
+- **Anna Akquise**, **Bernd Binder** and **Carla Club** are active acquirers of
+  the running action.
+- **Finn Finanzen** holds the action-scoped finance role.
+- **Gesa Gesperrt** has a membership but sees no action because her user status
+  is blocked.
 
-## Konflikt- und Sichtbarkeitsfälle
+## Conflict and visibility cases
 
-- Musterwerk ist ausschließlich Anna zugeordnet.
-- Bäckerei Sonnenseite ist ausschließlich Bernd zugeordnet.
-- Doppelkontakt ist Anna und Bernd gemeinsam zugeordnet und besitzt zwei
-  Ansprechpartner.
-- Freie Firma ist bewusst niemandem zugeordnet.
-- Sophie Sponsor ist eine Person ohne Firma und Carla zugeordnet.
-- `Baeckerei  Sonnenseite K.G.` normalisiert auf eine vorhandene Firma; beim
-  Erfassen muss die bestehende Zuordnung zu Bernd als Warnung erscheinen.
-- Zwei Personen heißen Max Mustermann. Firma, E-Mail und PLZ erzwingen eine
-  bewusste Disambiguierung.
+- Musterwerk is assigned only to Anna.
+- Bäckerei Sonnenseite is assigned only to Bernd.
+- Doppelkontakt is assigned to both Anna and Bernd and has two contact persons.
+- Freie Firma is deliberately assigned to nobody.
+- Sophie Sponsor is a person without a company, assigned to Carla.
+- `Baeckerei  Sonnenseite K.G.` normalizes to an existing company; on entry,
+  the existing assignment to Bernd must appear as a warning.
+- Two people are called Max Mustermann. Company, email and postcode force a
+  deliberate disambiguation.
 
-## Krapfentaxi-Fachwerte
+## Krapfentaxi business values
 
-Das aktive Angebot enthält 24 Krapfen pro Box zu 36,00 EUR, einen vollständigen
-Bestellzeitraum und `box` als erlaubte Mengeneinheit. Sechs Commitments aus
-persönlicher Akquise, öffentlichem Formular und Admin-Erfassung decken Entwurf,
-prüfbereit, öffentlich eingegangen und fakturiert ab. Zusammen ergeben sie
-25 Boxen, 600 Krapfen und 900,00 EUR. Bei einem manuellen Aktionsziel von
-1.000,00 EUR sind das 90,00 Prozent.
+The active offer contains 24 Krapfen per box at 36.00 EUR, a complete order
+period and `box` as the allowed quantity unit. Six commitments from personal
+acquisition, the public form and admin entry cover draft, review-ready,
+received publicly and invoiced. Together they add up to 25 boxes, 600 Krapfen
+and 900.00 EUR. With a manual action goal of 1,000.00 EUR, that is 90.00
+percent.
 
-Die drei Rechnungen decken offen, bezahlt und storniert ab. Jede enthält einen
-eigenen Adress-Snapshot und verweist auf ein fakturiertes Commitment.
+The three invoices cover open, paid and cancelled. Each contains its own
+address snapshot and refers to an invoiced commitment.
 
 ## Public Web
 
-`/krapfentaxi` ist der bewegliche Alias der aktiven Aktion. Die aktive Aktion
-besitzt zusätzlich den stabilen kanonischen Pfad
-`/archive/krapfentaxi-2026`; das Vorjahr ist ausschließlich unter
-`/archive/krapfentaxi-2025` erreichbar.
+`/krapfentaxi` is the moving alias of the active action. The active action also
+has the stable canonical path `/archive/krapfentaxi-2026`; the previous year is
+reachable only under `/archive/krapfentaxi-2025`.
 
-## Dateien und Prüfung
+## Files and checks
 
-- `manifest.json` verbindet Dataset- und Schemaversion.
-- `schema.json` definiert Collections und Enums.
-- `dataset.json` enthält ausschließlich Eingabedaten.
-- `expected.json` enthält Counts, Sichtbarkeiten, Match-Ergebnisse,
-  Mengen-/Geldberechnungen, Feed-Sichten und Public-Auflösung.
+- `manifest.json` links dataset and schema version.
+- `schema.json` defines collections and enums.
+- `dataset.json` contains input data only.
+- `expected.json` contains counts, visibilities, match results,
+  quantity/money calculations, feed views and public resolution.
 - `outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx`
-  ist eine echte, visuell geprüfte Arbeitsmappe mit Anleitung, initialem
-  Kontaktimport und einem kontrollierten zweiten Stand. Sie beweist neuen,
-  aktualisierten, mehrdeutigen und verworfenen CRM-Input.
-- `import/leonaid-crm-import.csv` enthält denselben initialen Stand als
-  semikolongetrennte UTF-8-Datei und beweist den alternativen Parserpfad.
-- `documents/*.typ` sind die deterministischen Quellen der drei synthetischen
-  Golden-Rechnungen. `./leonaid seed` rendert sie mit dem gepinnten Typst-Image,
-  legt die PDFs in RustFS ab und speichert SHA-256 plus Rechnungszuordnung.
+  is a real, visually checked workbook with instructions, an initial contact
+  import and a controlled second state. It proves new, updated, ambiguous and
+  rejected CRM input.
+- `import/leonaid-crm-import.csv` contains the same initial state as a
+  semicolon-separated UTF-8 file and proves the alternative parser path.
+- `documents/*.typ` are the deterministic sources of the three synthetic golden
+  invoices. `./leonaid seed` renders them with the pinned Typst image, stores
+  the PDFs in RustFS and saves SHA-256 plus the invoice mapping.
 
-Prüfung:
+Check:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \

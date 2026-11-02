@@ -67,7 +67,9 @@ Astro.response.headers.set("Cache-Control", "no-store");
   function requiredElement<T extends Element>(selector: string): T {
     const element = document.querySelector<T>(selector);
     if (!element) {
-      throw new Error(`LeonAid E-Mail-Bestätigungselement fehlt: ${selector}`);
+      throw new Error(
+        `LeonAid email confirmation element missing: ${selector}`,
+      );
     }
     return element;
   }

@@ -15,7 +15,7 @@ env_file="$root/.env.local"
 fixture="/repo/tests/fixtures/golden/v1"
 
 if [ ! -f "$env_file" ]; then
-  echo "compose-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "compose-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -35,7 +35,7 @@ compose_all_profiles() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "compose-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "compose-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=80 >&2 || true
   fi
@@ -86,11 +86,11 @@ profiles=$(compose config --profiles | sort)
 expected_profiles=$(printf '%s\n' \
   dev-mail emdash mail-contract mailing observability storage-contract | sort)
 if [ "$profiles" != "$expected_profiles" ]; then
-  echo "compose-test: ERROR: unerwartete Profile: $profiles" >&2
+  echo "compose-test: ERROR: unexpected profiles: $profiles" >&2
   exit 1
 fi
 
-echo "compose-test: starte Standardstack aus leeren, projektspezifischen Volumes"
+echo "compose-test: starting the default stack from empty, project-specific volumes"
 phase compose-cold-start compose up --build --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
@@ -98,7 +98,7 @@ expected_services=$(printf '%s\n' \
   twenty-server twenty-worker web worker | sort)
 actual_services=$(compose ps --services --filter status=running | sort)
 if [ "$actual_services" != "$expected_services" ]; then
-  echo "compose-test: ERROR: Standarddienste weichen ab" >&2
+  echo "compose-test: ERROR: default services differ" >&2
   printf 'Erwartet:\n%s\nErhalten:\n%s\n' \
     "$expected_services" "$actual_services" >&2
   exit 1
@@ -137,7 +137,7 @@ curl --fail --silent \
   --resolve "crm.localhost:$port:127.0.0.1" \
   "http://crm.localhost:$port/healthz" | grep -q '"status":"ok"'
 
-echo "compose-test: schreibe das echte Golden Dataset nach PostgreSQL und RustFS"
+echo "compose-test: writing the real golden dataset to PostgreSQL and RustFS"
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
@@ -146,11 +146,11 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 twenty_tables_before=$(compose exec -T twenty-postgres sh -ec \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('"'"'pg_catalog'"'"', '"'"'information_schema'"'"');"')
 if [ "$twenty_tables_before" -le 0 ]; then
-  echo "compose-test: ERROR: Twenty-Schema wurde nicht aufgebaut" >&2
+  echo "compose-test: ERROR: Twenty schema was not built" >&2
   exit 1
 fi
 
-echo "compose-test: startet alle Standardcontainer neu und wartet erneut auf Readiness"
+echo "compose-test: restarting all default containers and waiting for readiness again"
 phase compose-restart compose restart
 phase compose-restart-ready compose up --detach --wait --wait-timeout 420
 python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
@@ -163,11 +163,11 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 twenty_tables_after=$(compose exec -T twenty-postgres sh -ec \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('"'"'pg_catalog'"'"', '"'"'information_schema'"'"');"')
 if [ "$twenty_tables_after" != "$twenty_tables_before" ]; then
-  echo "compose-test: ERROR: Twenty-Schema blieb beim Neustart nicht stabil" >&2
+  echo "compose-test: ERROR: Twenty schema did not stay stable across restart" >&2
   exit 1
 fi
 
-echo "compose-test: startet und prüft optionale Profile"
+echo "compose-test: starting and checking optional profiles"
 if [ "${LEONAID_COMPOSE_PART:-all}" = base ]; then
   echo "compose-test: cold start, network boundaries and restart persistence passed"
   exit 0
@@ -177,11 +177,11 @@ for service in mailpit listmonk listmonk-postgres otel-collector; do
   container_id=$(compose ps --quiet "$service")
   health=$(docker inspect --format '{{.State.Health.Status}}' "$container_id")
   if [ "$health" != "healthy" ]; then
-    echo "compose-test: ERROR: optionaler Dienst $service ist $health" >&2
+    echo "compose-test: ERROR: optional service $service is $health" >&2
     exit 1
   fi
 done
 curl --fail --silent "$base_url/mail/readyz" >/dev/null
 curl --fail --silent "$base_url/mailing/health" >/dev/null
 
-echo "compose-test: OK: leerer Start, Netzwerkgrenzen, Profile und Persistenz bewiesen"
+echo "compose-test: OK: empty start, network boundaries, profiles and persistence proven"

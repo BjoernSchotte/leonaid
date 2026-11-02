@@ -21,7 +21,7 @@ DATA_MIGRATION_REFERENCE = (
     "Additional aliases remain canonical redirects. Downgrade refuses selected "
     "campaign renderers; use the audited Core command to select legacy first."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

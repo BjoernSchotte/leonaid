@@ -38,7 +38,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
@@ -87,7 +87,7 @@ def error_signature(response: httpx.Response) -> tuple[int, str, str]:
     payload = response.json()
     error = payload.get("error") if isinstance(payload, dict) else None
     if not isinstance(error, dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Fehlervertrag")
+        raise ContractFailure("error response has no stable error contract")
     return response.status_code, str(error.get("code")), str(error.get("message"))
 
 
@@ -142,7 +142,7 @@ async def exercise(
             403,
             "action_creation_forbidden",
         ):
-            raise ContractFailure("Akquisiteurin konnte eine Charity-Aktion anlegen")
+            raise ContractFailure("acquirer was able to create a charity action")
 
         invalid = action_payload("quartalsaktion-ungueltig")
         invalid["capabilities"] = ["ordering"]
@@ -156,7 +156,7 @@ async def exercise(
             422,
             "action_capability_dependency_invalid",
         ):
-            raise ContractFailure("Capability-Abhängigkeit wurde nicht erzwungen")
+            raise ContractFailure("capability dependency was not enforced")
 
         created = await client.post(
             "/api/v1/actions",
@@ -178,7 +178,7 @@ async def exercise(
             or set(body["capabilities"])
             != {"acquisition", "offerings", "ordering", "invoicing"}
         ):
-            raise ContractFailure("Erstellte Charity-Aktion ist nicht vollständig")
+            raise ContractFailure("created charity action is incomplete")
 
         duplicate_slug = await client.post(
             "/api/v1/actions",
@@ -190,9 +190,7 @@ async def exercise(
             409,
             "action_archive_slug_conflict",
         ):
-            raise ContractFailure(
-                "Doppelter Archiv-Slug besitzt keinen Konfliktvertrag"
-            )
+            raise ContractFailure("duplicate archive slug has no conflict contract")
 
         direct_membership = await connection.fetchval(
             """
@@ -207,7 +205,7 @@ async def exercise(
             KLARA_ID,
         )
         if direct_membership != 1:
-            raise ContractFailure("Erstellerin wurde nicht verantwortlich zugeordnet")
+            raise ContractFailure("creator was not assigned as responsible")
 
         own = await client.get(
             f"/api/v1/actions/{action_id}",
@@ -226,7 +224,7 @@ async def exercise(
             headers=request_headers("unknown-detail"),
         )
         if error_signature(foreign) != error_signature(unknown):
-            raise ContractFailure("Fremde Aktion ist anhand des Fehlers erkennbar")
+            raise ContractFailure("foreign action is detectable from the error")
 
         goal_changed = await client.put(
             f"/api/v1/actions/{action_id}/goal",
@@ -244,7 +242,7 @@ async def exercise(
         goal_body = goal_changed.json()
         revision = int(goal_body["revision"])
         if goal_body["goal"]["actualValue"] != "1000":
-            raise ContractFailure("Ist-Wert wurde nicht manuell gespeichert")
+            raise ContractFailure("actual value was not saved manually")
 
         capabilities_changed = await client.put(
             f"/api/v1/actions/{action_id}/capabilities",
@@ -262,7 +260,7 @@ async def exercise(
             "acquisition",
             "invoicing",
         ]:
-            raise ContractFailure("Capabilities wurden nicht typisiert ersetzt")
+            raise ContractFailure("capabilities were not replaced as typed values")
 
         beneficiaries_changed = await client.put(
             f"/api/v1/actions/{action_id}/beneficiaries",
@@ -290,7 +288,7 @@ async def exercise(
         beneficiaries_body = beneficiaries_changed.json()
         revision = int(beneficiaries_body["revision"])
         if len(beneficiaries_body["beneficiaries"]) != 3:
-            raise ContractFailure("Mehrere Begünstigte wurden nicht gespeichert")
+            raise ContractFailure("multiple beneficiaries were not saved")
 
         invalid_transition = await client.post(
             f"/api/v1/actions/{action_id}/transitions",
@@ -302,7 +300,7 @@ async def exercise(
             422,
             "action_status_transition_invalid",
         ):
-            raise ContractFailure("Verbotener Lifecycle-Sprung wurde akzeptiert")
+            raise ContractFailure("forbidden lifecycle jump was accepted")
 
         for index, target in enumerate(
             ("scheduled", "draft", "scheduled", "active"),
@@ -317,7 +315,7 @@ async def exercise(
             transition_body = transitioned.json()
             revision = int(transition_body["revision"])
             if transition_body["status"] != target:
-                raise ContractFailure(f"Lifecycle-Ziel {target} wurde nicht erreicht")
+                raise ContractFailure(f"lifecycle target {target} was not reached")
 
         locked_capabilities = await client.put(
             f"/api/v1/actions/{action_id}/capabilities",
@@ -329,7 +327,7 @@ async def exercise(
             422,
             "action_capabilities_locked",
         ):
-            raise ContractFailure("Aktive Capabilities waren unerwartet veränderbar")
+            raise ContractFailure("active capabilities were unexpectedly mutable")
 
         active_goal = await client.put(
             f"/api/v1/actions/{action_id}/goal",
@@ -372,7 +370,7 @@ async def exercise(
             422,
             "action_archived_immutable",
         ):
-            raise ContractFailure("Archivierte Aktion war noch veränderbar")
+            raise ContractFailure("archived action was still mutable")
 
         persisted = await connection.fetchrow(
             """
@@ -409,7 +407,7 @@ async def exercise(
             or persisted["capabilities"] != ["acquisition", "invoicing"]
             or persisted["audit_count"] != 11
         ):
-            raise ContractFailure("PostgreSQL-Snapshot oder Audit ist unvollständig")
+            raise ContractFailure("PostgreSQL snapshot or audit is incomplete")
 
         return action_id
 
@@ -420,7 +418,7 @@ def write_session(path: Path, token: str) -> None:
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(f"KLARA_SESSION={token}\n")
     if stat.S_IMODE(path.stat().st_mode) != 0o600:
-        raise ContractFailure("Sitzungsnachweis besitzt nicht Dateimodus 0600")
+        raise ContractFailure("session evidence file does not have file mode 0600")
 
 
 async def run(session_output: Path) -> None:
@@ -432,8 +430,8 @@ async def run(session_output: Path) -> None:
     finally:
         await connection.close()
     print(
-        "action-contract: neutraler Kern, 1-n Begünstigte, Ziele, Capabilities, "
-        "Lifecycle und Audit real bewiesen"
+        "action-contract: neutral core, 1-n beneficiaries, targets, capabilities, "
+        "lifecycle and audit proven against real services"
     )
 
 

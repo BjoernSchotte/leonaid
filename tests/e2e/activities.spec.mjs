@@ -28,7 +28,7 @@ function berlinTomorrow() {
   return tomorrow.toISOString().slice(0, 10);
 }
 
-test("Akquisiteurin dokumentiert Kontakt und findet ihn nach Reload", async ({
+test("acquirer records a contact and finds it after reload", async ({
   browser,
 }) => {
   const context = await browser.newContext({

@@ -33,7 +33,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
-    echo "assignment-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "assignment-test: diagnostics for the failed real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 \
       api core-postgres twenty-server twenty-worker pwa proxy >&2 || true
@@ -54,7 +54,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "assignment-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "assignment-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -90,7 +90,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "assignment-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "assignment-test: ERROR: restricted Twenty key is missing" >&2
   exit 1
 fi
 
@@ -144,7 +144,7 @@ docker run --rm \
 
 for screenshot in matching-warning-mobile.png matching-success-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "assignment-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "assignment-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
   fi
 done
@@ -152,4 +152,4 @@ mkdir -p "$root/.artifacts/poc060"
 cp "$proof/matching-warning-mobile.png" "$root/.artifacts/poc060/"
 cp "$proof/matching-success-mobile.png" "$root/.artifacts/poc060/"
 
-echo "assignment-test: OK: realer Konkurrenz-, Historien- und Mitzuordnungsvertrag bewiesen"
+echo "assignment-test: OK: real concurrency, history and co-assignment contract proven"

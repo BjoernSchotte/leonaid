@@ -21,7 +21,7 @@ async function confirmTransition(page, trigger, confirm) {
   await dialog.getByRole("button", { name: confirm }).click();
 }
 
-test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständigen Lebenszyklus", async ({
+test("charity admin takes a golden action accessibly through the full lifecycle", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -64,10 +64,10 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
         }
       });
       throw new Error(
-        `React-Einstieg fehlt: HTTP ${response?.status()}; URL ${page.url()}; ` +
-          `Browserfehler ${JSON.stringify(pageErrors)}; ` +
-          `Identität ${JSON.stringify(identityDiagnostic)}; ` +
-          `Seite ${JSON.stringify((await page.locator("body").innerText()).slice(0, 800))}`,
+        `React entry point missing: HTTP ${response?.status()}; URL ${page.url()}; ` +
+          `browser errors ${JSON.stringify(pageErrors)}; ` +
+          `identity ${JSON.stringify(identityDiagnostic)}; ` +
+          `page ${JSON.stringify((await page.locator("body").innerText()).slice(0, 800))}`,
       );
     }
     await expect(page.getByTestId("desktop-sidebar")).toBeVisible();

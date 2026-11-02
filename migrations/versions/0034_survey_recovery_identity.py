@@ -13,7 +13,7 @@ depends_on = None
 DATA_MIGRATION_REFERENCE = (
     "Add one opaque installation ID; no survey content is changed."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

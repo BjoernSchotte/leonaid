@@ -51,7 +51,7 @@ def git(root: Path, *arguments: str, required: bool = True) -> str | None:
     if result.returncode == 0:
         return result.stdout.strip()
     if required:
-        diagnostic = result.stderr.strip() or "Git-Aufruf fehlgeschlagen"
+        diagnostic = result.stderr.strip() or "Git call failed"
         raise ReadinessError(diagnostic)
     return None
 
@@ -240,15 +240,15 @@ def assess(root: Path) -> dict[str, Any]:
         "tasks": tasks,
         "hardGates": gates,
         "nextStep": (
-            "STOP-Entscheidungen fachlich neu schneiden; keine Pilotfreigabe erteilen."
+            "Re-scope the STOP decisions; do not grant pilot approval."
             if status == "stop"
             else (
-                "Offene Gates, Proofs, Entscheidungen und Repository-Befunde "
-                "schließen; danach den Report auf demselben Commit neu erzeugen."
+                "Close open gates, proofs, decisions and repository findings; "
+                "then regenerate the report on the same commit."
                 if status == "blocked"
                 else (
-                    "Technische Readiness dokumentieren. Die ausdrückliche "
-                    "Abnahme der verantwortlichen Rollen bleibt separat erforderlich."
+                    "Document technical readiness. Explicit acceptance by the "
+                    "responsible roles is still required separately."
                 )
             )
         ),
@@ -272,8 +272,8 @@ def exit_code(status: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Bewertet Tasks, 16 Hard-Gates, Proofs, Entscheidungen und "
-            "Repositoryzustand ohne eine fachliche Abnahme zu simulieren."
+            "Assesses tasks, 16 hard gates, proofs, decisions and "
+            "repository state without simulating business acceptance."
         )
     )
     parser.add_argument("root", nargs="?", type=Path, default=Path("."))
@@ -299,11 +299,11 @@ def main() -> int:
         summary = report["summary"]
         print(
             f"pilot-readiness: {report['status'].upper()}: "
-            f"{len(summary['openTaskIds'])} offene Tasks, "
+            f"{len(summary['openTaskIds'])} open tasks, "
             f"{len(summary['blockedGateIds'])}/"
-            f"{summary['hardGateCount']} blockierte Hard-Gates, "
-            f"{len(summary['openDecisionIds'])} offene Entscheidungen, "
-            f"{len(summary['missingProofTaskIds'])} fehlende Proofs"
+            f"{summary['hardGateCount']} blocked hard gates, "
+            f"{len(summary['openDecisionIds'])} open decisions, "
+            f"{len(summary['missingProofTaskIds'])} missing proofs"
         )
         print(f"pilot-readiness: NEXT: {report['nextStep']}")
     return exit_code(str(report["status"]))

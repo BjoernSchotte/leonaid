@@ -1,10 +1,10 @@
-# Pilot-Import
+# Pilot import
 
-Der historische Kontaktimport ist eine einmalige, Dry-Run-first Migration.
-Die fachliche Excel-Datei bestimmt das Mapping; LeonAid stellt dafür keinen
-beliebigen Endnutzer-Importer bereit. Original, personenbezogene Reports,
-Entscheidungen und Freigaben bleiben ausschließlich unter `.local/pilot/`
-oder in einem gleichwertig geschützten privaten Store.
+The historic contact import is a one-time, dry-run-first migration.
+The business Excel file determines the mapping; LeonAid provides no general
+end-user importer for it. The original, personal reports, decisions and
+approvals stay only under `.local/pilot/` or in an equally protected private
+store.
 
 ## 1. Intake
 
@@ -14,8 +14,8 @@ install -m 600 /geschuetzt/original.xlsx \
   .local/pilot/intake/historic-contacts.xlsx
 ```
 
-Vor jeder Analyse wird
-`.local/pilot/manifests/intake.json` mit `schemaVersion: 1` angelegt:
+Before any analysis, create
+`.local/pilot/manifests/intake.json` with `schemaVersion: 1`:
 
 ```json
 {
@@ -29,29 +29,28 @@ Vor jeder Analyse wird
 }
 ```
 
-IDs sind opak. Namen, E-Mail-Adressen und sonstige Quelldaten gehören nicht
-in das Manifest.
+IDs are opaque. Names, email addresses and other source data do not belong
+in the manifest.
 
-## 2. Mapping durch den Coding-Agent
+## 2. Mapping by the coding agent
 
-Der Coding-Agent analysiert die tatsächlichen Header, Blätter, Formate,
-Formeln, Pflichtfelder, leeren Spalten, Dubletten und Zeichensätze. Er erzeugt:
+The coding agent analyzes the actual headers, sheets, formats, formulas,
+required fields, empty columns, duplicates and character sets. It produces:
 
-- ein versioniertes, personenbezugsfreies Mapping;
-- eine synthetische Arbeitsmappe mit derselben Struktur;
-- beschädigte Varianten für fehlende Header, Formeln, doppelte Schlüssel und
-  ungültige Werte;
-- eine stabile Source-ID-Strategie. Zeilennummern und Reihenfolge sind keine
-  IDs.
+- a versioned mapping without personal data;
+- a synthetic workbook with the same structure;
+- damaged variants for missing headers, formulas, duplicate keys and
+  invalid values;
+- a stable source ID strategy. Row numbers and order are not IDs.
 
-Unsichere oder ähnliche Matches bleiben Konflikte. Der Agent darf sie nicht
-automatisch zusammenführen.
+Uncertain or similar matches stay conflicts. The agent must not merge them
+automatically.
 
-## 3. Dry Run
+## 3. Dry run
 
-Der Zielstack muss bereits aus dem freigegebenen Manifest laufen. Pfade werden
-repository-relativ angegeben, damit ausschließlich die private
-`.local/pilot/`-Ablage in den Operatorcontainer eingebunden wird:
+The target stack must already run from the approved manifest. Paths are
+given relative to the repository, so that only the private `.local/pilot/`
+store is mounted into the operator container:
 
 ```sh
 ./leonaid pilot-import dry-run \
@@ -66,14 +65,14 @@ repository-relativ angegeben, damit ausschließlich die private
   --summary .local/pilot/evidence/import-summary.json
 ```
 
-Der private Report enthält zeilenbezogene Status, stabile Fehlercodes und
-Kandidaten. Die sanitizte Summe enthält keine Zeilen oder Personenwerte.
-Zwei Dry Runs gegen denselben Zielstand müssen bytegleich sein.
+The private report contains per-row status, stable error codes and
+candidates. The sanitized summary contains no rows or personal values.
+Two dry runs against the same target state must be byte-identical.
 
-## 4. Konfliktauflösung
+## 4. Conflict resolution
 
-Konflikte werden ausschließlich in
-`.local/pilot/manifests/resolutions.json` aufgelöst:
+Conflicts are resolved only in
+`.local/pilot/manifests/resolutions.json`:
 
 ```json
 {
@@ -91,29 +90,28 @@ Konflikte werden ausschließlich in
 }
 ```
 
-`create-new` ist ebenfalls möglich und besitzt keine `targetTwentyId`.
-`use-existing` akzeptiert nur eine ID, die der Dry Run als Kandidat gemeldet
-hat.
+`create-new` is also possible and has no `targetTwentyId`.
+`use-existing` accepts only an ID that the dry run reported as a candidate.
 
-Danach wird der Dry Run mit `--resolutions` wiederholt. Sein
-`planFingerprint` bindet Quelldatei, Mapping, Resolution, Zielumgebung,
-Blatt und den vollständigen aktuellen Twenty-Plan.
+Then repeat the dry run with `--resolutions`. Its `planFingerprint` binds
+source file, mapping, resolution, target environment, sheet and the full
+current Twenty plan.
 
-## 5. Recovery Point und Vier-Augen-Freigabe
+## 5. Recovery point and four-eyes approval
 
-Vor Apply existiert ein vollständiger Cross-System-Recovery-Point aus Core,
-Twenty, Twenty-Dateien und RustFS. Das private Freigabeobjekt
-`.local/pilot/manifests/approval.json` bindet:
+Before apply, a full cross-system recovery point of core, Twenty, Twenty
+files and RustFS exists. The private approval object
+`.local/pilot/manifests/approval.json` binds:
 
-- Batch und Zielumgebung;
-- Plan-, Source-, Mapping- und Resolution-Fingerprint;
-- SHA-256 des bytegenau geprüften Backup-Manifests;
-- opake Recovery-Point-ID;
-- zwei unterschiedliche Freigabe-IDs und einen Zeitzonen-Zeitpunkt.
+- batch and target environment;
+- plan, source, mapping and resolution fingerprints;
+- SHA-256 of the byte-exactly checked backup manifest;
+- opaque recovery point ID;
+- two different approval IDs and a timestamp with time zone.
 
-Eine Änderung an nur einem gebundenen Byte blockiert Apply.
+A change to even one bound byte blocks apply.
 
-## 6. Apply und Verify
+## 6. Apply and verify
 
 ```sh
 ./leonaid pilot-import apply \
@@ -142,11 +140,10 @@ Eine Änderung an nur einem gebundenen Byte blockiert Apply.
   --report .local/pilot/evidence/import-verify.json
 ```
 
-Apply führt vor dem ersten Write erneut den aktuellen Dry Run aus und prüft
-die Freigabe. Ein exklusiver Batch-Lock verhindert paralleles Apply. Verify
-ist nur grün, wenn keine neuen, zu ändernden oder ungeklärten Datensätze
-verbleiben.
+Before the first write, apply runs the current dry run again and checks the
+approval. An exclusive batch lock prevents parallel applies. Verify is green
+only when no new, changed or unresolved records remain.
 
-Bei einem Fehler werden keine Daten manuell korrigiert. Operator und
-Produktverantwortlicher entscheiden anhand des privaten Reports zwischen
-Stop, kontrolliertem Retry oder vollständigem Restore.
+On a failure, no data is corrected manually. Operator and product owner
+decide, based on the private report, between stop, a controlled retry or a
+full restore.

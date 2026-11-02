@@ -19,7 +19,7 @@ const personas = {
 
 for (const [name, token] of Object.entries(personas)) {
   if (!token) {
-    throw new Error(`${name}: echte Sitzung fehlt`);
+    throw new Error(`${name}: real session missing`);
   }
 }
 
@@ -43,7 +43,7 @@ async function sessionPage(browser, token, path, viewport) {
   return { context, page };
 }
 
-test("Charity-Admin sieht nur eigene Aktionen und keine Systemnavigation", async ({
+test("charity admin sees only own actions and no system navigation", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -81,7 +81,7 @@ test("Charity-Admin sieht nur eigene Aktionen und keine Systemnavigation", async
   }
 });
 
-test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async ({
+test("acquirer gets only their acquisition tasks on a smartphone", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -123,7 +123,7 @@ test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async 
   }
 });
 
-test("Reiner Akquisiteur wird aus dem Backoffice in seine PWA geleitet", async ({
+test("acquirer-only member is redirected from the back office to the PWA", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -167,7 +167,7 @@ test("Reiner Akquisiteur wird aus dem Backoffice in seine PWA geleitet", async (
   }
 });
 
-test("System-Admin erkennt seinen globalen, aktionsunabhängigen Bereich", async ({
+test("system admin recognizes the global, action-independent area", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -192,7 +192,7 @@ test("System-Admin erkennt seinen globalen, aktionsunabhängigen Bereich", async
   }
 });
 
-test("System-Admin durchsucht, filtert und paginiert die vollständige Mitgliederliste", async ({
+test("system admin searches, filters and paginates the full member list", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -268,7 +268,7 @@ test("System-Admin durchsucht, filtert und paginiert die vollständige Mitgliede
   }
 });
 
-test("Charity-Admin sieht mobil nur Mitglieder und Rollen eigener Aktionen", async ({
+test("charity admin sees on mobile only members and roles of own actions", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -312,7 +312,7 @@ test("Charity-Admin sieht mobil nur Mitglieder und Rollen eigener Aktionen", asy
   }
 });
 
-test("Finanzen erhält auch über eine direkte URL keinen Mitgliederzugriff", async ({
+test("finance gets no member access, even through a direct URL", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(

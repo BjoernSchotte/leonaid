@@ -15,7 +15,7 @@ compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 
 if [ ! -f "$env_file" ]; then
-  echo "poc020-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "poc020-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -33,7 +33,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "poc020-test: Diagnose der realen Services:" >&2
+    echo "poc020-test: diagnostics for real services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 api core-postgres >&2 || true
   fi
@@ -58,7 +58,7 @@ python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 
-echo "poc020-test: startet realen ASGI-Server aus leeren Compose-Volumes"
+echo "poc020-test: starting real ASGI server from empty Compose volumes"
 compose up --build --detach --wait --wait-timeout 420
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
@@ -67,4 +67,4 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/core/smoke.py
 
-echo "poc020-test: OK: Schichtengrenzen und reale Plattformintegration bewiesen"
+echo "poc020-test: OK: layer boundaries and real platform integration proven"

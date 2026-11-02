@@ -128,13 +128,13 @@ def reject_private_signatures(data: bytes, label: str) -> None:
         email = match.group(0).decode("ascii", errors="ignore").casefold()
         if not email.endswith(".invalid"):
             raise SanitizationFailure(
-                f"personenbezogene E-Mail-Signatur in öffentlichem Artefakt: {label}"
+                f"personal email signature in public artifact: {label}"
             )
     if PHONE_PATTERN.search(data):
-        raise SanitizationFailure(f"Telefon-Signatur in öffentlichem Artefakt: {label}")
+        raise SanitizationFailure(f"phone signature in public artifact: {label}")
     if PRIVATE_CANARY_PATTERN.search(data):
         raise SanitizationFailure(
-            f"private Canary-Signatur in öffentlichem Artefakt: {label}"
+            f"private canary signature in public artifact: {label}"
         )
 
 
@@ -144,7 +144,7 @@ def reject_private_json_fields(value: Any, label: str) -> None:
             normalized = re.sub(r"[^a-z0-9]", "", str(key).casefold())
             if normalized in PRIVATE_JSON_KEYS:
                 raise SanitizationFailure(
-                    f"privates JSON-Feld {key!r} in öffentlichem Artefakt: {label}"
+                    f"private JSON field {key!r} in public artifact: {label}"
                 )
             reject_private_json_fields(item, label)
     elif isinstance(value, list):
@@ -160,12 +160,12 @@ def sanitize_text(
     secrets: dict[str, str],
 ) -> SanitizeResult:
     if len(data) > MAX_TEXT_BYTES:
-        raise SanitizationFailure(f"Textartefakt überschreitet Größenlimit: {label}")
+        raise SanitizationFailure(f"text artifact exceeds size limit: {label}")
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
         raise SanitizationFailure(
-            f"Textartefakt ist nicht valides UTF-8: {label}"
+            f"text artifact is not valid UTF-8: {label}"
         ) from error
     sanitized, replacements = redact_known_secrets(data, secrets)
     sanitized = DOCKER_LAYER_PATTERN.sub(rb"\1[DOCKER_LAYER_ID]", sanitized)
@@ -175,7 +175,7 @@ def sanitize_text(
             value = json.loads(sanitized)
         except json.JSONDecodeError as error:
             raise SanitizationFailure(
-                f"JSON-Artefakt ist nicht strukturell prüfbar: {label}"
+                f"JSON artifact cannot be checked structurally: {label}"
             ) from error
         reject_private_json_fields(value, label)
     return SanitizeResult(sanitized, checked=1, replacements=replacements)
@@ -184,8 +184,8 @@ def sanitize_text(
 def safe_archive_name(name: str, label: str) -> PurePosixPath:
     path = PurePosixPath(name)
     if path.is_absolute() or ".." in path.parts or "\x00" in name or "\\" in name:
-        raise SanitizationFailure(f"unsicherer ZIP-Pfad in {label}: {name!r}")
-    reject_private_signatures(name.encode("utf-8"), f"{label} (ZIP-Pfad)")
+        raise SanitizationFailure(f"unsafe ZIP path in {label}: {name!r}")
+    reject_private_signatures(name.encode("utf-8"), f"{label} (ZIP path)")
     return path
 
 
@@ -211,9 +211,9 @@ def sanitize_payload(
         return sanitize_text(data, label=label, suffix=suffix, secrets=secrets)
     if suffix in PRIVATE_BINARY_SUFFIXES | PRIVATE_RECORDING_SUFFIXES:
         raise SanitizationFailure(
-            f"private/opaque Evidence darf nicht öffentlich hochgeladen werden: {label}"
+            f"private/opaque evidence must not be uploaded publicly: {label}"
         )
-    raise SanitizationFailure(f"nicht freigegebener Artefakttyp: {label}")
+    raise SanitizationFailure(f"artifact type not allowed: {label}")
 
 
 def sanitize_zip_bytes(
@@ -224,7 +224,7 @@ def sanitize_zip_bytes(
     depth: int,
 ) -> SanitizeResult:
     if depth > MAX_ARCHIVE_DEPTH:
-        raise SanitizationFailure(f"ZIP-Verschachtelung zu tief: {label}")
+        raise SanitizationFailure(f"ZIP nesting too deep: {label}")
     checked = 1
     replacements = 0
     total_uncompressed = 0
@@ -237,7 +237,7 @@ def sanitize_zip_bytes(
             if source.comment:
                 comment = sanitize_text(
                     source.comment,
-                    label=f"{label} (ZIP-Kommentar)",
+                    label=f"{label} (ZIP comment)",
                     suffix=".txt",
                     secrets=secrets,
                 )
@@ -246,29 +246,27 @@ def sanitize_zip_bytes(
                 target.comment = comment.payload
             entries = source.infolist()
             if len(entries) > MAX_ARCHIVE_ENTRIES:
-                raise SanitizationFailure(f"zu viele ZIP-Einträge: {label}")
+                raise SanitizationFailure(f"too many ZIP entries: {label}")
             seen_names: set[str] = set()
             for entry in entries:
                 safe_archive_name(entry.filename, label)
                 if entry.filename in seen_names:
                     raise SanitizationFailure(
-                        f"doppelter ZIP-Pfad ist nicht eindeutig: {label}"
+                        f"duplicate ZIP path is ambiguous: {label}"
                     )
                 seen_names.add(entry.filename)
                 if entry.flag_bits & 0x1:
                     raise SanitizationFailure(
-                        f"verschlüsselter ZIP-Eintrag ist nicht prüfbar: {label}"
+                        f"encrypted ZIP entry cannot be checked: {label}"
                     )
                 unix_type = (entry.external_attr >> 16) & 0o170000
                 if unix_type == 0o120000:
                     raise SanitizationFailure(
-                        f"ZIP-Symlink ist nicht als öffentliche Evidence erlaubt: {label}"
+                        f"ZIP symlink is not allowed as public evidence: {label}"
                     )
                 total_uncompressed += entry.file_size
                 if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
-                    raise SanitizationFailure(
-                        f"ZIP überschreitet Entpacklimit: {label}"
-                    )
+                    raise SanitizationFailure(f"ZIP exceeds extraction limit: {label}")
                 if entry.is_dir():
                     entry.comment = b""
                     entry.extra = b""
@@ -288,7 +286,7 @@ def sanitize_zip_bytes(
                 entry.extra = b""
                 target.writestr(entry, result.payload)
     except zipfile.BadZipFile as error:
-        raise SanitizationFailure(f"defektes ZIP-Artefakt: {label}") from error
+        raise SanitizationFailure(f"corrupt ZIP artifact: {label}") from error
     return SanitizeResult(
         output.getvalue(),
         checked=checked,
@@ -319,7 +317,7 @@ def sanitize(
     env_directories: list[Path],
 ) -> tuple[int, int]:
     if not directory.is_dir():
-        raise SanitizationFailure(f"Artefaktverzeichnis fehlt: {directory}")
+        raise SanitizationFailure(f"artifact directory missing: {directory}")
     secrets: dict[str, str] = {}
     for env_file in env_files:
         secrets.update(secrets_from(env_file))
@@ -369,8 +367,8 @@ def main() -> None:
     except SanitizationFailure as error:
         parser.exit(70, f"ci-artifact-sanitize: BLOCKED: {error}\n")
     print(
-        f"ci-artifact-sanitize: OK: {checked} Artefakte geprüft, "
-        f"{replacements} Secret-Vorkommen redigiert"
+        f"ci-artifact-sanitize: OK: {checked} artifacts checked, "
+        f"{replacements} secret occurrences redacted"
     )
 
 

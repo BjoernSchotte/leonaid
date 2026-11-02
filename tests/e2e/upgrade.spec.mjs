@@ -20,10 +20,10 @@ if (
   !expectedInvoiced ||
   !expectedOutstanding
 ) {
-  throw new Error("POC-113 Browserumgebung ist unvollständig");
+  throw new Error("POC-113 browser environment is incomplete");
 }
 
-test("Golden-Dashboard bleibt über die Upgradegrenze fachlich stabil", async ({
+test("golden dashboard stays functionally stable across the upgrade boundary", async ({
   browser,
 }) => {
   const context = await browser.newContext({

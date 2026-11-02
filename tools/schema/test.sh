@@ -14,7 +14,7 @@ compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 
 if [ ! -f "$env_file" ]; then
-  echo "poc021-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "poc021-test: ERROR: .env.local missing; run ./leonaid bootstrap first" >&2
   exit 1
 fi
 
@@ -30,7 +30,7 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
-    echo "poc021-test: Diagnose der realen Core-Datenbank:" >&2
+    echo "poc021-test: diagnostics for the real core database:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 core-postgres >&2 || true
   fi
@@ -60,7 +60,7 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python /repo/tools/schema/check_migrations.py /repo/migrations/versions
 
-echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"
+echo "poc021-test: migrating a fully empty PostgreSQL instance to head"
 compose build api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
@@ -70,7 +70,7 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py
 
-echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
+echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 compose up --detach --wait --wait-timeout 120 core-postgres
@@ -84,4 +84,4 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
-echo "poc021-test: OK: Leeraufbau, Upgrade, Constraints und Datenhalt bewiesen"
+echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

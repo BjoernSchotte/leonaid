@@ -19,10 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 NOW = sa.text("CURRENT_TIMESTAMP")
 DATA_MIGRATION_REFERENCE = (
-    "Bestehende Nachweise erhalten konservativ den Typ explicit_consent und "
-    "bleiben bis zur fachlichen Prüfung als legal_review_pending markiert."
+    "Existing consent records conservatively get the type explicit_consent "
+    "and stay marked legal_review_pending until legal review."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

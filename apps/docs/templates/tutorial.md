@@ -1,29 +1,29 @@
 ---
-title: <Lernziel>
-description: <Was die lesende Person nach dem Tutorial selbstständig kann.>
+title: <Learning goal>
+description: <What the reader can do independently after the tutorial.>
 docId: DOC-P000
 audience: [user]
 diataxis: tutorial
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: <vollständiger-produkt-commit>
+verifiedAgainst: <full-product-commit>
 reviewer: <name>
 ---
 
-## Was du lernst
+## What you will learn
 
-Ein Ergebnis und ein sicherer Übungsrahmen mit synthetischen Daten.
+One result and a safe practice setting with synthetic data.
 
-## Voraussetzungen
+## Prerequisites
 
-Rolle, Ausgangszustand und benötigte Werkzeuge.
+Role, starting state and required tools.
 
-## Lernweg
+## Learning path
 
-1. Eine konkrete Handlung.
-2. Das sichtbare Ergebnis prüfen.
-3. Aufräumen oder in einen sicheren Zustand zurückkehren.
+1. One concrete action.
+2. Check the visible result.
+3. Clean up or return to a safe state.
 
-## Geschafft
+## Done
 
-Das beobachtbare Ergebnis und der sinnvolle nächste Lernschritt.
+The observable result and the sensible next learning step.

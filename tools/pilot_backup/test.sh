@@ -42,7 +42,7 @@ wait_for_rustfs() {
     attempts=$((attempts + 1))
     sleep 1
   done
-  echo "pilot-backup-test: ERROR: externes RustFS wurde nicht bereit" >&2
+  echo "pilot-backup-test: ERROR: external RustFS did not become ready" >&2
   exit 1
 }
 
@@ -192,11 +192,11 @@ wrong_output=$(restic_run "$wrong_password_file" snapshots 2>&1)
 wrong_status=$?
 set -e
 if [ "$wrong_status" -eq 0 ]; then
-  echo "pilot-backup-test: ERROR: falsches Restic-Passwort akzeptiert" >&2
+  echo "pilot-backup-test: ERROR: wrong Restic password accepted" >&2
   exit 1
 fi
 if printf '%s' "$wrong_output" | grep -Fq "$secret_key"; then
-  echo "pilot-backup-test: ERROR: S3-Secret in Restic-Fehlerausgabe" >&2
+  echo "pilot-backup-test: ERROR: S3 secret in Restic error output" >&2
   exit 1
 fi
 
@@ -206,11 +206,11 @@ network_output=$(restic_timeout_run 15 snapshots 2>&1)
 network_status=$?
 set -e
 if [ "$network_status" -eq 0 ]; then
-  echo "pilot-backup-test: ERROR: Netzwerkunterbrechung blieb unbemerkt" >&2
+  echo "pilot-backup-test: ERROR: network interruption went unnoticed" >&2
   exit 1
 fi
 if printf '%s' "$network_output" | grep -Fq "$secret_key"; then
-  echo "pilot-backup-test: ERROR: S3-Secret in Netzwerkfehlerausgabe" >&2
+  echo "pilot-backup-test: ERROR: S3 secret in network error output" >&2
   exit 1
 fi
 docker start "$container" >/dev/null
@@ -222,7 +222,7 @@ restic_run "$password_file" restore latest \
   --target /proof/restored
 backup_root=$(find "$restored" -type f -name manifest.json -print | head -n 1)
 [ -n "$backup_root" ] || {
-  echo "pilot-backup-test: ERROR: Restore enthält kein Manifest" >&2
+  echo "pilot-backup-test: ERROR: restore contains no manifest" >&2
   exit 1
 }
 backup_root=$(dirname "$backup_root")
@@ -246,7 +246,7 @@ restic_run "$password_file" restore latest \
   --tag "leonaid-$source_project" \
   --target /proof/restored
 if find "$restored" -type f -name manifest.json -print | grep -q .; then
-  echo "pilot-backup-test: ERROR: unvollständiger Snapshot enthält Manifest" >&2
+  echo "pilot-backup-test: ERROR: incomplete snapshot contains a manifest" >&2
   exit 1
 fi
 
@@ -255,6 +255,6 @@ write_credentials "$rotated_access" "$rotated_secret"
 start_rustfs "$rotated_access" "$rotated_secret"
 restic_run "$password_file" snapshots >/dev/null
 
-echo "pilot-backup-test: OK: echtes S3/Restic, falsches Passwort,"
-echo "pilot-backup-test:     Netzunterbrechung, unvollständiger Snapshot und"
-echo "pilot-backup-test:     rotierte Zugangsdaten fail-closed bewiesen"
+echo "pilot-backup-test: OK: real S3/Restic, wrong password,"
+echo "pilot-backup-test:     network interruption, incomplete snapshot and"
+echo "pilot-backup-test:     rotated credentials proven fail-closed"

@@ -9,4 +9,4 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 "$root/leonaid" test-pilot-readiness
 python3 "$root/tools/testing/shared_stack.py" golden tools/testkit/test.sh
 
-echo "ci-contract: OK: Pilotplan, Readiness, Entscheidungen, Mail-DNS und Verträge"
+echo "ci-contract: OK: pilot plan, readiness, decisions, mail DNS and contracts"

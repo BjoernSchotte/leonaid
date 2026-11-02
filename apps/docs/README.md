@@ -18,7 +18,7 @@ against the current code path and an executable contract before publishing it.
    tested. Formatting-only edits do not change the content revision.
 5. Run `./leonaid docs-check`, `./leonaid docs-build`, and the relevant product
    contract. Preview the built result with `./leonaid docs-preview`.
-6. Record fachliches review and language review in the inventory. A generated
+6. Record the subject-matter review and the language review in the inventory. A generated
    green build cannot approve meaning.
 
 ## Content rules

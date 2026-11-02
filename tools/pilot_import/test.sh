@@ -16,7 +16,7 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 [ -f "$env_file" ] || {
-  echo "pilot-import-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap ausführen" >&2
+  echo "pilot-import-test: ERROR: .env.local is missing; run ./leonaid bootstrap first" >&2
   exit 1
 }
 
@@ -77,12 +77,12 @@ expect_protocol_error() {
   expected=$1
   shift
   if output=$("$@" 2>&1); then
-    echo "pilot-import-test: ERROR: erwarteter Fehler $expected blieb aus" >&2
+    echo "pilot-import-test: ERROR: expected error $expected did not occur" >&2
     return 1
   fi
   printf '%s\n' "$output"
   if ! printf '%s\n' "$output" | grep -F "ERROR [$expected]" >/dev/null; then
-    echo "pilot-import-test: ERROR: erwartete Fehlerklasse $expected blieb aus" >&2
+    echo "pilot-import-test: ERROR: expected error class $expected did not occur" >&2
     return 1
   fi
 }
@@ -138,12 +138,12 @@ docker run --rm \
 run_python tools/pilot_import/test.py \
   write-backup-manifest "$container_workspace" leonaid-staging-golden
 
-echo "pilot-import-test: ungeklärter Konflikt bleibt sichtbar"
+echo "pilot-import-test: unresolved conflict stays visible"
 protocol dry-run \
   --report "$container_workspace/.local/pilot/evidence/unresolved.json"
 run_python tools/pilot_import/test.py resolve "$container_workspace"
 
-echo "pilot-import-test: zwei identische Dry Runs sind bytegleich"
+echo "pilot-import-test: two identical dry runs are byte-identical"
 protocol dry-run \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --report "$container_workspace/.local/pilot/evidence/dry-a.json" \
@@ -155,13 +155,13 @@ run_python tools/pilot_import/test.py approve "$container_workspace"
 run_python tools/pilot_import/test.py \
   write-negative-manifests "$container_workspace"
 
-echo "pilot-import-test: ungeklärter Konflikt blockiert Apply vor dem ersten Write"
+echo "pilot-import-test: unresolved conflict blocks apply before the first write"
 expect_protocol_error UNRESOLVED_CONFLICT protocol apply \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
   --report "$container_workspace/.local/pilot/evidence/unresolved-apply.json"
 
-echo "pilot-import-test: paralleles Apply desselben Batches wird gesperrt"
+echo "pilot-import-test: parallel apply of the same batch is locked out"
 ready="$proof/lock-ready"
 release="$proof/lock-release"
 run_python tools/pilot_import/test.py hold-lock \
@@ -171,7 +171,7 @@ attempts=0
 while [ ! -f "$ready" ]; do
   attempts=$((attempts + 1))
   [ "$attempts" -lt 200 ] || {
-    echo "pilot-import-test: ERROR: Lock-Prozess wurde nicht bereit" >&2
+    echo "pilot-import-test: ERROR: lock process did not become ready" >&2
     exit 1
   }
   sleep 0.05
@@ -184,7 +184,7 @@ expect_protocol_error BATCH_APPLY_CONCURRENT protocol apply \
 touch "$release"
 wait "$lock_pid"
 
-echo "pilot-import-test: manipulierter Fingerprint wird fail-closed abgewiesen"
+echo "pilot-import-test: tampered fingerprint is rejected fail-closed"
 tampered_mapping="$workspace/infra/twenty/import-mapping-tampered.json"
 cp "$workspace/infra/twenty/import-mapping.json" "$tampered_mapping"
 printf '\n' >>"$tampered_mapping"
@@ -195,21 +195,21 @@ expect_protocol_error APPROVAL_FINGERPRINT_MISMATCH protocol apply \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
   --report "$container_workspace/.local/pilot/evidence/tampered.json"
 
-echo "pilot-import-test: stale Resolution wird fail-closed abgewiesen"
+echo "pilot-import-test: stale resolution is rejected fail-closed"
 expect_protocol_error STALE_RESOLUTION protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/stale-resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
   --report "$container_workspace/.local/pilot/evidence/stale-resolution.json"
 
-echo "pilot-import-test: Recovery Point einer anderen Umgebung wird abgewiesen"
+echo "pilot-import-test: recovery point from another environment is rejected"
 expect_protocol_error RECOVERY_POINT_TARGET_MISMATCH protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/wrong-target-manifest.json" \
   --report "$container_workspace/.local/pilot/evidence/wrong-recovery.json"
 
-echo "pilot-import-test: freigegebener Apply schreibt exakt den Dry Run"
+echo "pilot-import-test: approved apply writes exactly the dry run"
 protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
@@ -220,7 +220,7 @@ protocol verify \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
   --report "$container_workspace/.local/pilot/evidence/verify.json"
 
-echo "pilot-import-test: realer Recovery Point stellt den Vorzustand wieder her"
+echo "pilot-import-test: real recovery point restores the previous state"
 compose stop twenty-worker twenty-server api >/dev/null
 compose exec -T twenty-postgres pg_restore \
   --username twenty \
@@ -243,4 +243,4 @@ protocol dry-run \
 
 run_python tools/pilot_import/test.py check-reports "$container_workspace"
 
-echo "pilot-import-test: OK: privater Intake, echte XLSX, realer Twenty/Core/RustFS-Recovery-Point, Fingerprint, Vier-Augen-Freigabe, Konflikte, Concurrency, Apply, Verify und Restore bewiesen"
+echo "pilot-import-test: OK: private intake, real XLSX, real Twenty/Core/RustFS recovery point, fingerprint, four-eyes approval, conflicts, concurrency, apply, verify and restore proven"

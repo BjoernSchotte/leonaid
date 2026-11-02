@@ -44,7 +44,7 @@ class ContractFailure(RuntimeError):
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ContractFailure(f"Umgebungsvariable fehlt: {name}")
+        raise ContractFailure(f"environment variable missing: {name}")
     return value
 
 
@@ -59,7 +59,7 @@ def session_headers(token: str) -> dict[str, str]:
 def error_code(response: httpx.Response) -> str:
     value = response.json()
     if not isinstance(value, dict) or not isinstance(value.get("error"), dict):
-        raise ContractFailure("Fehlerantwort besitzt keinen stabilen Vertrag")
+        raise ContractFailure("error response has no stable contract")
     return str(value["error"].get("code"))
 
 
@@ -118,7 +118,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
         response.raise_for_status()
         invoice = response.json()
         if invoice.get("number") != "KT26-0004":
-            raise ContractFailure("POC-092 erhielt nicht die nächste Rechnungsnummer")
+            raise ContractFailure("POC-092 did not get the next invoice number")
         invoice_id = UUID(str(invoice["id"]))
         row = await connection.fetchrow(
             """
@@ -137,9 +137,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
             invoice_id,
         )
         if row is None:
-            raise ContractFailure(
-                "Rechnung, Pending-Dokument und Outbox sind nicht atomar"
-            )
+            raise ContractFailure("invoice, pending document and outbox are not atomic")
         if (
             row["status"] != "pending"
             or row["outbox_status"] != "pending"
@@ -159,7 +157,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
             )
         ):
             raise ContractFailure(
-                "Vor dem Worker-Erfolg besitzt das Dokument bereits Speicher-Metadaten"
+                "document has storage metadata before the worker succeeded"
             )
         document_id = row["id"]
         finance_pending = await api.get(
@@ -170,7 +168,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
             finance_pending.status_code != 404
             or error_code(finance_pending) != "generated_document_not_found"
         ):
-            raise ContractFailure("Pending-Dokument wurde als Download ausgeliefert")
+            raise ContractFailure("pending document was served as a download")
         acquirer_pending = await api.get(
             f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
             headers=session_headers(tokens["acquirer"]),
@@ -179,7 +177,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
             acquirer_pending.status_code != 403
             or error_code(acquirer_pending) != "document_download_required"
         ):
-            raise ContractFailure("Akquisiteur erhielt Finanzdokument-Zugriff")
+            raise ContractFailure("acquirer got access to a finance document")
 
     state = {
         "invoiceId": str(invoice_id),
@@ -193,15 +191,15 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
     )
     state_path.chmod(0o600)
     print(
-        "storage-workflow: PREPARED: Rechnung, Pending-Dokument und Outbox "
-        "atomar; Rollen vor Verarbeitung geprüft"
+        "storage-workflow: PREPARED: invoice, pending document and outbox "
+        "atomic; roles checked before processing"
     )
 
 
 def read_state(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or not isinstance(value.get("tokens"), dict):
-        raise ContractFailure("POC-092-Zustandsdatei ist ungültig")
+        raise ContractFailure("POC-092 state file is invalid")
     return value
 
 
@@ -227,7 +225,7 @@ async def assert_failed(
         UUID(str(state["outboxId"])),
     )
     if row is None:
-        raise ContractFailure("Fehlgeschlagener Renderauftrag ist verschwunden")
+        raise ContractFailure("failed render job disappeared")
     if (
         row["status"] != "pending"
         or row["outbox_status"] != "pending"
@@ -248,15 +246,13 @@ async def assert_failed(
             )
         )
     ):
-        raise ContractFailure(
-            "RustFS-Ausfall hinterließ fälschlich Erfolg oder keinen Retry-Zustand"
-        )
+        raise ContractFailure("RustFS outage left a false success or no retry state")
     detail = str(row["last_error_detail"])
     if require_env("OBJECT_STORAGE_SECRET_KEY") in detail:
-        raise ContractFailure("Outbox-Fehlertext enthält Storage-Zugangsdaten")
+        raise ContractFailure("outbox error text contains storage credentials")
     print(
-        "storage-workflow: FAILURE PROVED: physisch gestopptes RustFS, "
-        "kein Erfolgsstatus, Job pending und wiederholbar"
+        "storage-workflow: FAILURE PROVED: physically stopped RustFS, "
+        "no success status, job pending and retryable"
     )
 
 
@@ -292,7 +288,7 @@ async def assert_success(
         UUID(str(state["outboxId"])),
     )
     if row is None:
-        raise ContractFailure("Erfolgreicher Renderauftrag ist verschwunden")
+        raise ContractFailure("successful render job disappeared")
     required = (
         "filename",
         "storage_bucket",
@@ -310,9 +306,7 @@ async def assert_success(
         or row["outbox_completed_at"] is None
         or any(row[column] is None for column in required)
     ):
-        raise ContractFailure(
-            "Wiederholter Renderauftrag wurde nicht vollständig abgeschlossen"
-        )
+        raise ContractFailure("retried render job did not complete fully")
     location = ObjectLocation(
         bucket=str(row["storage_bucket"]),
         key=str(row["object_key"]),
@@ -327,9 +321,7 @@ async def assert_success(
         or retrieved.stored.media_type != "application/pdf"
         or not retrieved.content.startswith(b"%PDF-")
     ):
-        raise ContractFailure(
-            "RustFS-Objekt und GeneratedDocument weichen voneinander ab"
-        )
+        raise ContractFailure("RustFS object and GeneratedDocument differ")
 
     tokens = {str(key): str(value) for key, value in state["tokens"].items()}
     async with httpx.AsyncClient(
@@ -349,7 +341,7 @@ async def assert_success(
                 or "attachment;" not in response.headers.get("content-disposition", "")
             ):
                 raise ContractFailure(
-                    f"{role}: geschützter Core-Download ist nicht byteidentisch"
+                    f"{role}: protected core download is not byte-identical"
                 )
         inline = await api.get(
             (
@@ -363,7 +355,7 @@ async def assert_success(
             or inline.content != retrieved.content
             or "inline;" not in inline.headers.get("content-disposition", "")
         ):
-            raise ContractFailure("Geschützte Core-Vorschau ist nicht byteidentisch")
+            raise ContractFailure("protected core preview is not byte-identical")
         forbidden = await api.get(
             f"/api/v1/actions/{ACTION_ID}/documents/{document_id}/download",
             headers=session_headers(tokens["acquirer"]),
@@ -385,14 +377,14 @@ async def assert_success(
             )
         ):
             raise ContractFailure(
-                "Unberechtigte Persona erhielt Objekt, Speicherbezug oder signierte URL"
+                "unauthorized persona got the object, a storage reference or a signed URL"
             )
         endpoint = require_env("OBJECT_STORAGE_ENDPOINT_URL").rstrip("/")
         anonymous = await api.get(
             f"{endpoint}/{quote(location.bucket)}/{quote(location.key, safe='/')}"
         )
         if anonymous.status_code not in {401, 403, 404}:
-            raise ContractFailure("Rechnungsobjekt ist ohne S3-Signatur öffentlich")
+            raise ContractFailure("invoice object is public without an S3 signature")
 
     original_key = str(row["object_key"])
     try:
@@ -404,7 +396,7 @@ async def assert_success(
     except asyncpg.PostgresError:
         pass
     else:
-        raise ContractFailure("Datenbank erlaubte Austausch eines verfügbaren PDFs")
+        raise ContractFailure("database allowed replacing an available PDF")
     await connection.execute(
         "UPDATE generated_document SET sent_at = CURRENT_TIMESTAMP WHERE id = $1",
         document_id,
@@ -418,7 +410,7 @@ async def assert_success(
         except asyncpg.PostgresError:
             pass
         else:
-            raise ContractFailure("Versandter Beleg war in der Datenbank veränderbar")
+            raise ContractFailure("sent document was mutable in the database")
 
     changed = retrieved.content + b"\n% forbidden replacement after send\n"
     try:
@@ -440,9 +432,9 @@ async def assert_success(
     except ObjectStorageConflict:
         pass
     else:
-        raise ContractFailure("Storage-Port überschrieb einen versandten Object Key")
+        raise ContractFailure("storage port overwrote a sent object key")
     if (await object_storage.get(location)).content != retrieved.content:
-        raise ContractFailure("Versandte Objektversion wurde physisch verändert")
+        raise ContractFailure("sent object version was physically changed")
 
     audit_count = await connection.fetchval(
         """
@@ -455,13 +447,11 @@ async def assert_success(
         document_id,
     )
     if audit_count != 1:
-        raise ContractFailure(
-            "Dokumenterzeugung besitzt keinen eindeutigen Audit-Nachweis"
-        )
+        raise ContractFailure("document generation has no unique audit record")
     pdf_path.write_bytes(retrieved.content)
     print(
-        "storage-workflow: SUCCESS: Retry, byteidentischer Core-Download, "
-        "Rollen, private Ablage und Versand-Immutabilität bewiesen"
+        "storage-workflow: SUCCESS: retry, byte-identical core download, "
+        "roles, private storage and immutability after sending proven"
     )
 
 
@@ -475,7 +465,7 @@ async def execute(arguments: argparse.Namespace) -> None:
         elif arguments.command == "assert-success":
             await assert_success(connection, arguments.state, arguments.pdf)
         else:
-            raise ContractFailure(f"Unbekannter Befehl: {arguments.command}")
+            raise ContractFailure(f"unknown command: {arguments.command}")
     finally:
         await connection.close()
 

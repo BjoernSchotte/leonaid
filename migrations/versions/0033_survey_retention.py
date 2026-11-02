@@ -11,7 +11,7 @@ down_revision = "0032_survey_deletion"
 branch_labels = None
 depends_on = None
 DATA_MIGRATION_REFERENCE = "Retention defaults to disabled. Existing closed surveys start their retention clock at migration time."
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:
