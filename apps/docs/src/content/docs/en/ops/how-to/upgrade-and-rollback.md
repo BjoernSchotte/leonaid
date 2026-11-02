@@ -10,6 +10,37 @@ verifiedAgainst: 2fe1a1b7930207925afe13bab77da89d37111c56
 reviewer: Björn Schotte
 ---
 
+## Review pins and vulnerability findings
+
+Renovate (`renovate.json`) opens grouped update PRs every Monday for
+container images, `uv.lock`, `bun.lock`, and GitHub Actions digests. Security
+fixes arrive at once in separate PRs. Twenty, PostgreSQL, Valkey, and RustFS
+get their own PRs with the label `needs-upgrade-runbook`; follow the steps
+below for them. Nothing merges automatically.
+
+`infra/locks/external-systems.lock` records `reviewedAt` and `nextReviewOn`.
+`./leonaid check` fails once `nextReviewOn` has passed. To re-review, compare
+every pinned tag with its latest upstream release and advisories, upgrade or
+consciously keep it, and run `./leonaid check` and `tools/ci/security.sh`.
+Then set `reviewedAt` to the review date and `nextReviewOn` to at most three
+months later. The checker refuses more than six months.
+
+The security CI job (`tools/ci/security.sh`) blocks every fixable HIGH or
+CRITICAL finding:
+
+- Trivy scans the checkout, all LeonAid images, and every third-party runtime
+  image listed in `infra/security/image-scan-scope.json`. Each system in the
+  lock must be either scanned or excluded there with a reason.
+- OSV-Scanner audits `uv.lock` and `bun.lock`.
+
+If no fix exists yet, add a waiver to
+`infra/security/vulnerability-allowlist.json` with the advisory id, the
+affected targets, a reason, the reviewer, `reviewedOn`, and `expires` (at most
+90 days later). An expired waiver fails `./leonaid check` and the security
+job. Then upgrade and delete the waiver, or review it again.
+
+## Upgrade
+
 First update `infra/locks/external-systems.lock`, `infra/locks/images.env`, and
 `infra/upgrade/compatibility-matrix.json`. Read release notes and migrations,
 run `./leonaid check` and `./leonaid test-upgrade`, and record the maintenance
@@ -39,6 +70,8 @@ run-instance-commands` and `command:prod upgrade` commands through the
 7. Migrate Core explicitly, start services, and verify images, schemas, health
    checks, the Golden contract, and the browser journey.
 8. Disable maintenance only after those checks pass.
+
+## Roll back
 
 After the first schema write, rollback means restore. Never start an older
 image against a forward-migrated database. Keep writes blocked, stop the

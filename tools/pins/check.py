@@ -31,6 +31,7 @@ REQUIRED_SYSTEMS = {
     "mailpit",
     "node",
     "listmonk",
+    "osv-scanner",
     "otel",
     "playwright",
     "postgres",
@@ -334,7 +335,9 @@ def check_frontend(root: Path, problems: Problems) -> None:
             )
 
 
-def check_external_systems(root: Path, problems: Problems) -> dict[str, dict[str, Any]]:
+def check_external_systems(
+    root: Path, problems: Problems, today: date
+) -> dict[str, dict[str, Any]]:
     path = root / "infra/locks/external-systems.lock"
     lock = read_json(path, problems)
     systems_raw = lock.get("systems", [])
@@ -384,12 +387,36 @@ def check_external_systems(root: Path, problems: Problems) -> dict[str, dict[str
         set(systems) == REQUIRED_SYSTEMS,
         f"{path}: expected systems {sorted(REQUIRED_SYSTEMS)}, got {sorted(systems)}",
     )
+    dates: dict[str, date] = {}
     for field in ("reviewedAt", "nextReviewOn"):
         try:
-            date.fromisoformat(str(lock.get(field, "")))
+            dates[field] = date.fromisoformat(str(lock.get(field, "")))
         except ValueError:
             problems.add(f"{path}: {field} must be an ISO date")
+    check_review_dates(path, dates, today, problems)
     return systems
+
+
+def check_review_dates(
+    path: Path, dates: dict[str, date], today: date, problems: Problems
+) -> None:
+    reviewed = dates.get("reviewedAt")
+    due = dates.get("nextReviewOn")
+    if reviewed is not None and reviewed > today:
+        problems.add(f"{path}: reviewedAt {reviewed} lies in the future")
+    if reviewed is not None and due is not None and due <= reviewed:
+        problems.add(f"{path}: nextReviewOn must be after reviewedAt")
+    if reviewed is not None and due is not None and (due - reviewed).days > 183:
+        problems.add(f"{path}: nextReviewOn may be at most six months after reviewedAt")
+    if due is not None and due < today:
+        problems.add(
+            f"{path}: pin review OVERDUE since {due}. Re-review every system: "
+            "compare each pinned tag with its latest upstream release and "
+            "security advisories, upgrade or consciously keep it (see "
+            "infra/locks/README.md), run './leonaid check' and "
+            "tools/ci/security.sh, then set reviewedAt to the review date and "
+            "nextReviewOn to at most three months later"
+        )
 
 
 def check_env_parity(
@@ -585,7 +612,7 @@ def check_locked_image_usage(
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     problems = Problems()
-    systems = check_external_systems(root, problems)
+    systems = check_external_systems(root, problems, date.today())
     check_toolchain(root, systems, problems)
     check_python(root, problems)
     check_frontend(root, problems)

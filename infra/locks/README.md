@@ -26,6 +26,24 @@ manuell eröffneten Upgrade-PR. Ein solcher PR aktualisiert Tag und Digest,
 setzt `reviewedAt` sowie `nextReviewOn`, erzeugt alle Locks und SBOMs neu und
 durchläuft die Contract- und E2E-Gates. Automerges sind deaktiviert.
 
+## Review deadline and vulnerability gates
+
+`tools/pins/check.py` fails once `nextReviewOn` lies in the past, and it
+rejects a `nextReviewOn` more than six months after `reviewedAt`. A review
+compares every pinned tag with its latest upstream release and advisories,
+upgrades or consciously keeps it, and runs `./leonaid check` and
+`tools/ci/security.sh`. Then set `reviewedAt` to the review date and
+`nextReviewOn` to at most three months later.
+
+Every system in this lock must be classified in
+`infra/security/image-scan-scope.json`: scanned as a runtime image, or
+excluded with a kind and a reason. `tools/security/vulnerability-scan.sh`
+blocks fixable HIGH/CRITICAL findings in the checkout, all LeonAid images,
+the scanned third-party images (Trivy) and in `uv.lock`/`bun.lock`
+(OSV-Scanner). Findings without an upstream fix go into
+`infra/security/vulnerability-allowlist.json` with reason, reviewer and an
+expiry at most 90 days after the review; expired waivers fail the gate.
+
 Die Prüfungen werden ausschließlich in den hier erfassten Docker-Images
 ausgeführt:
 

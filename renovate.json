@@ -1,23 +1,70 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
   "enabled": true,
   "automerge": false,
   "dependencyDashboard": true,
   "rangeStrategy": "pin",
   "pinDigests": true,
   "prCreation": "immediate",
+  "timezone": "Europe/Berlin",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
   "labels": [
     "dependencies"
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": [
+      "at any time"
+    ],
+    "labels": [
+      "dependencies",
+      "security"
+    ]
+  },
+  "docker-compose": {
+    "managerFilePatterns": [
+      "/(^|/)(?:docker-)?compose[^/]*\\.ya?ml$/",
+      "/^infra/emdash-spike/[^/]+\\.test\\.ya?ml$/",
+      "/^infra/backup/[^/]+\\.ya?ml$/"
+    ]
+  },
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Generated image pins; tools/pins/check.py keeps them equal to external-systems.lock",
       "managerFilePatterns": [
         "/^infra\\/locks\\/images\\.env$/"
       ],
       "matchStrings": [
-        "(?<depName>[a-z0-9./-]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+        "(?<depType>[A-Z][A-Z0-9_]*)_IMAGE=(?<depName>[a-z0-9./-]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Canonical lock: keep version, image and digest of one system consistent",
+      "managerFilePatterns": [
+        "/^infra\\/locks\\/external-systems\\.lock$/"
+      ],
+      "matchStrings": [
+        "\"id\": \"(?<depType>[a-z0-9-]+)\",\\s*\"version\": \"[^\"]+\",\\s*\"image\": \"(?<depName>[a-z0-9./-]+):(?<currentValue>[^@\"]+)@(?<currentDigest>sha256:[a-f0-9]{64})\",\\s*\"digest\": \"sha256:[a-f0-9]{64}\""
+      ],
+      "autoReplaceStringTemplate": "\"id\": \"{{{depType}}}\",\n      \"version\": \"{{{replace '^v' '' newValue}}}\",\n      \"image\": \"{{{depName}}}:{{{newValue}}}@{{{newDigest}}}\",\n      \"digest\": \"{{{newDigest}}}\"",
       "datasourceTemplate": "docker"
     }
   ],
@@ -26,6 +73,7 @@
       "description": "Every dependency change needs an explicit reviewable PR",
       "matchManagers": [
         "bun",
+        "custom.regex",
         "dockerfile",
         "docker-compose",
         "pep621",
@@ -33,6 +81,106 @@
       ],
       "automerge": false,
       "rangeStrategy": "pin"
+    },
+    {
+      "description": "Upgrade sources deliberately pin the previous release; bump them by hand together with their target",
+      "matchDepTypes": [
+        "twenty-upgrade-source",
+        "postgres-upgrade-source",
+        "redis-upgrade-source",
+        "rustfs-upgrade-source",
+        "TWENTY_UPGRADE_SOURCE",
+        "POSTGRES_UPGRADE_SOURCE",
+        "REDIS_UPGRADE_SOURCE",
+        "RUSTFS_UPGRADE_SOURCE"
+      ],
+      "enabled": false,
+      "automerge": false
+    },
+    {
+      "description": "The upgrade source compose file follows the upgrade sources above",
+      "matchFileNames": [
+        "infra/upgrade/compose.source.yml"
+      ],
+      "enabled": false,
+      "automerge": false
+    },
+    {
+      "description": "Weekly group: container images (compose, Dockerfiles, locks)",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "container images",
+      "automerge": false,
+      "matchPackageNames": [
+        "!docker.io/twentycrm/twenty",
+        "!docker.io/library/postgres",
+        "!docker.io/valkey/valkey",
+        "!docker.io/rustfs/rustfs"
+      ]
+    },
+    {
+      "description": "Stateful systems need the upgrade runbook and compatibility matrix; keep them in their own PRs",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "docker.io/twentycrm/twenty",
+        "docker.io/library/postgres",
+        "docker.io/valkey/valkey",
+        "docker.io/rustfs/rustfs"
+      ],
+      "labels": [
+        "dependencies",
+        "needs-upgrade-runbook"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "PostgreSQL majors need a dump/restore migration; stay on 16 until a planned upgrade",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "docker.io/library/postgres"
+      ],
+      "automerge": false,
+      "allowedVersions": "/^16\\./"
+    },
+    {
+      "description": "pyproject.toml requires Python 3.13; a new minor needs a planned toolchain change",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "docker.io/library/python"
+      ],
+      "allowedVersions": "/^3\\.13\\./",
+      "automerge": false
+    },
+    {
+      "description": "Weekly group: Python packages from uv.lock",
+      "matchManagers": [
+        "pep621"
+      ],
+      "groupName": "python packages",
+      "automerge": false
+    },
+    {
+      "description": "Weekly group: frontend packages from bun.lock",
+      "matchManagers": [
+        "bun"
+      ],
+      "groupName": "frontend packages",
+      "automerge": false
+    },
+    {
+      "description": "Weekly group: GitHub Actions digests",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions",
+      "automerge": false
     }
   ]
 }

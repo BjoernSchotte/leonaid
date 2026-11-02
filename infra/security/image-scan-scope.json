@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "ownImages": [
+    "leonaid-api",
+    "leonaid-worker",
+    "leonaid-web",
+    "leonaid-pwa",
+    "leonaid-public",
+    "leonaid-proxy",
+    "leonaid-survey-validator",
+    "leonaid-campaign-site"
+  ],
+  "runtime": [
+    "twenty",
+    "postgres",
+    "valkey",
+    "rustfs",
+    "mailpit",
+    "otel",
+    "prometheus",
+    "alertmanager",
+    "restic",
+    "alpine",
+    "node"
+  ],
+  "excluded": {
+    "twenty-upgrade-source": {
+      "kind": "upgrade-source",
+      "reason": "Runs only inside the maintenance window to drain the queues of the previous release; the current twenty pin is scanned."
+    },
+    "postgres-upgrade-source": {
+      "kind": "upgrade-source",
+      "reason": "Runs only in the upgrade test that proves the previous PostgreSQL release data volume starts under the current pin; the current postgres pin is scanned."
+    },
+    "redis-upgrade-source": {
+      "kind": "upgrade-source",
+      "reason": "Runs only inside the maintenance window to read the previous queue store; the current valkey pin is scanned."
+    },
+    "rustfs-upgrade-source": {
+      "kind": "upgrade-source",
+      "reason": "Runs only in the upgrade test that proves migration from the previous release; the current rustfs pin is scanned."
+    },
+    "seaweedfs": {
+      "kind": "test-only",
+      "reason": "Second S3 implementation used only by the object-storage contract test; it is never deployed."
+    },
+    "uv": {
+      "kind": "base-image",
+      "reason": "Base of leonaid-api and leonaid-worker; every shipped layer is scanned through those two images."
+    },
+    "bun": {
+      "kind": "base-image",
+      "reason": "Build stage and base of the frontend images; every shipped layer is scanned through the leonaid-* images."
+    },
+    "typst": {
+      "kind": "base-image",
+      "reason": "Only the typst binary is copied into leonaid-api and leonaid-worker and is scanned there."
+    },
+    "python": {
+      "kind": "toolchain",
+      "reason": "Runs repository checkers in CI and one campaign-site build stage; the shipped images are scanned instead."
+    },
+    "caddy-builder": {
+      "kind": "toolchain",
+      "reason": "Compiles the proxy binary; the resulting leonaid-proxy image is scanned."
+    },
+    "playwright": {
+      "kind": "toolchain",
+      "reason": "Browser test runner for CI and development only; it is never deployed."
+    },
+    "syft": {
+      "kind": "toolchain",
+      "reason": "SBOM generator that runs in CI only; it is never deployed."
+    },
+    "trivy": {
+      "kind": "toolchain",
+      "reason": "The image and filesystem vulnerability scanner itself; runs in CI only."
+    },
+    "osv-scanner": {
+      "kind": "toolchain",
+      "reason": "Lockfile vulnerability scanner that runs in CI only; it is never deployed."
+    },
+    "caddy": {
+      "kind": "base-image",
+      "reason": "Runtime base of leonaid-proxy, which is built from it, patched and scanned; the raw image runs only in the observability test compose."
+    },
+    "listmonk": {
+      "kind": "optional-profile",
+      "reason": "Only in the opt-in 'mailing' Compose profile, which no pilot deployment enables. Move it to runtime (scanned) before enabling the profile anywhere."
+    }
+  }
+}

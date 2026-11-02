@@ -7,10 +7,12 @@ on:
       - ".tool-versions"
       - "bun.lock"
       - "infra/locks/**"
+      - "infra/security/**"
       - "package.json"
       - "pyproject.toml"
       - "renovate.json"
       - "tools/pins/**"
+      - "tools/security/vuln_policy*.py"
       - "tools/sbom/**"
       - "uv.lock"
   push:
@@ -21,12 +23,16 @@ on:
       - ".tool-versions"
       - "bun.lock"
       - "infra/locks/**"
+      - "infra/security/**"
       - "package.json"
       - "pyproject.toml"
       - "renovate.json"
       - "tools/pins/**"
+      - "tools/security/vuln_policy*.py"
       - "tools/sbom/**"
       - "uv.lock"
+  schedule:
+    - cron: "17 5 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -43,14 +49,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify exact pins and rejection cases
-        run: >-
-          docker run --rm
-          -v "$PWD:/workspace:ro"
-          docker.io/library/python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1
-          /bin/sh /workspace/tools/pins/test.sh /workspace
+        run: |
+          . infra/locks/images.env
+          docker run --rm -v "$PWD:/workspace:ro" "$PYTHON_IMAGE" \
+            /bin/sh /workspace/tools/pins/test.sh /workspace
+          docker run --rm -v "$PWD:/workspace:ro" "$PYTHON_IMAGE" \
+            python /workspace/tools/security/vuln_policy.py check /workspace
 
   reproducibility:
     name: Install frozen locks twice
@@ -58,7 +65,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install two isolated index checkouts
         run: /bin/sh tools/pins/reproduce.sh "$PWD"
@@ -75,7 +82,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Reuse persistent proxy build layers
         uses: ./.github/actions/build-cache
@@ -86,7 +93,7 @@ jobs:
         run: /bin/sh tools/sbom/generate.sh "$PWD" "$PWD/.artifacts/sbom"
 
       - name: Publish CycloneDX artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dependency-sboms
           path: .artifacts/sbom/*.cdx.json

@@ -49,7 +49,9 @@ COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV NODE_ENV=production
-RUN mkdir /app/bootstrap-state && chown node:node /app/bootstrap-state
+# The server runs node only; drop the package managers the base image bundles.
+RUN rm -rf /opt/yarn-v* /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+  && mkdir /app/bootstrap-state && chown node:node /app/bootstrap-state
 USER node
 EXPOSE 3000
 CMD ["node", "./dist/server/entry.mjs"]

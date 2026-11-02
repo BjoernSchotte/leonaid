@@ -61,6 +61,17 @@ sed -i 's/hash = \"sha256:[a-f0-9]*\"/hash = \"\"/g' \
   "$tmp/python-hash/uv.lock"
 expect_failure python-hash "invalid artifact hash"
 
+make_fixture review-overdue
+sed -i 's/"reviewedAt": "[0-9-]*"/"reviewedAt": "2000-01-01"/;
+  s/"nextReviewOn": "[0-9-]*"/"nextReviewOn": "2000-03-01"/' \
+  "$tmp/review-overdue/infra/locks/external-systems.lock"
+expect_failure review-overdue "pin review OVERDUE since 2000-03-01"
+
+make_fixture review-too-far
+sed -i 's/"nextReviewOn": "[0-9-]*"/"nextReviewOn": "2099-01-01"/' \
+  "$tmp/review-too-far/infra/locks/external-systems.lock"
+expect_failure review-too-far "at most six months after reviewedAt"
+
 make_fixture unlocked-image
 # Split so that this script itself carries no unlocked pinned reference.
 stale_digest=4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
@@ -76,4 +87,4 @@ printf '%s\n' \
   >"$tmp/unlocked-image/.github/workflows/stale.yml"
 expect_failure unlocked-image "pinned image is not listed in infra/locks/external-systems.lock"
 
-echo "pin-test: OK: positive and five policy-rejection cases passed"
+echo "pin-test: OK: positive and seven policy-rejection cases passed"

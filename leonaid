@@ -702,6 +702,12 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
+  docker run --rm --network none -e PYTHONPATH=/workspace \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/security/vuln_policy_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/security/vuln_policy.py check /workspace
   /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
   docker run --rm \
     -v "$root:/workspace:ro" \
