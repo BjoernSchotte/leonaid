@@ -97,8 +97,12 @@ async def main() -> None:
         await connection.execute(
             """
             INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
-            VALUES ($1, $2, date_trunc('hour', now()) + interval '2 days',
-                    date_trunc('hour', now()) + interval '2 days 2 hours')
+            -- A fixed local day time: a window may not cross local midnight.
+            VALUES ($1, $2,
+                ((now() AT TIME ZONE 'Europe/Berlin')::date + 2 + time '10:00')
+                    AT TIME ZONE 'Europe/Berlin',
+                ((now() AT TIME ZONE 'Europe/Berlin')::date + 2 + time '12:00')
+                    AT TIME ZONE 'Europe/Berlin')
             ON CONFLICT (id) DO NOTHING
             """,
             DELIVERY_WINDOW_ID,

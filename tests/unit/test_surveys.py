@@ -5,7 +5,7 @@ import pytest
 
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
-from leonaid.domain.surveys import (
+from leonaid.modules.surveys.domain import (
     Capability,
     SurveyStatus,
     effective_response_status,
