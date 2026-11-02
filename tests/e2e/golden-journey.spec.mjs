@@ -13,6 +13,12 @@ if (!baseUrl || !mailpitBaseUrl || !artifactDirectory || !round) {
 
 test.setTimeout(180_000);
 
+// The Core's Twenty gateway keeps Twenty's budget of 100 requests in a
+// sliding 60-second window and queues further CRM calls until the window
+// frees up. Three browsers plus round setup can spend that budget, so a CRM
+// lookup may wait up to one full window before Twenty is asked at all.
+const CRM_BUDGET_TIMEOUT = 75_000;
+
 function browserKey(projectName) {
   if (projectName.startsWith("chromium")) return "CHROMIUM";
   if (projectName.startsWith("firefox")) return "FIREFOX";
@@ -266,11 +272,12 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
     memberPage.getByRole("heading", {
       name: "Kein gleichnamiger Sponsor gefunden",
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: CRM_BUDGET_TIMEOUT });
   const resolutionPromise = memberPage.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       response.url().endsWith("/acquisition/sponsor-match/resolve"),
+    { timeout: CRM_BUDGET_TIMEOUT },
   );
   await memberPage.getByTestId("sponsor-resolve").click();
   const resolutionResponse = await resolutionPromise;
@@ -305,7 +312,7 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
     (response) =>
       response.request().method() === "POST" &&
       response.url().endsWith("/acquisition/activities"),
-    { timeout: 15_000 },
+    { timeout: CRM_BUDGET_TIMEOUT },
   );
   await memberPage.getByTestId("activity-submit").click();
   expect((await activityResponse).status()).toBe(201);

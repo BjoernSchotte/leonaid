@@ -1,18 +1,27 @@
 import node from "@astrojs/node";
 import { defineConfig } from "astro/config";
+import runtimeAllowedDomains, {
+  runtimeDomainPattern,
+} from "./runtime-allowed-domains.mjs";
 
 export default defineConfig({
   adapter: node({ mode: "standalone" }),
+  integrations: [runtimeAllowedDomains("LEONAID_PUBLIC_DOMAIN")],
   output: "server",
   server: {
     host: true,
     port: 3000,
   },
   security: {
+    // Hosts that may set Astro.url (canonical URLs, checkOrigin): local and
+    // in-network test hosts plus the installation's LEONAID_PUBLIC_DOMAIN,
+    // read at runtime (runtime-allowed-domains.mjs).
     allowedDomains: [
       { hostname: "localhost" },
       { hostname: "127.0.0.1" },
       { hostname: "proxy" },
+      { hostname: "public" },
+      runtimeDomainPattern,
     ],
     actionBodySizeLimit: 64 * 1024,
     checkOrigin: true,
