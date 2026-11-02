@@ -49,6 +49,6 @@ ausgeführt:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \
-  python:3.13.13-slim-trixie@sha256:aa938a849bcb82dce8f49480f056ab82bf5c1c3ebc294f0430f37b6820e7f286 \
+  python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 \
   python /workspace/tools/pins/check.py /workspace
 ```

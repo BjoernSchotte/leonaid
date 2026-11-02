@@ -708,6 +708,7 @@ check_all() {
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/security/vuln_policy.py check /workspace
+  /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \

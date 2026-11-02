@@ -21,15 +21,15 @@ bun_version=$(docker run --rm "$BUN_IMAGE" bun --version)
 uv_version=$(docker run --rm "$UV_IMAGE" uv --version)
 typst_version=$(docker run --rm "$TYPST_IMAGE" --version)
 
-assert_equal python "Python 3.13.13" "$python_version"
-assert_equal node "v22.23.0" "$node_version"
-assert_equal bun "1.2.19" "$bun_version"
+assert_equal python "Python 3.13.18" "$python_version"
+assert_equal node "v22.23.4" "$node_version"
+assert_equal bun "1.4.4" "$bun_version"
 case "$uv_version" in
-  "uv 0.11.17 (x86_64-unknown-linux-musl)" | \
-  "uv 0.11.17 (aarch64-unknown-linux-musl)")
+  "uv 0.13.6 (x86_64-unknown-linux-musl)" | \
+  "uv 0.13.6 (aarch64-unknown-linux-musl)")
     ;;
   *)
-    echo "runtime-version: ERROR: uv expected version 0.11.17 for a supported Linux architecture, got '$uv_version'" >&2
+    echo "runtime-version: ERROR: uv expected version 0.13.6 for a supported Linux architecture, got '$uv_version'" >&2
     exit 1
     ;;
 esac

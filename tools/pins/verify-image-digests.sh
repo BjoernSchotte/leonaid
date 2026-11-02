@@ -3,16 +3,22 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+env_file="$root/infra/locks/images.env"
 
-# Every pinned image of the canonical lock, so no new pin can escape the check.
-images=$(sed -n 's/^[A-Z][A-Z0-9_]*_IMAGE=//p' "$root/infra/locks/images.env")
-if [ -z "$images" ]; then
-  echo "image-digest: ERROR: no images found in infra/locks/images.env" >&2
-  exit 1
-fi
-
+# Every locked image is verified. images.env is generated from
+# external-systems.lock and tools/pins/check.py enforces their parity, so a new
+# lock entry cannot silently escape this registry check.
 count=0
-for image in $images; do
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    '' | '#'*) continue ;;
+    *_IMAGE=*) ;;
+    *)
+      echo "image-digest: ERROR: unexpected line in $env_file: $line" >&2
+      exit 1
+      ;;
+  esac
+  image=${line#*=}
   tagged=${image%@*}
   expected=${image##*@}
   actual=$(docker buildx imagetools inspect "$tagged" | awk '/^Digest:/ {print $2; exit}')
@@ -21,6 +27,10 @@ for image in $images; do
     exit 1
   fi
   count=$((count + 1))
-done
+done <"$env_file"
 
+[ "$count" -gt 0 ] || {
+  echo "image-digest: ERROR: no images found in $env_file" >&2
+  exit 1
+}
 echo "image-digest: OK: $count version tags resolve to their recorded digests"

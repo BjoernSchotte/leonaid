@@ -35,6 +35,7 @@ REQUIRED_SYSTEMS = {
     "otel",
     "playwright",
     "postgres",
+    "postgres-upgrade-source",
     "prometheus",
     "python",
     "valkey",
@@ -265,14 +266,14 @@ def iter_package_json(root: Path) -> list[Path]:
 def check_frontend(root: Path, problems: Problems) -> None:
     root_package = read_json(root / "package.json", problems)
     problems.require(
-        root_package.get("packageManager") == "bun@1.2.19",
-        f"{root / 'package.json'}: packageManager must be exactly bun@1.2.19",
+        root_package.get("packageManager") == "bun@1.4.4",
+        f"{root / 'package.json'}: packageManager must be exactly bun@1.4.4",
     )
     engines = root_package.get("engines", {})
     problems.require(
         isinstance(engines, dict)
-        and engines.get("bun") == "1.2.19"
-        and engines.get("node") == "22.23.0",
+        and engines.get("bun") == "1.4.4"
+        and engines.get("node") == "22.23.4",
         f"{root / 'package.json'}: Bun and Node engines must be exact",
     )
 
@@ -557,6 +558,57 @@ def check_image_references(root: Path, problems: Problems) -> None:
                 )
 
 
+def normalize_image(image: str) -> str:
+    """Spell a Docker reference with its implicit registry and namespace."""
+    first, _, rest = image.partition("/")
+    if not rest:
+        return f"docker.io/library/{image}"
+    if "." not in first and ":" not in first and first != "localhost":
+        return f"docker.io/{image}"
+    return image
+
+
+def check_locked_image_usage(
+    root: Path, systems: dict[str, dict[str, Any]], problems: Problems
+) -> None:
+    """Every digest-pinned image used by builds, stacks, CI or tools is locked.
+
+    The lock is the single source of truth. A pinned reference elsewhere that
+    is not listed there silently escapes upgrades (for example an outdated
+    toolchain image inside a CI workflow command).
+    """
+    locked = {
+        normalize_image(str(item.get("image", ""))) for item in systems.values()
+    }
+    pinned = re.compile(
+        r"(?<![\w./-])(?P<image>[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)*"
+        r":[A-Za-z0-9._-]+@sha256:[0-9a-f]{64})"
+    )
+    for path in checkout_files(root):
+        relative = path.relative_to(root)
+        name = path.name.lower()
+        if not (
+            name.startswith("dockerfile")
+            or name == "leonaid"
+            or path.suffix.lower() in {".yml", ".yaml", ".sh", ".hcl", ".env"}
+        ):
+            continue
+        if relative.parts and relative.parts[0] == "specs":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line_number, line in enumerate(text.splitlines(), 1):
+            for match in pinned.finditer(line):
+                image = match.group("image")
+                if normalize_image(image) not in locked:
+                    problems.add(
+                        f"{path}:{line_number}: pinned image is not listed in "
+                        f"infra/locks/external-systems.lock: {image}"
+                    )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     problems = Problems()
@@ -568,6 +620,7 @@ def main() -> int:
     check_browsers(root, systems, problems)
     check_renovate(root, problems)
     check_image_references(root, problems)
+    check_locked_image_usage(root, systems, problems)
     if problems.items:
         for item in problems.items:
             print(f"pin-check: ERROR: {item}", file=sys.stderr)

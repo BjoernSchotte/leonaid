@@ -30,6 +30,10 @@
       "kind": "upgrade-source",
       "reason": "Runs only inside the maintenance window to drain the queues of the previous release; the current twenty pin is scanned."
     },
+    "postgres-upgrade-source": {
+      "kind": "upgrade-source",
+      "reason": "Runs only in the upgrade test that proves the previous PostgreSQL release data volume starts under the current pin; the current postgres pin is scanned."
+    },
     "redis-upgrade-source": {
       "kind": "upgrade-source",
       "reason": "Runs only inside the maintenance window to read the previous queue store; the current valkey pin is scanned."

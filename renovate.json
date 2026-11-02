@@ -86,9 +86,11 @@
       "description": "Upgrade sources deliberately pin the previous release; bump them by hand together with their target",
       "matchDepTypes": [
         "twenty-upgrade-source",
+        "postgres-upgrade-source",
         "redis-upgrade-source",
         "rustfs-upgrade-source",
         "TWENTY_UPGRADE_SOURCE",
+        "POSTGRES_UPGRADE_SOURCE",
         "REDIS_UPGRADE_SOURCE",
         "RUSTFS_UPGRADE_SOURCE"
       ],

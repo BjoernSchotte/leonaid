@@ -72,4 +72,19 @@ sed -i 's/"nextReviewOn": "[0-9-]*"/"nextReviewOn": "2099-01-01"/' \
   "$tmp/review-too-far/infra/locks/external-systems.lock"
 expect_failure review-too-far "at most six months after reviewedAt"
 
-echo "pin-test: OK: positive and six policy-rejection cases passed"
+make_fixture unlocked-image
+# Split so that this script itself carries no unlocked pinned reference.
+stale_digest=4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+mkdir -p "$tmp/unlocked-image/.github/workflows"
+printf '%s\n' \
+  'jobs:' \
+  '  check:' \
+  '    steps:' \
+  '      - run: >-' \
+  '          docker run --rm' \
+  "          docker.io/library/python:3.13.5-slim-bookworm@sha256:$stale_digest" \
+  '          python --version' \
+  >"$tmp/unlocked-image/.github/workflows/stale.yml"
+expect_failure unlocked-image "pinned image is not listed in infra/locks/external-systems.lock"
+
+echo "pin-test: OK: positive and seven policy-rejection cases passed"
