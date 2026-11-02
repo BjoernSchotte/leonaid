@@ -129,6 +129,7 @@ def core_send(recipient: str) -> None:
         reply_to=settings.reply_to,
     )
     message = EmailMessage()
+    message["From"] = settings.sender
     message["To"] = recipient
     message["Subject"] = "LeonAid pilot-install relay probe"
     message.set_content("Relay probe from the core worker.")
