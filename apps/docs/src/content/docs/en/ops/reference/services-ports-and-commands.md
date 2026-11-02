@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
 reviewer: Björn Schotte
 ---
 
@@ -24,7 +24,10 @@ Locally only Caddy publishes `127.0.0.1:8443` for HTTPS and
 picks the first free pair from 28080 once and stores it as `LEONAID_HTTP_PORT`
 and `LEONAID_HTTPS_PORT` in `.env.local`. For LAN access set
 `LEONAID_BIND_ADDRESS=0.0.0.0` and `LEONAID_LAN_HOST` to the host's LAN
-name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev stack is then reachable from the LAN. The pilot overlay exposes only 80/443.
+name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev stack is then reachable from the LAN.
+`LEONAID_REMOTE_HOST` adds a second name for the same stack, e.g. the host's
+Tailscale or VPN name `myhost.tailnet.ts.net`; keep `127.0.0.1` when unused.
+Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443.
 Databases, Redis, S3, and internal APIs stay inside Compose networks.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,

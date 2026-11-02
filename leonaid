@@ -596,6 +596,20 @@ doctor() {
     failures=$((failures + 1))
   fi
 
+  # Request paths find CRM parties by the provisioned match key field; without
+  # it (or without a working integration key) public orders fail at runtime.
+  if [ -f "$root/.env.local" ] &&
+    [ -n "$(compose ps --status running --quiet api 2>/dev/null)" ]; then
+    if compose exec -T api python -m leonaid.entrypoints.crm_match_keys --check; then
+      echo "doctor: OK: Twenty has the match key field and the API's integration key works"
+    else
+      echo "doctor: ERROR: Twenty CRM check failed (see above). Run './leonaid provision-twenty'; if the API image is older than the checkout, run './leonaid dev' first." >&2
+      failures=$((failures + 1))
+    fi
+  else
+    echo "doctor: SKIPPED: the Twenty CRM check needs the running dev stack ('./leonaid dev')"
+  fi
+
   if [ "$failures" -ne 0 ]; then
     echo "doctor: FEHLGESCHLAGEN: $failures Problem(e), jeweils mit Korrekturhinweis." >&2
     exit 1
@@ -993,6 +1007,19 @@ pilot_doctor() {
         --gate "$gate" $json_argument $first_install_argument
   fi
   status=$?
+  # The deploy and release gates run against the started stack: prove the
+  # running API reaches Twenty and that the match key field is provisioned.
+  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ]; then
+    case "$gate" in
+      pilot-deploy|pilot-release)
+        if ! pilot_compose_command "$project" "$env_file" \
+          exec -T api python -m leonaid.entrypoints.crm_match_keys --check >&2; then
+          echo "pilot-doctor: BLOCKED: Twenty CRM check failed; apply the schema with './leonaid pilot-release --twenty-bootstrap-file FILE'" >&2
+          status=1
+        fi
+        ;;
+    esac
+  fi
   set -e
   rm -f "$config_file"
   rm -rf "$doctor_input_directory"
@@ -2614,6 +2641,10 @@ provision_twenty() {
   fi
   mv "$staged_token" "$root/.local/twenty/integration.env"
   rmdir "$staged_directory"
+  # A running API keeps the key it started with; recreate it with the new one.
+  if [ -n "$(compose ps --status running --quiet api)" ]; then
+    compose up --detach --no-deps --force-recreate --wait --wait-timeout 420 api
+  fi
   echo "provision-twenty: OK: deklarationsgleicher, real verifizierter Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
 }
 

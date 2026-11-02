@@ -25,6 +25,7 @@ from leonaid.application.crm import (
     CrmPartyKind,
     CrmSyncReceipt,
     CrmSyncStatus,
+    MatchKeyFieldStatus,
     MatchKeyRepairReport,
     PersonData,
     PersonRecord,
@@ -585,6 +586,87 @@ class TwentyCrmGateway:
                 )
             )
         return tuple(reports)
+
+    async def match_key_field_status(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[MatchKeyFieldStatus, ...]:
+        """Prove that Twenty has the match key field and count unkeyed records.
+
+        Two cheap reads per collection: the total and the records whose key is
+        empty. Twenty rejects a filter on an unknown field with 400, which is
+        reported as ``crm_match_key_field_missing``.
+        """
+
+        statuses: list[MatchKeyFieldStatus] = []
+        collections: tuple[tuple[Literal["companies", "people"], CrmPartyKind], ...] = (
+            ("companies", CrmPartyKind.COMPANY),
+            ("people", CrmPartyKind.PERSON),
+        )
+        for collection, kind in collections:
+            operation = f"match_key_field_status_{collection}"
+            total = await self._total_count(
+                collection,
+                filter_expression=None,
+                correlation_id=correlation_id,
+                operation=operation,
+            )
+            try:
+                unkeyed = await self._total_count(
+                    collection,
+                    filter_expression=f"{MATCH_KEY_FIELD}[is]:NULL",
+                    correlation_id=correlation_id,
+                    operation=operation,
+                )
+            except CrmGatewayError as error:
+                if error.http_status != 400:
+                    raise
+                raise CrmGatewayError(
+                    "crm_match_key_field_missing",
+                    f"Twenty has no {MATCH_KEY_FIELD} field on {collection}.",
+                    operation=operation,
+                    correlation_id=error.correlation_id,
+                    retryable=False,
+                    outcome_unknown=False,
+                    http_status=400,
+                ) from None
+            statuses.append(
+                MatchKeyFieldStatus(party_kind=kind, total=total, unkeyed=unkeyed)
+            )
+        return tuple(statuses)
+
+    async def _total_count(
+        self,
+        collection: Literal["companies", "people"],
+        *,
+        filter_expression: str | None,
+        correlation_id: str,
+        operation: str,
+    ) -> int:
+        params: dict[str, str | int] = {"limit": 1}
+        if filter_expression is not None:
+            params["filter"] = filter_expression
+        response = await self._request(
+            "GET",
+            f"/rest/{collection}",
+            operation=operation,
+            operation_kind="read",
+            correlation_id=correlation_id,
+            params=params,
+        )
+        total = _json_object(response, "Listen-Response").get("totalCount")
+        if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+            raise CrmGatewayError(
+                "crm_response_invalid",
+                "Twenty returned no valid totalCount.",
+                operation=operation,
+                correlation_id=correlation_id,
+                retryable=False,
+                outcome_unknown=False,
+                http_status=response.status_code,
+            )
+        return total
 
     async def _ensure_match_key(
         self,

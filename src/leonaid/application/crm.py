@@ -369,6 +369,20 @@ class MatchKeyRepairReport:
     repaired: int
 
 
+@dataclass(frozen=True, slots=True)
+class MatchKeyFieldStatus:
+    """Readiness of the stored match key for one party kind.
+
+    ``unkeyed`` counts records without a stored key: records written outside
+    LeonAid since the last repair run, plus records with an empty name, which
+    never get a key.
+    """
+
+    party_kind: CrmPartyKind
+    total: int
+    unkeyed: int
+
+
 class CrmMatchKeyMaintenance(Protocol):
     """Offline maintenance of the stored match keys (never a request path)."""
 
@@ -378,3 +392,9 @@ class CrmMatchKeyMaintenance(Protocol):
         updated_since: datetime | None,
         correlation_id: str,
     ) -> tuple[MatchKeyRepairReport, ...]: ...
+
+    async def match_key_field_status(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[MatchKeyFieldStatus, ...]: ...

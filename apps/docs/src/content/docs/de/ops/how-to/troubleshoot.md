@@ -4,9 +4,9 @@ description: Häufige Betriebsfehler mit Doctor, Healthchecks und sicheren Korre
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
 reviewer: Björn Schotte
 ---
 
@@ -26,6 +26,13 @@ Tokens, E-Mail-Adressen oder Dokumentbytes.
 - **Öffentliches TLS:** Prüfe DNS, Hostname, vollständige Vertrauenskette,
   Sicherheitsheader und mindestens 14 Tage Zertifikatsrestlaufzeit mit dem
   Pilot Doctor. Port 80 bleibt für ACME und HTTPS-Weiterleitung erreichbar.
+- **Twenty-CRM-Prüfung schlägt fehl:** `doctor` (bei laufendem Dev-Stack) und
+  die Gates `pilot-deploy`/`pilot-release` des Pilot Doctor fragen die laufende
+  API, ob Twenty das Feld `leonaidMatchKey` hat und ihren Integrations-Key
+  annimmt. Lokal hilft `./leonaid provision-twenty`, im Pilotbetrieb
+  `./leonaid pilot-release --twenty-bootstrap-file FILE`. Die Prüfung zählt
+  außerdem Datensätze ohne Schlüssel; `repair-crm-match-keys` schließt diese
+  Lücke.
 - **Schreibzugriff liefert 503:** Prüfe
   `infra/upgrade/maintenance.sh status`. Deaktiviere Wartung erst nach gesunden
   Abhängigkeiten und bestandenen Verträgen.

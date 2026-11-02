@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 PORT_KEYS = {"LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT"}
-NETWORK_KEYS = {"LEONAID_BIND_ADDRESS", "LEONAID_LAN_HOST"}
+HOST_KEYS = ("LEONAID_LAN_HOST", "LEONAID_REMOTE_HOST")
+NETWORK_KEYS = {"LEONAID_BIND_ADDRESS", *HOST_KEYS}
 CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS, *NETWORK_KEYS}
 
 
@@ -70,13 +71,12 @@ def main() -> int:
             "secret-check: ERROR: LEONAID_BIND_ADDRESS must be an IP", file=sys.stderr
         )
         return 1
-    if not actual["LEONAID_LAN_HOST"] or any(
-        char in actual["LEONAID_LAN_HOST"] for char in " ,/:{}"
-    ):
-        print(
-            "secret-check: ERROR: LEONAID_LAN_HOST must be a bare host", file=sys.stderr
-        )
-        return 1
+    for key in HOST_KEYS:
+        # A bare host only: commas or slashes would inject extra CORS origins
+        # or Caddy site addresses.
+        if not actual[key] or any(char in actual[key] for char in " ,/:{}"):
+            print(f"secret-check: ERROR: {key} must be a bare host", file=sys.stderr)
+            return 1
 
     secret_values = [value for key, value in actual.items() if key not in CONFIG_KEYS]
     if any(
