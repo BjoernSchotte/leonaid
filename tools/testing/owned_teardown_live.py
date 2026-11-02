@@ -87,7 +87,11 @@ def diagnostics_do_not_leak(project: str, directory: Path) -> None:
         str(isolation),
     ]
     subprocess.run(
-        [sys.executable, str(ROOT / "tools/surveys/network_override.py"), str(isolation)],
+        [
+            sys.executable,
+            str(ROOT / "tools/surveys/network_override.py"),
+            str(isolation),
+        ],
         check=True,
     )
     model = subprocess.check_output(
@@ -113,7 +117,13 @@ def diagnostics_do_not_leak(project: str, directory: Path) -> None:
     proof = directory / "proof"
     proof.mkdir()
     subprocess.run(
-        ["sh", str(ROOT / "tools/ci/capture-failure.sh"), str(ROOT), str(proof), project],
+        [
+            "sh",
+            str(ROOT / "tools/ci/capture-failure.sh"),
+            str(ROOT),
+            str(proof),
+            project,
+        ],
         env={**os.environ, "LEONAID_CI_ARTIFACT_DIR": str(artifacts)},
         check=True,
     )
@@ -121,7 +131,9 @@ def diagnostics_do_not_leak(project: str, directory: Path) -> None:
     created = set(inventory(project)["networks"]) - declared
     assert not created, f"diagnostics created undeclared networks: {created}"
     assert (artifacts / f"runtime-{project}" / "services.txt").exists()
-    print(f"owned-teardown-live: diagnostics ran with the suite file set ({len(log)} log bytes)")
+    print(
+        f"owned-teardown-live: diagnostics ran with the suite file set ({len(log)} log bytes)"
+    )
     subprocess.run(
         [*compose, "--profile", "*", "down", "--volumes", "--remove-orphans"],
         check=True,
@@ -131,7 +143,9 @@ def diagnostics_do_not_leak(project: str, directory: Path) -> None:
     assert result.returncode == 0, result.stderr
     remaining = inventory(project)
     assert not any(remaining.values()), remaining
-    print("owned-teardown-live: suite teardown left no containers, networks, volumes or images")
+    print(
+        "owned-teardown-live: suite teardown left no containers, networks, volumes or images"
+    )
 
 
 def planted_leak_is_reported_and_removed(project: str, image: str) -> None:
