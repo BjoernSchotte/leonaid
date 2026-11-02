@@ -17,7 +17,7 @@ path and proves the race then persists a booking against a retired window.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import date, datetime, time, timezone
@@ -55,7 +55,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.errors import DomainInvariantError
 
-Booking = Callable[[Any, str], Awaitable[Commitment]]
+Booking = Callable[[Any, str], Coroutine[Any, Any, Commitment]]
 
 
 class LockGate:
@@ -171,7 +171,9 @@ async def prove_booking_races(
     draft = replace(
         draft,
         buyer=replace(draft.buyer, email="race@example.invalid"),
-        invoice_recipient=replace(draft.invoice_recipient, email="race@example.invalid"),
+        invoice_recipient=replace(
+            draft.invoice_recipient, email="race@example.invalid"
+        ),
     )
     schedules = AsyncpgDeliveryRepository(pool)
     current = await schedules.get(action_id)
@@ -410,8 +412,8 @@ async def prove_booking_races(
     # acquisition booking that waited on the action lock keeps its stale
     # snapshot and persists a booking against the just-retired window.
     window = next(window_iter)
-    original = commitment_adapter.lock_configuration
-    commitment_adapter.lock_configuration = read_configuration  # type: ignore[assignment]
+    original = getattr(commitment_adapter, "lock_configuration")
+    setattr(commitment_adapter, "lock_configuration", read_configuration)
     try:
         key = f"race:{uuid4()}"
 
@@ -427,7 +429,7 @@ async def prove_booking_races(
             retire_first=True,
         )
     finally:
-        commitment_adapter.lock_configuration = original
+        setattr(commitment_adapter, "lock_configuration", original)
     assert isinstance(result, Commitment), (
         "Negative control did not reproduce the stale booking",
         result,

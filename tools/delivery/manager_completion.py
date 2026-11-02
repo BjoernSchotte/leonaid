@@ -41,7 +41,9 @@ async def prove_manager_completion(
     draft = replace(
         draft,
         buyer=replace(draft.buyer, email="race@example.invalid"),
-        invoice_recipient=replace(draft.invoice_recipient, email="race@example.invalid"),
+        invoice_recipient=replace(
+            draft.invoice_recipient, email="race@example.invalid"
+        ),
     )
     now = datetime.now(timezone.utc)
 
@@ -66,7 +68,9 @@ async def prove_manager_completion(
     schedules = AsyncpgDeliveryRepository(pool)
     configuration = await schedules.get(action_id)
     first, second = (
-        DeliveryWindow(uuid4(), action_id, date(2037, 12, 20), time(hour), time(hour + 2))
+        DeliveryWindow(
+            uuid4(), action_id, date(2037, 12, 20), time(hour), time(hour + 2)
+        )
         for hour in (8, 10)
     )
     await schedules.save(
@@ -142,7 +146,9 @@ async def prove_manager_completion(
             response = await client.post(path, json=body, headers=headers())
             assert response.status_code == 403, response.text
         identity.current = None
-        assert (await client.post(path, json=body, headers=headers())).status_code == 401
+        assert (
+            await client.post(path, json=body, headers=headers())
+        ).status_code == 401
         identity.current = admin
 
         # Validation: version format, missing billing, missing window, unknown key.
@@ -159,7 +165,9 @@ async def prove_manager_completion(
         response = await client.post(path, json=stale, headers=headers())
         assert response.status_code == 409, response.text
         assert response.json()["code"] == "delivery_completion_conflict"
-        assert (await client.get(order_path)).json()["deliveryCompletionVersion"] == version
+        assert (await client.get(order_path)).json()[
+            "deliveryCompletionVersion"
+        ] == version
 
         # Two competing managers with the same version: exactly one wins.
         competing = {**body, "deliveryContact": {"name": "Other", "phone": None}}
@@ -173,7 +181,9 @@ async def prove_manager_completion(
         ]
         winning = next(r for r in results if r.status_code == 200)
         winning_body, winning_headers = (
-            (body, winner_key) if results[0].status_code == 200 else (competing, loser_key)
+            (body, winner_key)
+            if results[0].status_code == 200
+            else (competing, loser_key)
         )
         completed = winning.json()
         loser = next(r for r in results if r.status_code == 409)
@@ -212,8 +222,14 @@ async def prove_manager_completion(
         )
         replay = await client.post(path, json=winning_body, headers=winning_headers)
         assert replay.status_code == 200 and replay.json()["replayed"], replay.text
-        assert replay.json()["deliveryWindowSnapshot"] == completed["deliveryWindowSnapshot"]
-        changed = {**winning_body, "deliveryContact": {"name": "Changed", "phone": None}}
+        assert (
+            replay.json()["deliveryWindowSnapshot"]
+            == completed["deliveryWindowSnapshot"]
+        )
+        changed = {
+            **winning_body,
+            "deliveryContact": {"name": "Changed", "phone": None},
+        }
         response = await client.post(path, json=changed, headers=winning_headers)
         assert response.status_code == 409, response.text
         assert response.json()["code"] == "idempotency_conflict"

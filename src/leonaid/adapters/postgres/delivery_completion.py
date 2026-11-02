@@ -220,7 +220,9 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
             actor_user_id,
             commitment_id,
             request_id,
-            json.dumps({"previousStatus": order.status.value, "status": "review_ready"}),
+            json.dumps(
+                {"previousStatus": order.status.value, "status": "review_ready"}
+            ),
             occurred_at,
         )
         await connection.execute(
