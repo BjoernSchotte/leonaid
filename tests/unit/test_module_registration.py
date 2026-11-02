@@ -1,0 +1,263 @@
+from __future__ import annotations
+
+from typing import Any, cast
+from uuid import UUID
+
+import pytest
+from fastapi import APIRouter, FastAPI
+from fastapi.routing import APIRoute
+
+from leonaid.application.identity import navigation_for
+from leonaid.bootstrap.api import API_MODULES, module_navigation
+from leonaid.bootstrap.registry import (
+    ModuleRegistration,
+    RegistrationError,
+    collect_background_loops,
+    collect_handlers,
+    collect_navigation,
+    register_routes,
+    validate_modules,
+)
+from leonaid.bootstrap.worker import (
+    HandlerDependencies,
+    background_loops,
+    worker_modules,
+)
+from leonaid.domain.identity import (
+    AccountStatus,
+    IdentityPrincipal,
+    UserAccount,
+)
+from leonaid.domain.outbox import ClaimedOutboxEvent
+from leonaid.entrypoints.fastapi.platform import create_app
+from leonaid.platform.background import BackgroundLoop, LoopReporter
+from leonaid.platform.navigation import NavigationItem
+
+
+class Handler:
+    async def handle(self, event: ClaimedOutboxEvent) -> None:
+        return None
+
+
+async def idle(_report: LoopReporter) -> None:
+    return None
+
+
+def router(path: str, method: str = "GET") -> APIRouter:
+    result = APIRouter()
+    result.add_api_route(path, lambda: None, methods=[method])
+    return result
+
+
+def principal() -> IdentityPrincipal:
+    return IdentityPrincipal(
+        account=UserAccount(
+            id=UUID("10000000-0000-4000-8000-000000000001"),
+            email="klara@example.test",
+            display_name="Klara",
+            status=AccountStatus.ACTIVE,
+        ),
+        global_roles=frozenset(),
+        action_memberships=(),
+    )
+
+
+@pytest.mark.parametrize("module_id", ["", "Tasks", "1tasks", "tasks_x", "tasks/"])
+def test_invalid_module_ids_are_rejected(module_id: str) -> None:
+    with pytest.raises(RegistrationError, match="Invalid module ID"):
+        validate_modules((ModuleRegistration(module_id),))
+
+
+def test_duplicate_module_ids_are_rejected() -> None:
+    with pytest.raises(RegistrationError, match="Duplicate module ID: tasks"):
+        validate_modules((ModuleRegistration("tasks"), ModuleRegistration("tasks")))
+
+
+def test_missing_dependency_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="requires unregistered module tasks"):
+        validate_modules((ModuleRegistration("knowledge", requires=("tasks",)),))
+
+
+def test_dependency_cycle_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="cycle: a -> b -> a"):
+        validate_modules(
+            (
+                ModuleRegistration("a", requires=("b",)),
+                ModuleRegistration("b", requires=("a",)),
+            )
+        )
+
+
+def test_self_dependency_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="cycle: a -> a"):
+        validate_modules((ModuleRegistration("a", requires=("a",)),))
+
+
+def test_satisfied_dependencies_are_accepted_in_any_order() -> None:
+    validate_modules(
+        (
+            ModuleRegistration("knowledge", requires=("tasks", "materials")),
+            ModuleRegistration("materials"),
+            ModuleRegistration("tasks"),
+        )
+    )
+
+
+def test_routes_with_the_same_shape_collide_even_with_other_parameter_names() -> None:
+    app = FastAPI()
+    modules = (
+        ModuleRegistration("a", router=router("/api/v1/items/{item_id}")),
+        ModuleRegistration("b", router=router("/api/v1/items/{other}")),
+    )
+
+    with pytest.raises(RegistrationError, match="GET /api/v1/items/"):
+        register_routes(app, modules)
+
+    # Validation runs before the application is changed.
+    assert "/api/v1/items/{item_id}" not in app.openapi()["paths"]
+
+
+def test_module_route_colliding_with_core_route_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="GET /api/v1/core"):
+        register_routes(
+            FastAPI(),
+            (ModuleRegistration("a", router=router("/api/v1/core")),),
+            core=(router("/api/v1/core"),),
+        )
+
+
+def test_module_route_colliding_with_application_route_is_rejected() -> None:
+    app = FastAPI()
+    with pytest.raises(RegistrationError, match="GET /openapi.json"):
+        register_routes(app, (ModuleRegistration("a", router=router("/openapi.json")),))
+
+
+def test_nested_routers_are_rejected() -> None:
+    outer = APIRouter()
+    outer.include_router(router("/api/v1/inner"))
+    with pytest.raises(RegistrationError, match="must not include routers"):
+        register_routes(FastAPI(), (ModuleRegistration("a", router=outer),))
+
+
+def test_same_path_with_other_method_is_allowed() -> None:
+    app = FastAPI()
+    register_routes(
+        app,
+        (
+            ModuleRegistration("a", router=router("/api/v1/items", "GET")),
+            ModuleRegistration("b", router=router("/api/v1/items", "POST")),
+        ),
+    )
+
+    assert set(app.openapi()["paths"]["/api/v1/items"]) == {"get", "post"}
+
+
+def test_duplicate_handlers_name_both_owners() -> None:
+    with pytest.raises(RegistrationError, match="mail.send.v1: a and b"):
+        collect_handlers(
+            (
+                ModuleRegistration("a", handlers={"mail.send.v1": Handler()}),
+                ModuleRegistration("b", handlers={"mail.send.v1": Handler()}),
+            )
+        )
+
+
+def test_empty_handler_type_is_rejected() -> None:
+    with pytest.raises(RegistrationError, match="Empty handler type"):
+        collect_handlers((ModuleRegistration("a", handlers={" ": Handler()}),))
+
+
+def test_duplicate_background_loops_are_rejected() -> None:
+    loop = BackgroundLoop("sweep", stall_after_seconds=10, run=idle)
+    with pytest.raises(RegistrationError, match="Duplicate background loop: sweep"):
+        collect_background_loops(
+            (
+                ModuleRegistration("a", background_loops=(loop,)),
+                ModuleRegistration("b", background_loops=(loop,)),
+            )
+        )
+
+
+@pytest.mark.parametrize(("name", "stall"), [("", 10.0), ("sweep", 0.0)])
+def test_invalid_background_loops_are_rejected(name: str, stall: float) -> None:
+    with pytest.raises(ValueError):
+        BackgroundLoop(name, stall_after_seconds=stall, run=idle)
+
+
+def test_navigation_contributions_keep_module_order() -> None:
+    def first(_principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+        return (NavigationItem("first", "Eins", "/admin/first", "web"),)
+
+    def second(_principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+        return (NavigationItem("second", "Zwei", "/app/second", "pwa"),)
+
+    navigation = collect_navigation(
+        (
+            ModuleRegistration("a", navigation=first),
+            ModuleRegistration("b"),
+            ModuleRegistration("c", navigation=second),
+        )
+    )
+
+    assert [item.key for item in navigation(principal())] == ["first", "second"]
+
+
+def test_surveys_are_registered_with_routes_and_navigation() -> None:
+    assert [module.id for module in API_MODULES] == ["surveys"]
+    items = navigation_for(principal(), module_navigation()(principal()))
+
+    assert [(item.key, item.href, item.surface) for item in items] == [
+        ("overview-pwa", "/app/", "pwa"),
+        ("surveys", "/admin/surveys", "web"),
+    ]
+
+
+def test_production_app_serves_the_survey_routes() -> None:
+    survey_router = API_MODULES[0].router
+    assert survey_router is not None
+    paths = create_app().openapi()["paths"]
+
+    for route in survey_router.routes:
+        assert isinstance(route, APIRoute)
+        if route.include_in_schema:
+            assert route.path in paths
+
+
+def test_worker_registers_every_existing_handler_once() -> None:
+    modules = worker_modules("postgresql://unused", None)
+
+    assert [module.id for module in modules] == [
+        "surveys",
+        "actions",
+        "invoicing",
+        "mail",
+    ]
+    assert collect_handlers(modules) == {}
+    assert [loop.name for loop in background_loops("postgresql://unused")] == [
+        "survey_sweep"
+    ]
+
+
+def test_worker_handler_set_is_unchanged() -> None:
+    placeholder = cast(Any, object())
+    handlers = collect_handlers(
+        worker_modules(
+            "postgresql://unused",
+            HandlerDependencies(
+                pool=placeholder,
+                storage=placeholder,
+                mail_transport=placeholder,
+                payload_secret="0" * 64,
+            ),
+        )
+    )
+
+    assert sorted(handlers) == [
+        "charity_action.progress.recorded.v1",
+        "invoice.document.render.requested.v1",
+        "invoice.mail.send.requested.v1",
+        "mail.send.v1",
+        "survey.delete.v1",
+        "survey.export.render.v1",
+        "survey.invitation.send.v1",
+    ]

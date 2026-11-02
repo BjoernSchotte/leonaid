@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect } from "react";
+import { useEffect } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -20,12 +20,11 @@ import {
   UiSystemCatalogPage,
   useCurrentActionId,
   campaignEditorHref,
+  resolveModuleRoute,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
-const SurveysPage = lazy(() =>
-  import("./surveys").then(({ SurveysPage }) => ({ default: SurveysPage })),
-);
+import { webModules } from "./modules";
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
@@ -50,11 +49,8 @@ function RedirectToOperationalApp() {
 function route() {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
-  if (pathname === "/surveys" || pathname === "/surveys/new")
-    return { kind: "surveys", createNew: pathname.endsWith("/new") } as const;
-  const surveyMatch = pathname.match(/^\/surveys\/([0-9a-f-]{36})$/);
-  if (surveyMatch)
-    return { kind: "surveys", surveyId: surveyMatch[1] } as const;
+  const moduleRoute = resolveModuleRoute(webModules, "web", pathname);
+  if (moduleRoute) return { kind: "module", ...moduleRoute } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
   if (pathname === "/actions") return { kind: "list" } as const;
   if (pathname === "/members") return { kind: "members" } as const;
@@ -125,10 +121,13 @@ export function App({ client }: AppProps) {
     );
   }
 
+  // Module navigation alone does not grant access to the back office.
   if (
-    route().kind !== "surveys" &&
+    route().kind !== "module" &&
     !identity.data.navigation.some(
-      (item) => item.surface === "web" && item.key !== "surveys",
+      (item) =>
+        item.surface === "web" &&
+        !webModules.some((module) => module.id === item.key),
     )
   ) {
     return <RedirectToOperationalApp />;
@@ -148,8 +147,8 @@ export function App({ client }: AppProps) {
   );
   const editorHref = campaignEditorHref(identity.data, actionId);
   const currentAction =
-    currentRoute.kind === "surveys"
-      ? "Umfragen"
+    currentRoute.kind === "module"
+      ? currentRoute.label
       : currentRoute.kind === "manage"
         ? (identity.data.actionMemberships.find(
             (item) => item.actionId === currentRoute.actionId,
@@ -208,24 +207,8 @@ export function App({ client }: AppProps) {
         }}
       >
         <PreviewNotice />
-        {currentRoute.kind === "surveys" ? (
-          <Suspense
-            fallback={
-              <div className="action-loading" role="status" aria-live="polite">
-                <span aria-hidden="true" />
-                <p>Umfragen werden geladen …</p>
-              </div>
-            }
-          >
-            <SurveysPage
-              client={client}
-              identity={identity.data}
-              createNew={"createNew" in currentRoute && currentRoute.createNew}
-              surveyId={
-                "surveyId" in currentRoute ? currentRoute.surveyId : undefined
-              }
-            />
-          </Suspense>
+        {currentRoute.kind === "module" ? (
+          currentRoute.render({ client, identity: identity.data })
         ) : currentRoute.kind === "new" ? (
           <CreateActionPage client={client} />
         ) : currentRoute.kind === "manage" ? (

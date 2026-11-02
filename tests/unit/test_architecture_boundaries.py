@@ -41,13 +41,20 @@ def imported_modules(path: Path) -> set[str]:
 def test_domain_and_application_do_not_import_concrete_infrastructure() -> None:
     violations: list[str] = []
     for layer in ("domain", "application"):
-        for path in sorted((ROOT / "src/leonaid" / layer).glob("*.py")):
+        for path in sorted((ROOT / "src/leonaid" / layer).rglob("*.py")):
             forbidden = imported_roots(path) & FORBIDDEN_INFRASTRUCTURE
             modules = imported_modules(path)
             inward_violations = {
                 module
                 for module in modules
-                if module.startswith(("leonaid.adapters", "leonaid.entrypoints"))
+                if module.startswith(
+                    (
+                        "leonaid.adapters",
+                        "leonaid.bootstrap",
+                        "leonaid.entrypoints",
+                        "leonaid.modules",
+                    )
+                )
             }
             if forbidden or inward_violations:
                 violations.append(
@@ -95,4 +102,91 @@ def test_twenty_wire_fields_stay_inside_the_twenty_adapter() -> None:
             found = sorted(field for field in wire_fields if field in content)
             if found:
                 violations.append(f"{path.relative_to(ROOT)}: {found}")
+    assert violations == []
+
+
+def python_files(relative: str) -> list[Path]:
+    return sorted((ROOT / "src/leonaid" / relative).rglob("*.py"))
+
+
+def leonaid_imports(path: Path) -> set[str]:
+    return {
+        module
+        for module in imported_modules(path)
+        if module == "leonaid" or module.startswith("leonaid.")
+    }
+
+
+def test_platform_imports_no_business_module_bootstrap_or_process_code() -> None:
+    violations = [
+        f"{path.relative_to(ROOT)}: {module}"
+        for path in python_files("platform")
+        for module in leonaid_imports(path)
+        if not module.startswith(("leonaid.platform", "leonaid.domain"))
+    ]
+    assert violations == []
+
+
+def test_modules_import_neither_bootstrap_nor_process_entrypoints() -> None:
+    violations = [
+        f"{path.relative_to(ROOT)}: {module}"
+        for path in python_files("modules")
+        for module in leonaid_imports(path)
+        if module.startswith(("leonaid.bootstrap", "leonaid.entrypoints"))
+    ]
+    assert violations == []
+
+
+def module_name(path: Path) -> str:
+    return path.relative_to(ROOT / "src/leonaid/modules").parts[0]
+
+
+def test_modules_use_only_the_public_api_of_other_modules() -> None:
+    violations: list[str] = []
+    for path in python_files("modules"):
+        if path.parent == ROOT / "src/leonaid/modules":
+            continue
+        owner = module_name(path)
+        for imported in leonaid_imports(path):
+            parts = imported.split(".")
+            if parts[:2] != ["leonaid", "modules"] or len(parts) < 3:
+                continue
+            if parts[2] != owner and parts[3:] != ["api"]:
+                violations.append(f"{path.relative_to(ROOT)}: {imported}")
+    assert violations == []
+
+
+def test_module_dependencies_are_acyclic() -> None:
+    edges: dict[str, set[str]] = {}
+    for path in python_files("modules"):
+        if path.parent == ROOT / "src/leonaid/modules":
+            continue
+        owner = module_name(path)
+        for imported in leonaid_imports(path):
+            parts = imported.split(".")
+            if parts[:2] == ["leonaid", "modules"] and len(parts) > 2:
+                if parts[2] != owner:
+                    edges.setdefault(owner, set()).add(parts[2])
+    finished: set[str] = set()
+
+    def visit(name: str, path: tuple[str, ...]) -> None:
+        assert name not in path, " -> ".join((*path, name))
+        if name in finished:
+            return
+        for dependency in sorted(edges.get(name, ())):
+            visit(dependency, (*path, name))
+        finished.add(name)
+
+    for name in sorted(edges):
+        visit(name, ())
+
+
+def test_only_process_entrypoints_import_bootstrap() -> None:
+    violations = [
+        f"{path.relative_to(ROOT)}: {module}"
+        for layer in ("domain", "application", "adapters", "platform", "modules")
+        for path in python_files(layer)
+        for module in leonaid_imports(path)
+        if module.startswith("leonaid.bootstrap")
+    ]
     assert violations == []
