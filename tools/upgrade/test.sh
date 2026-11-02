@@ -897,8 +897,9 @@ docker run --rm \
 pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "schemaVersion":1,
   "result":"passed",
-  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10"},
-  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11"},
+  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12"},
+  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3"},
+  "queueStoreMigration":"passed",
   "preContract":"passed",
   "preE2e":"passed",
   "preGoldenJourney":"passed",

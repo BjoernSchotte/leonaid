@@ -97,7 +97,8 @@ Node sizes the V8 heap from the container limit unless told otherwise.
 553 MiB). Never lower a Twenty memory limit without checking this value;
 otherwise Twenty stops with "JavaScript heap out of memory". `twenty-worker`
 starts `node dist/queue-worker/queue-worker` directly, without the yarn
-wrapper processes.
+wrapper processes (about 200 MiB). Both Twenty services run with `init: true`,
+so `docker stop` lets Twenty finish its active jobs and exit cleanly.
 
 `twenty-redis` runs Valkey 9.1, a BSD-licensed server for the Redis protocol.
 The service keeps its name because Twenty reads `REDIS_URL`. It gets

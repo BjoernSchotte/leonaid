@@ -62,6 +62,7 @@ def verify(root: Path, artifact_directory: Path) -> None:
         "rollbackGoldenJourney",
         "rollbackJourneyEquivalent",
         "releaseLedger",
+        "queueStoreMigration",
     }
     if result.get("result") != "passed" or any(
         result.get(key) != "passed" for key in required_results

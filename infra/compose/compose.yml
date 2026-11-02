@@ -395,6 +395,10 @@ services:
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
+    # Node must not be PID 1: Nest's shutdown hooks re-raise SIGTERM after
+    # closing, which the kernel ignores for PID 1, so `docker stop` would end
+    # in SIGKILL. The init process forwards the signal and reaps children.
+    init: true
     mem_limit: 1600m
     cpus: 2
     pids_limit: 512
@@ -443,9 +447,10 @@ services:
     cpus: 1.5
     pids_limit: 512
     # Same process as `yarn worker:prod`, without the two yarn wrapper
-    # processes (~150 MiB RSS). Node is then PID 1 under the image entrypoint
-    # and receives SIGTERM directly; Nest shutdown hooks close the BullMQ
-    # workers gracefully.
+    # processes (~200 MiB RSS). yarn 1 exited at once on SIGTERM and dropped
+    # the worker; now the init process forwards SIGTERM to node, and Nest's
+    # shutdown hooks close the BullMQ workers before the process exits.
+    init: true
     command: ["node", "dist/queue-worker/queue-worker"]
     environment:
       <<: *twenty-environment
