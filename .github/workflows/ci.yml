@@ -269,6 +269,66 @@ jobs:
           RESULT: ${{ needs.e2e.result }}
         run: test "$RESULT" = success
 
+  emdash-cases:
+    # Own stacks, own synthetic seed: no prepared fixture needed. Path filters
+    # are deliberately absent; Core, proxy and public changes break these too.
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    name: EmDash proof / ${{ matrix.group }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each case runs once; tools/ci/emdash.sh never retries a failure.
+        group: [krapfentaxi-orders, krapfentaxi-migration, static]
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/emdash-${{ matrix.group }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare empty-cache runner
+        if: inputs.cold_run == true
+        run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
+        with:
+          bootstrap: ${{ matrix.group == 'static' && 'toolchains' || 'browser' }}
+          targets: ${{ matrix.group == 'static' && 'campaign-site' || 'emdash' }}
+      - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
+        env:
+          EMDASH_GROUP: ${{ matrix.group }}
+        run: |
+          case "$EMDASH_GROUP" in
+            static) ./leonaid bootstrap ;;
+            *) sh tools/ci/bootstrap-prefetch.sh browser ;;
+          esac
+      - name: Run EmDash proof cases
+        env:
+          EMDASH_GROUP: ${{ matrix.group }}
+        run: bash tools/ci/run-job.sh "emdash-$EMDASH_GROUP" sh tools/ci/emdash.sh "$EMDASH_GROUP"
+      - name: Publish EmDash proof evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-emdash-${{ matrix.group }}
+          path: .artifacts/ci/emdash-${{ matrix.group }}
+          if-no-files-found: error
+          retention-days: 14
+
+  emdash-proofs:
+    name: EmDash proofs
+    needs: emdash-cases
+    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every EmDash proof group
+        env:
+          RESULT: ${{ needs.emdash-cases.result }}
+        run: test "$RESULT" = success
+
   security:
     needs: fixture
     if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
@@ -327,6 +387,7 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: toolchains
+          targets: build
           write: "true"
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
