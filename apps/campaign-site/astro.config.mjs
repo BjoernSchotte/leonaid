@@ -10,6 +10,9 @@ import contentLogPatch from "./emdash-content-log-patch.mjs";
 import postgresPatch from "./emdash-postgres-patch.mjs";
 import { emdashAdminScriptHashes } from "./emdash-admin-csp.mjs";
 import zodJitlessPatch from "./zod-jitless-patch.mjs";
+import runtimeAllowedDomains, {
+  runtimeDomainPattern,
+} from "../public/runtime-allowed-domains.mjs";
 
 export default defineConfig({
   output: "server",
@@ -18,7 +21,12 @@ export default defineConfig({
   image: { endpoint: { route: "/_emdash/image", entrypoint: undefined } },
   server: { host: true, port: 3000 },
   security: {
-    allowedDomains: [{ hostname: "localhost" }, { hostname: "proxy" }],
+    // LEONAID_PUBLIC_DOMAIN is added at runtime (runtime-allowed-domains.mjs).
+    allowedDomains: [
+      { hostname: "localhost" },
+      { hostname: "proxy" },
+      runtimeDomainPattern,
+    ],
     checkOrigin: true,
     actionBodySizeLimit: 64 * 1024,
     // Astro sends the Content-Security-Policy header of every rendered page
@@ -50,6 +58,7 @@ export default defineConfig({
     contentLogPatch(),
     postgresPatch(),
     zodJitlessPatch(),
+    runtimeAllowedDomains("LEONAID_PUBLIC_DOMAIN"),
     react(),
     emdash({
       // A fixed public favicon avoids the native shell resolving global CMS

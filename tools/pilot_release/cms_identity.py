@@ -22,6 +22,7 @@ CMS_SOURCES = tuple(
             "apps/campaign-site/emdash-repeater-editor-patch.mjs",
             "apps/campaign-site/emdash-admin-csp.mjs",
             "apps/campaign-site/zod-jitless-patch.mjs",
+            "apps/public/runtime-allowed-domains.mjs",
             "apps/campaign-site/src/campaign-schema.mjs",
             "apps/campaign-site/src/install-campaign-schema.mjs",
             "apps/campaign-site/src/cms-maintenance.mjs",
