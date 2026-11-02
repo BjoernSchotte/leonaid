@@ -5,11 +5,11 @@
   "systems": [
     {
       "id": "twenty",
-      "version": "2.24.0",
-      "image": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
-      "digest": "sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "version": "2.54.0",
+      "image": "docker.io/twentycrm/twenty:v2.54.0@sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e",
+      "digest": "sha256:e64479a4daa9211864eb45ffdf15ce7a44a3664850dab06213105027538fce1e",
       "license": "AGPL-3.0-only",
-      "upstream": "https://github.com/twentyhq/twenty/tree/twenty/v2.24.0",
+      "upstream": "https://github.com/twentyhq/twenty/tree/twenty/v2.54.0",
       "roles": [
         "crm-server",
         "crm-worker"
@@ -17,11 +17,11 @@
     },
     {
       "id": "twenty-upgrade-source",
-      "version": "2.23.2",
-      "image": "docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
-      "digest": "sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
+      "version": "2.24.0",
+      "image": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "digest": "sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
       "license": "AGPL-3.0-only",
-      "upstream": "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.23.2",
+      "upstream": "https://github.com/twentyhq/twenty/tree/twenty/v2.24.0",
       "roles": [
         "crm-upgrade-source"
       ]

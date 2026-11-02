@@ -11,7 +11,7 @@ Die API erhält nur `MAIL_HEALTH_URL`. SMTP-Host, sichtbarer Absender,
 Envelope-From, Reply-To, Transportmodus und Zugangsdaten werden in den Worker
 injiziert; im Pilot erhalten `twenty-server` und `twenty-worker` dasselbe
 Relay samt Zugangsdaten für Twentys eigene Mails (Adressbestätigung,
-Passwort-Reset, Einladungen) mit dem Absender `TWENTY_MAIL_FROM_ADDRESS` aus
+Passwort-Reset) mit dem Absender `TWENTY_MAIL_FROM_ADDRESS` aus
 der Domain von `MAIL_FROM`. Nur `worker` und `twenty-worker` hängen am
 nicht-internen Netz `mail-egress`, dem einzigen Weg zum Relay. Eine befüllte
 Kopie von `mail.env.example`, Providerverträge, Zugangsdaten und
@@ -24,10 +24,15 @@ Unterstützte Modi:
 - `tls`: TLS besteht ab Verbindungsaufbau;
 - `plain`: nur für lokale/isolierte Tests, in Produktion abgewiesen.
 
-Twenty 2.24 (nodemailer) nutzt auf Port 465 implizites TLS und sonst
-STARTTLS, sofern das Relay es anbietet; erzwingen kann Twenty STARTTLS nicht.
-Der Deployment-Vertrag verlangt deshalb `tls` genau mit Port 465 und
-`starttls` mit einem anderen Port.
+Twenty 2.54 (nodemailer) uses implicit TLS on port 465 and otherwise
+upgrades with STARTTLS only if the relay offers it; Twenty has no option to
+require STARTTLS, so an attacker on the path could strip it. Twenty therefore
+sends mail only with `MAIL_SMTP_MODE=tls`: the entrypoint policy in
+`infra/pilot/compose.yml` selects `EMAIL_DRIVER=SMTP` for `tls` and
+`EMAIL_DRIVER=logger` (no mail) for every other mode, and `pilot-doctor`
+prints a warning for `starttls`. The core worker enforces STARTTLS itself and
+keeps sending in both modes. The deployment contract requires `tls` exactly
+with port 465 and `starttls` with another port.
 
 In Produktion ist Zertifikatsprüfung zwingend. Lokal und in isolierten Tests
 kann eine private CA über `MAIL_SMTP_CA_FILE` referenziert werden; im Pilot ist

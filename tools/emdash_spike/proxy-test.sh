@@ -27,7 +27,6 @@ trap 'exit 130' HUP INT TERM
 docker run --rm --network none \
   --env CADDY_ACME_EMAIL=operator@leonaid.invalid \
   --env LEONAID_PUBLIC_DOMAIN=leonaid.invalid \
-  --env TWENTY_PUBLIC_DOMAIN=crm.leonaid.invalid \
   --volume "$root/infra/pilot/Caddyfile:/etc/caddy/Caddyfile:ro" \
   "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile \
   --adapter caddyfile --validate >/dev/null

@@ -47,7 +47,7 @@ class SchemaDrift(TwentySchemaError):
 
 TRANSIENT_FLAT_ENTITY_ERROR = "Could not find flat entity"
 
-# Twenty 2.24 caches the workspace metadata ("flat maps") in Redis. A metadata
+# Twenty 2.54 caches the workspace metadata ("flat maps") in Redis. A metadata
 # mutation commits, flushes the affected keys and recomputes them. A reader in
 # another process (twenty-worker jobs run after every metadata event) that
 # started its own recompute from the database before that commit writes its
@@ -264,7 +264,11 @@ def difference(
 
 
 class Provisioner:
-    """Narrow adapter for the supported Twenty v2.24.0 Metadata API."""
+    """Narrow adapter for the supported Twenty v2.54.0 Metadata API.
+
+    Twenty 2.54 dropped View.isCustom. A LeonAid view is identified by the
+    fixed id from infra/twenty/schema.json, which the id comparison checks.
+    """
 
     def __init__(self, manifest: JsonObject) -> None:
         self.manifest = manifest
@@ -338,7 +342,6 @@ class Provisioner:
                 icon
                 position
                 isCompact
-                isCustom
                 openRecordIn
                 isActive
                 viewFields {
@@ -1106,7 +1109,6 @@ class Provisioner:
             "openRecordIn",
         ):
             difference(differences, f"{prefix}.{key}", desired[key], actual.get(key))
-        difference(differences, f"{prefix}.isCustom", True, actual.get("isCustom"))
         difference(differences, f"{prefix}.isActive", True, actual.get("isActive"))
 
         fields = {
