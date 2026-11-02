@@ -106,6 +106,7 @@ Commands:
                     Prove recipient feed, read state and role-scoped browser UX
   test-testkit      Prove shared clients against all real PoC dependencies
   test-commitments  Prove offerings, quantities and server-priced commitments
+  test-delivery     Prove delivery windows, completion and booking races in PostgreSQL
   test-invoices     Prove Fresh-Login invoice issuing and immutable snapshots
   test-typst        Prove deterministic invoice PDFs with real Typst/PDF engines
   test-storage      Prove private immutable PDFs against RustFS and SeaweedFS
@@ -758,7 +759,7 @@ check_all() {
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/release/release_test.py
   run_python uv run --frozen --no-sync ruff check \
-    migrations src tests tools/action_admin tools/actions tools/commitments \
+    migrations src tests tools/action_admin tools/actions tools/commitments tools/delivery \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
@@ -767,7 +768,7 @@ check_all() {
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
-    migrations src tests tools/action_admin tools/actions tools/commitments \
+    migrations src tests tools/action_admin tools/actions tools/commitments tools/delivery \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
@@ -3239,6 +3240,7 @@ case "$command" in
   test-activity-feed) run_feature_tests tools/activity_feed/test.sh ;;
   test-testkit) run_feature_tests tools/testkit/test.sh ;;
   test-commitments) run_feature_tests tools/commitments/test.sh ;;
+  test-delivery) require_docker; /bin/sh "$root/tools/delivery/test-foundation.sh" ;;
   test-invoices) run_feature_tests tools/invoices/test.sh ;;
   test-typst) run_feature_tests tools/typst/test.sh ;;
   test-storage) run_feature_tests tools/storage/test.sh ;;

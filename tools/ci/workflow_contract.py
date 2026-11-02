@@ -26,6 +26,9 @@ REQUIRED_JOBS = {
 # Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 
+# Proofs that run nowhere else; dropping a shard silently stops the proof.
+INTEGRATION_SHARDS = ("delivery",)
+
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 
 
@@ -78,6 +81,10 @@ def check(path: Path) -> list[str]:
     ):
         if required not in integration:
             problems.append("Integration summary check must require all shards.")
+    shards = job_block(text, "integration-shards")
+    for shard in INTEGRATION_SHARDS:
+        if not re.search(rf"^\s+{re.escape(shard)},$", shards, re.MULTILINE):
+            problems.append(f"Integration shard missing: {shard}")
     problems.extend(check_emdash(text))
     return problems
 

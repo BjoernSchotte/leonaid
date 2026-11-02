@@ -1,7 +1,10 @@
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
 import { useActionInUrl } from "../action-admin/action-location";
 import { DeliverySummary } from "./delivery-fields";
-import { CompleteDraft } from "./complete-draft";
+import {
+  DeliveryCompletion,
+  deliveryDetailsMissing,
+} from "./delivery-completion";
 import { quantitySummary } from "./quantities";
 
 import {
@@ -95,6 +98,7 @@ function setInvoiceSelection(commitmentId?: string) {
 
 function InvoiceReview({
   context,
+  deliveryMissing,
   error,
   issuing,
   onCancel,
@@ -102,6 +106,7 @@ function InvoiceReview({
   record,
 }: {
   readonly context: InvoiceContextResponse;
+  readonly deliveryMissing: boolean;
   readonly error?: string;
   readonly issuing: boolean;
   readonly onCancel: () => void;
@@ -137,6 +142,16 @@ function InvoiceReview({
           <p>
             Träger, Steuerfall und Nummernkreis müssen vor der ersten Rechnung
             verbindlich bestätigt sein.
+          </p>
+        </StatusMessage>
+      ) : null}
+
+      {deliveryMissing ? (
+        <StatusMessage tone="error">
+          <strong>Lieferangaben fehlen</strong>
+          <p>
+            Ergänze vor der Freigabe Lieferadresse und Lieferfenster unter
+            „Liefer- und Rechnungsangaben ergänzen“.
           </p>
         </StatusMessage>
       ) : null}
@@ -249,7 +264,9 @@ function InvoiceReview({
           </Button>
           <Button
             data-testid="issue-invoice"
-            disabled={issuing || !profile?.readyToIssue || !recipient}
+            disabled={
+              issuing || !profile?.readyToIssue || !recipient || deliveryMissing
+            }
             icon={
               <HugeiconsIcon
                 aria-hidden="true"
@@ -301,6 +318,9 @@ function CommitmentRow({
       commitment.deliveryWindowSnapshot ||
       commitment.deliveryContact,
   );
+  const editable =
+    commitment.status === "draft" || commitment.status === "review_ready";
+  const missing = deliveryDetailsMissing(commitment, deliveryEnabled);
   return (
     <article
       className="commitment-ledger-row"
@@ -356,26 +376,29 @@ function CommitmentRow({
           <a href="/admin/invoices">Rechnung ansehen</a>
         ) : null}
       </div>
-      {showDelivery || commitment.status === "draft" ? (
+      {showDelivery || editable ? (
         <details
           className="commitment-order-details"
+          data-testid="commitment-order-details"
           open={detailsOpen}
           onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
         >
           <summary>
-            {showDelivery
-              ? "Lieferdaten und Bestellkontakt"
-              : "Entwurf abschließen"}
+            {missing || (editable && !commitment.invoiceRecipient)
+              ? "Liefer- und Rechnungsangaben ergänzen"
+              : showDelivery
+                ? "Lieferdaten und Bestellkontakt"
+                : "Rechnungsangaben bearbeiten"}
           </summary>
           {detailsOpen ? (
             <>
               {showDelivery ? <DeliverySummary order={commitment} /> : null}
-              {commitment.status === "draft" ? (
-                <CompleteDraft
+              {editable ? (
+                <DeliveryCompletion
                   key={commitment.id}
                   client={client}
                   order={commitment}
-                  onCompleted={onCompleted}
+                  onSaved={onCompleted}
                 />
               ) : null}
             </>
@@ -385,6 +408,7 @@ function CommitmentRow({
       {reviewOpen && context ? (
         <InvoiceReview
           context={context}
+          deliveryMissing={missing}
           error={error}
           issuing={issuing}
           onCancel={onToggleReview}

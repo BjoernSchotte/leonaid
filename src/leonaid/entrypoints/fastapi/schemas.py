@@ -1062,6 +1062,14 @@ class CompleteCommitmentRequest(TransportModel):
     delivery_contact: DeliveryContactRequest | None = None
 
 
+class CompleteCommitmentDeliveryRequest(TransportModel):
+    expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    invoice_recipient: CommitmentInvoiceRecipientRequest
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
+
+
 class CommitmentBuyerResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID
@@ -1116,6 +1124,12 @@ class CommitmentResponse(TransportModel):
     total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     quantities: list[UnitQuantityResponse]
     replayed: bool
+    delivery_completion_version: str = Field(
+        description=(
+            "Optimistic version of status, delivery and billing details. "
+            "Send it back unchanged when completing delivery details."
+        )
+    )
 
 
 class CommitmentCaptureContextResponse(TransportModel):

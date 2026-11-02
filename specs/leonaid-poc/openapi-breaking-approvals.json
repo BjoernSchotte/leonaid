@@ -41,6 +41,14 @@
         "property-type-changed:SetActionCapabilitiesRequest.capabilities"
       ],
       "rationale": "Campaign modularity: campaign types become data. Template keys widen from the closed enum blank|krapfentaxi to validated slugs that must exist in the template catalogue, and the capability enum gains 'delivery' (previously implied by the Krapfentaxi template key). CreatePublicOrderRequest.deliveryRecipient becomes optional because Core now requires it only for actions with the delivery capability; existing callers that send it are unaffected. New response fields (presentationTheme, public capabilities, per-unit quantities) are always serialized and only added; box totals stay and are marked deprecated. The generated client ships with the matching Core release; clients that switch exhaustively over the old enums must accept the new values. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "1293adc3fc0a53fd68cb346ebc447132dedfca8a09924f7f9bf060e30e17972f",
+      "newSha256": "155945105ae4f28905676087b025ce5686245585592b132bab8a73c0f0cc46a6",
+      "changes": [
+        "property-newly-required:CommitmentResponse.deliveryCompletionVersion"
+      ],
+      "rationale": "Manager delivery completion (PR #47, port of #3) adds an output-only optimistic version to every commitment response. Core always serializes it; clients send it back unchanged to completeCommitmentDelivery. Existing response properties and all request contracts remain intact. The generated client ships with the matching Core release. Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

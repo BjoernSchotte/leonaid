@@ -174,6 +174,7 @@ docker run --rm \
 
 for screenshot in \
   invoice-review-desktop.png \
+  invoice-delivery-completion-mobile.png \
   invoice-ledger-desktop.png \
   invoice-ledger-dark.png \
   invoice-finance-mobile.png; do

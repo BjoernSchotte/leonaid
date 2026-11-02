@@ -2643,6 +2643,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "deliveryCompletionVersion": {
+            "description": "Optimistic version of status, delivery and billing details. Send it back unchanged when completing delivery details.",
+            "title": "Deliverycompletionversion",
+            "type": "string"
+          },
           "deliveryContact": {
             "anyOf": [
               {
@@ -2772,9 +2777,61 @@
           "totalPieces",
           "totalBoxes",
           "quantities",
-          "replayed"
+          "replayed",
+          "deliveryCompletionVersion"
         ],
         "title": "CommitmentResponse",
+        "type": "object"
+      },
+      "CompleteCommitmentDeliveryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "deliveryContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContactRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
+          "expectedVersion": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expectedversion",
+            "type": "string"
+          },
+          "invoiceRecipient": {
+            "$ref": "#/components/schemas/CommitmentInvoiceRecipientRequest"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "invoiceRecipient"
+        ],
+        "title": "CompleteCommitmentDeliveryRequest",
         "type": "object"
       },
       "CompleteCommitmentRequest": {
@@ -14852,6 +14909,130 @@
           }
         },
         "summary": "Complete Commitment",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion": {
+      "post": {
+        "description": "Manager completion of delivery and billing details before invoicing.",
+        "operationId": "completeCommitmentDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteCommitmentDeliveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Complete Commitment Delivery",
         "tags": [
           "commitments"
         ]

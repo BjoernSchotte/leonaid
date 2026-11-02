@@ -17,6 +17,11 @@ from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
+from leonaid.application.delivery_completion import (
+    DeliveryCompletionDraft,
+    DeliveryCompletionService,
+    delivery_completion_version,
+)
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -246,6 +251,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CorrectInvitationAddressRequest,
     CreateEmailChangeRequest,
     CreateCommitmentRequest,
+    CompleteCommitmentDeliveryRequest,
     CompleteCommitmentRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
@@ -1292,6 +1298,7 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        delivery_completion_version=delivery_completion_version(commitment),
         delivery_recipient=PublicOrderDeliveryRecipientRequest.model_validate(
             commitment.delivery_recipient
         )
@@ -3481,6 +3488,63 @@ async def complete_commitment(
         action_id,
         commitment_id,
         completion=completion,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return commitment_response(commitment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion",
+    operation_id="completeCommitmentDelivery",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def complete_commitment_delivery(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: CompleteCommitmentDeliveryRequest,
+    response: Response,
+) -> CommitmentResponse:
+    """Manager completion of delivery and billing details before invoicing."""
+    actor = await identity_service(request).authenticate(session_token(request))
+    address = body.delivery_recipient
+    contact = body.delivery_contact
+    recipient = body.invoice_recipient
+    draft = DeliveryCompletionDraft(
+        expected_version=body.expected_version,
+        invoice_recipient=InvoiceRecipientSnapshot(
+            recipient_name=recipient.recipient_name,
+            street_line_1=recipient.street_line_1,
+            postal_code=recipient.postal_code,
+            city=recipient.city,
+            country_code=recipient.country_code,
+            email=recipient.email,
+        ),
+        delivery_recipient=DeliveryRecipientSnapshot(
+            address.recipient_name,
+            address.street_line_1,
+            address.postal_code,
+            address.city,
+            address.country_code,
+        )
+        if address is not None
+        else None,
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        if contact is not None
+        else None,
+    )
+    commitment = await cast(
+        DeliveryCompletionService, request.app.state.delivery_completion_service
+    ).complete(
+        actor,
+        action_id,
+        commitment_id,
+        draft=draft,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
     )
