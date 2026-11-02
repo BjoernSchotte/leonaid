@@ -6,7 +6,7 @@ shard=${1:-all}
 
 case "$shard" in
   all)
-    for part in compose profiles seed core schema outbox storage documents typst crm policy; do
+    for part in compose profiles seed core schema outbox storage documents typst crm policy delivery; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;
@@ -61,6 +61,10 @@ case "$shard" in
     for part in twenty-install crm-gateway crm-import; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
+    ;;
+  delivery)
+    # Delivery windows, completion and deterministic booking/retirement races.
+    /bin/sh "$root/tools/delivery/test-foundation.sh"
     ;;
   policy)
     /bin/sh "$root/tools/policy/test.sh" "$root"
