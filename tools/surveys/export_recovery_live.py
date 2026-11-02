@@ -20,7 +20,9 @@ from pypdf import PdfReader
 
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
 from leonaid.adapters.storage.s3 import S3ObjectStorage
 from leonaid.application.object_storage import ObjectLocation, ObjectWrite, StoredObject
 from leonaid.application.outbox import OutboxWorker

@@ -9,8 +9,12 @@ from typing import Any
 
 import asyncpg
 
-from leonaid.adapters.postgres.survey_recovery import export_checkpoint_in_transaction
-from leonaid.adapters.storage.survey_checkpoint_archive import FileCheckpointArchive
+from leonaid.modules.surveys.adapters.postgres.survey_recovery import (
+    export_checkpoint_in_transaction,
+)
+from leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive import (
+    FileCheckpointArchive,
+)
 from leonaid.application.errors import DependencyUnavailable
 
 
