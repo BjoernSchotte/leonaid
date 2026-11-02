@@ -76,16 +76,33 @@ verify_owned_project_removed() {
 # remove_owned_project_images PROJECT
 #   Removes the "PROJECT-<service>" images Compose built for PROJECT. An image
 #   still used by a container is kept with a warning, never forced.
+#   A tag named after PROJECT is also removed when another project built it:
+#   the EmDash recovery targets reuse the source's image names
+#   (EMDASH_RECOVERY_IMAGE_PREFIX), so a target-side build carries the
+#   target's label. Tags of a project whose own name extends "PROJECT-" are
+#   never touched.
 remove_owned_project_images() {
-  teardown_images=$(docker image ls \
-    --filter "label=com.docker.compose.project=$1" \
-    --format '{{.Repository}}:{{.Tag}}') || teardown_images=""
+  teardown_images=$(
+    {
+      docker image ls --filter "label=com.docker.compose.project=$1" \
+        --format '{{.Repository}}:{{.Tag}}'
+      docker image ls --filter "reference=$1-*" \
+        --format '{{.Repository}}:{{.Tag}}'
+    } | sort -u
+  ) || teardown_images=""
   for teardown_image in $teardown_images; do
     case "$teardown_image" in
-      "$1"-*:*)
-        docker image rm "$teardown_image" >/dev/null 2>&1 ||
-          echo "test-isolation: built image $teardown_image is still in use; kept" >&2
-        ;;
+      "$1"-*:*) ;;
+      *) continue ;;
     esac
+    teardown_builder=$(docker image inspect \
+      --format '{{index .Config.Labels "com.docker.compose.project"}}' \
+      "$teardown_image" 2>/dev/null) || continue
+    case "$teardown_builder" in
+      "$1") ;;
+      "$1"-*) continue ;;
+    esac
+    docker image rm "$teardown_image" >/dev/null 2>&1 ||
+      echo "test-isolation: built image $teardown_image is still in use; kept" >&2
   done
 }
