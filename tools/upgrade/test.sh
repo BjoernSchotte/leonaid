@@ -645,6 +645,18 @@ for writer in worker twenty-server twenty-worker; do
   fi
 done
 
+# Releases before the non-root core image wrote the survey erasure archive as
+# root. Turn the source archive into exactly that state; the upgrade must hand
+# it to the core uid before api/worker write to it again.
+archive_volume="${source_project}_survey-erasure-archive"
+docker run --rm --network none --volume "$archive_volume:/archive" \
+  "$ALPINE_IMAGE" sh -eu -c '
+    : >/archive/.lock
+    : >/archive/root-era-marker
+    chown -R 0:0 /archive
+    chmod 0700 /archive
+    chmod 0600 /archive/.lock /archive/root-era-marker'
+
 source_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade source primary
@@ -657,6 +669,22 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$source_isolation" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
 source_target --profile dev-mail up --detach --wait --wait-timeout 420
+# Restart both writers like a release does: their startup publishes the
+# erasure checkpoint into the handed-over archive.
+source_target up --detach --force-recreate --no-deps --wait --wait-timeout 420 \
+  core-volume-init api worker
+archive_owners=$(docker run --rm --network none \
+  --volume "$archive_volume:/archive:ro" "$ALPINE_IMAGE" \
+  stat -c '%u:%g' /archive /archive/.lock /archive/root-era-marker | sort -u)
+[ "$archive_owners" = "10001:10001" ] ||
+  fail "root-era survey erasure archive was not handed to the core uid: $archive_owners"
+for service in api worker; do
+  source_target exec -T "$service" python -c 'import os
+os.close(os.open("/recovery/survey-erasure/.lock", os.O_RDWR))' ||
+    fail "$service cannot lock the upgraded survey erasure archive"
+done
+source_target exec -T api rm /recovery/survey-erasure/root-era-marker
+echo "upgrade-test: root-era survey erasure archive handed to the core uid"
 run_maintenance_contract source available
 run_dashboard_contract source
 snapshot_and_verify source post-upgrade golden
