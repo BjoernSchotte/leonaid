@@ -76,6 +76,7 @@ backup_owned=false
 build_owned=false
 make_overlay() {
   destination=$1
+  LEONAID_TEST_EXTRA_NETWORKS=mail-egress \
   python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
   python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$destination" <<'OVERLAY'
 from pathlib import Path
@@ -316,6 +317,8 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "MAIL_REPLY_TO=support@leonaid.org" \
     "MAIL_SMTP_MODE=starttls" \
     "MAIL_SMTP_USERNAME=pilot-smtp" \
+    "TWENTY_MAIL_FROM_ADDRESS=crm@leonaid.org" \
+    "TWENTY_MAIL_FROM_NAME=LeonAid CRM" \
     "RESTIC_REPOSITORY=$backup_repository" \
     "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
     "LEONAID_MONITORED_DISK_PATH=$workspace" \
@@ -365,8 +368,59 @@ docker compose \
   --file "$root/infra/compose/compose.yml" \
   build api web pwa public survey-validator proxy
 
-echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
+# The pilot-deploy and pilot-release gates ask the running API whether Twenty
+# accepts its integration key and has the match key field. Provision Twenty
+# exactly as pilot-install does: bootstrap overlay (no verification, no
+# proxy), real schema, roles and key; then the real key replaces the
+# placeholder in the env file before the production topology starts.
+echo "pilot-deployment-test: provisioniert Twenty wie pilot-install"
 runtime_owned=true
+bootstrap_compose() {
+  runtime_compose --file "$root/infra/pilot/compose.bootstrap.yml" "$@"
+}
+bootstrap_file="$workspace/twenty-bootstrap.env"
+provision_directory="$workspace/provision"
+mkdir -p "$provision_directory"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import pathlib, secrets, string
+alphabet = string.ascii_letters + string.digits
+path = pathlib.Path("/proof/twenty-bootstrap.env")
+path.write_text(
+    "TWENTY_BOOTSTRAP_EMAIL=deploy-admin@leonaid.org\n"
+    "TWENTY_BOOTSTRAP_PASSWORD="
+    + "".join(secrets.choice(alphabet) for _ in range(32)) + "\n",
+    encoding="utf-8",
+)
+path.chmod(0o600)'
+bootstrap_compose up --detach --no-build --wait --wait-timeout 420 \
+  twenty-postgres twenty-redis twenty-server twenty-worker
+for action in "apply --token-output" "verify-key --token-file"; do
+  # shellcheck disable=SC2086 # the action carries the subcommand and flag
+  bootstrap_compose run --rm --no-deps \
+    --user "$(id -u):$(id -g)" --env HOME=/tmp \
+    --env-from-file "$bootstrap_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$provision_directory:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py $action /install/integration.env
+done
+grep -q '^TWENTY_INTEGRATION_API_KEY=[A-Za-z0-9._-]\{32,\}$' \
+  "$provision_directory/integration.env" || {
+  echo "pilot-deployment-test: ERROR: Twenty lieferte keinen gültigen Key" >&2
+  exit 1
+}
+provisioned_env="$workspace/production.env.provisioned"
+grep -v '^TWENTY_INTEGRATION_API_KEY=' "$env_file" >"$provisioned_env"
+cat "$provision_directory/integration.env" >>"$provisioned_env"
+chmod 600 "$provisioned_env"
+mv -f "$provisioned_env" "$env_file"
+rm -rf "$provision_directory"
+
+echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
@@ -586,13 +640,10 @@ if ! printf '%s' "$drift_output" |
   echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
   exit 1
 fi
-# This topology never provisions Twenty and runs with a dummy integration key;
-# test-pilot-install proves the passing CRM check against a provisioned Twenty.
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
-  LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \
@@ -603,6 +654,30 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     --release-manifest "$release_manifest"
 
 echo "pilot-deployment-test: proves that the deploy gate blocks an unusable Twenty key"
+# The gate asks the running API, so the API itself must run with the wrong
+# key; afterwards it runs with the provisioned key again.
+dummy_key=twenty-integration-production-test-008
+dummy_env="$workspace/dummy-key.env"
+sed "s/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=$dummy_key/" \
+  "$env_file" >"$dummy_env"
+chmod 600 "$dummy_env"
+api_with_env() {
+  LEONAID_PILOT_TEST_HTTP_PORT="$http_port" \
+    LEONAID_PILOT_TEST_HTTPS_PORT="$https_port" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    docker compose \
+      --project-name "$runtime_project" \
+      --env-file "$1" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$source_overlay" \
+      up --detach --no-deps --no-build --force-recreate \
+      --wait --wait-timeout 420 api
+}
+api_with_env "$dummy_env"
 set +e
 crm_gate_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
@@ -614,12 +689,14 @@ crm_gate_output=$(
     LEONAID_TEST_PWA_IMAGE="$pwa_image" \
     LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
     "$root/leonaid" pilot-doctor \
-      --env-file "$env_file" \
+      --env-file "$dummy_env" \
       --backup-manifest "$backup_manifest" \
       --gate pilot-deploy 2>&1
 )
 crm_gate_status=$?
 set -e
+api_with_env "$env_file"
+rm -f "$dummy_env"
 if [ "$crm_gate_status" -eq 0 ]; then
   echo "pilot-deployment-test: ERROR: the deploy gate accepted an unusable Twenty key" >&2
   exit 1
@@ -630,7 +707,7 @@ if ! printf '%s' "$crm_gate_output" | grep -Fq "Twenty CRM check failed" ||
   printf '%s\n' "$crm_gate_output" | tail -n 5 >&2
   exit 1
 fi
-if printf '%s' "$crm_gate_output" | grep -Fq "twenty-integration-production-test-008"; then
+if printf '%s' "$crm_gate_output" | grep -Fq "$dummy_key"; then
   echo "pilot-deployment-test: ERROR: the CRM gate printed the integration key" >&2
   exit 1
 fi
@@ -695,8 +772,7 @@ missing_staging_output=$(
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
-    LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
-    LEONAID_TEST_CORE_IMAGE="$core_image" \
+      LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
     LEONAID_TEST_PWA_IMAGE="$pwa_image" \
     LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
@@ -743,7 +819,6 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
-  LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \

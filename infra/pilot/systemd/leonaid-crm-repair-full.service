@@ -1,0 +1,22 @@
+# Nightly full repair of the LeonAid match keys in Twenty, started by
+# leonaid-crm-repair-full.timer. It covers what the 30-minute window of
+# leonaid-crm-repair.service cannot see: changes before a long maintenance
+# window or host downtime, and keys that went stale for any other reason.
+# Installed together with leonaid-crm-repair.service; see there.
+[Unit]
+Description=LeonAid CRM match key repair (full scan)
+Documentation=https://github.com/BjoernSchotte/leonaid/blob/main/apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=leonaid
+Group=leonaid
+EnvironmentFile=/etc/leonaid/crm-repair.env
+UMask=0077
+NoNewPrivileges=yes
+Nice=10
+TimeoutStartSec=2h
+# $$ hands the variables to the shell unexpanded; they come from crm-repair.env.
+ExecStart=/bin/sh -eu -c 'cd "$$LEONAID_CHECKOUT" && exec ./leonaid pilot-repair-crm-match-keys --env-file "$$LEONAID_ENV_FILE"'

@@ -4,9 +4,9 @@ description: Diagnose common operational failures with Doctor, health checks, an
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
 reviewer: Björn Schotte
 ---
 
@@ -30,7 +30,15 @@ email addresses, or document bytes.
   whether Twenty has the `leonaidMatchKey` field and accepts its integration
   key. Locally run `./leonaid provision-twenty`; in a pilot run
   `./leonaid pilot-release --twenty-bootstrap-file FILE`. The check also
-  counts records without a key; run `repair-crm-match-keys` to close that gap.
+  counts records without a key; run `repair-crm-match-keys` to close that gap
+  (pilot: `pilot-repair-crm-match-keys --env-file FILE`, which the
+  `leonaid-crm-repair` timers run on schedule and which skips while
+  maintenance mode is on).
+- **No mail from the CRM (pilot):** Twenty's worker sends verification,
+  password reset and invitation mail through the `MAIL_SMTP_*` relay over
+  the `mail-egress` network. Check the `twenty-worker` logs for the SMTP
+  error, that `MAIL_SMTP_PORT` matches `MAIL_SMTP_MODE` (465 only with
+  `tls`), and that the relay certificate comes from a public CA.
 - **Writes return 503:** Check `infra/upgrade/maintenance.sh status`. Disable
   maintenance only after dependencies are healthy and contracts pass.
 
