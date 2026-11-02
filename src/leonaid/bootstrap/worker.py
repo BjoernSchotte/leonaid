@@ -36,11 +36,16 @@ from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
     collect_background_loops,
+    collect_handler_timeouts,
     collect_handlers,
 )
 from leonaid.configuration import load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
-from leonaid.modules.surveys.jobs import survey_handlers, survey_sweep
+from leonaid.modules.surveys.jobs import (
+    SURVEY_HANDLER_TIMEOUTS,
+    survey_handlers,
+    survey_sweep,
+)
 from leonaid.platform.background import BackgroundLoop
 
 
@@ -48,6 +53,7 @@ def observe_job(
     name: str,
     event: ClaimedOutboxEvent,
     error_code: str | None,
+    duration_ms: float | None,
 ) -> None:
     action_value = event.payload.get("actionId")
     action_id = action_value if isinstance(action_value, str) else None
@@ -61,6 +67,7 @@ def observe_job(
             actionId=action_id,
             attempt=event.attempts,
             errorCode=error_code,
+            durationMs=duration_ms,
         ),
         flush=True,
     )
@@ -86,6 +93,7 @@ def worker_modules(
         ModuleRegistration(
             "surveys",
             handlers=_survey_handlers(dependencies) if dependencies else {},
+            handler_timeouts=SURVEY_HANDLER_TIMEOUTS if dependencies else {},
             background_loops=(survey_sweep(database_url),),
         ),
         ModuleRegistration(
@@ -190,6 +198,18 @@ def mail_transport_from_environment() -> SmtpTransport:
     )
 
 
+def effective_timeouts(
+    timeouts: dict[str, float], claim_lease_seconds: float
+) -> dict[str, float]:
+    """Keep every bounded handler well inside its claim lease.
+
+    The last fifth of the lease covers cancellation and the queue update, so a
+    timed-out job is released before another worker may claim it.
+    """
+    ceiling = claim_lease_seconds * 0.8
+    return {event: min(seconds, ceiling) for event, seconds in timeouts.items()}
+
+
 async def build_worker(
     *,
     database_url: str,
@@ -203,21 +223,22 @@ async def build_worker(
         pool,
         claim_lease=timedelta(seconds=claim_lease_seconds),
     )
-    handlers = collect_handlers(
-        worker_modules(
-            database_url,
-            HandlerDependencies(
-                pool=pool,
-                storage=object_storage_from_environment(),
-                mail_transport=mail_transport_from_environment(),
-                payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
-            ),
-        )
+    modules = worker_modules(
+        database_url,
+        HandlerDependencies(
+            pool=pool,
+            storage=object_storage_from_environment(),
+            mail_transport=mail_transport_from_environment(),
+            payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+        ),
     )
     worker = OutboxWorker(
         worker_id=worker_id,
         queue=queue,
-        handlers=handlers,
+        handlers=collect_handlers(modules),
+        handler_timeouts=effective_timeouts(
+            collect_handler_timeouts(modules), claim_lease_seconds
+        ),
         retry_policy=RetryPolicy(
             max_attempts=max_attempts,
             base_delay=timedelta(seconds=base_backoff_seconds),
