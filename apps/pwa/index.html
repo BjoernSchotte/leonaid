@@ -16,19 +16,8 @@
     <link rel="icon" href="/app/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/app/icons/icon-192.svg" />
     <title>LeonAid Akquise</title>
-    <script>
-      (() => {
-        const preference = localStorage.getItem("leonaid.theme") ?? "system";
-        const resolved =
-          preference === "system"
-            ? matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light"
-            : preference;
-        document.documentElement.dataset.theme = resolved;
-        document.documentElement.dataset.themePreference = preference;
-      })();
-    </script>
+    <!-- External, blocking theme script: the CSP forbids inline scripts. -->
+    <script src="/app/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { access, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const origin = "https://proxy:8443";
@@ -40,7 +41,7 @@ function stablePublicHtml(html) {
     });
 }
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
     const visitor = await anonymous.newPage();

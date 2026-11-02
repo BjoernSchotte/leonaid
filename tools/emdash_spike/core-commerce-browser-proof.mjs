@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const phase = process.argv[2];
@@ -12,7 +13,7 @@ const price = ["baseline", "restored"].includes(phase) ? 3600 : 4250;
 const witness = "/proof/core-commerce-editorial.json";
 
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of [false, true]) {
       const context = await browser.newContext({

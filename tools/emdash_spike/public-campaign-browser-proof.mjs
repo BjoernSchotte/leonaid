@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "playwright";
+import { guardCsp } from "./csp-guard.mjs";
 import { readFile } from "node:fs/promises";
 
 const media = JSON.parse(
@@ -9,7 +10,7 @@ const media = JSON.parse(
 // TLS certificate trust is proved separately by the Node HTTPS probe against
 // the project's CA. Browser contexts here test rendering, not certificate UI.
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of [false, true]) {
       const context = await browser.newContext({

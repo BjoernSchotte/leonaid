@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { deserializeActionResult } from "../../node_modules/astro/dist/actions/runtime/client.js";
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
+import { guardCsp } from "./csp-guard.mjs";
 import {
   deadlineSignal,
   deadlineWait,
@@ -94,7 +95,7 @@ for (const [engineName, engine] of Object.entries({
   firefox,
   webkit,
 })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of controlledDeadline
       ? [scriptDeadline]

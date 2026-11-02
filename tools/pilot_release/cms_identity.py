@@ -20,6 +20,8 @@ CMS_SOURCES = tuple(
             "apps/campaign-site/emdash-postgres-patch.mjs",
             "apps/campaign-site/emdash-media-editor-patch.mjs",
             "apps/campaign-site/emdash-repeater-editor-patch.mjs",
+            "apps/campaign-site/emdash-admin-csp.mjs",
+            "apps/campaign-site/zod-jitless-patch.mjs",
             "apps/campaign-site/src/campaign-schema.mjs",
             "apps/campaign-site/src/install-campaign-schema.mjs",
             "apps/campaign-site/src/cms-maintenance.mjs",
@@ -68,7 +70,7 @@ def _read(root: Path, relative: str) -> bytes:
 def create_cms_identity(root: Path) -> dict[str, Any]:
     actual_patches = {
         path.relative_to(root).as_posix()
-        for path in (root / "apps/campaign-site").glob("emdash-*-patch.mjs")
+        for path in (root / "apps/campaign-site").glob("*-patch.mjs")
     }
     _require(
         actual_patches == {path for path in CMS_SOURCES if path.endswith("-patch.mjs")}

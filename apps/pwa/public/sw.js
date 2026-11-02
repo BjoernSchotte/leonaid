@@ -5,9 +5,14 @@ const BUILD_ID = "__LEONAID_BUILD_ID__";
 const BUILD_ASSETS = /* __LEONAID_BUILD_ASSETS__ */ [];
 const CACHE_NAME = `leonaid-pwa-${BUILD_ID}`;
 const OFFLINE_URL = "/app/offline.html";
+// The offline page loads its stylesheet and script from files because the
+// Content-Security-Policy forbids inline code; they are cached with it.
+const OFFLINE_RESOURCES = ["/app/offline.css", "/app/offline.js"];
 const APP_SHELL = [
   "/app/",
   OFFLINE_URL,
+  ...OFFLINE_RESOURCES,
+  "/app/theme-init.js",
   "/app/icons/icon.svg",
   "/app/icons/icon-192.svg",
   "/app/icons/icon-512.svg",
@@ -69,6 +74,15 @@ self.addEventListener("fetch", (event) => {
         const cache = await caches.open(CACHE_NAME);
         return (await cache.match(OFFLINE_URL)) ?? Response.error();
       })(),
+    );
+    return;
+  }
+
+  if (OFFLINE_RESOURCES.includes(url.pathname)) {
+    event.respondWith(
+      caches
+        .open(CACHE_NAME)
+        .then(async (cache) => (await cache.match(request)) ?? fetch(request)),
     );
     return;
   }

@@ -276,7 +276,16 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
               aria-valuemax="100"
               aria-valuenow={Math.round(progress)}
             >
-              <span style={`--goal-progress: ${progress.toFixed(2)}%`} />
+              {/* An SVG width attribute instead of an inline style keeps the
+                  page free of style attributes for the Content-Security-Policy. */}
+              <svg
+                viewBox="0 0 100 1"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <rect width={progress.toFixed(2)} height="1" />
+              </svg>
             </div>
             <p>{Math.round(progress)} % des Aktionsziels sind erreicht.</p>
           </div>

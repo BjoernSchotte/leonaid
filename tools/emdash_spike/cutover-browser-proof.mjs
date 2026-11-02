@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import { observeMediaUpload } from "./media-upload-observer.mjs";
 import { normalizeCampaignImage } from "../../apps/campaign-site/src/auth/campaign-image.mjs";
@@ -28,7 +29,7 @@ if (mode === "--changed") {
   // and appended bytes. Public delivery must match the normalized upload, not
   // the original fixture; retain an exact byte-integrity assertion.
   const expectedImage = await normalizeCampaignImage(replacement, "image/webp");
-  const browser = await chromium.launch({ headless: true });
+  const browser = guardCsp(await chromium.launch({ headless: true }));
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -178,7 +179,7 @@ if (mode === "--changed") {
 }
 
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of [false, true]) {
       const context = await browser.newContext({

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { randomUUID } from "node:crypto";
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const admin = process.env.SURVEY_ADMIN_SESSION;
