@@ -5,6 +5,10 @@ variable "CACHE_READ" { default = "true" }
 group "default" { targets = ["api", "worker", "proxy", "web", "pwa", "public", "survey-validator"] }
 group "survey-runtime" { targets = ["api", "worker", "proxy", "web", "public", "survey-validator"] }
 group "survey-foundation" { targets = ["api", "survey-validator"] }
+// Optional EmDash profile: the images the spike harness builds for its stacks.
+group "emdash" { targets = ["api", "worker", "proxy", "web", "public", "campaign-site"] }
+// The Build job also exports the CMS cache that EmDash proof jobs import.
+group "build" { targets = ["default", "campaign-site"] }
 target "api" {
   context = "."
   dockerfile = "infra/compose/Dockerfile.core"
@@ -60,4 +64,12 @@ target "survey-validator" {
   tags = ["leonaid-cache-survey-validator:local"]
   cache-from = CACHE_READ == "true" ? ["type=gha,version=2,scope=${CACHE_NAMESPACE}-survey-validator-linux-amd64"] : []
   cache-to = CACHE_WRITE == "true" ? ["type=gha,version=2,scope=${CACHE_NAMESPACE}-survey-validator-linux-amd64,mode=max"] : []
+}
+target "campaign-site" {
+  context = "."
+  dockerfile = "infra/compose/Dockerfile.campaign-site"
+  platforms = ["linux/amd64"]
+  tags = ["leonaid-cache-campaign-site:local"]
+  cache-from = CACHE_READ == "true" ? ["type=gha,version=2,scope=${CACHE_NAMESPACE}-campaign-site-linux-amd64"] : []
+  cache-to = CACHE_WRITE == "true" ? ["type=gha,version=2,scope=${CACHE_NAMESPACE}-campaign-site-linux-amd64,mode=max"] : []
 }
