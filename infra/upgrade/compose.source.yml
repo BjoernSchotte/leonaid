@@ -4,7 +4,7 @@ services:
   twenty-worker:
     image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
   rustfs:
-    image: docker.io/rustfs/rustfs:1.0.0-beta.10@sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a
+    image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
   # Releases before Valkey ran Redis 7.4, which writes RDB format 12. The
   # upgrade must migrate that volume (infra/upgrade/twenty-queue-store.sh).
   twenty-redis:
