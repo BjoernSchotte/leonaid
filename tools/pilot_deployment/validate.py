@@ -38,6 +38,17 @@ TWENTY_MAIL_SERVICES = ("twenty-server", "twenty-worker")
 IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 FULL_COMMIT = re.compile(r"[0-9a-f]{40}$")
+# Template placeholders look like __RANDOM_PASSWORD__. Generated and issued
+# secrets (URL-safe tokens, the Twenty JWT) may contain "__" by chance, so
+# only the template shape and well-known dummy words count as unfilled.
+TEMPLATE_PLACEHOLDER = re.compile(r"__[A-Z][A-Z0-9_]*__")
+PLACEHOLDER_WORDS = ("changeme", "replace-me", "default-secret")
+
+
+def is_placeholder(value: str) -> bool:
+    return TEMPLATE_PLACEHOLDER.search(value) is not None or any(
+        word in value.casefold() for word in PLACEHOLDER_WORDS
+    )
 
 
 class DeploymentContractError(RuntimeError):
@@ -191,7 +202,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     )
     for key in secret_keys:
         value = string_value(api_environment, key)
-        if "__" in value or len(value) < 24:
+        if is_placeholder(value) or len(value) < 24:
             raise DeploymentContractError(f"{key} ist ein Placeholder oder zu kurz")
     if (
         api_environment["LEONAID_SECRET_KEY"]

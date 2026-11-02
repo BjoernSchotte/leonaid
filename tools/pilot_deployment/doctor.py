@@ -25,6 +25,7 @@ from tools.pilot_decisions.check import (
 )
 from tools.pilot_deployment.validate import (
     DeploymentContractError,
+    is_placeholder,
     object_value,
     validate,
 )
@@ -85,10 +86,6 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "TWENTY_MAIL_FROM_NAME",
     *SECRET_KEYS,
 )
-
-
-# A secret that contains one of these is treated as an unfilled template value.
-PLACEHOLDER_MARKERS = ("__", "changeme", "replace-me", "default-secret")
 
 
 # pilot-install provisions the Twenty integration key itself; until then the
@@ -210,9 +207,7 @@ def validate_environment(
             and value == PENDING_INTEGRATION_KEY
         ):
             continue
-        if len(value) < 24 or any(
-            marker in value.casefold() for marker in PLACEHOLDER_MARKERS
-        ):
+        if len(value) < 24 or is_placeholder(value):
             raise DoctorError(f"secret_invalid:{key}")
         secret_values.append(value)
     if len(secret_values) != len(set(secret_values)):

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from tools.dx.generate_secrets import parse_env
 from tools.pilot_deployment.doctor import SECRET_KEYS
-from tools.pilot_deployment.doctor import PLACEHOLDER_MARKERS
+from tools.pilot_deployment.validate import is_placeholder
 from tools.pilot_install.production_secrets import GENERATORS, PENDING_INTEGRATION_KEY
 
 # Provider-issued credentials cannot be generated; the operator enters them.
@@ -65,7 +65,7 @@ def main() -> None:
             raise AssertionError(f"secrets without generator: {expected - generated}")
         for key in generated:
             value = values[key]
-            if len(value) < 24 or "__" in value:
+            if len(value) < 24 or is_placeholder(value):
                 raise AssertionError(f"{key} is not a strong fresh value")
             if value in result.stdout + result.stderr:
                 raise AssertionError("pilot-secrets printed a secret")
@@ -87,14 +87,19 @@ def main() -> None:
         other = parse_env(second.read_text(encoding="utf-8"), second)
         if any(values[key] == other[key] for key in generated):
             raise AssertionError("two runs produced a repeated secret")
-    # URL-safe tokens hold "__" about once in eight draws; the doctor would
-    # read such a value as a placeholder. 2000 draws per generator make a
-    # regression practically certain to show.
+    # Generated and issued secrets may contain "__" by chance (URL-safe
+    # tokens about once in eight, the Twenty JWT likewise); only the template
+    # shape is a placeholder.
+    for value in ("abc__def0123456789abcdef0123", "eyJ__x.eyJ__y.sig__nature0123"):
+        if is_placeholder(value):
+            raise AssertionError("a random secret with '__' counts as a placeholder")
+    for value in ("__RANDOM_PASSWORD__", "prefix-__SMTP_PASSWORD__", "ChangeMe-0123456789abcdef"):
+        if not is_placeholder(value):
+            raise AssertionError(f"placeholder {value!r} was not recognised")
     for name, generate in GENERATORS.items():
         for _ in range(2000):
-            value = generate()
-            if any(marker in value.casefold() for marker in PLACEHOLDER_MARKERS):
-                raise AssertionError(f"{name} produced a doctor placeholder marker")
+            if is_placeholder(generate()):
+                raise AssertionError(f"{name} produced a template placeholder")
     print(
         f"pilot-secrets-test: OK: {len(generated)} distinct fresh secrets, 0600, "
         "pending key, no overwrite and no secret output"

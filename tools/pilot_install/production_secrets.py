@@ -23,22 +23,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.dx.generate_secrets import generate_identifier, generate_password, parse_env
-from tools.pilot_deployment.doctor import PLACEHOLDER_MARKERS
+from tools.pilot_deployment.validate import is_placeholder
 
 PENDING_INTEGRATION_KEY = "PENDING_PILOT_INSTALL"
 
 
 def doctor_safe(generate: Callable[[], str]) -> Callable[[], str]:
-    """Draw again until the value carries no marker the doctor rejects.
+    """Draw again in the rare case a value looks like a template placeholder.
 
-    URL-safe base64 contains "_", so about one token in eight holds "__",
-    which the pilot doctor reads as an unfilled placeholder.
+    URL-safe tokens can by chance contain a run such as "__AB__", which the
+    pilot doctor would read as an unfilled placeholder.
     """
 
     def draw() -> str:
         while True:
             value = generate()
-            if not any(marker in value.casefold() for marker in PLACEHOLDER_MARKERS):
+            if not is_placeholder(value):
                 return value
 
     return draw
