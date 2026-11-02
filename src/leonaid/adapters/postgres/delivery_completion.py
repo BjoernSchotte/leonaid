@@ -159,7 +159,8 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
         # actually delivered; archived actions were rejected above.
         if order.status is CommitmentStatus.DRAFT and (
             not action["ordering_enabled"]
-            or str(action["status"]) not in {"draft", "scheduled", "active", "completed"}
+            or str(action["status"])
+            not in {"draft", "scheduled", "active", "completed"}
         ):
             raise Conflict(
                 "commitment_action_closed",

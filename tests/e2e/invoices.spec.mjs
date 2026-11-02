@@ -142,7 +142,9 @@ async function fillDelivery(form, contactName) {
   await radio.focus();
   await radio.press("Space");
   await expect(radio).toBeChecked();
-  await expect(form.getByTestId("delivery-completion-historical")).toBeVisible();
+  await expect(
+    form.getByTestId("delivery-completion-historical"),
+  ).toBeVisible();
   await form
     .getByLabel("Ansprechpartner bei der Lieferung (optional)")
     .fill(contactName);

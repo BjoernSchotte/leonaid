@@ -100,7 +100,9 @@ def test_manager_completion_records_past_windows_as_historical() -> None:
         snapshot, historical = complete(window.id)
         assert historical and snapshot == window.snapshot(config.timezone)
     # A window that has started but not ended is history, too.
-    _, historical = complete(past.id, at=datetime(2027, 2, 4, 7, 30, tzinfo=timezone.utc))
+    _, historical = complete(
+        past.id, at=datetime(2027, 2, 4, 7, 30, tzinfo=timezone.utc)
+    )
     assert historical
     for selection in (retired_future.id, uuid4()):
         with pytest.raises(DomainInvariantError) as error:
