@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 8
-reviewedRevision: 8
-verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
+contentRevision: 9
+reviewedRevision: 9
+verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
 reviewer: Björn Schotte
 ---
 
@@ -67,6 +67,16 @@ start with `worker.configuration.invalid`. The metric
 outbox counters on `/admin/system` therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## Job runtime and error details
+
+A module may bound the runtime of its outbox handlers. The worker caps every
+bound at 80 % of `OUTBOX_CLAIM_LEASE_SECONDS` (default `300`). Survey export
+rendering is bounded at 240 s. A job that exceeds its bound is cancelled and
+retried with the error code `job_timeout`. Jobs store only the safe error
+code as their error detail, never exception text. Every job log line
+(`outbox.job.*`) carries `durationMs` when the job finished, failed or lost
+its claim.
 
 ## Runtime limits and identity
 
