@@ -4,9 +4,9 @@ description: Häufige Betriebsfehler mit Doctor, Healthchecks und sicheren Korre
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -35,11 +35,16 @@ Tokens, E-Mail-Adressen oder Dokumentbytes.
   Lücke (Pilot: `pilot-repair-crm-match-keys --env-file FILE`, den die
   `leonaid-crm-repair`-Timer planmäßig ausführen und der im Wartungsmodus
   aussetzt).
-- **Keine Mail vom CRM (Pilot):** Twentys Worker versendet Bestätigungs-,
-  Passwort-Reset- und Einladungsmails über das `MAIL_SMTP_*`-Relay und das
-  Netz `mail-egress`. Prüfe die Logs von `twenty-worker` auf den SMTP-Fehler,
-  ob `MAIL_SMTP_PORT` zu `MAIL_SMTP_MODE` passt (465 nur mit `tls`) und ob
-  das Relay-Zertifikat von einer öffentlichen CA stammt.
+- **Keine Mail vom CRM (Pilot):** Twenty versendet nur mit
+  `MAIL_SMTP_MODE=tls` auf Port 465; bei `starttls` versendet es absichtlich
+  nichts, und `pilot-doctor` warnt davor. Mit `tls` versendet Twentys Worker
+  Bestätigungs- und Passwort-Reset-Mails über das `MAIL_SMTP_*`-Relay und das
+  Netz `mail-egress`. Prüfe die Logs von `twenty-worker` auf den SMTP-Fehler
+  und ob das Relay-Zertifikat von einer öffentlichen CA stammt.
+- **CRM öffnet sich nicht (Pilot):** Das CRM hat keine öffentliche Domain.
+  Führe auf dem Server `./leonaid crm-admin --env-file DATEI` aus und nutze den
+  ausgegebenen Befehl `ssh -N -L` mit demselben lokalen Port; Twenty lehnt
+  andere Origins als `http://localhost:TWENTY_ADMIN_PORT` ab.
 - **Schreibzugriff liefert 503:** Prüfe
   `infra/upgrade/maintenance.sh status`. Deaktiviere Wartung erst nach gesunden
   Abhängigkeiten und bestandenen Verträgen.

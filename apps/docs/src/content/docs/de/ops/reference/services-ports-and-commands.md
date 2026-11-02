@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -15,7 +15,7 @@ reviewer: Björn Schotte
 | Caddy                         | einziger Web-Einstieg und TLS                | Caddy-Daten für öffentliche Zertifikate |
 | FastAPI Core + Worker         | Auth, Policies, Fachoperationen, Outbox      | Core PostgreSQL                         |
 | Web / PWA / Public / Campaign | Admin-, Akquise- und öffentliche Oberflächen | keine führenden Fachdaten               |
-| Twenty Server/Worker          | Firmen und Personen                          | Twenty PostgreSQL und Dateien           |
+| Twenty Server/Worker          | Firmen und Personen; UI nur für Admins       | Twenty PostgreSQL und Dateien           |
 | RustFS                        | private unveränderliche Dokumentbytes        | RustFS-Volume                           |
 | Mail-Relay                    | E-Mail von LeonAid und Twenty CRM            | externer Provider; lokal Mailpit        |
 
@@ -29,13 +29,25 @@ TLS-SNI); dann ist der Dev-Stack im LAN erreichbar. `LEONAID_REMOTE_HOST`
 ergänzt einen zweiten Namen für denselben Stack, etwa den Tailscale- oder
 VPN-Namen `myhost.tailnet.ts.net`; ungenutzt bleibt er `127.0.0.1`. Änderungen
 übernimmt `./leonaid dev`. Im Pilot-Overlay sind ausschließlich
-80/443 öffentlich. Datenbanken, der Valkey-Queue-Speicher, S3 und interne APIs
+80/443 öffentlich. Das Twenty CRM hat keine öffentliche Domain: `twenty-server`
+veröffentlicht seinen Port nur auf der Loopback-Adresse des Hosts,
+`127.0.0.1:TWENTY_ADMIN_PORT` (Standard 3020), und ist in `crm-data` und im
+eigenen Netz `crm-admin`, nie im Proxy-Netz `edge`. Sein `SERVER_URL` ist
+`http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file DATEI`
+prüft die Loopback-Bindung und gibt den Befehl
+`ssh -N -L PORT:127.0.0.1:PORT` aus, den die Systemadministration auf ihrem
+Arbeitsplatz startet, bevor sie `http://localhost:PORT` öffnet.
+Datenbanken, der Valkey-Queue-Speicher, S3 und interne APIs
 bleiben in Compose-Netzen. Im Pilot sind nur Worker und Twenty-Worker im Netz
-`mail-egress`, dem einzigen Weg zum externen SMTP-Relay.
+`mail-egress`, dem einzigen Weg zum externen SMTP-Relay. Twenty versendet nur
+mit `MAIL_SMTP_MODE=tls` (implizites TLS auf Port 465), weil sein SMTP-Client
+STARTTLS nicht erzwingen kann. Bei `starttls` starten die Twenty-Container mit
+dem Logger-Mailtreiber und versenden nichts; `pilot-doctor` warnt, blockiert
+aber nicht.
 
 Wichtige Befehle: `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-doctor`, `pilot-deploy`, `pilot-release`, `pilot-backup`,
-`pilot-restore`, `pilot-repair-crm-match-keys`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
+`pilot-restore`, `pilot-repair-crm-match-keys`, `crm-admin`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
 vollständige Liste liefert `./leonaid help`; sie ist maßgeblich, wenn diese
 Referenz abweicht.
 

@@ -4,9 +4,9 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -28,14 +28,16 @@ their own acceptance for every installation.
   databases, RustFS, the proxy, the API, the worker, three web front ends and
   monitoring share this memory.
 - **Swap:** 2 to 4 GB. Swap catches peaks; it does not replace RAM.
-- **DNS:** two names, one for the portal (for example `portal.club.org`) and
-  one for the CRM (for example `crm.club.org`).
+- **DNS:** one name for the portal (for example `portal.club.org`). The CRM
+  has no public name; the system administrator opens it through an SSH
+  tunnel (see [Open the CRM](#open-the-crm)).
 - **Backup target:** an S3-compatible bucket at another provider. Never store
   backups only on the same server.
 - **Mail:** an SMTP account for the club's sender domain. LeonAid and
   Twenty CRM both send through it. The relay needs a certificate from a
-  public CA, and the server must reach it outbound on port 587 (STARTTLS)
-  or 465 (implicit TLS).
+  public CA, and the server must reach it outbound on port 465 (implicit
+  TLS). Twenty sends mail only over implicit TLS; with port 587 (STARTTLS)
+  only LeonAid sends mail.
 - **Alerting:** an operator webhook (chat or incident tool), an external
   heartbeat check such as healthchecks.io and an external uptime monitor.
 - **Release:** an approved tag `vYYYY.M.N` with the files `release-images.env`
@@ -103,10 +105,12 @@ sudo ufw enable
 ```
 
 Docker writes its own firewall rules for published ports and bypasses ufw.
-LeonAid publishes only the proxy on 80 and 443; all databases, Twenty,
-RustFS and monitoring stay on internal Docker networks. After the installation,
-`docker ps --format '{{.Names}} {{.Ports}}'` must show host ports only for the
-proxy.
+LeonAid publishes only the proxy on 80 and 443. The Twenty server listens on
+`127.0.0.1:TWENTY_ADMIN_PORT` (default 3020) for the admin SSH tunnel, which
+the internet cannot reach. All databases, RustFS and monitoring stay on
+internal Docker networks. After the installation,
+`docker ps --format '{{.Names}} {{.Ports}}'` must show the proxy on 80/443 and
+`twenty-server` only on `127.0.0.1`.
 
 ## Install Docker Engine and Compose
 
@@ -144,12 +148,11 @@ sudo systemctl restart docker
 
 ## Point DNS to the server
 
-Create `A` records (and `AAAA` records if the server has IPv6) for the portal
-and the CRM name. Check both before the installation:
+Create an `A` record (and an `AAAA` record if the server has IPv6) for the
+portal name. Check it before the installation:
 
 ```sh
 dig +short portal.club.org
-dig +short crm.club.org
 ```
 
 Caddy requests the TLS certificates on the first start. Port 80 must be
@@ -206,7 +209,8 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 - the tenant ID in `LEONAID_COMPOSE_PROJECT`, `RUSTFS_BUCKET` and
   `RESTIC_REPOSITORY`;
 - the eight lines from `release-images.env` (replace the template lines);
-- domains, `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
+- the portal domain, `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
+- `TWENTY_ADMIN_PORT` only if port 3020 is taken on the server;
 - `TWENTY_MAIL_FROM_ADDRESS` and `TWENTY_MAIL_FROM_NAME`, the sender of
   Twenty's own mail (see [Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty));
 - the S3 endpoint and bucket in `RESTIC_REPOSITORY`.
@@ -218,30 +222,33 @@ creates the real key.
 
 You configure the SMTP relay once with the `MAIL_SMTP_*` keys. The core
 worker sends login codes, invitations and invoices through it. Twenty
-sends address verification, password reset and invitation mail through
-the same relay. Both senders reach the relay only through the dedicated
+sends address verification and password reset mail through the same
+relay. Both senders reach the relay only through the dedicated
 `mail-egress` network; all other internal networks have no route out.
 
 | `MAIL_SMTP_MODE` | `MAIL_SMTP_PORT` | Core worker | Twenty |
 | ---------------- | ---------------- | ----------- | ------ |
-| `starttls` | not 465, usually 587 | requires STARTTLS | upgrades with STARTTLS |
-| `tls` | 465 | implicit TLS | implicit TLS |
+| `tls` (template default) | 465 | implicit TLS | implicit TLS |
+| `starttls` | not 465, usually 587 | requires STARTTLS | sends no mail |
 | `plain` | – | refused in production | refused in production |
 
 Both verify the relay certificate against the public CA store, so
 `MAIL_SMTP_CA_FILE` is refused in the pilot. Pilot Doctor refuses a port
-that does not match the mode, because Twenty uses implicit TLS on port
-465 and STARTTLS on every other port.
+that does not match the mode: `tls` needs port 465, `starttls` any other
+port.
 
 `TWENTY_MAIL_FROM_ADDRESS` must be a bare address in the domain of
 `MAIL_FROM`, for example `crm@club.org`. Then the SPF, DKIM and DMARC
 records of the sender domain cover Twenty's mail as well.
 
-:::caution[STARTTLS in Twenty]
-Twenty 2.24 cannot enforce STARTTLS. It upgrades when the relay offers
-STARTTLS, which every serious provider does, but an attacker on the path
-could suppress the offer. Prefer `MAIL_SMTP_MODE=tls` with port 465 when
-your provider supports it.
+:::caution[Twenty mail needs implicit TLS]
+Twenty 2.54 cannot enforce STARTTLS: its SMTP client upgrades only when the
+relay offers STARTTLS, and an attacker on the path can suppress the offer
+and read the mail. Twenty has no setting to require it. LeonAid therefore
+starts Twenty with its SMTP driver only for `MAIL_SMTP_MODE=tls`. With
+`starttls`, Twenty uses its logger driver and sends nothing, and
+`pilot-doctor` prints a warning (not an error). LeonAid's own mail is not
+affected. Use port 465 when your provider offers it.
 :::
 
 Then create the remaining secret files with mode `0600`:
@@ -298,14 +305,15 @@ checkout, or when the Twenty key is no longer pending. It then:
 - checks the configuration, the release manifest, the pilot decisions and the
   doctor for a first install;
 - starts only Twenty and its datastores, without the proxy and therefore
-  without public access;
+  without public access (Twenty itself is never public);
 - creates the Twenty workspace, schema, roles and the least-privilege API key
   and verifies the key;
 - confirms the administrator's e-mail address through Twenty's own
   verification, because production Twenty refuses unverified users;
 - writes the key into `production.env` (mode `0600` stays);
-- starts the full stack with e-mail verification on and Twenty's SMTP
-  driver, and signs in as the administrator to prove it;
+- starts the full stack with e-mail verification on (and Twenty's SMTP
+  driver when `MAIL_SMTP_MODE=tls`), and signs in as the administrator to
+  prove it;
 - creates the first encrypted backup, starts monitoring and runs the full
   doctor.
 
@@ -313,6 +321,30 @@ When a step fails, the containers and volumes stay for diagnosis. The error
 message shows the `docker compose ... down --volumes` command that removes
 them before a new attempt. If the key was already written, set
 `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` again; the message says so.
+
+## Open the CRM
+
+The Twenty CRM is for the system administrator only. It has no public
+domain, and the proxy does not forward to it. `twenty-server` listens on
+`127.0.0.1:TWENTY_ADMIN_PORT` of the server. Print the tunnel command as
+`leonaid`:
+
+```sh
+./leonaid crm-admin --env-file /etc/leonaid/production.env \
+  --ssh-target admin@portal.club.org
+```
+
+The command checks that `twenty-server` publishes its port on `127.0.0.1`
+only and prints the two steps:
+
+```sh
+ssh -N -L 3020:127.0.0.1:3020 admin@portal.club.org
+```
+
+Keep the tunnel open and browse to `http://localhost:3020` on your
+workstation. Twenty builds its links from
+`SERVER_URL=http://localhost:TWENTY_ADMIN_PORT`, so the local port must be
+the same as on the server. Sign in with the bootstrap administrator.
 
 ## Schedule the daily backup
 
@@ -392,10 +424,11 @@ exporter uses the new release image.
 
 :::note[Further CRM users]
 Production Twenty requires verified e-mail addresses. `pilot-install`
-verifies the first administrator directly; every further CRM user
-receives the verification or invitation mail through the relay. Check
-the path once after the installation: request a password reset for the
-administrator on the CRM sign-in page and confirm that the mail arrives
+verifies the first administrator directly. A further administrator also
+needs SSH access for the tunnel and receives the verification mail through
+the relay, which requires `MAIL_SMTP_MODE=tls`. Check the path once after
+the installation: open the CRM through the tunnel, request a password reset
+for the administrator on the sign-in page and confirm that the mail arrives
 from `TWENTY_MAIL_FROM_ADDRESS`. If it does not, `docker compose ... logs
 twenty-worker` shows the SMTP error.
 :::

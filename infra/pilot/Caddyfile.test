@@ -96,9 +96,3 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 		reverse_proxy public:3000
 	}
 }
-
-{$TWENTY_PUBLIC_DOMAIN} {
-	tls internal
-	import common_headers
-	reverse_proxy twenty-server:3000
-}

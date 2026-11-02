@@ -26,6 +26,12 @@ from botocore.exceptions import ClientError
 from leonaid.adapters.typst import RENDER_VERSION
 
 DATASET_VERSION = "1.0.0"
+# Twenty 2.54 builds indexes and validates foreign keys of a schema change in
+# deferred worker jobs and refuses every further schema mutation of the
+# workspace until they finish. The refusal happens before any change, so the
+# same request is safe to repeat.
+DEFERRED_SCHEMA_ACTIONS_RUNNING = "deferred schema action(s) are still running"
+DEFERRED_SCHEMA_ACTIONS_SECONDS = 180.0
 OBJECT_PREFIX = "golden/v1/invoices/"
 ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
 PUBLIC_ORDER_NAMESPACE = UUID("2cfebf83-5796-49d7-8c56-8dcb224f45ed")
@@ -122,22 +128,31 @@ class TwentyClient:
         headers = {"Origin": self.origin}
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
-        response = self.client.post(
-            f"{self.base_url}/metadata",
-            json={"query": query, "variables": variables},
-            headers=headers,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise SeedError("Twenty GraphQL lieferte kein JSON-Objekt")
-        errors = payload.get("errors")
-        if errors:
+        deadline = time.monotonic() + DEFERRED_SCHEMA_ACTIONS_SECONDS
+        while True:
+            response = self.client.post(
+                f"{self.base_url}/metadata",
+                json={"query": query, "variables": variables},
+                headers=headers,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise SeedError("Twenty GraphQL lieferte kein JSON-Objekt")
+            errors = payload.get("errors")
+            if not errors:
+                break
             messages = [
                 str(item.get("message", "unbekannter GraphQL-Fehler"))
                 for item in errors
                 if isinstance(item, dict)
             ]
+            if (
+                any(DEFERRED_SCHEMA_ACTIONS_RUNNING in message for message in messages)
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.5)
+                continue
             raise SeedError(f"Twenty GraphQL: {'; '.join(messages)}")
         data = payload.get("data")
         if not isinstance(data, dict):

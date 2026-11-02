@@ -6,6 +6,23 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "5"
 
+# Twenty's SMTP driver hands only host, port, credentials and EMAIL_SMTP_NO_TLS
+# to nodemailer; Twenty 2.54 offers no requireTLS option. On any port but 465
+# nodemailer upgrades with STARTTLS only when the relay offers it, so an
+# attacker on the path can strip STARTTLS and read the mail. Twenty therefore
+# sends mail only over implicit TLS: MAIL_SMTP_MODE=tls (port 465, which
+# nodemailer always wraps in TLS with certificate verification) selects the
+# SMTP driver, every other mode the logger driver, which sends nothing.
+# tools/pilot_deployment/validate.py requires exactly this script.
+x-twenty-mail-policy: &twenty-mail-policy
+  - /bin/sh
+  - -c
+  - |
+    if [ "$${MAIL_SMTP_MODE}" = tls ]; then EMAIL_DRIVER=SMTP; else EMAIL_DRIVER=logger; fi
+    export EMAIL_DRIVER
+    exec /app/entrypoint.sh "$$@"
+  - twenty-mail-policy
+
 services:
   proxy:
     image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE fehlt}
@@ -16,7 +33,6 @@ services:
     environment:
       CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL fehlt}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
-      TWENTY_PUBLIC_DOMAIN: ${TWENTY_PUBLIC_DOMAIN:?TWENTY_PUBLIC_DOMAIN fehlt}
     volumes: !override
       - ../pilot/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -33,7 +49,7 @@ services:
       LEONAID_RELEASE_COMMIT: ${LEONAID_RELEASE_COMMIT:?LEONAID_RELEASE_COMMIT fehlt}
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL fehlt}
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS fehlt}
-      TWENTY_ORIGIN: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
+      TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL fehlt}
       WORKER_HEALTH_URL: http://worker:8010/health/ready
       PILOT_MONITOR_STATUS_URL: http://pilot-exporter:8020/status
@@ -81,17 +97,27 @@ services:
     image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE fehlt}
     build: !reset null
 
-  # Twenty sends its own mail (address verification, password reset,
-  # invitations) through the SMTP relay of the core worker. Twenty 2.24 hands
-  # host, port and credentials to nodemailer: port 465 means implicit TLS,
-  # any other port upgrades with STARTTLS when the relay offers it, and the
-  # certificate is always verified against the public CA store.
-  # tools/pilot_deployment/validate.py enforces the port for MAIL_SMTP_MODE.
+  # The CRM UI is for the system administrator only and has no public domain.
+  # twenty-server publishes its port on the host's loopback interface only;
+  # `./leonaid crm-admin` prints the SSH port forwarding that reaches it.
+  # SERVER_URL is the forwarded URL, so the browser's links and API calls stay
+  # inside the tunnel. The proxy no longer reaches Twenty: twenty-server leaves
+  # the edge network and gets its own crm-admin network, the only non-internal
+  # network that can carry the published port.
   twenty-server:
+    entrypoint: *twenty-mail-policy
+    # Setting an entrypoint clears the image's CMD; this is the image's own.
+    command: ["node", "dist/main"]
+    ports:
+      - "127.0.0.1:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}:3000"
+    networks: !override
+      - crm-data
+      - crm-admin
     environment: &twenty-production-mail
-      SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
+      SERVER_URL: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       IS_EMAIL_VERIFICATION_REQUIRED: "true"
-      EMAIL_DRIVER: SMTP
+      # Read by the mail policy above; the core worker uses the same value.
+      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE fehlt}
       EMAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
       EMAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT fehlt}
       EMAIL_SMTP_USER: ${MAIL_SMTP_USERNAME:-}
@@ -101,6 +127,7 @@ services:
       EMAIL_FROM_NAME: ${TWENTY_MAIL_FROM_NAME:?TWENTY_MAIL_FROM_NAME is missing}
 
   twenty-worker:
+    entrypoint: *twenty-mail-policy
     environment: *twenty-production-mail
     # Twenty's e-mail queue runs in the worker; it needs the relay.
     networks:
@@ -192,6 +219,8 @@ services:
       - telemetry
 
 networks:
+  # Carries only the loopback-published port of twenty-server (see above).
+  crm-admin: {}
   # The only egress of the mail senders (core worker, twenty-worker); no
   # other service joins it.
   mail-egress: {}

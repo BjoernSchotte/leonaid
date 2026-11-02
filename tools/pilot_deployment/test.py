@@ -88,8 +88,55 @@ def main() -> None:
     mutations.append(("twenty-worker without egress", changed))
 
     changed = copy.deepcopy(config)
-    changed["services"]["twenty-worker"]["environment"]["EMAIL_DRIVER"] = "LOGGER"
-    mutations.append(("Twenty logger mail driver", changed))
+    changed["services"]["twenty-worker"]["environment"]["EMAIL_DRIVER"] = "SMTP"
+    mutations.append(("Twenty mail driver outside the mail policy", changed))
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["twenty-server"]["entrypoint"]
+    mutations.append(("Twenty server without the mail policy", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["entrypoint"][2] = changed["services"][
+        "twenty-worker"
+    ]["entrypoint"][2].replace("EMAIL_DRIVER=logger", "EMAIL_DRIVER=SMTP")
+    mutations.append(("Twenty mail over STARTTLS", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-worker"]["environment"]["MAIL_SMTP_MODE"] = "tls"
+    mutations.append(("Twenty mail mode differs from the core worker", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-server"]["ports"][0]["host_ip"] = "0.0.0.0"
+    mutations.append(("Twenty admin port on all interfaces", changed))
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["twenty-server"]["ports"]
+    mutations.append(("Twenty without admin port", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["twenty-server"]["networks"]["edge"] = None
+    mutations.append(("Twenty on the proxy edge network", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["proxy"]["networks"]["crm-admin"] = None
+    mutations.append(("proxy on the CRM admin network", changed))
+
+    changed = copy.deepcopy(config)
+    changed["networks"]["crm-admin"]["internal"] = True
+    mutations.append(("internal CRM admin network", changed))
+
+    changed = copy.deepcopy(config)
+    for service in ("twenty-server", "twenty-worker"):
+        changed["services"][service]["environment"]["SERVER_URL"] = (
+            "https://crm.leonaid.org"
+        )
+    mutations.append(("public Twenty SERVER_URL", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["api"]["environment"]["TWENTY_ORIGIN"] = (
+        "https://crm.leonaid.org"
+    )
+    mutations.append(("API Origin outside the admin tunnel", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["twenty-server"]["environment"]["EMAIL_SMTP_NO_TLS"] = "true"
@@ -108,7 +155,8 @@ def main() -> None:
     mutations.append(("unaligned Twenty sender", changed))
 
     changed = copy.deepcopy(config)
-    changed["services"]["worker"]["environment"]["MAIL_SMTP_MODE"] = "tls"
+    for service in ("worker", "twenty-server", "twenty-worker"):
+        changed["services"][service]["environment"]["MAIL_SMTP_MODE"] = "tls"
     mutations.append(("implicit TLS on a STARTTLS port", changed))
 
     changed = copy.deepcopy(config)

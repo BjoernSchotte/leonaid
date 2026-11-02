@@ -27,6 +27,7 @@ from tools.pilot_deployment.validate import (
     DeploymentContractError,
     is_placeholder,
     object_value,
+    twenty_mail_enabled,
     validate,
 )
 
@@ -80,8 +81,7 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "MAIL_SMTP_PORT",
     "RESTIC_REPOSITORY",
     "RUSTFS_BUCKET",
-    "TWENTY_PUBLIC_BASE_URL",
-    "TWENTY_PUBLIC_DOMAIN",
+    "TWENTY_ADMIN_PORT",
     "TWENTY_MAIL_FROM_ADDRESS",
     "TWENTY_MAIL_FROM_NAME",
     *SECRET_KEYS,
@@ -241,13 +241,16 @@ def validate_environment(
         raise DoctorError("monitored_disk_path_missing")
     require_external_path(monitored_disk_path, root, "monitored_disk_path")
 
-    public_domain = values["LEONAID_PUBLIC_DOMAIN"].rstrip(".").casefold()
-    crm_domain = values["TWENTY_PUBLIC_DOMAIN"].rstrip(".").casefold()
-    if public_domain == crm_domain:
-        raise DoctorError("public_and_crm_domains_not_distinct")
+    # The CRM UI has no public domain; twenty-server listens on the host's
+    # loopback interface for the admin SSH tunnel (./leonaid crm-admin).
+    admin_port = values["TWENTY_ADMIN_PORT"]
+    if (
+        re.fullmatch(r"[1-9][0-9]{3,4}", admin_port) is None
+        or not 1024 <= int(admin_port) <= 65535
+    ):
+        raise DoctorError("twenty_admin_port_invalid")
     for key in (
         "LEONAID_PUBLIC_BASE_URL",
-        "TWENTY_PUBLIC_BASE_URL",
         "MAIL_HEALTH_URL",
     ):
         parsed = urlparse(values[key])
@@ -260,6 +263,26 @@ def validate_environment(
 
     validate(compose_config, isolated_test_mode=isolated_test_mode)
     return project
+
+
+def environment_warnings(values: dict[str, str]) -> list[str]:
+    """Readiness facts that block nothing but need the operator's attention."""
+
+    warnings: list[str] = []
+    if not twenty_mail_enabled(values.get("MAIL_SMTP_MODE")):
+        # Twenty cannot require STARTTLS; it only sends over implicit TLS.
+        warnings.append("twenty_mail_disabled_without_implicit_tls")
+    return warnings
+
+
+WARNING_TEXT = {
+    "twenty_mail_disabled_without_implicit_tls": (
+        "MAIL_SMTP_MODE is not tls, so Twenty sends no mail (password reset, "
+        "address verification); its SMTP client cannot enforce STARTTLS. "
+        "LeonAid's own mail is unaffected. Use MAIL_SMTP_MODE=tls with port 465 "
+        "to enable Twenty mail."
+    ),
+}
 
 
 def parse_resolve(values: list[str]) -> dict[str, tuple[str, int | None]]:
@@ -454,6 +477,7 @@ def report_json(
     stop_ids: list[str],
     deployment_only: bool,
     first_install: bool = False,
+    warnings: list[str] | None = None,
 ) -> str:
     status = (
         "ready"
@@ -498,6 +522,7 @@ def report_json(
             "openDecisionIds": open_ids,
             "status": status,
             "stopDecisionIds": stop_ids,
+            "warnings": warnings or [],
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -563,7 +588,6 @@ def probe_running_installation(
     resolve = parse_resolve(arguments.resolve)
     context = tls_context(arguments.ca_file)
     public_base = environment["LEONAID_PUBLIC_BASE_URL"].rstrip("/")
-    crm_base = environment["TWENTY_PUBLIC_BASE_URL"].rstrip("/")
     common_headers = (
         "strict-transport-security",
         "x-content-type-options",
@@ -590,19 +614,10 @@ def probe_running_installation(
         min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
         required_headers=common_headers,
     )
+    # The API is ready only while Twenty's /healthz answers (TWENTY_HEALTH_URL);
+    # Twenty itself has no public endpoint to probe.
     if parse_json_body(api_body, "api").get("status") != "ready":
         raise DoctorError("api_dependency_readiness_failed")
-    crm_body, _ = probe_https(
-        name="twenty",
-        url=f"{crm_base}/healthz",
-        context=context,
-        resolve=resolve,
-        timeout_seconds=arguments.timeout_seconds,
-        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-        required_headers=common_headers,
-    )
-    if parse_json_body(crm_body, "twenty").get("status") != "ok":
-        raise DoctorError("twenty_readiness_failed")
     mail_body, provider_date = probe_https(
         name="mail-provider",
         url=environment["MAIL_HEALTH_URL"],
@@ -674,12 +689,19 @@ def main() -> int:
         ):
             probe_running_installation(arguments, environment)
 
+        warnings = environment_warnings(environment)
         open_ids: list[str] = []
         stop_ids: list[str] = []
         if not arguments.deployment_only:
             decisions = parse_register(root / "specs/leonaid-pilot/DECISIONS.md")
             validate_register(decisions)
             open_ids, stop_ids = readiness(decisions, arguments.gate)
+        if not arguments.json:
+            for warning in warnings:
+                print(
+                    f"pilot-doctor: WARNING: {WARNING_TEXT[warning]}",
+                    file=sys.stderr,
+                )
         if arguments.json:
             print(
                 report_json(
@@ -689,6 +711,7 @@ def main() -> int:
                     stop_ids=stop_ids,
                     deployment_only=arguments.deployment_only,
                     first_install=arguments.first_install,
+                    warnings=warnings,
                 )
             )
         elif stop_ids:

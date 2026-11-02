@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
 
@@ -15,7 +15,7 @@ reviewer: Björn Schotte
 | Caddy                         | sole web entry point and TLS              | Caddy data for public certificates |
 | FastAPI Core + worker         | auth, policies, domain operations, outbox | Core PostgreSQL                    |
 | Web / PWA / Public / Campaign | admin, acquisition, and public UIs        | no authoritative domain data       |
-| Twenty Server/Worker          | companies and people                      | Twenty PostgreSQL and files        |
+| Twenty Server/Worker          | companies and people; admin-only UI       | Twenty PostgreSQL and files        |
 | RustFS                        | private immutable document bytes          | RustFS volume                      |
 | Mail relay                    | LeonAid and Twenty CRM mail               | external provider; local Mailpit   |
 
@@ -27,14 +27,25 @@ and `LEONAID_HTTPS_PORT` in `.env.local`. For LAN access set
 name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev stack is then reachable from the LAN.
 `LEONAID_REMOTE_HOST` adds a second name for the same stack, e.g. the host's
 Tailscale or VPN name `myhost.tailnet.ts.net`; keep `127.0.0.1` when unused.
-Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443.
+Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443
+publicly. The Twenty CRM has no public domain: `twenty-server` publishes its
+port only on the host's loopback address, `127.0.0.1:TWENTY_ADMIN_PORT`
+(default 3020), and joins the `crm-data` network and its own `crm-admin`
+network, never the proxy's `edge` network. Its `SERVER_URL` is
+`http://localhost:TWENTY_ADMIN_PORT`. `./leonaid crm-admin --env-file FILE`
+checks the loopback binding and prints the `ssh -N -L PORT:127.0.0.1:PORT`
+command that the system administrator runs on a workstation before opening
+`http://localhost:PORT`.
 Databases, the Valkey queue store, S3, and internal APIs stay inside Compose
 networks. In the pilot, only the worker and the Twenty worker join the `mail-egress`
-network, the only route to the external SMTP relay.
+network, the only route to the external SMTP relay. Twenty sends mail only with
+`MAIL_SMTP_MODE=tls` (implicit TLS on port 465), because its SMTP client cannot
+enforce STARTTLS. With `starttls` the Twenty containers start with the logger
+mail driver and send nothing; `pilot-doctor` warns but does not block.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
 `pilot-doctor`, `pilot-deploy`, `pilot-release`, `pilot-backup`,
-`pilot-restore`, `pilot-repair-crm-match-keys`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
+`pilot-restore`, `pilot-repair-crm-match-keys`, `crm-admin`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
 `./leonaid help` for the current complete list; the CLI is authoritative when
 this reference differs.
 
