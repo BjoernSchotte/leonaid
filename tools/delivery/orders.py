@@ -205,3 +205,11 @@ async def prove_orders(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> N
     print(
         "KLF-030 storage PASS: internal/public physical snapshots, separated invoice/delivery/contact, draft, required fields, foreign/unavailable IDs, read/list, immutable replay and changed-command conflict"
     )
+    from tools.delivery.concurrency import prove_booking_races
+
+    await prove_booking_races(
+        pool, action_id=action_id, admin_id=admin_id, draft=draft, alias=alias
+    )
+    from tools.delivery.manager_completion import prove_manager_completion
+
+    await prove_manager_completion(pool, action_id, admin_id, draft)

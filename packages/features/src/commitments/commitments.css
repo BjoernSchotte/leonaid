@@ -1047,3 +1047,38 @@
   font-weight: 650;
   cursor: pointer;
 }
+
+.commitment-delivery-completion {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.commitment-delivery-completion h3,
+.commitment-delivery-completion h4,
+.commitment-delivery-completion p {
+  margin: 0;
+}
+
+.commitment-delivery-completion .ui-button {
+  justify-self: start;
+  white-space: normal;
+}
+
+.commitment-delivery-completion [tabindex="-1"]:focus {
+  outline: none;
+}
+
+.commitment-delivery-comparison {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}

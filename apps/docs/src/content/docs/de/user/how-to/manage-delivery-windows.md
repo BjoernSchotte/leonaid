@@ -4,9 +4,9 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
 reviewer: Björn Schotte
 ---
 
@@ -39,3 +39,26 @@ werden.
 Bei einem Änderungskonflikt wähle **Aktuellen Stand laden und Eingaben
 behalten**, vergleiche die zusammengeführte Planung und speichere erneut. Öffne
 bei Unsicherheit den aktuellen Stand im angebotenen neuen Tab.
+
+## Fehlende Lieferangaben ergänzen
+
+Bestellungen, die vor dem Aktivieren der Lieferplanung erfasst wurden, haben
+keine Lieferadresse und kein Fenster. Solange die Lieferplanung aktiv ist, kann
+für sie keine Rechnung freigegeben werden: **Rechnung prüfen** zeigt
+**Lieferangaben fehlen**, und die Freigabe bleibt gesperrt.
+
+1. Öffne **Bestellungen prüfen** und bei der Bestellung den Abschnitt **Liefer-
+   und Rechnungsangaben ergänzen**.
+2. Trage die Lieferadresse ein, wähle ein Fenster und korrigiere bei Bedarf die
+   Rechnungsadresse.
+3. Wähle **Angaben speichern**.
+
+Die Bestätigung lautet **Angaben gespeichert. Die Bestellung ist prüfbereit.**
+Besteller, Positionen und Preise bleiben unverändert. Ein gebuchtes Fenster
+bleibt fest, auch wenn es später stillgelegt wurde. Fakturierte Bestellungen
+lassen sich nicht mehr ändern.
+
+Hat inzwischen eine andere Person die Bestellung gespeichert, bleiben deine
+Eingaben im Formular erhalten. Wähle **Aktuellen Stand laden und vergleichen**,
+prüfe die gespeicherten Angaben, wähle **Meine Eingaben auf diesen Stand
+anwenden** und speichere erneut.

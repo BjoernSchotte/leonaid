@@ -33,6 +33,11 @@ def main() -> None:
             raise AssertionError("Missing artifact upload was not rejected.")
         mutations = (
             (
+                "            delivery,\n",
+                "",
+                "Integration shard missing: delivery",
+            ),
+            (
                 "needs: integration-shards\n    if: ${{ !cancelled()",
                 "needs: integration-shards\n    if: ${{ always()",
                 "summary check",

@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.delivery import lock_configuration
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -242,6 +243,19 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 replayed=True,
             )
 
+        # Lock order shared with order capture, delivery completion and
+        # schedule writes: action, delivery configuration, then the order.
+        if (
+            await connection.fetchval(
+                "SELECT id FROM charity_action WHERE id = $1 FOR SHARE", action_id
+            )
+            is None
+        ):
+            raise ResourceNotFound(
+                "invoice_commitment_not_found",
+                "Die prüfbereite Bestellung wurde nicht gefunden.",
+            )
+        delivery = await lock_configuration(connection, action_id)
         commitment_row = await connection.fetchrow(
             """
             SELECT
@@ -307,6 +321,16 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 completed_at=occurred_at,
             )
             return invoice
+
+        if delivery.enabled and (
+            commitment_row["delivery_recipient_snapshot"] is None
+            or commitment_row["delivery_window_id"] is None
+        ):
+            raise Conflict(
+                "invoice_delivery_incomplete",
+                "Vor der Rechnungsfreigabe müssen Lieferadresse und "
+                "Lieferfenster ergänzt werden.",
+            )
 
         profile_row = await connection.fetchrow(
             """
