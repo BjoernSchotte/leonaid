@@ -155,7 +155,8 @@ create_release_manifest() {
   version=$2
   twenty_image=$3
   rustfs_image=$4
-  output=$5
+  queue_image=$5
+  output=$6
   images="$proof/images-$release_id.json"
   api_id=$(docker image inspect --format '{{.Id}}' "${source_project}-api:latest")
   web_id=$(docker image inspect --format '{{.Id}}' "${source_project}-web:latest")
@@ -173,7 +174,7 @@ create_release_manifest() {
     --env "TWENTY_RELEASE_IMAGE=$twenty_image" \
     --env "RUSTFS_RELEASE_IMAGE=$rustfs_image" \
     --env "POSTGRES_RELEASE_IMAGE=$POSTGRES_IMAGE" \
-    --env "REDIS_RELEASE_IMAGE=$REDIS_IMAGE" \
+    --env "REDIS_RELEASE_IMAGE=$queue_image" \
     --env "CADDY_RELEASE_IMAGE=$proxy_id" \
     --env "IMAGE_OUTPUT=/proof/$(basename "$images")" \
     --volume "$proof:/proof" \
@@ -508,6 +509,56 @@ response.raise_for_status()'
   echo "upgrade-test: vollständige Golden Journey OK: $phase ($round_name)"
 }
 
+# The old release ran Redis 7.4 (RDB format 12), which Valkey refuses to load.
+# Prove that the old volume really has that format, then migrate it exactly
+# like pilot-release does: drain with the old containers and reset.
+migrate_queue_store() {
+  migrated_project=$1
+  docker exec "${migrated_project}-twenty-redis-1" redis-cli SAVE >/dev/null
+  header=$(docker run --rm --network none \
+    --volume "${migrated_project}_twenty-redis-data:/data:ro" \
+    "$ALPINE_IMAGE" head -c 9 /data/dump.rdb)
+  [ "$header" = REDIS0012 ] ||
+    fail "old queue volume of $migrated_project is not a Redis 7.4 RDB: $header"
+  state=$(LEONAID_COMPOSE_PROJECT="$migrated_project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" status "$root")
+  [ "$state" = legacy-redis ] ||
+    fail "queue store of $migrated_project not detected as Redis 7.4: $state"
+  if LEONAID_COMPOSE_PROJECT="$migrated_project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" require-current "$root" \
+    >/dev/null 2>&1; then
+    fail "pilot-deploy guard accepted the Redis 7.4 queue store"
+  fi
+  LEONAID_COMPOSE_PROJECT="$migrated_project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
+  state=$(LEONAID_COMPOSE_PROJECT="$migrated_project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" status "$root")
+  [ "$state" = empty ] ||
+    fail "queue store of $migrated_project not reset: $state"
+}
+
+verify_valkey() {
+  checked_project=$1
+  container="${checked_project}-twenty-redis-1"
+  verify_image "$container" "$VALKEY_IMAGE"
+  docker exec "$container" valkey-cli INFO server | tr -d '\r' |
+    grep -Fx server_name:valkey >/dev/null ||
+    fail "$container does not run Valkey"
+  [ "$(docker inspect --format '{{.RestartCount}}' "$container")" = 0 ] ||
+    fail "$container restarted on the migrated volume"
+  docker exec "$container" valkey-cli CONFIG GET maxmemory-policy | tr -d '\r' |
+    grep -Fx noeviction >/dev/null ||
+    fail "$container lost maxmemory-policy noeviction"
+  if docker logs "${checked_project}-twenty-worker-1" 2>&1 |
+    grep -i -e 'eviction policy' -e 'minimum redis version' >/dev/null; then
+    fail "twenty-worker warns about the Valkey store"
+  fi
+  state=$(LEONAID_COMPOSE_PROJECT="$checked_project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" status "$root")
+  [ "$state" = valkey ] || fail "queue store of $checked_project is $state"
+  echo "upgrade-test: Redis 7.4 queue volume migrated; Valkey runs without restarts: $checked_project"
+}
+
 restore_source_version() {
   verify_cleanup "$rollback_project"
   restore_generation=$((restore_generation + 1))
@@ -567,11 +618,11 @@ source_old build api public pwa web survey-validator proxy
 create_release_manifest \
   pilot-release-v1 1.0.0 \
   "$TWENTY_UPGRADE_SOURCE_IMAGE" "$RUSTFS_UPGRADE_SOURCE_IMAGE" \
-  "$release_v1"
+  "$REDIS_UPGRADE_SOURCE_IMAGE" "$release_v1"
 create_release_manifest \
   pilot-release-v2 2.0.0 \
   "$TWENTY_IMAGE" "$RUSTFS_IMAGE" \
-  "$release_v2"
+  "$VALKEY_IMAGE" "$release_v2"
 record_release_event \
   "$release_v1" staging_started passed PILOT-043-STAGING-V1 \
   2026-07-28T08:00:00Z
@@ -657,9 +708,11 @@ docker run --rm --network none --volume "$archive_volume:/archive" \
     chmod 0700 /archive
     chmod 0600 /archive/.lock /archive/root-era-marker'
 
+migrate_queue_store "$source_project"
 source_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade source primary
+verify_valkey "$source_project"
 verify_image "${source_project}-twenty-server-1" "$TWENTY_IMAGE"
 verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
 LEONAID_COMPOSE_PROJECT="$source_project" \
@@ -743,9 +796,11 @@ LEONAID_COMPOSE_PROJECT="$rollback_project" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+migrate_queue_store "$rollback_project"
 rollback_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade rollback failure-clone
+verify_valkey "$rollback_project"
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -842,8 +897,9 @@ docker run --rm \
 pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "schemaVersion":1,
   "result":"passed",
-  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10"},
-  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11"},
+  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12"},
+  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3"},
+  "queueStoreMigration":"passed",
   "preContract":"passed",
   "preE2e":"passed",
   "preGoldenJourney":"passed",

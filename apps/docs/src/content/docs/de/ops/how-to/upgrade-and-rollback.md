@@ -4,9 +4,9 @@ description: Gepinnte Core-, Twenty- und RustFS-Versionen mit Wartungsgrenze und
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -19,6 +19,9 @@ Verantwortlichen und einen frischen Recovery Point.
 1. Aktiviere `infra/upgrade/maintenance.sh enable` und prüfe, dass Schreibzugriffe
    mit `503 maintenance_mode` und `Retry-After` abgewiesen werden.
 2. Erzeuge und prüfe ein verschlüsseltes Backup.
+   Führe danach `infra/upgrade/twenty-queue-store.sh migrate` aus (Teil von
+   `pilot-release`). Es arbeitet die Queues eines Redis-7.4-Speichers mit dem
+   alten Twenty-Worker ab und leert das Volume, weil Valkey es nicht laden kann.
 3. Aktualisiere RustFS und starte Twenty einmal für seine Voraussetzungen.
 4. Stoppe Twenty Server und führe dessen offizielle Befehle
    `command:prod run-instance-commands` und `command:prod upgrade` über den
@@ -38,4 +41,6 @@ Verantwortlichen und einen frischen Recovery Point.
 Nach der ersten Schemaänderung bedeutet Rollback Restore: Starte kein älteres
 Image gegen eine vorwärts migrierte Datenbank. Halte die Schreibsperre aktiv,
 stoppe das fehlerhafte Projekt und stelle denselben Recovery Point in ein neues,
-explizit bestätigtes Projekt wieder her.
+explizit bestätigtes Projekt wieder her. Redis 7.4 kann auch die Datendateien
+von Valkey nicht lesen; ein älteres Release startet deshalb nie auf einem
+migrierten Queue-Volume, das restaurierte Projekt beginnt mit einem leeren.

@@ -55,6 +55,29 @@
       }
     },
     {
+      "id": "twenty-queue-store",
+      "sourceVersion": "redis-7.4.12",
+      "sourceImage": "docker.io/library/redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "targetVersion": "valkey-9.1.3",
+      "targetImage": "docker.io/valkey/valkey:9.1.3-alpine3.24@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b",
+      "releaseNotes": [
+        "https://github.com/valkey-io/valkey/releases/tag/9.1.3",
+        "https://valkey.io/topics/migration/",
+        "https://docs.bullmq.io/guide/connections"
+      ],
+      "migration": {
+        "owner": "infra/upgrade/twenty-queue-store.sh in pilot-release (maintenance mode)",
+        "command": "infra/upgrade/twenty-queue-store.sh migrate: stop twenty-server, drain BullMQ queues with the old twenty-worker, empty the Redis 7.4 volume (RDB 12 is unreadable for Valkey)",
+        "reviewed": true,
+        "expectedDataChange": true
+      },
+      "rollback": {
+        "boundary": "Valkey writes RDB format VALKEY080, which Redis 7.4 cannot read. An older release therefore never starts on the migrated volume; rollback restores Twenty into a new project, where the queue store starts empty and twenty-server registers its cron jobs again.",
+        "strategy": "backup_restore",
+        "restoredComponents": ["twenty-postgres", "twenty-server-data"]
+      }
+    },
+    {
       "id": "leonaid-core",
       "sourceVersion": "alembic-head-before-release",
       "sourceImage": "local-build-before-release",

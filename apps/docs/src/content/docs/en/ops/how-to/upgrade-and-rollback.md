@@ -4,9 +4,9 @@ description: Update pinned Core, Twenty, and RustFS versions behind a maintenanc
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -18,6 +18,9 @@ window, owner, and a fresh recovery point.
 1. Run `infra/upgrade/maintenance.sh enable` and verify that writes return
    `503 maintenance_mode` with `Retry-After`.
 2. Create and verify an encrypted backup.
+   Then run `infra/upgrade/twenty-queue-store.sh migrate` (part of
+   `pilot-release`). It drains the queues of a Redis 7.4 store with the old
+   Twenty worker and empties the volume, because Valkey cannot load it.
 3. Update RustFS and start Twenty once to initialise its prerequisites.
 4. Stop Twenty Server and run its official `command:prod
 run-instance-commands` and `command:prod upgrade` commands through the
@@ -36,4 +39,6 @@ run-instance-commands` and `command:prod upgrade` commands through the
 After the first schema write, rollback means restore. Never start an older
 image against a forward-migrated database. Keep writes blocked, stop the
 failed project, and restore the same recovery point into a new, explicitly
-confirmed project.
+confirmed project. Redis 7.4 cannot read Valkey's data files either, so an
+older release never starts on a migrated queue volume; the restored project
+starts with an empty one.

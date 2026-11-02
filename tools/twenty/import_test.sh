@@ -117,7 +117,7 @@ if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   . "$root/tools/testing/borrow_stack.sh"
 else
 compose build api
-echo "crm-import-test: wartet auf die TCP-Bereitschaft von Postgres und Redis"
+echo "crm-import-test: wartet auf die TCP-Bereitschaft von Postgres und Valkey"
 compose up --detach --wait --wait-timeout 180 twenty-postgres twenty-redis
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision

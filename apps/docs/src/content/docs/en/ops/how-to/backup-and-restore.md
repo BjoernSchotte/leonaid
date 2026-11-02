@@ -4,9 +4,9 @@ description: Encrypt LeonAid data and perform a controlled restore into fresh vo
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -19,7 +19,9 @@ backup repository.
 CREDENTIALS`.
 2. Inspect the manifest and successful `restic check --read-data`. The recovery
    point contains both PostgreSQL databases, Twenty files, and the entire
-   RustFS volume. It excludes Redis, Mailpit, images, and plaintext secrets.
+   RustFS volume. It excludes the Valkey queue store (`twenty-redis`), Mailpit,
+   images, and plaintext secrets. A restored project starts with an empty
+   queue store; `twenty-server` registers its cron jobs again.
 3. Create an empty `leonaid-restore-<name>` project and a separate target
    environment that references the same external repository.
 4. Run `./leonaid pilot-restore` with source and target environments, manifest,

@@ -4,9 +4,9 @@ description: Why LeonAid Core, Twenty, RustFS, and the user interfaces have sepa
 docId: DOC-P028
 audience: [ops]
 diataxis: explanation
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -21,6 +21,7 @@ are created in one Core transaction. Rendering and delivery follow as
 idempotent jobs. Browsers and Astro Actions hold no authoritative domain logic.
 
 These boundaries define a recovery point: both PostgreSQL databases, Twenty
-files, and RustFS must be captured together. Redis can be rebuilt. One
+files, and RustFS must be captured together. The Valkey queue store
+(`twenty-redis`) can be rebuilt. One
 installation represents exactly one club or operating organisation; further
 organisations are isolated through separate installations.

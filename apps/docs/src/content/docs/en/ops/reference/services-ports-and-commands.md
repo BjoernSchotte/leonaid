@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: afa78a892a766115c5b0c3d33f0af8ac4c751c13
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
 reviewer: Björn Schotte
 ---
 
@@ -28,8 +28,8 @@ name, e.g. `myhost.local` (not an IP: browsers send no TLS SNI for it); the dev 
 `LEONAID_REMOTE_HOST` adds a second name for the same stack, e.g. the host's
 Tailscale or VPN name `myhost.tailnet.ts.net`; keep `127.0.0.1` when unused.
 Apply changes with `./leonaid dev`. The pilot overlay exposes only 80/443.
-Databases, Redis, S3, and internal APIs stay inside Compose networks. In
-the pilot, only the worker and the Twenty worker join the `mail-egress`
+Databases, the Valkey queue store, S3, and internal APIs stay inside Compose
+networks. In the pilot, only the worker and the Twenty worker join the `mail-egress`
 network, the only route to the external SMTP relay.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
@@ -62,34 +62,61 @@ leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 Every long-running service has a memory, CPU, and process limit
 (`mem_limit`, `cpus`, `pids_limit`) and rotated logs (`local` driver, 5 × 10 MB).
 The limits are ceilings, not reservations. The pilot set, including the
-monitoring profile, fits an 8 GB VPS and leaves about 1.4 GiB for the operating
-system and Docker.
+monitoring profile, fits an 8 GB VPS and leaves about 1.5 GiB for the operating
+system and Docker. "Peak" is the highest working set measured under load
+(upgrade, installation, CRM import, golden journey, backup and restore).
 
-| Service                     | Observed (idle) | Memory limit | CPUs | PIDs |
-| --------------------------- | --------------- | ------------ | ---- | ---- |
-| twenty-server               | 610–780 MiB     | 1600 MiB     | 2    | 512  |
-| twenty-worker               | 630–670 MiB     | 1400 MiB     | 1.5  | 512  |
-| worker (incl. Typst)        | 70 MiB          | 768 MiB      | 1.5  | 256  |
-| api                         | 115 MiB         | 384 MiB      | 1.5  | 256  |
-| core-postgres               | 27 MiB          | 384 MiB      | 1.5  | 256  |
-| twenty-postgres             | 35 MiB          | 384 MiB      | 1.5  | 256  |
-| twenty-redis                | 15–31 MiB       | 256 MiB      | 0.5  | 64   |
-| rustfs                      | 40 MiB          | 256 MiB      | 1    | 256  |
-| survey-validator            | 21 MiB          | 256 MiB      | 1    | 64   |
-| proxy (Caddy)               | 16 MiB          | 128 MiB      | 1    | 128  |
-| public                      | 29 MiB          | 128 MiB      | 1    | 64   |
-| web, pwa                    | 16–17 MiB each  | 64 MiB each  | 0.5  | 64   |
-| **Core sum**                | ~2.5 GiB        | **5.9 GiB**  |      |      |
-| prometheus                  | —               | 256 MiB      | 0.5  | 128  |
-| pilot-exporter              | —               | 128 MiB      | 0.5  | 64   |
-| alertmanager                | —               | 64 MiB       | 0.25 | 64   |
-| **Pilot sum with monitoring** |               | **6.4 GiB**  |      |      |
+| Service                       | Observed (idle) | Peak (load) | Memory limit | CPUs | PIDs |
+| ----------------------------- | --------------- | ----------- | ------------ | ---- | ---- |
+| twenty-server                 | 270–780 MiB     | 956 MiB     | 1600 MiB     | 2    | 512  |
+| twenty-worker                 | 630–670 MiB     | 1022 MiB    | 1400 MiB     | 1.5  | 512  |
+| worker (incl. Typst)          | 70 MiB          | 91 MiB      | 512 MiB      | 1.5  | 256  |
+| api                           | 115 MiB         | 135 MiB     | 384 MiB      | 1.5  | 256  |
+| core-postgres                 | 27 MiB          | 70 MiB      | 384 MiB      | 1.5  | 256  |
+| twenty-postgres               | 35 MiB          | 142 MiB     | 384 MiB      | 1.5  | 256  |
+| twenty-redis (Valkey)         | 4–31 MiB        | 110 MiB     | 512 MiB      | 0.5  | 64   |
+| rustfs                        | 40 MiB          | 57 MiB      | 256 MiB      | 1    | 256  |
+| survey-validator              | 21 MiB          | 64 MiB      | 128 MiB      | 1    | 64   |
+| proxy (Caddy)                 | 16 MiB          | 21 MiB      | 128 MiB      | 1    | 128  |
+| public                        | 29 MiB          | 68 MiB      | 128 MiB      | 1    | 64   |
+| web, pwa                      | 16–17 MiB each  | 22 MiB      | 64 MiB each  | 0.5  | 64   |
+| **Core sum**                  | ~2.5 GiB        | 2.4 GiB¹    | **5.8 GiB**  |      |      |
+| prometheus                    | —               | 33 MiB      | 256 MiB      | 0.5  | 128  |
+| pilot-exporter                | —               | 18 MiB      | 128 MiB      | 0.5  | 64   |
+| alertmanager                  | —               | 12 MiB      | 64 MiB       | 0.25 | 64   |
+| **Pilot sum with monitoring** |                 |             | **6.2 GiB**  |      |      |
 
-The optional campaign site (`emdash` profile) adds 384 MiB. Redis gets
-`--maxmemory 192mb`: with `noeviction` it rejects writes before the container
-limit kills it. If a service is OOM-killed (`docker inspect` shows
-`OOMKilled: true`), raise its limit and lower another one so that the sum
-still fits the host.
+¹ Highest sum of all working sets at the same moment, not the sum of the peaks.
+
+The optional campaign site (`emdash` profile) adds 384 MiB. If a service is
+OOM-killed (`docker inspect` shows `OOMKilled: true`), raise its limit and
+lower another one so that the sum still fits the host.
+
+Node sizes the V8 heap from the container limit unless told otherwise.
+`twenty-server` therefore sets `NODE_OPTIONS=--max-old-space-size=1024` and
+`twenty-worker` sets `--max-old-space-size=768` (measured heap peaks: 671 and
+553 MiB). Never lower a Twenty memory limit without checking this value;
+otherwise Twenty stops with "JavaScript heap out of memory". `twenty-worker`
+starts `node dist/queue-worker/queue-worker` directly, without the yarn
+wrapper processes (about 200 MiB). Both Twenty services run with `init: true`,
+so `docker stop` lets Twenty finish its active jobs and exit cleanly.
+
+`twenty-redis` runs Valkey 9.1, a BSD-licensed server for the Redis protocol.
+The service keeps its name because Twenty reads `REDIS_URL`. It gets
+`--maxmemory 384mb` with `noeviction`, which BullMQ requires: when full, it
+rejects writes with an error before the container limit kills it. Twenty keeps
+up to 1000 completed and 1000 failed jobs per queue (4 hours and 7 days); a
+large CRM import fills the store by about 20 MiB per minute. Valkey cannot
+load the data files of Redis 7.4. `pilot-release` (and locally the first
+`up` of a `./leonaid` command) therefore runs
+`infra/upgrade/twenty-queue-store.sh migrate` once: it stops `twenty-server`,
+lets the old `twenty-worker` finish all waiting, active and delayed jobs (at
+most `LEONAID_QUEUE_DRAIN_TIMEOUT` seconds, default 300), and then empties the
+volume. The job history and the cache are lost; cron jobs are registered again
+when `twenty-server` starts. If jobs are still pending after the timeout, the
+command stops and leaves the volume unchanged; set
+`LEONAID_QUEUE_DISCARD_PENDING=true` only if those jobs may be dropped.
+`pilot-deploy` refuses an unmigrated store.
 
 The Core image runs as the fixed user `10001:10001`. `api`, `worker`, `web`,
 `pwa`, `public`, and `survey-validator` run with a read-only root filesystem, a

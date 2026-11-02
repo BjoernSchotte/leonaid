@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 PINNED_IMAGE = re.compile(r"^[^@\s]+:[^@:\s]+@sha256:[0-9a-f]{64}$")
-REQUIRED_COMPONENTS = {"twenty", "rustfs", "leonaid-core"}
+REQUIRED_COMPONENTS = {"twenty", "rustfs", "twenty-queue-store", "leonaid-core"}
 REQUIRED_GATES = {
     "pins",
     "release-notes",
@@ -119,6 +119,7 @@ def validate(matrix: dict[str, Any], lock: dict[str, Any]) -> None:
     image_pairs = {
         "twenty": ("twenty-upgrade-source", "twenty"),
         "rustfs": ("rustfs-upgrade-source", "rustfs"),
+        "twenty-queue-store": ("redis-upgrade-source", "valkey"),
     }
     for component_id, (source_id, target_id) in image_pairs.items():
         component = by_id[component_id]

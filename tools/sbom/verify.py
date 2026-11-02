@@ -17,7 +17,7 @@ def main() -> int:
         "container-node.cdx.json",
         "container-twenty.cdx.json",
         "container-postgres.cdx.json",
-        "container-redis.cdx.json",
+        "container-valkey.cdx.json",
         "container-rustfs.cdx.json",
         "container-seaweedfs.cdx.json",
         "container-mailpit.cdx.json",

@@ -70,7 +70,7 @@ volumes, then lets the next leaf seed its required data. This resets:
 | State | Reset boundary |
 |---|---|
 | Core and Twenty PostgreSQL | Entire stopped database volumes, including schemas, sequences and extra rows |
-| Redis / Twenty queues | Initial queue/cache volume; processes restart without stale in-memory work |
+| Valkey / Twenty queues | Initial queue/cache volume; processes restart without stale in-memory work |
 | RustFS / SeaweedFS | Entire initialized object store, including versions and delete markers |
 | Mailpit | Initial empty mail database |
 | Twenty local files, maintenance state, survey erasure archive | Initial owned volume contents |
@@ -83,7 +83,7 @@ example the short fresh-login interval). Health checks and process startup still
 cost time, but build, initial database installation and CRM provisioning no
 longer repeat per feature. Twenty also skips repeated upgrade/cache-flush and
 cron-registration commands after the first initialization; the fixture already
-contains that schema and the registered Redis jobs. Test writers get a bounded
+contains that schema and the registered Valkey (BullMQ) jobs. Test writers get a bounded
 five-second stop window before resetting their discarded state. Locally captured fixtures remain private. CI can import the explicitly generated
 synthetic-only template described below; no development/runtime snapshot is exported. This does not exercise the application's backup feature;
 backup/recovery acceptance remains nightly.
@@ -115,7 +115,7 @@ sh tools/ci/e2e.sh acquisition
 ./leonaid test-surveys --shard request-concurrency
 ```
 
-The live reset proof deliberately contaminates both databases, Redis, versioned
+The live reset proof deliberately contaminates both databases, Valkey, versioned
 storage and mail, rejects a reset while a leaf lease is held, and verifies the
 clean state with the same containers and volumes afterward. Group logs separate
 initial setup, data reset and each leaf's runtime. Compare new GitHub runtimes

@@ -54,4 +54,4 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   assert.ok(config.networks["crm-data"].ipam.config[0].subnet.endsWith(".32/28"));
   console.log("twenty-startup: exact recovery CRM pool, own project and no published ports");'
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
-echo "twenty-startup: actual pinned server, worker, PostgreSQL and Redis healthy from fresh volumes"
+echo "twenty-startup: actual pinned server, worker, PostgreSQL and Valkey healthy from fresh volumes"
