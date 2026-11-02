@@ -120,7 +120,9 @@ async def require_foreign_key_holds(
         raise InventoryError(
             f"{label}: Fremdschlüssel {constraint['name']} ist nicht lesbar"
         )
-    not_null = " AND ".join(f"child.{quote(column)} IS NOT NULL" for column in child_columns)
+    not_null = " AND ".join(
+        f"child.{quote(column)} IS NOT NULL" for column in child_columns
+    )
     matches = " AND ".join(
         f"parent.{quote(parent_column)} = child.{quote(child_column)}"
         for child_column, parent_column in zip(child_columns, parent_columns)
