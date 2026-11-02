@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { describe, expect, it } from "vitest";
 
 import type {
   CurrentIdentityResponse,
@@ -12,12 +12,6 @@ import {
 } from "@leonaid/features";
 
 import { webModules } from "./modules";
-
-vi.mock("./surveys", () => ({
-  SurveysPage: (props: { createNew?: boolean; surveyId?: string }) => (
-    <p>surveys:{props.createNew ? "new" : (props.surveyId ?? "list")}</p>
-  ),
-}));
 
 const context = {
   client: {} as LeonAidApiClient,
@@ -77,22 +71,33 @@ describe("UI module registration", () => {
     ).toThrow(/Ambiguous/);
   });
 
-  it("keeps the existing survey URLs", async () => {
+  it("keeps the existing survey URLs", () => {
     expect(webModules.map((module) => module.id)).toEqual(["surveys"]);
     const surveyId = "0b8a3c1e-2f4d-4e5a-9b6c-7d8e9f0a1b2c";
     const cases = [
-      ["/surveys", "surveys:list"],
-      ["/surveys/new", "surveys:new"],
-      [`/surveys/${surveyId}`, `surveys:${surveyId}`],
+      ["/surveys", { createNew: false, surveyId: undefined }],
+      ["/surveys/new", { createNew: true, surveyId: undefined }],
+      [`/surveys/${surveyId}`, { createNew: false, surveyId }],
     ] as const;
-    for (const [path, text] of cases) {
+    for (const [path, expected] of cases) {
       const route = resolveModuleRoute(webModules, "web", path);
       expect(route?.label).toBe("Umfragen");
-      const view = render(<>{route?.render(context)}</>);
-      expect(await screen.findByText(text)).toBeTruthy();
-      view.unmount();
+      // The page is lazy; its element props carry the parsed route.
+      const page = pageElement(route?.render(context));
+      expect(page.props).toMatchObject({ ...expected, client: context.client });
     }
     expect(resolveModuleRoute(webModules, "web", "/surveys/edit")).toBeNull();
     expect(resolveModuleRoute(webModules, "web", "/")).toBeNull();
   });
 });
+
+function pageElement(node: ReactNode): ReactElement<Record<string, unknown>> {
+  if (!isValidElement<{ children?: ReactNode }>(node)) {
+    throw new Error("Module route did not render an element");
+  }
+  const child = node.props.children;
+  if (!isValidElement<Record<string, unknown>>(child)) {
+    throw new Error("Module route did not render a page");
+  }
+  return child;
+}
