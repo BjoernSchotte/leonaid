@@ -11,7 +11,7 @@ Dateien und das vollständige RustFS-Datenvolume. Restic verschlüsselt jeden
 Recovery Point vor dem Transport. Das Ziel muss außerhalb des LeonAid-VPS
 liegen.
 
-Nicht gesichert werden Twenty Redis (wiederaufbaubarer Cache/Queue), Mailpit
+Nicht gesichert werden Twentys Valkey-Store (Dienst `twenty-redis`, wiederaufbaubarer Cache/Queue), Mailpit
 (lokales Testsystem), Container-Images oder Klartext-Secrets.
 
 ## Ziele und Aufbewahrung

@@ -9,7 +9,7 @@ This file remains the low-level Compose reference.
 Integrationstests.
 
 Der Standardstart enthält Caddy, FastAPI, Core-Worker/-PostgreSQL, Web, PWA,
-Public Web, Twenty Server/Worker/PostgreSQL/Redis und RustFS:
+Public Web, Twenty Server/Worker/PostgreSQL/Valkey (Dienst `twenty-redis`) und RustFS:
 
 ```sh
 ./leonaid dev

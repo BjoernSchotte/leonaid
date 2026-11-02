@@ -115,7 +115,7 @@ services:
     logging: *default-logging
     restart: unless-stopped
     <<: *hardened-runtime
-    mem_limit: 256m
+    mem_limit: 128m
     cpus: 1
     pids_limit: 64
     networks:
@@ -217,7 +217,7 @@ services:
     # Typst renders invoices and survey reports in temporary directories.
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m
-    mem_limit: 768m
+    mem_limit: 512m
     cpus: 1.5
     pids_limit: 256
     command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
@@ -398,20 +398,25 @@ services:
     mem_limit: 1600m
     cpus: 2
     pids_limit: 512
-    environment: &twenty-environment
-      NODE_PORT: "3000"
-      PG_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
-      SERVER_URL: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
-      REDIS_URL: redis://twenty-redis:6379
-      DISABLE_DB_MIGRATIONS: "false"
-      DISABLE_CRON_JOBS_REGISTRATION: "false"
-      STORAGE_TYPE: local
-      ENCRYPTION_KEY: ${TWENTY_ACCESS_TOKEN_SECRET}
-      FALLBACK_ENCRYPTION_KEY: ${TWENTY_LOGIN_TOKEN_SECRET}
-      APP_SECRET: ${LEONAID_SECRET_KEY}
-      SIGN_IN_PREFILLED: "false"
-      IS_EMAIL_VERIFICATION_REQUIRED: "false"
-      IS_MULTIWORKSPACE_ENABLED: "false"
+    environment:
+      <<: &twenty-environment
+        NODE_PORT: "3000"
+        PG_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
+        SERVER_URL: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
+        REDIS_URL: redis://twenty-redis:6379
+        DISABLE_DB_MIGRATIONS: "false"
+        DISABLE_CRON_JOBS_REGISTRATION: "false"
+        STORAGE_TYPE: local
+        ENCRYPTION_KEY: ${TWENTY_ACCESS_TOKEN_SECRET}
+        FALLBACK_ENCRYPTION_KEY: ${TWENTY_LOGIN_TOKEN_SECRET}
+        APP_SECRET: ${LEONAID_SECRET_KEY}
+        SIGN_IN_PREFILLED: "false"
+        IS_EMAIL_VERIFICATION_REQUIRED: "false"
+        IS_MULTIWORKSPACE_ENABLED: "false"
+      # Node sizes the V8 old space from the cgroup limit (896 MiB at
+      # 1600m). Pin it: measured heapUsed peaks at 671 MiB, and RSS adds
+      # ~250 MiB native memory, so 1024 MiB keeps ~330 MiB headroom.
+      NODE_OPTIONS: --max-old-space-size=1024
     volumes:
       - twenty-server-data:/app/packages/twenty-server/.local-storage
     networks:
@@ -437,11 +442,18 @@ services:
     mem_limit: 1400m
     cpus: 1.5
     pids_limit: 512
-    command: ["yarn", "worker:prod"]
+    # Same process as `yarn worker:prod`, without the two yarn wrapper
+    # processes (~150 MiB RSS). Node is then PID 1 under the image entrypoint
+    # and receives SIGTERM directly; Nest shutdown hooks close the BullMQ
+    # workers gracefully.
+    command: ["node", "dist/queue-worker/queue-worker"]
     environment:
       <<: *twenty-environment
       DISABLE_DB_MIGRATIONS: "true"
       DISABLE_CRON_JOBS_REGISTRATION: "true"
+      # heapUsed peaks at 553 MiB; 768 MiB plus ~230 MiB native memory stays
+      # well inside the 1400m limit.
+      NODE_OPTIONS: --max-old-space-size=768
     volumes:
       - twenty-server-data:/app/packages/twenty-server/.local-storage
     networks:
@@ -454,7 +466,7 @@ services:
       twenty-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep '[w]orker:prod' >/dev/null"]
+      test: ["CMD-SHELL", "ps aux | grep '[q]ueue-worker/queue-worker' >/dev/null"]
       interval: 1s
       timeout: 5s
       retries: 200
@@ -483,24 +495,31 @@ services:
       timeout: 3s
       retries: 20
 
+  # Valkey (BSD-3-Clause) speaks the Redis protocol Twenty uses (BullMQ,
+  # cache, pub/sub). The service and volume keep the name twenty-redis:
+  # Twenty reads REDIS_URL, and backups, manifests and tests address the
+  # service by this name. Valkey cannot read Redis 7.4 RDB files (format 12);
+  # infra/upgrade/twenty-queue-store.sh drains and resets an old volume.
   twenty-redis:
-    image: docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
+    image: docker.io/valkey/valkey:9.1.3-alpine3.24@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 0.5
     pids_limit: 64
-    # maxmemory stays below mem_limit: with noeviction, Redis then rejects
-    # writes with an error instead of being OOM-killed with queued jobs.
+    # maxmemory stays below mem_limit: with noeviction (required by BullMQ),
+    # Valkey then rejects writes with an error instead of being OOM-killed
+    # with queued jobs. Twenty keeps up to 1000 completed and 1000 failed
+    # jobs per queue (fixed in its code); an import burst measured 110 MiB.
     command:
-      ["redis-server", "--maxmemory", "192mb", "--maxmemory-policy", "noeviction"]
+      ["valkey-server", "--maxmemory", "384mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - twenty-redis-data:/data
     networks:
       - crm-data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20

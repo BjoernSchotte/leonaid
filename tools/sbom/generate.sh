@@ -69,7 +69,7 @@ python_image="$PYTHON_IMAGE"
 node_image="$NODE_IMAGE"
 twenty_image="$TWENTY_IMAGE"
 postgres_image="$POSTGRES_IMAGE"
-redis_image="$REDIS_IMAGE"
+valkey_image="$VALKEY_IMAGE"
 rustfs_image="$RUSTFS_IMAGE"
 seaweedfs_image="$SEAWEEDFS_IMAGE"
 mailpit_image="$MAILPIT_IMAGE"
@@ -80,7 +80,7 @@ otel_image="$OTEL_IMAGE"
 prometheus_image="$PROMETHEUS_IMAGE"
 alertmanager_image="$ALERTMANAGER_IMAGE"
 
-for system_id in python node twenty postgres redis rustfs seaweedfs mailpit typst playwright listmonk otel prometheus alertmanager; do
+for system_id in python node twenty postgres valkey rustfs seaweedfs mailpit typst playwright listmonk otel prometheus alertmanager; do
   eval "image=\${${system_id}_image}"
   docker run --rm \
     --user "$host_user_id:$host_group_id" \

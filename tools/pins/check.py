@@ -36,7 +36,7 @@ REQUIRED_SYSTEMS = {
     "postgres",
     "prometheus",
     "python",
-    "redis",
+    "valkey",
     "restic",
     "rustfs",
     "seaweedfs",
@@ -47,6 +47,7 @@ REQUIRED_SYSTEMS = {
     "uv",
     "rustfs-upgrade-source",
     "twenty-upgrade-source",
+    "redis-upgrade-source",
 }
 TOOLCHAIN_KEYS = {"python", "nodejs", "bun", "uv", "typst", "playwright"}
 DEPENDENCY_SECTIONS = (

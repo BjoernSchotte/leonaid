@@ -455,7 +455,23 @@ repair_ownership() {
   echo "repair-ownership: OK: root-owned files now belong to $host_user"
 }
 
+# Before the first `up` of an invocation, migrate a Redis 7.4 queue volume
+# that Valkey cannot load (drain, then reset; see the script).
+twenty_queue_store_checked=false
+compose_queue_store_guard() {
+  [ "$twenty_queue_store_checked" = false ] || return 0
+  for argument in "$@"; do
+    if [ "$argument" = up ]; then
+      LEONAID_COMPOSE_PROJECT="${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+        /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
+      twenty_queue_store_checked=true
+      return 0
+    fi
+  done
+}
+
 compose() {
+  compose_queue_store_guard "$@"
   integration_key=${TWENTY_INTEGRATION_API_KEY:-}
   if [ -z "$integration_key" ] && [ -f "$root/.local/twenty/integration.env" ]; then
     integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
@@ -1332,6 +1348,10 @@ pilot_deploy() {
   pilot_verify_release_manifest \
     "$release_manifest" "$config_file" "$release_commit"
   pilot_decision_gate "$project" pilot-deploy
+  # pilot-deploy runs without maintenance mode and must not drain queues;
+  # an old Redis 7.4 store is migrated only by pilot-release.
+  LEONAID_COMPOSE_PROJECT="$project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" require-current "$root"
   pilot_compose_up "$project" "$env_file"
   pilot_doctor \
     --env-file "$env_file" \
@@ -2018,6 +2038,10 @@ print(value["schemas"]["coreAlembicHead"])'
       ;;
   esac
 
+  # Still in maintenance: replace an old Redis 7.4 queue store before any
+  # Twenty container starts on Valkey.
+  LEONAID_COMPOSE_PROJECT="$project" \
+    /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
   pilot_compose_command "$project" "$env_file" \
     up --detach --no-build --pull missing --force-recreate \
     --wait --wait-timeout 420 rustfs

@@ -40,14 +40,25 @@
       ]
     },
     {
-      "id": "redis",
-      "version": "7.4.5-alpine3.21",
-      "image": "docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
-      "digest": "sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
-      "license": "RSALv2 OR SSPL-1.0",
-      "upstream": "https://github.com/redis/docker-library-redis/tree/732a2608af90db97efa8ddd993fcbb63f5d2883b",
+      "id": "valkey",
+      "version": "9.1.3-alpine3.24",
+      "image": "docker.io/valkey/valkey:9.1.3-alpine3.24@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b",
+      "digest": "sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b",
+      "license": "BSD-3-Clause",
+      "upstream": "https://github.com/valkey-io/valkey-container/tree/d5ce8d3b6a6029b20c9594f575daf9c06bf46990",
       "roles": [
         "twenty-redis"
+      ]
+    },
+    {
+      "id": "redis-upgrade-source",
+      "version": "7.4.12-alpine3.21",
+      "image": "docker.io/library/redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "digest": "sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "license": "RSALv2 OR SSPL-1.0",
+      "upstream": "https://github.com/redis/docker-library-redis/tree/786872f8c248c1f0990f93244cbcb3949329016d",
+      "roles": [
+        "twenty-redis-upgrade-source"
       ]
     },
     {

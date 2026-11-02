@@ -4,9 +4,9 @@ description: LeonAid-Daten verschlüsselt sichern und einen kontrollierten Fresh
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 6d3891e2a7f6497307f1cd2927bb6efe1b4b97aa
 reviewer: Björn Schotte
 ---
 
@@ -19,7 +19,9 @@ außerhalb von Git und Backup-Repository.
 CREDENTIALS`.
 2. Prüfe das erzeugte Manifest und den erfolgreichen `restic check --read-data`.
    Gesichert werden beide PostgreSQL-Datenbanken, Twenty-Dateien und das ganze
-   RustFS-Volume. Redis, Mailpit, Images und Klartext-Secrets sind ausgeschlossen.
+   RustFS-Volume. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
+   und Klartext-Secrets sind ausgeschlossen. Ein restauriertes Projekt startet
+   mit leerem Queue-Speicher; `twenty-server` registriert seine Cron-Jobs neu.
 3. Erstelle für einen Drill ein leeres Projekt namens `leonaid-restore-<name>`
    und ein separates Ziel-Environment mit demselben externen Repository.
 4. Starte `./leonaid pilot-restore` mit Quell- und Ziel-Environment,

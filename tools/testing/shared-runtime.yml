@@ -1,5 +1,5 @@
 # Applied only after initial migration/provisioning. The reset restores the same
-# initialized databases and Redis jobs with the same pinned images.
+# initialized databases and Valkey (Redis-protocol) jobs with the same pinned images.
 services:
   api:
     healthcheck:

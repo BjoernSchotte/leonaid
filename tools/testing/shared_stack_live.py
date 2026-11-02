@@ -47,7 +47,7 @@ def main():
                 "exec",
                 "-T",
                 "twenty-redis",
-                "redis-cli",
+                "valkey-cli",
                 "SET",
                 "ci-reset-probe",
                 "dirty",
@@ -126,7 +126,7 @@ with smtplib.SMTP("mailpit",1025) as smtp: smtp.sendmail("probe@example.invalid"
                     "exec",
                     "-T",
                     "twenty-redis",
-                    "redis-cli",
+                    "valkey-cli",
                     "EXISTS",
                     "ci-reset-probe",
                 ],
@@ -153,7 +153,7 @@ with urllib.request.urlopen("http://mailpit:8025/mail/api/v1/messages") as r: as
             ]
         )
         print(
-            "PASS: unchanged containers/volumes; both databases, Redis, object versions/delete markers and mail reset; concurrent lease refused",
+            "PASS: unchanged containers/volumes; both databases, Valkey, object versions/delete markers and mail reset; concurrent lease refused",
             flush=True,
         )
     finally:
