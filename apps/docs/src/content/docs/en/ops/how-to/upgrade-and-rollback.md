@@ -4,9 +4,9 @@ description: Update pinned Core, Twenty, and RustFS versions behind a maintenanc
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 2fe1a1b7930207925afe13bab77da89d37111c56
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 417858db2e419436eb003e8ccb4eb83fbaf3125d
 reviewer: Björn Schotte
 ---
 
@@ -91,3 +91,26 @@ migrates a 2.24 database in one step; no intermediate release is needed.
 foreign keys of a schema change in background jobs. It refuses further schema
 changes until they finish; `tools/twenty/provision.py` waits and repeats the
 refused request. The environment variables that LeonAid sets are unchanged.
+
+## RustFS beta.11 to 1.0.4
+
+RustFS 1.0.4 is the first stable release line and fixes the curl, OpenSSL
+and Brotli findings of the beta.11 image. It runs on the existing RustFS
+volume; no data migration or export is needed. It reads the beta.11 object,
+version, bucket and IAM data in place and only adds pool identity, bucket
+incarnation and scanner state files under `.rustfs.sys`. The IAM migration in
+the 1.0 release notes converts MinIO data (`.minio.sys`) and does not run on a
+RustFS volume. The image user (uid 10001), the entrypoint, the `/data` path
+and the environment variables that LeonAid sets are unchanged.
+
+`pilot-release` takes the backup, enables maintenance and then recreates
+`rustfs` on the new image before Twenty and Core migrate. `./leonaid
+test-upgrade` and `./leonaid test-pilot-release` start beta.11 with Golden
+Data, hash every object version before and after the image swap and fail if
+one key, version, delete marker, ETag, metadata entry or SHA-256 differs. They
+check this twice: on the upgraded staging project and on the production
+attempt restored from the recovery point.
+
+After 1.0.4 has run on the volume, do not start beta.11 again. Roll back by
+restoring the full RustFS volume together with Core PostgreSQL from the
+recovery point.

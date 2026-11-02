@@ -95,11 +95,11 @@ document hashes, sessions and browser journey release the environment again.
 ./leonaid test-upgrade
 ```
 
-The test uses no mocks. It starts Twenty 2.24.0 and RustFS 1.0.0-beta.10
-with real golden data, upgrades to Twenty 2.54.0 and RustFS 1.0.0-beta.11,
-checks contracts and Chromium before and after the upgrade, deliberately
-damages a separate target clone and restores it from the encrypted recovery
-point. Secret-free results are stored under `.artifacts/poc113/`.
+The test uses no mocks. It starts Twenty 2.24.0 and RustFS 1.0.0-beta.11
+with real golden data, upgrades to Twenty 2.54.0 and RustFS 1.0.4, checks
+contracts and Chromium before and after the upgrade, deliberately damages a
+separate target clone and restores it from the encrypted recovery point.
+Secret-free results are stored under `.artifacts/poc113/`.
 
 The pilot release evidence extends this component contract with an immutable
 release manifest, identical staging/production promotion, a real failed

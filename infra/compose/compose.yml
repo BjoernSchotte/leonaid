@@ -539,7 +539,7 @@ services:
       retries: 20
 
   rustfs:
-    image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
+    image: docker.io/rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
