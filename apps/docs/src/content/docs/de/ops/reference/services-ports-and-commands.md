@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 790abe3056486af138602e89a740419c6f6caf90
 reviewer: Björn Schotte
 ---
 
@@ -46,8 +46,9 @@ eine Schleife `retention`. Einmal pro `OUTBOX_RETENTION_INTERVAL_SECONDS`
 `OUTBOX_RETENTION_DAYS` (Standard `30`) Tagen erfolgreich abgeschlossen
 wurden, sowie Rate-Limit-Versuche, die älter als zwei Tage sind. Sie löscht
 nie wartende, laufende oder Dead-Letter-Jobs und keine abgeschlossenen Jobs,
-auf die noch eine versendete E-Mail, ein Rechnungsversand, ein Umfrage-Export
-oder eine Umfrage-Löschung verweist. Sie löscht in Stapeln von
+auf die noch ein Rechnungsversand, ein Umfrage-Export oder eine
+Umfrage-Löschung verweist. Bei einer versendeten E-Mail löscht sie den Job,
+behält aber den Nachweis in `mail_delivery`, ohne Verweis auf den Job. Sie löscht in Stapeln von
 `OUTBOX_RETENTION_BATCH_SIZE` (Standard `500`) Zeilen, höchstens
 `OUTBOX_RETENTION_MAX_BATCHES` (Standard `20`) Stapel pro Durchlauf, und
 überspringt Zeilen, die eine andere Sitzung gesperrt hält. Ungültige Werte
