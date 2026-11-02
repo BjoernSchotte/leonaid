@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
 project=${LEONAID_PILOT_IMPORT_TEST_PROJECT:-leonaid-pilot030-test}
@@ -37,7 +38,8 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     diagnose
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
+  verify_owned_project_removed "$project" || status=1
   rm -rf "$proof"
   exit "$status"
 }

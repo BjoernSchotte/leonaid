@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 . "$root/infra/locks/images.env"
 
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
@@ -83,21 +84,6 @@ rollback_target() {
       "$@"
 }
 
-verify_cleanup() {
-  checked_project=$1
-  for inventory in containers volumes networks; do
-    case "$inventory" in
-      containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-      volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-      networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
-    esac
-    if [ -n "$remaining" ]; then
-      echo "test-isolation: owned $inventory remain for $checked_project" >&2
-      return 1
-    fi
-  done
-}
-
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -117,12 +103,12 @@ cleanup() {
   fi
   if [ "$rollback_owned" = true ]; then
     if ! rollback_target --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-    if ! verify_cleanup "$rollback_project"; then status=1; fi
+    if ! verify_owned_project_removed "$rollback_project"; then status=1; fi
   fi
   if [ "$source_owned" = true ]; then
     if [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
       if ! source_target --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-      if ! verify_cleanup "$source_project"; then status=1; fi
+      if ! verify_owned_project_removed "$source_project"; then status=1; fi
     else
       echo "upgrade-test: Owned source project retained stopped without host ports: $source_project"
     fi
@@ -613,7 +599,7 @@ verify_postgres() {
 }
 
 restore_source_version() {
-  verify_cleanup "$rollback_project"
+  verify_owned_project_removed "$rollback_project" --keep-images
   restore_generation=$((restore_generation + 1))
   python3 "$root/tools/surveys/network_override.py" "$rollback_network_overlay"
   python3 - "$rollback_network_template" "$rollback_network_overlay" <<'PY_OVERLAY'

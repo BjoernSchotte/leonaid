@@ -3,6 +3,7 @@ set -eu
 root=${1:-$(pwd)}
 mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/owned_teardown.sh"
 # The harness writes recovery proofs and the survey-erasure archive from
 # one-off core containers. The whole isolated stack therefore runs as the
 # invoking user instead of the production core uid (compose.yml x-core-user).
@@ -65,17 +66,7 @@ cleanup() {
   fi
   if [ "$owned" = true ]; then
     if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
-    for inventory in containers volumes networks; do
-      case "$inventory" in
-        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
-        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
-        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
-      esac
-      if [ -n "$remaining" ]; then
-        echo "test-isolation: owned $inventory remain for $project" >&2
-        status=1
-      fi
-    done
+    if ! verify_owned_project_removed "$project"; then status=1; fi
   fi
   if [ "$foundation" = true ] && [ "$owned" = true ]; then
     python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \

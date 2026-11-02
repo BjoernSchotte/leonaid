@@ -210,16 +210,8 @@ class LocalStack:
     def discard(self):
         # Labels, not a possibly changed Compose file, identify the old owned
         # resources. Never follow resource names supplied by a new checkout config.
-        for resource, command in (
-            ("containers", ["docker", "rm", "--force"]),
-            ("volumes", ["docker", "volume", "rm"]),
-            ("networks", ["docker", "network", "rm"]),
-        ):
-            names = self.stack.inventory(resource)
-            if names:
-                self.stack.call([*command, *names])
-            if self.stack.inventory(resource):
-                raise RuntimeError("Owned local test resources remain")
+        self.stack.remove_owned()
+        self.stack.remove_built_images()
         shutil.rmtree(self.stack.directory)
         self.state_path.unlink(missing_ok=True)
         self.stack = None

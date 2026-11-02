@@ -159,7 +159,8 @@ if [ "$test_case" = all ] || [ "$test_case" = closed-runtime ]; then
   trap 'exit 130' HUP INT TERM
   # No shared tag, Compose project, host port, external network or named volume.
   # The image ID file belongs exclusively to this invocation.
-  docker build --iidfile "$proof/image" \
+  # --load: see release-image-identity.sh (docker-container Buildx in CI).
+  docker buildx build --load --iidfile "$proof/image" \
     --file "$root/infra/compose/Dockerfile.campaign-site" "$root"
   image=$(cat "$proof/image")
   docker run --rm --network none \
