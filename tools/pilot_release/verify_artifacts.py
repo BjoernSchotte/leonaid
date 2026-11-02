@@ -63,6 +63,7 @@ def verify(root: Path, artifact_directory: Path) -> None:
         "rollbackJourneyEquivalent",
         "releaseLedger",
         "queueStoreMigration",
+        "objectStoreUpgrade",
     }
     if result.get("result") != "passed" or any(
         result.get(key) != "passed" for key in required_results
@@ -128,6 +129,14 @@ def verify(root: Path, artifact_directory: Path) -> None:
         raise InvalidEvidence("Dokument-SHAs drifteten beim Upgrade")
     if _documents(pre) != _documents(rollback):
         raise InvalidEvidence("Dokument-SHAs drifteten beim Rollback")
+    for before_name, after_name in (
+        ("objects-before-upgrade", "objects-after-upgrade"),
+        ("objects-before-production", "objects-after-production"),
+    ):
+        before = _load_object(artifact_directory / f"{before_name}.json")
+        after = _load_object(artifact_directory / f"{after_name}.json")
+        if not before or before != after:
+            raise InvalidEvidence("RustFS-Upgrade veränderte Objektversionen")
 
     journey_before = _load_object(artifact_directory / "journey-before.normalized.json")
     journey_after = _load_object(artifact_directory / "journey-after.normalized.json")

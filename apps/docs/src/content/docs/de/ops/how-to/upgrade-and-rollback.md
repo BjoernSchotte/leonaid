@@ -4,9 +4,9 @@ description: Gepinnte Core-, Twenty- und RustFS-Versionen mit Wartungsgrenze und
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 2fe1a1b7930207925afe13bab77da89d37111c56
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: 8cb57f34a064ac2f5cf8bb4ce15859b2bf93fa5f
 reviewer: Björn Schotte
 ---
 
@@ -96,3 +96,28 @@ und baut Indizes und Fremdschlüsselprüfungen einer Schemaänderung jetzt in
 Hintergrundjobs. Bis diese fertig sind, lehnt es weitere Schemaänderungen ab;
 `tools/twenty/provision.py` wartet und wiederholt die abgelehnte Anfrage. Die
 Umgebungsvariablen, die LeonAid setzt, bleiben unverändert.
+
+## RustFS beta.11 auf 1.0.4
+
+RustFS 1.0.4 ist die erste stabile Release-Linie und behebt die curl-,
+OpenSSL- und Brotli-Befunde des beta.11-Images. Es läuft auf dem vorhandenen
+RustFS-Volume; eine Datenmigration oder ein Export ist nicht nötig. Es liest
+die Objekt-, Versions-, Bucket- und IAM-Daten von beta.11 direkt und legt
+unter `.rustfs.sys` nur Dateien für Pool-Identität, Bucket-Inkarnation und
+Scanner-Zustand an. Die IAM-Migration aus den Release Notes von 1.0 wandelt
+MinIO-Daten (`.minio.sys`) um und läuft auf einem RustFS-Volume nicht. Der
+Image-Benutzer (UID 10001), der Entrypoint, der Pfad `/data` und die
+Umgebungsvariablen, die LeonAid setzt, bleiben unverändert.
+
+`pilot-release` erstellt das Backup, aktiviert den Wartungsmodus und erzeugt
+`rustfs` dann mit dem neuen Image neu, bevor Twenty und Core migrieren.
+`./leonaid test-upgrade` und `./leonaid test-pilot-release` starten beta.11
+mit Golden Data, hashen jede Objektversion vor und nach dem Imagewechsel und
+schlagen fehl, wenn sich ein Key, eine Version, ein Delete Marker, ein ETag,
+ein Metadateneintrag oder ein SHA-256 unterscheidet. Sie prüfen das zweimal:
+im aktualisierten Staging-Projekt und im Produktionsversuch, der aus dem
+Recovery Point wiederhergestellt wurde.
+
+Nachdem 1.0.4 auf dem Volume lief, beta.11 nicht wieder starten. Der Rollback
+stellt das vollständige RustFS-Volume zusammen mit Core-PostgreSQL aus dem
+Recovery Point wieder her.

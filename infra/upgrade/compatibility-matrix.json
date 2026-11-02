@@ -35,22 +35,26 @@
     },
     {
       "id": "rustfs",
-      "sourceVersion": "1.0.0-beta.10",
-      "sourceImage": "docker.io/rustfs/rustfs:1.0.0-beta.10@sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a",
-      "targetVersion": "1.0.0-beta.11",
-      "targetImage": "docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c",
+      "sourceVersion": "1.0.0-beta.11",
+      "sourceImage": "docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c",
+      "targetVersion": "1.0.4",
+      "targetImage": "docker.io/rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2",
       "releaseNotes": [
-        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.10",
-        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.11"
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.12",
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-rc.6",
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.0",
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.4",
+        "https://github.com/rustfs/rustfs/blob/1.0.4/CHANGELOG.md",
+        "https://github.com/rustfs/rustfs/compare/1.0.0-beta.11...1.0.4"
       ],
       "migration": {
         "owner": "RustFS startup",
-        "command": "rustfs /data",
+        "command": "rustfs /data on the existing volume. 1.0.4 reads the beta.11 object, bucket and IAM format in place and only adds pool identity, bucket incarnation and scanner state files under .rustfs.sys. The IAM migration in the 1.0 notes converts MinIO .minio.sys data and is skipped on a RustFS volume. Image user (uid 10001), entrypoint, data path and environment variables are unchanged.",
         "reviewed": true,
         "expectedDataChange": false
       },
       "rollback": {
-        "boundary": "Ein Binär-Rollback ist nur vor Zielschreibzugriffen zulässig. Nach Zielschreibzugriffen wird das vollständige RustFS-Volume aus dem Recovery Point restauriert.",
+        "boundary": "Before the target writes, the source image may start again. After 1.0.4 has run on the volume, LeonAid does not rely on a binary rollback: the full RustFS volume is restored from the recovery point, together with Core PostgreSQL.",
         "strategy": "backup_restore",
         "restoredComponents": ["rustfs-data"]
       }

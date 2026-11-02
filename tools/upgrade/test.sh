@@ -381,6 +381,28 @@ snapshot_and_verify() {
     /workspace/tests/fixtures/golden/v1
 }
 
+# Hash every object version in RustFS; used around the RustFS image swap.
+object_inventory() {
+  runner=$1
+  name=$2
+  $runner run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --entrypoint python \
+    api /repo/tools/upgrade/object_inventory.py "/proof/$name.json"
+}
+
+require_same_objects() {
+  before=$1
+  after=$2
+  if ! cmp -s "$proof/$before.json" "$proof/$after.json"; then
+    diff -u "$proof/$before.json" "$proof/$after.json" >&2 || true
+    fail "RustFS upgrade changed stored object versions or bytes"
+  fi
+  echo "upgrade-test: RustFS upgrade preserved every object version and SHA-256"
+}
+
 run_e2e() {
   project=$1
   phase=$2
@@ -741,13 +763,16 @@ docker run --rm --network none --volume "$archive_volume:/archive" \
     chmod 0700 /archive
     chmod 0600 /archive/.lock /archive/root-era-marker'
 
+object_inventory source_old objects-before-upgrade
 migrate_queue_store "$source_project"
 source_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
+verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
+object_inventory source_target objects-after-upgrade
+require_same_objects objects-before-upgrade objects-after-upgrade
 run_twenty_upgrade source primary
 verify_valkey "$source_project"
 verify_image "${source_project}-twenty-server-1" "$TWENTY_IMAGE"
-verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
 LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
   LEONAID_HTTPS_PORT="$source_https_port" \
@@ -831,9 +856,13 @@ LEONAID_COMPOSE_PROJECT="$rollback_project" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+object_inventory rollback_old objects-before-production
 migrate_queue_store "$rollback_project"
 rollback_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
+verify_image "${rollback_project}-rustfs-1" "$RUSTFS_IMAGE"
+object_inventory rollback_target objects-after-production
+require_same_objects objects-before-production objects-after-production
 run_twenty_upgrade rollback failure-clone
 verify_valkey "$rollback_project"
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
@@ -900,6 +929,10 @@ cp "$proof"/upgrade-before.png \
   "$proof"/upgrade-rollback.png \
   "$proof"/pre-upgrade.json \
   "$proof"/post-upgrade.json \
+  "$proof"/objects-before-upgrade.json \
+  "$proof"/objects-after-upgrade.json \
+  "$proof"/objects-before-production.json \
+  "$proof"/objects-after-production.json \
   "$proof"/migration-failure-restored.json \
   "$proof"/production-v2.json \
   "$proof"/failed-upgrade.json \
@@ -933,9 +966,10 @@ docker run --rm \
 pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "schemaVersion":1,
   "result":"passed",
-  "source":{"twenty":"2.24.0","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12","postgres":"16.9"},
-  "target":{"twenty":"2.54.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3","postgres":"16.15"},
+  "source":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"redis-7.4.12","postgres":"16.9"},
+  "target":{"twenty":"2.54.0","rustfs":"1.0.4","queueStore":"valkey-9.1.3","postgres":"16.15"},
   "queueStoreMigration":"passed",
+  "objectStoreUpgrade":"passed",
   "postgresMinorUpgrade":"passed",
   "preContract":"passed",
   "preE2e":"passed",
