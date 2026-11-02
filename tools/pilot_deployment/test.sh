@@ -586,10 +586,13 @@ if ! printf '%s' "$drift_output" |
   echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
   exit 1
 fi
+# This topology never provisions Twenty and runs with a dummy integration key;
+# test-pilot-install proves the passing CRM check against a provisioned Twenty.
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+  LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \
@@ -598,6 +601,39 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
     --release-manifest "$release_manifest"
+
+echo "pilot-deployment-test: proves that the deploy gate blocks an unusable Twenty key"
+set +e
+crm_gate_output=$(
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
+    LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
+    LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    "$root/leonaid" pilot-doctor \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --gate pilot-deploy 2>&1
+)
+crm_gate_status=$?
+set -e
+if [ "$crm_gate_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: the deploy gate accepted an unusable Twenty key" >&2
+  exit 1
+fi
+if ! printf '%s' "$crm_gate_output" | grep -Fq "Twenty CRM check failed" ||
+  ! printf '%s' "$crm_gate_output" | grep -Fq "crm_permission_denied"; then
+  echo "pilot-deployment-test: ERROR: the CRM gate failure is not diagnosable" >&2
+  printf '%s\n' "$crm_gate_output" | tail -n 5 >&2
+  exit 1
+fi
+if printf '%s' "$crm_gate_output" | grep -Fq "twenty-integration-production-test-008"; then
+  echo "pilot-deployment-test: ERROR: the CRM gate printed the integration key" >&2
+  exit 1
+fi
 
 echo "pilot-deployment-test: beweist Operator-Backup und buildfreien Restore"
 runtime_compose exec -T core-postgres psql \
@@ -659,6 +695,7 @@ missing_staging_output=$(
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+    LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
     LEONAID_TEST_PWA_IMAGE="$pwa_image" \
@@ -706,6 +743,7 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+  LEONAID_PILOT_TEST_SKIP_CRM_CHECK=1 \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \
