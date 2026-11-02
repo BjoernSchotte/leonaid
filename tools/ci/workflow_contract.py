@@ -12,6 +12,8 @@ REQUIRED_JOBS = {
     "build",
     "contract",
     "e2e",
+    "emdash-cases",
+    "emdash-proofs",
     "golden-journey",
     "integration",
     "integration-shards",
@@ -20,6 +22,9 @@ REQUIRED_JOBS = {
     "security",
     "unit",
 }
+
+# Editor load race (PR #37) and Caddy body drain (PR #38) were only visible here.
+EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 
@@ -39,8 +44,8 @@ def check(path: Path) -> list[str]:
     for job in sorted(REQUIRED_JOBS):
         if f"\n  {job}:\n" not in text:
             problems.append(f"Job missing: {job}")
-    # The Integration summary has no test output; its shards publish evidence.
-    evidence_jobs = len(REQUIRED_JOBS - {"integration"})
+    # Summaries have no test output; their matrix legs publish evidence.
+    evidence_jobs = len(REQUIRED_JOBS - {"integration", "emdash-proofs"})
     if text.count("actions/upload-artifact@") < evidence_jobs:
         problems.append("Not every job publishes evidence artifacts.")
     if text.count("if: always()") < evidence_jobs:
@@ -77,6 +82,34 @@ def check(path: Path) -> list[str]:
     ):
         if required not in integration:
             problems.append("Integration summary check must require all shards.")
+    problems.extend(check_emdash(text))
+    return problems
+
+
+def check_emdash(text: str) -> list[str]:
+    """EmDash regressions surfaced only in these proofs; keep them gating."""
+    problems: list[str] = []
+    cases = job_block(text, "emdash-cases")
+    for group in EMDASH_GROUPS:
+        if not re.search(rf"group: \[[^\]]*\b{re.escape(group)}\b", cases):
+            problems.append(f"EmDash proof group missing: {group}")
+    if "sh tools/ci/emdash.sh" not in cases or "tools/ci/run-job.sh" not in cases:
+        problems.append("EmDash proofs do not run through tools/ci/emdash.sh.")
+    if "paths:" in text or "paths-ignore:" in text:
+        problems.append("Required CI must not use path filters.")
+    if "continue-on-error" in cases or re.search(r"(?i)retry", cases):
+        problems.append(
+            "EmDash proofs must not retry or ignore failures."
+        )
+    summary = job_block(text, "emdash-proofs")
+    for required in (
+        "needs: emdash-cases",
+        "if: ${{ !cancelled()",
+        "needs.emdash-cases.result",
+        'test "$RESULT" = success',
+    ):
+        if required not in summary:
+            problems.append("EmDash summary check must require all proof groups.")
     return problems
 
 

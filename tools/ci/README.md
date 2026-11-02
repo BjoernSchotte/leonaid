@@ -40,6 +40,37 @@ requested selection, independent of the CI schedule.
 ./leonaid test-surveys --group recovery
 ```
 
+## EmDash proofs
+
+The optional campaign site (Compose profile `emdash`) has its own proof cases
+(`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
+in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
+(PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
+`EmDash proof / <group>` matrix, gated by the `EmDash proofs` summary:
+
+| Group | Cases |
+|---|---|
+| `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
+| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects |
+| `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime` |
+
+The jobs need no prepared fixture: every case builds its own isolated stack and
+seeds synthetic data. They always run; there is no path filter, because Core,
+proxy and public changes break these proofs as well. Each case runs exactly
+once. Neither the script nor the workflow retries a failed case, so an
+intermittent failure stays red and must be fixed at its cause.
+`tools/ci/workflow_contract.py` rejects a missing group, a path filter,
+`continue-on-error` or a retry in the job.
+
+The jobs import the `emdash` BuildKit group; the Build job also exports the
+`campaign-site` cache. On failure the harness stores `compose ps` and the
+overlay-complete Compose log of each failed project under
+`runtime-<project>/`, sanitized against `.env.local` and the run's own order
+and CRM keys. Proof directories hold live session tokens and are never copied.
+
+The remaining cases stay local-only. They duplicate the two Krapfentaxi stacks
+in large parts, need further runner time each, or prove nightly recovery flows.
+
 ## One environment per compatible group
 
 `tools/testing/shared_stack.py` builds the Compose images once per group, using

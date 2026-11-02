@@ -67,6 +67,37 @@ def main() -> None:
                 "REMOVED_REHEARSAL_ARTIFACT_DIR",
                 "dress-rehearsal evidence",
             ),
+            (
+                "group: [krapfentaxi-orders, ",
+                "group: [",
+                "krapfentaxi-orders",
+            ),
+            (
+                "krapfentaxi-migration, static]",
+                "static]",
+                "krapfentaxi-migration",
+            ),
+            (
+                "    name: EmDash proof / ${{ matrix.group }}\n",
+                "    name: EmDash proof / ${{ matrix.group }}\n"
+                "    continue-on-error: true\n",
+                "retry or ignore",
+            ),
+            (
+                "  pull_request:\n",
+                "  pull_request:\n    paths: [apps/campaign-site/**]\n",
+                "path filters",
+            ),
+            (
+                "needs: emdash-cases\n    if: ${{ !cancelled()",
+                "needs: emdash-cases\n    if: ${{ always()",
+                "EmDash summary check",
+            ),
+            (
+                "needs.emdash-cases.result",
+                "needs.emdash-cases.outputs.result",
+                "EmDash summary check",
+            ),
         )
         for old, new, expected in mutations:
             broken.write_text(text.replace(old, new, 1), encoding="utf-8")
