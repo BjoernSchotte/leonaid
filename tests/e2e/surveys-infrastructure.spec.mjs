@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./csp-guard.mjs";
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const token =
   process.env.SURVEY_MEMBER_SESSION ?? process.env.SURVEY_ADMIN_SESSION;

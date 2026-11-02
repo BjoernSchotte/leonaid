@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import { proveCampaignRepeaters } from "./campaign-repeater-browser-proof.mjs";
 
@@ -15,7 +16,7 @@ for (const [index, [name, engine]] of Object.entries({
   firefox,
   webkit,
 }).entries()) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,

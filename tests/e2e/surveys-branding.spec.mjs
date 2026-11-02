@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const surveyId = process.env.SURVEY_KRAPFENTAXI_ID;
 if (!baseURL || !surveyId) throw new Error("Published survey fixture required");

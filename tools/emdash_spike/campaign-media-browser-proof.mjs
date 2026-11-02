@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { guardCsp } from "./csp-guard.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const origin = "https://proxy:8443";
@@ -12,7 +13,7 @@ const state = JSON.parse(
   await readFile("/proof/media-http-state.json", "utf8"),
 );
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,

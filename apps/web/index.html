@@ -5,20 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Charity-Aktionen · LeonAid</title>
-    <script>
-      try {
-        const preference = localStorage.getItem("leonaid.theme") ?? "system";
-        const resolved =
-          preference === "system"
-            ? matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light"
-            : preference;
-        document.documentElement.dataset.theme = resolved;
-        document.documentElement.dataset.themePreference = preference;
-        document.documentElement.style.colorScheme = resolved;
-      } catch {}
-    </script>
+    <!-- External, blocking theme script: the CSP forbids inline scripts. -->
+    <script src="/admin/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

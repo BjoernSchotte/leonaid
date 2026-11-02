@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "playwright";
+import { guardCsp } from "./csp-guard.mjs";
 
 const campaign = process.argv.includes("--campaign");
 const mixed = process.argv.includes("--mixed");
@@ -8,7 +9,7 @@ const pagePath = campaign ? "/campaigns/krapfentaxi-2026/" : "/krapfentaxi";
 // Real public Astro + Core. This fixture intentionally has no CRM credentials:
 // prove form rendering/validation and failure UX, never claim accepted orders.
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
-  const browser = await engine.launch({ headless: true });
+  const browser = guardCsp(await engine.launch({ headless: true }));
   try {
     for (const javaScriptEnabled of [false, true]) {
       const context = await browser.newContext({

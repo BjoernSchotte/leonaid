@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 // Each case owns its survey, recipients and proof files; its stages stay ordered.
 test.describe.configure({ mode: "parallel" });

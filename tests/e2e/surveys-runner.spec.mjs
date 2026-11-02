@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { writeFileSync } from "node:fs";
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const surveyId = process.env.SURVEY_KRAPFENTAXI_ID;
