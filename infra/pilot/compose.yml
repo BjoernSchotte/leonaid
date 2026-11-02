@@ -149,7 +149,7 @@ services:
       retries: 20
 
   prometheus:
-    image: docker.io/prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
+    image: docker.io/prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     profiles: ["monitoring"]
     logging: *default-logging
     restart: unless-stopped
@@ -172,7 +172,7 @@ services:
         condition: service_healthy
 
   alertmanager:
-    image: docker.io/prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
+    image: docker.io/prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
     profiles: ["monitoring"]
     logging: *default-logging
     restart: unless-stopped

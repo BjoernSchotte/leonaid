@@ -65,7 +65,7 @@ compose --profile '*' config --format json | python3 "$root/tools/testing/reserv
 
 docker run --rm \
   -v "$root:/repo:ro" \
-  docker.io/library/python:3.13.13-slim-trixie@sha256:aa938a849bcb82dce8f49480f056ab82bf5c1c3ebc294f0430f37b6820e7f286 \
+  docker.io/library/python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 \
   python /repo/tools/schema/check_migrations.py /repo/migrations/versions
 
 echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"

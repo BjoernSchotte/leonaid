@@ -72,8 +72,8 @@ Dokumentsignaturen werden anschließend gegen die gesammelten Logs geprüft.
 Für den Pilot ergänzt das Compose-Profil `monitoring` den bestehenden
 Operations-Vertrag um:
 
-- Prometheus 3.13.0 für Scraping und zehn versionierte P0/P1/P2-Regeln;
-- Alertmanager 0.32.1 für Gruppierung, Deduplizierung und gelöste Meldungen;
+- Prometheus 3.15.1 für Scraping und zehn versionierte P0/P1/P2-Regeln;
+- Alertmanager 0.34.2 für Gruppierung, Deduplizierung und gelöste Meldungen;
 - einen kleinen LeonAid-Exporter für Backupalter, Kapazität und öffentliches
   TLS ohne Docker-Socket oder privilegierten Container;
 - einen extern konfigurierten Webhook aus einer privaten 0600-Datei. Dieser
