@@ -147,7 +147,7 @@ curl --fail --silent \
   "http://crm.localhost:$port/healthz" | grep -q '"status":"ok"'
 
 echo "compose-test: schreibe das echte Golden Dataset nach PostgreSQL und RustFS"
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/compose/persistence_probe.py write "$fixture"
@@ -164,7 +164,7 @@ phase compose-restart compose restart
 phase compose-restart-ready compose up --detach --wait --wait-timeout 420
 python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/compose/persistence_probe.py verify "$fixture"

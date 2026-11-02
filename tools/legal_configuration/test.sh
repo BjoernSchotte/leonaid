@@ -86,7 +86,7 @@ compose up --detach --wait --wait-timeout 420 api
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${project}-api"
 
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --volume "$root:/repo:ro" \
   --volume "$proof/pdfs:/proof/pdfs:ro" \

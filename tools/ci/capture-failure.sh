@@ -42,7 +42,7 @@ docker compose \
   --project-name "$project" \
   --env-file "$root/.env.local" \
   --file "$root/infra/compose/compose.yml" \
-  run --rm --no-deps \
+  run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$root/.env.local" \
   --env PYTHONPATH=/repo/src \
   --volume "$root:/repo:ro" \

@@ -6,6 +6,14 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends --only-upgrade perl-base \
     && rm -rf /var/lib/apt/lists/*
 
+# Fixed, unprivileged runtime identity. The uid/gid are part of the operations
+# contract: the core-volume-init service in compose.yml hands volumes written by
+# older root-running releases over to exactly this uid.
+RUN groupadd --system --gid 10001 leonaid \
+    && useradd --system --uid 10001 --gid 10001 --home-dir /home/leonaid \
+      --create-home --shell /usr/sbin/nologin leonaid \
+    && install -d -o 10001 -g 10001 -m 0750 /recovery/survey-erasure
+
 WORKDIR /workspace
 ENV PATH="/workspace/.venv/bin:${PATH}" \
     PYTHONPATH="/workspace/src" \
@@ -24,3 +32,8 @@ COPY apps ./apps
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY infra/compose/start-api.sh ./infra/compose/start-api.sh
+
+# Runtime uv calls (e.g. `uv run alembic` during pilot-release) must not need a
+# writable home: the root filesystem is read-only and only /tmp is a tmpfs.
+ENV UV_CACHE_DIR=/tmp/uv-cache
+USER 10001:10001

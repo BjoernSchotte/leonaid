@@ -73,7 +73,7 @@ compose build api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --no-deps --entrypoint alembic api upgrade head
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/schema/smoke.py
@@ -87,7 +87,7 @@ compose exec -T core-postgres sh -ec \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   <"$root/tests/fixtures/schema/v0.sql"
 compose run --rm --no-deps --entrypoint alembic api upgrade head
-compose run --rm --no-deps \
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy

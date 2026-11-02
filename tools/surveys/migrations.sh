@@ -44,7 +44,7 @@ run() {
   database=$1
   entrypoint=$2
   shift 2
-  docker run --rm --network "$project" \
+  docker run --rm --network "$project" --user "$(id -u):$(id -g)" \
     --env "CORE_DATABASE_URL=postgresql://postgres:synthetic-survey-proof@postgres:5432/$database" \
     --volume "$root:/repo:ro" --volume "$proof:/proof" --workdir /workspace \
     --entrypoint "$entrypoint" "$project" "$@"

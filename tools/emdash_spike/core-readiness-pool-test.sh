@@ -41,7 +41,7 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
 compose up --detach --wait core-postgres
 compose up --no-deps --build --detach --wait api
 probe() {
-  compose run --rm --no-deps --volume "$root:/repo:ro" \
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps --volume "$root:/repo:ro" \
     --env PYTHONPATH=/repo:/workspace/src --entrypoint python \
     api /repo/tools/emdash_spike/core_readiness_pool.py "$@"
 }
