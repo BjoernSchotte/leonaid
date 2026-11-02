@@ -19,8 +19,8 @@ class PeerPolicyTest(unittest.TestCase):
         self.write(
             "package.json",
             {
-                "packageManager": "bun@1.2.19",
-                "engines": {"bun": "1.2.19", "node": "22.23.0"},
+                "packageManager": "bun@1.4.4",
+                "engines": {"bun": "1.4.4", "node": "22.23.4"},
             },
         )
         self.write("bun.lock", {"lockfileVersion": 1})

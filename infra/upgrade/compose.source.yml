@@ -13,3 +13,10 @@ services:
       ["redis-server", "--maxmemory", "192mb", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+  # Releases before the 2026-11 base-image refresh ran PostgreSQL 16.9 on
+  # Alpine 3.21. The minor upgrade keeps the on-disk format; the target images
+  # must start on these data directories without a dump/restore.
+  core-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+  twenty-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42

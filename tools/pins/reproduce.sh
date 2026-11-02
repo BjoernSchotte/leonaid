@@ -23,7 +23,7 @@ for checkout in "$checkout_a" "$checkout_b"; do
     -v "$checkout:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
-    uv sync --frozen --no-install-project --python 3.13.13
+    uv sync --frozen --no-install-project --python 3.13.18
   docker run --rm \
     --user "$runner_user" \
     -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \

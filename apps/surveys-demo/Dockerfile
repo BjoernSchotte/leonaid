@@ -1,9 +1,9 @@
-FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS packed
+FROM docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a AS packed
 WORKDIR /package
 COPY packages/surveys ./
 RUN mkdir /artifact && bun pm pack --ignore-scripts --filename /artifact/surveys.tgz
 
-FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS consumer
+FROM docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a AS consumer
 WORKDIR /consumer
 COPY --from=packed /artifact /artifact
 COPY apps/surveys-demo/package.template.json ./package.json
