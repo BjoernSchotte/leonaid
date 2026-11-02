@@ -15,16 +15,15 @@ from leonaid.adapters.operations import structured_event
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_retention import sweep_retention
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
+from leonaid.bootstrap.worker import background_loops, build_worker
 from leonaid.entrypoints.worker.health import LoopHealth, error_location
 from leonaid.configuration import ConfigurationError, load_retention_settings
-from leonaid.entrypoints.worker.outbox import build_worker, configuration_problems
+from leonaid.entrypoints.worker.outbox import configuration_problems
 from leonaid.entrypoints.worker.retention import (
     RetentionResult,
     sweep_operational_retention,
 )
+from leonaid.platform.background import BackgroundLoop
 
 CLAIM_LEASE_SECONDS = float(os.environ.get("OUTBOX_CLAIM_LEASE_SECONDS", "300"))
 
@@ -32,7 +31,6 @@ CLAIM_LEASE_SECONDS = float(os.environ.get("OUTBOX_CLAIM_LEASE_SECONDS", "300"))
 # object storage), so the outbox loop counts as stalled only after that.
 postgres_health = LoopHealth("postgres", stall_after_seconds=10)
 outbox_health = LoopHealth("outbox", stall_after_seconds=CLAIM_LEASE_SECONDS + 30)
-survey_health = LoopHealth("survey_sweep", stall_after_seconds=60)
 
 
 def _retention_interval_seconds() -> float:
@@ -50,7 +48,18 @@ retention_health = LoopHealth(
     "retention",
     stall_after_seconds=_retention_interval_seconds() + 300,
 )
-LOOPS = (postgres_health, outbox_health, survey_health, retention_health)
+# Module loops need only the database URL; a missing URL fails at startup in
+# configuration_problems, so the module stays importable for that check.
+MODULE_LOOPS: tuple[BackgroundLoop, ...] = background_loops(
+    os.environ.get("CORE_DATABASE_URL", "")
+)
+MODULE_LOOP_HEALTH = tuple(
+    LoopHealth(loop.name, stall_after_seconds=loop.stall_after_seconds)
+    for loop in MODULE_LOOPS
+)
+LOOPS = (postgres_health, outbox_health, *MODULE_LOOP_HEALTH, retention_health)
+if len({loop.name for loop in LOOPS}) != len(LOOPS):
+    raise RuntimeError("Worker loop names must be unique.")
 RETENTION_DELETED = {"outbox_event": 0, "security_rate_attempt": 0}
 
 
@@ -234,29 +243,17 @@ async def database_readiness_loop() -> None:
         await asyncio.sleep(probe_interval)
 
 
-async def survey_timeout_loop() -> None:
-    """Independent five-second sweep; catch up in bounded batches after outages."""
-    while True:
-        pool = None
-        try:
-            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
-            repository = AsyncpgSurveyRepository(pool)
-            publisher = configured_publisher(pool)
-            while True:
-                closed = await repository.close_due_surveys()
-                count = await repository.classify_overdue()
-                retained = await sweep_retention(pool, checkpoint_publisher=publisher)
-                record_success(survey_health)
-                await asyncio.sleep(
-                    0.25 if count == 1000 or closed == 100 or retained == 100 else 5
-                )
-        except Exception as error:
-            # Logged by type and location only, never with private row data.
-            delay = record_failure(survey_health, error)
-            await asyncio.sleep(delay)
-        finally:
-            if pool is not None:
-                await pool.close()
+class HealthReporter:
+    """Connects one module loop to the shared health bookkeeping."""
+
+    def __init__(self, health: LoopHealth) -> None:
+        self._health = health
+
+    def succeeded(self) -> None:
+        record_success(self._health)
+
+    def failed(self, error: Exception) -> float:
+        return record_failure(self._health, error)
 
 
 async def retention_loop() -> None:
@@ -293,7 +290,10 @@ async def service_loop() -> None:
     await asyncio.gather(
         durable_worker_loop(),
         database_readiness_loop(),
-        survey_timeout_loop(),
+        *(
+            loop.run(HealthReporter(health))
+            for loop, health in zip(MODULE_LOOPS, MODULE_LOOP_HEALTH, strict=True)
+        ),
         retention_loop(),
     )
 
