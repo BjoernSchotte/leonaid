@@ -114,6 +114,57 @@ def positive_number(value: object) -> bool:
         return False
 
 
+# Memory budget of the pilot VPS (DOC-P027, "Runtime limits and identity").
+# Limits are ceilings, not reservations, but their sum must still fit the host
+# so that no single service can push the kernel into a host-wide OOM kill.
+PILOT_HOST_MEMORY_MIB = 8192
+HOST_RESERVE_MIB = 1536  # operating system, Docker daemon, page cache
+# pilot-exporter 128m + prometheus 256m + alertmanager 64m (infra/pilot).
+MONITORING_MEMORY_MIB = 448
+CORE_MEMORY_BUDGET_MIB = (
+    PILOT_HOST_MEMORY_MIB - HOST_RESERVE_MIB - MONITORING_MEMORY_MIB
+)
+# A pinned V8 heap must leave room for native memory (buffers, code, stacks)
+# below the container limit, or the kernel kills Node before V8 throws.
+NODE_NATIVE_RESERVE_MIB = 256
+MAX_OLD_SPACE = re.compile(r"--max-old-space-size=(\d+)")
+MEMORY_UNITS = {"": 1, "b": 1, "k": 1024, "m": 1024**2, "g": 1024**3}
+MEMORY_VALUE = re.compile(r"(\d+(?:\.\d+)?)\s*([bkmg]?)b?", re.IGNORECASE)
+
+
+def memory_mib(value: object) -> float:
+    """Compose mem_limit (bytes or a value with b/k/m/g suffix) in MiB."""
+    match = MEMORY_VALUE.fullmatch(str(value).strip())
+    if match is None:
+        raise DeploymentContractError(f"unreadable mem_limit: {value!r}")
+    return float(match.group(1)) * MEMORY_UNITS[match.group(2).lower()] / 1024**2
+
+
+def validate_memory_budget(services: dict[str, Any]) -> None:
+    total = 0.0
+    for service_name, service in services.items():
+        limit = memory_mib(service["mem_limit"])
+        total += limit
+        environment = service.get("environment")
+        node_options = (
+            str(environment.get("NODE_OPTIONS", ""))
+            if isinstance(environment, dict)
+            else ""
+        )
+        heap = MAX_OLD_SPACE.search(node_options)
+        if heap is not None and int(heap.group(1)) + NODE_NATIVE_RESERVE_MIB > limit:
+            raise DeploymentContractError(
+                f"{service_name}: --max-old-space-size={heap.group(1)} leaves less "
+                f"than {NODE_NATIVE_RESERVE_MIB} MiB native memory below mem_limit"
+            )
+    if total > CORE_MEMORY_BUDGET_MIB:
+        raise DeploymentContractError(
+            f"memory limits total {total:.0f} MiB and exceed the pilot budget of "
+            f"{CORE_MEMORY_BUDGET_MIB} MiB (8 GiB host minus OS reserve and "
+            "monitoring)"
+        )
+
+
 def validate_runtime_limits(service_name: str, service: dict[str, Any]) -> None:
     for key in ("mem_limit", "cpus", "pids_limit"):
         if not positive_number(service.get(key)):
@@ -194,6 +245,8 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                 raise DeploymentContractError(
                     f"{service_name} contains an unapproved bind mount"
                 )
+
+    validate_memory_budget(services)
 
     admin_ports = [
         host_port
