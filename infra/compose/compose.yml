@@ -408,7 +408,10 @@ services:
     # closing, which the kernel ignores for PID 1, so `docker stop` would end
     # in SIGKILL. The init process forwards the signal and reaps children.
     init: true
-    mem_limit: 1600m
+    # Peak 1218 MiB (2026-11, Twenty 2.54): every start first runs
+    # `yarn command:prod upgrade` (node up to ~1085 MiB RSS plus the yarn
+    # wrapper) before `node dist/main`. 1728m keeps that peak at 70 %.
+    mem_limit: 1728m
     cpus: 2
     pids_limit: 512
     environment:
@@ -426,9 +429,9 @@ services:
         SIGN_IN_PREFILLED: "false"
         IS_EMAIL_VERIFICATION_REQUIRED: "false"
         IS_MULTIWORKSPACE_ENABLED: "false"
-      # Node sizes the V8 old space from the cgroup limit (896 MiB at
-      # 1600m). Pin it: measured heapUsed peaks at 671 MiB, and RSS adds
-      # ~250 MiB native memory, so 1024 MiB keeps ~330 MiB headroom.
+      # Node sizes the V8 old space from the cgroup limit unless pinned.
+      # Measured heapUsed peaks at 711 MiB of the 1072 MiB heap limit (66 %,
+      # CRM import), and RSS adds ~230 MiB native memory beyond heapTotal.
       NODE_OPTIONS: --max-old-space-size=1024
     volumes:
       - twenty-server-data:/app/packages/twenty-server/.local-storage
@@ -465,8 +468,8 @@ services:
       <<: *twenty-environment
       DISABLE_DB_MIGRATIONS: "true"
       DISABLE_CRON_JOBS_REGISTRATION: "true"
-      # heapUsed peaks at 553 MiB; 768 MiB plus ~230 MiB native memory stays
-      # well inside the 1400m limit.
+      # heapUsed peaks at 560 MiB of the 816 MiB heap limit (69 %, CRM
+      # import); RSS stays at most 860 MiB, well inside the 1400m limit.
       NODE_OPTIONS: --max-old-space-size=768
     volumes:
       - twenty-server-data:/app/packages/twenty-server/.local-storage
@@ -539,7 +542,7 @@ services:
       retries: 20
 
   rustfs:
-    image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
+    image: docker.io/rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
