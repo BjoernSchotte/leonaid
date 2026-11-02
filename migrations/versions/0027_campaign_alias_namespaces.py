@@ -19,7 +19,7 @@ DATA_MIGRATION_REFERENCE = (
     "Existing aliases and publication windows remain unchanged. Colliding aliases "
     "stop migration with a static error and require explicit operator resolution."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 # Frozen migration inventory, deliberately not imported from mutable runtime code.
 RESERVED = (

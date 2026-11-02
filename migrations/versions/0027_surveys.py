@@ -15,7 +15,7 @@ depends_on = None
 DATA_MIGRATION_REFERENCE = (
     "Additive survey tables; no existing product data is transformed."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

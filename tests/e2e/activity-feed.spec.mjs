@@ -46,7 +46,7 @@ async function expectNoSeriousA11yIssues(page) {
   ).toEqual([]);
 }
 
-test("Anna sieht exklusive und gemeinsame öffentliche Bestellungen", async ({
+test("Anna sees exclusive and shared public orders", async ({
   browser,
 }) => {
   const { context, page } = await pageFor(browser, annaSession, {
@@ -114,7 +114,7 @@ test("Anna sieht exklusive und gemeinsame öffentliche Bestellungen", async ({
   }
 });
 
-test("Bernd sieht den gemeinsam betreuten Sponsor mit eigener Folgeaktion", async ({
+test("Bernd sees the jointly managed sponsor with their own follow-up action", async ({
   browser,
 }) => {
   const { context, page } = await pageFor(browser, berndSession, {
@@ -142,7 +142,7 @@ test("Bernd sieht den gemeinsam betreuten Sponsor mit eigener Folgeaktion", asyn
   }
 });
 
-test("Klara bearbeitet die unzugeordnete Bestellung im Admin-Arbeitsvorrat", async ({
+test("Klara handles the unassigned order in the admin work queue", async ({
   browser,
 }) => {
   const { context, page } = await pageFor(browser, klaraSession, {

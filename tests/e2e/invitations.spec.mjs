@@ -19,7 +19,7 @@ if (
   !uiRevokeInvitationId ||
   !uiEmailConfirmToken
 ) {
-  throw new Error("POC-041 Browserumgebung ist unvollständig");
+  throw new Error("POC-041 browser environment is incomplete");
 }
 
 async function sessionPage(browser, token) {
@@ -45,7 +45,7 @@ async function sessionPage(browser, token) {
   return { context, page };
 }
 
-test("Charity-Admin kann nur eine selbst verwaltete Aktion auswählen", async ({
+test("charity admin can select only an action they manage", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(browser, klaraSession);
@@ -83,7 +83,7 @@ test("Charity-Admin kann nur eine selbst verwaltete Aktion auswählen", async ({
   }
 });
 
-test("System-Admin erhält die global einladbaren Aktionen", async ({
+test("system admin gets the globally invitable actions", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(browser, systemSession);
@@ -98,7 +98,7 @@ test("System-Admin erhält die global einladbaren Aktionen", async ({
   }
 });
 
-test("Charity-Admin verwaltet den vollständigen Einladungsverlauf", async ({
+test("charity admin manages the full invitation history", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(browser, klaraSession);
@@ -161,7 +161,7 @@ test("Charity-Admin verwaltet den vollständigen Einladungsverlauf", async ({
   }
 });
 
-test("Öffentliche Code-Eingabe ist mobil bedienbar", async ({ browser }) => {
+test("public code entry is usable on mobile", async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,
@@ -187,7 +187,7 @@ test("Öffentliche Code-Eingabe ist mobil bedienbar", async ({ browser }) => {
   }
 });
 
-test("System-Admin fordert E-Mail-Korrektur verständlich an", async ({
+test("system admin requests an email correction clearly", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -232,7 +232,7 @@ test("System-Admin fordert E-Mail-Korrektur verständlich an", async ({
   }
 });
 
-test("Neue Login-E-Mail wird öffentlich bestätigt", async ({ browser }) => {
+test("new login email is confirmed publicly", async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,

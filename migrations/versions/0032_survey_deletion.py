@@ -11,7 +11,7 @@ down_revision = "0031_survey_exports"
 branch_labels = None
 depends_on = None
 DATA_MIGRATION_REFERENCE = "Additive erasure ledger; no existing survey is deleted."
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

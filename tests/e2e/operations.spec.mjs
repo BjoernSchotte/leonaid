@@ -8,12 +8,12 @@ const simoneSession = process.env.SIMONE_SESSION;
 const correlationId = "poc114-browser-correlation";
 
 if (!baseUrl || !artifactDirectory || !simoneSession) {
-  throw new Error("POC-114 Browserumgebung ist unvollständig");
+  throw new Error("POC-114 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
 
-test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
+test("system admin detects outages and retries a real mail job", async ({
   browser,
 }) => {
   const context = await browser.newContext({

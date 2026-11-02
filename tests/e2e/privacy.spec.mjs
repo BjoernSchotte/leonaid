@@ -7,7 +7,7 @@ const simoneSession = process.env.SIMONE_SESSION;
 const subjectEmail = "mara.muster@musterwerk.leonaid.invalid";
 
 if (!baseUrl || !artifactDirectory || !simoneSession) {
-  throw new Error("POC-111 Browserumgebung ist unvollständig");
+  throw new Error("POC-111 browser environment is incomplete");
 }
 
 test.setTimeout(120_000);
@@ -29,7 +29,7 @@ async function streamText(stream) {
   return value;
 }
 
-test("System-Admin führt Auskunft, Sperre und Anonymisierung kontrolliert aus", async ({
+test("system admin runs access request, restriction and anonymization in a controlled way", async ({
   browser,
 }) => {
   const context = await browser.newContext({

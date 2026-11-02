@@ -18,10 +18,10 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 DATA_MIGRATION_REFERENCE = (
-    "Bestehende Löschprotokolle behalten ihre bisherigen Gründe; neue Fälle "
-    "speichern zusätzlich die freigegebene Aufbewahrungsregel unveränderlich."
+    "Existing erasure logs keep their previous reasons; new cases also "
+    "store the approved retention rule immutably."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

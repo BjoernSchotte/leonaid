@@ -160,7 +160,7 @@ class Settings(BaseSettings):
         raw = value.get_secret_value() if isinstance(value, SecretStr) else value
         if not isinstance(raw, str) or re.fullmatch(r"[0-9a-f]{64}", raw) is None:
             raise ValueError(
-                "Bestellschlüssel muss 32 zufällige Bytes als Hex enthalten."
+                "Order submission key must be 32 random bytes as hex."
             )
         return value
 
@@ -174,7 +174,7 @@ class Settings(BaseSettings):
             or parsed.username is None
             or parsed.path in {"", "/"}
         ):
-            raise ValueError("ungültiger PostgreSQL-DSN")
+            raise ValueError("invalid PostgreSQL DSN")
         return value
 
     @model_validator(mode="after")
@@ -183,8 +183,8 @@ class Settings(BaseSettings):
             self.pilot_alertmanager_url is None
         ):
             raise ValueError(
-                "Pilot-Monitoringstatus und Alertmanager müssen gemeinsam "
-                "konfiguriert sein."
+                "Pilot monitor status and Alertmanager must be configured "
+                "together."
             )
         if self.environment != "production":
             return self
@@ -196,33 +196,33 @@ class Settings(BaseSettings):
             )
             is None
         ):
-            raise ValueError("Produktion erfordert einen vollständigen Release-Commit.")
+            raise ValueError("Production requires a full release commit.")
         if self.public_base_url.scheme != "https" or _is_forbidden_public_host(
             self.public_base_url.host
         ):
-            raise ValueError("Produktion erfordert eine öffentliche HTTPS-Basis-URL.")
+            raise ValueError("Production requires a public HTTPS base URL.")
         if not self.trust_proxy_headers:
             raise ValueError(
-                "Produktion erfordert validierte Proxy-Header am Caddy-Rand."
+                "Production requires validated proxy headers at the Caddy edge."
             )
         for origin in self.allowed_origins:
             parsed = urlparse(origin)
             if parsed.scheme != "https" or _is_forbidden_public_host(parsed.hostname):
                 raise ValueError(
-                    "Produktive Origins müssen öffentliche HTTPS-Origins sein."
+                    "Production origins must be public HTTPS origins."
                 )
         if (self.mail_health_url.host or "").casefold() == "mailpit":
-            raise ValueError("Mailpit ist in Produktion nicht erlaubt.")
+            raise ValueError("Mailpit is not allowed in production.")
         if self.object_storage_bucket == "leonaid":
             raise ValueError(
-                "Produktion erfordert einen umgebungsspezifischen Object-Store-Bucket."
+                "Production requires an environment-specific object store bucket."
             )
         if (
             self.invitation_hmac_secret.get_secret_value()
             == self.mail_payload_secret.get_secret_value()
         ):
             raise ValueError(
-                "Produktive HMAC- und Payload-Secrets müssen getrennt sein."
+                "Production HMAC and payload secrets must differ."
             )
         return self
 
@@ -336,14 +336,14 @@ class MailTransportSettings(BaseSettings):
     def model_post_init(self, __context: object) -> None:
         if (self.username is None) != (self.password is None):
             raise ValueError(
-                "SMTP-Benutzername und -Passwort müssen gemeinsam gesetzt sein."
+                "SMTP username and password must be set together."
             )
         if self.environment == "production":
             if self.mode == "plain":
-                raise ValueError("Produktiver SMTP-Versand erfordert TLS.")
+                raise ValueError("Production SMTP delivery requires TLS.")
             if not self.verify_certificates:
                 raise ValueError(
-                    "Produktiver SMTP-Versand erfordert Zertifikatsprüfung."
+                    "Production SMTP delivery requires certificate verification."
                 )
             sender_address = parseaddr(self.sender)[1]
             sender_domain = (
@@ -353,7 +353,7 @@ class MailTransportSettings(BaseSettings):
             )
             if not sender_domain or _is_forbidden_public_host(sender_domain):
                 raise ValueError(
-                    "Produktion erfordert eine Absenderadresse mit realer Domain."
+                    "Production requires a sender address with a real domain."
                 )
             for label, value in (
                 ("Envelope-From", self.envelope_from),
@@ -367,12 +367,12 @@ class MailTransportSettings(BaseSettings):
                 )
                 if not domain or _is_forbidden_public_host(domain):
                     raise ValueError(
-                        f"Produktion erfordert ein explizites {label} "
-                        "mit realer Domain."
+                        f"Production requires an explicit {label} "
+                        "with a real domain."
                     )
             if self.host.casefold() in {"mailpit", "localhost"}:
                 raise ValueError(
-                    "Mailpit und Loopback-SMTP sind in Produktion verboten."
+                    "Mailpit and loopback SMTP are forbidden in production."
                 )
 
     def safe_summary(self) -> dict[str, str]:
@@ -449,7 +449,7 @@ def load_settings() -> Settings:
             }
         )
         raise ConfigurationError(
-            "LeonAid-Konfiguration ist ungültig: " + ", ".join(diagnostics)
+            "LeonAid configuration is invalid: " + ", ".join(diagnostics)
         ) from None
 
 
@@ -464,7 +464,7 @@ def load_mail_transport_settings() -> MailTransportSettings:
             }
         )
         raise ConfigurationError(
-            "LeonAid-Mailkonfiguration ist ungültig: " + ", ".join(diagnostics)
+            "LeonAid mail configuration is invalid: " + ", ".join(diagnostics)
         ) from None
 
 

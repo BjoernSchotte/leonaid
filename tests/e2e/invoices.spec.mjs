@@ -16,7 +16,7 @@ if (
   !klaraSession ||
   !finnSession
 ) {
-  throw new Error("POC-090 Browserumgebung ist unvollständig");
+  throw new Error("POC-090 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -107,7 +107,7 @@ function sessionCookie(value) {
   };
 }
 
-test("Fresh Login schützt Freigabe und Finanzrolle sieht den Beleg unveränderlich", async ({
+test("fresh login protects approval and finance role sees the invoice unchanged", async ({
   browser,
 }) => {
   const adminContext = await browser.newContext({

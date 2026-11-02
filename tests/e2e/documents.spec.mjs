@@ -26,7 +26,7 @@ if (
   !financeSession ||
   !foreignAdminSession
 ) {
-  throw new Error("POC-093 Browserumgebung ist unvollständig");
+  throw new Error("POC-093 browser environment is incomplete");
 }
 
 test.setTimeout(90_000);
@@ -112,7 +112,7 @@ async function expectStableTopLevelPreview(context, row) {
   return preview;
 }
 
-test("Charity-Admin findet, öffnet und lädt das Typst-PDF byteidentisch", async ({
+test("charity admin finds, opens and downloads the Typst PDF byte-identical", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -149,7 +149,7 @@ test("Charity-Admin findet, öffnet und lädt das Typst-PDF byteidentisch", asyn
   }
 });
 
-test("Finanzrolle sieht den Beleg mobil, Akquise und Fremdaktion erhalten keine Bytes", async ({
+test("finance role sees the invoice on mobile; acquisition and foreign actions get no bytes", async ({
   browser,
 }) => {
   const financeContext = await browser.newContext({

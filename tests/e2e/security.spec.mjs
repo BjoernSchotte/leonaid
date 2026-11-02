@@ -4,10 +4,10 @@ const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
 if (!baseUrl || !artifactDirectory) {
-  throw new Error("POC-110 Browserumgebung ist unvollständig");
+  throw new Error("POC-110 browser environment is incomplete");
 }
 
-test("Login-Rate-Limit erklärt den sicheren nächsten Schritt", async ({
+test("login rate limit explains the safe next step", async ({
   page,
 }) => {
   await page.goto(`${baseUrl}/login`);

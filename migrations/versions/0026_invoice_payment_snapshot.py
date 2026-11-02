@@ -18,14 +18,13 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 DATA_MIGRATION_REFERENCE = (
-    "Rechnungsprofile übernehmen Bankdaten aus ihrer gebundenen "
-    "Rechtskonfiguration. Bestehende Rechnungen werden nur aus einer solchen "
-    "Version oder der aktiven Rechtskonfiguration migriert. Bereits in 0012 "
-    "explizit quarantänisierte Altbelege behalten einen ebenso expliziten "
-    "Migrationsmarker; alle anderen unaufgelösten Belege brechen das Upgrade "
-    "fail-closed ab."
+    "Invoice profiles take bank details from their bound legal "
+    "configuration. Existing invoices are migrated only from such a "
+    "version or from the active legal configuration. Legacy invoices "
+    "explicitly quarantined in 0012 keep an equally explicit migration "
+    "marker; any other unresolved invoice aborts the upgrade (fail closed)."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 SNAPSHOT_PROTECTION = """
 CREATE OR REPLACE FUNCTION protect_invoice_issue_snapshot()

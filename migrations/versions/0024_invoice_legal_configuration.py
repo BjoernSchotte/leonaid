@@ -18,10 +18,10 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 DATA_MIGRATION_REFERENCE = (
-    "Bestehende Rechnungsprofile bleiben bewusst ungebunden und damit bis "
-    "zur nächsten freigegebenen Rechtskonfiguration fail-closed."
+    "Existing invoice profiles stay unbound on purpose and therefore "
+    "fail closed until the next approved legal configuration."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

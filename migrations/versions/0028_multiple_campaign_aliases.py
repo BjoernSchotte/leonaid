@@ -21,7 +21,7 @@ DATA_MIGRATION_REFERENCE = (
     "switch timestamps. Downgrade refuses additional or edited aliases instead "
     "of silently discarding them. Resolve them explicitly before downgrade."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

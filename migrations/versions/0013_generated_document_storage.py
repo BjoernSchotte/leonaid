@@ -18,11 +18,11 @@ depends_on: str | Sequence[str] | None = None
 
 NOW = sa.text("CURRENT_TIMESTAMP")
 DATA_MIGRATION_REFERENCE = (
-    "upgrade() setzt bestehende Rechnungsdokumente auf pending, verwirft deren "
-    "nicht versionierbare Legacy-Referenz und plant eine idempotente "
-    "Neuerzeugung über die vorhandene Outbox ein."
+    "upgrade() sets existing invoice documents to pending, drops their "
+    "unversionable legacy reference and schedules an idempotent "
+    "regeneration through the existing outbox."
 )
-BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
+BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
 
 def upgrade() -> None:

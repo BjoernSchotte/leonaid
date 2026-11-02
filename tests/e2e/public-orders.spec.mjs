@@ -98,7 +98,7 @@ async function submitOrder(form) {
   return { reference, success };
 }
 
-test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Formular", async ({
+test("new company, existing company and private person order in the guided form", async ({
   page,
 }) => {
   const proof = {
