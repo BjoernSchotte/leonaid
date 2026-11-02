@@ -44,7 +44,7 @@
 	route @oversized_order {
 		# Reject before a proxy request-body reader is started. Bound the HTTP/1
 		# server's post-response drain as well as returning an immediate error.
-		request_body {
+		timeouts {
 			read_timeout 1s
 		}
 		header Cache-Control no-store

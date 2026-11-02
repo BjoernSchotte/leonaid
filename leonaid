@@ -699,6 +699,7 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
+  /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
