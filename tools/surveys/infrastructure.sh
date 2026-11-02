@@ -274,7 +274,7 @@ if [ "$mode" = deletion-ui ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery_live.py seed
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+  docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
     --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
@@ -282,7 +282,7 @@ if [ "$mode" = deletion-ui ]; then
     --grep 'trash and request' --browser=chromium --output=/proof/test-results --reporter=line
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/deletion_ui_live.py
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+  docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
     --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
@@ -483,7 +483,7 @@ if [ "$mode" = runner ]; then
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
-phase survey-browser docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+phase survey-browser docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
