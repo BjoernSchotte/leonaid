@@ -4,9 +4,9 @@ description: Häufige Betriebsfehler mit Doctor, Healthchecks und sicheren Korre
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: a559b9ef8ece443011652ff6d5dd490a04dc139f
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
 reviewer: Björn Schotte
 ---
 
@@ -32,7 +32,14 @@ Tokens, E-Mail-Adressen oder Dokumentbytes.
   annimmt. Lokal hilft `./leonaid provision-twenty`, im Pilotbetrieb
   `./leonaid pilot-release --twenty-bootstrap-file FILE`. Die Prüfung zählt
   außerdem Datensätze ohne Schlüssel; `repair-crm-match-keys` schließt diese
-  Lücke.
+  Lücke (Pilot: `pilot-repair-crm-match-keys --env-file FILE`, den die
+  `leonaid-crm-repair`-Timer planmäßig ausführen und der im Wartungsmodus
+  aussetzt).
+- **Keine Mail vom CRM (Pilot):** Twentys Worker versendet Bestätigungs-,
+  Passwort-Reset- und Einladungsmails über das `MAIL_SMTP_*`-Relay und das
+  Netz `mail-egress`. Prüfe die Logs von `twenty-worker` auf den SMTP-Fehler,
+  ob `MAIL_SMTP_PORT` zu `MAIL_SMTP_MODE` passt (465 nur mit `tls`) und ob
+  das Relay-Zertifikat von einer öffentlichen CA stammt.
 - **Schreibzugriff liefert 503:** Prüfe
   `infra/upgrade/maintenance.sh status`. Deaktiviere Wartung erst nach gesunden
   Abhängigkeiten und bestandenen Verträgen.

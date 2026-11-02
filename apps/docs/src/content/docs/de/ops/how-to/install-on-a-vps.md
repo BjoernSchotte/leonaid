@@ -1,18 +1,19 @@
 ---
 title: LeonAid auf einem frischen VPS installieren
-description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstinstallation mit täglichem Backup, Heartbeat und Uptime-Check ausführen.
+description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstinstallation mit Mailversand, täglichem Backup, geplanter CRM-Reparatur, Heartbeat und Uptime-Check ausführen.
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 23a9e097deca6adb75a1c460a144f9354d403b6d
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 387fe4766a067c6c8ff40079cc4f197824599259
 reviewer: Björn Schotte
 ---
 
 Diese Anleitung führt von einem leeren virtuellen Server zu einer laufenden
 LeonAid-Installation für einen Club. Sie endet mit `./leonaid pilot-install`,
-einem täglichen Backup-Timer und einem externen Heartbeat. Spätere Releases
+einem täglichen Backup-Timer, der geplanten Reparatur der CRM-Abgleichschlüssel
+und einem externen Heartbeat. Spätere Releases
 folgen [Eine Pilotinstallation bereitstellen](/de/ops/how-to/deploy-pilot/).
 
 :::caution[Entwicklungs- und Pilotstand]
@@ -32,7 +33,10 @@ Pilotentscheidungen brauchen für jede Installation eine eigene Abnahme.
   `portal.club.org`) und einer für das CRM (zum Beispiel `crm.club.org`).
 - **Backupziel:** ein S3-kompatibler Bucket bei einem anderen Anbieter.
   Backups liegen nie nur auf demselben Server.
-- **Mail:** ein SMTP-Zugang für die Absenderdomain des Clubs.
+- **Mail:** ein SMTP-Zugang für die Absenderdomain des Clubs. LeonAid und
+  Twenty CRM versenden beide darüber. Das Relay braucht ein Zertifikat einer
+  öffentlichen CA, und der Server muss es ausgehend auf Port 587 (STARTTLS)
+  oder 465 (implizites TLS) erreichen.
 - **Alarmierung:** ein Operator-Webhook (Chat oder Incident-Werkzeug), ein
   externer Heartbeat-Check wie healthchecks.io und ein externer
   Uptime-Monitor.
@@ -206,10 +210,42 @@ Hand ausfüllst:
   `RESTIC_REPOSITORY`;
 - die acht Zeilen aus `release-images.env` (ersetze die Vorlagenzeilen);
 - Domains, `CADDY_ACME_EMAIL`, `MAIL_*` und den SMTP-Zugang;
+- `TWENTY_MAIL_FROM_ADDRESS` und `TWENTY_MAIL_FROM_NAME`, den Absender der
+  Twenty-eigenen Mails (siehe [Mail für LeonAid und Twenty](#mail-für-leonaid-und-twenty));
 - S3-Endpunkt und Bucket in `RESTIC_REPOSITORY`.
 
 Lass `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` stehen.
 `pilot-install` erzeugt den echten Key.
+
+### Mail für LeonAid und Twenty
+
+Das SMTP-Relay konfigurierst du einmal über die Schlüssel `MAIL_SMTP_*`.
+Der Core-Worker versendet darüber Login-Codes, Einladungen und Rechnungen.
+Twenty versendet über dasselbe Relay Adressbestätigung, Passwort-Reset und
+Einladungen. Beide Absender erreichen das Relay nur über das eigene Netz
+`mail-egress`; alle anderen internen Netze haben keinen Weg nach draußen.
+
+| `MAIL_SMTP_MODE` | `MAIL_SMTP_PORT` | Core-Worker | Twenty |
+| ---------------- | ---------------- | ----------- | ------ |
+| `starttls` | nicht 465, meist 587 | verlangt STARTTLS | wechselt per STARTTLS |
+| `tls` | 465 | implizites TLS | implizites TLS |
+| `plain` | – | in Produktion abgelehnt | in Produktion abgelehnt |
+
+Beide prüfen das Relay-Zertifikat gegen die öffentlichen CAs, deshalb
+lehnt der Pilot `MAIL_SMTP_CA_FILE` ab. Pilot Doctor lehnt einen Port ab,
+der nicht zum Modus passt, weil Twenty auf Port 465 implizites TLS und auf
+jedem anderen Port STARTTLS verwendet.
+
+`TWENTY_MAIL_FROM_ADDRESS` muss eine reine Adresse in der Domain von
+`MAIL_FROM` sein, zum Beispiel `crm@club.org`. Dann decken SPF, DKIM und
+DMARC der Absenderdomain auch die Mails von Twenty ab.
+
+:::caution[STARTTLS in Twenty]
+Twenty 2.24 kann STARTTLS nicht erzwingen. Es wechselt zu TLS, wenn das
+Relay STARTTLS anbietet, was jeder seriöse Anbieter tut; ein Angreifer im
+Netzpfad könnte das Angebot aber unterdrücken. Nutze `MAIL_SMTP_MODE=tls`
+mit Port 465, wenn dein Anbieter es unterstützt.
+:::
 
 Lege danach die übrigen Secret-Dateien mit Modus `0600` an:
 
@@ -273,7 +309,7 @@ liegt oder wenn der Twenty-Key nicht mehr aussteht. Danach:
   Verifizierung, weil produktives Twenty unbestätigte Benutzer ablehnt;
 - schreibt es den Key in `production.env` (Modus `0600` bleibt);
 - startet es den vollständigen Stack mit aktiver E-Mail-Verifizierung und
-  meldet sich zum Beweis als Administrator an;
+  Twentys SMTP-Treiber und meldet sich zum Beweis als Administrator an;
 - erstellt es das erste verschlüsselte Backup, startet das Monitoring und
   führt den vollständigen Doctor aus.
 
@@ -304,6 +340,45 @@ Der Timer läuft täglich um 02:30 mit bis zu 45 Minuten Zufallsverzögerung.
 Einen verpassten Lauf holt er nach einem Neustart nach. Passe die Pfade in
 `/etc/leonaid/backup.env` an, wenn deine Struktur abweicht.
 
+## CRM-Abgleichschlüssel regelmäßig reparieren
+
+LeonAid findet Firmen und Personen in Twenty über einen gespeicherten
+Abgleichschlüssel. Datensätze, die jemand direkt in Twenty anlegt oder
+umbenennt (Oberfläche, CSV-Import), haben bis zur Reparatur keinen oder
+einen veralteten Schlüssel. Zwei Timer führen
+`./leonaid pilot-repair-crm-match-keys` im laufenden API-Container aus:
+
+- `leonaid-crm-repair.timer` alle 15 Minuten mit `--changed-within 30`:
+  Das Fenster überlappt den vorigen Lauf, ein verspäteter oder
+  ausgelassener Lauf verliert also nichts;
+- `leonaid-crm-repair-full.timer` täglich um 04:00 (bis zu 30 Minuten
+  Zufallsverzögerung) ohne Fenster: Er repariert alles, was das kurze
+  Fenster nicht sieht, etwa nach langer Wartung oder einem Serverausfall.
+
+```sh
+sudo cp /opt/leonaid/infra/pilot/systemd/leonaid-crm-repair.service \
+  /opt/leonaid/infra/pilot/systemd/leonaid-crm-repair.timer \
+  /opt/leonaid/infra/pilot/systemd/leonaid-crm-repair-full.service \
+  /opt/leonaid/infra/pilot/systemd/leonaid-crm-repair-full.timer \
+  /etc/systemd/system/
+sudo install -o leonaid -g leonaid -m 0600 \
+  /opt/leonaid/infra/pilot/systemd/crm-repair.env.example /etc/leonaid/crm-repair.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now leonaid-crm-repair.timer leonaid-crm-repair-full.timer
+sudo systemctl start leonaid-crm-repair-full.service
+journalctl -u leonaid-crm-repair-full.service -n 20
+systemctl list-timers 'leonaid-crm-repair*'
+```
+
+Ein erfolgreicher Lauf endet mit `crm-match-keys: OK:` und der Zahl der
+geprüften und reparierten Datensätze. Im Wartungsmodus (etwa während
+`pilot-release`) ist Twenty absichtlich gestoppt. Der Befehl meldet dann
+`SKIPPED` und endet erfolgreich, die Unit schlägt also nicht fehl. Beginnt
+die Wartung während eines Laufs, endet auch dieser als `SKIPPED`; der
+nächste Lauf und der nächtliche Volllauf holen alles nach. Er schlägt
+fehl, wenn der API-Container nicht läuft oder Twenty die Anfrage ablehnt;
+`journalctl` zeigt den Fehlercode ohne Secrets.
+
 ## Heartbeat und Uptime-Check einrichten
 
 Prometheus löst den Alarm `LeonAidWatchdog` ständig aus. Alertmanager schickt
@@ -322,10 +397,13 @@ danach `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env`
 aus, damit der Exporter das neue Release-Image verwendet.
 
 :::note[Weitere CRM-Benutzer]
-Produktives Twenty verlangt bestätigte E-Mail-Adressen, hat in diesem Release
-aber keinen Mailversand konfiguriert. `pilot-install` bestätigt nur den
-ersten Administrator. Plane einen Mailversand für Twenty, bevor du weitere
-CRM-Benutzer einlädst.
+Produktives Twenty verlangt bestätigte E-Mail-Adressen. `pilot-install`
+bestätigt den ersten Administrator direkt; jeder weitere CRM-Benutzer
+erhält die Bestätigungs- oder Einladungsmail über das Relay. Prüfe den Weg
+einmal nach der Installation: Fordere auf der CRM-Anmeldeseite einen
+Passwort-Reset für den Administrator an und prüfe, dass die Mail von
+`TWENTY_MAIL_FROM_ADDRESS` ankommt. Kommt sie nicht, zeigt
+`docker compose ... logs twenty-worker` den SMTP-Fehler.
 :::
 
 ## Nächste Schritte
