@@ -11,7 +11,8 @@ from pathlib import Path
 
 from tools.dx.generate_secrets import parse_env
 from tools.pilot_deployment.doctor import SECRET_KEYS
-from tools.pilot_install.production_secrets import PENDING_INTEGRATION_KEY
+from tools.pilot_deployment.doctor import PLACEHOLDER_MARKERS
+from tools.pilot_install.production_secrets import GENERATORS, PENDING_INTEGRATION_KEY
 
 # Provider-issued credentials cannot be generated; the operator enters them.
 OPERATOR_SECRETS = {"MAIL_SMTP_PASSWORD"}
@@ -86,6 +87,14 @@ def main() -> None:
         other = parse_env(second.read_text(encoding="utf-8"), second)
         if any(values[key] == other[key] for key in generated):
             raise AssertionError("two runs produced a repeated secret")
+    # URL-safe tokens hold "__" about once in eight draws; the doctor would
+    # read such a value as a placeholder. 2000 draws per generator make a
+    # regression practically certain to show.
+    for name, generate in GENERATORS.items():
+        for _ in range(2000):
+            value = generate()
+            if any(marker in value.casefold() for marker in PLACEHOLDER_MARKERS):
+                raise AssertionError(f"{name} produced a doctor placeholder marker")
     print(
         f"pilot-secrets-test: OK: {len(generated)} distinct fresh secrets, 0600, "
         "pending key, no overwrite and no secret output"

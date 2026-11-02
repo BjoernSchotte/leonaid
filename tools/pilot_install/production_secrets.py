@@ -23,16 +23,38 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.dx.generate_secrets import generate_identifier, generate_password, parse_env
+from tools.pilot_deployment.doctor import PLACEHOLDER_MARKERS
 
 PENDING_INTEGRATION_KEY = "PENDING_PILOT_INSTALL"
+
+
+def doctor_safe(generate: Callable[[], str]) -> Callable[[], str]:
+    """Draw again until the value carries no marker the doctor rejects.
+
+    URL-safe base64 contains "_", so about one token in eight holds "__",
+    which the pilot doctor reads as an unfilled placeholder.
+    """
+
+    def draw() -> str:
+        while True:
+            value = generate()
+            if not any(marker in value.casefold() for marker in PLACEHOLDER_MARKERS):
+                return value
+
+    return draw
+
+
 # The pilot doctor rejects secrets shorter than 24 characters.
 GENERATORS: dict[str, Callable[[], str]] = {
-    "__RANDOM_HEX_32_BYTES__": lambda: secrets.token_hex(32),
-    "__DISTINCT_RANDOM_HEX_32_BYTES__": lambda: secrets.token_hex(32),
-    "__DISTINCT_RANDOM_URLSAFE_32_BYTES__": lambda: secrets.token_urlsafe(32),
-    "__RANDOM_PASSWORD__": lambda: generate_password(32),
-    "__RANDOM_ACCESS_KEY__": lambda: generate_identifier(24),
-    "__RANDOM_SECRET_KEY__": lambda: generate_password(40),
+    name: doctor_safe(generate)
+    for name, generate in {
+        "__RANDOM_HEX_32_BYTES__": lambda: secrets.token_hex(32),
+        "__DISTINCT_RANDOM_HEX_32_BYTES__": lambda: secrets.token_hex(32),
+        "__DISTINCT_RANDOM_URLSAFE_32_BYTES__": lambda: secrets.token_urlsafe(32),
+        "__RANDOM_PASSWORD__": lambda: generate_password(32),
+        "__RANDOM_ACCESS_KEY__": lambda: generate_identifier(24),
+        "__RANDOM_SECRET_KEY__": lambda: generate_password(40),
+    }.items()
 }
 PLACEHOLDER = re.compile(r"__[A-Z0-9_]+__")
 

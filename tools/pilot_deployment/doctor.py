@@ -87,6 +87,10 @@ REQUIRED_ENVIRONMENT_KEYS = (
 )
 
 
+# A secret that contains one of these is treated as an unfilled template value.
+PLACEHOLDER_MARKERS = ("__", "changeme", "replace-me", "default-secret")
+
+
 # pilot-install provisions the Twenty integration key itself; until then the
 # environment file carries this marker instead of a secret.
 PENDING_INTEGRATION_KEY = "PENDING_PILOT_INSTALL"
@@ -197,7 +201,6 @@ def validate_environment(
     ):
         raise DoctorError("release_commit_mismatch")
 
-    placeholders = ("__", "changeme", "replace-me", "default-secret")
     secret_values: list[str] = []
     for key in SECRET_KEYS:
         value = values[key]
@@ -208,7 +211,7 @@ def validate_environment(
         ):
             continue
         if len(value) < 24 or any(
-            marker in value.casefold() for marker in placeholders
+            marker in value.casefold() for marker in PLACEHOLDER_MARKERS
         ):
             raise DoctorError(f"secret_invalid:{key}")
         secret_values.append(value)
