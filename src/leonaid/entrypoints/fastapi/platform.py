@@ -31,6 +31,9 @@ from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepos
 from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from leonaid.application.delivery import DeliveryService
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.adapters.postgres.delivery_completion import (
+    AsyncpgDeliveryCompletionRepository,
+)
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
 from leonaid.adapters.postgres.email_changes import AsyncpgEmailChangeRepository
@@ -75,6 +78,7 @@ from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.commitments import CommitmentService
+from leonaid.application.delivery_completion import DeliveryCompletionService
 from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.dashboard import DashboardService
 from leonaid.application.email_changes import EmailChangeService
@@ -268,6 +272,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
+        )
+        application.state.delivery_completion_service = DeliveryCompletionService(
+            AsyncpgDeliveryCompletionRepository(pool)
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)

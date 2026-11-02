@@ -86,6 +86,7 @@ export function DeliveryFields({
   disabled = false,
   refresh,
   refreshing = false,
+  lockedWindow = false,
 }: {
   readonly configuration: DeliveryConfigurationResponse;
   readonly value: DeliveryDraft;
@@ -94,15 +95,17 @@ export function DeliveryFields({
   readonly disabled?: boolean;
   readonly refresh: () => void;
   readonly refreshing?: boolean;
+  /** A booked window is immutable: hide the choice and keep the stored ID. */
+  readonly lockedWindow?: boolean;
 }) {
   const prefix = useId();
   const windows = configuration.windows.filter((item) => !item.retired);
   const days = [...new Set(windows.map((item) => item.deliveryOn))].sort();
   const selectedAvailable = windows.some((item) => item.id === value.windowId);
   useEffect(() => {
-    if (value.windowId && !selectedAvailable)
+    if (!lockedWindow && value.windowId && !selectedAvailable)
       onChange({ ...value, windowId: "" });
-  }, [selectedAvailable, value.windowId]);
+  }, [lockedWindow, selectedAvailable, value.windowId]);
   return (
     <fieldset
       className="commitment-step commitment-delivery"
@@ -197,6 +200,11 @@ export function DeliveryFields({
           <small>Zwei Buchstaben, zum Beispiel DE.</small>
         </div>
       </div>
+      {lockedWindow ? (
+        <p className="commitment-step__intro">
+          Der gebuchte Liefertermin bleibt unverändert.
+        </p>
+      ) : (
       <fieldset
         className="commitment-window-choice"
         aria-describedby={`${prefix}-timezone`}
@@ -246,6 +254,7 @@ export function DeliveryFields({
             : "Lieferfenster aktualisieren"}
         </Button>
       </fieldset>
+      )}
       <div className="commitment-recipient-grid">
         <div className="commitment-field commitment-field--wide">
           <label htmlFor={`${prefix}-contact-name`}>
