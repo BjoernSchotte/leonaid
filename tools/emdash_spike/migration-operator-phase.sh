@@ -8,11 +8,15 @@ operator() { compose run --rm --no-deps cms-migration-operator "$@"; }
 migration_fixture() { compose run --rm --no-deps cms-db-operator node tools/emdash_spike/migration-operator-fixture.mjs "$@"; }
 expect_refusal() {
   if output=$("$@" 2>&1); then echo "cms-migration: unexpected success" >&2; exit 1; else status=$?; fi
-  [ "$status" -eq 1 ] || exit "$status"
-  case "$output" in *"cms-migration: refused; CMS traffic must remain closed"*) ;; *) echo "cms-migration: missing expected denial" >&2; exit 1 ;; esac
+  if [ "$status" -ne 1 ]; then printf '%s\n' "$output" >&2; exit "$status"; fi
+  case "$output" in *"cms-migration: refused; CMS traffic must remain closed"*) ;; *)
+    printf '%s\n' "$output" >&2
+    echo "cms-migration: missing expected denial" >&2; exit 1 ;; esac
   unset output
 }
 controller() {
+  # Same Compose model as the harness, including its explicit isolated subnets;
+  # otherwise Compose sees different networks and cannot reattach containers.
   /bin/sh "$root/tools/pilot_release/migrate-cms.sh" "$root" "$project" "$image_id" "$1" \
     "$root/infra/compose/compose.yml" \
     "$root/infra/emdash-spike/identity.test.yml" \
@@ -20,7 +24,8 @@ controller() {
     "$root/infra/emdash-spike/core-auth.test.yml" \
     "$root/infra/emdash-spike/auth-runtime.test.yml" \
     "$root/infra/emdash-spike/bootstrap.test.yml" \
-    "$root/infra/emdash-spike/login.test.yml"
+    "$root/infra/emdash-spike/login.test.yml" \
+    "$root/infra/emdash-spike/isolated-networks.test.yml"
 }
 traffic_probe() {
   # Direct runtime proof, independent of proxy access controls; no host ports.

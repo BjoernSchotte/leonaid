@@ -206,6 +206,13 @@ async def main() -> None:
                 ends,
                 UUID("20000000-0000-4000-8000-000000000001"),
             )
+        elif sys.argv[1] == "reset-login-rate-limits":
+            # Stands in for the ten-minute window between independent browser
+            # proofs; the login limit itself is proven by the identity suite.
+            await connection.execute(
+                "DELETE FROM security_rate_attempt WHERE scope = ANY($1::text[])",
+                ["auth.login.request", "auth.login.complete"],
+            )
         else:
             raise ValueError("unknown fixture operation")
     finally:

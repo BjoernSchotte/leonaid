@@ -295,7 +295,7 @@ jobs:
         uses: ./.github/actions/build-cache
         with:
           bootstrap: ${{ matrix.group == 'static' && 'toolchains' || 'browser' }}
-          targets: ${{ matrix.group == 'static' && 'campaign-site' || 'emdash' }}
+          targets: emdash
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         env:

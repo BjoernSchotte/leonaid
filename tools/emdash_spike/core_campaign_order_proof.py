@@ -1,5 +1,9 @@
 """Issued campaign-token binding and the unconfigured-CRM HTTP boundary."""
 
+# asyncpg.Pool is generic only for type checkers; at runtime it is not
+# subscriptable, so annotations must stay unevaluated.
+from __future__ import annotations
+
 import os
 from typing import Any
 from uuid import UUID, uuid4

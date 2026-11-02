@@ -7,6 +7,9 @@ services:
     image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-public
   worker:
     image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-worker
+  # The patched Caddy is a local build too; the no-build target reuses it.
+  proxy:
+    image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-proxy
 networks:
   core-data:
     ipam:
