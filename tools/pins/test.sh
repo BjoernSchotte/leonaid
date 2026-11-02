@@ -61,4 +61,19 @@ sed -i 's/hash = \"sha256:[a-f0-9]*\"/hash = \"\"/g' \
   "$tmp/python-hash/uv.lock"
 expect_failure python-hash "invalid artifact hash"
 
-echo "pin-test: OK: positive and four policy-rejection cases passed"
+make_fixture unlocked-image
+# Split so that this script itself carries no unlocked pinned reference.
+stale_digest=4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+mkdir -p "$tmp/unlocked-image/.github/workflows"
+printf '%s\n' \
+  'jobs:' \
+  '  check:' \
+  '    steps:' \
+  '      - run: >-' \
+  '          docker run --rm' \
+  "          docker.io/library/python:3.13.5-slim-bookworm@sha256:$stale_digest" \
+  '          python --version' \
+  >"$tmp/unlocked-image/.github/workflows/stale.yml"
+expect_failure unlocked-image "pinned image is not listed in infra/locks/external-systems.lock"
+
+echo "pin-test: OK: positive and five policy-rejection cases passed"

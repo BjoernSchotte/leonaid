@@ -156,7 +156,8 @@ create_release_manifest() {
   twenty_image=$3
   rustfs_image=$4
   queue_image=$5
-  output=$6
+  postgres_image=$6
+  output=$7
   images="$proof/images-$release_id.json"
   api_id=$(docker image inspect --format '{{.Id}}' "${source_project}-api:latest")
   web_id=$(docker image inspect --format '{{.Id}}' "${source_project}-web:latest")
@@ -173,7 +174,7 @@ create_release_manifest() {
     --env "SURVEY_VALIDATOR_IMAGE=$survey_validator_id" \
     --env "TWENTY_RELEASE_IMAGE=$twenty_image" \
     --env "RUSTFS_RELEASE_IMAGE=$rustfs_image" \
-    --env "POSTGRES_RELEASE_IMAGE=$POSTGRES_IMAGE" \
+    --env "POSTGRES_RELEASE_IMAGE=$postgres_image" \
     --env "REDIS_RELEASE_IMAGE=$queue_image" \
     --env "CADDY_RELEASE_IMAGE=$proxy_id" \
     --env "IMAGE_OUTPUT=/proof/$(basename "$images")" \
@@ -559,6 +560,34 @@ verify_valkey() {
   echo "upgrade-test: Redis 7.4 queue volume migrated; Valkey runs without restarts: $checked_project"
 }
 
+verify_postgres() {
+  checked_project=$1
+  expected_version=${POSTGRES_IMAGE#*:}
+  expected_version=${expected_version%%-*}
+  for service in core-postgres twenty-postgres; do
+    container="${checked_project}-${service}-1"
+    verify_image "$container" "$POSTGRES_IMAGE"
+    [ "$(docker inspect --format '{{.RestartCount}}' "$container")" = 0 ] ||
+      fail "$container restarted on the data directory of the previous release"
+    actual_version=$(docker exec "$container" sh -c \
+      'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --command "SHOW server_version"' |
+      tr -d '\r' | cut -d ' ' -f 1)
+    [ "$actual_version" = "$expected_version" ] ||
+      fail "$container serves PostgreSQL $actual_version instead of $expected_version"
+    # A libc/ICU change between Alpine releases must not leave a database
+    # whose recorded collation version differs from the runtime library.
+    mismatched=$(docker exec "$container" sh -c \
+      'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --command "SELECT datname FROM pg_database WHERE datallowconn AND datcollversion IS DISTINCT FROM pg_database_collation_actual_version(oid)"' |
+      tr -d '\r')
+    [ -z "$mismatched" ] ||
+      fail "$container reports collation version mismatches: $mismatched"
+    if docker logs "$container" 2>&1 | grep -i 'collation version mismatch' >/dev/null; then
+      fail "$container logs a collation version mismatch"
+    fi
+  done
+  echo "upgrade-test: PostgreSQL $expected_version runs on the previous data directories: $checked_project"
+}
+
 restore_source_version() {
   verify_cleanup "$rollback_project"
   restore_generation=$((restore_generation + 1))
@@ -618,11 +647,11 @@ source_old build api public pwa web survey-validator proxy
 create_release_manifest \
   pilot-release-v1 1.0.0 \
   "$TWENTY_UPGRADE_SOURCE_IMAGE" "$RUSTFS_UPGRADE_SOURCE_IMAGE" \
-  "$REDIS_UPGRADE_SOURCE_IMAGE" "$release_v1"
+  "$REDIS_UPGRADE_SOURCE_IMAGE" "$POSTGRES_UPGRADE_SOURCE_IMAGE" "$release_v1"
 create_release_manifest \
   pilot-release-v2 2.0.0 \
   "$TWENTY_IMAGE" "$RUSTFS_IMAGE" \
-  "$VALKEY_IMAGE" "$release_v2"
+  "$VALKEY_IMAGE" "$POSTGRES_IMAGE" "$release_v2"
 record_release_event \
   "$release_v1" staging_started passed PILOT-043-STAGING-V1 \
   2026-07-28T08:00:00Z
@@ -630,6 +659,8 @@ source_old --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 verify_image "${source_project}-twenty-server-1" "$TWENTY_UPGRADE_SOURCE_IMAGE"
 verify_image "${source_project}-rustfs-1" "$RUSTFS_UPGRADE_SOURCE_IMAGE"
+verify_image "${source_project}-core-postgres-1" "$POSTGRES_UPGRADE_SOURCE_IMAGE"
+verify_image "${source_project}-twenty-postgres-1" "$POSTGRES_UPGRADE_SOURCE_IMAGE"
 
 source_old run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
@@ -713,6 +744,7 @@ source_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade source primary
 verify_valkey "$source_project"
+verify_postgres "$source_project"
 verify_image "${source_project}-twenty-server-1" "$TWENTY_IMAGE"
 verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
 LEONAID_COMPOSE_PROJECT="$source_project" \
@@ -801,6 +833,7 @@ rollback_target up --detach --force-recreate --wait --wait-timeout 420 \
   rustfs
 run_twenty_upgrade rollback failure-clone
 verify_valkey "$rollback_project"
+verify_postgres "$rollback_project"
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -897,9 +930,10 @@ docker run --rm \
 pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "schemaVersion":1,
   "result":"passed",
-  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12"},
-  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3"},
+  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10","queueStore":"redis-7.4.12","postgres":"16.9"},
+  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11","queueStore":"valkey-9.1.3","postgres":"16.15"},
   "queueStoreMigration":"passed",
+  "postgresMinorUpgrade":"passed",
   "preContract":"passed",
   "preE2e":"passed",
   "preGoldenJourney":"passed",
@@ -916,7 +950,7 @@ pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "releaseLedger":"passed"
 },sort_keys=True,indent=2)+"\n")'
 
-echo "upgrade-test: OK: reale Twenty- und RustFS-Upgrades,"
+echo "upgrade-test: OK: reale Twenty-, RustFS- und PostgreSQL-Upgrades,"
 echo "upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade"
 echo "upgrade-test:     vollständige Golden Journeys vor/nach Upgrade und Rollback"
 echo "upgrade-test:     sowie Manifest-Promotion, Migrationsfehler und Recovery bewiesen"

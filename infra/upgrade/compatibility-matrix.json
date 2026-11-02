@@ -78,6 +78,29 @@
       }
     },
     {
+      "id": "postgres",
+      "sourceVersion": "16.9-alpine3.21",
+      "sourceImage": "docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
+      "targetVersion": "16.15-alpine3.24",
+      "targetImage": "docker.io/library/postgres:16.15-alpine3.24@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
+      "releaseNotes": [
+        "https://www.postgresql.org/docs/release/16.15/",
+        "https://www.postgresql.org/support/versioning/",
+        "https://alpinelinux.org/posts/Alpine-3.24.0-released.html"
+      ],
+      "migration": {
+        "owner": "PostgreSQL minor release within major version 16",
+        "command": "Recreate core-postgres and twenty-postgres with the target image on the existing data volumes; a minor release keeps the on-disk format, so neither dump/restore nor pg_upgrade runs",
+        "reviewed": true,
+        "expectedDataChange": false
+      },
+      "rollback": {
+        "boundary": "PostgreSQL 16.9 can start on a data directory written by 16.15 of the same major version. LeonAid still restores both databases from the recovery point, because Core and Twenty migrations run in the same release window.",
+        "strategy": "backup_restore",
+        "restoredComponents": ["core-postgres", "twenty-postgres"]
+      }
+    },
+    {
       "id": "leonaid-core",
       "sourceVersion": "alembic-head-before-release",
       "sourceImage": "local-build-before-release",

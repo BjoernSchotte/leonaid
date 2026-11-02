@@ -49,7 +49,7 @@ jobs:
         run: >-
           docker run --rm
           -v "$PWD:/workspace:ro"
-          docker.io/library/python:3.13.5-slim-bookworm@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419
+          docker.io/library/python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1
           /bin/sh /workspace/tools/pins/test.sh /workspace
 
   reproducibility:
