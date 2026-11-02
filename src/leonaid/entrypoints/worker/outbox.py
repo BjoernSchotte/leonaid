@@ -36,8 +36,17 @@ from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.adapters.operations import structured_event
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
-from leonaid.configuration import ConfigurationError, load_mail_transport_settings
+from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
+from leonaid.configuration import (
+    ConfigurationError,
+    load_mail_transport_settings,
+    load_retention_settings,
+)
 from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
+from leonaid.entrypoints.worker.retention import (
+    RetentionResult,
+    sweep_operational_retention,
+)
 
 
 def observe_job(
@@ -84,10 +93,11 @@ def configuration_problems() -> list[str]:
         for name in REQUIRED_ENVIRONMENT
         if not os.environ.get(name, "").strip()
     ]
-    try:
-        load_mail_transport_settings()
-    except ConfigurationError as error:
-        problems.append(str(error))
+    for load in (load_mail_transport_settings, load_retention_settings):
+        try:
+            load()
+        except ConfigurationError as error:
+            problems.append(str(error))
     return problems
 
 
@@ -176,7 +186,25 @@ async def build_worker(
     return pool, queue, worker
 
 
+async def retention_sweep() -> RetentionResult:
+    settings = load_retention_settings()
+    pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=1)
+    try:
+        return await sweep_operational_retention(
+            queue=AsyncpgOutboxQueue(pool),
+            rate_limits=AsyncpgSecurityRateLimitRepository(pool),
+            settings=settings,
+            now=datetime.now(timezone.utc),
+        )
+    finally:
+        await pool.close()
+
+
 async def execute(arguments: argparse.Namespace) -> int:
+    if arguments.command == "retention-sweep":
+        # Needs only PostgreSQL, not the mail and storage adapters.
+        print(json.dumps(asdict(await retention_sweep()), separators=(",", ":")))
+        return 0
     database_url = os.environ["CORE_DATABASE_URL"]
     pool, queue, worker = await build_worker(
         database_url=database_url,
@@ -257,6 +285,10 @@ def parser() -> argparse.ArgumentParser:
     retry.add_argument("--operator", required=True)
     status = subcommands.add_parser("status")
     status.add_argument("event_id")
+    subcommands.add_parser(
+        "retention-sweep",
+        help="Delete expired completed jobs and rate-limit attempts once.",
+    )
     return command_parser
 
 

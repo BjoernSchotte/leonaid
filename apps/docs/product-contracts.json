@@ -205,6 +205,19 @@
         "backup            Create encrypted",
         "test-upgrade      Prove pinned"
       ]
+    },
+    {
+      "file": "src/leonaid/configuration.py",
+      "contains": [
+        "OUTBOX_RETENTION_DAYS",
+        "OUTBOX_RETENTION_INTERVAL_SECONDS",
+        "OUTBOX_RETENTION_BATCH_SIZE",
+        "OUTBOX_RETENTION_MAX_BATCHES"
+      ]
+    },
+    {
+      "file": "src/leonaid/entrypoints/worker/platform.py",
+      "contains": ["leonaid_worker_retention_deleted_total"]
     }
   ],
   "DOC-P028": [
