@@ -396,20 +396,6 @@ test("list view: keys, URL state, detail pane and bulk bar", async ({
     await search.fill("");
     await page.keyboard.press("Escape");
 
-    // The palette offers the list's commands.
-    await page.keyboard.press("Control+k");
-    const palette = page.getByRole("dialog", { name: "Befehlspalette" });
-    await expect(palette).toBeVisible();
-    await page.keyboard.type("Alle Bestellungen auswählen");
-    await expect(
-      palette.getByRole("option", { name: /Alle Bestellungen auswählen/ }),
-    ).toBeVisible();
-    await page.keyboard.press("Enter");
-    await expect(palette).toBeHidden();
-    await expect(page.getByRole("region", { name: "Auswahl" })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("region", { name: "Auswahl" })).toHaveCount(0);
-
     // The URL carries view, filters and grouping across a reload.
     await page.getByRole("button", { name: "Alle", exact: true }).click();
     await page
@@ -426,6 +412,22 @@ test("list view: keys, URL state, detail pane and bulk bar", async ({
       page.getByRole("combobox", { name: "Gruppieren nach" }),
     ).toHaveValue("status");
     await expect(page.getByText("24 Bestellungen")).toBeVisible();
+
+    // The palette offers the list's commands.
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+    await expect(palette).toBeVisible();
+    await page.keyboard.type("Alle Bestellungen auswählen");
+    await expect(
+      palette.getByRole("option", { name: /Alle Bestellungen auswählen/ }),
+    ).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
+    await expect(page.getByRole("region", { name: "Auswahl" })).toContainText(
+      "24 ausgewählt",
+    );
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("region", { name: "Auswahl" })).toHaveCount(0);
 
     expect(pageErrors).toEqual([]);
   } finally {
