@@ -2,6 +2,7 @@ import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
+  horizontalOverflow,
   openTask,
   pickOption,
   showTaskView,
@@ -194,6 +195,7 @@ for (const [surface, width] of [
     expect(finalTask.epicId).toBe(createdEpic.id);
     expect(new Date(finalTask.dueAt).getTime()).toBe(new Date(due).getTime());
     expect(finalTask.deferredUntil).toBeNull();
+    expect(await horizontalOverflow(page)).toEqual([]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -287,7 +289,8 @@ for (const [surface, width] of [
     const minimalRow = taskRow(page, originals[2].id);
     const minimalRowBox = await minimalRow.boundingBox();
     expect(minimalRowBox.height).toBeGreaterThanOrEqual(width <= 760 ? 56 : 40);
-    expect(minimalRowBox.height).toBeLessThanOrEqual(width <= 760 ? 72 : 44);
+    // Phone: grip (44 px target), title and the chip line.
+    expect(minimalRowBox.height).toBeLessThanOrEqual(width <= 760 ? 96 : 44);
     await expect(
       minimalRow.locator('.avatar-empty[aria-label="Niemand zuständig"]'),
     ).toBeVisible();
@@ -304,6 +307,7 @@ for (const [surface, width] of [
       ),
     });
     await page.setViewportSize({ width: 320, height: 844 });
+    expect(await horizontalOverflow(page)).toEqual([]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -369,7 +373,9 @@ for (const [surface, width] of [
     await expect(taskRowLink(page, { id: first.id })).toBeFocused();
     await page.keyboard.press("s");
     await pickOption(page, "Erledigt");
-    const undo = page.getByRole("button", { name: "Rückgängig", exact: true });
+    const undo = page
+      .locator(".toast", { hasText: "Status: Erledigt" })
+      .getByRole("button", { name: "Rückgängig", exact: true });
     await expect(undo).toBeVisible();
     await expect(taskRow(page, first.id)).toHaveCount(0);
     expect(writes).toHaveLength(1);
@@ -397,8 +403,8 @@ for (const [surface, width] of [
     ).toBeVisible();
     await expect(taskRows(page)).toHaveCount(10);
     await page
+      .locator(".toast", { hasText: "2 Aufgaben erledigt." })
       .getByRole("button", { name: "Rückgängig", exact: true })
-      .last()
       .click();
     await expect(taskRows(page)).toHaveCount(12);
     expect(writes).toHaveLength(4);

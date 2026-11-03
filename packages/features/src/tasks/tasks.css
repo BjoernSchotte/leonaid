@@ -182,6 +182,13 @@
     height: 44px;
     margin-inline-start: calc(-1 * var(--s-2));
   }
+  /* Phone rows: flag (and grip) beside the title, chips on the next line. */
+  .tasks-page .row-link {
+    flex-basis: calc(100% - 14px - var(--s-2));
+  }
+  .tasks-page .row:has(.task-order-handle) .row-link {
+    flex-basis: calc(100% - 66px - var(--s-2));
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .tasks-page .row {

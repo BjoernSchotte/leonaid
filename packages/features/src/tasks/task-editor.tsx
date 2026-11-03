@@ -59,7 +59,7 @@ export function TaskPlanPanel({
   };
   return (
     <form
-      className="task-form task-plan"
+      className="task-form task-plan-form"
       onSubmit={(event) => {
         event.preventDefault();
         save.mutate();

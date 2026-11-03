@@ -68,3 +68,35 @@ export async function pickOption(page, name) {
     .getByRole("option", { name, exact: true })
     .click();
 }
+
+/**
+ * Elements that stick out of the viewport on the right (not inside a
+ * horizontally scrolling or clipping box): empty when the page fits.
+ */
+export function horizontalOverflow(page) {
+  return page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    const clipped = (element) => {
+      for (let node = element.parentElement; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (
+          style.overflowX !== "visible" &&
+          node !== document.body &&
+          node !== document.documentElement
+        )
+          return true;
+      }
+      return false;
+    };
+    return [...document.querySelectorAll("body *")]
+      .filter((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.right > width + 1 && !clipped(element);
+      })
+      .slice(0, 8)
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} right=${Math.round(element.getBoundingClientRect().right)}`,
+      );
+  });
+}

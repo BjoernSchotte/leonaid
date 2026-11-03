@@ -145,16 +145,28 @@ test("task list: j/k, Enter, Esc, x, property keys, quick add, filter and palett
       `.avatar[aria-label="Zuständig: ${identity.displayName}"]`,
     ),
   ).toBeVisible();
+  await expect(taskRow(page, tasks[1].id)).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
   await page.keyboard.press("w");
   await pickOption(page, "Heute");
   await expect(taskRow(page, tasks[1].id).locator(".task-plan")).toHaveText(
     "Heute",
   );
+  // The saved edit (and its refresh) has settled before the next one.
+  await expect(taskRow(page, tasks[1].id)).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
   // s marks it done: "Offen" drops it, Rückgängig brings it back.
   await page.keyboard.press("s");
   await pickOption(page, "Erledigt");
   await expect(taskRow(page, tasks[1].id)).toHaveCount(0);
-  await page.getByRole("button", { name: "Rückgängig", exact: true }).click();
+  await page
+    .locator(".toast", { hasText: "Status: Erledigt" })
+    .getByRole("button", { name: "Rückgängig", exact: true })
+    .click();
   await expect(taskRow(page, tasks[1].id)).toBeVisible();
 
   // f adds a filter; the URL carries it.

@@ -95,7 +95,7 @@ test("S5 personal planning stays private and usable for owners and readers", asy
   });
   await today.goto(`${baseURL}/admin/tasks/${list.id}`);
   const ownerPane = await openTask(today, { id: tasks[0].id });
-  const ownerPlan = ownerPane.locator(".task-plan");
+  const ownerPlan = ownerPane.locator(".task-plan-form");
   await expect(ownerPlan.getByRole("heading")).toHaveText(
     "Persönliche Planung",
   );
@@ -136,7 +136,7 @@ test("S5 personal planning stays private and usable for owners and readers", asy
   await readerPage.goto(`${baseURL}/app/tasks/${list.id}`);
   const readerPane = await openTask(readerPage, { id: tasks[0].id });
   await expect(readerPane.locator("form.task-editor")).toHaveCount(0);
-  const readerPlan = readerPane.locator(".task-plan");
+  const readerPlan = readerPane.locator(".task-plan-form");
   await expect(readerPlan).toContainText("Nur du siehst diese Einordnung.");
   await readerPlan.getByLabel("Einordnung").selectOption("someday");
   await readerPlan.getByRole("button", { name: "Planung speichern" }).click();
