@@ -487,6 +487,15 @@
 }
 
 /*
+ * The list view brings its own insets (header 24 px, rows full-bleed, as in
+ * the prototype), so the shell's page padding and width cap step aside.
+ */
+.page:has(.commitment-list) {
+  max-width: none;
+  padding: 0;
+}
+
+/*
  * Orders list (/admin/orders): the shared list view plus the page bits of
  * the prototype's orders page (prototype pages.css, components.css).
  */
