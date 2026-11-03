@@ -1,12 +1,12 @@
 ---
 title: Aktions-Microsite bearbeiten
 description: Texte und Bilder der öffentlichen Microsite einer Aktion im CMS-Editor ändern und veröffentlichen.
-docId: DOC-P041
+docId: DOC-P042
 audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: 6eb1011fa36d657ac5648ed0edf60c56caaadcb5
+verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
 reviewer: Björn Schotte
 ---
 

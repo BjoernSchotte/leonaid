@@ -2,6 +2,7 @@ name: Documentation
 
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
   schedule:
@@ -33,7 +34,7 @@ jobs:
         run: echo "LEONAID_DOCS_BUILT_AT=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_ENV"
 
       - name: Bootstrap locked toolchains
-        run: ./leonaid bootstrap
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
 
       - name: Validate content, translations, links and API source
         run: ./leonaid docs-check
@@ -93,7 +94,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Bootstrap locked toolchains
-        run: ./leonaid bootstrap
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
 
       - name: Smoke deployed revision
         env:

@@ -39,7 +39,7 @@ runs:
         echo "directory=$directory" >> "$GITHUB_OUTPUT"
         nohup sh -c '
           status=0
-          sh tools/ci/bootstrap-prefetch.sh "$1" > "$2/log" 2>&1 || status=$?
+          sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$1" > "$2/log" 2>&1 || status=$?
           printf "%s\n" "$status" > "$2/status"
         ' bootstrap "$BOOTSTRAP_PROFILE" "$directory" </dev/null >/dev/null 2>&1 &
     - id: builder
@@ -51,7 +51,37 @@ runs:
       run: |
         echo "BUILDX_BUILDER=$CACHE_BUILDER" >> "$GITHUB_ENV"
         echo "DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}" >> "$GITHUB_ENV"
+    # GitHub cache (429) and registry errors are transient. The first
+    # attempt may fail; the retry below then decides the job. A real
+    # Dockerfile error fails both attempts.
     - name: Import layers and build requested images
+      id: bake
+      continue-on-error: true
+      uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+      env:
+        CACHE_NAMESPACE: ${{ inputs.namespace }}
+        CACHE_WRITE: ${{ inputs.write }}
+        CACHE_READ: ${{ inputs.read }}
+        DOCKER_BUILD_RECORD_UPLOAD: "false"
+      with:
+        source: .
+        files: tools/ci/docker-bake.hcl
+        targets: ${{ inputs.targets }}
+        load: ${{ inputs.load == 'true' }}
+        # Materialize imported layers: cache-only warm-up showed cache misses
+        # in subsequent Compose builds in CI. Discard the OCI archive; only
+        # the actual harness loads runtime images into the Docker daemon.
+        set: ${{ inputs.load != 'true' && '*.output=type=oci,dest=/dev/null' || '' }}
+        no-cache: ${{ inputs.read == 'false' }}
+        github-token: ${{ github.token }}
+    - name: Back off before retrying the cache import
+      if: steps.bake.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning title=Infrastructure retry::Docker bake/cache import failed; retrying once in 30s"
+        sleep 30
+    - name: Retry layer import and image build
+      if: steps.bake.outcome == 'failure'
       uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
       env:
         CACHE_NAMESPACE: ${{ inputs.namespace }}

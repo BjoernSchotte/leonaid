@@ -383,6 +383,57 @@
   ],
   "DOC-P041": [
     {
+      "file": "packages/features/src/tasks/tasks.tsx",
+      "contains": [
+        "Neue Liste",
+        "Name der Liste",
+        "Liste anlegen",
+        "Zugriff verwalten",
+        "Aufgabe schnell erfassen",
+        "Aufgabe abschließen",
+        "Aufgabe wieder öffnen",
+        "Reihenfolge ändern",
+        "Für mich",
+        "Meine Planung",
+        "Mein Heute"
+      ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-editor.tsx",
+      "contains": [
+        "Zuständigkeit auswählen",
+        "Abschnitt auswählen",
+        "Termine und Wiedervorlage",
+        "Nicht geplant",
+        "Irgendwann"
+      ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-structure.tsx",
+      "contains": [
+        "Priorität, Tags und Checkliste",
+        "Hohe Priorität",
+        "Neuer Tag",
+        "Tag anlegen",
+        "Neuer Schritt",
+        "Schritt hinzufügen",
+        "Struktur speichern"
+      ]
+    },
+    {
+      "file": "packages/features/src/shared/access-members.tsx",
+      "contains": [
+        "<option value=\"viewer\">Lesen</option>",
+        "<option value=\"editor\">Bearbeiten</option>"
+      ]
+    },
+    {
+      "file": "src/leonaid/modules/tasks/api.py",
+      "contains": ["\"Aufgaben\", \"/admin/tasks\", \"web\""]
+    }
+  ],
+  "DOC-P042": [
+    {
       "file": "packages/features/src/action-admin/manage-action.tsx",
       "contains": ["Microsite bearbeiten"]
     },

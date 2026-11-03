@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import shutil
 import subprocess
@@ -25,6 +26,32 @@ from tools.pilot_release.manifest import (
 )
 
 
+def alembic_head(root: Path) -> str:
+    """The one revision no other migration names as its down revision."""
+    revisions: set[str] = set()
+    parents: set[str] = set()
+    for path in (root / "migrations/versions").glob("*.py"):
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            target: ast.expr
+            if isinstance(node, ast.AnnAssign) and node.value is not None:
+                target, expression = node.target, node.value
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target, expression = node.targets[0], node.value
+            else:
+                continue
+            if not isinstance(target, ast.Name):
+                continue
+            if target.id == "revision":
+                revisions.add(ast.literal_eval(expression))
+            elif target.id == "down_revision":
+                value = ast.literal_eval(expression)
+                if value is not None:
+                    parents.update([value] if isinstance(value, str) else value)
+    heads = revisions - parents
+    assert len(heads) == 1, heads
+    return heads.pop()
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
     images = {**_images(), "campaign-site": _images()["public"]}
@@ -41,7 +68,7 @@ def main() -> int:
     validate_manifest(manifest)
     revisions = {item["revision"] for item in manifest["migrations"]}
     assert {"0027_surveys", "0027_campaign_alias_namespaces"} <= revisions
-    assert manifest["schemas"]["coreAlembicHead"] == "0040_mail_delivery_set_null"
+    assert manifest["schemas"]["coreAlembicHead"] == alembic_head(root)
     truncated = deepcopy(manifest)
     for item in truncated["migrations"]:
         item["revision"] = item["revision"].split("_", 1)[0]
