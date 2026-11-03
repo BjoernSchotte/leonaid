@@ -53,6 +53,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ApiError } from "@leonaid/api-client";
 import type {
   CommitmentRecordResponse,
   CommitmentResponse,
@@ -170,6 +171,17 @@ function forgetInvoiceCommandKey(commitmentId: string) {
   } catch {
     // Nothing stored.
   }
+}
+
+/**
+ * The server refused the key because it was sent before with other data.
+ * Keeping it would refuse every later attempt in this tab; a fresh key is
+ * safe because the server returns an existing invoice for the order.
+ * Lost answers keep their key, so a retry replays.
+ */
+function forgetConflictingKey(commitmentId: string, cause: unknown) {
+  if (cause instanceof ApiError && cause.detail.code === "idempotency_conflict")
+    forgetInvoiceCommandKey(commitmentId);
 }
 
 /** A hanging request must not keep the bulk dialog locked. */
@@ -870,7 +882,8 @@ export function CommitmentAdminPage({
           },
         },
       ),
-    onError(cause) {
+    onError(cause, { commitmentId }) {
+      forgetConflictingKey(commitmentId, cause);
       setIssueError(actionErrorMessage(cause).message);
     },
     onSuccess(invoice) {
@@ -931,16 +944,22 @@ export function CommitmentAdminPage({
     rowsById,
   ]);
   const issueOne = async (commitmentId: string, serviceOn: string) => {
-    const invoice = await client.issueInvoice(
-      actionId,
-      commitmentId,
-      { serviceOn },
-      {
-        headers: { "Idempotency-Key": invoiceCommandKey(commitmentId) },
-        // Ends as "unconfirmed", which is safe to send again.
-        signal: AbortSignal.timeout(BULK_ISSUE_TIMEOUT_MS),
-      },
-    );
+    let invoice: InvoiceResponse;
+    try {
+      invoice = await client.issueInvoice(
+        actionId,
+        commitmentId,
+        { serviceOn },
+        {
+          headers: { "Idempotency-Key": invoiceCommandKey(commitmentId) },
+          // Ends as "unconfirmed", which is safe to send again.
+          signal: AbortSignal.timeout(BULK_ISSUE_TIMEOUT_MS),
+        },
+      );
+    } catch (cause) {
+      forgetConflictingKey(commitmentId, cause);
+      throw cause;
+    }
     forgetInvoiceCommandKey(commitmentId);
     return invoice;
   };

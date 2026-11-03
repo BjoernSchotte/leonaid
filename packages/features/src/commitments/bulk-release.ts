@@ -108,9 +108,12 @@ export async function runRelease(
       outcomes.set(id, { kind: "issued", invoice: await issue(id) });
     } catch (cause) {
       // The answer may be lost although the server committed: no response,
-      // a gateway error (5xx) or a page that is not the API's JSON.
+      // a timeout or rate limit on the way (408, 429), a gateway error (5xx)
+      // or a page that is not the API's JSON.
       if (
         !(cause instanceof ApiError) ||
+        cause.status === 408 ||
+        cause.status === 429 ||
         cause.status >= 500 ||
         cause.detail.code === "unexpected_response_type"
       ) {

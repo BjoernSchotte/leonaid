@@ -687,4 +687,85 @@ describe("bulk invoice release", () => {
       setItem.mockRestore();
     }
   });
+
+  it("treats a timeout or rate limit on the way as a lost answer", async () => {
+    for (const cause of [
+      apiError(408, "http_408"),
+      apiError(429, "rate_limited"),
+    ]) {
+      const run = await runRelease(["a", "b"], async (id) => {
+        if (id === "a") throw cause;
+        return { commitmentId: id, number: `KT-${id}` } as never;
+      });
+      expect([...run.outcomes.values()].map((item) => item.kind)).toEqual([
+        "unconfirmed",
+        "not-run",
+      ]);
+      expect(run.stop).toEqual({ kind: "network" });
+    }
+  });
+
+  it("drops a key the server refused as already used, keeps lost ones", async () => {
+    const client = fakeClient();
+    client.issueInvoice.mockImplementation(async () => {
+      throw apiError(409, "idempotency_conflict");
+    });
+    await renderPage("?view=all", client);
+    const release = async () => {
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /^Musterwerk GmbH ·/ }),
+      );
+      fireEvent.click(await screen.findByTestId("bulk-release-open"));
+      fireEvent.click(await screen.findByTestId("bulk-release-submit"));
+      await screen.findByTestId("bulk-release-failed");
+      fireEvent.click(
+        within(document.querySelector<HTMLElement>(".modal-footer")!).getByRole(
+          "button",
+          { name: "Schließen" },
+        ),
+      );
+    };
+    await release();
+    expect(
+      window.sessionStorage.getItem("leonaid.invoice-command.c1"),
+    ).toBeNull();
+    await release();
+    const keys = client.issueInvoice.mock.calls.map(
+      (call) => call[3].headers["Idempotency-Key"],
+    );
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).not.toBe(keys[1]);
+
+    // A lost answer keeps the key for the retry.
+    client.issueInvoice.mockImplementation(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /^Musterwerk GmbH ·/ }),
+    );
+    fireEvent.click(await screen.findByTestId("bulk-release-open"));
+    fireEvent.click(await screen.findByTestId("bulk-release-submit"));
+    await screen.findByTestId("bulk-release-unfinished");
+    expect(window.sessionStorage.getItem("leonaid.invoice-command.c1")).toBe(
+      client.issueInvoice.mock.calls[2]![3].headers["Idempotency-Key"],
+    );
+  });
+
+  it("gives the single review a fresh key after a key conflict", async () => {
+    const client = fakeClient();
+    client.issueInvoice.mockRejectedValueOnce(
+      apiError(409, "idempotency_conflict", "Vorgangs-ID schon verwendet."),
+    );
+    await renderPage(`?invoice=c1&action=${actionId}`, client);
+    const review = await screen.findByTestId("invoice-review");
+    fireEvent.click(within(review).getByTestId("issue-invoice"));
+    await within(review).findByText(/Vorgangs-ID schon verwendet/);
+    fireEvent.click(within(review).getByTestId("issue-invoice"));
+    await screen.findByText("Rechnung KT26-0004 ist verbindlich freigegeben.");
+    const keys = client.issueInvoice.mock.calls.map(
+      (call) => call[3].headers["Idempotency-Key"],
+    );
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).not.toBe(keys[1]);
+  });
 });
