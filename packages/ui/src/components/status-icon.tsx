@@ -194,6 +194,7 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   "In Bearbeitung": "progress",
   Abgeschlossen: "done",
   // surveys / campaigns / pages
+  Teilantwort: "review",
   Live: "progress",
   Geschlossen: "done",
   Aktiv: "progress",

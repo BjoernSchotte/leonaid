@@ -1,0 +1,192 @@
+/*
+ * Individual survey responses (Einzelantworten). The list itself is the
+ * shared ListView; this file holds the page frame (crumbs, start panel),
+ * the pane's answers and the free-text dialog. Values follow the
+ * prototype's pages/Surveys.css ("Answers") and shell.css (crumbs, page).
+ */
+
+.svr-top {
+  padding: var(--s-4) var(--s-6) 0;
+}
+.svr-top .crumbs {
+  margin-bottom: 0;
+}
+.svr-top + .listview .listview-main {
+  padding-top: var(--s-3);
+}
+.svr-start,
+.svr-blocked {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 720px;
+  padding: var(--s-3) var(--s-6) var(--s-6);
+}
+.svr-start {
+  max-width: none;
+}
+.svr-start .page-header {
+  margin: 0;
+}
+.svr-start h1 {
+  margin: 0;
+}
+.svr-blocked > a {
+  justify-self: start;
+}
+
+/* Start: choose a selection (prototype .panel .panel-pad) */
+.svr-panel {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 720px;
+  padding: var(--s-5);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.svr-panel h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.svr-lead {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+
+/* Selection form (in the panel and in the dialog) */
+.svr-form {
+  display: grid;
+  gap: var(--s-4);
+}
+.svr-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.svr-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.svr-statuses legend {
+  width: 100%;
+  margin-bottom: var(--s-2);
+  padding: 0;
+}
+.svr-zone {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.svr-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* Applied selection above the rows */
+.svr-applied {
+  margin: 0 0 var(--s-3);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.svr-list .callout {
+  margin-bottom: var(--s-3);
+}
+
+/* Pane */
+.svr-detail {
+  display: contents;
+}
+.svr-answers {
+  display: grid;
+  margin: 0;
+}
+.svr-answers > div {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3) 0;
+  border-bottom: var(--hair) solid var(--border);
+}
+.svr-answers > div:last-child {
+  border-bottom: 0;
+}
+.svr-answers dt {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.svr-answers dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--lh-prose);
+}
+.svr-detail-error {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+}
+.svr-muted {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+/* Free-text dialog (prototype .answer-texts) */
+.svr-freetext-body {
+  display: grid;
+  gap: var(--s-3);
+}
+.svr-question {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+.svr-freetext .answer-texts {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.svr-freetext .answer-texts li {
+  display: grid;
+  gap: var(--s-1);
+  justify-items: start;
+  padding-bottom: var(--s-2);
+  border-bottom: var(--hair) solid var(--border);
+}
+.svr-freetext .answer-texts p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.svr-pages {
+  display: flex;
+  gap: var(--s-2);
+}
+
+@media (max-width: 720px) {
+  .svr-top {
+    padding: var(--s-3) var(--s-4) 0;
+  }
+  .svr-start,
+  .svr-blocked {
+    padding: var(--s-3) var(--s-4) var(--s-5);
+  }
+  .svr-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
