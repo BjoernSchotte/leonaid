@@ -219,3 +219,68 @@ class DeliveryConfiguration:
             if window_id is not None
             else None
         )
+
+    def select_historical(self, window_id: UUID, *, now: datetime) -> DeliveryWindow:
+        """A configured window that has already started, retired or not.
+
+        Only the manager completion of an existing order may use this, to
+        record when an order was actually delivered. Retired windows are
+        included because retiring is how new bookings are paused and past
+        windows cannot be created afterwards: a retired past window may be
+        the only record of the slot that was used. A retired window that has
+        not started yet stays unavailable; it is not history.
+        """
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("Delivery selection requires an aware current time")
+        for window in self.windows:
+            if (
+                self.enabled
+                and window.id == window_id
+                and window.bounds(self.timezone)[0] <= now
+            ):
+                return window
+        raise DomainInvariantError(
+            "delivery_window_unavailable",
+            "Dieses Lieferfenster ist nicht mehr verfügbar. Bitte erneut auswählen.",
+        )
+
+    def validate_manager_completion(
+        self,
+        *,
+        window_id: UUID | None,
+        has_address: bool,
+        contact: DeliveryContactSnapshot | None,
+        now: datetime,
+    ) -> tuple[dict[str, str] | None, bool]:
+        """Validate a manager completion; return the snapshot and whether it is historical.
+
+        Bookable (future, active) windows behave exactly like order capture.
+        Windows that have already started are accepted as a historical record.
+        """
+        if self.enabled and window_id is not None and has_address:
+            try:
+                snapshot = self.validate_order(
+                    window_id=window_id,
+                    has_address=has_address,
+                    contact=contact,
+                    complete=True,
+                    now=now,
+                )
+            except DomainInvariantError as error:
+                if error.code != "delivery_window_unavailable":
+                    raise
+            else:
+                return snapshot, False
+            return self.select_historical(window_id, now=now).snapshot(
+                self.timezone
+            ), True
+        return (
+            self.validate_order(
+                window_id=window_id,
+                has_address=has_address,
+                contact=contact,
+                complete=True,
+                now=now,
+            ),
+            False,
+        )

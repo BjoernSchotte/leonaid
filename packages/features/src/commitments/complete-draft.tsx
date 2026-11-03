@@ -11,6 +11,7 @@ import {
   deliveryDraft,
   deliveryPayload,
   hasDeliveryAddress,
+  selectableWindows,
   hasPartialDeliveryAddress,
 } from "./delivery-fields";
 
@@ -57,8 +58,8 @@ export function CompleteDraft({
   const canComplete =
     !configuration?.enabled ||
     (hasDeliveryAddress(value) &&
-      configuration.windows.some(
-        (item) => item.id === value.windowId && !item.retired,
+      selectableWindows(configuration).upcoming.some(
+        (item) => item.id === value.windowId,
       ));
   return (
     <section
