@@ -55,11 +55,42 @@ import {
   type ListViewDefinition,
 } from "./saved-views";
 import type {
+  ListAddress,
   ListColumns,
   ListCommand,
   ListProperty,
   ListViewProps,
 } from "./types";
+
+/** The list's own copy in both forms of address. */
+const listCopy: Readonly<
+  Record<
+    ListAddress,
+    {
+      readonly retry: string;
+      readonly storage: string;
+      readonly loadError: string;
+      readonly noMatch: string;
+    }
+  >
+> = {
+  Sie: {
+    retry: "Bitte versuchen Sie es erneut.",
+    storage:
+      "Der Browser erlaubt keine Speicherung. Prüfen Sie die Einstellungen für Website-Daten.",
+    loadError:
+      "Der Server hat nicht geantwortet. Ihre Filter bleiben erhalten. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+    noMatch: "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff.",
+  },
+  du: {
+    retry: "Bitte versuche es erneut.",
+    storage:
+      "Der Browser erlaubt keine Speicherung. Prüfe die Einstellungen für Website-Daten.",
+    loadError:
+      "Der Server hat nicht geantwortet. Deine Filter bleiben erhalten. Prüfe die Verbindung und versuche es erneut.",
+    noMatch: "Entferne einen Filter oder ändere den Suchbegriff.",
+  },
+};
 
 /** Help overlay section of every list binding. */
 export const LIST_HOTKEY_GROUP = "Liste";
@@ -270,6 +301,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     title,
   } = props;
   const toast = useOptionalToast();
+  const copy = listCopy[props.address ?? "Sie"];
   const headingId = useId();
   const viewNameId = useId();
 
@@ -681,7 +713,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     } catch {
       toast?.show({
         title: `${prop.label} wurde nicht geändert.`,
-        description: "Bitte versuchen Sie es erneut.",
+        description: copy.retry,
         tone: "error",
       });
     } finally {
@@ -734,8 +766,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     } else {
       toast?.show({
         title: `Ansicht „${label}“ gilt nur bis zum Neuladen.`,
-        description:
-          "Der Browser erlaubt keine Speicherung. Prüfen Sie die Einstellungen für Website-Daten.",
+        description: copy.storage,
         tone: "error",
       });
     }
@@ -1037,8 +1068,7 @@ export function ListView<T>(props: ListViewProps<T>) {
         onRetry={props.onRetry}
         title="Die Liste konnte nicht geladen werden"
       >
-        Der Server hat nicht geantwortet. Ihre Filter bleiben erhalten. Prüfen
-        Sie die Verbindung und versuchen Sie es erneut.
+        {copy.loadError}
       </ErrorState>
     );
   } else if (status === "loading") {
@@ -1063,7 +1093,7 @@ export function ListView<T>(props: ListViewProps<T>) {
         description={
           total === 0
             ? "Sobald die ersten Einträge da sind, erscheinen sie hier."
-            : "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff."
+            : copy.noMatch
         }
         headingLevel={2}
         icon={total === 0 ? props.emptyIcon : SearchX}
