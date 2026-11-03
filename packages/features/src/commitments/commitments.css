@@ -1054,7 +1054,6 @@
 .commitment-delivery .btn,
 .commitment-draft-completion .btn {
   height: auto;
-  min-height: var(--control-h);
   padding-block: var(--s-2);
   line-height: 1.25;
   white-space: normal;
@@ -1093,7 +1092,6 @@
 .commitment-delivery-completion .btn {
   justify-self: start;
   height: auto;
-  min-height: var(--control-h);
   padding-block: var(--s-2);
   line-height: 1.25;
   white-space: normal;
