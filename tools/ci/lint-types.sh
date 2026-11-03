@@ -76,6 +76,13 @@ docker run --rm \
   -v "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
   python /workspace/tools/handoff/check.py /workspace
+# PR/queue tier selection, aggregate gates, flake tally, infra-retry allowlist.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/select_suites_test.py /workspace
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/gate_test.py
 run_bun bun run typecheck
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
   .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features \

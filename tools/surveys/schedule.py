@@ -15,6 +15,13 @@ import httpx
 from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
 
 
+
+def cookie_header(cookies):
+    """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
+    if not cookies:
+        return None
+    return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 async def main():
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     token = Path("/proof/session.env").read_text().strip().split("=", 1)[1]
@@ -23,7 +30,9 @@ async def main():
     async with httpx.AsyncClient(base_url="http://api:8000") as client:
 
         async def call(method, path, body=None, cookies=None, expected=200):
-            r = await client.request(method, path, json=body, cookies=cookies)
+            r = await client.request(
+                method, path, json=body, headers=cookie_header(cookies)
+            )
             assert r.status_code == expected, (path, r.status_code, r.text)
             return r.json()
 

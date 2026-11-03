@@ -1,42 +1,14 @@
 name: API contract
 
+# Formerly path-filtered. tools/ci/select_suites.py keeps the same filter
+# (API_PATHS) for pull requests, so "API contract gate" always reports;
+# merge_group, push and dispatch run the contract unconditionally.
 on:
   pull_request:
-    paths:
-      - ".github/workflows/api-contract.yml"
-      - "apps/**"
-      - "packages/api-client/**"
-      - "packages/features/**"
-      - "src/leonaid/**"
-      - "tests/contract/**"
-      - "tests/unit/**"
-      - "tools/openapi/**"
-      - "infra/compose/**"
-      - "leonaid"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "package.json"
-      - "bun.lock"
-      - "specs/leonaid-poc/openapi-breaking-approvals.json"
+  merge_group:
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/api-contract.yml"
-      - "apps/**"
-      - "packages/api-client/**"
-      - "packages/features/**"
-      - "src/leonaid/**"
-      - "tests/contract/**"
-      - "tests/unit/**"
-      - "tools/openapi/**"
-      - "infra/compose/**"
-      - "leonaid"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "package.json"
-      - "bun.lock"
-      - "specs/leonaid-poc/openapi-breaking-approvals.json"
   workflow_dispatch:
 
 permissions:
@@ -47,8 +19,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select:
+    uses: ./.github/workflows/select-suites.yml
+
   contract:
     name: Generated client against real API
+    needs: select
+    if: needs.select.outputs.api == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -61,20 +38,20 @@ jobs:
           targets: api
 
       - name: Bootstrap locked Docker toolchains
-        run: ./leonaid bootstrap
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
 
       - name: Generate, typecheck and run real contract
         run: ./tools/openapi/test.sh "$PWD"
 
-      - name: Checkout pull-request base
-        if: github.event_name == 'pull_request'
+      - name: Checkout pull-request or merge-queue base
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           path: .ci-base
 
       - name: Reject unapproved breaking changes
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         run: >-
           docker run --rm
           -e PYTHONPATH=/workspace/src
@@ -86,3 +63,19 @@ jobs:
           .ci-base/packages/api-client/openapi.json
           packages/api-client/openapi.json
           specs/leonaid-poc/openapi-breaking-approvals.json
+
+  gate:
+    # The one required check of this workflow: tools/ci/gate.py.
+    name: API contract gate
+    needs: [select, contract]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+      - name: Require the selected contract run
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci/gate.py --name "API contract gate" --selectable contract=api
