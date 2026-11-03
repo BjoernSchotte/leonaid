@@ -7,17 +7,50 @@ export interface ActionErrorMessage {
   readonly requestId: string | null;
 }
 
-function withSupportCode(message: string, requestId: string) {
-  return `${message} Falls du Unterstützung brauchst, nenne den Support-Code ${requestId}.`;
+/**
+ * How the copy addresses the person: "Sie" in the back office and on public
+ * pages, "du" in the acquisition PWA. The caller knows its surface.
+ */
+export type ErrorAddress = "Sie" | "du";
+
+export interface ActionErrorOptions {
+  /** Default "Sie" (back office). */
+  readonly address?: ErrorAddress;
 }
 
-export function actionErrorMessage(error: unknown): ActionErrorMessage {
+const copy = {
+  Sie: {
+    generic:
+      "Die Änderung konnte gerade nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    freshLogin: "Für diese Änderung wird Ihre Anmeldung erneut bestätigt.",
+    conflict:
+      "Die Aktion wurde zwischenzeitlich von jemand anderem geändert. Ihre Eingaben bleiben erhalten. Laden Sie den aktuellen Stand in einem neuen Tab und gleichen Sie die Änderungen ab.",
+    support: (requestId: string) =>
+      `Falls Sie Unterstützung brauchen, nennen Sie den Support-Code ${requestId}.`,
+  },
+  du: {
+    generic:
+      "Die Änderung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.",
+    freshLogin: "Für diese Änderung wird deine Anmeldung erneut bestätigt.",
+    conflict:
+      "Die Aktion wurde zwischenzeitlich von jemand anderem geändert. Deine Eingaben bleiben erhalten. Lade den aktuellen Stand in einem neuen Tab und gleiche die Änderungen ab.",
+    support: (requestId: string) =>
+      `Falls du Unterstützung brauchst, nenne den Support-Code ${requestId}.`,
+  },
+} as const;
+
+export function actionErrorMessage(
+  error: unknown,
+  { address = "Sie" }: ActionErrorOptions = {},
+): ActionErrorMessage {
+  const text = copy[address];
+  const withSupportCode = (message: string, requestId: string) =>
+    `${message} ${text.support(requestId)}`;
   if (!(error instanceof ApiError)) {
     return {
       code: null,
       conflict: false,
-      message:
-        "Die Änderung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.",
+      message: text.generic,
       requestId: null,
     };
   }
@@ -29,7 +62,7 @@ export function actionErrorMessage(error: unknown): ActionErrorMessage {
     return {
       code: error.detail.code,
       conflict: false,
-      message: "Für diese Änderung wird deine Anmeldung erneut bestätigt.",
+      message: text.freshLogin,
       requestId: error.detail.requestId,
     };
   }
@@ -37,10 +70,7 @@ export function actionErrorMessage(error: unknown): ActionErrorMessage {
     return {
       code: error.detail.code,
       conflict: true,
-      message: withSupportCode(
-        "Die Aktion wurde zwischenzeitlich von jemand anderem geändert. Deine Eingaben bleiben erhalten. Lade den aktuellen Stand in einem neuen Tab und gleiche die Änderungen ab.",
-        error.detail.requestId,
-      ),
+      message: withSupportCode(text.conflict, error.detail.requestId),
       requestId: error.detail.requestId,
     };
   }
