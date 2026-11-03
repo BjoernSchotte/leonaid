@@ -53,7 +53,7 @@ const toneIcon = {
   success: CircleCheck,
 } as const;
 
-interface ToastApi {
+export interface ToastApi {
   readonly show: (toast: LeonAidToast) => string;
   readonly dismiss: (id: string) => void;
 }
@@ -309,4 +309,9 @@ export function useToast(): ToastApi {
   const api = useContext(ToastContext);
   if (!api) throw new Error("useToast needs a surrounding ToastProvider");
   return api;
+}
+
+/** The toast API, or null outside a ToastProvider (shared components). */
+export function useOptionalToast(): ToastApi | null {
+  return useContext(ToastContext);
 }

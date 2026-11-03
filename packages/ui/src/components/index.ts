@@ -20,3 +20,4 @@ export * from "./modal";
 export * from "./skeleton-rows";
 export * from "./switch";
 export * from "./tabs";
+export * from "./list-view";
