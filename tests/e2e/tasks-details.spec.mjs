@@ -303,6 +303,32 @@ for (const [surface, width] of [
       "Dieser Entwurf muss erhalten bleiben",
     );
 
+    if (surface === "app") {
+      // A dirty task editor registers with the shell: a sheet link asks
+      // once in the app, with no second browser dialog.
+      const native = [];
+      const onDialog = (dialog) => {
+        native.push(dialog.type());
+        void dialog.dismiss();
+      };
+      page.on("dialog", onDialog);
+      await page.getByTestId("pwa-menu").click();
+      const sheet = page.getByRole("dialog", { name: "Mehr" });
+      await sheet.getByRole("link", { name: "Aufgaben" }).click();
+      const question = page.getByRole("alertdialog", {
+        name: "Seite wechseln?",
+      });
+      await expect(question).toBeVisible();
+      await question.getByRole("button", { name: "Abbrechen" }).click();
+      await expect(question).toBeHidden();
+      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await expect(description).toHaveValue(
+        "Dieser Entwurf muss erhalten bleiben",
+      );
+      page.off("dialog", onDialog);
+      expect(native).toEqual([]);
+    }
+
     page.once("dialog", async (dialog) => dialog.accept());
     await editor.getByRole("button", { name: "Abbrechen" }).click();
     await expect(editor).toHaveCount(0);
@@ -336,6 +362,7 @@ for (const [surface, width] of [
         .click();
       await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
       expect(dialogs).toEqual([]);
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
     }
     await context.close();
   });

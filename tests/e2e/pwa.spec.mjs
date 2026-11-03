@@ -296,22 +296,28 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   ).toHaveAttribute("aria-current", "page");
   await expect(company).toHaveValue("Ungespeichert GmbH");
 
-  // A tab asks before it drops typed input.
-  const question = page.waitForEvent("dialog");
+  // A tab asks once, in the app (iOS shows no beforeunload dialog).
+  const nativeDialogs = [];
+  page.on("dialog", (dialog) => {
+    nativeDialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
   const startTab = tabs.getByRole("link", { name: "Start" });
-  const tapped = startTab.click();
-  const dialog = await question;
-  expect(dialog.type()).toBe("confirm");
-  expect(dialog.message()).toContain(
+  await startTab.click();
+  const question = page.getByRole("alertdialog", { name: "Seite wechseln?" });
+  await expect(question).toContainText(
     "Du hast Eingaben, die noch nicht gespeichert sind.",
   );
-  await dialog.dismiss();
-  await tapped;
+  await question.getByRole("button", { name: "Abbrechen" }).click();
+  await expect(question).toBeHidden();
   await expect(page).toHaveURL(/\/app\/sponsors\?view=new$/);
   await expect(company).toHaveValue("Ungespeichert GmbH");
-  page.once("dialog", (next) => void next.accept());
   await startTab.click();
+  await question
+    .getByRole("button", { name: "Verwerfen und wechseln" })
+    .click();
   await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
+  expect(nativeDialogs).toEqual([]);
 
   // Tab shortcuts 1–5 follow the tab order.
   await page.locator("main h1").click();

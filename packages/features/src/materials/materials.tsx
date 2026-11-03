@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import {
   AccessMembersPanel,
@@ -74,15 +74,7 @@ function Upload({
     setNotice("");
   };
   const valid = file && file.size > 0 && file.size <= 25 * 1024 * 1024;
-  useEffect(() => {
-    if (!file) return;
-    const guard = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
-  }, [file]);
+  useLeaveGuard(Boolean(file));
   if (!canEdit && !file) return null;
   return (
     <form

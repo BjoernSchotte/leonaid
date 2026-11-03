@@ -22,6 +22,8 @@ import {
 } from "../keyboard";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import { ConfirmDialog } from "./confirm-dialog";
+import { LeaveGuardContext, LeaveGuardRegistry } from "./leave-guard";
 import {
   resolvedTheme,
   setThemePreference,
@@ -80,7 +82,7 @@ const SHORTCUT_FOOTNOTE =
   "Kürzel wirken nicht, während du in ein Feld schreibst. Esc verlässt jedes Feld und jeden Dialog.";
 
 const LEAVE_QUESTION =
-  "Du hast Eingaben, die noch nicht gespeichert sind. Wenn du die Seite wechselst, gehen sie verloren. Trotzdem wechseln?";
+  "Du hast Eingaben, die noch nicht gespeichert sind. Wenn du die Seite wechselst, gehen sie verloren.";
 
 const TEXT_INPUT_TYPES = new Set([
   "date",
@@ -116,24 +118,17 @@ function countsAsInput(
   );
 }
 
-/** A page's own leave guard (beforeunload) would ask the browser anyway. */
-function pageGuardsLeaving(): boolean {
-  const probe = new Event("beforeunload", { cancelable: true });
-  window.dispatchEvent(probe);
-  const value = (probe as Event & { returnValue?: unknown }).returnValue;
-  return probe.defaultPrevented || (typeof value === "string" && value !== "");
-}
-
 /**
- * Asks before shell navigation (tabs, digit keys, sheet links) would drop
- * typed input. A field counts once the user typed into it, while it is
- * still on the page and not empty: a saved form that resets or unmounts
- * stops counting. When the page has its own beforeunload guard, the
- * browser's dialog asks instead (one question, not two).
+ * One in-app question before shell navigation (tabs, digit keys, sheet
+ * links) would drop unsaved work. Unsaved work is a page registered through
+ * `useLeaveGuard(dirty)`, or a text field the user typed into that is still
+ * on the page, not empty and not opted out. A saved form that resets,
+ * unmounts or marks itself `data-leave-guard="off"` stops counting.
  */
-function useLeaveGuard() {
+function useShellLeaveGuard(registry: LeaveGuardRegistry) {
   const mainRef = useRef<HTMLElement>(null);
   const touched = useRef(new Set<HTMLInputElement | HTMLTextAreaElement>());
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   useEffect(() => {
     const main = mainRef.current;
@@ -148,21 +143,44 @@ function useLeaveGuard() {
     return () => main.removeEventListener("input", onInput, true);
   }, []);
 
-  function hasUnsavedInput(): boolean {
+  function hasUnsavedWork(): boolean {
+    if (registry.hasDirtyPages()) return true;
     for (const field of touched.current) {
       if (!field.isConnected) touched.current.delete(field);
-      else if (field.value.trim() !== "") return true;
+      // The opt-out can come later, e.g. once a form is saved.
+      else if (countsAsInput(field) && field.value.trim() !== "") return true;
     }
     return false;
   }
 
-  /** True when leaving is fine: nothing typed, or the user confirmed. */
-  function confirmLeave(): boolean {
-    if (!hasUnsavedInput() || pageGuardsLeaving()) return true;
-    return window.confirm(LEAVE_QUESTION);
+  /** Leaves at once, or asks first when work would be lost. */
+  function requestLeave(href: string): void {
+    if (hasUnsavedWork()) setPendingHref(href);
+    else window.location.assign(href);
   }
 
-  return { confirmLeave, mainRef };
+  const question = (
+    <ConfirmDialog
+      confirmLabel="Verwerfen und wechseln"
+      description={LEAVE_QUESTION}
+      onConfirm={() => {
+        const href = pendingHref;
+        setPendingHref(null);
+        if (!href) return;
+        // Page guards stay silent: the user already answered.
+        registry.leaving = true;
+        window.location.assign(href);
+      }}
+      onOpenChange={(open) => {
+        if (!open) setPendingHref(null);
+      }}
+      open={pendingHref !== null}
+      title="Seite wechseln?"
+      tone="danger"
+    />
+  );
+
+  return { hasUnsavedWork, mainRef, question, requestLeave };
 }
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string }[] = [
@@ -178,10 +196,13 @@ const THEME_OPTIONS: readonly { value: ThemeMode; label: string }[] = [
  * sheet. Mounts the hotkey registry (tabs on 1–n, ⇧T, ?) and the toaster.
  */
 export function MobileShell(props: MobileShellProps) {
+  const [registry] = useState(() => new LeaveGuardRegistry());
   return (
     <HotkeyProvider>
       <ToastProvider>
-        <MobileShellFrame {...props} />
+        <LeaveGuardContext.Provider value={registry}>
+          <MobileShellFrame {...props} registry={registry} />
+        </LeaveGuardContext.Provider>
       </ToastProvider>
     </HotkeyProvider>
   );
@@ -200,10 +221,12 @@ function MobileShellFrame({
   role,
   tabs,
   zone = "pwa",
-}: MobileShellProps) {
+  registry,
+}: MobileShellProps & { readonly registry: LeaveGuardRegistry }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
-  const { confirmLeave, mainRef } = useLeaveGuard();
+  const { hasUnsavedWork, mainRef, question, requestLeave } =
+    useShellLeaveGuard(registry);
   const guardLink = (event: MouseEvent<HTMLAnchorElement>) => {
     // A new tab or window (modifier or middle click) drops nothing here.
     if (
@@ -215,7 +238,9 @@ function MobileShellFrame({
     ) {
       return;
     }
-    if (!confirmLeave()) event.preventDefault();
+    if (!hasUnsavedWork()) return;
+    event.preventDefault();
+    requestLeave(event.currentTarget.href);
   };
 
   function chooseTheme(mode: ThemeMode) {
@@ -236,7 +261,7 @@ function MobileShellFrame({
     <div className="pwa-stage" data-zone={zone}>
       {/* Before the page: page bindings register later and win. */}
       <ShellHotkeys
-        confirmLeave={confirmLeave}
+        onLeave={requestLeave}
         onToggleTheme={() =>
           chooseTheme(resolvedTheme() === "dark" ? "light" : "dark")
         }
@@ -338,16 +363,17 @@ function MobileShellFrame({
         theme={theme}
       />
       <ShortcutHelp footnote={SHORTCUT_FOOTNOTE} />
+      {question}
     </div>
   );
 }
 
 function ShellHotkeys({
-  confirmLeave,
+  onLeave,
   onToggleTheme,
   tabs,
 }: {
-  readonly confirmLeave: () => boolean;
+  readonly onLeave: (href: string) => void;
   readonly onToggleTheme: () => void;
   readonly tabs: readonly MobileShellTab[];
 }) {
@@ -360,9 +386,7 @@ function ShellHotkeys({
             keys: tab.shortcut,
             label: `App: ${tab.label}`,
             group: "Akquise-App",
-            run: () => {
-              if (confirmLeave()) window.location.assign(tab.href);
-            },
+            run: () => onLeave(tab.href),
           },
         ]
       : [],

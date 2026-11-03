@@ -529,11 +529,14 @@ function SponsorCapture({
   client,
   identity,
   onAssigned,
+  visible,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
+  /** False while the list is shown; the capture stays mounted. */
+  readonly visible: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<SponsorMode>("company");
@@ -660,6 +663,9 @@ function SponsorCapture({
         </div>
         <form
           className="acq-form"
+          // Saved: the locked values are no unsaved input any more. During
+          // match review nothing is saved yet, so leaving still asks.
+          data-leave-guard={resolution ? "off" : undefined}
           id="sponsor-form"
           onSubmit={submit}
           ref={formRef}
@@ -813,18 +819,24 @@ function SponsorCapture({
             id="sponsor-status"
             role="status"
           >
-            {resolution ? (
-              <StatusMessage tone="success">
-                {resolution.displayName} ist jetzt dir zugeordnet.
-              </StatusMessage>
-            ) : null}
-            {formError ? (
-              <StatusMessage tone="error">{formError}</StatusMessage>
-            ) : null}
-            {preview.isError || resolve.isError ? (
-              <StatusMessage tone="error">
-                {sponsorError(preview.error ?? resolve.error)}
-              </StatusMessage>
+            {/* Filled only while shown, so a result or error that arrived
+                while the list was open is announced on return. */}
+            {visible ? (
+              <>
+                {resolution ? (
+                  <StatusMessage tone="success">
+                    {resolution.displayName} ist jetzt dir zugeordnet.
+                  </StatusMessage>
+                ) : null}
+                {formError ? (
+                  <StatusMessage tone="error">{formError}</StatusMessage>
+                ) : null}
+                {preview.isError || resolve.isError ? (
+                  <StatusMessage tone="error">
+                    {sponsorError(preview.error ?? resolve.error)}
+                  </StatusMessage>
+                ) : null}
+              </>
             ) : null}
           </div>
         </form>
@@ -982,6 +994,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
             onAssigned={async () => {
               await board.refetch();
             }}
+            visible={view === "new"}
           />
         </div>
       ) : null}

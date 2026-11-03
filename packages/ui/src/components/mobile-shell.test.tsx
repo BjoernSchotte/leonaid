@@ -1,16 +1,13 @@
 // @vitest-environment jsdom
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Bell, Home, ListChecks, Plus, Truck, Users } from "lucide-react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { installDialogPolyfill } from "../test-utils/dialog-polyfill";
+import type { ReactNode } from "react";
+
+import { useLeaveGuard } from "./leave-guard";
 import { MobileShell, type MobileShellProps } from "./mobile-shell";
 
 beforeAll(installDialogPolyfill);
@@ -53,7 +50,10 @@ const tabs: MobileShellProps["tabs"] = [
   },
 ];
 
-function renderShell(overrides: Partial<MobileShellProps> = {}) {
+function renderShell(
+  overrides: Partial<MobileShellProps> = {},
+  extra: ReactNode = null,
+) {
   const onLogout = vi.fn();
   render(
     <MobileShell
@@ -85,6 +85,7 @@ function renderShell(overrides: Partial<MobileShellProps> = {}) {
       <div data-leave-guard="off">
         <input aria-label="Notizfilter" />
       </div>
+      {extra}
     </MobileShell>,
   );
   return { onLogout };
@@ -234,111 +235,130 @@ describe("MobileShell", () => {
     expect(keys).not.toContain("4");
   });
 
-  it("asks before a tab drops typed input", async () => {
-    const user = userEvent.setup();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    renderShell();
+  function clickStart(init: MouseEventInit = {}) {
     const nav = screen.getByRole("navigation", { name: "App-Navigation" });
-    const start = within(nav).getByRole("link", { name: "Start" });
-    // Nothing typed: no question.
-    expect(fireEvent.click(start)).toBe(true);
-    expect(confirm).not.toHaveBeenCalled();
-
-    await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
-    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
-    start.dispatchEvent(event);
-    expect(confirm).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "Du hast Eingaben, die noch nicht gespeichert sind.",
-      ),
-    );
-    expect(event.defaultPrevented).toBe(true);
-
-    confirm.mockReturnValue(true);
-    const accepted = new MouseEvent("click", {
+    const event = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
+      ...init,
     });
-    start.dispatchEvent(accepted);
-    expect(accepted.defaultPrevented).toBe(false);
+    act(() => {
+      within(nav).getByRole("link", { name: "Start" }).dispatchEvent(event);
+    });
+    return event;
+  }
 
-    // A cleared field no longer counts.
-    confirm.mockClear();
-    await user.clear(screen.getByRole("textbox", { name: "Straße" }));
-    start.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true }),
+  function beforeUnloadPrevented() {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  it("asks once, in the app, before a tab drops typed input", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm");
+    renderShell();
+    // Nothing typed: the tab just navigates.
+    expect(clickStart().defaultPrevented).toBe(false);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+
+    await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
+    expect(clickStart().defaultPrevented).toBe(true);
+    const question = screen.getByRole("alertdialog", {
+      name: "Seite wechseln?",
+    });
+    expect(question.textContent).toContain(
+      "Du hast Eingaben, die noch nicht gespeichert sind.",
     );
     expect(confirm).not.toHaveBeenCalled();
+    await user.click(
+      within(question).getByRole("button", { name: "Abbrechen" }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Straße" })).toHaveProperty(
+      "value",
+      "Weg 7",
+    );
+
+    // A cleared field no longer counts.
+    await user.clear(screen.getByRole("textbox", { name: "Straße" }));
+    expect(clickStart().defaultPrevented).toBe(false);
     confirm.mockRestore();
   });
 
-  describe("leave guard exceptions", () => {
-    function clickStart(init: MouseEventInit = {}) {
-      const nav = screen.getByRole("navigation", { name: "App-Navigation" });
-      const event = new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        ...init,
-      });
-      within(nav).getByRole("link", { name: "Start" }).dispatchEvent(event);
-      return event;
+  it("stops counting a field once its form opts out (saved)", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    const field = screen.getByRole("textbox", { name: "Straße" });
+    await user.type(field, "Weg 7");
+    field.setAttribute("data-leave-guard", "off");
+    expect(clickStart().defaultPrevented).toBe(false);
+  });
+
+  it("asks for pages registered with useLeaveGuard, then keeps them silent", async () => {
+    const user = userEvent.setup();
+    function DirtyEditor() {
+      useLeaveGuard(true);
+      return null;
     }
-
-    it("does not ask for search and filter fields or opted-out fields", async () => {
-      const user = userEvent.setup();
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-      renderShell();
-      await user.type(
-        screen.getByRole("searchbox", { name: "Aufgaben suchen" }),
-        "Detail",
-      );
-      await user.type(
-        screen.getByRole("textbox", { name: "Material filtern" }),
-        "Flyer",
-      );
-      await user.type(
-        screen.getByRole("textbox", { name: "Notizfilter" }),
-        "Plan",
-      );
-      expect(clickStart().defaultPrevented).toBe(false);
-      expect(confirm).not.toHaveBeenCalled();
-      confirm.mockRestore();
+    renderShell({}, <DirtyEditor />);
+    // Reload or close still get the browser's own question.
+    expect(beforeUnloadPrevented()).toBe(true);
+    expect(clickStart().defaultPrevented).toBe(true);
+    const question = screen.getByRole("alertdialog", {
+      name: "Seite wechseln?",
     });
+    await user.click(
+      within(question).getByRole("button", {
+        name: "Verwerfen und wechseln",
+      }),
+    );
+    // Answered in the app: no second, browser-side question.
+    expect(beforeUnloadPrevented()).toBe(false);
+  });
 
-    it("does not ask for a new tab or window", async () => {
-      const user = userEvent.setup();
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-      renderShell();
-      await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
-      for (const init of [
-        { ctrlKey: true },
-        { metaKey: true },
-        { shiftKey: true },
-        { button: 1 },
-      ]) {
-        expect(clickStart(init).defaultPrevented).toBe(false);
-      }
-      expect(confirm).not.toHaveBeenCalled();
-      confirm.mockRestore();
-    });
+  it("does not ask for search and filter fields or opted-out fields", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.type(
+      screen.getByRole("searchbox", { name: "Aufgaben suchen" }),
+      "Detail",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Material filtern" }),
+      "Flyer",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Notizfilter" }),
+      "Plan",
+    );
+    expect(clickStart().defaultPrevented).toBe(false);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
 
-    it("leaves the question to a page's own beforeunload guard", async () => {
-      const user = userEvent.setup();
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-      const pageGuard = (event: Event) => event.preventDefault();
-      window.addEventListener("beforeunload", pageGuard);
-      try {
-        renderShell();
-        await user.type(
-          screen.getByRole("textbox", { name: "Straße" }),
-          "Weg 7",
-        );
-        expect(clickStart().defaultPrevented).toBe(false);
-        expect(confirm).not.toHaveBeenCalled();
-      } finally {
-        window.removeEventListener("beforeunload", pageGuard);
-        confirm.mockRestore();
-      }
-    });
+  it("does not ask for a new tab or window", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
+    for (const init of [
+      { ctrlKey: true },
+      { metaKey: true },
+      { shiftKey: true },
+      { button: 1 },
+    ]) {
+      expect(clickStart(init).defaultPrevented).toBe(false);
+    }
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("asks for a digit key too", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
+    await user.click(screen.getByRole("heading", { name: "Meine Sponsoren" }));
+    await user.keyboard("1");
+    expect(
+      screen.getByRole("alertdialog", { name: "Seite wechseln?" }),
+    ).toBeTruthy();
   });
 });

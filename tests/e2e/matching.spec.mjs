@@ -96,6 +96,15 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     );
     const confirmation = page.locator('[data-testid="sponsor-resolve"]');
     await expect(confirmation).toHaveText("Trotzdem ebenfalls zuordnen");
+    // During match review nothing is saved yet: a tab asks first.
+    const appTabs = page.getByRole("navigation", { name: "App-Navigation" });
+    const leaveQuestion = page.getByRole("alertdialog", {
+      name: "Seite wechseln?",
+    });
+    await appTabs.getByRole("link", { name: "Start" }).click();
+    await expect(leaveQuestion).toBeVisible();
+    await leaveQuestion.getByRole("button", { name: "Abbrechen" }).click();
+    await expect(leaveQuestion).toBeHidden();
     await expect(page.locator('[data-testid="sponsor-success"]')).toHaveCount(
       0,
     );
@@ -205,6 +214,14 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
       path: `${artifactDirectory}/matching-created-mobile.png`,
       fullPage: true,
     });
+
+    // Saved: the locked values are no unsaved input, a tab just leaves.
+    await page
+      .getByRole("navigation", { name: "App-Navigation" })
+      .getByRole("link", { name: "Start" })
+      .click();
+    await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
   } finally {
     await context.close();
   }
