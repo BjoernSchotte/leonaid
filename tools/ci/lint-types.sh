@@ -30,10 +30,10 @@ run_bun() {
 
 run_python uv run --frozen --no-sync ruff check \
   tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
-  tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py
+  tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py tools/testing/module_browser_seed.py tools/testing/run_python_contracts.py
 run_python uv run --frozen --no-sync ruff format --check \
   tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
-  tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py
+  tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py tools/testing/module_browser_seed.py tools/testing/run_python_contracts.py
 
 run_python uv run --frozen --no-sync ruff check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
@@ -43,7 +43,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
@@ -54,7 +54,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync mypy \
@@ -65,7 +65,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync \

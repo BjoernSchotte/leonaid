@@ -210,14 +210,35 @@ def test_navigation_contributions_keep_module_order() -> None:
     assert [item.key for item in navigation(principal())] == ["first", "second"]
 
 
-def test_surveys_are_registered_with_routes_and_navigation() -> None:
-    assert [module.id for module in API_MODULES] == ["surveys"]
+def test_modules_are_registered_with_routes_and_navigation() -> None:
+    assert [module.id for module in API_MODULES] == ["surveys", "tasks"]
     items = navigation_for(principal(), module_navigation(frozenset())(principal()))
 
     assert [(item.key, item.href, item.surface) for item in items] == [
         ("overview-pwa", "/app/", "pwa"),
         ("surveys", "/admin/surveys", "web"),
+        # The PWA links to the shared web survey editor.
+        ("surveys", "/admin/surveys", "pwa"),
+        ("tasks", "/admin/tasks", "web"),
+        ("tasks", "/app/tasks", "pwa"),
     ]
+
+
+@pytest.mark.parametrize("status", [AccountStatus.SUSPENDED, AccountStatus.ARCHIVED])
+def test_module_navigation_is_hidden_for_inactive_accounts(
+    status: AccountStatus,
+) -> None:
+    inactive = IdentityPrincipal(
+        account=UserAccount(
+            id=UUID("10000000-0000-4000-8000-000000000009"),
+            email="gesa@example.test",
+            display_name="Gesa",
+            status=status,
+        ),
+        global_roles=frozenset(),
+        action_memberships=(),
+    )
+    assert module_navigation(frozenset())(inactive) == ()
 
 
 def test_production_app_serves_the_survey_routes() -> None:
@@ -236,6 +257,7 @@ def test_worker_registers_every_existing_handler_once() -> None:
 
     assert [module.id for module in modules] == [
         "surveys",
+        "tasks",
         "actions",
         "invoicing",
         "mail",
@@ -309,7 +331,7 @@ def test_api_and_worker_offer_the_same_switchable_modules() -> None:
         for module in worker_modules("postgresql://unused", None)
         if module.switchable
     }
-    assert api == worker == {"surveys"}
+    assert api == worker == {"surveys", "tasks"}
 
 
 def test_switched_off_module_has_no_routes_navigation_or_loops(
@@ -322,7 +344,8 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
 
     assert paths
     assert not any("/surveys" in path for path in paths)
-    assert module_navigation(off)(principal()) == ()
+    assert {item.key for item in module_navigation(off)(principal())} == {"tasks"}
+    assert any(path.startswith("/api/v1/task") for path in paths)
     assert background_loops("postgresql://unused", off) == ()
     assert module_switch_problems(off) == []
     assert module_switch_problems(frozenset({"mail"})) == [

@@ -27,6 +27,9 @@ from leonaid.domain.identity import (
     GlobalRole,
 )
 
+# Module entries every active account sees on both surfaces.
+WORK_MODULES = {"surveys", "tasks"}
+
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
@@ -419,7 +422,7 @@ async def prove_role_administration(
             await identity_response(client, tokens["ANNA_OLD_SESSION"]),
             display_name="Anna Akquise",
         )
-        if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"}:
+        if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"} | WORK_MODULES:
             raise ContractFailure(
                 "membership revocation did not take effect in the next PWA request"
             )
@@ -857,12 +860,17 @@ async def run(arguments: argparse.Namespace) -> None:
                 or "members" not in navigation_keys(klara_payload, "web")
             ):
                 raise ContractFailure("action-scoped charity admin view is incorrect")
-            if navigation_keys(anna_payload, "pwa") != {
-                "overview-pwa",
-                "sponsors",
-                "activities",
-                "commitment",
-            } or navigation_keys(anna_payload, "web") != {"surveys"}:
+            if (
+                navigation_keys(anna_payload, "pwa")
+                != {
+                    "overview-pwa",
+                    "sponsors",
+                    "activities",
+                    "commitment",
+                }
+                | WORK_MODULES
+                or navigation_keys(anna_payload, "web") != WORK_MODULES
+            ):
                 raise ContractFailure("acquirer navigation contains wrong areas")
 
             suspended = await identity_response(client, tokens["GESA_SESSION"])

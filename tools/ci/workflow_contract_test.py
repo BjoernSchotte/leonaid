@@ -38,6 +38,11 @@ def main() -> None:
                 "Integration shard missing: delivery",
             ),
             (
+                "          - tasks\n",
+                "",
+                "E2E shard missing: tasks",
+            ),
+            (
                 "needs: integration-shards\n    if: ${{ !cancelled()",
                 "needs: integration-shards\n    if: ${{ always()",
                 "summary check",
