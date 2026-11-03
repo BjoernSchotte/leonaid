@@ -211,7 +211,7 @@ function TasksWorkspace({
   const address: Address =
     (surface ?? (basePath.startsWith("/app") ? "pwa" : "web")) === "pwa"
       ? "du"
-      : "sie";
+      : "Sie";
   const cache = useQueryClient();
   const toast = useOptionalToast();
   // Old bookmarks and search links become list view parameters first.

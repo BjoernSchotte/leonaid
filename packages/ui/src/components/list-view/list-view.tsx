@@ -66,7 +66,7 @@ export const LIST_HOTKEY_GROUP = "Liste";
 
 /** Built-in copy that addresses the person: admin "Sie", app "Du". */
 const COPY = {
-  sie: {
+  Sie: {
     retry: "Bitte versuchen Sie es erneut.",
     storage:
       "Der Browser erlaubt keine Speicherung. Prüfen Sie die Einstellungen für Website-Daten.",
@@ -290,7 +290,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     title,
   } = props;
   const toast = useOptionalToast();
-  const copy = COPY[props.address ?? "sie"];
+  const copy = COPY[props.address ?? "Sie"];
   const headingId = useId();
   const viewNameId = useId();
 

@@ -103,6 +103,9 @@ export interface ListColumns<T> {
 
 export type ListStatus = "ready" | "loading" | "error";
 
+/** "Sie" (back office) or "du" (PWA) for the list's built-in copy. */
+export type ListAddress = "Sie" | "du";
+
 export interface ListViewBaseProps<T> {
   /** Stable list id: localStorage key `leonaid.views.<id>` and DOM ids. */
   readonly id: string;
@@ -166,8 +169,11 @@ export interface ListViewBaseProps<T> {
    * unsaved.
    */
   readonly paneGuard?: () => boolean;
-  /** Form of address of the built-in copy: "sie" (default) or "du" (app). */
-  readonly address?: "sie" | "du";
+  /**
+   * Form of address of the list's own copy (errors, empty states, toasts):
+   * "Sie" in the back office (default), "du" in the PWA.
+   */
+  readonly address?: ListAddress;
 }
 
 /**
