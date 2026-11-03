@@ -51,7 +51,7 @@ in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 | Group | Cases |
 |---|---|
 | `krapfentaxi-orders` | `krapfentaxi-orders`: Krapfentaxi import, Chromium/Firefox/WebKit editor and order journeys, Core/Twenty order ingress, native order deadlines |
-| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects |
+| `krapfentaxi-migration` | `krapfentaxi-migration`: Krapfentaxi import with original media, three-browser editor and renderer proof, published redirects; `redirect-aliases`: Chromium/Firefox/WebKit redirect alias editor (create, disable/enable, collision, move, remove) under the strict CSP |
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
