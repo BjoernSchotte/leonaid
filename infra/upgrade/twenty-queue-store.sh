@@ -210,8 +210,10 @@ drain_live() {
   if is_running "$worker_container"; then
     docker stop "$worker_container" >/dev/null
   fi
-  stop_started
+  # Count before stop_started: when the stack was stopped, this script started
+  # the old Redis itself, and stop_started would stop it again.
   result=$(count_pending "$redis")
+  stop_started
   printf '%s\n' "$result"
 }
 
