@@ -132,7 +132,13 @@ test.describe("enabled modules", () => {
       await expect(palette(page)).toBeHidden();
 
       expect(await page.evaluate(() => window.__addedStyles)).toBe(0);
-      expect(await page.locator("[style]").count()).toBe(0);
+      // CSSOM writes (the theme's color-scheme on <html>) are allowed; the
+      // palette itself carries no style attribute.
+      expect(
+        await page
+          .locator("dialog.palette[style], dialog.palette [style]")
+          .count(),
+      ).toBe(0);
     } finally {
       await context.close();
     }
