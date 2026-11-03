@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
+contentRevision: 11
+reviewedRevision: 11
+verifiedAgainst: 8fb732e8f06e7faed03fd3982c87065812131518
 reviewer: Björn Schotte
 ---
 
@@ -68,6 +68,22 @@ outbox counters on `/admin/system` therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 
+## Module switches
+
+Business modules are on by default. `LEONAID_DISABLED_MODULES` in the
+installation's env file switches modules off, comma-separated, for example
+`LEONAID_DISABLED_MODULES=surveys`. Today `surveys` is the only switchable
+module; core areas such as mail and invoicing cannot be switched off. The API
+and the worker read the same value; restart both after a change.
+
+A switched-off module keeps all its data. It shows no navigation, its API
+routes are not registered and answer 404, and the web pages fall back to the
+overview. The worker runs none of its loops and leaves its jobs pending:
+they are neither attempted nor dead-lettered, and they run once the module
+is on again. An unknown or non-switchable ID, or switching off a module that
+another enabled module requires, stops the API at start and the worker with
+`worker.configuration.invalid`.
+
 ## Job runtime and error details
 
 A module may bound the runtime of its outbox handlers. The worker caps every
@@ -77,6 +93,12 @@ retried with the error code `job_timeout`. Jobs store only the safe error
 code as their error detail, never exception text. Every job log line
 (`outbox.job.*`) carries `durationMs` when the job finished, failed or lost
 its claim.
+
+The outbox card on `/admin/system` also shows the next pending attempt
+and how long the oldest due job has waited (API fields `nextPendingAttemptAt`
+and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
+of both values, because they wait on purpose. A growing wait with a running
+worker points to a stuck or overloaded queue.
 
 ## Runtime limits and identity
 

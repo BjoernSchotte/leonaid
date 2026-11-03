@@ -81,6 +81,31 @@ def parse_active_alerts(document: object) -> tuple[OperationalAlert, ...]:
     return tuple(sorted(alerts, key=lambda alert: (alert.severity, alert.name)))
 
 
+async def pending_queue_timing(
+    connection: asyncpg.Connection[Any],
+    excluded_event_types: frozenset[str] = frozenset(),
+) -> tuple[datetime | None, float | None]:
+    """Next pending attempt and age of the oldest due job, at database time.
+
+    Running jobs are not pending work. Jobs of switched-off modules are left
+    out: they wait on purpose and must not look like a stuck queue.
+    """
+    row = await connection.fetchrow(
+        """
+        SELECT min(available_at) AS next_attempt,
+               extract(epoch FROM now() - min(available_at)
+                   FILTER (WHERE available_at <= now())) AS oldest_due_age
+        FROM outbox_event
+        WHERE status = 'pending' AND NOT (event_type = ANY($1::text[]))
+        """,
+        sorted(excluded_event_types),
+    )
+    if row is None:
+        return None, None
+    age = row["oldest_due_age"]
+    return row["next_attempt"], (float(age) if age is not None else None)
+
+
 class ApiMetrics:
     """Process-local request counters; durable business metrics stay in SQL."""
 
@@ -173,6 +198,7 @@ class OperationsService:
         monitor_status_url: str | None,
         alertmanager_url: str | None,
         release: str,
+        parked_event_types: frozenset[str] = frozenset(),
     ) -> None:
         if set(dependency_urls) != {"twenty", "rustfs", "mail", "worker"}:
             raise ValueError(
@@ -184,6 +210,7 @@ class OperationsService:
         self._monitor_status_url = monitor_status_url
         self._alertmanager_url = alertmanager_url
         self._release = release
+        self._parked_event_types = parked_event_types
 
     async def daily_report(self, *, request_id: str) -> PilotDailyReport:
         return build_pilot_daily_report(
@@ -202,6 +229,9 @@ class OperationsService:
             self._monitoring_snapshot(),
         )
         async with self._pool.acquire() as connection:
+            next_attempt, oldest_due_age = await pending_queue_timing(
+                connection, self._parked_event_types
+            )
             outbox_rows = await connection.fetch(
                 "SELECT status, count(*) AS count "
                 "FROM outbox_event GROUP BY status ORDER BY status"
@@ -254,6 +284,8 @@ class OperationsService:
             api=self._api_metrics.snapshot(),
             dependencies=tuple(dependency_result),
             outbox=self._status_counts(outbox_rows),
+            next_pending_attempt_at=next_attempt,
+            oldest_due_pending_age_seconds=oldest_due_age,
             mail=self._status_counts(mail_rows),
             login={
                 "challengesLast24h": int(login_row["challenges"] if login_row else 0),

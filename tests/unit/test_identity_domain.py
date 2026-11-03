@@ -289,7 +289,7 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         ),
     )
 
-    navigation = navigation_for(acquirer, module_navigation()(acquirer))
+    navigation = navigation_for(acquirer, module_navigation(frozenset())(acquirer))
 
     assert {item.key for item in navigation if item.surface == "web"} == {"surveys"}
     assert {(item.surface, item.key) for item in navigation} >= {

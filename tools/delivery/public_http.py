@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -13,7 +15,13 @@ from leonaid.adapters.postgres.legal_configuration import (
     AsyncpgLegalConfigurationRepository,
 )
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
-from leonaid.application.crm import CompanyData, CompanyRecord, PersonData, PersonRecord
+from leonaid.application.crm import (
+    CompanyData,
+    CompanyRecord,
+    CrmGateway,
+    PersonData,
+    PersonRecord,
+)
 from leonaid.application.public_orders import PublicOrderService, PublicOrderTokenCodec
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from tools.delivery.http_configuration import http_app
@@ -22,7 +30,7 @@ from tools.delivery.http_configuration import http_app
 class RecordingCrm:
     """Fail on unexpected CRM operations; support existing company/contact paths."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.company = CompanyRecord(uuid4(), CompanyData(name="HTTP Test Company"))
         self.person = PersonRecord(
             uuid4(),
@@ -33,43 +41,59 @@ class RecordingCrm:
                 company_twenty_id=self.company.twenty_id,
             ),
         )
-        self.calls = []
-        self.before_search = None
+        self.calls: list[str] = []
+        self.before_search: Callable[[], Awaitable[None]] | None = None
         self.create_new = False
 
-    async def search_companies(self, query, *, correlation_id):
+    async def search_companies(
+        self, query: str, *, correlation_id: str
+    ) -> tuple[CompanyRecord, ...]:
         self.calls.append("search_companies")
         if self.before_search:
             await self.before_search()
         return () if self.create_new else (self.company,)
 
-    async def search_people(self, *, given_name, family_name, correlation_id):
+    async def search_people(
+        self, *, given_name: str, family_name: str, correlation_id: str
+    ) -> tuple[PersonRecord, ...]:
         self.calls.append("search_people")
         return () if self.create_new else (self.person,)
 
-    async def find_companies_by_match_key(self, match_key, *, correlation_id):
+    async def find_companies_by_match_key(
+        self, match_key: str, *, correlation_id: str
+    ) -> tuple[CompanyRecord, ...]:
         # Existing records here carry no stored key; the name search finds them.
         self.calls.append("find_companies_by_match_key")
         return ()
 
-    async def find_people_by_match_key(self, match_key, *, correlation_id):
+    async def find_people_by_match_key(
+        self, match_key: str, *, correlation_id: str
+    ) -> tuple[PersonRecord, ...]:
         self.calls.append("find_people_by_match_key")
         return ()
 
-    async def get_company(self, identifier, *, correlation_id):
+    async def get_company(
+        self, identifier: UUID, *, correlation_id: str
+    ) -> CompanyRecord | None:
         self.calls.append("get_company")
         return None
 
-    async def get_person(self, identifier, *, correlation_id):
+    async def get_person(
+        self, identifier: UUID, *, correlation_id: str
+    ) -> PersonRecord | None:
         self.calls.append("get_person")
         return None
 
-    async def create_company(self, identifier, data, *, correlation_id):
+    async def create_company(
+        self, identifier: UUID, data: CompanyData, *, correlation_id: str
+    ) -> tuple[CompanyRecord, None]:
         self.calls.append("create_company")
         self.company = CompanyRecord(identifier, data)
         return self.company, None
 
-    async def create_person(self, identifier, data, *, correlation_id):
+    async def create_person(
+        self, identifier: UUID, data: PersonData, *, correlation_id: str
+    ) -> tuple[PersonRecord, None]:
         self.calls.append("create_person")
         self.person = PersonRecord(identifier, data)
         return self.person, None
@@ -92,7 +116,8 @@ async def prove_public_http(
     crm = RecordingCrm()
     service = PublicOrderService(
         AsyncpgPublicOrderRepository(pool),
-        crm,
+        # Partial recording port: unexpected CRM operations fail loudly.
+        cast(CrmGateway, crm),
         PublicOrderTokenCodec(secret),
         AsyncpgLegalConfigurationRepository(pool),
     )
@@ -108,7 +133,7 @@ async def prove_public_http(
     identity.current = None  # These are actual anonymous public requests.
     app.state.public_order_service = service
     app.state.public_order_fingerprint_secret = secret
-    body = {
+    body: dict[str, Any] = {
         "accessToken": service.issue_access_token(action_id, alias),
         "commandId": str(uuid4()),
         "party": {
@@ -151,7 +176,7 @@ async def prove_public_http(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
 
-        async def post(changes):
+        async def post(changes: dict[str, Any]) -> httpx.Response:
             return await client.post(
                 path,
                 json={**body, **changes},
@@ -198,7 +223,7 @@ async def prove_public_http(
             "search_people",
         ]
 
-        async def retire(identifier):
+        async def retire(identifier: UUID) -> None:
             current = await schedules.get(action_id)
             await schedules.save(
                 replace(
@@ -230,13 +255,13 @@ async def prove_public_http(
             "SELECT count(*) FROM commitment WHERE action_id=$1", action_id
         )
 
-        retirement = None
+        retirement: asyncio.Task[None] | None = None
 
-        async def retire_during_crm():
+        async def retire_during_crm() -> None:
             nonlocal retirement
             retirement = asyncio.create_task(retire(next_window.id))
 
-            async def wait_for_database_lock():
+            async def wait_for_database_lock() -> None:
                 while not await pool.fetchval(
                     "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%FOR UPDATE%')"
                 ):

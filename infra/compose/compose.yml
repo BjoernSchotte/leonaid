@@ -151,6 +151,7 @@ services:
     command: ["/workspace/infra/compose/start-api.sh"]
     environment:
       LEONAID_ENV: ${LEONAID_ENV:-local}
+      LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
       LEONAID_SERVICE_NAME: leonaid-api
       LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
       LEONAID_SERVICE_VERSION: 0.0.0
@@ -244,6 +245,7 @@ services:
       OBJECT_STORAGE_REGION: us-east-1
       OBJECT_STORAGE_PATH_STYLE: "true"
       LEONAID_ENV: ${LEONAID_ENV:-local}
+      LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-mailpit}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-1025}
       MAIL_FROM: ${MAIL_FROM:-LeonAid <noreply@leonaid.invalid>}

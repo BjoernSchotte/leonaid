@@ -112,7 +112,8 @@ async def prove() -> None:
             assert error.code == "delivery_windows_required"
         else:
             raise AssertionError("Action activated without windows")
-        assert (await actions.get(action.id)).status is CharityActionStatus.DRAFT
+        stored = await actions.get(action.id)
+        assert stored is not None and stored.status is CharityActionStatus.DRAFT
         windows = tuple(
             DeliveryWindow(
                 uuid4(), action.id, date(2037, 12, day), time(hour), time(hour + 2)
@@ -179,7 +180,8 @@ async def prove() -> None:
             pass
         else:
             raise AssertionError("Action period cut off active delivery day")
-        assert (await actions.get(action.id)).starts_on == date(2037, 12, 1)
+        stored = await actions.get(action.id)
+        assert stored is not None and stored.starts_on == date(2037, 12, 1)
         # Copying the template configuration cannot copy live delivery dates.
         source_configuration = await actions.get_configuration(action.id)
         assert source_configuration is not None

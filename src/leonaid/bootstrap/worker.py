@@ -35,11 +35,13 @@ from leonaid.application.object_storage import ObjectStorage
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
+    RegistrationError,
     collect_background_loops,
     collect_handler_timeouts,
     collect_handlers,
+    split_enabled,
 )
-from leonaid.configuration import load_mail_transport_settings
+from leonaid.configuration import load_mail_transport_settings, load_module_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 from leonaid.modules.surveys.jobs import (
     SURVEY_HANDLER_TIMEOUTS,
@@ -95,6 +97,7 @@ def worker_modules(
             handlers=_survey_handlers(dependencies) if dependencies else {},
             handler_timeouts=SURVEY_HANDLER_TIMEOUTS if dependencies else {},
             background_loops=(survey_sweep(database_url),),
+            switchable=True,
         ),
         ModuleRegistration(
             "actions",
@@ -161,8 +164,21 @@ def _mail_handlers(
     }
 
 
-def background_loops(database_url: str) -> tuple[BackgroundLoop, ...]:
-    return collect_background_loops(worker_modules(database_url, None))
+def background_loops(
+    database_url: str, disabled: frozenset[str]
+) -> tuple[BackgroundLoop, ...]:
+    """Loops of enabled modules; switched-off modules run none."""
+    enabled, _ = split_enabled(worker_modules(database_url, None), disabled)
+    return collect_background_loops(enabled)
+
+
+def module_switch_problems(disabled: frozenset[str]) -> list[str]:
+    """Report an unknown, core or still-required module in the switch list."""
+    try:
+        split_enabled(worker_modules("", None), disabled)
+    except RegistrationError as error:
+        return [f"LEONAID_DISABLED_MODULES:{error}"]
+    return []
 
 
 def object_storage_from_environment() -> S3ObjectStorage:
@@ -217,19 +233,29 @@ async def build_worker(
     max_attempts: int,
     base_backoff_seconds: float,
     claim_lease_seconds: float,
+    disabled: frozenset[str] | None = None,
 ) -> tuple[asyncpg.Pool[Any], AsyncpgOutboxQueue, OutboxWorker]:
-    pool = await create_pool(database_url, maximum_size=5)
-    queue = AsyncpgOutboxQueue(
-        pool,
-        claim_lease=timedelta(seconds=claim_lease_seconds),
+    switched_off = (
+        load_module_settings().disabled_modules if disabled is None else disabled
     )
-    modules = worker_modules(
+    pool = await create_pool(database_url, maximum_size=5)
+    all_modules = worker_modules(
         database_url,
         HandlerDependencies(
             pool=pool,
             storage=object_storage_from_environment(),
             mail_transport=mail_transport_from_environment(),
             payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+        ),
+    )
+    modules, parked = split_enabled(all_modules, switched_off)
+    # Jobs of switched-off modules stay pending until the module is back on;
+    # they are neither claimed nor dead-lettered as unhandled.
+    queue = AsyncpgOutboxQueue(
+        pool,
+        claim_lease=timedelta(seconds=claim_lease_seconds),
+        excluded_event_types=frozenset(
+            event_type for module in parked for event_type in module.handlers
         ),
     )
     worker = OutboxWorker(

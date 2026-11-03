@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
+contentRevision: 11
+reviewedRevision: 11
+verifiedAgainst: 8fb732e8f06e7faed03fd3982c87065812131518
 reviewer: Björn Schotte
 ---
 
@@ -72,6 +72,24 @@ für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
 
+## Modulschalter
+
+Fachmodule sind standardmäßig eingeschaltet. `LEONAID_DISABLED_MODULES` in der
+Env-Datei der Installation schaltet Module kommagetrennt ab, zum Beispiel
+`LEONAID_DISABLED_MODULES=surveys`. Derzeit ist `surveys` das einzige
+schaltbare Modul; Kernbereiche wie Mail und Rechnungen lassen sich nicht
+abschalten. API und Worker lesen denselben Wert; nach einer Änderung beide neu
+starten.
+
+Ein abgeschaltetes Modul behält alle Daten. Es zeigt keine Navigation, seine
+API-Routen sind nicht registriert und antworten mit 404, und die Webseiten
+fallen auf die Übersicht zurück. Der Worker betreibt keine seiner Schleifen
+und lässt seine Jobs wartend liegen: Sie werden weder versucht noch als
+Dead Letter abgelegt und laufen, sobald das Modul wieder eingeschaltet ist.
+Eine unbekannte oder nicht schaltbare ID oder das Abschalten eines Moduls, das
+ein eingeschaltetes Modul benötigt, stoppt die API beim Start und den Worker
+mit `worker.configuration.invalid`.
+
 ## Joblaufzeit und Fehlerangaben
 
 Ein Modul kann die Laufzeit seiner Outbox-Handler begrenzen. Der Worker
@@ -81,6 +99,13 @@ Grenze überschreitet, wird abgebrochen und mit dem Fehlercode `job_timeout`
 erneut versucht. Jobs speichern als Fehlerangabe nur den sicheren Fehlercode,
 nie Ausnahmetext. Jede Joblogzeile (`outbox.job.*`) enthält `durationMs`,
 wenn der Job abgeschlossen wurde, fehlschlug oder seinen Claim verlor.
+
+Die Outbox-Karte unter `/admin/system` zeigt außerdem den nächsten
+wartenden Versuch und wie lange der älteste fällige Job schon wartet
+(API-Felder `nextPendingAttemptAt` und `oldestDuePendingAgeSeconds`). Jobs
+abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
+warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
+hängende oder überlastete Queue.
 
 ## Laufzeitgrenzen und Identität
 
