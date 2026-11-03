@@ -606,7 +606,9 @@ function ShellFrame({
             <span className="brand-text">
               <span className="brand-name">LeonAid</span>
               {organizationName ? (
-                <span className="brand-club">{organizationName}</span>
+                <span className="brand-club" title={organizationName}>
+                  {organizationName}
+                </span>
               ) : null}
             </span>
           </div>

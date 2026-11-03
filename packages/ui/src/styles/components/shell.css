@@ -80,6 +80,16 @@
   color: var(--rail-text-2);
   font-size: var(--fs-xs);
 }
+/* Product: a long club name ends in an ellipsis instead of widening the rail. */
+.brand-text {
+  min-width: 0;
+}
+.brand-name,
+.brand-club {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rail-campaign {
   display: grid;
   grid-template-columns: 1fr auto;
