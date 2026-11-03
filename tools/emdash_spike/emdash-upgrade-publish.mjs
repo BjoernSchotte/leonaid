@@ -72,8 +72,22 @@ const hero = after.json.data.item.data.hero_image?.id;
 assert.ok(hero && html.includes(`/campaigns/krapfentaxi-2026/media/${hero}`));
 const image = await call(`/campaigns/krapfentaxi-2026/media/${hero}`);
 assert.equal(image.status, 200);
+if (process.argv.includes("--unpublish")) {
+  // Withdraw through the upgraded release (1.x passes the revision token and
+  // actor to the handler), so the browser proof publishes it again natively.
+  const withdrawn = await call(`${root}/${entry.id}/unpublish`, "POST");
+  assert.equal(withdrawn.status, 200);
+  const draft = await call(`${root}/${entry.id}`);
+  assert.equal(draft.json.data.item.status, "draft");
+  assert.equal(draft.json.data.item.liveRevisionId, null);
+  assert.equal((await call("/campaigns/krapfentaxi-2026/")).status, 404);
+}
 console.log(
   publicOnly
     ? "emdash-upgrade: upgraded release serves the published campaign page and its media"
     : "emdash-upgrade: legacy release published the imported campaign; public page and media served",
 );
+if (process.argv.includes("--unpublish"))
+  console.log(
+    "emdash-upgrade: upgraded release withdrew the page; public route returns 404",
+  );

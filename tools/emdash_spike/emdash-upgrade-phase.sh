@@ -74,7 +74,7 @@ compose run --rm --no-deps --entrypoint rmdir campaign-site \
   /app/bootstrap-state/cms-maintenance
 compose up --no-deps --detach --wait campaign-site
 compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
-  node tools/emdash_spike/emdash-upgrade-publish.mjs --public-only
+  node tools/emdash_spike/emdash-upgrade-publish.mjs --public-only --unpublish
 compose run --rm --no-deps admin-browser \
   node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
 # Core aliases and redirects to the page published in the upgraded CMS.
