@@ -116,10 +116,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
       if (options === undefined) return {};
       if (!options || typeof options !== "object" || Array.isArray(options))
         throw new CoreIdentityError(403);
-      const { _rev, actor: optionActor, origin, ...rest } = options as Record<
-        string,
-        unknown
-      >;
+      const {
+        _rev,
+        actor: optionActor,
+        origin,
+        ...rest
+      } = options as Record<string, unknown>;
       if (Object.values(rest).some((value) => value !== undefined))
         throw new CoreIdentityError(403);
       if (_rev !== undefined && (typeof _rev !== "string" || _rev.length > 512))
@@ -142,7 +144,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const sameActor = (value: unknown) =>
       Boolean(value) &&
       typeof value === "object" &&
-      JSON.stringify(value) === JSON.stringify({ id: user.id, role: user.role });
+      JSON.stringify(value) ===
+        JSON.stringify({ id: user.id, role: user.role });
     emdash.handleContentGet = async (collection, id, locale, references) => {
       const access = await getCampaignContent(
         database,

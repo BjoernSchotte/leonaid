@@ -7,7 +7,9 @@ const publishName = /^Publish (now|changes)$/;
 // opens the dialog; the dialog's own button sends the publish request.
 export async function confirmPublish(page) {
   await page.getByRole("button", { name: publishName }).first().click();
-  const dialog = page.getByRole("dialog", { name: /^Publish (now|changes)\?$/ });
+  const dialog = page.getByRole("dialog", {
+    name: /^Publish (now|changes)\?$/,
+  });
   await dialog.getByRole("button", { name: publishName }).click();
 }
 

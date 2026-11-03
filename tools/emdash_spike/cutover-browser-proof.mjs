@@ -121,11 +121,13 @@ if (mode === "--changed") {
     try {
       const [confirmation] = await Promise.all([
         confirmed,
-        dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
-          name: "post-recovery-point.webp",
-          mimeType: "image/webp",
-          buffer: replacement,
-        }),
+        dialog
+          .getByLabel("Choose files to upload", { exact: true })
+          .setInputFiles({
+            name: "post-recovery-point.webp",
+            mimeType: "image/webp",
+            buffer: replacement,
+          }),
       ]);
       assert.equal(confirmation.status(), 200);
     } finally {

@@ -346,7 +346,8 @@ export async function listCampaignMedia(
         .orderBy("media.id", "desc")
         .limit(limit + 1);
       if (cursor !== undefined) page = page.where("media.id", "<", cursor);
-      if (pageNumber !== undefined) page = page.offset((pageNumber - 1) * limit);
+      if (pageNumber !== undefined)
+        page = page.offset((pageNumber - 1) * limit);
       const rows = await page.forShare().execute();
       const ids = rows.slice(0, limit);
       const repository = new MediaRepository(transaction);

@@ -123,11 +123,13 @@ for (const [index, [name, engine]] of Object.entries({
         ) && response.request().method() === "POST",
     );
     const filename = `new-${name}-campaign.png`;
-    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
-      name: filename,
-      mimeType: "image/png",
-      buffer: await fixture.body(),
-    });
+    await dialog
+      .getByLabel("Choose files to upload", { exact: true })
+      .setInputFiles({
+        name: filename,
+        mimeType: "image/png",
+        buffer: await fixture.body(),
+      });
     const confirmation = await confirmed;
     assert.equal(confirmation.status(), 200);
     const uploaded = (await confirmation.json()).data.item;

@@ -44,9 +44,7 @@ async function capture(name) {
         `SELECT * FROM public.${table} ORDER BY ${key}`,
       );
       snapshot[table] = result.rows
-        .filter(
-          (row) => table !== "options" || !volatileOptions.has(row.name),
-        )
+        .filter((row) => table !== "options" || !volatileOptions.has(row.name))
         .map((row) =>
           Object.fromEntries(
             Object.entries(row).map(([column, value]) => [

@@ -24,7 +24,9 @@ try {
   if (mode === "close") {
     await closeCmsTraffic();
   } else {
-    if (!["verify", "upgrade-v1", "upgrade-v2", "upgrade-emdash"].includes(mode))
+    if (
+      !["verify", "upgrade-v1", "upgrade-v2", "upgrade-emdash"].includes(mode)
+    )
       throw new Error("unsupported_migration");
     if (!(await cmsMaintenanceClosed()))
       throw new Error("cms_traffic_not_closed");

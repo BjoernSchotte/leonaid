@@ -72,7 +72,10 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await search.fill("page-proof-");
     const first = await firstResponse;
     assert.equal(first.status(), 200);
-    assert.equal(new URL(first.url()).searchParams.get("limit"), String(pageSize));
+    assert.equal(
+      new URL(first.url()).searchParams.get("limit"),
+      String(pageSize),
+    );
     const firstData = (await first.json()).data;
     assert.equal(firstData.totalCount, 101);
     assert.deepEqual(
@@ -87,7 +90,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       `Showing 1-${pageSize} of 101`,
     );
     const secondResponse = responseFor("page-proof-", 2);
-    await dialog.getByRole("button", { name: "Next page", exact: true }).click();
+    await dialog
+      .getByRole("button", { name: "Next page", exact: true })
+      .click();
     const second = await secondResponse;
     assert.equal(second.status(), 200);
     assert.deepEqual(
@@ -95,7 +100,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       expectedIds.slice(pageSize, 2 * pageSize),
     );
     const lastResponse = responseFor("page-proof-", lastPage);
-    await dialog.getByRole("button", { name: "Last page", exact: true }).click();
+    await dialog
+      .getByRole("button", { name: "Last page", exact: true })
+      .click();
     const last = await lastResponse;
     assert.equal(last.status(), 200);
     const lastData = (await last.json()).data;

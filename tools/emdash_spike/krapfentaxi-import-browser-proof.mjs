@@ -136,11 +136,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     try {
       const [confirmation] = await Promise.all([
         confirmed,
-        dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
-          name: `imported-demo-${name}.png`,
-          mimeType: "image/png",
-          buffer: replacementImage,
-        }),
+        dialog
+          .getByLabel("Choose files to upload", { exact: true })
+          .setInputFiles({
+            name: `imported-demo-${name}.png`,
+            mimeType: "image/png",
+            buffer: replacementImage,
+          }),
       ]);
       assert.equal(confirmation.status(), 200);
     } finally {

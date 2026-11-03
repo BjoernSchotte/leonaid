@@ -85,9 +85,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.ok(items.some((item) => item.id === state.ready.id));
     assert.ok(items.every((item) => item.id !== state.foreign.id));
     const dialog = page.getByRole("dialog");
-    await expect(
-      dialog.getByText("From URL", { exact: true }),
-    ).toHaveCount(0);
+    await expect(dialog.getByText("From URL", { exact: true })).toHaveCount(0);
     await expect(
       dialog.locator('img[src*="/_emdash/api/media/file/"]').first(),
     ).toBeVisible();
@@ -127,7 +125,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         dialog.getByRole("heading", { name: "No media found", exact: true }),
       ).toBeVisible();
       await expect(
-        dialog.getByRole("region", { name: "Media results" }).getByRole("button"),
+        dialog
+          .getByRole("region", { name: "Media results" })
+          .getByRole("button"),
       ).toHaveCount(0);
       await expect(
         dialog.locator('img[src*="/_emdash/api/media/file/"]'),
@@ -162,11 +162,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname,
         ) && response.request().method() === "PUT",
     );
-    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
-      name: `invalid-${name}.png`,
-      mimeType: "image/png",
-      buffer: Buffer.from("not a PNG image"),
-    });
+    await dialog
+      .getByLabel("Choose files to upload", { exact: true })
+      .setInputFiles({
+        name: `invalid-${name}.png`,
+        mimeType: "image/png",
+        buffer: Buffer.from("not a PNG image"),
+      });
     assert.equal((await rejectedUpload).status(), 400);
     await expect(
       dialog.getByText("Upload failed", { exact: true }),
@@ -185,9 +187,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await dialog
       .getByRole("button", { name: `Remove invalid-${name}.png`, exact: true })
       .click();
-    await expect(dialog.getByText("Upload failed", { exact: true })).toHaveCount(
-      0,
-    );
+    await expect(
+      dialog.getByText("Upload failed", { exact: true }),
+    ).toHaveCount(0);
     const filename = `native-${name}-campaign.png`;
     const confirmed = page.waitForResponse(
       (response) =>
@@ -195,16 +197,20 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname,
         ) && response.request().method() === "POST",
     );
-    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
-      name: filename,
-      mimeType: "image/png",
-      buffer: await bytes.body(),
-    });
+    await dialog
+      .getByLabel("Choose files to upload", { exact: true })
+      .setInputFiles({
+        name: filename,
+        mimeType: "image/png",
+        buffer: await bytes.body(),
+      });
     const confirmation = await confirmed;
     assert.equal(confirmation.status(), 200);
     const uploaded = (await confirmation.json()).data.item;
     assert.ok(uploaded.storageKey.startsWith(`campaigns/${action}/`));
-    await expect(dialog.getByText("Upload failed", { exact: true })).toHaveCount(0);
+    await expect(
+      dialog.getByText("Upload failed", { exact: true }),
+    ).toHaveCount(0);
     const saved = nativeSave();
     await dialog.getByRole("button", { name: "Select", exact: true }).click();
     assert.equal((await saved).status(), 200);

@@ -118,7 +118,7 @@ export function patchEditorSource(source) {
   // data and replace the just-saved form. Cancel in-flight entry and draft
   // revision fetches before the autosave result is written to the cache.
   replace(
-    "\t\tonSuccess: (savedItem, variables, started) => {\n\t\t\tsetConflictedEntryId((current) => current === variables.targetId ? \"\" : current);\n\t\t\trecordAutosaveCompletion(variables.targetId);",
+    '\t\tonSuccess: (savedItem, variables, started) => {\n\t\t\tsetConflictedEntryId((current) => current === variables.targetId ? "" : current);\n\t\t\trecordAutosaveCompletion(variables.targetId);',
     '\t\tonSuccess: async (savedItem, variables, started) => {\n\t\t\tawait Promise.all([queryClient.cancelQueries({ queryKey: [\n\t\t\t\t"content",\n\t\t\t\tcollection,\n\t\t\t\tvariables.targetId\n\t\t\t] }), queryClient.cancelQueries({ queryKey: ["revision"] })]);\n\t\t\tsetConflictedEntryId((current) => current === variables.targetId ? "" : current);\n\t\t\trecordAutosaveCompletion(variables.targetId);',
   );
   replace(

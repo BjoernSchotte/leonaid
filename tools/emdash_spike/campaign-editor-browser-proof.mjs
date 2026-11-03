@@ -224,16 +224,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         let delayRefetch = false;
         const entryReads =
           /\/_emdash\/api\/(?:content\/campaign_pages\/[0-9A-Z]{26}|revisions\/[0-9A-Z]{26})(?:\?.*)?$/;
-        await context.route(
-          entryReads,
-          async (route) => {
-            if (!delayRefetch || route.request().method() !== "GET")
-              return route.continue();
-            const response = await route.fetch();
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-            await route.fulfill({ response });
-          },
-        );
+        await context.route(entryReads, async (route) => {
+          if (!delayRefetch || route.request().method() !== "GET")
+            return route.continue();
+          const response = await route.fetch();
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          await route.fulfill({ response });
+        });
         for (const offset of [0, 750, 1500]) {
           delayRefetch = true;
           const publishedAgain = page.waitForResponse(
