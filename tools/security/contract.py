@@ -91,7 +91,11 @@ async def insert_login_challenge(
 async def prove_static_asset_compression(
     client: httpx.AsyncClient, session: str
 ) -> None:
-    """Only static build assets are compressed; HTML and API JSON never (BREACH)."""
+    """Only build assets under fixed prefixes are compressed (BREACH).
+
+    HTML, API JSON (core and EmDash), source maps and JavaScript outside the
+    build-asset prefixes stay plain.
+    """
     gzip_only = {"Accept-Encoding": "gzip"}
     admin = await client.get("/admin/", headers=gzip_only)
     if admin.status_code != 200 or "content-encoding" in admin.headers:
@@ -119,6 +123,35 @@ async def prove_static_asset_compression(
     plain = await client.get(assets[0], headers={"Accept-Encoding": "identity"})
     if plain.status_code != 200 or "content-encoding" in plain.headers:
         raise ContractFailure("static asset is compressed without Accept-Encoding")
+
+    manifest = await client.get("/app/manifest.webmanifest", headers=gzip_only)
+    if (
+        manifest.status_code != 200
+        or manifest.headers.get("content-encoding") != "gzip"
+    ):
+        raise ContractFailure("PWA manifest is not served gzip")
+
+    source_map = await client.get(f"{assets[0]}.map", headers=gzip_only)
+    if source_map.status_code != 200 or "content-encoding" in source_map.headers:
+        raise ContractFailure("source map is compressed")
+    # A script outside the build-asset prefix: right type and size, wrong path.
+    loose_script = await client.get("/admin/theme-init.js", headers=gzip_only)
+    if (
+        loose_script.status_code != 200
+        or "javascript" not in loose_script.headers.get("content-type", "")
+        or len(loose_script.content) < 512
+        or "content-encoding" in loose_script.headers
+    ):
+        raise ContractFailure("script outside the build-asset prefix is compressed")
+    for dynamic in ("/api/v1/does-not-exist.js", "/krapfentaxi.js"):
+        response = await client.get(dynamic, headers=gzip_only)
+        if "content-encoding" in response.headers:
+            raise ContractFailure(f".js-suffixed dynamic path is compressed: {dynamic}")
+    emdash = await client.get("/_emdash/api/auth/me", headers=gzip_only)
+    if "content-encoding" in emdash.headers:
+        raise ContractFailure(
+            f"EmDash API response is compressed (status {emdash.status_code})"
+        )
 
     public = await client.get("/krapfentaxi", headers=gzip_only)
     if public.status_code != 200 or "content-encoding" in public.headers:
