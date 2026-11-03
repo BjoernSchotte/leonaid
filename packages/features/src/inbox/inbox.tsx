@@ -385,14 +385,11 @@ function InboxList({
               <span className="chip-name">{nameOf(row.assigneeUserId)}</span>
             </>
           ) : (
-            <>
-              <span
-                aria-label="Niemand zuständig"
-                className="avatar-empty"
-                role="img"
-              />
-              <span className="chip-name">Niemand</span>
-            </>
+            <span
+              aria-label="Niemand zuständig"
+              className="avatar-empty"
+              role="img"
+            />
           ),
       },
       {

@@ -190,6 +190,7 @@ function ContactMatch({
           loading={search.isPending}
           size="sm"
           type="submit"
+          variant="secondary"
         >
           In Twenty suchen
         </Button>

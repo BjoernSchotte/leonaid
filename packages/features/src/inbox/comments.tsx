@@ -151,6 +151,7 @@ export function InboxComments({
           loading={add.isPending}
           size="sm"
           type="submit"
+          variant="secondary"
         >
           Hinzufügen
         </Button>

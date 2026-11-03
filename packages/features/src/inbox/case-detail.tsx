@@ -63,7 +63,11 @@ export function CaseDetail({
               Abschließen …
             </Button>
             {item.status === "new" ? (
-              <Button loading={takingOver} onClick={() => onTakeOver(item)}>
+              <Button
+                loading={takingOver}
+                onClick={() => onTakeOver(item)}
+                variant="secondary"
+              >
                 Übernehmen
               </Button>
             ) : null}
@@ -121,10 +125,6 @@ export function CaseDetail({
       </DetailSection>
 
       <DetailSection title="Interne Notizen">
-        <p className="small subtle case-gap-bottom">
-          Nur für Personen mit Zugriff auf diese Anfrage. Es wird keine E-Mail
-          versendet.
-        </p>
         <InboxComments address={address} client={client} item={item} />
       </DetailSection>
 
