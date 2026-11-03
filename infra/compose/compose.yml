@@ -78,6 +78,13 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
     security_opt: [no-new-privileges:true]
+    # Caddy as PID 1 never reaps foreign children. The HTTPS healthcheck's
+    # BusyBox wget forks an ssl_client helper and exits without waiting for
+    # it; the orphan becomes a zombie of PID 1. Unreaped, these zombies filled
+    # pids_limit within minutes and Caddy aborted with "fatal error: newosproc"
+    # at its next OS thread. The init process reaps them
+    # (tools/ci/proxy-runtime.sh).
+    init: true
     mem_limit: 128m
     cpus: 1
     pids_limit: 128
@@ -154,6 +161,7 @@ services:
       LEONAID_ENV: ${LEONAID_ENV:-local}
       LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
       LEONAID_SERVICE_NAME: leonaid-api
+      LEONAID_CLUB_NAME: ${LEONAID_CLUB_NAME:-Lions Club Musterstadt}
       LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
       LEONAID_SERVICE_VERSION: 0.0.0
       LEONAID_API_VERSION: v1

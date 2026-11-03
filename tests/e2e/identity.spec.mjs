@@ -91,7 +91,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
     { width: 390, height: 844 },
   );
   try {
-    const mobileNavigation = page.locator(".ui-pwa-tabbar");
+    const mobileNavigation = page.locator(".pwa-tabs");
     await expect(
       page.getByRole("heading", { name: "Guten Tag, Anna." }),
     ).toBeVisible();
@@ -106,7 +106,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
       mobileNavigation.locator('[data-nav-key="activities"]'),
     ).toBeVisible();
     await expect(
-      mobileNavigation.locator('[data-nav-key="commitment"]'),
+      mobileNavigation.locator('[data-nav-key="sponsor-new"]'),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);
@@ -234,7 +234,7 @@ test("system admin searches, filters and paginates the full member list", async 
     await page
       .getByRole("searchbox", { name: "Mitglied suchen" })
       .fill("Klara");
-    await page.getByRole("button", { name: "Suchen" }).click();
+    await page.getByRole("button", { name: "Suchen", exact: true }).click();
     await expect(page.getByTestId("member-card")).toHaveCount(1);
     await page.getByTestId("member-card").click();
     await expect(
@@ -290,7 +290,7 @@ test("charity admin sees on mobile only members and roles of own actions", async
     await expect(page.getByText("Felix Fremd", { exact: true })).toHaveCount(0);
 
     await page.getByRole("searchbox", { name: "Mitglied suchen" }).fill("Anna");
-    await page.getByRole("button", { name: "Suchen" }).click();
+    await page.getByRole("button", { name: "Suchen", exact: true }).click();
     await expect(page.getByTestId("member-card")).toHaveCount(1);
     await page.getByTestId("member-card").click();
     await expect(page.getByTestId("member-membership")).toHaveCount(1);

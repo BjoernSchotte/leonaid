@@ -152,7 +152,12 @@ for (const [surface, width] of [
     expect(quickSubmitBox.height).toBeLessThanOrEqual(48);
     expect(quickSubmitBox.width).toBeLessThanOrEqual(200);
     expect(quickSubmitBox.y).toBeGreaterThanOrEqual(quickAssigneeBox.y - 2);
-    if (width <= 1024) {
+    // The workspace stacks the quick form below 850 px of its own width
+    // (container query); at 1024 px the rail is collapsed and it still fits.
+    const quickWorkspaceWidth = (
+      await page.locator(".tasks-workspace").boundingBox()
+    ).width;
+    if (quickWorkspaceWidth <= 850) {
       expect(quickTitleBox.width).toBeGreaterThanOrEqual(
         quickFormBox.width * 0.9,
       );
@@ -168,26 +173,27 @@ for (const [surface, width] of [
       ),
     ).toBe(true);
     if (surface === "app") {
-      const tabbar = page.locator(".ui-pwa-tabbar");
-      const taskNavigation = tabbar.getByRole("link", { name: "Aufgaben" });
+      // Tasks live in the "Mehr" sheet; the tab bar stays in the viewport.
+      const tabbar = page.locator(".pwa-tabs");
       await expect(tabbar).toBeVisible();
-      await expect(taskNavigation).toBeVisible();
       const tabbarBox = await tabbar.boundingBox();
-      const taskNavigationBox = await taskNavigation.boundingBox();
-      expect(taskNavigationBox.x + taskNavigationBox.width).toBeLessThanOrEqual(
-        tabbarBox.x + tabbarBox.width,
-      );
-      expect(
-        taskNavigationBox.y + taskNavigationBox.height,
-      ).toBeLessThanOrEqual(tabbarBox.y + tabbarBox.height);
-      expect(
-        await taskNavigation
-          .locator("span")
-          .evaluate((label) => label.scrollWidth <= label.clientWidth),
-      ).toBe(true);
+      expect(tabbarBox.x).toBeGreaterThanOrEqual(0);
+      expect(tabbarBox.x + tabbarBox.width).toBeLessThanOrEqual(width + 1);
+      await page.getByTestId("pwa-menu").click();
+      const sheet = page.getByRole("dialog", { name: "Mehr" });
+      const taskNavigation = sheet.getByRole("link", { name: "Aufgaben" });
+      await expect(taskNavigation).toHaveAttribute("aria-current", "page");
+      const taskBox = await taskNavigation.boundingBox();
+      expect(taskBox.width).toBeGreaterThanOrEqual(44);
+      expect(taskBox.height).toBeGreaterThanOrEqual(44);
+      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await expect(sheet).toBeHidden();
     }
-    if (width <= 1024) {
-      const scopeBox = await page.getByLabel("Bereich").boundingBox();
+    // Same 850 px container breakpoint for the list tools.
+    if (quickWorkspaceWidth <= 850) {
+      const scopeBox = await page
+        .getByRole("combobox", { name: /^Bereich/ })
+        .boundingBox();
       const statusBox = await page.getByLabel("Ansicht").boundingBox();
       const searchBox = await page.getByLabel("Aufgaben suchen").boundingBox();
       expect(Math.abs(scopeBox.y - statusBox.y)).toBeLessThanOrEqual(2);
@@ -211,7 +217,7 @@ for (const [surface, width] of [
     const editor = page.getByRole("form", { name: "Aufgabe bearbeiten" });
     await expect(editor).toBeVisible();
     if (surface === "app") {
-      await expect(page.locator(".ui-pwa-tabbar")).toBeHidden();
+      await expect(page.locator(".pwa-tabs")).toBeHidden();
       const editorActions = editor
         .getByRole("button", { name: "Speichern" })
         .locator("..");
@@ -305,6 +311,32 @@ for (const [surface, width] of [
       "Dieser Entwurf muss erhalten bleiben",
     );
 
+    if (surface === "app") {
+      // A dirty task editor registers with the shell: a sheet link asks
+      // once in the app, with no second browser dialog.
+      const native = [];
+      const onDialog = (dialog) => {
+        native.push(dialog.type());
+        void dialog.dismiss();
+      };
+      page.on("dialog", onDialog);
+      await page.getByTestId("pwa-menu").click();
+      const sheet = page.getByRole("dialog", { name: "Mehr" });
+      await sheet.getByRole("link", { name: "Aufgaben" }).click();
+      const question = page.getByRole("alertdialog", {
+        name: "Seite wechseln?",
+      });
+      await expect(question).toBeVisible();
+      await question.getByRole("button", { name: "Abbrechen" }).click();
+      await expect(question).toBeHidden();
+      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await expect(description).toHaveValue(
+        "Dieser Entwurf muss erhalten bleiben",
+      );
+      page.off("dialog", onDialog);
+      expect(native).toEqual([]);
+    }
+
     page.once("dialog", async (dialog) => dialog.accept());
     await editor.getByRole("button", { name: "Abbrechen" }).click();
     await expect(editor).toHaveCount(0);
@@ -312,7 +344,7 @@ for (const [surface, width] of [
     await expect(page).toHaveURL(/view=open/);
     await expect(page).toHaveURL(/search=Detail/);
     if (surface === "app") {
-      await expect(page.locator(".ui-pwa-tabbar")).toBeVisible();
+      await expect(page.locator(".pwa-tabs")).toBeVisible();
     }
     await expect(target).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(
@@ -324,6 +356,22 @@ for (const [surface, width] of [
       path: testInfo.outputPath(`s2-${surface}-workspace.png`),
       fullPage: false,
     });
+    if (surface === "app") {
+      // A typed filter loses nothing: a tab leaves without the shell asking.
+      const dialogs = [];
+      page.on("dialog", (dialog) => {
+        dialogs.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await page.getByLabel("Aufgaben suchen").fill("Detail 0");
+      await page
+        .getByRole("navigation", { name: "App-Navigation" })
+        .getByRole("link", { name: "Start" })
+        .click();
+      await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
+      expect(dialogs).toEqual([]);
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    }
     await context.close();
   });
 }

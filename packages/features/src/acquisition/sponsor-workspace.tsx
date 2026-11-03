@@ -33,6 +33,8 @@ import {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { navigateInPage, useLocationHref } from "../shared/location";
+
 interface SponsorWorkspaceProps {
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
@@ -527,11 +529,14 @@ function SponsorCapture({
   client,
   identity,
   onAssigned,
+  visible,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
+  /** False while the list is shown; the capture stays mounted. */
+  readonly visible: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<SponsorMode>("company");
@@ -658,6 +663,9 @@ function SponsorCapture({
         </div>
         <form
           className="acq-form"
+          // Saved: the locked values are no unsaved input any more. During
+          // match review nothing is saved yet, so leaving still asks.
+          data-leave-guard={resolution ? "off" : undefined}
           id="sponsor-form"
           onSubmit={submit}
           ref={formRef}
@@ -811,18 +819,24 @@ function SponsorCapture({
             id="sponsor-status"
             role="status"
           >
-            {resolution ? (
-              <StatusMessage tone="success">
-                {resolution.displayName} ist jetzt dir zugeordnet.
-              </StatusMessage>
-            ) : null}
-            {formError ? (
-              <StatusMessage tone="error">{formError}</StatusMessage>
-            ) : null}
-            {preview.isError || resolve.isError ? (
-              <StatusMessage tone="error">
-                {sponsorError(preview.error ?? resolve.error)}
-              </StatusMessage>
+            {/* Filled only while shown, so a result or error that arrived
+                while the list was open is announced on return. */}
+            {visible ? (
+              <>
+                {resolution ? (
+                  <StatusMessage tone="success">
+                    {resolution.displayName} ist jetzt dir zugeordnet.
+                  </StatusMessage>
+                ) : null}
+                {formError ? (
+                  <StatusMessage tone="error">{formError}</StatusMessage>
+                ) : null}
+                {preview.isError || resolve.isError ? (
+                  <StatusMessage tone="error">
+                    {sponsorError(preview.error ?? resolve.error)}
+                  </StatusMessage>
+                ) : null}
+              </>
             ) : null}
           </div>
         </form>
@@ -872,7 +886,22 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   ].includes(requestedStatus ?? "")
     ? (requestedStatus as SponsorStatusFilter)
     : "all";
-  const [view, setView] = useState<SponsorView>("list");
+  // The view is part of the URL (?view=new), so the PWA's "Neu" tab and
+  // Back both reach the capture form.
+  const href = useLocationHref();
+  const view: SponsorView =
+    new URLSearchParams(href.split("?")[1] ?? "").get("view") === "new"
+      ? "new"
+      : "list";
+  const [captureOpened, setCaptureOpened] = useState(view === "new");
+  if (view === "new" && !captureOpened) setCaptureOpened(true);
+  function setView(next: SponsorView) {
+    if (next === view) return;
+    const url = new URL(window.location.href);
+    if (next === "new") url.searchParams.set("view", "new");
+    else url.searchParams.delete("view");
+    navigateInPage(`${url.pathname}${url.search}`);
+  }
   const board = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 50 }),
@@ -953,17 +982,23 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         </div>
       </div>
 
-      {view === "new" ? (
-        <SponsorCapture
-          actionId={actionId}
-          client={client}
-          identity={identity}
-          key={actionId}
-          onAssigned={async () => {
-            await board.refetch();
-          }}
-        />
-      ) : board.isPending ? (
+      {captureOpened ? (
+        // Stays mounted once opened: switching to the list or going Back
+        // keeps what was typed, and "Neu" shows it again.
+        <div hidden={view !== "new"}>
+          <SponsorCapture
+            actionId={actionId}
+            client={client}
+            identity={identity}
+            key={actionId}
+            onAssigned={async () => {
+              await board.refetch();
+            }}
+            visible={view === "new"}
+          />
+        </div>
+      ) : null}
+      {view === "new" ? null : board.isPending ? (
         <div aria-live="polite" className="acq-skeleton" role="status">
           <span />
           <span />

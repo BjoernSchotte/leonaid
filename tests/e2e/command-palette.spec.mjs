@@ -97,7 +97,7 @@ test.describe("enabled modules", () => {
       await page.goto(`${baseUrl}/admin/?action=${actionId}`);
       await shellReady(page);
       await page.keyboard.press("Tab");
-      const skipLink = page.getByRole("link", { name: "Zum Hauptinhalt" });
+      const skipLink = page.getByRole("link", { name: "Zum Inhalt springen" });
       await expect(skipLink).toBeFocused();
 
       await openPalette(page);

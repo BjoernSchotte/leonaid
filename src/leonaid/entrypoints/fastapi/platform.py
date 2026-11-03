@@ -217,6 +217,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         settings = configured_settings or load_settings()
         application.state.settings_summary = settings.safe_summary()
+        application.state.club_name = settings.club_name
         application.state.order_submission_key = (
             settings.order_submission_key.get_secret_value()
             if settings.order_submission_key is not None

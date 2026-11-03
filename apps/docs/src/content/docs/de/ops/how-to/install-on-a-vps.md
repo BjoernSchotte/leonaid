@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
+contentRevision: 4
+reviewedRevision: 4
 verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
@@ -212,6 +212,8 @@ Hand ausfüllst:
 - die Tenant-ID in `LEONAID_COMPOSE_PROJECT`, `RUSTFS_BUCKET` und
   `RESTIC_REPOSITORY`;
 - die acht Zeilen aus `release-images.env` (ersetze die Vorlagenzeilen);
+- `LEONAID_CLUB_NAME`, den Clubnamen in der Seitenleiste der Verwaltung (ohne
+  ihn startet die API in Produktion nicht);
 - die Portaldomain, `CADDY_ACME_EMAIL`, `MAIL_*` und den SMTP-Zugang;
 - `TWENTY_ADMIN_PORT` nur, wenn Port 3020 auf dem Server belegt ist;
 - `TWENTY_MAIL_FROM_ADDRESS` und `TWENTY_MAIL_FROM_NAME`, den Absender der

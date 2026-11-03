@@ -271,6 +271,8 @@ export function CommandPalette({
       keys: "/",
       label: "Suchen",
       group: "Allgemein",
+      // An alias of mod+k; the prototype's help lists only mod+k.
+      hidden: true,
       run: () => setOpen(true),
     },
   ]);

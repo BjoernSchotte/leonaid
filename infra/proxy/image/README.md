@@ -22,3 +22,13 @@ image ID without a shared tag. The security scanner and Caddy SBOM generator use
 that archive. The Critical vulnerability gate is unchanged and uses no VEX or
 vulnerability exclusion. A passing configured gate is not a claim that every
 possible vulnerability is absent.
+
+The proxy service runs with `init: true`. Caddy as PID 1 does not reap foreign
+children, and BusyBox `wget` in the HTTPS healthcheck leaves an orphaned
+`ssl_client` helper per run. Without an init process these zombies fill
+`pids_limit` within minutes, and the Go runtime then aborts with
+`fatal error: newosproc`. Caddy itself needs about 10 to 15 threads under
+load (Go 1.26 sets `GOMAXPROCS` from the CPU quota; CGO is disabled, so DNS
+uses the pure-Go resolver). `tools/ci/proxy-runtime.sh` runs the built image
+under the service limits with concurrent file_server load and repeated
+healthchecks, and fails on any zombie or a pids peak above half the limit.

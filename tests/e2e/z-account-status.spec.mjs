@@ -114,7 +114,7 @@ async function selectAnna(page) {
   await page
     .getByRole("searchbox", { name: "Mitglied suchen" })
     .fill("Anna Akquise");
-  await page.getByRole("button", { name: "Suchen" }).click();
+  await page.getByRole("button", { name: "Suchen", exact: true }).click();
   await expect(page.getByTestId("member-card")).toHaveCount(1);
   await page.getByTestId("member-card").click();
   await expect(

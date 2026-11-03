@@ -4,8 +4,8 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 15
-reviewedRevision: 15
+contentRevision: 16
+reviewedRevision: 16
 verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
 reviewer: Björn Schotte
 ---
@@ -71,6 +71,17 @@ die Outbox-Zähler unter `/admin/system` zeigen abgeschlossene Jobs daher nur
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## Clubname
+
+`LEONAID_CLUB_NAME` in der Env-Datei der Installation nennt den Club, dem die
+Installation gehört, zum Beispiel `LEONAID_CLUB_NAME=Lions Club Beispielstadt`.
+Die API liefert ihn mit der angemeldeten Identität aus, und die Seitenleiste
+der Verwaltung zeigt ihn unter „LeonAid“. In Produktion ist er Pflicht: Ohne
+ihn startet die API nicht, und `./leonaid pilot-doctor` meldet
+`club_name_invalid` oder einen fehlenden Schlüssel. Lokale und Test-Stacks
+nutzen „Lions Club Musterstadt“. Höchstens 120 druckbare Zeichen; mehrere
+Leerzeichen werden zu einem.
 
 ## Modulschalter
 
