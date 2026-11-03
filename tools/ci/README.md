@@ -1,5 +1,95 @@
 # CI runtime
 
+## Two tiers and the merge queue
+
+Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
+
+| Event | What runs |
+|---|---|
+| `pull_request` | Always: Lint and types, Unit, Build, Security, Documentation. Stack suites (Integration shards, E2E leaves, EmDash proofs, Contract, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
+| `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
+
+`tools/ci/select_suites.py` decides the pull-request selection; the reusable
+`.github/workflows/select-suites.yml` runs it once per workflow and exposes the
+result as job outputs. Matrices read their shard lists from it, so
+`INTEGRATION_SHARDS`, `E2E_SHARDS` and `EMDASH_GROUPS` in that file are the
+single source of shard names. A new shard goes there and into
+`tools/ci/integration.sh` / `e2e.sh`; `select_suites_test.py` fails otherwise.
+
+Selection rules (first match wins, see `RULES`):
+
+- **Everything** for shared infrastructure: `.github/**`, `tools/ci/**`,
+  `tools/testing/**`, `tools/seed|twenty|typst|surveys/**`, `infra/compose|locks|proxy/**`,
+  `migrations/**`, `src/leonaid/platform|bootstrap|adapters/postgres/**`,
+  `package.json`, `bun.lock`, `uv.lock`, `pyproject.toml`, `leonaid`,
+  `tests/fixtures/**`, shared E2E configuration.
+- **Everything** for any path no rule maps (including the rest of `src/` and
+  `apps/web|pwa|public`). Unknown means unsafe; map a path deliberately to make it cheaper.
+- **No stack suite** for `*.md`, `*.mdx`, `apps/docs/**`, `specs/**` (except the
+  OpenAPI approvals, EmDash route inventory and pilot plan files), `tests/unit/**`.
+- **Only the owning suite** for module and proof directories: the tasks module
+  selects `E2E / tasks`; `tools/delivery/**` selects `Integration / delivery`;
+  `apps/campaign-site/**`, `tools/emdash_spike/**` select the EmDash proofs;
+  the survey module, package, demo app and `surveys-*` E2E specs select Surveys; `tools/<feature>/**` and
+  `tests/e2e/<feature>.spec.mjs` select their E2E leaf. Helpers imported by
+  other suites also select those (`tools/identity` and `tools/public_orders`
+  start the EmDash proofs).
+- API contract and dependency pins keep their former workflow path filters
+  (`API_PATHS`, `PINS_PATHS`), now evaluated by the selector so the check
+  always reports. Documentation and campaign-site changes no longer start the
+  API stack.
+
+Each gated workflow ends in one aggregate job: `CI gate`, `Survey gate`,
+`API contract gate`, `Dependency pins gate`. `tools/ci/gate.py` reads
+`toJSON(needs)` and fails unless the selector succeeded, every selected job
+succeeded, every unselected job was skipped (not failed or cancelled) and every
+other job succeeded. A skipped job therefore never hides an upstream failure.
+These gates plus `Bilingual site artifact` (Documentation) are the required checks.
+The older summary checks (`Integration`, `E2E / <group>`, `EmDash proofs`,
+`Golden journey`, `Surveys / <group>`) apply the same selected-or-skipped rule.
+
+Dry-run the selector on any diff:
+
+```sh
+git diff --name-only --no-renames origin/main... > /tmp/paths
+python3 tools/ci/select_suites.py --event pull_request --paths-file /tmp/paths --explain
+```
+
+### Infrastructure retries
+
+Only infrastructure steps are retried; a test step never is.
+
+- `tools/ci/retry-infra.sh` retries `./leonaid bootstrap`,
+  `tools/ci/bootstrap-prefetch.sh` and `docker pull` (3 attempts, 15 s/30 s
+  backoff). It refuses every other command, so a test cannot be wrapped by
+  mistake.
+- `.github/actions/build-cache`: a failed Docker bake / GitHub cache import
+  (cache 429, registry errors) is retried once after 30 s.
+- `.github/actions/test-fixture`: a failed fixture cache restore is retried once.
+  `test-fixture.yml` verifies its cache upload and retries a missing upload once.
+
+Every retry writes an `Infrastructure retry` warning annotation.
+`workflow_contract.py` rejects `continue-on-error` in workflows, any other use of
+"retry", and any first-attempt `continue-on-error` in the two actions without a
+follow-up retry.
+
+### Nightly run and flake summary
+
+`ci.yml` runs completely on `main` every night at 03:07 UTC. Its `Flake summary`
+job runs `tools/ci/flake_summary.py` over the last 50 completed runs of `ci.yml`
+and `surveys.yml` (all events) and writes a table to the workflow summary:
+failures in the final attempt and failures that were followed by a rerun
+(the flake signal). Cancelled (superseded) jobs are ignored.
+
+### Required checks
+
+The workflow side is above; the repository ruleset (merge queue with merge
+commits, no "require branch up to date", required gates) is applied by a
+maintainer. With the queue, PRs no longer need "Update branch": the queue tests
+each PR merged onto the current `main` plus the PRs ahead of it.
+
+## Integration and survey shards
+
 Normal PR/main-push CI runs separate Integration shards for Compose cold start,
 seed cold/idempotency, seed mutation/reset, Core, schema, outbox, storage, documents,
 Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import includes a
@@ -55,12 +145,13 @@ in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
-seeds synthetic data. They always run; there is no path filter, because Core,
-proxy and public changes break these proofs as well. Each case runs exactly
-once. Neither the script nor the workflow retries a failed case, so an
-intermittent failure stays red and must be fixed at its cause.
-`tools/ci/workflow_contract.py` rejects a missing group, a path filter,
-`continue-on-error` or a retry in the job.
+seeds synthetic data. The merge queue, `main` and the nightly run always run
+them. In a pull request the selector starts them for EmDash inputs and for every
+shared Core, proxy or public change (see "Two tiers" above); there is no
+workflow path filter. Each case runs exactly once. Neither the script nor the
+workflow retries a failed case, so an intermittent failure stays red and must
+be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
+a path filter, `continue-on-error` or a retry in the job.
 
 Observed GitHub runtimes (PR #40): `krapfentaxi-orders` 12–15 min,
 `krapfentaxi-migration` 4–6 min, `static` 1–3 min. The legs run in parallel
