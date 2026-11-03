@@ -55,6 +55,7 @@ Commands:
   test-tasks        Prove task lists, planning and ordering in web and PWA
   test-materials    Prove versioned material uploads and downloads in web and PWA
   test-knowledge    Prove knowledge pages and the editor in web and PWA
+  test-inbox        Prove inbox cases in web and PWA and the public form with consent
   test-actions      Prove neutral CharityAction lifecycle and browser creation
   test-templates    Prove versioned action templates and previous-year copies
   test-action-admin Prove Charity-Admin action management and conflict handling
@@ -3238,6 +3239,7 @@ case "$command" in
   test-tasks) run_feature_tests tools/tasks/test.sh ;;
   test-materials) run_feature_tests tools/materials/test.sh ;;
   test-knowledge) run_feature_tests tools/knowledge/test.sh ;;
+  test-inbox) run_feature_tests tools/inbox/test.sh ;;
   test-actions) run_feature_tests tools/actions/test.sh ;;
   test-templates) run_feature_tests tools/templates/test.sh ;;
   test-action-admin) run_feature_tests tools/action_admin/test.sh ;;
