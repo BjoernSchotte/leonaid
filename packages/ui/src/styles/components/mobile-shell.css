@@ -198,8 +198,10 @@
   height: 28px;
   border-radius: var(--r-pill);
 }
+/* Like the prototype, a long label ("Wiedervorlagen") may run into the
+ * gap next to its tab; longer ones (text zoom) are cut off. */
 .pwa-tab-label {
-  max-width: 100%;
+  max-width: calc(100% + var(--s-2));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -264,6 +266,7 @@
 .pwa-sheet-header h2 {
   margin: 0;
   font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
 .pwa-sheet-close {
   display: grid;
