@@ -3,6 +3,7 @@ import {
   createElement,
   isValidElement,
   type ButtonHTMLAttributes,
+  type ReactElement,
   type ReactNode,
 } from "react";
 
@@ -75,13 +76,14 @@ export function Button({
       {children != null && children !== false ? (
         <span className="btn-label">{children}</span>
       ) : null}
-      {shortcut ? <Kbd keys={shortcut} subtle /> : null}
+      {shortcut ? <Kbd announce={false} keys={shortcut} subtle /> : null}
     </button>
   );
 }
 
 export interface IconButtonProps
-  extends Omit<ButtonProps, "children" | "shortcut" | "loading"> {
+  extends Omit<ButtonProps, "children" | "icon" | "shortcut" | "loading"> {
+  readonly icon: LucideIcon | ReactElement;
   /** Required: becomes the accessible name and the tooltip. */
   readonly label: string;
 }

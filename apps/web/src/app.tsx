@@ -24,7 +24,7 @@ import {
   resolveModuleRoute,
   type UiModule,
 } from "@leonaid/features";
-import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+import { AppShell, Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { webModules } from "./modules";
 
@@ -110,7 +110,10 @@ export function App({ client }: AppProps) {
               : "LeonAid konnte deine Rollen gerade nicht laden. Versuche es bitte noch einmal."}
           </p>
           {signedOut ? (
-            <a className="btn btn-primary btn-md" href="/login">
+            <a
+              className={buttonClassName({ variant: "primary" })}
+              href="/login"
+            >
               Zur Anmeldung
             </a>
           ) : (

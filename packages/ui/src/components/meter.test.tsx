@@ -37,7 +37,9 @@ describe("Meter", () => {
     const { rerender } = render(<Meter label="Ziel" max={10} value={25} />);
     const meter = screen.getByRole("meter", { name: "Ziel" });
     expect(meter.style.getPropertyValue("--meter")).toBe("1");
+    expect(meter.getAttribute("aria-valuenow")).toBe("10");
     rerender(<Meter label="Ziel" max={10} value={-3} />);
+    expect(meter.getAttribute("aria-valuenow")).toBe("0");
     expect(meter.style.getPropertyValue("--meter")).toBe("0");
     rerender(<Meter label="Ziel" max={0} value={5} />);
     expect(meter.style.getPropertyValue("--meter")).toBe("0");

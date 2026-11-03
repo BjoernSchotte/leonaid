@@ -43,3 +43,14 @@
     display: none;
   }
 }
+
+/* Visually hidden words for the binding ("Strg plus K"); the keycaps
+   themselves are aria-hidden. */
+.kbd-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

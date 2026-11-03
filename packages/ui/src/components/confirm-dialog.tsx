@@ -1,6 +1,6 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 
-import { Button } from "./button";
+import { Button, buttonClassName } from "./button";
 
 export interface ConfirmDialogProps {
   readonly confirmLabel: string;
@@ -37,7 +37,7 @@ export function ConfirmDialog({
             </AlertDialog.Description>
             <div className="ui-dialog__actions">
               <AlertDialog.Close
-                className="btn btn-secondary btn-md"
+                className={buttonClassName({ variant: "secondary" })}
                 disabled={pending}
               >
                 Abbrechen

@@ -17,6 +17,7 @@ import {
   Avatar,
   Badge,
   Button,
+  buttonClassName,
   ConfirmDialog,
   DataTable,
   EmptyState,
@@ -28,8 +29,8 @@ import {
   StatusIcon,
   StatusLabel,
   StatusMessage,
-  useToast,
   type StatusShape,
+  useToast,
 } from "@leonaid/ui";
 
 export interface UiSystemCatalogPageProps {
@@ -127,7 +128,10 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             <span>{identity.roleLabels.join(" · ")}</span>
           </div>
         </div>
-        <a className="btn btn-secondary btn-md" href="/admin/system">
+        <a
+          className={buttonClassName({ variant: "secondary" })}
+          href="/admin/system"
+        >
           <HugeiconsIcon
             aria-hidden="true"
             icon={ArrowLeft01Icon}

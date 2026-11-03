@@ -18,7 +18,7 @@ import {
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 import { CompleteDraft } from "./complete-draft";
 import { quantityLabel } from "./quantities";
 import { useActionInUrl } from "../action-admin/action-location";
@@ -153,7 +153,10 @@ function CaptureSuccess({
         />
       ) : null}
       <div className="commitment-success__actions">
-        <a className="btn btn-secondary btn-md" href="/app/sponsors">
+        <a
+          className={buttonClassName({ variant: "secondary" })}
+          href="/app/sponsors"
+        >
           Zurück zu meinen Sponsoren
         </a>
         <Button onClick={onContinue} variant="ghost">

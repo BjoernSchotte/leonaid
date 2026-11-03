@@ -13,6 +13,7 @@ export interface MeterProps {
 export function Meter({ value, max, label, tone = "zone" }: MeterProps) {
   const ref = useRef<HTMLDivElement>(null);
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+  const now = Math.min(Math.max(value, 0), Math.max(max, 0));
   useLayoutEffect(() => {
     ref.current?.style.setProperty("--meter", String(ratio));
   }, [ratio]);
@@ -21,7 +22,7 @@ export function Meter({ value, max, label, tone = "zone" }: MeterProps) {
       aria-label={label}
       aria-valuemax={max}
       aria-valuemin={0}
-      aria-valuenow={value}
+      aria-valuenow={now}
       className={`meter tone-${tone}`}
       ref={ref}
       role="meter"

@@ -25,7 +25,7 @@ import {
   type InvoiceRecordResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
@@ -270,7 +270,7 @@ function InvoiceDocumentPanel({
       <span className="invoice-document__status">Bereit</span>
       <div className="invoice-document__actions">
         <a
-          className="btn btn-primary btn-md"
+          className={buttonClassName({ variant: "primary" })}
           data-testid="preview-document"
           href={previewHref}
           rel="noopener noreferrer"
@@ -279,7 +279,7 @@ function InvoiceDocumentPanel({
           <HugeiconsIcon
             aria-hidden="true"
             icon={FileViewIcon}
-            size={18}
+            size={16}
             strokeWidth={1.8}
           />
           <span className="btn-label">PDF öffnen</span>
@@ -1413,7 +1413,10 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
                 kontrolliert und verbindlich freigegeben werden.
               </span>
               {context.data?.mayIssue ? (
-                <a className="btn btn-secondary btn-md" href="/admin/orders">
+                <a
+                  className={buttonClassName({ variant: "secondary" })}
+                  href="/admin/orders"
+                >
                   Zu den Bestellungen
                 </a>
               ) : null}

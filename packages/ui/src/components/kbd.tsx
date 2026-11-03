@@ -41,26 +41,70 @@ export function keyLabels(keys: string): string[][] {
     );
 }
 
+const spokenKeys: Readonly<Record<string, string>> = {
+  shift: "Umschalt",
+  escape: "Escape",
+  enter: "Eingabe",
+  arrowup: "Pfeil nach oben",
+  arrowdown: "Pfeil nach unten",
+  space: "Leertaste",
+  "?": "Fragezeichen",
+  "/": "Schrägstrich",
+};
+
+/** The binding as words for assistive tech: "mod+k" → "Strg plus K". */
+export function keySpeech(keys: string): string {
+  const mac = isMacPlatform();
+  return keys
+    .split(" ")
+    .filter(Boolean)
+    .map((step) =>
+      step
+        .split("+")
+        .map((part) => {
+          if (part === "mod") return mac ? "Befehl" : "Strg";
+          if (part === "alt") return mac ? "Wahl" : "Alt";
+          return (
+            spokenKeys[part] ?? (part.length === 1 ? part.toUpperCase() : part)
+          );
+        })
+        .join(" plus "),
+    )
+    .join(" dann ");
+}
+
 export interface KbdProps {
   /** A binding ("mod+k", "g b") or its steps (["g", "b"]). */
   readonly keys: string | readonly string[];
   readonly subtle?: boolean;
+  /**
+   * Adds the binding as visually hidden words ("Strg plus K"). Turn it off
+   * where a control's label already names the action (Button shortcuts).
+   */
+  readonly announce?: boolean;
 }
 
-export function Kbd({ keys, subtle }: KbdProps) {
-  const steps = keyLabels(typeof keys === "string" ? keys : keys.join(" "));
+export function Kbd({ keys, subtle, announce = true }: KbdProps) {
+  const binding = typeof keys === "string" ? keys : keys.join(" ");
+  const steps = keyLabels(binding);
   return (
-    <span className={cn("kbd-group", subtle && "is-subtle")} aria-hidden="true">
-      {steps.map((parts, index) => (
-        <span className="kbd-step" key={index}>
-          {index > 0 ? <span className="kbd-then">dann</span> : null}
-          {parts.map((part) => (
-            <kbd className="kbd" key={part}>
-              {part}
-            </kbd>
-          ))}
-        </span>
-      ))}
-    </span>
+    <>
+      <span
+        aria-hidden="true"
+        className={cn("kbd-group", subtle && "is-subtle")}
+      >
+        {steps.map((parts, index) => (
+          <span className="kbd-step" key={index}>
+            {index > 0 ? <span className="kbd-then">dann</span> : null}
+            {parts.map((part) => (
+              <kbd className="kbd" key={part}>
+                {part}
+              </kbd>
+            ))}
+          </span>
+        ))}
+      </span>
+      {announce ? <span className="kbd-text">{keySpeech(binding)}</span> : null}
+    </>
   );
 }

@@ -21,7 +21,12 @@ import type {
   DashboardResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  EmptyState,
+  StatusMessage,
+} from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { formatQuantities } from "../commitments/quantities";
@@ -196,7 +201,10 @@ function Pipeline({
       {counts.total === 0 ? (
         <EmptyState
           action={
-            <a className="btn btn-secondary btn-md" href={baseHref}>
+            <a
+              className={buttonClassName({ variant: "secondary" })}
+              href={baseHref}
+            >
               Akquise öffnen
             </a>
           }
@@ -303,7 +311,7 @@ function AcquirerDashboard({
             {data.reminders.unscheduled} ohne Termin
           </span>
         </div>
-        <a className="btn btn-primary btn-md" href={nextHref}>
+        <a className={buttonClassName({ variant: "primary" })} href={nextHref}>
           Jetzt öffnen
           <HugeiconsIcon
             aria-hidden="true"

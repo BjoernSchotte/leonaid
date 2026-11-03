@@ -44,6 +44,8 @@ describe("Button", () => {
     const markup = renderToStaticMarkup(<Button shortcut="c">Neu</Button>);
     expect(markup).toContain('class="kbd-group is-subtle"');
     expect(markup).toContain('<kbd class="kbd">C</kbd>');
+    // The label names the action; keycaps must not change the accessible name.
+    expect(markup).not.toContain("kbd-text");
   });
 
   it("swaps the icon for a spinner while loading", () => {
