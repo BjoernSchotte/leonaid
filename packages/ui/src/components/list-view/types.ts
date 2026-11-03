@@ -16,11 +16,18 @@ export interface ListProperty<T> {
   /** The row's value(s); option values, not labels. */
   readonly get: (row: T) => string | readonly string[];
   /**
-   * In display order; the group order follows it. Options that come from
-   * the server may be empty while loading: URL filters on the property are
-   * kept until they arrive (or while `status` is "loading"), then checked.
+   * In display order; the group order follows it. URL filter values are
+   * checked against these, except while the property is pending (list
+   * `status` "loading" or `optionsPending`): then they are kept as given
+   * and checked once the options are known. An empty list on a ready list
+   * is real data (e.g. no assignees yet).
    */
   readonly options: readonly OptionMenuOption<string>[];
+  /**
+   * The options are still loading separately from the rows. Set it while
+   * they load; not needed when `status` is "loading" anyway.
+   */
+  readonly optionsPending?: boolean;
   /** Offered in the filter menu (default true). */
   readonly filterable?: boolean;
   /**

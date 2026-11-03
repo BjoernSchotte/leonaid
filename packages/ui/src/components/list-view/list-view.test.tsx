@@ -809,10 +809,12 @@ describe("review fixes", () => {
 describe("options that arrive after mount", () => {
   function Late({
     names,
+    pending,
     status,
     useCommands,
   }: {
     names: readonly string[];
+    pending?: boolean;
     status?: "ready" | "loading";
     useCommands?: (commands: readonly ListCommand[]) => void;
   }) {
@@ -825,6 +827,7 @@ describe("options that arrive after mount", () => {
         icon: Globe,
         get: assignee,
         options: names.map((name) => ({ value: name, label: name })),
+        optionsPending: pending,
       },
     ];
     return (
@@ -837,7 +840,7 @@ describe("options that arrive after mount", () => {
           getId={(row) => row.id}
           id="late"
           properties={properties}
-          rowHref={(row) => `/admin/orders/${row.id}`}
+          renderDetail={(row) => <p>Detail {row.number}</p>}
           rows={fixture()}
           searchText={(row) => row.number}
           sorts={sorts}
@@ -852,7 +855,7 @@ describe("options that arrive after mount", () => {
 
   it("keeps a URL filter until the options arrive, then applies it", () => {
     setUrl("?f.assignee=x");
-    const { rerender } = render(<Late names={[]} />);
+    const { rerender } = render(<Late names={[]} pending />);
     expect(window.location.search).toBe("?f.assignee=x");
     rerender(<Late names={["x", "y"]} />);
     expect(window.location.search).toBe("?f.assignee=x");
@@ -864,7 +867,7 @@ describe("options that arrive after mount", () => {
 
   it("drops the value when the arrived options do not offer it", () => {
     setUrl("?f.assignee=x");
-    const { rerender } = render(<Late names={[]} />);
+    const { rerender } = render(<Late names={[]} pending />);
     rerender(<Late names={["y"]} />);
     expect(rowLinks()).toHaveLength(4);
     expect(window.location.search).toBe("");
@@ -874,9 +877,46 @@ describe("options that arrive after mount", () => {
     setUrl("?f.assignee=x");
     const { rerender } = render(<Late names={["y"]} status="loading" />);
     expect(window.location.search).toBe("?f.assignee=x");
+    // Other params are still written while loading; the value stays.
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "B" },
+    });
+    expect(window.location.search).toBe("?f.assignee=x&q=B");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "" },
+    });
     rerender(<Late names={["x", "y"]} status="ready" />);
     expect(window.location.search).toBe("?f.assignee=x");
     expect(rowLinks()).toHaveLength(2);
+  });
+
+  it("treats empty options on a ready list as real data", () => {
+    setUrl("?f.assignee=x");
+    render(<Late names={[]} />);
+    // No assignees exist: the value cannot match and is dropped.
+    expect(window.location.search).toBe("");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "B-00" },
+    });
+    expect(window.location.search).toBe("?q=B-00");
+    const before = window.history.length;
+    fireEvent.click(rowLinks()[0]!);
+    expect(window.location.search).toBe("?q=B-00&open=o1");
+    expect(window.history.length).toBe(before + 1);
+  });
+
+  it("does not re-read the URL for a new but equal properties object", () => {
+    setUrl("?f.assignee=x");
+    const { rerender } = render(<Late names={["x", "y"]} />);
+    expect(rowLinks()).toHaveLength(2);
+    // Someone else changes the URL without a popstate; an equal schema
+    // must not make the untouched list pick it up.
+    window.history.replaceState(null, "", "/admin/orders?f.assignee=y");
+    rerender(<Late names={["x", "y"]} />);
+    expect(rowLinks().map((link) => link.textContent)).toEqual([
+      "B-001",
+      "B-003",
+    ]);
   });
 
   it("reads useCommands once and warns when it changes", () => {

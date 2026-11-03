@@ -300,11 +300,23 @@ export function ListView<T>(props: ListViewProps<T>) {
     [properties],
   );
   /*
-   * Options that come from the server may still be loading. Until they are
-   * known, URL filter values on those properties are kept as given, and the
-   * URL is not rewritten from the half-known schema.
+   * Options that come from the server may still be loading: every property
+   * while `status` is "loading", or one marked `optionsPending`. Filter
+   * values on pending properties are kept as given (and written back to the
+   * URL unchanged); an empty option list on a ready list is real data.
+   * The schema is rebuilt only when ids, option values or pending flags
+   * change, not for every new `properties` object.
    */
   const loading = props.status === "loading";
+  const schemaSignature = JSON.stringify([
+    filterable.map((prop) => [
+      prop.id,
+      loading || prop.optionsPending === true,
+      prop.options.map((option) => option.value),
+    ]),
+    groupable.map((prop) => prop.id),
+    sorts.map((sort) => sort.id),
+  ]);
   const fieldSchema = useMemo<Omit<ListSchema, "views">>(
     () => ({
       filterable: new Map(
@@ -315,15 +327,15 @@ export function ListView<T>(props: ListViewProps<T>) {
       ),
       pending: new Set(
         filterable
-          .filter((prop) => loading || prop.options.length === 0)
+          .filter((prop) => loading || prop.optionsPending === true)
           .map((prop) => prop.id),
       ),
       groupable: new Set(groupable.map((prop) => prop.id)),
       sorts: new Set(sorts.map((sort) => sort.id)),
     }),
-    [filterable, groupable, sorts, loading],
+    // The signature covers everything the schema is built from.
+    [schemaSignature],
   );
-  const schemaReady = (fieldSchema.pending?.size ?? 0) === 0;
   /* Saved views are checked against today's properties and sorts. */
   const allViews = useMemo(
     () => [
@@ -351,8 +363,8 @@ export function ListView<T>(props: ListViewProps<T>) {
 
   /*
    * Once options arrive (or change): an untouched list re-reads the URL,
-   * which was not rewritten meanwhile, so stale-only filters still fall
-   * back to the view. A list the person changed drops the values the
+   * which still holds the pending values as given, so stale-only filters
+   * fall back to the view. A list the person changed drops the values the
    * options do not offer.
    */
   const untouched = useRef<ListState | null>(state);
@@ -360,6 +372,9 @@ export function ListView<T>(props: ListViewProps<T>) {
     setState((current) => {
       if (current === untouched.current) {
         const reparsed = parseListState(window.location.search, schema);
+        if (JSON.stringify(reparsed) === JSON.stringify(current)) {
+          return current;
+        }
         untouched.current = reparsed;
         return reparsed;
       }
@@ -370,7 +385,6 @@ export function ListView<T>(props: ListViewProps<T>) {
   }, [fieldSchema]);
 
   useEffect(() => {
-    if (!schemaReady) return;
     const next = serializeListState(window.location.search, state, schema);
     const push = pushNext.current;
     pushNext.current = false;
@@ -378,7 +392,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     const url = `${window.location.pathname}${next}${window.location.hash}`;
     if (push) window.history.pushState(window.history.state, "", url);
     else window.history.replaceState(window.history.state, "", url);
-  }, [state, schema, schemaReady]);
+  }, [state, schema]);
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
