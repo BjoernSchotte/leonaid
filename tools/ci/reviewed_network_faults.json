@@ -58,5 +58,10 @@
     "path": "tests/e2e/surveys-templates.spec.mjs",
     "sha256": "9c00163c29ba9e160ee6c10f355c5beb881d8cf4e346ae846769446638a2e2ba",
     "reason": "Drop one actual template creation acknowledgement and retry the original request; inspect independent persisted definitions."
+  },
+  {
+    "path": "tests/e2e/public-inbox-retry.spec.mjs",
+    "sha256": "22c98ea9574802b48a95fbe71b38df3e541e3bf6bfe6a48c5598eeb177ef0196",
+    "reason": "Drop only the real committed Inbox response; exhaust the real server rate limit and verify the browser retains and repeats the identical command after HTTP 429."
   }
 ]
