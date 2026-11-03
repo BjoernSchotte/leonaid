@@ -234,7 +234,7 @@ test("system admin searches, filters and paginates the full member list", async 
     await page
       .getByRole("searchbox", { name: "Mitglied suchen" })
       .fill("Klara");
-    await page.getByRole("button", { name: "Suchen" }).click();
+    await page.getByRole("button", { name: "Suchen", exact: true }).click();
     await expect(page.getByTestId("member-card")).toHaveCount(1);
     await page.getByTestId("member-card").click();
     await expect(
@@ -290,7 +290,7 @@ test("charity admin sees on mobile only members and roles of own actions", async
     await expect(page.getByText("Felix Fremd", { exact: true })).toHaveCount(0);
 
     await page.getByRole("searchbox", { name: "Mitglied suchen" }).fill("Anna");
-    await page.getByRole("button", { name: "Suchen" }).click();
+    await page.getByRole("button", { name: "Suchen", exact: true }).click();
     await expect(page.getByTestId("member-card")).toHaveCount(1);
     await page.getByTestId("member-card").click();
     await expect(page.getByTestId("member-membership")).toHaveCount(1);

@@ -24,7 +24,7 @@ import type { HotkeyBinding } from "../keyboard/hotkeys";
 import { cn } from "../lib/utils";
 import { Avatar } from "./avatar";
 import { IconButton } from "./button";
-import { Kbd } from "./kbd";
+import { isMacPlatform, Kbd } from "./kbd";
 import { OptionMenu } from "./option-menu";
 import { Popover } from "./popover";
 import {
@@ -531,9 +531,10 @@ function ShellFrame({
           <div className="topbar-end">
             {onOpenPalette ? (
               <button
+                aria-label="Suchen und Befehle"
                 className="topbar-search"
                 onClick={onOpenPalette}
-                title="Suchen und Befehle"
+                title={`Suchen und Befehle (${isMacPlatform() ? "⌘K" : "Strg+K"})`}
                 type="button"
               >
                 <Search aria-hidden="true" size={15} />
