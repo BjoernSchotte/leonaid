@@ -432,6 +432,30 @@ describe("CommandPalette", () => {
     ).toBeTruthy();
   });
 
+  it("puts the section with the best match first, as cmdk does", () => {
+    const { client } = fakeClient();
+    renderPalette(client, navigationWithoutTasksAndInbox);
+    act(() => {
+      fireEvent.click(screen.getByText("Suche öffnen"));
+    });
+    const headings = () =>
+      [...document.querySelectorAll("[cmdk-group-heading]")].map(
+        (heading) => heading.textContent,
+      );
+    // Empty query: prototype order.
+    expect(headings().slice(0, 3)).toEqual([
+      "Auf dieser Seite · Mitglieder",
+      "Anlegen",
+      "Gehe zu",
+    ]);
+    act(() => type("rech"));
+    expect(headings()[0]).toBe("Gehe zu");
+    expect(
+      document.querySelector("[cmdk-item][data-selected='true'] .palette-label")
+        ?.textContent,
+    ).toBe("Rechnungen");
+  });
+
   it("keeps the user's selection when hits arrive and dims stale hits", async () => {
     vi.useFakeTimers();
     const { client, pending } = fakeClient();

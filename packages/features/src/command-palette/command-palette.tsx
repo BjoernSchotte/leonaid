@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -99,7 +100,15 @@ const SETTINGS_GROUP = "Einstellungen";
  * sorted best match first; the empty query keeps the given order. Search
  * hits are never passed through here: the server already matched them.
  */
-function rank<T>(
+// Best cmdk score per ranked item, so sections can be ordered by their best
+// match like cmdk orders groups.
+const scores = new WeakMap<object, number>();
+
+function bestScore(items: readonly object[]): number {
+  return items.reduce((best, item) => Math.max(best, scores.get(item) ?? 0), 0);
+}
+
+function rank<T extends object>(
   items: readonly T[],
   query: string,
   value: (item: T) => string,
@@ -114,7 +123,10 @@ function rank<T>(
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map((entry) => entry.item);
+    .map((entry) => {
+      scores.set(entry.item, entry.score);
+      return entry.item;
+    });
 }
 
 const zoneOrder = new Map(
@@ -402,6 +414,92 @@ export function CommandPalette({
     ),
   ].join(", ");
 
+  // Page commands, Anlegen and Gehe zu keep the prototype's order while the
+  // query is empty; with a query the section with the best match comes
+  // first, as cmdk sorts its groups.
+  const localSections = [
+    {
+      id: "page",
+      best: Math.max(
+        0,
+        ...visiblePageGroups.map(([, list]) => bestScore(list)),
+      ),
+      node: (
+        <Fragment key="page">
+          {visiblePageGroups.map(([group, list]) => (
+            <Command.Group
+              className="palette-group"
+              heading={`Auf dieser Seite · ${group}`}
+              key={`page:${group}`}
+            >
+              {list.map((command) => (
+                <CommandItem command={command} key={command.id} onRun={run} />
+              ))}
+            </Command.Group>
+          ))}
+        </Fragment>
+      ),
+    },
+    {
+      id: "create",
+      best: bestScore(visibleCreates),
+      node: (
+        <Fragment key="create">
+          {visibleCreates.length ? (
+            <Command.Group className="palette-group" heading="Anlegen">
+              {visibleCreates.map((entry) => (
+                <Command.Item
+                  className="palette-item"
+                  key={entry.id}
+                  onSelect={() => go(entry.href)}
+                  value={entry.id}
+                >
+                  <entry.icon aria-hidden="true" size={16} />
+                  <span className="palette-label">{entry.label}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+        </Fragment>
+      ),
+    },
+    {
+      id: "nav",
+      best: bestScore(visibleNavigation),
+      node: (
+        <Fragment key="nav">
+          {visibleNavigation.length ? (
+            <Command.Group className="palette-group" heading="Gehe zu">
+              {visibleNavigation.map(({ item, zone, label }) => {
+                const Icon = zone?.icon ?? ArrowRight;
+                return (
+                  <Command.Item
+                    className="palette-item"
+                    data-zone={item.key}
+                    key={item.key}
+                    onSelect={() => go(item.href)}
+                    value={`nav:${item.key}`}
+                  >
+                    <span aria-hidden="true" className="palette-zone">
+                      <Icon size={14} />
+                    </span>
+                    <span className="palette-label">{label}</span>
+                    {zone?.hint ? (
+                      <span className="palette-hint">{zone.hint}</span>
+                    ) : null}
+                    {zone?.key ? <Kbd keys={`g ${zone.key}`} subtle /> : null}
+                  </Command.Item>
+                );
+              })}
+            </Command.Group>
+          ) : null}
+        </Fragment>
+      ),
+    },
+  ]
+    .map((section, index) => ({ ...section, index }))
+    .sort((a, b) => (text ? b.best - a.best : 0) || a.index - b.index);
+
   return (
     <dialog
       aria-label="Befehlspalette"
@@ -450,59 +548,7 @@ export function CommandPalette({
               </Command.Empty>
             ) : null}
 
-            {visiblePageGroups.map(([group, list]) => (
-              <Command.Group
-                className="palette-group"
-                heading={`Auf dieser Seite · ${group}`}
-                key={`page:${group}`}
-              >
-                {list.map((command) => (
-                  <CommandItem command={command} key={command.id} onRun={run} />
-                ))}
-              </Command.Group>
-            ))}
-
-            {visibleCreates.length ? (
-              <Command.Group className="palette-group" heading="Anlegen">
-                {visibleCreates.map((entry) => (
-                  <Command.Item
-                    className="palette-item"
-                    key={entry.id}
-                    onSelect={() => go(entry.href)}
-                    value={entry.id}
-                  >
-                    <entry.icon aria-hidden="true" size={16} />
-                    <span className="palette-label">{entry.label}</span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            ) : null}
-
-            {visibleNavigation.length ? (
-              <Command.Group className="palette-group" heading="Gehe zu">
-                {visibleNavigation.map(({ item, zone, label }) => {
-                  const Icon = zone?.icon ?? ArrowRight;
-                  return (
-                    <Command.Item
-                      className="palette-item"
-                      data-zone={item.key}
-                      key={item.key}
-                      onSelect={() => go(item.href)}
-                      value={`nav:${item.key}`}
-                    >
-                      <span aria-hidden="true" className="palette-zone">
-                        <Icon size={14} />
-                      </span>
-                      <span className="palette-label">{label}</span>
-                      {zone?.hint ? (
-                        <span className="palette-hint">{zone.hint}</span>
-                      ) : null}
-                      {zone?.key ? <Kbd keys={`g ${zone.key}`} subtle /> : null}
-                    </Command.Item>
-                  );
-                })}
-              </Command.Group>
-            ) : null}
+            {localSections.map((section) => section.node)}
 
             {hitGroups.map((group) => (
               <Command.Group
