@@ -32,6 +32,8 @@ OUTBOX_REFERENCES: tuple[tuple[str, str, bool], ...] = (
 # and its link becomes NULL when the job is deleted (ON DELETE SET NULL).
 OUTBOX_DETACHED_REFERENCES: tuple[tuple[str, str], ...] = (
     ("mail_delivery", "outbox_event_id"),
+    # The case keeps its contact state; the completed link job may go.
+    ("inbox_case", "contact_job_id"),
 )
 
 _UNREFERENCED = "\n".join(
