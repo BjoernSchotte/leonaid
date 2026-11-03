@@ -1,5 +1,9 @@
 import type { NavigationItemResponse } from "@leonaid/api-client";
-import { railCampaigns, railNavigation } from "@leonaid/features";
+import {
+  railCampaigns,
+  railNavigation,
+  withCrossSurfaceLinks,
+} from "@leonaid/features";
 
 const item = (
   key: string,
@@ -61,7 +65,7 @@ describe("rail navigation", () => {
     expect(rail.some((entry) => entry.key === "tasks")).toBe(false);
   });
 
-  it("lists each campaign once with its roles", () => {
+  it("lists each campaign once with the roles the admin pages accept", () => {
     expect(
       railCampaigns({
         actionMemberships: [
@@ -70,6 +74,12 @@ describe("rail navigation", () => {
             actionName: "Krapfentaxi",
             role: "charity_admin",
             roleLabel: "Charity-Admin",
+          },
+          {
+            actionId: "a1",
+            actionName: "Krapfentaxi",
+            role: "finance_reader",
+            roleLabel: "Finanzen",
           },
           {
             actionId: "a1",
@@ -83,11 +93,52 @@ describe("rail navigation", () => {
             role: "acquirer",
             roleLabel: "Akquise",
           },
+          {
+            actionId: "a3",
+            actionName: "Golfturnier",
+            role: "finance_reader",
+            roleLabel: "Finanzen",
+          },
         ],
       }),
     ).toEqual([
-      { id: "a1", name: "Krapfentaxi", hint: "Charity-Admin · Fahrer" },
-      { id: "a2", name: "Weihnachtsmarkt", hint: "Akquise" },
+      { id: "a1", name: "Krapfentaxi", hint: "Charity-Admin · Finanzen" },
+      { id: "a3", name: "Golfturnier", hint: "Finanzen" },
+    ]);
+  });
+
+  it("adds the Akquise-App link when the account has a PWA item", () => {
+    const withPwa = railNavigation(withCrossSurfaceLinks(server), []);
+    expect(withPwa.at(-1)).toMatchObject({
+      key: "acquisition-app",
+      label: "Akquise-App",
+      href: "/app/",
+      group: "Weitere Oberflächen",
+      goKey: "p",
+    });
+    const webOnly = server.filter((entry) => entry.surface === "web");
+    expect(
+      railNavigation(withCrossSurfaceLinks(webOnly), []).some(
+        (entry) => entry.key === "acquisition-app",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the sponsor pipeline as Akquise in Arbeit with g q", () => {
+    const rail = railNavigation(
+      [
+        item("orders", "Bestellungen", "/admin/orders"),
+        item("acquisition-web", "Akquise", "/admin/acquisition"),
+        item("invoices", "Rechnungen", "/admin/invoices"),
+      ],
+      [],
+    );
+    expect(
+      rail.map((entry) => [entry.key, entry.label, entry.group, entry.goKey]),
+    ).toEqual([
+      ["orders", "Bestellungen", "Arbeit", "b"],
+      ["acquisition-web", "Akquise", "Arbeit", "q"],
+      ["invoices", "Rechnungen", "Arbeit", "r"],
     ]);
   });
 });

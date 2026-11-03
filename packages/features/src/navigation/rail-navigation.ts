@@ -7,6 +7,8 @@ import type {
 import type { RailCampaign, RailNavItem } from "@leonaid/ui";
 
 import {
+  ACQUISITION_APP_HREF,
+  ACQUISITION_APP_KEY,
   navigationZones,
   type NavigationZoneGroup,
   zoneForNavKey,
@@ -79,12 +81,46 @@ export function railNavigation(
   return entries.map((entry) => entry.railItem);
 }
 
-/** Every campaign the account belongs to, once, with its role labels. */
+/**
+ * The server's navigation plus the admin's cross-surface links: "Akquise-App"
+ * (/app/) when the account has any PWA item. Feed the result to the rail and
+ * the palette so both show the same entries.
+ */
+export function withCrossSurfaceLinks(
+  navigation: readonly NavigationItemResponse[],
+): NavigationItemResponse[] {
+  const items = [...navigation];
+  if (
+    navigation.some((item) => item.surface === "pwa") &&
+    !navigation.some((item) => item.key === ACQUISITION_APP_KEY)
+  ) {
+    items.push({
+      key: ACQUISITION_APP_KEY,
+      label: "Akquise-App",
+      href: ACQUISITION_APP_HREF,
+      surface: "web",
+    });
+  }
+  return items;
+}
+
+/**
+ * Roles the admin pages accept for a campaign. Acquirer and driver roles
+ * only work in the PWA; listing them would let the admin pages reject the
+ * choice and fall back to another campaign.
+ */
+export const ADMIN_CAMPAIGN_ROLES: ReadonlySet<string> = new Set([
+  "charity_admin",
+  "finance_reader",
+]);
+
+/** Each campaign the admin pages accept for the account, with its roles. */
 export function railCampaigns(
   identity: Pick<CurrentIdentityResponse, "actionMemberships">,
 ): RailCampaign[] {
   const campaigns = new Map<string, { name: string; roles: string[] }>();
   for (const membership of identity.actionMemberships) {
+    if (!ADMIN_CAMPAIGN_ROLES.has(membership.role)) continue;
     const entry = campaigns.get(membership.actionId);
     if (entry) {
       if (!entry.roles.includes(membership.roleLabel)) {
