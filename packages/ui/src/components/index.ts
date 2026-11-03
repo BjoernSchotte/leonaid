@@ -14,3 +14,7 @@ export * from "./icon";
 export * from "./kbd";
 export * from "./meter";
 export * from "./status-icon";
+export * from "./modal";
+export * from "./skeleton-rows";
+export * from "./switch";
+export * from "./tabs";

@@ -1,96 +1,166 @@
-import { Toast } from "@base-ui/react/toast";
+import { CircleCheck, CircleX, Info, X } from "lucide-react";
 import {
-  Alert02Icon,
-  Cancel01Icon,
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import type { ReactNode } from "react";
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 export type ToastTone = "error" | "info" | "success";
 
+export interface ToastAction {
+  readonly label: string;
+  readonly run: () => void;
+}
+
 export interface LeonAidToast {
+  /** Optional follow-up such as "Rückgängig"; running it dismisses the toast. */
+  readonly action?: ToastAction;
   readonly description?: ReactNode;
+  /** Milliseconds until it closes; 0 keeps it open. Default 5200. */
   readonly timeout?: number;
   readonly title: ReactNode;
   readonly tone?: ToastTone;
 }
 
-const icons = {
-  error: Alert02Icon,
-  info: InformationCircleIcon,
-  success: CheckmarkCircle02Icon,
-} as const;
-
-function ToastList() {
-  const { toasts } = Toast.useToastManager();
-
-  return toasts.map((toast) => {
-    const tone =
-      toast.type === "error" || toast.type === "success" ? toast.type : "info";
-    return (
-      <Toast.Root
-        className={`ui-toast ui-toast--${tone}`}
-        data-testid="toast"
-        key={toast.id}
-        swipeDirection={["down", "right"]}
-        toast={toast}
-      >
-        <Toast.Content className="ui-toast__content">
-          <HugeiconsIcon
-            aria-hidden="true"
-            className="ui-toast__icon"
-            icon={icons[tone]}
-            size={21}
-            strokeWidth={1.8}
-          />
-          <div className="ui-toast__copy">
-            <Toast.Title className="ui-toast__title" />
-            <Toast.Description className="ui-toast__description" />
-          </div>
-          <Toast.Close
-            aria-label="Hinweis schließen"
-            className="ui-toast__close"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={Cancel01Icon}
-              size={18}
-              strokeWidth={1.8}
-            />
-          </Toast.Close>
-        </Toast.Content>
-      </Toast.Root>
-    );
-  });
+interface ToastEntry extends LeonAidToast {
+  readonly id: string;
 }
 
-export function ToastProvider({ children }: { readonly children: ReactNode }) {
+const DEFAULT_TIMEOUT = 5_200;
+const LIMIT = 3;
+
+const toneClass = {
+  error: "tone-danger",
+  info: "tone-info",
+  success: "tone-ok",
+} as const;
+
+const toneIcon = {
+  error: CircleX,
+  info: Info,
+  success: CircleCheck,
+} as const;
+
+interface ToastApi {
+  readonly show: (toast: LeonAidToast) => string;
+  readonly dismiss: (id: string) => void;
+}
+
+const ToastContext = createContext<ToastApi | null>(null);
+
+function ToastItem({
+  onDismiss,
+  toast,
+}: {
+  readonly onDismiss: (id: string) => void;
+  readonly toast: ToastEntry;
+}) {
+  const tone = toast.tone ?? "info";
+  const ToneIcon = toneIcon[tone];
+  const timeout = toast.timeout ?? DEFAULT_TIMEOUT;
+  // The timer pauses while the pointer or focus is on the toast.
+  const remaining = useRef(timeout);
+  const startedAt = useRef(0);
+  const [paused, setPaused] = useState({ hover: false, focus: false });
+  const isPaused = paused.hover || paused.focus;
+
+  useEffect(() => {
+    if (timeout <= 0 || isPaused) return;
+    startedAt.current = Date.now();
+    const timer = window.setTimeout(
+      () => onDismiss(toast.id),
+      remaining.current,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      remaining.current = Math.max(
+        0,
+        remaining.current - (Date.now() - startedAt.current),
+      );
+    };
+  }, [isPaused, onDismiss, timeout, toast.id]);
+
   return (
-    <Toast.Provider limit={3} timeout={5_000}>
-      {children}
-      <Toast.Portal>
-        <Toast.Viewport className="ui-toast-viewport">
-          <ToastList />
-        </Toast.Viewport>
-      </Toast.Portal>
-    </Toast.Provider>
+    <div
+      className={`toast ${toneClass[tone]}`}
+      data-testid="toast"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setPaused((state) => ({ ...state, focus: false }));
+        }
+      }}
+      onFocus={() => setPaused((state) => ({ ...state, focus: true }))}
+      onMouseEnter={() => setPaused((state) => ({ ...state, hover: true }))}
+      onMouseLeave={() => setPaused((state) => ({ ...state, hover: false }))}
+    >
+      <ToneIcon aria-hidden="true" size={16} />
+      <span className="toast-text">
+        <strong className="toast-title">{toast.title}</strong>
+        {toast.description ? (
+          <span className="toast-description">{toast.description}</span>
+        ) : null}
+      </span>
+      {toast.action ? (
+        <button
+          className="toast-action"
+          onClick={() => {
+            toast.action?.run();
+            onDismiss(toast.id);
+          }}
+          type="button"
+        >
+          {toast.action.label}
+        </button>
+      ) : null}
+      <button
+        aria-label="Meldung schließen"
+        className="toast-close"
+        onClick={() => onDismiss(toast.id)}
+        type="button"
+      >
+        <X aria-hidden="true" size={14} />
+      </button>
+    </div>
   );
 }
 
-export function useToast() {
-  const manager = Toast.useToastManager();
+/** Holds the toasts and renders the polite live region, bottom right. */
+export function ToastProvider({ children }: { readonly children: ReactNode }) {
+  const [toasts, setToasts] = useState<readonly ToastEntry[]>([]);
+  const nextId = useRef(0);
 
-  return {
-    show({ description, timeout, title, tone = "info" }: LeonAidToast): string {
-      return manager.add({
-        description,
-        priority: tone === "error" ? "high" : "low",
-        timeout,
-        title,
-        type: tone,
-      });
-    },
-  };
+  const dismiss = useCallback((id: string) => {
+    setToasts((list) => list.filter((toast) => toast.id !== id));
+  }, []);
+
+  const show = useCallback((toast: LeonAidToast) => {
+    nextId.current += 1;
+    const id = `toast-${nextId.current}`;
+    setToasts((list) => [...list.slice(-(LIMIT - 1)), { ...toast, id }]);
+    return id;
+  }, []);
+
+  const api = useMemo(() => ({ dismiss, show }), [dismiss, show]);
+
+  return (
+    <ToastContext.Provider value={api}>
+      {children}
+      <div aria-live="polite" className="toaster" role="status">
+        {toasts.map((toast) => (
+          <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast(): ToastApi {
+  const api = useContext(ToastContext);
+  if (!api) throw new Error("useToast needs a surrounding ToastProvider");
+  return api;
 }

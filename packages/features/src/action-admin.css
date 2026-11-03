@@ -374,8 +374,8 @@
   justify-self: end;
 }
 
-.action-edit-section > .ui-status,
-.action-edit-section form + .ui-status {
+.action-edit-section > .callout,
+.action-edit-section form + .callout {
   margin-top: 1rem;
 }
 
@@ -457,7 +457,7 @@
   accent-color: var(--primary);
 }
 
-.delivery-editor .ui-status a {
+.delivery-editor .callout a {
   display: block;
   margin-top: 0.5rem;
 }

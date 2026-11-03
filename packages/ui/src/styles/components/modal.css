@@ -1,0 +1,73 @@
+/* Modal on the native <dialog>: ported from the Leitsystem prototype (components.css). */
+dialog {
+  color: var(--text);
+}
+.modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
+  padding: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+.modal-sm {
+  width: min(420px, calc(100vw - 32px));
+}
+.modal-lg {
+  width: min(860px, calc(100vw - 32px));
+}
+.modal::backdrop {
+  background: var(--overlay);
+}
+.modal[open] {
+  animation: rise var(--dur-2) var(--ease-out);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.modal-body {
+  display: grid;
+  max-height: inherit;
+  grid-template-rows: auto 1fr auto;
+}
+.modal-header {
+  padding: var(--s-5) var(--s-6) var(--s-3);
+}
+.modal-header h2 {
+  font-size: var(--fs-lg);
+}
+.modal-description {
+  margin-top: var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.modal-content {
+  overflow: auto;
+  padding: var(--s-2) var(--s-6) var(--s-5);
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-6);
+  border-top: var(--hair) solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+/* The prototype's base heading rule, scoped to the modal. */
+.modal-header h2 {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}

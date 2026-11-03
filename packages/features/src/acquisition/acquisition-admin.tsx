@@ -1,10 +1,10 @@
 import {
-  AddressBookIcon,
   ClockAlertIcon,
   Search01Icon,
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Contact } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -111,9 +111,8 @@ export function AcquisitionAdminPage({
     return (
       <EmptyState
         description="Sobald du eine Charity-Aktion verwaltest, erscheint hier ihre aktionsweite Sponsor-Pipeline."
-        icon={
-          <HugeiconsIcon icon={AddressBookIcon} size={24} strokeWidth={1.7} />
-        }
+        headingLevel={2}
+        icon={Contact}
         title="Keine verwaltete Akquise-Aktion"
       />
     );

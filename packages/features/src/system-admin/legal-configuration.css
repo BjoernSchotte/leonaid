@@ -343,7 +343,7 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .legal-einvoice .ui-field {
+  .legal-einvoice .field {
     grid-column: 1 / -1;
   }
 }

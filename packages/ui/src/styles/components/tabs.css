@@ -1,0 +1,51 @@
+/* Tabs: ported from the Leitsystem prototype (components.css). */
+.tabs {
+  display: flex;
+  gap: var(--s-1);
+  border-bottom: var(--hair) solid var(--border);
+  overflow-x: auto;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 var(--s-3);
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.is-active {
+  color: var(--text);
+}
+.tab.is-active::after {
+  content: "";
+  position: absolute;
+  inset: auto var(--s-2) -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--zone);
+}
+.tab-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  line-height: 18px;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .tab {
+    height: 44px;
+  }
+}

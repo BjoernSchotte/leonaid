@@ -11,6 +11,7 @@ import {
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Target } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -500,7 +501,8 @@ export function RoleDashboardPage({
             ? "Sobald du einer Charity-Aktion als Akquisiteur zugeordnet bist, erscheint hier dein persönlicher Arbeitsstand."
             : "Sobald du eine Charity-Aktion verwaltest, erscheint hier der gemeinsame Arbeitsstand."
         }
-        icon={<HugeiconsIcon icon={Target01Icon} size={25} strokeWidth={1.7} />}
+        headingLevel={2}
+        icon={Target}
         title="Noch keine passende Charity-Aktion"
       />
     );

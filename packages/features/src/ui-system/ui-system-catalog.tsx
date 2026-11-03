@@ -4,12 +4,19 @@ import {
   CheckmarkCircle02Icon,
   InformationCircleIcon,
   Notification03Icon,
-  PackageOpenIcon,
   PaintBoardIcon,
   TableIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CircleAlert, Plus, Search, Trash2, Users } from "lucide-react";
+import {
+  CircleAlert,
+  PackageOpen,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
@@ -21,15 +28,24 @@ import {
   ConfirmDialog,
   DataTable,
   EmptyState,
+  ErrorState,
+  Field,
   FormField,
   Icon,
   IconButton,
+  Input,
   Kbd,
   Meter,
+  Modal,
+  SkeletonRows,
   StatusIcon,
   StatusLabel,
   StatusMessage,
   type StatusShape,
+  Switch,
+  TabPanel,
+  Tabs,
+  Textarea,
   useToast,
 } from "@leonaid/ui";
 
@@ -75,8 +91,25 @@ const shortcutRows: readonly (readonly [string, string])[] = [
   ["shift+t", "Hell/Dunkel wechseln"],
 ];
 
+const viewTabs = [
+  { count: 12, id: "open", label: "Offen" },
+  { id: "review", label: "Prüfbereit" },
+  { count: 40, id: "all", label: "Alle" },
+] as const;
+
+type ViewTab = (typeof viewTabs)[number]["id"];
+
+const viewTabText: Record<ViewTab, string> = {
+  all: "Alle Bestellungen der Aktion, unabhängig vom Status.",
+  open: "Bestellungen, die noch bestätigt werden müssen.",
+  review: "Bestellungen, die auf die zweite Freigabe warten.",
+};
+
 export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [viewTab, setViewTab] = useState<ViewTab>("open");
+  const [required, setRequired] = useState(true);
   const toast = useToast();
   const isSystemAdmin = identity.globalRoles.includes("system_admin");
   const primaryAction = identity.actionMemberships[0];
@@ -172,7 +205,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
 
       <section aria-labelledby="primitives" className="ui-catalog-section">
         <PatternHeading
-          description="Leitsystem-Bausteine: Status als Form, Kennzeichen, Fortschritt, Personen und Tastenkürzel."
+          description="Leitsystem-Bausteine: Status als Form, Kennzeichen, Eingabe, Fortschritt, Rückmeldung, Personen und Tastenkürzel."
           id="primitives"
         >
           Grundbausteine
@@ -239,6 +272,23 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             </div>
           </div>
           <div className="ui-catalog-component">
+            <h3>Eingabe</h3>
+            <Field
+              hint="Wir senden Ihnen einen Anmeldecode."
+              id="demo-email"
+              label="E-Mail-Adresse"
+            >
+              <input placeholder="name@beispiel.de" type="email" />
+            </Field>
+            <Field
+              error="Bitte den vollständigen Rechnungsbetrag erfassen: 144,00 €."
+              id="demo-amount"
+              label="Betrag"
+            >
+              <input defaultValue="140,00" inputMode="decimal" />
+            </Field>
+          </div>
+          <div className="ui-catalog-component">
             <h3>Fortschritt</h3>
             <div className="ui-catalog-stack" data-zone="actions">
               <span className="ui-catalog-small">
@@ -250,6 +300,30 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
                 max={10000}
                 value={7128}
               />
+            </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Rückmeldung</h3>
+            <div className="ui-catalog-cluster">
+              <Button
+                icon={Sparkles}
+                onClick={() =>
+                  toast.show({
+                    action: {
+                      label: "Rückgängig",
+                      run: () => toast.show({ title: "Rückgängig gemacht." }),
+                    },
+                    title: "Bestellung bestätigt.",
+                    tone: "success",
+                  })
+                }
+                variant="secondary"
+              >
+                Meldung zeigen
+              </Button>
+              <Button onClick={() => setModalOpen(true)} variant="secondary">
+                Dialog öffnen
+              </Button>
             </div>
           </div>
           <div className="ui-catalog-component">
@@ -310,9 +384,18 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           </StatusMessage>
           <StatusMessage tone="error">
             <strong>Nicht gespeichert</strong>
-            <p>Prüfe das markierte Feld und versuche es erneut.</p>
+            <p>Prüfen Sie das markierte Feld und versuchen Sie es erneut.</p>
           </StatusMessage>
         </div>
+        <ErrorState
+          onRetry={() =>
+            toast.show({ title: "Bestellungen werden neu geladen." })
+          }
+          title="Bestellungen konnten nicht geladen werden"
+        >
+          Die Verbindung zum Server ist unterbrochen. Ihre Filter bleiben
+          erhalten.
+        </ErrorState>
         <div className="ui-catalog-row">
           <Button
             icon={
@@ -362,7 +445,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           </FormField>
           <FormField
             description="Kurze, eindeutige Adresse ohne Jahreszahl."
-            error="Gib einen Alias wie „krapfentaxi“ ein."
+            error="Geben Sie einen Alias wie „krapfentaxi“ ein."
             label="Öffentlicher Alias"
             required
           >
@@ -387,6 +470,25 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
               name="catalog-archive-slug"
             />
           </FormField>
+          <Field
+            hint="Erscheint nur intern bei der Bestellung."
+            label="Notiz"
+            optional
+          >
+            <Textarea name="catalog-note" />
+          </Field>
+          <div className="ui-catalog-stack">
+            <Switch
+              checked={required}
+              label="Pflichtfrage"
+              onChange={(event) => setRequired(event.target.checked)}
+            />
+            <Switch
+              defaultChecked
+              disabled
+              label="Gesperrt (Umfrage ist live)"
+            />
+          </div>
         </div>
       </section>
 
@@ -397,6 +499,20 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         >
           Tabelle und Leerzustand
         </PatternHeading>
+        <Tabs
+          idPrefix="catalog-view"
+          items={viewTabs}
+          label="Ansichten"
+          onChange={setViewTab}
+          value={viewTab}
+        />
+        <TabPanel
+          className="ui-catalog-note"
+          idPrefix="catalog-view"
+          tabId={viewTab}
+        >
+          {viewTabText[viewTab]}
+        </TabPanel>
         {responsibilityRows.length > 0 ? (
           <DataTable caption="Rollen und Zuständigkeiten der angemeldeten Person">
             <thead>
@@ -431,12 +547,17 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             Für diese Person liefert das Backend noch keine Aktionszuordnungen.
           </StatusMessage>
         )}
+        <div
+          aria-busy="true"
+          aria-label="Bestellungen werden geladen"
+          role="region"
+        >
+          <SkeletonRows rows={3} />
+        </div>
         <EmptyState
           action={<Button variant="secondary">Filter zurücksetzen</Button>}
-          description="Passe die Filter an oder erfasse einen neuen Eintrag."
-          icon={
-            <HugeiconsIcon icon={PackageOpenIcon} size={24} strokeWidth={1.7} />
-          }
+          description="Passen Sie die Filter an oder erfassen Sie einen neuen Eintrag."
+          icon={PackageOpen}
           title="Keine passenden Bestellungen"
         />
       </section>
@@ -490,6 +611,33 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           </li>
         </ul>
       </section>
+
+      <Modal
+        description="Die Rechnung bleibt sichtbar und erhält den Stempel „Storniert“. Eine Stornorechnung wird erzeugt."
+        footer={
+          <>
+            <Button onClick={() => setModalOpen(false)} variant="ghost">
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => {
+                setModalOpen(false);
+                toast.show({ title: "KT26-0004 storniert.", tone: "success" });
+              }}
+              variant="danger"
+            >
+              Stornieren
+            </Button>
+          </>
+        }
+        onClose={() => setModalOpen(false)}
+        open={modalOpen}
+        title="Rechnung stornieren?"
+      >
+        <Field id="demo-reason" label="Grund">
+          <Input defaultValue="Doppelt erfasst" />
+        </Field>
+      </Modal>
 
       <ConfirmDialog
         confirmLabel="Aktion bestätigen"

@@ -109,7 +109,7 @@ test("UI catalog proves all base states with real identity", async ({
     const toast = page.getByTestId("toast");
     await expect(toast).toContainText("Änderung gespeichert");
     await toast.hover();
-    await page.getByRole("button", { name: "Hinweis schließen" }).click();
+    await page.getByRole("button", { name: "Meldung schließen" }).click();
     await expect(toast).toHaveCount(0);
 
     await page.getByRole("button", { name: "Toast anzeigen" }).click();
