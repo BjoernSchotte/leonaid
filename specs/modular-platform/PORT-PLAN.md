@@ -87,8 +87,12 @@ If another PR adds a migration first, the next module PR takes the following num
 - **Twenty 2.54 people API drift** for inbox correlation: re-verify against the pinned image in the inbox step.
 - **Dependency advisories** for new npm packages: they block on the HIGH gate.
 
-## 7. Open product questions (for the user before the step starts)
+## 7. Product decisions (2026-11-03)
 
-- Step 4: keep the full tasks UX from #7, including personal planning, manual ordering, priority, tags and checklists, or ship a smaller first cut?
-- Step 7: the public inbox forms create CRM people from anonymous submissions. Confirm that this stays wanted, and confirm the privacy wording on the public form.
-- Steps 4–7: modules are visible to every active account (as in #7, with no per-club activation). Confirm that no per-install module switch is needed.
+- Status: steps 1–3 are merged as #46, #48 and #49.
+- Module switch: modules are on by default, and each can be switched off per installation with `LEONAID_DISABLED_MODULES`. A switched-off module contributes no navigation, its routes are not registered (404), and its worker loops do not run. Its jobs stay pending without being claimed, and its data stays. This lands as step 3a, before tasks.
+- Operations queue timing: next retry and age of the oldest due job. It is ported as step 3b, an additive OpenAPI change.
+- Tasks: the full #7 scope, including personal planning, manual ordering, priority, tags and checklists.
+- Inbox: anonymous public club and campaign forms create CRM people in Twenty. The form shows a privacy notice (purpose, storage in the CRM, deletion) and has a mandatory consent checkbox. The consent is recorded like the existing public-order consents. `contact_job_id` is nullable with `ON DELETE SET NULL`.
+- Knowledge: Tiptap text alignment renders classes, and strict CSP stays.
+- Google Fonts: no self-hosting for now.

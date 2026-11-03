@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 6dbd0207c70d70a1c2b077fa013898b54f55e24d
 reviewer: Björn Schotte
 ---
 
@@ -71,6 +71,24 @@ die Outbox-Zähler unter `/admin/system` zeigen abgeschlossene Jobs daher nur
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
+
+## Modulschalter
+
+Fachmodule sind standardmäßig eingeschaltet. `LEONAID_DISABLED_MODULES` in der
+Env-Datei der Installation schaltet Module kommagetrennt ab, zum Beispiel
+`LEONAID_DISABLED_MODULES=surveys`. Derzeit ist `surveys` das einzige
+schaltbare Modul; Kernbereiche wie Mail und Rechnungen lassen sich nicht
+abschalten. API und Worker lesen denselben Wert; nach einer Änderung beide neu
+starten.
+
+Ein abgeschaltetes Modul behält alle Daten. Es zeigt keine Navigation, seine
+API-Routen sind nicht registriert und antworten mit 404, und die Webseiten
+fallen auf die Übersicht zurück. Der Worker betreibt keine seiner Schleifen
+und lässt seine Jobs wartend liegen: Sie werden weder versucht noch als
+Dead Letter abgelegt und laufen, sobald das Modul wieder eingeschaltet ist.
+Eine unbekannte oder nicht schaltbare ID oder das Abschalten eines Moduls, das
+ein eingeschaltetes Modul benötigt, stoppt die API beim Start und den Worker
+mit `worker.configuration.invalid`.
 
 ## Joblaufzeit und Fehlerangaben
 

@@ -113,7 +113,7 @@ from leonaid.application.public_orders import (
 )
 from leonaid.application.sessions import SessionService
 from leonaid.application.sponsor_matching import SponsorMatchingService
-from leonaid.configuration import Settings, load_settings
+from leonaid.configuration import Settings, load_module_settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
@@ -182,6 +182,14 @@ def build_service(
 
 
 def create_app(configured_settings: Settings | None = None) -> FastAPI:
+    # Routes are fixed when the app is built, before the lifespan loads the
+    # full settings, so the module switches are read here.
+    disabled_modules = (
+        configured_settings.disabled_modules
+        if configured_settings is not None
+        else load_module_settings().disabled_modules
+    )
+
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         settings = configured_settings or load_settings()
@@ -233,7 +241,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         identity_repository = AsyncpgIdentityRepository(pool)
         application.state.identity_service = IdentityQueryService(
             identity_repository,
-            module_navigation=module_navigation(),
+            module_navigation=module_navigation(disabled_modules),
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
         application.state.identity_administration_service = (
@@ -629,7 +637,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             message="Die Anfrage ist unerwartet fehlgeschlagen.",
         )
 
-    register_api_modules(application, core=(router,))
+    register_api_modules(application, core=(router,), disabled=disabled_modules)
     return application
 
 

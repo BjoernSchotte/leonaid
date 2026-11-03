@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 9
-reviewedRevision: 9
-verifiedAgainst: 2177467e571f426a47e457eb69e6c0c809d8cffe
+contentRevision: 10
+reviewedRevision: 10
+verifiedAgainst: 6dbd0207c70d70a1c2b077fa013898b54f55e24d
 reviewer: Björn Schotte
 ---
 
@@ -67,6 +67,22 @@ start with `worker.configuration.invalid`. The metric
 outbox counters on `/admin/system` therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## Module switches
+
+Business modules are on by default. `LEONAID_DISABLED_MODULES` in the
+installation's env file switches modules off, comma-separated, for example
+`LEONAID_DISABLED_MODULES=surveys`. Today `surveys` is the only switchable
+module; core areas such as mail and invoicing cannot be switched off. The API
+and the worker read the same value; restart both after a change.
+
+A switched-off module keeps all its data. It shows no navigation, its API
+routes are not registered and answer 404, and the web pages fall back to the
+overview. The worker runs none of its loops and leaves its jobs pending:
+they are neither attempted nor dead-lettered, and they run once the module
+is on again. An unknown or non-switchable ID, or switching off a module that
+another enabled module requires, stops the API at start and the worker with
+`worker.configuration.invalid`.
 
 ## Job runtime and error details
 

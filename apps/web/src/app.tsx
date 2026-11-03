@@ -21,6 +21,7 @@ import {
   useCurrentActionId,
   campaignEditorHref,
   resolveModuleRoute,
+  type UiModule,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -46,10 +47,10 @@ function RedirectToOperationalApp() {
   );
 }
 
-function route() {
+function route(available: readonly UiModule[]) {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
-  const moduleRoute = resolveModuleRoute(webModules, "web", pathname);
+  const moduleRoute = resolveModuleRoute(available, "web", pathname);
   if (moduleRoute) return { kind: "module", ...moduleRoute } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
   if (pathname === "/actions") return { kind: "list" } as const;
@@ -121,9 +122,15 @@ export function App({ client }: AppProps) {
     );
   }
 
+  // Core lists a module in the navigation only while it is switched on for
+  // this installation and allowed for this account.
+  const availableModules = webModules.filter((module) =>
+    identity.data.navigation.some((item) => item.key === module.id),
+  );
+
   // Module navigation alone does not grant access to the back office.
   if (
-    route().kind !== "module" &&
+    route(availableModules).kind !== "module" &&
     !identity.data.navigation.some(
       (item) =>
         item.surface === "web" &&
@@ -133,7 +140,7 @@ export function App({ client }: AppProps) {
     return <RedirectToOperationalApp />;
   }
 
-  const currentRoute = route();
+  const currentRoute = route(availableModules);
   const actionId =
     currentRoute.kind === "manage"
       ? currentRoute.actionId

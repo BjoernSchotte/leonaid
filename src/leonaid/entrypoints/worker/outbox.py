@@ -14,10 +14,11 @@ from uuid import UUID
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
-from leonaid.bootstrap.worker import build_worker
+from leonaid.bootstrap.worker import build_worker, module_switch_problems
 from leonaid.configuration import (
     ConfigurationError,
     load_mail_transport_settings,
+    load_module_settings,
     load_retention_settings,
 )
 from leonaid.domain.outbox import OutboxState
@@ -54,6 +55,10 @@ def configuration_problems() -> list[str]:
             load()
         except ConfigurationError as error:
             problems.append(str(error))
+    try:
+        problems.extend(module_switch_problems(load_module_settings().disabled_modules))
+    except ConfigurationError as error:
+        problems.append(str(error))
     return problems
 
 
