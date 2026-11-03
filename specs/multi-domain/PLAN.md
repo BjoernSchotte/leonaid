@@ -291,11 +291,14 @@ each user sees the view for their role.
    and an optional user preference. It replaces `defaultDestination` in
    `apps/public/src/components/AuthPage.astro` and the fixed target of
    `RedirectToOperationalApp` in `apps/web/src/app.tsx`, so the rule exists
-   once. Default order, as today: `system_admin` → `/admin/system`;
-   `charity_admin` → `/admin/`; finance roles → `/admin/invoices`;
-   `acquirer` only → `/app/`; otherwise the first `web` navigation item.
-4. **Several roles:** the default is the admin web whenever the user has any
-   admin-web role (order above). Both shells show a switch ("Zur
+   once. Default order (Björn, 2026-11-03): any `acquirer` role (global or
+   through an action membership) → `/app/`, even when the user has other
+   roles; otherwise `system_admin` → `/admin/system`; `charity_admin` →
+   `/admin/`; finance roles → `/admin/invoices`; otherwise the first `web`
+   navigation item. This changes today's rule, where acquisition was the
+   default only for acquirer-only users.
+4. **Several roles:** the default is the acquisition app whenever the user
+   has an acquirer role (order above). Both shells show a switch ("Zur
    Akquise-App" / "Zur Verwaltung"), built from the existing `surface` field
    of `NavigationItem`. A user can choose "Als Startbereich verwenden"; Core
    stores it as `preferred_surface` (`web` | `pwa`, nullable), and
@@ -1108,7 +1111,7 @@ multi-host public pages; the CMS admin stays single-host by design.
 | # | Question | Decision | Where |
 | --- | --- | --- | --- |
 | D1 | Does today's host become the public or the admin host? | **Public host.** The admin host is new; all printed and mailed public links stay valid. | §6.2, §11 |
-| D2 | Admin host name? | **`app.<domain>`** (`app.example.org`). `/` on it is a role-based entry: one login for everyone, then the view for the user's role; deep links survive login; several roles get a default plus a switch. Base paths `/admin/` and `/app/` stay in stage 1 but come from one constant each, so `/app/` can be renamed later with 308s. | §6.1, §6.7 |
+| D2 | Admin host name? | **`app.<domain>`** (`app.example.org`). `/` on it is a role-based entry: one login for everyone, then the view for the user's role; deep links survive login; several roles get a default plus a switch; with an acquirer role the default is the acquisition app. Base paths `/admin/` and `/app/` stay in stage 1 but come from one constant each, so `/app/` can be renamed later with 308s. | §6.1, §6.7 |
 | D3 | Home page of the public host? | **Lists all active campaigns.** A club may have **no** general public host, only campaign hosts; then legal pages and the public API work per campaign host, and the admin host takes surveys and alias redirects. | §6.5, §6.6 |
 | D4 | One Impressum/Datenschutz for all domains? | **Yes**, one club, one content. | §3, §7.5 |
 | D5 | Who may add domains? | **System admin only.** | §7.1, §7.3 |
