@@ -52,3 +52,4 @@ export {
   type CommandPaletteControls,
   type PaletteCommand,
 } from "./command-palette/store";
+export { navigateInPage, useLocationHref } from "./shared/location";

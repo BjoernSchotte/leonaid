@@ -14,11 +14,12 @@ const themeOptions = [
   { icon: Moon02Icon, label: "Dunkel", value: "dark" },
 ] as const;
 
-type ThemeMode = (typeof themeOptions)[number]["value"];
+export type ThemeMode = (typeof themeOptions)[number]["value"];
 
 const storageKey = "leonaid.theme";
 
-function storedTheme(): ThemeMode {
+/** The stored preference ("system" when none or storage is blocked). */
+export function storedTheme(): ThemeMode {
   try {
     const value = window.localStorage.getItem(storageKey);
     return value === "light" || value === "dark" ? value : "system";
@@ -34,12 +35,30 @@ function isDarkSystemTheme(): boolean {
   );
 }
 
-function applyTheme(mode: ThemeMode) {
+/** Sets data-theme on <html> as theme-init.js does before the first paint. */
+export function applyTheme(mode: ThemeMode) {
   const resolved =
     mode === "system" ? (isDarkSystemTheme() ? "dark" : "light") : mode;
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.themePreference = mode;
   document.documentElement.style.colorScheme = resolved;
+}
+
+/** Applies and stores a preference; storage failures keep it per session. */
+export function setThemePreference(mode: ThemeMode) {
+  applyTheme(mode);
+  try {
+    window.localStorage.setItem(storageKey, mode);
+  } catch {
+    // Theme selection still applies for this session when storage is blocked.
+  }
+}
+
+/** The theme currently shown, from the <html> attribute. */
+export function resolvedTheme(): "light" | "dark" {
+  const current = document.documentElement.dataset.theme;
+  if (current === "light" || current === "dark") return current;
+  return isDarkSystemTheme() ? "dark" : "light";
 }
 
 export function ThemeSwitcher() {
@@ -49,12 +68,7 @@ export function ThemeSwitcher() {
     themeOptions.find((option) => option.value === theme) ?? themeOptions[0];
 
   useEffect(() => {
-    applyTheme(theme);
-    try {
-      window.localStorage.setItem(storageKey, theme);
-    } catch {
-      // Theme selection still applies for this session when storage is blocked.
-    }
+    setThemePreference(theme);
 
     if (theme !== "system" || typeof window.matchMedia !== "function") {
       return;

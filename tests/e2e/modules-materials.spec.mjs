@@ -48,7 +48,7 @@ for (const [surface, route, width] of [
     expect(uploadBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
     await expect(uploadButton).toHaveCSS("font-weight", "600");
     const iconButtonBox = await page
-      .locator(".ui-icon-button:visible")
+      .locator(".ui-icon-button:visible, .pwa-bar button:visible")
       .first()
       .boundingBox();
     expect(iconButtonBox.width).toBeGreaterThanOrEqual(44);

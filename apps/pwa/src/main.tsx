@@ -11,7 +11,10 @@ import "./pwa.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    mutations: { retry: false },
+    // Offline, TanStack would pause a save until the network returns and
+    // send it later. LeonAid does not save in the background (the offline
+    // banner says so), so a save fails at once and the form keeps its input.
+    mutations: { networkMode: "always", retry: false },
     queries: { refetchOnWindowFocus: false, retry: false },
   },
 });

@@ -17,6 +17,7 @@
 @import "./components/states.css";
 @import "./components/switch.css";
 @import "../components/list-view/list.css";
+@import "./components/mobile-shell.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
