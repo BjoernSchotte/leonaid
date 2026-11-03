@@ -4,9 +4,9 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
 
@@ -57,6 +57,25 @@ Die Bestätigung lautet **Angaben gespeichert. Die Bestellung ist prüfbereit.**
 Besteller, Positionen und Preise bleiben unverändert. Ein gebuchtes Fenster
 bleibt fest, auch wenn es später stillgelegt wurde. Fakturierte Bestellungen
 lassen sich nicht mehr ändern.
+
+### Lieferung nachträglich erfassen
+
+Sind alle Lieferfenster schon vorbei, kannst du als Charity-Admin trotzdem
+festhalten, wann die Bestellung tatsächlich geliefert wurde. Das Formular zeigt
+dafür die Gruppe **Vergangene Lieferzeiten (nachträglich erfassen)**. Sie
+enthält auch stillgelegte Fenster, die schon begonnen haben.
+
+1. Wähle in dieser Gruppe das Fenster, in dem geliefert wurde. Der Hinweis
+   **Die Lieferung wird nachträglich für ein vergangenes Zeitfenster erfasst.**
+   erscheint.
+2. Ergänze Lieferadresse und Rechnungsadresse und wähle **Angaben speichern**.
+
+Das Protokoll markiert diese Ergänzung als nachträglich, ohne Adressen oder
+Kontaktdaten zu speichern. Danach kannst du die Rechnung prüfen und freigeben.
+Das geht auch, wenn der Bestellzeitraum der Aktion schon abgeschlossen ist;
+dann wird ein Entwurf dabei prüfbereit. Archivierte Aktionen bleiben
+unverändert. Akquise und öffentliche Bestellungen bieten vergangene Fenster nie
+an.
 
 Hat inzwischen eine andere Person die Bestellung gespeichert, bleiben deine
 Eingaben im Formular erhalten. Wähle **Aktuellen Stand laden und vergleichen**,

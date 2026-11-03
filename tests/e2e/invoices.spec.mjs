@@ -130,13 +130,27 @@ async function fillDelivery(form, contactName) {
     .fill("Lagerweg 4");
   await form.getByLabel("PLZ für die Lieferung").fill("10243");
   await form.getByLabel("Ort für die Lieferung").fill("Beispielstadt");
-  await form.getByRole("radio").first().check();
+  // Every window has passed: the delivery is recorded historically.
+  await expect(form).toContainText(
+    "Zurzeit ist kein künftiges Lieferfenster verfügbar.",
+  );
+  const past = form.getByRole("group", {
+    name: "Vergangene Lieferzeiten (nachträglich erfassen)",
+  });
+  await expect(past).toContainText("bereits geliefert");
+  const radio = past.getByRole("radio").first();
+  await radio.focus();
+  await radio.press("Space");
+  await expect(radio).toBeChecked();
+  await expect(
+    form.getByTestId("delivery-completion-historical"),
+  ).toBeVisible();
   await form
     .getByLabel("Ansprechpartner bei der Lieferung (optional)")
     .fill(contactName);
 }
 
-test("manager completes missing delivery details and recovers from a competing edit", async ({
+test("manager records past delivery details historically and recovers from a competing edit", async ({
   browser,
 }) => {
   const options = { ignoreHTTPSErrors: true };
@@ -166,6 +180,24 @@ test("manager completes missing delivery details and recovers from a competing e
       mobile.form.getByLabel("Rechnungsempfänger", { exact: true }),
     ).toHaveValue("Bäckerei Sonnenseite KG");
     await fillDelivery(mobile.form, "Lager Süd");
+    // The past-window group is accessible and fits 390 px.
+    const historicalAccessibility = await new AxeBuilder({ page })
+      .include(`[data-commitment-id="${commitmentId}"]`)
+      .analyze();
+    expect(
+      historicalAccessibility.violations.filter((violation) =>
+        ["critical", "serious"].includes(violation.impact),
+      ),
+    ).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-delivery-historical-mobile.png`,
+      fullPage: true,
+    });
 
     // A second manager completes the same order first.
     const desktop = await openCompletion(other);
