@@ -122,7 +122,9 @@ function fakeClient(capabilities = ["read_responses"]) {
       ],
     })),
     getSurveyResponseSelection: vi.fn(async () => selection),
-    createSurveyResponseSelection: vi.fn(async () => selection),
+    createSurveyResponseSelection: vi.fn(
+      async (_survey: string, _body: unknown) => selection,
+    ),
     listSurveyResponses: vi.fn(
       async (_s: string, _id: string, query: { offset?: number } = {}) => {
         const offset = query.offset ?? 0;
