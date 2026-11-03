@@ -17,6 +17,7 @@ import {
   ClassFontSize,
   ClassTextAlign,
   ClassTextStyle,
+  ReplaceSelectionInput,
 } from "./class-formatting";
 import { FormattingToolbar } from "./formatting-toolbar";
 import { normalizePastedHTML } from "./paste";
@@ -231,6 +232,7 @@ function PageEditor({
       ClassFontFamily,
       ClassFontSize,
       ClassTextAlign,
+      ReplaceSelectionInput,
       taskReference(client, basePath),
       materialReference(client),
     ],

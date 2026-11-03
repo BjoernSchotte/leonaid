@@ -1,5 +1,7 @@
+import { Extension } from "@tiptap/core";
 import TextAlign from "@tiptap/extension-text-align";
 import { FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { Plugin } from "@tiptap/pm/state";
 
 import { FONT_FAMILIES, FONT_SIZES, styleDeclarations } from "./paste";
 
@@ -126,6 +128,56 @@ export const ClassFontSize = FontSize.extend({
           },
         },
       },
+    ];
+  },
+});
+
+/*
+ * Typing over a selection lets the browser replace the selected DOM itself.
+ * Chromium then keeps the look of the removed text by inserting
+ * `<span style="font-size: …">`, which the strict CSP blocks and reports.
+ * Replacing a non-empty selection in the document instead inherits the marks
+ * of the selection and never writes an inline style. IME composition and
+ * collapsed selections stay with the browser.
+ */
+export const ReplaceSelectionInput = Extension.create({
+  name: "replaceSelectionInput",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handleDOMEvents: {
+            beforeinput: (view, event) => {
+              const input = event as InputEvent;
+              if (
+                input.inputType !== "insertText" ||
+                input.isComposing ||
+                !input.data
+              ) {
+                return false;
+              }
+              // The browser names the range it would replace; the editor
+              // state may not have read a just-changed DOM selection yet.
+              const [range] = input.getTargetRanges();
+              if (!range || range.collapsed) return false;
+              let from: number;
+              let to: number;
+              try {
+                from = view.posAtDOM(range.startContainer, range.startOffset);
+                to = view.posAtDOM(range.endContainer, range.endOffset);
+              } catch {
+                return false;
+              }
+              if (from >= to) return false;
+              input.preventDefault();
+              view.dispatch(
+                view.state.tr.insertText(input.data, from, to).scrollIntoView(),
+              );
+              return true;
+            },
+          },
+        },
+      }),
     ];
   },
 });
