@@ -833,7 +833,6 @@ function ResponseList({
           Antwort <span className="mono">{row.number}</span>
         </span>
       ),
-      secondary: (row) => `begonnen am ${dateTime(row.createdAt)}`,
       trailing: (row) => (
         <time dateTime={row.createdAt}>
           {receivedLabel(row.createdAt, now)}

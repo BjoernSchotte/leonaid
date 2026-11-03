@@ -95,14 +95,15 @@
 }
 
 /* Applied selection above the rows */
+/* Inset like the list's header and toolbar. */
+.svr-applied,
+.svr-list .listview-main > .callout {
+  margin: 0 var(--s-6) var(--s-3);
+}
 .svr-applied {
-  margin: 0 0 var(--s-3);
   color: var(--text-3);
   font-size: var(--fs-sm);
   line-height: var(--lh-prose);
-}
-.svr-list .callout {
-  margin-bottom: var(--s-3);
 }
 
 /* Pane */
@@ -188,5 +189,9 @@
   }
   .svr-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .svr-applied,
+  .svr-list .listview-main > .callout {
+    margin-inline: var(--s-4);
   }
 }
