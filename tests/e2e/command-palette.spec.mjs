@@ -343,13 +343,17 @@ test.describe("enabled modules", () => {
         .getByRole("option", { name: /KT26-0001/ })
         .click();
       await expect(page).toHaveURL(
-        new RegExp(`/admin/invoices\\?action=${actionId}`),
+        new RegExp(`/admin/invoices\\?action=${actionId}&view=all&open=`),
       );
-      await expect(page.getByTestId("invoice-action")).toHaveValue(actionId);
+      // The unlisted action stays the selected one and the hit opens.
       await expect(
-        page.getByTestId("invoice-action").locator("option:checked"),
+        page.locator(
+          '[data-testid="invoice-action"] option:checked, [data-testid="invoice-action-name"]',
+        ),
       ).toHaveText("Krapfentaxi 2026");
-      await expect(page.getByTestId("invoice-row").first()).toBeVisible();
+      await expect(page.getByTestId("invoice-detail")).toContainText(
+        "KT26-0001",
+      );
 
       await openPalette(page);
       const orderSearch = searchResponse(page, "Musterwerk");
