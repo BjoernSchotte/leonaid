@@ -19,6 +19,7 @@
     "build:pwa": "bun run --filter @leonaid/pwa build",
     "check:locks": "bun install --frozen-lockfile --ignore-scripts",
     "test:components": "bun run --filter @leonaid/web test:components",
+    "test:ui": "bun run --filter @leonaid/ui test",
     "typecheck": "bun run typecheck:api-client && bun run typecheck:ui && bun run typecheck:features && bun run typecheck:web && bun run typecheck:pwa && bun run typecheck:public && bun run typecheck:campaign-site && bun run typecheck:docs",
     "typecheck:docs": "bun run --filter @leonaid/docs check",
     "typecheck:campaign-site": "bun run --filter @leonaid/campaign-site typecheck",

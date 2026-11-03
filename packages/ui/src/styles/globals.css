@@ -1,10 +1,39 @@
 @import "tailwindcss";
+@import "./leitsystem.css";
 @import "./tokens.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
 @source "../../../../packages/features/src";
 @source "../../../../packages/ui/src";
+
+/* Tailwind utilities (bg-primary, text-foreground, ...) read the Leitsystem
+   tokens directly, so they follow the theme and the zone. */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-2);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-muted: var(--text-2);
+  --color-border: var(--border);
+  --color-input: var(--control-border);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --color-success: var(--ok);
+  --color-warning: var(--warn);
+  --color-info: var(--info);
+  --color-sidebar: var(--rail-bg);
+  --color-sidebar-foreground: var(--rail-text);
+  --color-zone: var(--zone);
+  --color-zone-soft: var(--zone-soft);
+  --color-zone-line: var(--zone-line);
+  --color-zone-ink: var(--zone-ink);
+}
 
 :root {
   color: var(--foreground);
@@ -461,7 +490,7 @@ a {
   place-items: center;
   border-radius: 999px;
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ui-empty-state h2 {
@@ -518,7 +547,7 @@ a {
 }
 
 .ui-table tbody tr:hover {
-  background: color-mix(in oklch, var(--accent) 45%, transparent);
+  background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
 }
 
 .ui-button {
@@ -656,7 +685,7 @@ a {
 }
 
 .ui-theme-menu__item[data-highlighted] {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ui-theme-menu__indicator {
@@ -845,7 +874,7 @@ a {
 
 .ui-toast__close:hover {
   color: var(--foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ui-mobile-drawer {
@@ -938,7 +967,7 @@ a {
 
   .ui-pwa-tabbar .ui-nav__item[aria-current="page"] {
     color: var(--foreground);
-    background: var(--accent);
+    background: var(--accent-soft);
     box-shadow: none;
   }
 

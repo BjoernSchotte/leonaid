@@ -10,6 +10,9 @@
     "./lib/utils": "./src/lib/utils.ts",
     "./styles.css": "./src/styles/globals.css"
   },
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts"
+  },
   "dependencies": {
     "@base-ui/react": "1.6.0",
     "@hugeicons/core-free-icons": "4.2.3",

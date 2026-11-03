@@ -100,7 +100,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .action-card p,
@@ -609,7 +609,7 @@
 
 .action-choice:has(input:checked) {
   border-color: color-mix(in oklch, var(--focus) 55%, var(--border));
-  background: color-mix(in oklch, var(--accent) 70%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 70%, var(--surface));
 }
 
 .action-choice input,
@@ -697,7 +697,7 @@
   place-items: center;
   border-radius: 999px;
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -1000,7 +1000,7 @@
   background: linear-gradient(
     145deg,
     var(--primary),
-    color-mix(in oklch, var(--primary) 72%, var(--accent))
+    color-mix(in oklch, var(--primary) 72%, var(--accent-soft))
   );
   font-size: 0.75rem;
   font-weight: 820;
@@ -1539,7 +1539,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .action-guidance h2,

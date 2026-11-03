@@ -187,7 +187,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .commitment-party > div,
@@ -472,7 +472,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .commitment-totals p {
@@ -635,7 +635,7 @@
   border: 1px solid
     color-mix(in oklch, var(--accent-foreground) 24%, var(--border));
   border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--accent) 26%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 26%, var(--surface));
 }
 
 .commitment-invoice-review > header {
@@ -972,7 +972,7 @@
 
 .commitment-delivery-options label:has(:checked) {
   border-color: var(--primary);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .commitment-delivery-options input {

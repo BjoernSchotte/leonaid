@@ -3,9 +3,14 @@
  * guidelines. Semantic LeonAid tokens deliberately remain separate so the
  * product UI can evolve without coupling components to raw brand colors.
  * https://www.lionsclubs.org/en/resources-for-members/brand-guidelines
+ *
+ * The semantic tokens live in leitsystem.css. The names below are aliases
+ * that keep existing component styles working until each component moves to
+ * the Leitsystem names. They only point at Leitsystem tokens, so both themes
+ * and the system preference follow automatically.
  */
 :root {
-  --lions-blue: #00338d;
+  /* --lions-blue and --lions-gold are defined in leitsystem.css. */
   --lions-yellow: #ebb700;
   --lions-purple: #7a2582;
   --lions-cool-gray-11: #55565a;
@@ -15,125 +20,39 @@
   --lions-coral: #ff5b35;
   --lions-cool-gray-5: #b3b2b1;
 
-  --background: color-mix(in oklch, white 97%, var(--lions-blue));
-  --foreground: var(--lions-navy);
-  --surface: #ffffff;
-  --surface-muted: color-mix(in oklch, white 94%, var(--lions-light-blue));
-  --border: color-mix(in oklch, white 58%, var(--lions-cool-gray-5));
-  --input: color-mix(in oklch, white 46%, var(--lions-cool-gray-5));
-  --muted: var(--lions-cool-gray-11);
-  --primary: var(--lions-blue);
-  --primary-foreground: #ffffff;
-  --accent: color-mix(in oklch, white 88%, var(--lions-light-blue));
-  --accent-foreground: var(--lions-blue);
-  --danger: #cc452d;
-  --danger-foreground: #ffffff;
-  --danger-text: color-mix(in oklch, var(--lions-coral) 64%, #641414);
-  --success: var(--lions-green);
-  --success-text: #006f49;
-  --warning: var(--lions-yellow);
-  --warning-foreground: var(--lions-navy);
-  --warning-text: color-mix(in oklch, var(--lions-yellow) 58%, #604100);
-  --info: var(--lions-light-blue);
-  --focus: var(--lions-light-blue);
-  --sidebar: var(--lions-navy);
-  --sidebar-foreground: #ffffff;
-  --sidebar-muted: color-mix(in oklch, white 62%, var(--lions-navy));
-  --sidebar-active: color-mix(in oklch, white 16%, var(--lions-navy));
-  --sidebar-accent: var(--lions-yellow);
-  --radius-sm: 0.45rem;
-  --radius-md: 0.7rem;
-  --radius-lg: 1rem;
-  --shadow-sm: 0 1px 2px rgb(13 34 64 / 0.07);
-  --shadow-md: 0 14px 35px rgb(13 34 64 / 0.12);
-  --font-sans:
-    "Aptos", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui,
-    -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Aliases: existing name -> Leitsystem token. */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --surface-muted: var(--surface-2);
+  --input: var(--control-border);
+  --muted: var(--text-2);
+  --accent-foreground: var(--accent-ink);
+  --danger-text: var(--danger);
+  --danger-foreground: var(--on-accent);
+  --success: var(--ok);
+  --success-text: var(--ok);
+  --warning: var(--warn);
+  --warning-text: var(--warn);
+  --warning-foreground: var(--on-accent);
+  --sidebar: var(--rail-bg);
+  --sidebar-foreground: var(--rail-text);
+  --sidebar-muted: var(--rail-text-2);
+  --sidebar-active: var(--rail-active);
+  --sidebar-accent: var(--rail-marker);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --motion-fast: var(--dur-1);
+  --motion-standard: var(--dur-2);
+
+  /* Component metrics that later Leitsystem tasks replace. */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --control-height: 2.75rem;
-  --motion-fast: 120ms;
-  --motion-standard: 180ms;
-}
-
-:root[data-theme="dark"] {
-  --background: color-mix(in oklch, var(--lions-navy) 76%, #05080f);
-  --foreground: #f7f9fc;
-  --surface: color-mix(in oklch, var(--lions-navy) 86%, #1c3557);
-  --surface-muted: color-mix(in oklch, var(--lions-navy) 72%, #31547b);
-  --border: color-mix(in oklch, var(--lions-light-blue) 27%, var(--lions-navy));
-  --input: color-mix(in oklch, var(--lions-light-blue) 38%, var(--lions-navy));
-  --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
-  --primary: color-mix(in oklch, var(--lions-light-blue) 70%, white);
-  --primary-foreground: var(--lions-navy);
-  --accent: color-mix(in oklch, var(--lions-light-blue) 22%, var(--lions-navy));
-  --accent-foreground: #ffffff;
-  --danger: var(--lions-coral);
-  --danger-foreground: var(--lions-navy);
-  --danger-text: color-mix(in oklch, var(--lions-coral) 72%, white);
-  --success: var(--lions-green);
-  --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
-  --warning: var(--lions-yellow);
-  --warning-foreground: var(--lions-navy);
-  --warning-text: color-mix(in oklch, var(--lions-yellow) 74%, white);
-  --info: var(--lions-light-blue);
-  --focus: var(--lions-yellow);
-  --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
-  --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));
-  --sidebar-active: color-mix(
-    in oklch,
-    var(--lions-blue) 38%,
-    var(--lions-navy)
-  );
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
-  --shadow-md: 0 18px 45px rgb(0 0 0 / 0.32);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --background: color-mix(in oklch, var(--lions-navy) 76%, #05080f);
-    --foreground: #f7f9fc;
-    --surface: color-mix(in oklch, var(--lions-navy) 86%, #1c3557);
-    --surface-muted: color-mix(in oklch, var(--lions-navy) 72%, #31547b);
-    --border: color-mix(
-      in oklch,
-      var(--lions-light-blue) 27%,
-      var(--lions-navy)
-    );
-    --input: color-mix(
-      in oklch,
-      var(--lions-light-blue) 38%,
-      var(--lions-navy)
-    );
-    --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
-    --primary: color-mix(in oklch, var(--lions-light-blue) 70%, white);
-    --primary-foreground: var(--lions-navy);
-    --accent: color-mix(
-      in oklch,
-      var(--lions-light-blue) 22%,
-      var(--lions-navy)
-    );
-    --accent-foreground: #ffffff;
-    --danger: var(--lions-coral);
-    --danger-foreground: var(--lions-navy);
-    --danger-text: color-mix(in oklch, var(--lions-coral) 72%, white);
-    --success: var(--lions-green);
-    --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
-    --warning: var(--lions-yellow);
-    --warning-foreground: var(--lions-navy);
-    --warning-text: color-mix(in oklch, var(--lions-yellow) 74%, white);
-    --info: var(--lions-light-blue);
-    --focus: var(--lions-yellow);
-    --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
-    --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));
-    --sidebar-active: color-mix(
-      in oklch,
-      var(--lions-blue) 38%,
-      var(--lions-navy)
-    );
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
-    --shadow-md: 0 18px 45px rgb(0 0 0 / 0.32);
-  }
 }

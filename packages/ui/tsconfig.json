@@ -7,7 +7,7 @@
     "noEmit": true,
     "strict": true,
     "target": "ES2023",
-    "types": ["react"]
+    "types": ["node", "react"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
 }

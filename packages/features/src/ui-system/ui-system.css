@@ -103,7 +103,7 @@
 
 .ui-catalog-jumpnav a:hover {
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ui-catalog-section {
