@@ -779,7 +779,7 @@ check_all() {
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync mypy \
-    migrations src tools/action_admin tools/actions tools/activities \
+    migrations src tools/action_admin tools/actions tools/activities tools/delivery \
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \

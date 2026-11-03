@@ -1,10 +1,11 @@
 """ASGI configuration contract against PostgreSQL; synthetic identity fixture."""
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from leonaid.application.delivery import DeliveryService
@@ -42,7 +43,9 @@ def http_app(actor: IdentityPrincipal) -> tuple[FastAPI, FixtureIdentity]:
     app.include_router(router)
 
     @app.middleware("http")
-    async def request_context(request, call_next):
+    async def request_context(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         request.state.request_id = "delivery-http-proof"
         return await call_next(request)
 
