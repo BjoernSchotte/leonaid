@@ -53,6 +53,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
     build_survey_services,
+    build_task_service,
     module_navigation,
     parked_event_types,
     register_api_modules,
@@ -317,6 +318,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.survey_exports,
             checkpoint_publisher,
         ) = build_survey_services(pool, settings, object_storage)
+        application.state.task_service = build_task_service(pool)
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )

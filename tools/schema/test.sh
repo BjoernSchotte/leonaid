@@ -68,7 +68,15 @@ compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
-  api /repo/tools/schema/smoke.py
+  api /repo/tools/testing/run_python_contracts.py \
+    /repo/tools/schema/smoke.py \
+    /repo/tools/tasks/schema_contract.py \
+    /repo/tools/tasks/service_contract.py \
+    /repo/tools/tasks/planning_contract.py \
+    /repo/tools/tasks/ordering_contract.py \
+    /repo/tools/tasks/structure_contract.py \
+    /repo/tools/tasks/http_contract.py \
+    /repo/tools/tasks/action_contract.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans

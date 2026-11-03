@@ -99,6 +99,8 @@ def worker_modules(
             background_loops=(survey_sweep(database_url),),
             switchable=True,
         ),
+        # Tasks have no jobs; registered so the switch list matches the API.
+        ModuleRegistration("tasks", switchable=True),
         ModuleRegistration(
             "actions",
             handlers=_action_handlers(dependencies) if dependencies else {},
