@@ -22,7 +22,7 @@ class InboxPrivacyContributor:
     async def references(
         self, connection: object, normalized_email: str
     ) -> tuple[PrivacyReference, ...]:
-        rows = await cast(asyncpg.Connection[Any], connection).fetch(
+        rows = await cast("asyncpg.Connection[Any]", connection).fetch(
             """
             SELECT id, action_id, status, subject
             FROM inbox_case
@@ -45,7 +45,7 @@ class InboxPrivacyContributor:
     async def anonymize(
         self, connection: object, normalized_email: str, occurred_at: datetime
     ) -> int:
-        status = await cast(asyncpg.Connection[Any], connection).execute(
+        status = await cast("asyncpg.Connection[Any]", connection).execute(
             """
             UPDATE inbox_case
             SET given_name = 'Anonymisiert',
