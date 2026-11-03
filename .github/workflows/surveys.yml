@@ -2,6 +2,7 @@ name: Survey acceptance
 
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
   schedule:
@@ -22,10 +23,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select:
+    uses: ./.github/workflows/select-suites.yml
+
   fixture:
+    needs: select
+    if: needs.select.outputs.surveys == 'true'
     uses: ./.github/workflows/test-fixture.yml
 
   inventory:
+    needs: select
     runs-on: ubuntu-24.04
     outputs:
       groups: ${{ steps.manifest.outputs.groups }}
@@ -38,6 +45,8 @@ jobs:
         id: manifest
         env:
           CI_SUITE: ${{ github.event_name == 'schedule' && 'nightly' || inputs.suite || 'pr' }}
+          # tools/ci/select_suites.py: survey inputs changed, or not a PR.
+          SELECTED: ${{ needs.select.outputs.surveys }}
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
@@ -46,6 +55,8 @@ jobs:
           import os
           manifest = gate.load_manifest(pathlib.Path('.'))
           shards = gate.ci_shards(manifest, os.environ['CI_SUITE'])
+          if os.environ['SELECTED'] != 'true':
+              shards = []
           print('groups=' + json.dumps(manifest['groups']))
           print('shards=' + json.dumps(shards))
           PY
@@ -53,6 +64,7 @@ jobs:
   surveys:
     name: Survey shard / ${{ matrix.shard }}
     needs: [inventory, fixture]
+    if: needs.inventory.outputs.shards != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -112,9 +124,14 @@ jobs:
       - name: Require every scheduled survey shard
         # These are policy summaries. Nightly-only checks are not claimed as
         # executed by a PR run; inventory validates the complete partition.
+        # An unselected PR schedules no shard, which must then be skipped.
         env:
+          INVENTORY: ${{ needs.inventory.result }}
+          SELECTED: ${{ needs.inventory.outputs.shards != '[]' }}
           RESULT: ${{ needs.surveys.result }}
-        run: test "$RESULT" = success
+        run: |
+          test "$INVENTORY" = success
+          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
 
   backup-recovery:
     name: Nightly backup / ${{ matrix.command }}
@@ -137,7 +154,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bootstrap pinned Docker toolchains
-        run: ./leonaid bootstrap
+        run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run isolated backup and recovery proof
         env:
           TEST_COMMAND: ${{ matrix.command }}
@@ -150,3 +167,26 @@ jobs:
           path: .artifacts/ci/${{ matrix.command }}
           if-no-files-found: error
           retention-days: 14
+
+  gate:
+    # The one required check of this workflow (branch protection and merge
+    # queue): tools/ci/gate.py.
+    name: Survey gate
+    needs: [select, fixture, inventory, surveys, acceptance, backup-recovery]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/ci
+      - name: Require every selected survey job
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        # backup-recovery runs only nightly or on dispatch; when it runs it
+        # must pass.
+        run: >-
+          python3 tools/ci/gate.py --name "Survey gate"
+          --selectable fixture=surveys
+          --selectable surveys=surveys
+          --may-skip backup-recovery

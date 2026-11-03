@@ -11,6 +11,13 @@ import asyncpg
 import httpx
 
 
+
+def cookie_header(cookies):
+    """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
+    if not cookies:
+        return None
+    return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 async def main():
     survey = uuid4()
     survey_ids = [survey]
@@ -21,7 +28,9 @@ async def main():
     async with httpx.AsyncClient(base_url="http://api:8000") as client:
 
         async def call(method, path, *, body=None, cookies=None, expected=200):
-            response = await client.request(method, path, json=body, cookies=cookies)
+            response = await client.request(
+                method, path, json=body, headers=cookie_header(cookies)
+            )
             assert response.status_code == expected, (
                 path,
                 response.status_code,

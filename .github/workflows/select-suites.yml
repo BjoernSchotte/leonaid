@@ -1,0 +1,57 @@
+name: Select CI suites
+# Reusable: pull requests get the suites whose inputs changed; merge_group,
+# push, schedule and workflow_dispatch always get the complete suite.
+# Rules and tests: tools/ci/select_suites.py and select_suites_test.py.
+on:
+  workflow_call:
+    outputs:
+      full:
+        value: ${{ jobs.select.outputs.full }}
+      integration:
+        value: ${{ jobs.select.outputs.integration }}
+      e2e:
+        value: ${{ jobs.select.outputs.e2e }}
+      emdash:
+        value: ${{ jobs.select.outputs.emdash }}
+      contract:
+        value: ${{ jobs.select.outputs.contract }}
+      golden:
+        value: ${{ jobs.select.outputs.golden }}
+      surveys:
+        value: ${{ jobs.select.outputs.surveys }}
+      api:
+        value: ${{ jobs.select.outputs.api }}
+      pins:
+        value: ${{ jobs.select.outputs.pins }}
+permissions:
+  contents: read
+jobs:
+  select:
+    name: Select suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      integration: ${{ steps.select.outputs.integration }}
+      e2e: ${{ steps.select.outputs.e2e }}
+      emdash: ${{ steps.select.outputs.emdash }}
+      contract: ${{ steps.select.outputs.contract }}
+      golden: ${{ steps.select.outputs.golden }}
+      surveys: ${{ steps.select.outputs.surveys }}
+      api: ${{ steps.select.outputs.api }}
+      pins: ${{ steps.select.outputs.pins }}
+    steps:
+      # The pull-request merge commit's first parent is the current base, so
+      # HEAD^1..HEAD is exactly what this PR adds to main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: select
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/ci/select_suites.py --event "$EVENT" --base HEAD^1 --head HEAD
+          else
+            python3 tools/ci/select_suites.py --event "$EVENT"
+          fi

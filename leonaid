@@ -726,6 +726,12 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     python /workspace/tools/ci/workflow_contract_test.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/select_suites_test.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/gate_test.py
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \

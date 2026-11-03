@@ -35,6 +35,11 @@
     "reason": "Fetch actual API responses for three identical requests; abort the first two acknowledgements and forward the unmodified third response; verify one Mailpit message."
   },
   {
+    "path": "tests/e2e/surveys-module.spec.mjs",
+    "sha256": "24420933a618187f2641b59472ef1d9bdbee18ff8b1f34f86387a88f12c2481c",
+    "reason": "Hold one real survey GET after a settings save until other settings forms are edited; the request then reaches the server unchanged."
+  },
+  {
     "path": "tests/e2e/surveys-package.spec.mjs",
     "sha256": "b8353c71c33c584f88b0f9f995e5446f95c2e67c062605162333e54ae71dbecb",
     "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
@@ -51,8 +56,8 @@
   },
   {
     "path": "tests/e2e/surveys-runner.spec.mjs",
-    "sha256": "fed8cdffac5fec6047d7882463bf2789217086393682aaf01952e762fbe8d71a",
-    "reason": "Delay a real save to create a competing-revision conflict; drop a committed completion acknowledgement and forward the unmodified retry response."
+    "sha256": "550a51af111d530cf3f312167440acfebc5ab51a08cd6682cc6f62899165ceb9",
+    "reason": "Delay a real save to create a competing-revision conflict; drop a committed completion acknowledgement and forward the unmodified retry response; fail unsent saves before transport so closing the context cannot lift offline emulation and send them."
   },
   {
     "path": "tests/e2e/surveys-templates.spec.mjs",

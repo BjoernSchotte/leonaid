@@ -27,7 +27,26 @@ jobs:
       - if: steps.cached.outputs.cache-hit != 'true'
         name: Build an isolated synthetic fixture from repository inputs
         run: python3 tools/testing/ci_fixture.py build "$RUNNER_TEMP/leonaid-synthetic-fixture"
+      # A failed upload (GitHub cache 429) only warns; every consumer would
+      # then miss the key. Verify the upload and retry it once.
       - if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/leonaid-synthetic-fixture
+          key: ${{ steps.key.outputs.value }}
+      - id: saved
+        if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/leonaid-synthetic-fixture
+          key: ${{ steps.key.outputs.value }}
+          lookup-only: true
+      - name: Back off before retrying the fixture upload
+        if: steps.cached.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+        run: |
+          echo "::warning title=Infrastructure retry::Fixture cache upload is missing; retrying once in 30s"
+          sleep 30
+      - if: steps.cached.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture

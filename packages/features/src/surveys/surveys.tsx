@@ -65,6 +65,50 @@ async function mapped<T>(request: Promise<unknown>): Promise<Result<T>> {
     };
   }
 }
+type SettingsField = "accessMode" | "scheduledEnd" | "timeout";
+/**
+ * Per-field edit tracking for the survey settings forms. A field is dirty while
+ * its edit count differs from the count last confirmed by the server. A refresh
+ * replaces only clean fields, so a save of one form cannot overwrite unsaved
+ * input in another form.
+ */
+class SettingsEdits {
+  private survey: string | null = null;
+  private edited: Record<SettingsField, number> = {
+    accessMode: 0,
+    scheduledEnd: 0,
+    timeout: 0,
+  };
+  private synced = { ...this.edited };
+  /** A different survey starts clean: its server values replace every field. */
+  forSurvey(key: string) {
+    if (this.survey === key) return;
+    this.survey = key;
+    this.edited = { accessMode: 0, scheduledEnd: 0, timeout: 0 };
+    this.synced = { ...this.edited };
+  }
+  edit(field: SettingsField) {
+    this.edited[field] += 1;
+  }
+  /** Token for the value a save submits; pass it to `saved` after success. */
+  snapshot(field: SettingsField) {
+    return this.edited[field];
+  }
+  /** Edits made after `snapshot` keep the field dirty. */
+  saved(field: SettingsField, snapshot: number) {
+    this.synced[field] = snapshot;
+  }
+  dirty(field: SettingsField) {
+    return this.edited[field] !== this.synced[field];
+  }
+}
+const localDateTime = (value: string | null | undefined) => {
+  if (!value) return "";
+  const end = new Date(value);
+  return new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
+};
 const errorMessage = (error: unknown) =>
   error instanceof ApiError
     ? error.detail.message
@@ -103,6 +147,7 @@ export function SurveysPage({
   const [accessMode, setAccessMode] = useState<"anonymous" | "invitation">(
     "anonymous",
   );
+  const settingsEdits = useRef(new SettingsEdits());
   const [invitations, setInvitations] =
     useState<SurveyInvitationsResponse | null>(null);
   const [invitationOffset, setInvitationOffset] = useState(0);
@@ -151,8 +196,10 @@ export function SurveysPage({
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
       const value = await client.getSurvey(key);
+      const edits = settingsEdits.current;
+      edits.forSurvey(key);
       setSummary(value);
-      setAccessMode(value.accessMode);
+      if (!edits.dirty("accessMode")) setAccessMode(value.accessMode);
       setInvitationOffset(0);
       if (
         value.status !== "deleted" &&
@@ -162,15 +209,10 @@ export function SurveysPage({
         setInvitations(await client.listSurveyInvitations(key, { offset: 0 }));
       } else setInvitations(null);
 
-      const end = value.endsAt ? new Date(value.endsAt) : null;
-      setScheduledEnd(
-        end
-          ? new Date(end.getTime() - end.getTimezoneOffset() * 60000)
-              .toISOString()
-              .slice(0, 16)
-          : "",
-      );
-      setTimeoutValue(value.inactivityTimeoutSeconds?.toString() ?? "");
+      if (!edits.dirty("scheduledEnd"))
+        setScheduledEnd(localDateTime(value.endsAt));
+      if (!edits.dirty("timeout"))
+        setTimeoutValue(value.inactivityTimeoutSeconds?.toString() ?? "");
       if (
         ["draft", "active"].includes(value.status) &&
         value.capabilities?.includes("design")
@@ -865,12 +907,15 @@ export function SurveysPage({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    const submitted =
+                      settingsEdits.current.snapshot("accessMode");
                     void run(async () => {
                       await client.updateSurveyAccess(summary.id, {
                         operationId: crypto.randomUUID(),
                         expectedRevision: summary.revision,
                         accessMode,
                       });
+                      settingsEdits.current.saved("accessMode", submitted);
                       await refresh(summary.id);
                     }, "Zugangsmodus wurde gespeichert.");
                   }}
@@ -879,11 +924,12 @@ export function SurveysPage({
                     Zugangsmodus
                     <select
                       value={accessMode}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        settingsEdits.current.edit("accessMode");
                         setAccessMode(
                           e.target.value as "anonymous" | "invitation",
-                        )
-                      }
+                        );
+                      }}
                     >
                       <option value="anonymous">Anonymer Link</option>
                       <option value="invitation">Persönliche Einladung</option>
@@ -1094,6 +1140,8 @@ export function SurveysPage({
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
+                      const submitted =
+                        settingsEdits.current.snapshot("scheduledEnd");
                       void run(async () => {
                         await client.scheduleSurveyEnd(summary.id, {
                           operationId: crypto.randomUUID(),
@@ -1102,6 +1150,7 @@ export function SurveysPage({
                             ? new Date(scheduledEnd).toISOString()
                             : null,
                         });
+                        settingsEdits.current.saved("scheduledEnd", submitted);
                         await refresh(summary.id);
                       }, "Geplantes Ende wurde gespeichert.");
                     }}
@@ -1111,7 +1160,10 @@ export function SurveysPage({
                       <input
                         type="datetime-local"
                         value={scheduledEnd}
-                        onChange={(e) => setScheduledEnd(e.target.value)}
+                        onChange={(e) => {
+                          settingsEdits.current.edit("scheduledEnd");
+                          setScheduledEnd(e.target.value);
+                        }}
                       />
                     </label>
                     <p>
@@ -1136,6 +1188,7 @@ export function SurveysPage({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    const submitted = settingsEdits.current.snapshot("timeout");
                     void run(async () => {
                       await client.updateSurveyTimeout(summary.id, {
                         operationId: crypto.randomUUID(),
@@ -1143,6 +1196,7 @@ export function SurveysPage({
                         inactivityTimeoutSeconds:
                           timeout === "" ? null : Number(timeout),
                       });
+                      settingsEdits.current.saved("timeout", submitted);
                       await refresh(summary.id);
                     }, "Zeitraum wurde gespeichert.");
                   }}
@@ -1156,7 +1210,10 @@ export function SurveysPage({
                       step={1}
                       value={timeout}
                       placeholder="Standard verwenden"
-                      onChange={(e) => setTimeoutValue(e.target.value)}
+                      onChange={(e) => {
+                        settingsEdits.current.edit("timeout");
+                        setTimeoutValue(e.target.value);
+                      }}
                     />
                   </label>
                   <p>
