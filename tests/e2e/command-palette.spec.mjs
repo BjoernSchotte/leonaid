@@ -343,8 +343,10 @@ test.describe("enabled modules", () => {
         .getByRole("option", { name: /KT26-0001/ })
         .click();
       await expect(page).toHaveURL(
-        new RegExp(`/admin/invoices\\?action=${actionId}&view=all&open=`),
+        new RegExp(`/admin/invoices\\?action=${actionId}`),
       );
+      await expect(page).toHaveURL(/[?&]view=all(&|$)/);
+      await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
       // The unlisted action stays the selected one and the hit opens.
       await expect(
         page.locator(
