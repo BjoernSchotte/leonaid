@@ -20,7 +20,12 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 from leonaid.entrypoints.fastapi.platform import create_app
-from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, SetMaterialReference, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import (
+    INBOX_PRIVACY_NOTICE_VERSION,
+    SetMaterialReference,
+    SubmitCase,
+    UpdateCase,
+)
 from leonaid.modules.materials.api import (
     AddVersion,
     CreateMaterial,

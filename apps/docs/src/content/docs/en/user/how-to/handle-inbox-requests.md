@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: MAIN_SHA
+verifiedAgainst: e222cf15eaacce659fa705321133f151d7e8d63f
 reviewer: Björn Schotte
 ---
 
@@ -65,10 +65,11 @@ If the status is **Kontaktzuordnung benötigt Klärung** (needs clarification):
 
 ## Link tasks and file versions
 
-- Under **Aufgaben**, choose **Bestehende Aufgabe auswählen** to link a task
-  from a list you may edit. The request shows its current status.
-- Under **Materialien**, choose a material and a file version
-  (**Dateiversion auswählen**). The link stays on exactly that version.
+- Under **Aufgaben**, select **Aufgabe verknüpfen** and pick a task under
+  **Bestehende Aufgabe auswählen**. You can pick tasks from lists you may edit.
+  The request shows the current task status.
+- Under **Materialien**, select **Material verknüpfen**, pick a material and
+  select **Dateiversion einfügen**. The link stays on exactly that version.
 
 A link does not grant access. People who cannot open the task or material see
 it as unavailable.

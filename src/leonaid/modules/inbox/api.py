@@ -4,7 +4,7 @@ from datetime import datetime
 from dataclasses import asdict
 import hashlib
 import json
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Final, Literal, Protocol
 from uuid import UUID
 
 from pydantic import (
@@ -58,7 +58,7 @@ class InboxModel(TransportModel):
 
 # Version of the privacy notice on the public form. A change of the notice
 # text needs a new version, so every case keeps what was actually agreed to.
-INBOX_PRIVACY_NOTICE_VERSION = "inbox-privacy-2026-11"
+INBOX_PRIVACY_NOTICE_VERSION: Final = "inbox-privacy-2026-11"
 
 
 class SubmitCase(InboxModel):

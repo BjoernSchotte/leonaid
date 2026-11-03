@@ -71,10 +71,14 @@ for (const [surface, shell, width] of [
 
     const note = `Termin am Donnerstag prüfen ${randomUUID()}`;
     await page.getByLabel("Neue Notiz", { exact: true }).fill(note);
-    await page.getByRole("button", { name: "Notiz speichern", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Notiz speichern", exact: true })
+      .click();
     await expect(page.getByText(note, { exact: true })).toBeVisible();
 
-    await page.getByLabel("Status", { exact: true }).selectOption("in_progress");
+    await page
+      .getByLabel("Status", { exact: true })
+      .selectOption("in_progress");
     await page
       .getByRole("button", { name: "Bearbeitung speichern", exact: true })
       .click();

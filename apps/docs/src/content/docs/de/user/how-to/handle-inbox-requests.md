@@ -6,7 +6,7 @@ audience: [user]
 diataxis: how-to
 contentRevision: 1
 reviewedRevision: 1
-verifiedAgainst: MAIN_SHA
+verifiedAgainst: e222cf15eaacce659fa705321133f151d7e8d63f
 reviewer: Björn Schotte
 ---
 
@@ -67,11 +67,11 @@ Steht der Status auf **Kontaktzuordnung benötigt Klärung**:
 
 ## Aufgaben und Dateiversionen verknüpfen
 
-- Unter **Aufgaben** verknüpft **Bestehende Aufgabe auswählen** eine Aufgabe aus
-  einer Liste, die du bearbeiten darfst. Die Anfrage zeigt ihren aktuellen
-  Status.
-- Unter **Materialien** wählst du ein Material und eine Dateiversion
-  (**Dateiversion auswählen**). Die Verknüpfung bleibt genau bei dieser Version.
+- Wähle unter **Aufgaben** **Aufgabe verknüpfen** und dann unter **Bestehende
+  Aufgabe auswählen** eine Aufgabe. Du kannst Aufgaben aus Listen wählen, die
+  du bearbeiten darfst. Die Anfrage zeigt den aktuellen Aufgabenstatus.
+- Wähle unter **Materialien** **Material verknüpfen**, dann ein Material und
+  **Dateiversion einfügen**. Die Verknüpfung bleibt genau bei dieser Version.
 
 Eine Verknüpfung gewährt keinen Zugriff. Wer Aufgabe oder Material nicht öffnen
 darf, sieht sie als nicht verfügbar.

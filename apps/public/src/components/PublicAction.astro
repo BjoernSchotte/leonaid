@@ -38,8 +38,7 @@ if (!action) {
 
 const isArchive = route.availability === "archive";
 // Contact requests belong to a live action; the archive stays read-only.
-const inboxForm =
-  route.availability === "published" && moduleEnabled("inbox");
+const inboxForm = route.availability === "published" && moduleEnabled("inbox");
 const orderForm =
   route.submissionsAllowed && !isArchive && orderAlias
     ? action.orderForm
@@ -299,11 +298,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
     )
   }
 
-  {
-    inboxForm && (
-      <PublicInbox actionId={action.id} actionName={action.name} />
-    )
-  }
+  {inboxForm && <PublicInbox actionId={action.id} actionName={action.name} />}
 
   <section
     class="privacy-section"

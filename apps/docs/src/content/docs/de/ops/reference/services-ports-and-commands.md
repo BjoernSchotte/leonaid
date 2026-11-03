@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 14
-reviewedRevision: 14
-verifiedAgainst: 8fb732e8f06e7faed03fd3982c87065812131518
+contentRevision: 15
+reviewedRevision: 15
+verifiedAgainst: e222cf15eaacce659fa705321133f151d7e8d63f
 reviewer: Björn Schotte
 ---
 
@@ -76,10 +76,12 @@ Hand.
 
 Fachmodule sind standardmäßig eingeschaltet. `LEONAID_DISABLED_MODULES` in der
 Env-Datei der Installation schaltet Module kommagetrennt ab, zum Beispiel
-`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys`, `tasks`, `materials` und `knowledge`
-(knowledge benötigt tasks und materials); Kernbereiche wie Mail und Rechnungen lassen sich nicht
-abschalten. API und Worker lesen denselben Wert; nach einer Änderung beide neu
-starten.
+`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys`, `tasks`, `materials`, `knowledge` und `inbox`
+(knowledge und inbox benötigen tasks und materials); Kernbereiche wie Mail und Rechnungen lassen sich nicht
+abschalten. API, Worker und die öffentlichen Seiten (`public`,
+`campaign-site`) lesen denselben Wert; nach einer Änderung alle neu starten.
+Ist `inbox` abgeschaltet, zeigen die öffentlichen Seiten kein
+Anfrageformular.
 
 Ein abgeschaltetes Modul behält alle Daten. Es zeigt keine Navigation, seine
 API-Routen sind nicht registriert und antworten mit 404, und die Webseiten

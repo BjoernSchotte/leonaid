@@ -65,6 +65,12 @@ test("active, inactive and archived public pages stay functionally identical in 
     page.getByRole("heading", { name: "Wem die Aktion hilft" }),
   ).toBeVisible();
   await expect(page.getByText("Zukunftswerk Beispielstadt")).toBeVisible();
+  // A live action takes contact requests only with the consent checkbox.
+  const inquiry = page.locator("leonaid-inbox-form");
+  await expect(inquiry).toBeVisible();
+  await expect(
+    inquiry.getByRole("checkbox", { name: /Ich willige ein/ }),
+  ).toHaveAttribute("required", "");
   await expect(
     page.getByRole("heading", {
       name: "Transparent, bevor Daten erhoben werden.",

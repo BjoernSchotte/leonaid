@@ -138,9 +138,7 @@ async def main(*, trust_proxy_headers: bool = False) -> None:
                 ).status_code == 409
                 # The consent to the shown notice is mandatory and versioned.
                 without_consent = {
-                    key: value
-                    for key, value in body.items()
-                    if key != "privacyConsent"
+                    key: value for key, value in body.items() if key != "privacyConsent"
                 }
                 for rejected in (
                     {**body, "privacyConsent": False},
