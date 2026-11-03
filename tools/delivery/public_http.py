@@ -303,11 +303,33 @@ async def prove_public_http(
         assert created.status_code == 201, created.text
         assert crm.company.data.address.street_line_1 == "Delivery road 2"
         assert crm.person.data.given_name == "HTTP" and crm.person.data.phone is None
+
+        # A window that has already started is never bookable publicly, even
+        # though a manager may record it historically for an existing order.
+        past_window = uuid4()
+        await pool.execute(
+            """INSERT INTO action_delivery_window(id, action_id, starts_at, ends_at)
+            VALUES ($1, $2,
+                (date_trunc('day', now() AT TIME ZONE $3) - interval '3 days'
+                    + interval '9 hours') AT TIME ZONE $3,
+                (date_trunc('day', now() AT TIME ZONE $3) - interval '3 days'
+                    + interval '11 hours') AT TIME ZONE $3)""",
+            past_window,
+            action_id,
+            (await schedules.get(action_id)).timezone,
+        )
+        calls_before_past = len(crm.calls)
+        past_rejected = await post(
+            {"commandId": str(uuid4()), "deliveryWindowId": str(past_window)}
+        )
+        assert past_rejected.status_code == 422, past_rejected.text
+        assert "delivery_window_unavailable" in past_rejected.text
+        assert len(crm.calls) == calls_before_past
         audit = await pool.fetch(
             "SELECT payload::text AS payload FROM audit_event WHERE action_id=$1",
             action_id,
         )
         assert all("Separate delivery contact" not in row["payload"] for row in audit)
     print(
-        "KLF-030 public HTTP PASS: anonymous transport and PostgreSQL, invalid delivery before CRM, immutable snapshots, replay, retirement serialized with booking, existing company-address behavior and contact isolation; CRM is a recording fake"
+        "KLF-030 public HTTP PASS: anonymous transport and PostgreSQL, invalid delivery before CRM, immutable snapshots, replay, retirement serialized with booking, past windows rejected, existing company-address behavior and contact isolation; CRM is a recording fake"
     )

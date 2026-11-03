@@ -28,6 +28,7 @@ import {
   deliveryDraft,
   deliveryPayload,
   hasDeliveryAddress,
+  selectableWindows,
   hasPartialDeliveryAddress,
 } from "./delivery-fields";
 
@@ -236,8 +237,8 @@ export function CommitmentCapturePage({
   const completeDelivery =
     !configuration?.enabled ||
     (hasDeliveryAddress(delivery) &&
-      configuration.windows.some(
-        (item) => item.id === delivery.windowId && !item.retired,
+      selectableWindows(configuration).upcoming.some(
+        (item) => item.id === delivery.windowId,
       ));
 
   function clearBuyerFields() {

@@ -13,6 +13,7 @@ import {
   deliveryPayload,
   hasDeliveryAddress,
   hasPartialDeliveryAddress,
+  selectableWindows,
 } from "./delivery-fields";
 
 interface InvoiceDraft {
@@ -89,15 +90,17 @@ export function DeliveryCompletion({
 
   const enabled = Boolean(configuration.data?.enabled);
   const lockedWindow = Boolean(baseline.deliveryWindowId);
+  const choices = configuration.data
+    ? selectableWindows(configuration.data, { historical: true })
+    : { upcoming: [], past: [] };
+  const historicalChoice =
+    !lockedWindow && choices.past.some((item) => item.id === delivery.windowId);
   const deliveryReady =
     !enabled ||
     (hasDeliveryAddress(delivery) &&
       (lockedWindow ||
-        Boolean(
-          configuration.data?.windows.some(
-            (item) => item.id === delivery.windowId && !item.retired,
-          ),
-        )));
+        historicalChoice ||
+        choices.upcoming.some((item) => item.id === delivery.windowId)));
   const canSubmit =
     !pending &&
     !configuration.isPending &&
@@ -270,6 +273,7 @@ export function DeliveryCompletion({
           configuration={configuration.data}
           disabled={pending}
           invoiceAddress={baseline.invoiceRecipient}
+          historical
           lockedWindow={lockedWindow}
           onChange={setDelivery}
           refresh={() => void configuration.refetch()}
@@ -356,6 +360,15 @@ export function DeliveryCompletion({
           </div>
         </div>
       </fieldset>
+      {enabled && historicalChoice ? (
+        <p
+          className="commitment-step__intro"
+          data-testid="delivery-completion-historical"
+        >
+          Die Lieferung wird nachträglich für ein vergangenes Zeitfenster
+          erfasst.
+        </p>
+      ) : null}
       <Button
         data-testid="delivery-completion-submit"
         disabled={!canSubmit || Boolean(comparison)}
