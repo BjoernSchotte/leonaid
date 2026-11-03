@@ -1117,7 +1117,9 @@ function TasksWorkspace({
 
   /* ----- create ----- */
   const [adding, setAdding] = useState(false);
-  const mayCreate = listId ? !!selected.data?.canEdit : quickLists.length > 0;
+  // All tasks: the quick add opens even before a list exists and then
+  // points to "Neue Liste".
+  const mayCreate = listId ? !!selected.data?.canEdit : true;
   const startAdding = useCallback(() => {
     setAdding(true);
     window.setTimeout(
@@ -1132,31 +1134,20 @@ function TasksWorkspace({
     if (mayCreate) {
       handledCreate.current = true;
       startAdding();
-    } else if (
-      (listId && selected.isSuccess) ||
-      (!listId && editableLists.isSuccess)
-    ) {
+    } else if (listId && selected.isSuccess) {
       handledCreate.current = true;
       toast?.show({
-        title: listId
-          ? says(
-              address,
-              "In dieser Liste darfst du keine Aufgaben anlegen.",
-              "In dieser Liste dürfen Sie keine Aufgaben anlegen.",
-            )
-          : says(
-              address,
-              "Lege zuerst eine Liste an.",
-              "Legen Sie zuerst eine Liste an.",
-            ),
+        title: says(
+          address,
+          "In dieser Liste darfst du keine Aufgaben anlegen.",
+          "In dieser Liste dürfen Sie keine Aufgaben anlegen.",
+        ),
         tone: "info",
       });
-      if (!listId) setTool("lists");
     }
   }, [
     address,
     createRequested,
-    editableLists.isSuccess,
     listId,
     mayCreate,
     selected.isSuccess,
@@ -1295,6 +1286,7 @@ function TasksWorkspace({
           identity={identity}
           lists={quickLists}
           onClose={() => setAdding(false)}
+          onNeedList={() => setTool("lists")}
           planToday={!listId && listState?.viewId === "plan"}
         />
       ) : null}

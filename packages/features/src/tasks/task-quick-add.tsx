@@ -85,6 +85,7 @@ export function TaskQuickAdd({
   identity,
   lists,
   onClose,
+  onNeedList,
   planToday,
 }: {
   readonly address: Address;
@@ -99,6 +100,8 @@ export function TaskQuickAdd({
   /** Lists I may add to. */
   readonly lists: readonly QuickAddList[];
   readonly onClose: () => void;
+  /** No list to add to yet: show where to create one. */
+  readonly onNeedList: () => void;
   /** "Mein Plan": plan the new task for today. */
   readonly planToday: boolean;
 }) {
@@ -187,6 +190,18 @@ export function TaskQuickAdd({
         event.preventDefault();
         const value = title.trim();
         if (!value || create.isPending) return;
+        if (!listChoice && lists.length === 0) {
+          toast?.show({
+            title: says(
+              address,
+              "Lege zuerst eine Liste an.",
+              "Legen Sie zuerst eine Liste an.",
+            ),
+            tone: "info",
+          });
+          onNeedList();
+          return;
+        }
         if (!listChoice) {
           toast?.show({
             title: says(
