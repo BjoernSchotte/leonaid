@@ -25,6 +25,7 @@ from leonaid.bootstrap.registry import (
     split_enabled,
 )
 from leonaid.configuration import Settings
+from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 
@@ -36,6 +37,18 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
         switchable=True,
     ),
 )
+
+
+# Outbox event types per switchable module. Operations leave the jobs of
+# switched-off modules out of queue timing, because they wait on purpose.
+MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {"surveys": SURVEY_EVENT_TYPES}
+
+
+def parked_event_types(disabled: frozenset[str]) -> frozenset[str]:
+    _, off = split_enabled(API_MODULES, disabled)
+    return frozenset(
+        event_type for module in off for event_type in MODULE_EVENT_TYPES[module.id]
+    )
 
 
 def enabled_api_modules(disabled: frozenset[str]) -> tuple[ModuleRegistration, ...]:

@@ -1998,6 +1998,15 @@ class OperationsOverviewResponse(TransportModel):
     api: OperationalApiMetricsResponse
     dependencies: list[OperationalDependencyResponse]
     outbox: OperationalStatusCountsResponse
+    next_pending_attempt_at: datetime | None = Field(
+        default=None,
+        description="Earliest available_at of a pending job; null when none waits.",
+    )
+    oldest_due_pending_age_seconds: float | None = Field(
+        default=None,
+        ge=0,
+        description="Seconds the oldest due pending job has waited; null when none is due.",
+    )
     mail: OperationalStatusCountsResponse
     login: OperationalLoginMetricsResponse
     failed_jobs: list[OperationalFailedJobResponse]
