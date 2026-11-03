@@ -446,7 +446,11 @@ describe("bulk invoice release", () => {
       actionId,
       "c1",
       { serviceOn: "2026-11-20" },
-      { headers: { "Idempotency-Key": expect.stringMatching(/^poc090:/) } },
+      {
+        headers: { "Idempotency-Key": expect.stringMatching(/^poc090:/) },
+        // A hanging request ends instead of locking the dialog.
+        signal: expect.any(AbortSignal),
+      },
     );
   });
 
@@ -481,6 +485,7 @@ describe("bulk invoice release", () => {
           id: `inv-${commitmentId}`,
           number: `KT-${commitmentId}`,
           replayed: commitmentId === "c1",
+          serviceOn: "2026-11-02",
         };
       },
     );
@@ -493,7 +498,9 @@ describe("bulk invoice release", () => {
     fireEvent.click(await screen.findByTestId("bulk-release-submit"));
     const issued = await screen.findByTestId("bulk-release-issued");
     expect(issued.textContent).toContain("KT-c1");
-    expect(issued.textContent).toContain("war bereits ausgestellt");
+    expect(issued.textContent).toContain(
+      "war bereits ausgestellt, keine zweite Rechnung; Leistungsdatum 02.11.2026",
+    );
     expect(screen.getByTestId("bulk-release-failed").textContent).toContain(
       "Café Mitte: Lieferung fehlt.",
     );
@@ -524,5 +531,160 @@ describe("bulk invoice release", () => {
     expect(
       window.sessionStorage.getItem(`leonaid.bulk-release.${actionId}`),
     ).toBeNull();
+  });
+
+  it("treats gateway errors and foreign pages as a lost answer, not a refusal", async () => {
+    for (const cause of [
+      apiError(502, "http_502"),
+      apiError(503, "http_503"),
+      apiError(504, "http_504"),
+      apiError(200, "unexpected_response_type"),
+    ]) {
+      const issue = vi.fn(async (id: string) => {
+        if (id === "b") throw cause;
+        return { commitmentId: id, number: `KT-${id}` } as never;
+      });
+      const run = await runRelease(["a", "b", "c"], issue);
+      expect([...run.outcomes.values()].map((item) => item.kind)).toEqual([
+        "issued",
+        "unconfirmed",
+        "not-run",
+      ]);
+      expect(run.stop).toEqual({ kind: "network" });
+      expect(issue).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("explains a key already used with other data", async () => {
+    const run = await runRelease(["a"], async () => {
+      throw apiError(409, "idempotency_conflict");
+    });
+    expect(run.outcomes.get("a")).toEqual({
+      kind: "failed",
+      message: expect.stringContaining("anderen Leistungsdatum"),
+    });
+    expect(run.stop).toBeNull();
+  });
+
+  it("sends the same key and date again after a lost answer", async () => {
+    const client = fakeClient();
+    let lost = false;
+    client.issueInvoice.mockImplementation(
+      async (_action: string, commitmentId: string) => {
+        if (commitmentId === "c4" && !lost) {
+          lost = true;
+          throw new TypeError("Failed to fetch");
+        }
+        return {
+          commitmentId,
+          currency: "EUR",
+          grossMinor: 7200,
+          id: `inv-${commitmentId}`,
+          number: `KT-${commitmentId}`,
+          replayed: commitmentId === "c4",
+          serviceOn: "2026-11-20",
+        };
+      },
+    );
+    await renderPage("?view=all", client);
+    for (const name of ["Musterwerk GmbH", "Café Mitte"])
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: new RegExp(`^${name} ·`) }),
+      );
+    fireEvent.click(await screen.findByTestId("bulk-release-open"));
+    const dialog = await screen.findByTestId("bulk-release");
+    fireEvent.change(within(dialog).getByLabelText("Leistungsdatum"), {
+      target: { value: "2026-11-20" },
+    });
+    fireEvent.click(screen.getByTestId("bulk-release-submit"));
+    const unfinished = await screen.findByTestId("bulk-release-unfinished");
+    // List order: Café Mitte (c4) is newer and goes first; c1 is not sent.
+    expect(unfinished.textContent).toContain("Café Mitte: Keine Antwort");
+    expect(unfinished.textContent).toContain(
+      "Musterwerk GmbH: nicht gesendet.",
+    );
+    expect(client.issueInvoice).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "2 Rechnungen erneut senden" }),
+    );
+    const issued = await screen.findByText("Ausgestellt (2)");
+    expect(issued).toBeTruthy();
+    expect(screen.queryByTestId("bulk-release-unfinished")).toBeNull();
+    const calls = client.issueInvoice.mock.calls.filter(
+      ([, id]) => id === "c4",
+    );
+    expect(calls).toHaveLength(2);
+    const [first, second] = calls;
+    expect(second![2]).toEqual(first![2]);
+    expect(second![2]).toEqual({ serviceOn: "2026-11-20" });
+    expect(second![3].headers["Idempotency-Key"]).toBe(
+      first![3].headers["Idempotency-Key"],
+    );
+    expect(first![3].headers["Idempotency-Key"]).toMatch(/^poc090:/);
+    expect(screen.getByTestId("bulk-release-issued").textContent).toContain(
+      "Café Mitte",
+    );
+  });
+
+  it("names the invoices issued before the fresh sign-in", async () => {
+    window.sessionStorage.setItem(
+      `leonaid.bulk-release.${actionId}`,
+      JSON.stringify({
+        ids: ["c1"],
+        serviceOn: "2026-11-12",
+        issued: [{ id: "c4", number: "KT26-0009", buyer: "Café Mitte" }],
+        savedAt: Date.now(),
+      }),
+    );
+    await renderPage("?view=all");
+    expect(
+      (await screen.findByTestId("bulk-release-issued-before")).textContent,
+    ).toBe("KT26-0009 (Café Mitte)");
+  });
+
+  it("keeps the key in memory when sessionStorage fails", async () => {
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new DOMException("quota", "QuotaExceededError");
+      });
+    const client = fakeClient();
+    let lost = false;
+    client.issueInvoice.mockImplementation(
+      async (_action: string, commitmentId: string) => {
+        if (!lost) {
+          lost = true;
+          throw new TypeError("Failed to fetch");
+        }
+        return {
+          commitmentId,
+          currency: "EUR",
+          grossMinor: 7200,
+          id: `inv-${commitmentId}`,
+          number: "KT26-0010",
+          replayed: true,
+          serviceOn: "2026-11-30",
+        };
+      },
+    );
+    try {
+      await renderPage("?view=all", client);
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /^Musterwerk GmbH ·/ }),
+      );
+      fireEvent.click(await screen.findByTestId("bulk-release-open"));
+      fireEvent.click(await screen.findByTestId("bulk-release-submit"));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "1 Rechnung erneut senden" }),
+      );
+      await screen.findByText("Ausgestellt (1)");
+      const [first, second] = client.issueInvoice.mock.calls;
+      expect(second![3].headers["Idempotency-Key"]).toBe(
+        first![3].headers["Idempotency-Key"],
+      );
+    } finally {
+      setItem.mockRestore();
+    }
   });
 });

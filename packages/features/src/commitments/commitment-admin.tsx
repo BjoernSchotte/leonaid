@@ -12,6 +12,7 @@ import { BulkReleaseDialog } from "./bulk-release-dialog";
 import {
   releaseSelection,
   takePendingRelease,
+  type IssuedBefore,
   type ReleaseRun,
   type ReleaseSelection,
 } from "./bulk-release";
@@ -131,14 +132,48 @@ function windowOptions(
 
 /* ---------- invoice review ---------- */
 
+/*
+ * One idempotency key per order until its invoice is confirmed, so a retry
+ * after a lost answer replays instead of issuing again. sessionStorage keeps
+ * it across reloads; when storage is unavailable it lives in memory for the
+ * page (the server still returns an existing invoice for the order).
+ */
+const memoryCommandKeys = new Map<string, string>();
+const commandStorageKey = (commitmentId: string) =>
+  `leonaid.invoice-command.${commitmentId}`;
+
 function invoiceCommandKey(commitmentId: string) {
-  const storageKey = `leonaid.invoice-command.${commitmentId}`;
-  const existing = window.sessionStorage.getItem(storageKey);
-  if (existing) return existing;
+  const remembered = memoryCommandKeys.get(commitmentId);
+  if (remembered) return remembered;
+  try {
+    const stored = window.sessionStorage.getItem(
+      commandStorageKey(commitmentId),
+    );
+    if (stored) return stored;
+  } catch {
+    // Storage unavailable: fall through to a key held in memory.
+  }
   const value = `poc090:${crypto.randomUUID()}`;
-  window.sessionStorage.setItem(storageKey, value);
+  try {
+    window.sessionStorage.setItem(commandStorageKey(commitmentId), value);
+  } catch {
+    memoryCommandKeys.set(commitmentId, value);
+  }
   return value;
 }
+
+/** The invoice is confirmed: the next issue for this order is a new command. */
+function forgetInvoiceCommandKey(commitmentId: string) {
+  memoryCommandKeys.delete(commitmentId);
+  try {
+    window.sessionStorage.removeItem(commandStorageKey(commitmentId));
+  } catch {
+    // Nothing stored.
+  }
+}
+
+/** A hanging request must not keep the bulk dialog locked. */
+const BULK_ISSUE_TIMEOUT_MS = 30_000;
 
 function InvoiceReview({
   context,
@@ -793,6 +828,7 @@ export function CommitmentAdminPage({
     readonly selection: ReleaseSelection;
     readonly clear?: () => void;
     readonly serviceOn?: string;
+    readonly issuedBefore?: readonly IssuedBefore[];
   } | null>(null);
   const commitments = useQuery({
     enabled: Boolean(actionId),
@@ -838,9 +874,7 @@ export function CommitmentAdminPage({
       setIssueError(actionErrorMessage(cause).message);
     },
     onSuccess(invoice) {
-      window.sessionStorage.removeItem(
-        `leonaid.invoice-command.${invoice.commitmentId}`,
-      );
+      forgetInvoiceCommandKey(invoice.commitmentId);
       setIssued(invoice);
       openReview("");
       toast?.show({
@@ -881,8 +915,13 @@ export function CommitmentAdminPage({
       return row ? [row] : [];
     });
     const selection = releaseSelection(pendingRows, deliveryEnabled);
-    if (selection.eligible.length)
-      setRelease({ selection, serviceOn: pending.serviceOn });
+    // Also when nothing is left: the person sees what was issued before.
+    if (selection.eligible.length || pending.issued.length)
+      setRelease({
+        selection,
+        serviceOn: pending.serviceOn,
+        issuedBefore: pending.issued,
+      });
   }, [
     actionId,
     commitments.data,
@@ -896,26 +935,36 @@ export function CommitmentAdminPage({
       actionId,
       commitmentId,
       { serviceOn },
-      { headers: { "Idempotency-Key": invoiceCommandKey(commitmentId) } },
+      {
+        headers: { "Idempotency-Key": invoiceCommandKey(commitmentId) },
+        // Ends as "unconfirmed", which is safe to send again.
+        signal: AbortSignal.timeout(BULK_ISSUE_TIMEOUT_MS),
+      },
     );
-    window.sessionStorage.removeItem(`leonaid.invoice-command.${commitmentId}`);
+    forgetInvoiceCommandKey(commitmentId);
     return invoice;
   };
   const releaseFinished = (run: ReleaseRun) => {
-    const counts = { issued: 0, failed: 0, open: 0 };
+    const counts = { issued: 0, existing: 0, failed: 0, open: 0 };
     for (const outcome of run.outcomes.values()) {
-      if (outcome.kind === "issued") counts.issued += 1;
-      else if (outcome.kind === "failed") counts.failed += 1;
+      if (outcome.kind === "issued") {
+        if (outcome.invoice.replayed) counts.existing += 1;
+        else counts.issued += 1;
+      } else if (outcome.kind === "failed") counts.failed += 1;
       else counts.open += 1;
     }
     void Promise.all([commitments.refetch(), invoiceContext.refetch()]);
     if (run.stop?.kind === "fresh-login") return;
+    const details = [
+      counts.existing
+        ? `${counts.existing} war${counts.existing === 1 ? "" : "en"} bereits ausgestellt`
+        : "",
+      counts.failed ? `${counts.failed} fehlgeschlagen` : "",
+      counts.open ? `${counts.open} nicht abgeschlossen` : "",
+    ].filter(Boolean);
     toast?.show({
       title: `${counts.issued === 1 ? "1 Rechnung" : `${counts.issued} Rechnungen`} ausgestellt.`,
-      description:
-        counts.failed || counts.open
-          ? `${counts.failed} fehlgeschlagen, ${counts.open} nicht abgeschlossen.`
-          : undefined,
+      description: details.length ? `${details.join(", ")}.` : undefined,
       tone: counts.failed || counts.open ? "error" : "success",
     });
   };
@@ -1233,6 +1282,7 @@ export function CommitmentAdminPage({
           actionId={actionId}
           context={invoiceContext.data}
           initialServiceOn={release.serviceOn}
+          issuedBefore={release.issuedBefore}
           issue={issueOne}
           onClose={() => {
             release.clear?.();

@@ -11,6 +11,7 @@ import {
   releaseSkipLabels,
   runRelease,
   savePendingRelease,
+  type IssuedBefore,
   type ReleaseOutcome,
   type ReleaseRun,
   type ReleaseSelection,
@@ -31,6 +32,8 @@ export interface BulkReleaseDialogProps {
   readonly context: InvoiceContextResponse;
   /** Date carried over from a run that stopped for the fresh sign-in. */
   readonly initialServiceOn?: string;
+  /** Invoices that run issued before it stopped for the sign-in. */
+  readonly issuedBefore?: readonly IssuedBefore[];
   readonly issue: (
     commitmentId: string,
     serviceOn: string,
@@ -39,6 +42,10 @@ export interface BulkReleaseDialogProps {
   /** After every run: refresh the list, tell the person. */
   readonly onFinished: (run: ReleaseRun) => void;
 }
+
+/** "2026-11-15" → "15.11.2026" (a calendar date, no time zone shift). */
+const serviceDate = (isoDay: string) =>
+  `${isoDay.slice(8, 10)}.${isoDay.slice(5, 7)}.${isoDay.slice(0, 4)}`;
 
 const invoiceCount = (count: number) =>
   count === 1 ? "1 Rechnung" : `${count} Rechnungen`;
@@ -60,6 +67,7 @@ export function BulkReleaseDialog({
   context,
   initialServiceOn,
   issue,
+  issuedBefore = [],
   onClose,
   onFinished,
   selection,
@@ -106,9 +114,22 @@ export function BulkReleaseDialog({
       setStop(run.stop);
       if (run.stop?.kind === "fresh-login") {
         // Resume after the sign-in with what is still open.
+        const issuedNow: IssuedBefore[] = ids.flatMap((id) => {
+          const outcome = merged.get(id);
+          return outcome?.kind === "issued"
+            ? [
+                {
+                  id,
+                  number: outcome.invoice.number,
+                  buyer: byId.get(id)?.commitment.buyer.displayName ?? "",
+                },
+              ]
+            : [];
+        });
         savePendingRelease(actionId, {
           ids: ids.filter((id) => merged.get(id)?.kind !== "issued"),
           serviceOn,
+          issued: [...issuedBefore, ...issuedNow],
         });
         onFinished({ outcomes: merged, stop: run.stop });
         freshLogin();
@@ -130,6 +151,18 @@ export function BulkReleaseDialog({
     })
     .map((row) => row.commitment.id);
   const mayRetry = phase === "done" && stop?.kind !== "forbidden";
+
+  const issuedBeforeNotice = issuedBefore.length ? (
+    <StatusMessage tone="info">
+      <strong>Vor der Anmeldung bereits ausgestellt:</strong>{" "}
+      <span data-testid="bulk-release-issued-before">
+        {issuedBefore
+          .map((item) => `${item.number} (${item.buyer})`)
+          .join(", ")}
+      </span>
+      . Diese Bestellungen sind nicht mehr dabei.
+    </StatusMessage>
+  ) : null;
 
   const footer =
     phase === "done" ? (
@@ -195,6 +228,7 @@ export function BulkReleaseDialog({
       }
     >
       <div data-testid="bulk-release">
+        {issuedBeforeNotice}
         {phase === "done" ? (
           <ReleaseResult
             actionId={actionId}
@@ -423,7 +457,8 @@ function ReleaseResult({
                   {invoice?.replayed ? (
                     <span className="subtle">
                       {" "}
-                      (war bereits ausgestellt, keine zweite Rechnung)
+                      (war bereits ausgestellt, keine zweite Rechnung;
+                      Leistungsdatum {serviceDate(invoice.serviceOn)})
                     </span>
                   ) : null}
                 </li>
@@ -451,10 +486,10 @@ function ReleaseResult({
       ) : null}
       {unconfirmed.length || notRun.length ? (
         <section
-          aria-labelledby="bulk-release-open"
-          data-testid="bulk-release-open"
+          aria-labelledby="bulk-release-unfinished-title"
+          data-testid="bulk-release-unfinished"
         >
-          <h3 id="bulk-release-open">
+          <h3 id="bulk-release-unfinished-title">
             Nicht abgeschlossen ({unconfirmed.length + notRun.length})
           </h3>
           <ul>

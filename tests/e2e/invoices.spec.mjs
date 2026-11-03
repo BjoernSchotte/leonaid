@@ -408,7 +408,7 @@ const bulkOrders = {
   drei: "80000000-0000-4000-8000-0000000000b3",
 };
 
-test("bulk release issues several invoices with one service date and retries safely", async ({
+test("bulk release issues several invoices with one service date and never twice", async ({
   browser,
 }) => {
   // A finance reader cannot issue: no bulk release on the orders page.
@@ -517,10 +517,10 @@ test("bulk release issues several invoices with one service date and retries saf
     const issued = result.getByTestId("bulk-release-issued");
     await expect(issued).toContainText("Ausgestellt (3)");
     await expect(issued).toContainText(
-      `${dreiNumber} · Sammel Drei KG · 108,00 € (war bereits ausgestellt, keine zweite Rechnung)`,
+      `${dreiNumber} · Sammel Drei KG · 108,00 € (war bereits ausgestellt, keine zweite Rechnung; Leistungsdatum ${firstDay.split("-").reverse().join(".")})`,
     );
     await expect(result.getByTestId("bulk-release-failed")).toHaveCount(0);
-    await expect(result.getByTestId("bulk-release-open")).toHaveCount(0);
+    await expect(result.getByTestId("bulk-release-unfinished")).toHaveCount(0);
     const shownNumbers = await issued.locator("a").allTextContents();
     expect(shownNumbers).toHaveLength(3);
     await page.screenshot({

@@ -370,9 +370,9 @@ export function CommitmentCapturePage({
         onContinue={reset}
         showDelivery={Boolean(
           configuration?.enabled ||
-            result.deliveryRecipient ||
-            result.deliveryWindowSnapshot ||
-            result.deliveryContact,
+          result.deliveryRecipient ||
+          result.deliveryWindowSnapshot ||
+          result.deliveryContact,
         )}
       />
     );
