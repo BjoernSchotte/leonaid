@@ -1,5 +1,7 @@
 import type { NavigationItemResponse } from "@leonaid/api-client";
-import { activeMobileTab, mobileNavigation } from "@leonaid/features";
+import { describe, expect, it } from "vitest";
+
+import { activeMobileTab, mobileNavigation } from "./navigation";
 
 const item = (
   key: string,

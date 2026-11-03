@@ -7,7 +7,6 @@ import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
-  mobileNavigation,
   ModuleSearch,
   resolveModuleRoute,
   RoleDashboardPage,
@@ -22,6 +21,7 @@ import {
 } from "@leonaid/ui";
 
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
+import { mobileNavigation } from "./navigation";
 
 interface AppProps {
   readonly client: LeonAidApiClient;

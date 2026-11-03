@@ -10,7 +10,7 @@ import {
 
 import type { NavigationItemResponse } from "@leonaid/api-client";
 
-import { zoneForNavKey } from "./zones";
+import { zoneForNavKey } from "@leonaid/features";
 
 /** Tab of the acquisition app's bottom bar. */
 export interface MobileNavTab {

@@ -347,7 +347,7 @@ a.pwa-sheet-tile:hover {
   background: var(--surface-3);
 }
 .pwa-segment button {
-  min-height: 40px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--r-sm);
   background: none;
