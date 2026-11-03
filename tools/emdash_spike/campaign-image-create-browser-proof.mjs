@@ -134,15 +134,13 @@ for (const [index, [name, engine]] of Object.entries({
     assert.ok(uploaded.storageKey.startsWith(`campaigns/${action}/`));
     // Confirmation precedes the native picker query refresh and selection UI.
     // Wait for that user-visible state before clicking a moving footer button.
+    // EmDash 1.x selects a fresh upload and shows it pressed.
     await expect(
-      dialog.getByRole("button", {
-        name: `${filename} (selected)`,
-        exact: true,
-      }),
-    ).toBeVisible();
+      dialog.getByRole("button", { name: filename, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      dialog.getByText(`Selected: ${filename}`, { exact: true }),
-    ).toBeVisible();
+      dialog.getByRole("button", { name: "Select", exact: true }),
+    ).toBeEnabled();
     await dialog.getByRole("button", { name: "Select", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await page

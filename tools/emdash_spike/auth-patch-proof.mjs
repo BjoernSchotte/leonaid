@@ -69,6 +69,18 @@ assert.ok(
     "\t\t\trecordWriteRevision(id, publishedItem);\n\t\t\tqueryClient.setQueriesData({ queryKey: [",
   ),
 );
+// 1.4 still resets the form after an editor save's refetch and can apply a
+// stale refetch after an autosave. LeonAid keeps newer input in both cases.
+assert.ok(
+  revisioned.includes(
+    'if (variables.source === "editor" && !isEditorDirtyRef.current) resetEditorItem(variables.targetId);',
+  ),
+);
+assert.ok(
+  revisioned.includes(
+    '\t\tonSuccess: async (savedItem, variables, started) => {\n\t\t\tawait Promise.all([queryClient.cancelQueries({ queryKey: [\n\t\t\t\t"content",\n\t\t\t\tcollection,\n\t\t\t\tvariables.targetId\n\t\t\t] }), queryClient.cancelQueries({ queryKey: ["revision"] })]);',
+  ),
+);
 // The handler marks the form dirty synchronously, before React re-renders.
 assert.ok(
   revisioned.includes(

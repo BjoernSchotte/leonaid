@@ -104,6 +104,23 @@ export function patchEditorSource(source) {
   // after its draft has loaded (or failed), so the first editable form already
   // shows the draft. Later draft revisions keep the editor mounted; a failed
   // draft fetch keeps upstream's live-data fallback.
+  // EmDash 1.4 still loses input typed while a save's follow-up refetch is in
+  // flight (same symptom as PR #56 on 0.36; reproduced on 1.4 with a delayed
+  // refetch after Publish). (1) After an editor save, upstream resets the form
+  // to the refetched entry. Skip that reset when the form already holds newer
+  // input: the form then equals the saved state plus that input, stays dirty
+  // and autosaves it. Discard and revision restore keep their reset.
+  replace(
+    '\t\t\thandleContentUpdateSuccess(variables.targetId).then(() => {\n\t\t\t\tif (variables.source === "editor") resetEditorItem(variables.targetId);\n\t\t\t});',
+    '\t\t\thandleContentUpdateSuccess(variables.targetId).then(() => {\n\t\t\t\tif (variables.source === "editor" && !isEditorDirtyRef.current) resetEditorItem(variables.targetId);\n\t\t\t});',
+  );
+  // (2) A refetch started before an autosave can land after it with older
+  // data and replace the just-saved form. Cancel in-flight entry and draft
+  // revision fetches before the autosave result is written to the cache.
+  replace(
+    "\t\tonSuccess: (savedItem, variables, started) => {\n\t\t\tsetConflictedEntryId((current) => current === variables.targetId ? \"\" : current);\n\t\t\trecordAutosaveCompletion(variables.targetId);",
+    '\t\tonSuccess: async (savedItem, variables, started) => {\n\t\t\tawait Promise.all([queryClient.cancelQueries({ queryKey: [\n\t\t\t\t"content",\n\t\t\t\tcollection,\n\t\t\t\tvariables.targetId\n\t\t\t] }), queryClient.cancelQueries({ queryKey: ["revision"] })]);\n\t\t\tsetConflictedEntryId((current) => current === variables.targetId ? "" : current);\n\t\t\trecordAutosaveCompletion(variables.targetId);',
+  );
   replace(
     "\tconst { data: draftRevision } = useQuery({",
     "\tconst { data: draftRevision, isLoading: leonaidDraftLoading } = useQuery({",
