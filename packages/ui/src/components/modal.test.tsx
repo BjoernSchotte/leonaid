@@ -114,6 +114,47 @@ describe("Modal", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it("locks page scroll while open and restores it on close and unmount", async () => {
+    const user = userEvent.setup();
+    const root = document.documentElement;
+    const { rerender } = render(<Harness />);
+    expect(root.classList.contains("modal-open")).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Öffnen" }));
+    expect(root.classList.contains("modal-open")).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(root.classList.contains("modal-open")).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Öffnen" }));
+    rerender(<Harness mounted={false} />);
+    expect(root.classList.contains("modal-open")).toBe(false);
+  });
+
+  it("keeps the lock until the last of two open modals closes", () => {
+    const root = document.documentElement;
+    const { rerender } = render(
+      <>
+        <Modal onClose={() => undefined} open title="Eins" />
+        <Modal onClose={() => undefined} open title="Zwei" />
+      </>,
+    );
+    expect(root.classList.contains("modal-open")).toBe(true);
+    rerender(
+      <>
+        <Modal onClose={() => undefined} open title="Eins" />
+        <Modal onClose={() => undefined} open={false} title="Zwei" />
+      </>,
+    );
+    expect(root.classList.contains("modal-open")).toBe(true);
+    rerender(
+      <>
+        <Modal onClose={() => undefined} open={false} title="Eins" />
+        <Modal onClose={() => undefined} open={false} title="Zwei" />
+      </>,
+    );
+    expect(root.classList.contains("modal-open")).toBe(false);
+  });
+
   it("renders sizes, alertdialog role and no content while closed", () => {
     const markup = renderToStaticMarkup(
       <Modal

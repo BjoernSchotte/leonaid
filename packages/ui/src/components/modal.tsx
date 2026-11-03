@@ -16,6 +16,30 @@ export interface ModalProps {
   readonly role?: "dialog" | "alertdialog";
 }
 
+// Open modals; the page scroll stays locked while any is open.
+let openModals = 0;
+const SCROLL_LOCK_CLASS = "modal-open";
+
+function useScrollLock() {
+  const locked = useRef(false);
+  return {
+    lock() {
+      if (locked.current) return;
+      locked.current = true;
+      openModals += 1;
+      document.documentElement.classList.add(SCROLL_LOCK_CLASS);
+    },
+    unlock() {
+      if (!locked.current) return;
+      locked.current = false;
+      openModals = Math.max(0, openModals - 1);
+      if (openModals === 0) {
+        document.documentElement.classList.remove(SCROLL_LOCK_CLASS);
+      }
+    },
+  };
+}
+
 /**
  * Modal on the native `<dialog>` with `showModal()`: the browser provides the
  * focus trap, the inert background and Esc. Focus returns to the opener.
@@ -39,6 +63,9 @@ export function Modal({
   openRef.current = open;
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const scrollLock = useScrollLock();
+  const scrollLockRef = useRef(scrollLock);
+  scrollLockRef.current = scrollLock;
 
   useEffect(() => {
     const dialog = ref.current;
@@ -49,9 +76,11 @@ export function Modal({
         returnFocus.current = document.activeElement as HTMLElement | null;
         dialog.showModal();
       }
+      scrollLockRef.current.lock();
       return;
     }
     if (dialog.open) dialog.close();
+    scrollLockRef.current.unlock();
     restoreFocus(returnFocus);
   }, [open]);
 
@@ -62,6 +91,7 @@ export function Modal({
       // Not a user close: do not report it through onClose.
       openRef.current = false;
       if (dialog?.open) dialog.close();
+      scrollLockRef.current.unlock();
       restoreFocus(returnFocus);
     };
   }, []);
@@ -81,6 +111,7 @@ export function Modal({
       onClose={() => {
         // Chromium closes without a cancelable `cancel` on a repeated Esc.
         if (openRef.current) {
+          scrollLockRef.current.unlock();
           restoreFocus(returnFocus);
           onCloseRef.current();
         }

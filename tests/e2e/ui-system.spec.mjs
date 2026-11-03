@@ -130,8 +130,10 @@ test("UI catalog proves all base states with real identity", async ({
       ),
     );
     await expectNoSeriousAccessibilityViolations(page, "Bestätigungsdialog");
+    await expect(page.locator("html")).toHaveCSS("overflow-y", "hidden");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
+    await expect(page.locator("html")).not.toHaveCSS("overflow-y", "hidden");
     await expect(
       page.getByRole("button", { name: "Bestätigung öffnen" }),
     ).toBeFocused();
