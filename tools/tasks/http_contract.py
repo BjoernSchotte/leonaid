@@ -20,6 +20,9 @@ from leonaid.entrypoints.fastapi.platform import create_app
 
 
 async def main() -> None:
+    # The schema gate runs without the recovery volume; the survey erasure
+    # archive is not part of this proof, so the app must not publish to it.
+    os.environ.pop("LEONAID_SURVEY_ERASURE_ARCHIVE_DIR", None)
     settings = Settings.model_validate(
         {
             "LEONAID_ENV": "test",
