@@ -128,13 +128,11 @@
 }
 
 /* ---------- Einladungen (the prototype's .page padding) ---------- */
+/* Aligned with the subnav above (the list's own inset). */
 .members-ledger,
 .members-state {
   max-width: 1320px;
-  padding: var(--s-6) var(--s-8) var(--s-12);
-}
-.members-ledger-page .members-ledger {
-  padding-top: var(--s-4);
+  padding: var(--s-4) var(--s-6) var(--s-12);
 }
 .members-ledger .page-header,
 .members-state .page-header {
