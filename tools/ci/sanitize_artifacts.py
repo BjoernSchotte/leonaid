@@ -50,16 +50,27 @@ EMAIL_PATTERN = re.compile(
     rb"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
     rb"(?![A-Za-z0-9.-])"
 )
+# German phone numbers: "+49 89 1234567", "0049 (89) ...", "+49 (0)171 ...",
+# "0171 1234567", "089/123 456-78", "(089) 123 45 67". The national
+# significant number (area code plus subscriber, without the trunk 0) has
+# 8 to 13 digits.
+#
+# Machine identifiers often contain digit groups that look like such numbers.
+# The pattern rejects them by structure, not by an allowlist of formats:
+# - a candidate never starts or ends inside a word, so hex IDs, digests and
+#   longer digit runs (over 13 digits) never match;
+# - it never continues a hyphen-joined hex token: "566bbb6b-0855-4240-8756"
+#   (a full or truncated UUID, W3C trace IDs) or "20261103-012345678";
+# - it never starts after "<digit>." (timestamp fractions, versions);
+# - the trunk 0 is followed directly by the area code or by "(0)", so decimal
+#   fractions such as "0.12345678" are not numbers.
+# A standalone digit group such as "0855-4240-8756" is still a phone number:
+# when the context does not prove an identifier, the artifact is blocked.
 PHONE_PATTERN = re.compile(
-    rb"(?<![\w.])(?:\+49|0049|0)[ \t()/.-]*[1-9][0-9]{1,4}"
-    rb"(?:[ \t()/.-]*[0-9]){6,12}(?!\w)"
-)
-# Random UUIDs (request IDs, primary keys) are hex groups joined by hyphens. A
-# run of decimal groups such as "566bbb6b-0855-4240-8756-..." would otherwise
-# look like a German phone number. The phone check skips complete UUIDs only.
-UUID_PATTERN = re.compile(
-    rb"(?<![0-9A-Za-z-])[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}"
-    rb"(?![0-9A-Za-z-])"
+    rb"(?<!\w)(?<![0-9]\.)(?<![0-9A-Fa-f]-)"
+    rb"(?:(?:\+|00)49[ \t()/.-]*(?:0[ \t()/.-]*)?|0(?:\)[ \t]*)?)"
+    rb"[1-9][0-9](?:[ \t()/.-]*[0-9]){6,11}"
+    rb"(?!\w)(?!-[0-9A-Fa-f])(?!\.[0-9])"
 )
 # BuildKit's 12-character hexadecimal layer ID can happen to be all digits.
 # Redact only that token in the exact progress format, preserving the rest of
@@ -137,7 +148,7 @@ def reject_private_signatures(data: bytes, label: str) -> None:
             raise SanitizationFailure(
                 f"personal email signature in public artifact: {label}"
             )
-    if PHONE_PATTERN.search(UUID_PATTERN.sub(b"[UUID]", data)):
+    if PHONE_PATTERN.search(data):
         raise SanitizationFailure(f"phone signature in public artifact: {label}")
     if PRIVATE_CANARY_PATTERN.search(data):
         raise SanitizationFailure(
