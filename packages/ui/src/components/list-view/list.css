@@ -321,7 +321,8 @@
 .bulkbar .btn-ghost {
   color: inherit;
 }
-.bulkbar .kbd {
+.bulkbar .kbd,
+.bulkbar .kbd-group.is-subtle .kbd {
   color: inherit;
   border-color: oklch(from var(--text-inverse) l c h / 0.35);
 }
