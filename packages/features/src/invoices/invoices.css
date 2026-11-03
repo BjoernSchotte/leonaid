@@ -324,3 +324,21 @@
 .wrap-email {
   overflow-wrap: normal;
 }
+
+/* The pane body's own grid gap, kept through the wrapper. */
+.inv-detail {
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.inv-detail a:not(.btn),
+.inv-page .table a,
+.inv-empty-hint a {
+  color: var(--accent-ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.inv-detail a:not(.btn):hover,
+.inv-page .table a:hover {
+  text-decoration-thickness: 2px;
+}

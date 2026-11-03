@@ -116,8 +116,8 @@ export function InvoiceDetail({
         <div className="inv-stamp-row" data-testid="invoice-stamp">
           <span className="stamp">Storniert</span>
           <span className="small muted">
-            Grund: {cancellation.reason}. Die Rechnung bleibt unverändert
-            erhalten.
+            Grund: {cancellation.reason.replace(/[.!?]\s*$/, "")}. Die Rechnung
+            bleibt unverändert erhalten.
           </span>
         </div>
       ) : payment ? (
