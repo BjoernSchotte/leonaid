@@ -123,7 +123,7 @@ for (const [index, [name, engine]] of Object.entries({
         ) && response.request().method() === "POST",
     );
     const filename = `new-${name}-campaign.png`;
-    await dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
       name: filename,
       mimeType: "image/png",
       buffer: await fixture.body(),
@@ -143,14 +143,14 @@ for (const [index, [name, engine]] of Object.entries({
     await expect(
       dialog.getByText(`Selected: ${filename}`, { exact: true }),
     ).toBeVisible();
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await page
       .locator("#field-social_image")
       .getByRole("button", { name: "Select image", exact: true })
       .click();
     await dialog.getByRole("button", { name: filename, exact: true }).click();
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await page
       .getByText("Partner logo", { exact: true })
@@ -158,7 +158,7 @@ for (const [index, [name, engine]] of Object.entries({
       .getByRole("button", { name: "Select image", exact: true })
       .click();
     await dialog.getByRole("button", { name: filename, exact: true }).click();
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     // Uploading for a Core action must not silently create its CMS record.
     await page
@@ -166,7 +166,7 @@ for (const [index, [name, engine]] of Object.entries({
       .getByRole("button", { name: "Select image", exact: true })
       .click();
     await dialog.getByRole("button", { name: filename, exact: true }).click();
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     assert.deepEqual(await json(root), before);
     const createdResponse = page.waitForResponse(

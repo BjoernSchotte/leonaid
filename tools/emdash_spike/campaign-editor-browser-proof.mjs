@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
+import { confirmPublish, unpublishButton } from "./editor-actions.mjs";
 import {
   browserLogin,
   browserFreshLogin,
@@ -173,18 +174,22 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname === `${apiPath}/publish` &&
           response.request().method() === "POST",
       );
-      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await confirmPublish(page);
       assert.equal((await published).status(), 200);
       // Wait for the editor's publish/refetch transition, not merely receipt
       // of the HTTP response, before starting the next user edit.
-      await expect(
-        page.getByRole("button", { name: /^Unpublish / }),
-      ).toBeVisible();
+      await expect(unpublishButton(page)).toBeVisible();
       await expect(title).toHaveValue(editedTitle);
       const live = await json(apiPath);
       assert.equal(live.item.data.title, editedTitle);
       assert.equal(live.item.draftRevisionId, null);
-      assert.equal(live.item.liveRevisionId, draft.item.draftRevisionId);
+      // EmDash 1.x saves the editor state before it publishes, so the live
+      // revision is that attributed save of the autosaved draft content.
+      const liveRevision = await json(
+        `/_emdash/api/revisions/${live.item.liveRevisionId}`,
+      );
+      assert.equal(liveRevision.item.data.title, editedTitle);
+      assert.equal(liveRevision.item.authorId, identity.id);
       // A later edit remains private, including after the next page load.
       const followup = page.waitForResponse(
         (response) =>

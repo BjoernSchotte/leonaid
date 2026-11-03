@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
+import { confirmPublish } from "./editor-actions.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import { observeMediaUpload } from "./media-upload-observer.mjs";
 
@@ -99,7 +100,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(r.url()).pathname === `${api}/publish` &&
           r.request().method() === "POST",
       );
-      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await confirmPublish(page);
       assert.equal((await response).status(), 200);
       assert.equal((await json(api)).item.draftRevisionId, null);
     };
@@ -135,7 +136,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     try {
       const [confirmation] = await Promise.all([
         confirmed,
-        dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+        dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
           name: `imported-demo-${name}.png`,
           mimeType: "image/png",
           buffer: replacementImage,
@@ -149,7 +150,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       (r) =>
         new URL(r.url()).pathname === api && r.request().method() === "PUT",
     );
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     assert.equal((await inserted).status(), 200);
     const newHero = (await json(api)).item.data.hero_image.id;
     assert.notEqual(newHero, previousHero);

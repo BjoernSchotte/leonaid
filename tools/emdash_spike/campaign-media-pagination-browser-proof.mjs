@@ -47,7 +47,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await page.goto(`${origin}${editor}/${entry.id}`);
     await page
       .locator("#field-hero_image")
-      .getByRole("button", { name: "Change", exact: true })
+      .getByRole("button", { name: "Replace", exact: true })
       .click();
     const dialog = page.getByRole("dialog");
     const search = dialog.getByRole("searchbox", { name: "Search media" });
@@ -73,7 +73,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       expectedIds.slice(0, 100),
     );
     assert.ok(firstData.nextCursor);
-    const list = dialog.getByRole("listbox", { name: "Available media" });
+    const list = dialog.getByRole("region", { name: "Media results" }).getByRole("button");
     await expect(list.getByRole("button")).toHaveCount(100);
     const secondResponse = responseFor("page-proof-", firstData.nextCursor);
     await dialog
@@ -120,7 +120,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         new URL(response.url()).pathname === path &&
         response.request().method() === "PUT",
     );
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     assert.equal((await saved).status(), 200);
     await expect(
       page.getByRole("button", { name: "Saved", exact: true }),

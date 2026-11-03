@@ -10,6 +10,7 @@ import contentLogPatch from "./emdash-content-log-patch.mjs";
 import postgresPatch, { cmsPoolConfig } from "./emdash-postgres-patch.mjs";
 import { emdashAdminScriptHashes } from "./emdash-admin-csp.mjs";
 import zodJitlessPatch from "./zod-jitless-patch.mjs";
+import { hiddenAdminNavItems } from "./src/auth/campaign-manifest.mjs";
 import runtimeAllowedDomains, {
   runtimeDomainPattern,
 } from "../public/runtime-allowed-domains.mjs";
@@ -67,6 +68,7 @@ export default defineConfig({
         siteName: "LeonAid",
         footerLabel: "LeonAid",
         favicon: "/favicon.svg",
+        hiddenNavItems: [...hiddenAdminNavItems],
       },
       // No daily request to registry.npmjs.org from the CMS server. LeonAid
       // pins EmDash in bun.lock and upgrades it through a reviewed release.

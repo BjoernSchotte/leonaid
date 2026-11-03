@@ -302,14 +302,8 @@ export async function listCampaignMedia(
   await requireCampaignMedia(database);
   const { limit = 30, cursor, page: pageNumber, q = "", mimeType } = parameters;
   const rasterTypes = ["image/png", "image/jpeg", "image/webp"];
-  // The EmDash 1.x picker asks for the "image/" family. Campaign media only
-  // ever holds the three raster types, so the family means exactly those.
   const selectedTypes =
-    mimeType === "image/"
-      ? rasterTypes
-      : typeof mimeType === "string"
-        ? mimeType.split(",")
-        : undefined;
+    typeof mimeType === "string" ? mimeType.split(",") : undefined;
   if (
     Object.keys(parameters).some(
       (key) => !["limit", "cursor", "page", "q", "mimeType"].includes(key),

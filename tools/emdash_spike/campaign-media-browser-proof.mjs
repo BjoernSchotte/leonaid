@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
+import { confirmPublish, unpublishButton } from "./editor-actions.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const origin = "https://proxy:8443";
@@ -85,7 +86,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.ok(items.every((item) => item.id !== state.foreign.id));
     const dialog = page.getByRole("dialog");
     await expect(
-      dialog.getByText("Insert from URL", { exact: true }),
+      dialog.getByText("From URL", { exact: true }),
     ).toHaveCount(0);
     await expect(
       dialog.locator('img[src*="/_emdash/api/media/file/"]').first(),
@@ -126,16 +127,16 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         dialog.getByRole("heading", { name: "No media found", exact: true }),
       ).toBeVisible();
       await expect(
-        dialog.getByRole("listbox", { name: "Available media" }),
+        dialog.getByRole("region", { name: "Media results" }).getByRole("button"),
       ).toHaveCount(0);
       await expect(
         dialog.locator('img[src*="/_emdash/api/media/file/"]'),
       ).toHaveCount(0);
       await expect(
-        dialog.getByRole("button", { name: "Insert", exact: true }),
+        dialog.getByRole("button", { name: "Select", exact: true }),
       ).toBeDisabled();
       await expect(
-        dialog.getByRole("button", { name: "Load More", exact: true }),
+        dialog.getByRole("navigation", { name: "Media pagination" }),
       ).toHaveCount(0);
       assert.deepEqual((await json(apiPath)).item, beforeSearch);
     }
@@ -161,15 +162,17 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname,
         ) && response.request().method() === "PUT",
     );
-    await dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
       name: `invalid-${name}.png`,
       mimeType: "image/png",
       buffer: Buffer.from("not a PNG image"),
     });
     assert.equal((await rejectedUpload).status(), 400);
-    await expect(dialog.getByText(/^Upload failed:/)).toBeVisible();
     await expect(
-      dialog.getByRole("button", { name: "Insert", exact: true }),
+      dialog.getByText("Upload failed", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Select", exact: true }),
     ).toBeDisabled();
     assert.deepEqual((await json(apiPath)).item, beforeFailure);
     assert.deepEqual(
@@ -178,6 +181,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     // Recover in the same open native dialog, without resetting application
     // state or substituting a successful response for the rejected upload.
+    // EmDash 1.x keeps the failed upload in the list until it is removed.
+    await dialog
+      .getByRole("button", { name: `Remove invalid-${name}.png`, exact: true })
+      .click();
+    await expect(dialog.getByText("Upload failed", { exact: true })).toHaveCount(
+      0,
+    );
     const filename = `native-${name}-campaign.png`;
     const confirmed = page.waitForResponse(
       (response) =>
@@ -185,7 +195,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname,
         ) && response.request().method() === "POST",
     );
-    await dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+    await dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
       name: filename,
       mimeType: "image/png",
       buffer: await bytes.body(),
@@ -194,9 +204,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.equal(confirmation.status(), 200);
     const uploaded = (await confirmation.json()).data.item;
     assert.ok(uploaded.storageKey.startsWith(`campaigns/${action}/`));
-    await expect(dialog.getByText(/^Upload failed:/)).toHaveCount(0);
+    await expect(dialog.getByText("Upload failed", { exact: true })).toHaveCount(0);
     const saved = nativeSave();
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     assert.equal((await saved).status(), 200);
     await expect(dialog).toHaveCount(0);
     await page.reload();
@@ -215,7 +225,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       searchTerm = targetFilename,
     ) => {
       const change = widget.getByRole("button", {
-        name: "Change",
+        name: "Replace",
         exact: true,
       });
       if (await change.count()) {
@@ -258,13 +268,14 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.ok(searchItems.every((item) => item.filename === targetFilename));
       await picker
         .getByRole("button", { name: targetFilename, exact: true })
+        .first()
         .click();
       const accepted = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === targetPath &&
           response.request().method() === "PUT",
       );
-      await picker.getByRole("button", { name: "Insert", exact: true }).click();
+      await picker.getByRole("button", { name: "Select", exact: true }).click();
       assert.equal((await accepted).status(), 200);
       await expect(picker).toHaveCount(0);
       await expect(
@@ -307,11 +318,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         new URL(response.url()).pathname === `${apiPath}/publish` &&
         response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await confirmPublish(page);
     assert.equal((await published).status(), 200);
-    await expect(
-      page.getByRole("button", { name: /^Unpublish / }),
-    ).toBeVisible();
+    await expect(unpublishButton(page)).toBeVisible();
     const live = (await json(apiPath)).item;
     assert.equal(live.status, "published");
     assert.equal(live.draftRevisionId, null);
@@ -360,7 +369,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     await page
       .locator("#field-hero_image")
-      .getByRole("button", { name: "Change", exact: true })
+      .getByRole("button", { name: "Replace", exact: true })
       .click();
     assert.equal((await changedList).status(), 200);
     await expect(
@@ -403,12 +412,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     await page
       .locator("#field-hero_image")
-      .getByRole("button", { name: "Change", exact: true })
+      .getByRole("button", { name: "Replace", exact: true })
       .click();
     await expect(
       page
         .getByRole("dialog")
-        .getByRole("button", { name: filename, exact: true }),
+        .getByRole("button", { name: filename, exact: true })
+        .first(),
     ).toBeVisible();
     await expect(
       page

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
+import { confirmPublish, unpublishButton } from "./editor-actions.mjs";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import { observeMediaUpload } from "./media-upload-observer.mjs";
 import { normalizeCampaignImage } from "../../apps/campaign-site/src/auth/campaign-image.mjs";
@@ -120,7 +121,7 @@ if (mode === "--changed") {
     try {
       const [confirmation] = await Promise.all([
         confirmed,
-        dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+        dialog.getByLabel("Choose files to upload", { exact: true }).setInputFiles({
           name: "post-recovery-point.webp",
           mimeType: "image/webp",
           buffer: replacement,
@@ -135,7 +136,7 @@ if (mode === "--changed") {
         new URL(response.url()).pathname === api &&
         response.request().method() === "PUT",
     );
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Select", exact: true }).click();
     assert.equal((await inserted).status(), 200);
     witness.newHero = (await json(api)).item.data.hero_image.id;
     assert.notEqual(witness.newHero, original.data.hero_image.id);
@@ -147,14 +148,12 @@ if (mode === "--changed") {
         new URL(response.url()).pathname === `${api}/publish` &&
         response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await confirmPublish(page);
     assert.equal((await published).status(), 200);
     // The POST finishes before the native editor refetches its content and
     // resets form state. Wait for the actual published UI before editing the
     // next draft; do not substitute a delay or reload for this transition.
-    await expect(
-      page.getByRole("button", { name: /^Unpublish / }),
-    ).toBeVisible();
+    await expect(unpublishButton(page)).toBeVisible();
     await expect(page.locator("#field-story_title")).toHaveValue(newTitle);
     assert.equal((await json(api)).item.draftRevisionId, null);
     const changed = await publicHtml();

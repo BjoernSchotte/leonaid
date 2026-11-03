@@ -32,7 +32,7 @@ export function patchCampaignMediaEditor(source) {
   // external providers and no URL source. The picker keeps native paging.
   replace(
     pickerHeader,
-    `${pickerHeader}\n\tconst campaign = React$1.useContext(LeonAidMediaCampaign);\n\tlocalOnly = true;\n\thideUrlInput = true;`,
+    `${pickerHeader}\n\tconst campaign = React$1.useContext(LeonAidMediaCampaign);\n\tlocalOnly = true;\n\thideUrlInput = true;\n\tif (campaign && mimeTypeFilters === void 0) mimeTypeFilters = ["image/png", "image/jpeg", "image/webp"];`,
   );
   replace(
     '\tconst localQueryKey = React$1.useMemo(() => [\n\t\t"media",\n\t\t"picker",',
