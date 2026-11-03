@@ -219,8 +219,13 @@ export function TaskQuickAdd({
         create.mutate(value);
       }}
       onBlur={(event) => {
+        // Close when an empty form loses focus to another control, as in
+        // the prototype. Focus moved by the page (a landmark, a heading with
+        // tabindex -1) or a click on empty space keeps it open.
         const next = event.relatedTarget;
-        if (next instanceof Node && form.current?.contains(next)) return;
+        if (!(next instanceof HTMLElement)) return;
+        if (form.current?.contains(next)) return;
+        if (next.getAttribute("tabindex") === "-1") return;
         if (!title.trim() && !create.isPending) close();
       }}
       onKeyDown={(event) => {
