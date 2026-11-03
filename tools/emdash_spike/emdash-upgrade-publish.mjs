@@ -34,6 +34,7 @@ function call(path, method = "GET") {
           const body = Buffer.concat(chunks).toString();
           resolve({
             status: response.statusCode,
+            text: body,
             json: response.headers["content-type"]?.includes("application/json")
               ? JSON.parse(body)
               : null,
@@ -47,19 +48,32 @@ function call(path, method = "GET") {
   });
 }
 
+const publicOnly = process.argv.includes("--public-only");
 const list = await call(root);
 assert.equal(list.status, 200);
 const items = list.json.data.items;
 assert.equal(items.length, 1, "exactly the imported campaign page");
 const [entry] = items;
-assert.ok(entry.draftRevisionId || entry.status !== "published");
-const published = await call(`${root}/${entry.id}/publish`, "POST");
-assert.equal(published.status, 200);
+if (!publicOnly) {
+  assert.ok(entry.draftRevisionId || entry.status !== "published");
+  const published = await call(`${root}/${entry.id}/publish`, "POST");
+  assert.equal(published.status, 200);
+}
 const after = await call(`${root}/${entry.id}`);
 assert.equal(after.status, 200);
 assert.equal(after.json.data.item.status, "published");
 assert.equal(after.json.data.item.draftRevisionId, null);
 assert.ok(after.json.data.item.liveRevisionId);
+// The public campaign page renders the live revision and its imported media.
+const page = await call("/campaigns/krapfentaxi-2026/");
+assert.equal(page.status, 200);
+const html = page.text;
+const hero = after.json.data.item.data.hero_image?.id;
+assert.ok(hero && html.includes(`/campaigns/krapfentaxi-2026/media/${hero}`));
+const image = await call(`/campaigns/krapfentaxi-2026/media/${hero}`);
+assert.equal(image.status, 200);
 console.log(
-  "emdash-upgrade: legacy release published the imported campaign through its HTTP API",
+  publicOnly
+    ? "emdash-upgrade: upgraded release serves the published campaign page and its media"
+    : "emdash-upgrade: legacy release published the imported campaign; public page and media served",
 );

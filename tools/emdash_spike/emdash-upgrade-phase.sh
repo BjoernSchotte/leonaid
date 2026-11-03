@@ -41,7 +41,6 @@ compose up --no-deps --build --detach --wait public mailpit worker
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/emdash-upgrade-sessions.json
 compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
   node tools/emdash_spike/emdash-upgrade-publish.mjs
-fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
 snapshot capture legacy
 
 # Close CMS traffic with the legacy operator, then replace the CMS container
@@ -74,7 +73,10 @@ snapshot compare-unchanged upgraded
 compose run --rm --no-deps --entrypoint rmdir campaign-site \
   /app/bootstrap-state/cms-maintenance
 compose up --no-deps --detach --wait campaign-site
-fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
+compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+  node tools/emdash_spike/emdash-upgrade-publish.mjs --public-only
 compose run --rm --no-deps admin-browser \
   node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
+# Core aliases and redirects to the page published in the upgraded CMS.
+fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
 echo "emdash-upgrade: real Krapfentaxi content imported with EmDash 0.36.0, upgraded in place to the pinned release under closed traffic, content/media/bindings kept, edited and published in three browsers; Core not restarted"
