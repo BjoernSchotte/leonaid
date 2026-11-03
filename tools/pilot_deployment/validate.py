@@ -292,6 +292,12 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
 
     for service_name in sorted(HARDENED_SERVICES):
         validate_hardened_runtime(service_name, services[service_name])
+    # Caddy as PID 1 never reaps orphaned exec children (healthcheck helpers);
+    # their zombies exhaust pids_limit and abort the Go runtime.
+    if services["proxy"].get("init") is not True:
+        raise DeploymentContractError(
+            "proxy runs without an init process that reaps zombies"
+        )
     for service_name in ("api", "worker"):
         if services[service_name].get("user") != CORE_RUNTIME_USER:
             raise DeploymentContractError(
