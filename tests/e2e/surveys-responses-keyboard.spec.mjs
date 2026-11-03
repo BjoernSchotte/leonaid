@@ -60,7 +60,9 @@ test("response list: j/k, Enter, Esc, x and a read-only status by keyboard", asy
     await page.keyboard.press("k");
     await expect(rows.first()).toBeFocused();
     await page.keyboard.press("Enter");
-    const pane = page.getByRole("complementary", { name: "Details: Antwort 1" });
+    const pane = page.getByRole("complementary", {
+      name: "Details: Antwort 1",
+    });
     await expect(pane).toBeVisible();
     await expect(pane.locator(".svr-answers")).toBeVisible();
     await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
