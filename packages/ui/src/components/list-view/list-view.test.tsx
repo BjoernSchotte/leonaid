@@ -24,7 +24,12 @@ import { installDialogPolyfill } from "../../test-utils/dialog-polyfill";
 import { ToastProvider } from "../toast";
 import { ListView } from "./list-view";
 import { STORAGE_PREFIX, type ListViewDefinition } from "./saved-views";
-import type { ListCommand, ListProperty, ListSort } from "./types";
+import type {
+  ListCommand,
+  ListEditOutcome,
+  ListProperty,
+  ListSort,
+} from "./types";
 
 class TestResizeObserver {
   observe() {}
@@ -119,9 +124,14 @@ function runCommand(label: string) {
 
 function Harness({
   apply,
+  editOptions,
   onOpen,
 }: {
-  apply?: (ids: readonly string[], value: string) => void | Promise<void>;
+  apply?: (
+    ids: readonly string[],
+    value: string,
+  ) => ListEditOutcome | Promise<ListEditOutcome>;
+  editOptions?: (rows: readonly Order[]) => { value: string; label: string }[];
   onOpen?: (row: Order | null) => void;
 }) {
   const [rows, setRows] = useState(fixture);
@@ -135,6 +145,7 @@ function Harness({
       chip: (row) => <span>{row.status}</span>,
       edit: {
         key: "s",
+        options: editOptions,
         apply:
           apply ??
           ((ids, value) =>
@@ -424,6 +435,7 @@ describe("keyboard", () => {
           getId={(row) => row.id}
           id="orders"
           properties={[]}
+          rowHref={(row) => `/admin/orders/${row.id}`}
           rows={fixture()}
           searchText={(row) => row.number}
           sorts={sorts}
@@ -450,6 +462,8 @@ describe("inline edits", () => {
     press("s");
     fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
     expect(apply).toHaveBeenLastCalledWith(["o1"], "Geliefert");
+    // The row stays busy until the edit has settled.
+    await act(async () => {});
 
     press("x");
     press("j");
@@ -619,5 +633,175 @@ describe("palette commands", () => {
       screen.getByRole("dialog", { name: "Filter Herkunft" }),
     ).toBeTruthy();
     vi.useRealTimers();
+  });
+});
+
+describe("review fixes", () => {
+  it("requires a way to open rows at the type level", () => {
+    const check = () => (
+      // @ts-expect-error renderDetail, onOpen or rowHref is required
+      <ListView<Order>
+        columns={{ primary: (row) => row.number }}
+        detailTitle={(row) => row.number}
+        emptyIcon={ShoppingBasket}
+        entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
+        getId={(row) => row.id}
+        id="orders"
+        properties={[]}
+        rows={[]}
+        searchText={(row) => row.number}
+        sorts={sorts}
+        title="Bestellungen"
+        views={views}
+      />
+    );
+    expect(typeof check).toBe("function");
+  });
+
+  it("closes the pane without adding a history entry", () => {
+    render(<Harness />);
+    fireEvent.click(rowLinks()[0]!);
+    const afterOpen = window.history.length;
+    press("Escape", document.body);
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(window.history.length).toBe(afterOpen);
+    expect(window.location.search).toBe("");
+  });
+
+  it("keeps row links stable while typing a search", () => {
+    render(<Harness />);
+    const before = rowLinks()[0]!.getAttribute("href");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "B-00" },
+    });
+    expect(rowLinks()[0]!.getAttribute("href")).toBe(before);
+    expect(before).toBe("/admin/orders?open=o1");
+  });
+
+  it("acts only on checked rows that are visible, not in collapsed groups", () => {
+    const apply = vi.fn();
+    setUrl("?group=status");
+    render(<Harness apply={apply} />);
+    press("j");
+    press("x"); // o1, Eingegangen
+    press("j");
+    press("j");
+    press("x"); // o2, Bestätigt (groups: Eingegangen o1 o3, Bestätigt o2)
+    expect(screen.getByText(/2 ausgewählt/)).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Bestätigt/, expanded: true }),
+    );
+    expect(screen.getByText("1 ausgewählt · 1 ausgeblendet")).toBeTruthy();
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Auswahl" })).getByRole(
+        "button",
+        { name: /Status/ },
+      ),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    expect(apply).toHaveBeenLastCalledWith(["o1"], "Geliefert");
+  });
+
+  it("a cancelled edit shows no toast", async () => {
+    render(<Harness apply={() => Promise.resolve("cancelled" as const)} />);
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    await act(async () => {});
+    expect(screen.queryByText(/Status: Geliefert/)).toBeNull();
+    expect(screen.queryByText(/nicht geändert/)).toBeNull();
+  });
+
+  it("offers only the options allowed for the edited rows", async () => {
+    render(
+      <Harness
+        editOptions={(rows) =>
+          rows.every((row) => row.status === "Eingegangen")
+            ? [{ value: "Bestätigt", label: "Bestätigt" }]
+            : []
+        }
+      />,
+    );
+    press("j"); // o1 Eingegangen
+    press("s");
+    expect(
+      within(screen.getByRole("dialog", { name: "Status ändern" }))
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual([expect.stringContaining("Bestätigt")]);
+    press("Escape", screen.getByRole("dialog", { name: "Status ändern" }));
+    press("j"); // o2 Bestätigt: no transition allowed
+    press("s");
+    expect(screen.queryByRole("dialog", { name: "Status ändern" })).toBeNull();
+    expect(
+      await screen.findByText("Status lässt sich hier nicht ändern."),
+    ).toBeTruthy();
+  });
+
+  it("marks rows busy and ignores a second edit while saving", async () => {
+    let finish: () => void = () => {};
+    const apply = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<Harness apply={apply} />);
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    const row = document.querySelector(".row.is-focused")!;
+    expect(row.getAttribute("aria-busy")).toBe("true");
+    press("s");
+    expect(screen.queryByRole("dialog", { name: "Status ändern" })).toBeNull();
+    expect(apply).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    expect(row.getAttribute("aria-busy")).toBeNull();
+  });
+
+  it("Esc after clicking a row checkbox clears the selection", () => {
+    render(<Harness />);
+    const box = screen.getByRole("checkbox", { name: /B-001/ });
+    act(() => box.focus());
+    fireEvent.click(box);
+    expect(screen.getByRole("region", { name: "Auswahl" })).toBeTruthy();
+    press("Escape", box);
+    expect(screen.queryByRole("region", { name: "Auswahl" })).toBeNull();
+  });
+
+  it("leaves Esc alone in fields outside the list", () => {
+    render(
+      <>
+        <input aria-label="Woanders" />
+        <Harness />
+      </>,
+    );
+    const field = screen.getByRole("textbox", { name: "Woanders" });
+    act(() => field.focus());
+    const event = press("Escape", field);
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("drops saved-view filters on properties that no longer exist", () => {
+    window.localStorage.setItem(
+      `${STORAGE_PREFIX}orders`,
+      JSON.stringify([
+        {
+          id: "c1",
+          label: "Alt",
+          filters: [{ prop: "removed", values: ["x"] }],
+          groupBy: "removed",
+          sort: "gone",
+        },
+      ]),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Alt" }));
+    expect(rowLinks()).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: "Zurücksetzen" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Alt", pressed: true }),
+    ).toBeTruthy();
   });
 });

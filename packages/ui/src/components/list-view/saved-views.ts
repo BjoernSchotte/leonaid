@@ -54,7 +54,8 @@ export const STORAGE_PREFIX = "leonaid.views.";
 /** What the list knows about its properties and sorts, for validation. */
 export interface ListSchema {
   readonly views: readonly ListViewDefinition[];
-  readonly filterable: ReadonlySet<string>;
+  /** Filterable property id → its option values. */
+  readonly filterable: ReadonlyMap<string, ReadonlySet<string>>;
   readonly groupable: ReadonlySet<string>;
   readonly sorts: ReadonlySet<string>;
 }
@@ -112,15 +113,21 @@ export function parseListState(search: string, schema: ListSchema): ListState {
     schema.views.find((item) => item.id === params.get(URL_KEYS.view)) ??
     fallback;
 
+  // Only known properties and option values count. A link with nothing but
+  // stale filters keeps the view's own filters.
   const filters: ListFilter[] = [];
   let hasFilterParams = params.get(URL_KEYS.filtersCleared) === CLEARED;
   for (const key of new Set(params.keys())) {
     if (!key.startsWith(URL_KEYS.filterPrefix)) continue;
-    hasFilterParams = true;
     const prop = key.slice(URL_KEYS.filterPrefix.length);
-    if (!schema.filterable.has(prop)) continue;
-    const values = [...new Set(params.getAll(key).filter(Boolean))];
-    if (values.length > 0) filters.push({ prop, values });
+    const allowed = schema.filterable.get(prop);
+    if (!allowed) continue;
+    const values = [
+      ...new Set(params.getAll(key).filter((value) => allowed.has(value))),
+    ];
+    if (values.length === 0) continue;
+    hasFilterParams = true;
+    filters.push({ prop, values });
   }
 
   const groupParam = params.get(URL_KEYS.group);
@@ -159,6 +166,16 @@ function isListKey(key: string): boolean {
   );
 }
 
+/** The query string without the list's own parameters ("" or "?…"). */
+export function withoutListParams(search: string): string {
+  const params = new URLSearchParams(search);
+  for (const key of [...new Set(params.keys())]) {
+    if (isListKey(key)) params.delete(key);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
+
 /**
  * Writes the state into a query string, keeping parameters that are not the
  * list's. Only what differs from the view is written, so the default list
@@ -195,6 +212,34 @@ export function serializeListState(
   if (state.openId) params.set(URL_KEYS.open, state.openId);
   const text = params.toString();
   return text ? `?${text}` : "";
+}
+
+/**
+ * A saved view checked against the list's current properties and sorts:
+ * unknown filters, option values, grouping and sort are dropped, so an old
+ * view never carries an invisible filter.
+ */
+export function sanitizeView(
+  view: ListViewDefinition,
+  schema: Omit<ListSchema, "views">,
+  fallbackSort: string,
+): ListViewDefinition {
+  const filters: ListFilter[] = [];
+  for (const filter of view.filters) {
+    const allowed = schema.filterable.get(filter.prop);
+    if (!allowed) continue;
+    const values = filter.values.filter((value) => allowed.has(value));
+    if (values.length > 0) filters.push({ prop: filter.prop, values });
+  }
+  return {
+    ...view,
+    filters,
+    groupBy:
+      view.groupBy !== null && schema.groupable.has(view.groupBy)
+        ? view.groupBy
+        : null,
+    sort: schema.sorts.has(view.sort) ? view.sort : fallbackSort,
+  };
 }
 
 function isFilter(value: unknown): value is ListFilter {

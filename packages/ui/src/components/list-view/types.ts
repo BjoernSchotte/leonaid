@@ -19,24 +19,46 @@ export interface ListProperty<T> {
   readonly options: readonly OptionMenuOption<string>[];
   /** Offered in the filter menu (default true). */
   readonly filterable?: boolean;
-  /** Offered in "Gruppieren nach" (default true). */
+  /**
+   * Offered in "Gruppieren nach" (default true). A multi-valued property
+   * groups each row under its first value only; consider `false`.
+   */
   readonly groupable?: boolean;
   /**
-   * Inline edit: `key` opens the option menu on the focused row (and is
-   * listed in the shortcut help), a chip click does the same. `apply` gets
-   * every checked row when the edited row is checked, otherwise just that
-   * row. A rejected promise shows an error toast. Leave `edit` out for
-   * people who may not change the property; the server decides anyway.
+   * Inline edit; leave it out for a read-only property (e.g. an invoice
+   * status that only changes through explicit commands in the pane or the
+   * bulk bar). People who may not change it get no `edit` either; the
+   * server decides anyway.
    */
-  readonly edit?: {
-    readonly key: string;
-    readonly apply: (
-      ids: readonly string[],
-      value: string,
-    ) => void | Promise<void>;
-  };
+  readonly edit?: ListPropertyEdit<T>;
   /** Chip in the row; leave it out to hide the property in rows. */
   readonly chip?: (row: T) => ReactNode;
+}
+
+/** What `apply` reports: "cancelled" means nothing changed and no toast. */
+export type ListEditOutcome = void | "cancelled";
+
+export interface ListPropertyEdit<T> {
+  /** Opens the option menu on the focused row; listed in the help. */
+  readonly key: string;
+  /**
+   * The values that may be set on these rows (allowed transitions, rights).
+   * Default: every option. An empty result shows a hint instead of a menu.
+   */
+  readonly options?: (
+    rows: readonly T[],
+  ) => readonly OptionMenuOption<string>[];
+  /**
+   * Applies the value to every checked row when the edited row is checked,
+   * otherwise to that row. It may first ask for more (a note, a fresh
+   * sign-in) and resolve "cancelled" when the person backs out: no toast.
+   * Resolving otherwise shows a success toast, rejecting an error toast.
+   * The rows are busy (`aria-busy`, no second edit) until it settles.
+   */
+  readonly apply: (
+    ids: readonly string[],
+    value: string,
+  ) => ListEditOutcome | Promise<ListEditOutcome>;
 }
 
 export interface ListSort<T> {
@@ -59,7 +81,7 @@ export interface ListColumns<T> {
 
 export type ListStatus = "ready" | "loading" | "error";
 
-export interface ListViewProps<T> {
+export interface ListViewBaseProps<T> {
   /** Stable list id: localStorage key `leonaid.views.<id>` and DOM ids. */
   readonly id: string;
   /** Page title (h1) and search placeholder ("<title> durchsuchen"). */
@@ -78,18 +100,6 @@ export interface ListViewProps<T> {
   readonly searchText: (row: T) => string;
   /** Pane heading and accessible names ("<title> auswählen"). */
   readonly detailTitle: (row: T) => string;
-  /**
-   * Pane body below the editable property rows. Without it, opening a row
-   * only calls `onOpen` (e.g. to navigate to a separate page).
-   */
-  readonly renderDetail?: (row: T) => ReactNode;
-  /** Called when a row opens (row) or the pane closes (null). */
-  readonly onOpen?: (row: T | null) => void;
-  /**
-   * The row link's href (open in new tab, copy link). Default: this page
-   * with `?open=<id>`.
-   */
-  readonly rowHref?: (row: T) => string;
   /** Extra buttons in the bulk bar; `clear` empties the selection. */
   readonly bulkActions?: (
     ids: readonly string[],
@@ -116,6 +126,35 @@ export interface ListViewProps<T> {
    */
   readonly useCommands?: (commands: readonly ListCommand[]) => void;
 }
+
+/**
+ * How a row opens. At least one is required, so a row link always leads
+ * somewhere:
+ * - `renderDetail`: the pane (desktop) or sheet (phone), `?open=<id>`;
+ * - `onOpen` alone: the page handles it (e.g. navigates);
+ * - `rowHref` alone: a plain link to the record's page.
+ */
+export type ListOpenProps<T> =
+  | {
+      /** Pane body below the editable property rows. */
+      readonly renderDetail: (row: T) => ReactNode;
+      /** Called when a row opens (row) or the pane closes (null). */
+      readonly onOpen?: (row: T | null) => void;
+      /** Link target for new tab / copy; default this page + `?open=<id>`. */
+      readonly rowHref?: (row: T) => string;
+    }
+  | {
+      readonly renderDetail?: undefined;
+      readonly onOpen: (row: T | null) => void;
+      readonly rowHref?: (row: T) => string;
+    }
+  | {
+      readonly renderDetail?: undefined;
+      readonly onOpen?: (row: T | null) => void;
+      readonly rowHref: (row: T) => string;
+    };
+
+export type ListViewProps<T> = ListViewBaseProps<T> & ListOpenProps<T>;
 
 /** A palette command; structurally the palette's `PaletteCommand`. */
 export interface ListCommand {

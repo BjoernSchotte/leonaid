@@ -5,6 +5,7 @@ import {
   isDirty,
   parseListState,
   readSavedViews,
+  sanitizeView,
   serializeListState,
   stateForView,
   STORAGE_PREFIX,
@@ -26,7 +27,10 @@ const views: ListViewDefinition[] = [
 
 const schema: ListSchema = {
   views,
-  filterable: new Set(["status", "source"]),
+  filterable: new Map([
+    ["status", new Set(["Eingegangen", "Prüfbereit", "Offen", "Überfällig"])],
+    ["source", new Set(["Akquise", "Öffentlich"])],
+  ]),
   groupable: new Set(["status"]),
   sorts: new Set(["new", "amount"]),
 };
@@ -85,6 +89,21 @@ describe("URL state", () => {
     expect(state.sort).toBe("new");
   });
 
+  it("keeps the view's filters when only unknown filters are in the URL", () => {
+    expect(parseListState("?f.removed=x", schema).filters).toEqual(
+      views[0]!.filters,
+    );
+    expect(parseListState("?f.status=bogus", schema).filters).toEqual(
+      views[0]!.filters,
+    );
+  });
+
+  it("drops option values that the property does not offer", () => {
+    expect(
+      parseListState("?f.status=Offen&f.status=bogus", schema).filters,
+    ).toEqual([{ prop: "status", values: ["Offen"] }]);
+  });
+
   it("drops the list's old parameters but keeps foreign ones", () => {
     const search = serializeListState(
       "?f.status=Offen&open=1&page=2",
@@ -106,6 +125,36 @@ describe("URL state", () => {
         views[0]!,
       ),
     ).toBe(false);
+  });
+});
+
+describe("sanitizeView", () => {
+  it("drops unknown filters, values, grouping and sort", () => {
+    expect(
+      sanitizeView(
+        {
+          id: "c1",
+          label: "Alt",
+          filters: [
+            { prop: "removed", values: ["x"] },
+            { prop: "status", values: ["Offen", "Alt"] },
+            { prop: "source", values: ["Weg"] },
+          ],
+          groupBy: "removed",
+          sort: "removed",
+          custom: true,
+        },
+        schema,
+        "new",
+      ),
+    ).toEqual({
+      id: "c1",
+      label: "Alt",
+      filters: [{ prop: "status", values: ["Offen"] }],
+      groupBy: null,
+      sort: "new",
+      custom: true,
+    });
   });
 });
 

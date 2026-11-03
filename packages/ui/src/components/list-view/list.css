@@ -392,6 +392,10 @@
 .row.is-checked {
   background: oklch(from var(--accent-soft) l c h / 1);
 }
+.row.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
 .row-check {
   flex: none;
   margin-inline-start: var(--s-2);

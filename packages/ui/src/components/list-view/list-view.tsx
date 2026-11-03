@@ -26,7 +26,7 @@ import {
 } from "react";
 
 import { useHotkeys } from "../../keyboard/use-hotkeys";
-import type { HotkeyBinding } from "../../keyboard/hotkeys";
+import { isTypingTarget, type HotkeyBinding } from "../../keyboard/hotkeys";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { EmptyState } from "../empty-state";
@@ -41,6 +41,8 @@ import { FilterBar } from "./filter-bar";
 import {
   isDirty,
   parseListState,
+  withoutListParams,
+  sanitizeView,
   readSavedViews,
   serializeListState,
   stateForView,
@@ -64,7 +66,13 @@ export const LIST_HOTKEY_GROUP = "Liste";
 type Menu =
   | { readonly kind: "filter-prop" }
   | { readonly kind: "filter-values"; readonly prop: string }
-  | { readonly kind: "edit"; readonly prop: string; readonly rowId: string }
+  | {
+      readonly kind: "edit";
+      readonly prop: string;
+      readonly rowId: string;
+      /** The rows the edit applies to, fixed when the menu opens. */
+      readonly ids: readonly string[];
+    }
   | { readonly kind: "save" };
 
 interface Group<T> {
@@ -89,16 +97,6 @@ function valuesOf<T>(prop: ListProperty<T>, row: T): readonly string[] {
 
 function optionLabel<T>(prop: ListProperty<T>, value: string): string {
   return prop.options.find((option) => option.value === value)?.label ?? value;
-}
-
-function isFieldElement(element: Element | null): element is HTMLElement {
-  return (
-    element instanceof HTMLElement &&
-    (element.tagName === "INPUT" ||
-      element.tagName === "TEXTAREA" ||
-      element.tagName === "SELECT" ||
-      element.isContentEditable)
-  );
 }
 
 /** Calls the latest function without changing identity (row memo). */
@@ -139,12 +137,15 @@ interface RowProps<T> {
   readonly focused: boolean;
   readonly open: boolean;
   readonly checked: boolean;
+  /** An edit on this row is being saved. */
+  readonly busy: boolean;
   readonly tabbable: boolean;
   readonly groupBy: string | null;
   readonly context: RowContext<T>;
 }
 
 function ListRowInner<T>({
+  busy,
   checked,
   context,
   focused,
@@ -158,11 +159,13 @@ function ListRowInner<T>({
   const { columns } = context;
   return (
     <li
+      aria-busy={busy || undefined}
       className={cn(
         "row",
         focused && "is-focused",
         open && "is-selected",
         checked && "is-checked",
+        busy && "is-busy",
       )}
     >
       <input
@@ -242,6 +245,15 @@ const ListRow = memo(ListRowInner) as typeof ListRowInner;
  * It only shows the rows it is given: authorization stays on the server.
  * Needs a HotkeyProvider above it; toasts appear when a ToastProvider is
  * there.
+ *
+ * Contract:
+ * - One list per page: the URL keys (view, f.*, group, sort, q, open) and
+ *   the list keys (j/k/x/…) are page-wide.
+ * - Keep `columns`, `properties`, `sorts`, `views`, `getId`, `detailTitle`
+ *   and `searchText` stable (module constants or useMemo/useCallback). They
+ *   are memo inputs: a new identity re-renders or re-derives every row.
+ * - Grouping by a property whose `get` returns several values files each
+ *   row under its first value; filtering matches any value.
  */
 export function ListView<T>(props: ListViewProps<T>) {
   const {
@@ -266,10 +278,6 @@ export function ListView<T>(props: ListViewProps<T>) {
       (saved) => !props.views.some((view) => view.id === saved.id),
     ),
   );
-  const allViews = useMemo(
-    () => [...props.views, ...savedViews],
-    [props.views, savedViews],
-  );
   const propertyById = useMemo(
     () => new Map(properties.map((prop) => [prop.id, prop])),
     [properties],
@@ -290,14 +298,32 @@ export function ListView<T>(props: ListViewProps<T>) {
     () => properties.filter((prop) => prop.chip),
     [properties],
   );
-  const schema = useMemo<ListSchema>(
+  const fieldSchema = useMemo<Omit<ListSchema, "views">>(
     () => ({
-      views: allViews,
-      filterable: new Set(filterable.map((prop) => prop.id)),
+      filterable: new Map(
+        filterable.map((prop) => [
+          prop.id,
+          new Set(prop.options.map((option) => option.value)),
+        ]),
+      ),
       groupable: new Set(groupable.map((prop) => prop.id)),
       sorts: new Set(sorts.map((sort) => sort.id)),
     }),
-    [allViews, filterable, groupable, sorts],
+    [filterable, groupable, sorts],
+  );
+  /* Saved views are checked against today's properties and sorts. */
+  const allViews = useMemo(
+    () => [
+      ...props.views,
+      ...savedViews.map((view) =>
+        sanitizeView(view, fieldSchema, sorts[0]?.id ?? view.sort),
+      ),
+    ],
+    [props.views, savedViews, fieldSchema, sorts],
+  );
+  const schema = useMemo<ListSchema>(
+    () => ({ ...fieldSchema, views: allViews }),
+    [fieldSchema, allViews],
   );
 
   /* ----- state (mirrored in the URL) ----- */
@@ -337,6 +363,10 @@ export function ListView<T>(props: ListViewProps<T>) {
   const [compact, setCompact] = useState(false);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
+  /* Synchronous twin of `busy` for the double-submit guard. */
+  const busyRef = useRef(new Set<string>());
+  const rootRef = useRef<HTMLDivElement>(null);
   const [focusedId, setFocusedId] = useState<string | null>(state.openId);
   const [menu, setMenu] = useState<Menu | null>(null);
 
@@ -405,26 +435,38 @@ export function ListView<T>(props: ListViewProps<T>) {
       });
   }, [visible, state.groupBy, propertyById]);
 
+  /* Collapsed state belongs to one grouping, not to equal option values. */
+  const collapseKey = (key: string) => `${state.groupBy ?? ""}:${key}`;
   const flatIds = useMemo(
     () =>
       groups
-        .filter((group) => !collapsed.has(group.key))
+        .filter(
+          (group) => !collapsed.has(`${state.groupBy ?? ""}:${group.key}`),
+        )
         .flatMap((group) => group.rows.map(getId)),
-    [groups, collapsed, getId],
+    [groups, collapsed, getId, state.groupBy],
   );
   const rowById = useMemo(
     () => new Map(rows.map((row) => [getId(row), row])),
     [rows, getId],
   );
-  const visibleIds = useMemo(
-    () => new Set(visible.map(getId)),
-    [visible, getId],
-  );
-  /* Checked rows that a filter hides are not acted on. */
+  /*
+   * Selection acts only on rows the person can see: checked rows hidden by
+   * a filter, the search or a collapsed group are left alone (and counted
+   * as hidden in the bulk bar).
+   */
   const checkedIds = useMemo(
-    () => [...checked].filter((id) => visibleIds.has(id)),
-    [checked, visibleIds],
+    () => flatIds.filter((id) => checked.has(id)),
+    [checked, flatIds],
   );
+  const hiddenChecked = checked.size - checkedIds.length;
+  /* Rows that are gone (deleted, no longer returned) drop out. */
+  useEffect(() => {
+    setChecked((current) => {
+      const next = [...current].filter((id) => rowById.has(id));
+      return next.length === current.size ? current : new Set(next);
+    });
+  }, [rowById]);
   const openRow =
     renderDetail && state.openId ? (rowById.get(state.openId) ?? null) : null;
 
@@ -459,7 +501,9 @@ export function ListView<T>(props: ListViewProps<T>) {
 
   const closePane = () => {
     const previous = state.openId;
-    update({ openId: null }, true);
+    // Replace, not push: opening pushed the entry, so Back after a close
+    // leaves the list instead of reopening the pane.
+    update({ openId: null });
     // Return focus to the row unless something else took it meanwhile.
     window.setTimeout(() => {
       const active = document.activeElement;
@@ -498,14 +542,44 @@ export function ListView<T>(props: ListViewProps<T>) {
   const clearChecked = useCallback(() => setChecked(new Set()), []);
 
   /* ----- edits ----- */
+  const editTargets = (rowId: string) =>
+    checkedIds.includes(rowId) ? checkedIds : [rowId];
+
+  const editOptions = (prop: ListProperty<T>, ids: readonly string[]) =>
+    prop.edit?.options
+      ? prop.edit.options(
+          ids.flatMap((id) => {
+            const row = rowById.get(id);
+            return row === undefined ? [] : [row];
+          }),
+        )
+      : prop.options;
+
   const openEdit = (
     propId: string,
     rowId: string | null,
     anchor?: HTMLElement,
   ) => {
+    const prop = propertyById.get(propId);
+    if (!prop?.edit) return;
     if (!rowId || !rowById.has(rowId)) {
       toast?.show({
         title: "Erst eine Zeile mit J/K auswählen.",
+        tone: "info",
+      });
+      return;
+    }
+    const ids = editTargets(rowId);
+    if (ids.some((id) => busy.has(id))) {
+      toast?.show({
+        title: "Die letzte Änderung wird noch gespeichert.",
+        tone: "info",
+      });
+      return;
+    }
+    if (editOptions(prop, ids).length === 0) {
+      toast?.show({
+        title: `${prop.label} lässt sich hier nicht ändern.`,
         tone: "info",
       });
       return;
@@ -522,19 +596,33 @@ export function ListView<T>(props: ListViewProps<T>) {
       rowRefs.current.get(rowId) ??
       paneProps.current.get(propId) ??
       null;
-    setMenu({ kind: "edit", prop: propId, rowId });
+    setMenu({ kind: "edit", prop: propId, rowId, ids });
   };
+
+  const setRowsBusy = (ids: readonly string[], on: boolean) =>
+    setBusy((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
 
   const applyEdit = async (
     prop: ListProperty<T>,
-    rowId: string,
+    ids: readonly string[],
     value: string,
   ) => {
-    const ids = checkedIds.includes(rowId) ? checkedIds : [rowId];
     setMenu(null);
+    // A second pick while the first is saving is ignored, not sent twice.
+    if (!prop.edit || ids.some((id) => busyRef.current.has(id))) return;
+    for (const id of ids) busyRef.current.add(id);
+    setRowsBusy(ids, true);
     const label = optionLabel(prop, value);
     try {
-      await prop.edit?.apply(ids, value);
+      const outcome = await prop.edit.apply(ids, value);
+      if (outcome === "cancelled") return;
       toast?.show({
         title:
           ids.length > 1
@@ -548,6 +636,9 @@ export function ListView<T>(props: ListViewProps<T>) {
         description: "Bitte versuchen Sie es erneut.",
         tone: "error",
       });
+    } finally {
+      for (const id of ids) busyRef.current.delete(id);
+      setRowsBusy(ids, false);
     }
   };
 
@@ -610,7 +701,15 @@ export function ListView<T>(props: ListViewProps<T>) {
   };
 
   /* ----- keyboard ----- */
-  const inField = () => isFieldElement(document.activeElement);
+  /* Esc leaves fields of this list only; other fields keep their Esc. */
+  const listField = (): HTMLElement | null => {
+    const active = document.activeElement;
+    return active instanceof HTMLElement &&
+      isTypingTarget(active) &&
+      rootRef.current?.contains(active)
+      ? active
+      : null;
+  };
   const bindings: HotkeyBinding[] = [
     {
       keys: "j",
@@ -669,7 +768,8 @@ export function ListView<T>(props: ListViewProps<T>) {
       keys: "escape",
       label: "Detail schließen / Auswahl aufheben",
       group: LIST_HOTKEY_GROUP,
-      when: () => inField() || openRow !== null || checkedIds.length > 0,
+      when: () =>
+        listField() !== null || openRow !== null || checkedIds.length > 0,
       run: () => {
         const active = document.activeElement;
         if (active === searchRef.current) {
@@ -677,9 +777,10 @@ export function ListView<T>(props: ListViewProps<T>) {
           focusRow(focusedId ?? flatIds[0] ?? null);
           return;
         }
-        // Esc in any other field only leaves the field.
-        if (isFieldElement(active)) {
-          active.blur();
+        // Esc in another field of the list only leaves the field.
+        const field = listField();
+        if (field) {
+          field.blur();
           return;
         }
         if (openRow) closePane();
@@ -760,14 +861,14 @@ export function ListView<T>(props: ListViewProps<T>) {
         run: () => update({ groupBy: prop.id }),
       }),
     ),
-    ...(visible.length > 0
+    ...(flatIds.length > 0
       ? [
           {
             id: `list:${props.id}:select-all`,
             label: `Alle ${entityLabel.many} auswählen`,
             group: title,
             icon: CheckSquare,
-            run: () => setChecked(new Set(visible.map(getId))),
+            run: () => setChecked(new Set(flatIds)),
           },
         ]
       : []),
@@ -845,15 +946,14 @@ export function ListView<T>(props: ListViewProps<T>) {
     ],
   );
 
-  /* The open param goes last, so one base serves every row. */
-  const hrefBase = useMemo(() => {
-    const search = serializeListState(
-      window.location.search,
-      { ...state, openId: null },
-      schema,
-    );
-    return `${window.location.pathname}${search}${search ? "&" : "?"}${URL_KEYS.open}=`;
-  }, [state, schema]);
+  /*
+   * The default href names the record only (page params plus ?open=<id>),
+   * not the search or filters: it stays the same string while typing, so
+   * the memoised rows do not re-render per keystroke. A plain click keeps
+   * the current filters because it is handled in place.
+   */
+  const pageSearch = withoutListParams(window.location.search);
+  const hrefBase = `${window.location.pathname}${pageSearch}${pageSearch ? "&" : "?"}${URL_KEYS.open}=`;
   const hrefFor = props.rowHref
     ? props.rowHref
     : (row: T) => `${hrefBase}${encodeURIComponent(getId(row))}`;
@@ -917,7 +1017,8 @@ export function ListView<T>(props: ListViewProps<T>) {
     );
   } else {
     body = groups.map((group) => {
-      const isCollapsed = collapsed.has(group.key);
+      const groupKey = collapseKey(group.key);
+      const isCollapsed = collapsed.has(groupKey);
       return (
         <section
           aria-label={group.label || title}
@@ -931,8 +1032,8 @@ export function ListView<T>(props: ListViewProps<T>) {
                 onClick={() =>
                   setCollapsed((current) => {
                     const next = new Set(current);
-                    if (next.has(group.key)) next.delete(group.key);
-                    else next.add(group.key);
+                    if (next.has(groupKey)) next.delete(groupKey);
+                    else next.add(groupKey);
                     return next;
                   })
                 }
@@ -957,6 +1058,7 @@ export function ListView<T>(props: ListViewProps<T>) {
                 const id = getId(row);
                 return (
                   <ListRow<T>
+                    busy={busy.has(id)}
                     checked={checked.has(id)}
                     context={rowContext}
                     focused={id === focusedId}
@@ -979,6 +1081,7 @@ export function ListView<T>(props: ListViewProps<T>) {
 
   return (
     <div
+      ref={rootRef}
       className={cn(
         "listview",
         openRow && "has-pane",
@@ -1090,7 +1193,10 @@ export function ListView<T>(props: ListViewProps<T>) {
 
         {checkedIds.length > 0 ? (
           <div aria-label="Auswahl" className="bulkbar" role="region">
-            <span className="num">{checkedIds.length} ausgewählt</span>
+            <span className="num">
+              {checkedIds.length} ausgewählt
+              {hiddenChecked > 0 ? ` · ${hiddenChecked} ausgeblendet` : ""}
+            </span>
             {editable.map((prop) => (
               <Button
                 icon={prop.icon}
@@ -1236,10 +1342,14 @@ export function ListView<T>(props: ListViewProps<T>) {
       >
         {editProp && editRow !== undefined ? (
           <OptionMenu<string>
-            onSelect={(value) =>
-              void applyEdit(editProp, getId(editRow), value)
-            }
-            options={editProp.options}
+            onSelect={(value) => {
+              if (menu?.kind === "edit")
+                void applyEdit(editProp, menu.ids, value);
+            }}
+            options={editOptions(
+              editProp,
+              menu?.kind === "edit" ? menu.ids : [],
+            )}
             placeholder={`${editProp.label} ändern …`}
             value={valuesOf(editProp, editRow)}
           />
