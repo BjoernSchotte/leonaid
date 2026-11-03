@@ -4,9 +4,9 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: b157297a8877c2f88787adcc0339b42363342faa
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
 
@@ -53,6 +53,25 @@ disabled.
 The confirmation says **Angaben gespeichert. Die Bestellung ist prüfbereit.**
 Buyer, items and prices stay unchanged. A booked window stays fixed, even if it
 was retired later. Invoiced orders can no longer be changed.
+
+### Record a past delivery
+
+If all delivery windows are already over, you can still record, as Charity
+Admin, when the order was actually delivered. The form shows the group
+**Vergangene Lieferzeiten (nachträglich erfassen)** for this. It also contains
+retired windows that have already started.
+
+1. In this group, select the window in which the delivery took place. The note
+   **Die Lieferung wird nachträglich für ein vergangenes Zeitfenster erfasst.**
+   appears.
+2. Enter the delivery address and the billing address, then select **Angaben
+   speichern**.
+
+The audit log marks this completion as historical. It stores no addresses or
+contact details. You can then review and issue the invoice. This also works
+when the campaign's order period is already closed; a draft then becomes ready
+for review. Archived campaigns stay unchanged. Acquisition and public orders
+never offer past windows.
 
 If another administrator saved the order in the meantime, your inputs stay in
 the form. Select **Aktuellen Stand laden und vergleichen**, check the stored

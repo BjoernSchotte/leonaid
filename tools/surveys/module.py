@@ -23,7 +23,10 @@ async def main():
     if sys.argv[1] == "verify":
         data = json.loads(Path("/proof/module-result.json").read_text())
         row = await conn.fetchrow("SELECT * FROM survey WHERE id=$1", UUID(data["id"]))
-        assert row["status"] == "ended" and row["inactivity_timeout_seconds"] == 3
+        assert row["status"] == "ended" and row["inactivity_timeout_seconds"] == 3, (
+            row["status"],
+            row["inactivity_timeout_seconds"],
+        )
         assert str(row["action_id"]) == data["actionId"]
         assert (
             await conn.fetchval(

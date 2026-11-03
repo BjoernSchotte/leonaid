@@ -13,6 +13,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.retry import (
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import lock_configuration, write_order_delivery
 from leonaid.application.delivery_completion import (
@@ -44,7 +48,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
         occurred_at: datetime,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._complete_once(
@@ -59,12 +63,13 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
                             "Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Die Liefervervollständigung wurde nicht ausgeführt.")
 
     @staticmethod
@@ -154,9 +159,13 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 "Die Bestellung wurde inzwischen geändert. Bitte den aktuellen "
                 "Stand laden und die Angaben abgleichen.",
             )
+        # Completing a draft confirms it. After the order period closed
+        # ("completed") a manager may still do so to record an order that was
+        # actually delivered; archived actions were rejected above.
         if order.status is CommitmentStatus.DRAFT and (
             not action["ordering_enabled"]
-            or str(action["status"]) not in {"draft", "scheduled", "active"}
+            or str(action["status"])
+            not in {"draft", "scheduled", "active", "completed"}
         ):
             raise Conflict(
                 "commitment_action_closed",
@@ -176,12 +185,14 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                     "Bitte Lieferadresse und Lieferfenster ergänzen.",
                 )
             snapshot = order.delivery_window_snapshot
+            historical = False
         else:
-            snapshot = delivery.validate_order(
+            # Unlike capture, a manager may select a window that has already
+            # started to record when the order was actually delivered.
+            snapshot, historical = delivery.validate_manager_completion(
                 window_id=draft.delivery_window_id,
                 has_address=draft.delivery_recipient is not None,
                 contact=draft.delivery_contact,
-                complete=True,
                 now=datetime.now(timezone.utc),
             )
         await connection.execute(
@@ -221,7 +232,11 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
             commitment_id,
             request_id,
             json.dumps(
-                {"previousStatus": order.status.value, "status": "review_ready"}
+                {
+                    "previousStatus": order.status.value,
+                    "status": "review_ready",
+                    "historical": historical,
+                }
             ),
             occurred_at,
         )
