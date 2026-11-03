@@ -77,7 +77,7 @@ for (const [surface, shell, width] of [
     await expect(page.getByText(note, { exact: true })).toBeVisible();
 
     await page
-      .getByLabel("Status", { exact: true })
+      .getByRole("combobox", { name: /^Status/ })
       .selectOption("in_progress");
     await page
       .getByRole("button", { name: "Bearbeitung speichern", exact: true })
@@ -115,7 +115,7 @@ for (const [surface, shell, width] of [
 
     // The state survives a reload from the server.
     await page.reload();
-    await expect(page.getByLabel("Status", { exact: true })).toHaveValue(
+    await expect(page.getByRole("combobox", { name: /^Status/ })).toHaveValue(
       "in_progress",
     );
     await expect(page.getByText(note, { exact: true })).toBeVisible();
