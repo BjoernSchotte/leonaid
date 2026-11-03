@@ -11,7 +11,9 @@
     },
     {
       "file": "packages/features/src/commitments/complete-draft.tsx",
-      "contains": ["Entwurf prüfbereit abschließen"]
+      "contains": [
+        "Entwurf prüfbereit abschließen"
+      ]
     }
   ],
   "DOC-P012": [
@@ -27,11 +29,16 @@
     },
     {
       "file": "packages/features/src/action-admin/manage-action.tsx",
-      "contains": ["query.data?.action.capabilities.includes(\"delivery\")"]
+      "contains": [
+        "query.data?.action.capabilities.includes(\"delivery\")"
+      ]
     },
     {
       "file": "packages/features/src/action-admin/manage-sections.tsx",
-      "contains": ["label: \"Auslieferung\"", "value: \"delivery\""]
+      "contains": [
+        "label: \"Auslieferung\"",
+        "value: \"delivery\""
+      ]
     }
   ],
   "DOC-P013": [
@@ -67,7 +74,10 @@
     },
     {
       "file": "apps/public/src/pages/invite.astro",
-      "contains": ["Einladung bestätigen", "ungültig oder nicht mehr gültig"]
+      "contains": [
+        "Einladung bestätigen",
+        "ungültig oder nicht mehr gültig"
+      ]
     }
   ],
   "DOC-P016": [
@@ -105,17 +115,26 @@
     },
     {
       "file": "src/leonaid/adapters/postgres/commitments.py",
-      "contains": ["CommitmentRepository"]
+      "contains": [
+        "CommitmentRepository"
+      ]
     }
   ],
   "DOC-P019": [
     {
       "file": "src/leonaid/domain/identity.py",
-      "contains": ["CHARITY_ADMIN", "ACQUIRER", "FINANCE_READER"]
+      "contains": [
+        "CHARITY_ADMIN",
+        "ACQUIRER",
+        "FINANCE_READER"
+      ]
     },
     {
       "file": "apps/public/src/components/AuthPage.astro",
-      "contains": ["requestFreshLogin", "completeFreshLogin"]
+      "contains": [
+        "requestFreshLogin",
+        "completeFreshLogin"
+      ]
     }
   ],
   "DOC-P021": [
@@ -129,7 +148,10 @@
     },
     {
       "file": "infra/compose/README.md",
-      "contains": ["https://localhost:8443", "http://localhost:8080"]
+      "contains": [
+        "https://localhost:8443",
+        "http://localhost:8080"
+      ]
     }
   ],
   "DOC-P022": [
@@ -143,17 +165,27 @@
     },
     {
       "file": "leonaid",
-      "contains": ["pilot-deploy)", "pilot-doctor)"]
+      "contains": [
+        "pilot-deploy)",
+        "pilot-doctor)"
+      ]
     }
   ],
   "DOC-P023": [
     {
       "file": "infra/backup/README.md",
-      "contains": ["restic check --read-data", "leonaid-restore-<name>", "RPO"]
+      "contains": [
+        "restic check --read-data",
+        "leonaid-restore-<name>",
+        "RPO"
+      ]
     },
     {
       "file": "leonaid",
-      "contains": ["pilot-backup)", "pilot-restore)"]
+      "contains": [
+        "pilot-backup)",
+        "pilot-restore)"
+      ]
     }
   ],
   "DOC-P024": [
@@ -167,7 +199,10 @@
     },
     {
       "file": "tools/pins/check.py",
-      "contains": ["pin review OVERDUE", "(due - reviewed).days > 183"]
+      "contains": [
+        "pin review OVERDUE",
+        "(due - reviewed).days > 183"
+      ]
     },
     {
       "file": "tools/security/vuln_policy.py",
@@ -178,11 +213,16 @@
     },
     {
       "file": "tools/ci/security.sh",
-      "contains": ["tools/security/vulnerability-scan.sh"]
+      "contains": [
+        "tools/security/vulnerability-scan.sh"
+      ]
     },
     {
       "file": "renovate.json",
-      "contains": ["needs-upgrade-runbook", "before 6am on monday"]
+      "contains": [
+        "needs-upgrade-runbook",
+        "before 6am on monday"
+      ]
     }
   ],
   "DOC-P025": [
@@ -196,7 +236,10 @@
     },
     {
       "file": "src/leonaid/entrypoints/fastapi/platform.py",
-      "contains": ["maintenance_mode", "Retry-After"]
+      "contains": [
+        "maintenance_mode",
+        "Retry-After"
+      ]
     }
   ],
   "DOC-P026": [
@@ -210,13 +253,21 @@
     },
     {
       "file": "infra/pilot/production.env.example",
-      "contains": ["LEONAID_RELEASE_COMMIT", "LEONAID_DEPLOYMENT_STAGE"]
+      "contains": [
+        "LEONAID_RELEASE_COMMIT",
+        "LEONAID_DEPLOYMENT_STAGE"
+      ]
     }
   ],
   "DOC-P027": [
     {
       "file": "infra/compose/compose.yml",
-      "contains": ["core-postgres:", "twenty-server:", "rustfs:", "proxy:"]
+      "contains": [
+        "core-postgres:",
+        "twenty-server:",
+        "rustfs:",
+        "proxy:"
+      ]
     },
     {
       "file": "leonaid",
@@ -244,27 +295,42 @@
     },
     {
       "file": "src/leonaid/entrypoints/worker/platform.py",
-      "contains": ["leonaid_worker_retention_deleted_total"]
+      "contains": [
+        "leonaid_worker_retention_deleted_total"
+      ]
     }
   ],
   "DOC-P028": [
     {
       "file": "src/leonaid/domain/commitments.py",
-      "contains": ["invoice_recipient", "delivery_window_snapshot"]
+      "contains": [
+        "invoice_recipient",
+        "delivery_window_snapshot"
+      ]
     },
     {
       "file": "src/leonaid/domain/documents.py",
-      "contains": ["sha256", "object_key"]
+      "contains": [
+        "sha256",
+        "object_key"
+      ]
     }
   ],
   "DOC-P029": [
     {
       "file": "infra/upgrade/maintenance.sh",
-      "contains": ["enable", "disable", "status"]
+      "contains": [
+        "enable",
+        "disable",
+        "status"
+      ]
     },
     {
       "file": "infra/pilot/compose.yml",
-      "contains": ["80:80", "443:443"]
+      "contains": [
+        "80:80",
+        "443:443"
+      ]
     }
   ],
   "DOC-P031": [
@@ -289,21 +355,35 @@
   "DOC-P032": [
     {
       "file": "tools/openapi/generate.py",
-      "contains": ["document = app.openapi()", "openapi.json", "generated.ts"]
+      "contains": [
+        "document = app.openapi()",
+        "openapi.json",
+        "generated.ts"
+      ]
     },
     {
       "file": "tools/openapi/test.sh",
-      "contains": ["--check", "cmp", "check_frontend.py"]
+      "contains": [
+        "--check",
+        "cmp",
+        "check_frontend.py"
+      ]
     }
   ],
   "DOC-P033": [
     {
       "file": "leonaid",
-      "contains": ["doctor            Diagnose Docker", "test-env-stop"]
+      "contains": [
+        "doctor            Diagnose Docker",
+        "test-env-stop"
+      ]
     },
     {
       "file": "infra/compose/compose.yml",
-      "contains": ["healthcheck:", "networks:"]
+      "contains": [
+        "healthcheck:",
+        "networks:"
+      ]
     }
   ],
   "DOC-P034": [
@@ -319,7 +399,10 @@
   "DOC-P035": [
     {
       "file": "packages/api-client/openapi.json",
-      "contains": ["\"openapi\": \"3.1.0\"", "\"title\": \"LeonAid Core\""]
+      "contains": [
+        "\"openapi\": \"3.1.0\"",
+        "\"title\": \"LeonAid Core\""
+      ]
     },
     {
       "file": "apps/docs/scripts/generate-api-reference.mjs",
@@ -333,11 +416,19 @@
   "DOC-P036": [
     {
       "file": "package.json",
-      "contains": ["\"apps/*\"", "\"packages/*\"", "\"typecheck:docs\""]
+      "contains": [
+        "\"apps/*\"",
+        "\"packages/*\"",
+        "\"typecheck:docs\""
+      ]
     },
     {
       "file": "leonaid",
-      "contains": ["docs-check", "generate-api-client", "test-integration"]
+      "contains": [
+        "docs-check",
+        "generate-api-client",
+        "test-integration"
+      ]
     }
   ],
   "DOC-P037": [
@@ -352,33 +443,48 @@
     },
     {
       "file": "src/leonaid/adapters/postgres/commitments.py",
-      "contains": ["CommitmentRepository"]
+      "contains": [
+        "CommitmentRepository"
+      ]
     },
     {
       "file": "src/leonaid/adapters/twenty/gateway.py",
-      "contains": ["class TwentyCrmGateway"]
+      "contains": [
+        "class TwentyCrmGateway"
+      ]
     }
   ],
   "DOC-P040": [
     {
       "file": "migrations/versions/0038_open_action_templates.py",
-      "contains": ["presentation_theme", "ck_action_template_key"]
+      "contains": [
+        "presentation_theme",
+        "ck_action_template_key"
+      ]
     },
     {
       "file": "tools/templates/contract.py",
-      "contains": ["christbaumverkauf"]
+      "contains": [
+        "christbaumverkauf"
+      ]
     },
     {
       "file": "apps/public/src/themes/index.ts",
-      "contains": ["resolvePublicTheme"]
+      "contains": [
+        "resolvePublicTheme"
+      ]
     },
     {
       "file": "apps/campaign-site/src/themes/index.ts",
-      "contains": ["Record<CampaignThemeKey, CampaignTheme>"]
+      "contains": [
+        "Record<CampaignThemeKey, CampaignTheme>"
+      ]
     },
     {
       "file": "src/leonaid/domain/actions.py",
-      "contains": ["DELIVERY = \"delivery\""]
+      "contains": [
+        "DELIVERY = \"delivery\""
+      ]
     }
   ],
   "DOC-P041": [
@@ -429,10 +535,47 @@
     },
     {
       "file": "src/leonaid/modules/tasks/api.py",
-      "contains": ["\"Aufgaben\", \"/admin/tasks\", \"web\""]
+      "contains": [
+        "\"Aufgaben\", \"/admin/tasks\", \"web\""
+      ]
     }
   ],
   "DOC-P042": [
+    {
+      "file": "packages/features/src/action-admin/manage-action.tsx",
+      "contains": [
+        "Microsite bearbeiten"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/emdash-editor-patch.mjs",
+      "contains": [
+        "Zurück zu LeonAid",
+        "isEditorDirtyRef.current"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/emdash-media-editor-patch.mjs",
+      "contains": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ]
+    },
+    {
+      "file": "tools/emdash_spike/editor-actions.mjs",
+      "contains": [
+        "Publish (now|changes)"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/src/auth/campaign-update.mjs",
+      "contains": [
+        "body.slug !== existing.data.item.slug"
+      ]
+    }
+  ],
+  "DOC-P043": [
     {
       "file": "packages/features/src/materials/materials.tsx",
       "contains": [
@@ -450,13 +593,20 @@
     },
     {
       "file": "src/leonaid/modules/materials/api.py",
-      "contains": ["\"Materialien\", \"/admin/materials\", \"web\""]
+      "contains": [
+        "\"Materialien\", \"/admin/materials\", \"web\""
+      ]
     }
   ],
-  "DOC-P043": [
+  "DOC-P044": [
     {
       "file": "packages/features/src/knowledge/knowledge.tsx",
-      "contains": ["Neue Seite", "Seitentitel", "Seite anlegen", "Eigenständig"]
+      "contains": [
+        "Neue Seite",
+        "Seitentitel",
+        "Seite anlegen",
+        "Eigenständig"
+      ]
     },
     {
       "file": "packages/features/src/knowledge/editor.tsx",
@@ -482,11 +632,16 @@
     },
     {
       "file": "packages/features/src/materials/picker.tsx",
-      "contains": ["Material verknüpfen", "Dateiversion einfügen"]
+      "contains": [
+        "Material verknüpfen",
+        "Dateiversion einfügen"
+      ]
     },
     {
       "file": "src/leonaid/bootstrap/api.py",
-      "contains": ["requires=(\"tasks\", \"materials\")"]
+      "contains": [
+        "requires=(\"tasks\", \"materials\")"
+      ]
     }
   ]
 }

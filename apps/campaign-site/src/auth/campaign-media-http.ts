@@ -104,7 +104,7 @@ export async function campaignMediaHttp({ request, url, locals }: APIContext) {
       actionId = campaigns[0];
       const allowed =
         route === "list"
-          ? ["campaign", "limit", "cursor", "q", "mimeType"]
+          ? ["campaign", "limit", "cursor", "page", "q", "mimeType"]
           : ["campaign"];
       if (
         [...url.searchParams.keys()].some(
@@ -143,6 +143,9 @@ export async function campaignMediaHttp({ request, url, locals }: APIContext) {
           : {}),
         ...(url.searchParams.has("cursor")
           ? { cursor: url.searchParams.get("cursor") }
+          : {}),
+        ...(url.searchParams.has("page")
+          ? { page: Number(url.searchParams.get("page")) }
           : {}),
         ...(url.searchParams.has("q") ? { q: url.searchParams.get("q") } : {}),
         ...(url.searchParams.has("mimeType")

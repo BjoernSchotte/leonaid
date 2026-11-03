@@ -23,7 +23,7 @@ export function adminRouteSource() {
 export function adminInlineScriptHashes(source) {
   assert.equal(
     createHash("sha256").update(source).digest("hex"),
-    "8ffb84a6ee297983917c8f56b6678bc4b7b05c627a3a214759249717b130ed1a",
+    "538f816fd14f02196ac5a8113dcc6f0d04e25e10ee2996cb833d15217d3f20c9",
     "EmDash admin shell changed; re-review its inline scripts for the CSP",
   );
   const scripts = [

@@ -395,6 +395,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Small AWS runners start with about 14 GB free; all application images
+      # (each with the workspace's production node_modules) need more.
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -408,6 +412,8 @@ jobs:
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Build the canonical Compose application
         run: bash tools/ci/run-job.sh build bash tools/ci/build.sh
       - name: Publish build evidence

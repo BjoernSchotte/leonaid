@@ -66,8 +66,8 @@ for (const route of routes.sort((a, b) =>
   });
 }
 const result = {
-  emdash: "0.36.0",
-  upstreamCommit: "603062902369d9695608e85c2d034d4f66f7a1f1",
+  emdash: "1.4.0",
+  upstreamCommit: "10beb8c5a99e41c3a8554b09ac5123c4dddc8d11",
   routes: inventory,
 };
 if (process.argv.includes("--table")) {

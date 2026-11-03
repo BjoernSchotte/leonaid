@@ -1,7 +1,7 @@
 ---
 title: Write knowledge pages
 description: Create a shared page, format it, link tasks and file versions, and share it.
-docId: DOC-P043
+docId: DOC-P044
 audience: [user]
 diataxis: how-to
 contentRevision: 1

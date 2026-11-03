@@ -1,7 +1,7 @@
 ---
 title: Wissensseiten schreiben
 description: Eine gemeinsame Seite anlegen, formatieren, Aufgaben und Dateiversionen verknüpfen und freigeben.
-docId: DOC-P043
+docId: DOC-P044
 audience: [user]
 diataxis: how-to
 contentRevision: 1
