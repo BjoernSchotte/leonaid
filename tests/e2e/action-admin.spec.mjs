@@ -154,7 +154,11 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     );
     await expect(
       page.locator('a[data-nav-key="invoices"]').first(),
-    ).toHaveAttribute("href", "/admin/invoices");
+    ).toHaveAttribute(
+      "href",
+      // Campaign-scoped rail links carry the campaign on screen.
+      `/admin/invoices?action=${actionId}`,
+    );
     await expect(page.locator("#manage-name-help")).toContainText(
       "öffentliche Titel",
     );

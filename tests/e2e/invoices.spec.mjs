@@ -321,7 +321,8 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toBeVisible();
 
     await page.locator('[data-nav-key="invoices"]').first().click();
-    await page.waitForURL(`${baseUrl}/admin/invoices`);
+    // The rail link carries the campaign the admin is working in.
+    await page.waitForURL(/\/admin\/invoices\?action=[0-9a-f-]{36}$/);
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
