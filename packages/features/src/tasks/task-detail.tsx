@@ -194,6 +194,8 @@ export function TaskDetail({
 
       <TaskSteps address={address} client={client} row={row} />
 
+      {task.canEdit ? <ListAudience client={client} row={row} /> : null}
+
       {move ? (
         <TaskMoveSection
           address={address}
@@ -245,8 +247,6 @@ export function TaskDetail({
       <section className="pane-section">
         <TaskPlanPanel address={address} client={client} taskId={task.id} />
       </section>
-
-      {task.canEdit ? <ListAudience client={client} row={row} /> : null}
     </div>
   );
 }

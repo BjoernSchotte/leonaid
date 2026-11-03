@@ -157,6 +157,11 @@
   cursor: grab;
   touch-action: none;
 }
+/* Keeps titles aligned in a reorderable list next to rows without a grip. */
+.task-handle-space {
+  display: inline-block;
+  width: 20px;
+}
 .task-order-handle:hover {
   background: var(--surface-3);
   color: var(--text);
@@ -182,10 +187,12 @@
     height: 44px;
     margin-inline-start: calc(-1 * var(--s-2));
   }
-  /* Phone rows: flag (and grip) beside the title, chips on the next line. */
-  .tasks-page .row-link {
-    flex-basis: calc(100% - 14px - var(--s-2));
+  .task-handle-space {
+    display: none;
   }
+  /* Phone rows with a grip: grip and flag beside the title, so the 44 px
+     grip does not add a line of its own (rows without keep the
+     prototype's flag line). */
   .tasks-page .row:has(.task-order-handle) .row-link {
     flex-basis: calc(100% - 66px - var(--s-2));
   }
@@ -378,4 +385,11 @@
 }
 .task-from-page h2 {
   font-size: var(--fs-md);
+}
+
+/* The list is full-bleed as in the prototype: the admin shell's page
+   padding and width cap do not apply (the list view has its own gutters). */
+.page:has(.tasks-page) {
+  max-width: none;
+  padding: 0;
 }

@@ -1053,6 +1053,8 @@ function TasksWorkspace({
               id={row.id}
               title={row.task.title}
             />
+          ) : movableSet.size > 0 ? (
+            <span aria-hidden="true" className="task-handle-space" />
           ) : null}
           {row.task.priority === "high" ? (
             <Icon
