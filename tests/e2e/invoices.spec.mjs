@@ -439,34 +439,6 @@ test("bulk release issues several invoices with one service date and retries saf
   const page = await context.newPage();
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  const issuePath = (id) =>
-    `**/api/v1/actions/${actionId}/commitments/${id}/invoice`;
-  // "Drei": the server refuses this order (e.g. changed meanwhile).
-  await page.route(issuePath(bulkOrders.drei), (route) =>
-    route.fulfill({
-      status: 409,
-      contentType: "application/json",
-      body: JSON.stringify({
-        error: {
-          code: "invoice_commitment_not_review_ready",
-          message: "Die Bestellung ist nicht mehr prüfbereit.",
-          requestId: "e2e-bulk",
-        },
-      }),
-    }),
-  );
-  // "Zwei": the server issues the invoice, but the answer is lost once.
-  let zweiAnswers = 0;
-  await page.route(issuePath(bulkOrders.zwei), async (route) => {
-    const response = await route.fetch();
-    if (response.ok() && zweiAnswers === 0) {
-      zweiAnswers += 1;
-      await route.abort("connectionreset");
-      return;
-    }
-    await route.fulfill({ response });
-  });
-
   try {
     await page.goto(`${baseUrl}/admin/orders?action=${actionId}&view=all`);
     for (const name of [
@@ -490,10 +462,10 @@ test("bulk release issues several invoices with one service date and retries saf
     await expect(dialog).toContainText(
       "Doppelkontakt AG (Rechnungsadresse fehlt)",
     );
-    const serviceOn = await dialog
-      .getByTestId("bulk-release-service-on")
-      .inputValue();
-    expect(serviceOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const dateField = dialog.getByTestId("bulk-release-service-on");
+    const serviceOn = await dateField.inputValue();
+    const firstDay = await dateField.getAttribute("min");
+    expect(serviceOn).not.toBe(firstDay);
     const accessibility = await new AxeBuilder({ page })
       .include(".bulk-release")
       .analyze();
@@ -506,7 +478,8 @@ test("bulk release issues several invoices with one service date and retries saf
       path: `${artifactDirectory}/invoice-bulk-release-desktop.png`,
     });
 
-    // The stale session asks for the fresh sign-in first, then resumes.
+    // The stale session confirms the sign-in first; the dialog comes back
+    // with the same orders and date.
     const previousMailIds = await messageIds(context.request);
     await dialog
       .getByRole("button", { name: "3 Rechnungen verbindlich ausstellen" })
@@ -519,71 +492,77 @@ test("bulk release issues several invoices with one service date and retries saf
     await page.getByTestId("complete-login").click();
     await page.waitForURL(/\/admin\/orders\?/);
     await expect(dialog.locator("[data-release-id]")).toHaveCount(3);
-    await expect(dialog.getByTestId("bulk-release-service-on")).toHaveValue(
-      serviceOn,
-    );
+    await expect(dateField).toHaveValue(serviceOn);
 
-    // The list order is newest first: Drei, Zwei, Eins. Drei is refused and
-    // the run goes on; the answer for Zwei is lost, so the run stops there.
+    // Meanwhile another manager issues "Drei" with the first day.
+    const elsewhere = await page.request.post(
+      `${baseUrl}/api/v1/actions/${actionId}/commitments/${bulkOrders.drei}/invoice`,
+      {
+        headers: {
+          Origin: baseUrl,
+          "Idempotency-Key": `poc090:${crypto.randomUUID()}`,
+        },
+        data: { serviceOn: firstDay },
+      },
+    );
+    expect(elsewhere.ok(), await elsewhere.text()).toBeTruthy();
+    const dreiNumber = (await elsewhere.json()).number;
+
+    // A double click starts one run. Drei comes back as the existing
+    // invoice, the others are issued once each.
     await dialog
       .getByRole("button", { name: "3 Rechnungen verbindlich ausstellen" })
-      .click();
+      .dblclick();
     const result = page.getByRole("dialog", { name: "Ergebnis der Freigabe" });
-    const failed = result.getByTestId("bulk-release-failed");
-    await expect(failed).toContainText(
-      "Sammel Drei KG: Die Bestellung ist nicht mehr prüfbereit.",
-    );
-    const unfinished = result.getByTestId("bulk-release-open");
-    await expect(unfinished).toContainText("Sammel Zwei KG: Keine Antwort");
-    await expect(unfinished).toContainText("Sammel Eins KG: nicht gesendet.");
     const issued = result.getByTestId("bulk-release-issued");
-    await expect(issued).toContainText("Ausgestellt (0)");
-    expect(zweiAnswers).toBe(1);
-
-    // The retry replays Zwei's key (no second invoice) and issues Eins.
-    await result
-      .getByRole("button", { name: "2 Rechnungen erneut senden" })
-      .click();
-    await expect(issued).toContainText("Ausgestellt (2)");
-    await expect(issued).toContainText("Sammel Zwei KG");
-    await expect(issued).toContainText("Sammel Eins KG");
-    await expect(failed).toContainText("Sammel Drei KG");
-    await expect(unfinished).toHaveCount(0);
+    await expect(issued).toContainText("Ausgestellt (3)");
+    await expect(issued).toContainText(
+      `${dreiNumber} · Sammel Drei KG · 108,00 € (war bereits ausgestellt, keine zweite Rechnung)`,
+    );
+    await expect(result.getByTestId("bulk-release-failed")).toHaveCount(0);
+    await expect(result.getByTestId("bulk-release-open")).toHaveCount(0);
     const shownNumbers = await issued.locator("a").allTextContents();
-    expect(shownNumbers).toHaveLength(2);
+    expect(shownNumbers).toHaveLength(3);
     await page.screenshot({
       path: `${artifactDirectory}/invoice-bulk-release-result.png`,
     });
 
+    // Exactly one invoice per order, unique numbers, the chosen dates.
     const invoices = await (
       await page.request.get(`${baseUrl}/api/v1/actions/${actionId}/invoices`)
     ).json();
-    const numbersFor = (commitment) =>
+    const invoicesFor = (commitment) =>
       invoices.items
         .filter((item) => item.invoice.commitmentId === commitment)
-        .map((item) => item.invoice.number);
-    expect(numbersFor(bulkOrders.eins)).toHaveLength(1);
-    expect(numbersFor(bulkOrders.zwei)).toHaveLength(1);
-    expect(numbersFor(bulkOrders.drei)).toHaveLength(0);
+        .map((item) => item.invoice);
+    const [eins, zwei, drei] = [
+      invoicesFor(bulkOrders.eins),
+      invoicesFor(bulkOrders.zwei),
+      invoicesFor(bulkOrders.drei),
+    ];
+    expect([eins.length, zwei.length, drei.length]).toEqual([1, 1, 1]);
     expect(shownNumbers.sort()).toEqual(
-      [...numbersFor(bulkOrders.eins), ...numbersFor(bulkOrders.zwei)].sort(),
+      [eins[0].number, zwei[0].number, drei[0].number].sort(),
     );
+    expect(drei[0].number).toBe(dreiNumber);
+    expect(eins[0].serviceOn).toBe(serviceOn);
+    expect(zwei[0].serviceOn).toBe(serviceOn);
+    expect(drei[0].serviceOn).toBe(firstDay);
     const allNumbers = invoices.items.map((item) => item.invoice.number);
     expect(new Set(allNumbers).size).toBe(allNumbers.length);
-    for (const item of invoices.items.filter((entry) =>
-      [bulkOrders.eins, bulkOrders.zwei].includes(entry.invoice.commitmentId),
-    ))
-      expect(item.invoice.serviceOn).toBe(serviceOn);
 
     await result
       .locator(".modal-footer")
       .getByRole("button", { name: "Schließen" })
       .click();
     await expect(result).toHaveCount(0);
-    const einsRow = page.locator(".listview li.row", {
-      has: page.locator(`[data-order-id="${bulkOrders.eins}"]`),
-    });
-    await expect(einsRow).toContainText("Fakturiert");
+    for (const id of Object.values(bulkOrders)) {
+      await expect(
+        page.locator(".listview li.row", {
+          has: page.locator(`[data-order-id="${id}"]`),
+        }),
+      ).toContainText("Fakturiert");
+    }
     expect(pageErrors).toEqual([]);
   } finally {
     await context.close();

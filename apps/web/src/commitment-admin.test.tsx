@@ -463,4 +463,66 @@ describe("bulk invoice release", () => {
     expect(await screen.findByText("1 ausgewählt")).toBeTruthy();
     expect(screen.queryByTestId("bulk-release-open")).toBeNull();
   });
+
+  it("reports a refused order and still issues the others", async () => {
+    const client = fakeClient();
+    client.issueInvoice.mockImplementation(
+      async (_action: string, commitmentId: string) => {
+        if (commitmentId === "c4")
+          throw apiError(
+            409,
+            "invoice_delivery_incomplete",
+            "Lieferung fehlt.",
+          );
+        return {
+          commitmentId,
+          currency: "EUR",
+          grossMinor: 7200,
+          id: `inv-${commitmentId}`,
+          number: `KT-${commitmentId}`,
+          replayed: commitmentId === "c1",
+        };
+      },
+    );
+    await renderPage("?view=all", client);
+    for (const name of ["Musterwerk GmbH", "Café Mitte"])
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: new RegExp(`^${name} ·`) }),
+      );
+    fireEvent.click(await screen.findByTestId("bulk-release-open"));
+    fireEvent.click(await screen.findByTestId("bulk-release-submit"));
+    const issued = await screen.findByTestId("bulk-release-issued");
+    expect(issued.textContent).toContain("KT-c1");
+    expect(issued.textContent).toContain("war bereits ausgestellt");
+    expect(screen.getByTestId("bulk-release-failed").textContent).toContain(
+      "Café Mitte: Lieferung fehlt.",
+    );
+    expect(client.issueInvoice).toHaveBeenCalledTimes(2);
+  });
+
+  it("resumes a release that stopped for the fresh sign-in", async () => {
+    window.sessionStorage.setItem(
+      `leonaid.bulk-release.${actionId}`,
+      JSON.stringify({
+        ids: ["c1", "c3"],
+        serviceOn: "2026-11-12",
+        savedAt: Date.now(),
+      }),
+    );
+    await renderPage("?view=all");
+    const dialog = await screen.findByTestId("bulk-release");
+    expect(
+      [...dialog.querySelectorAll("[data-release-id]")].map((row) =>
+        row.getAttribute("data-release-id"),
+      ),
+    ).toEqual(["c1"]);
+    expect(
+      (within(dialog).getByLabelText("Leistungsdatum") as HTMLInputElement)
+        .value,
+    ).toBe("2026-11-12");
+    // Read once: a reload does not reopen it.
+    expect(
+      window.sessionStorage.getItem(`leonaid.bulk-release.${actionId}`),
+    ).toBeNull();
+  });
 });

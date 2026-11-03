@@ -420,6 +420,12 @@ function ReleaseResult({
                           row.commitment.currency,
                         )}
                   </span>
+                  {invoice?.replayed ? (
+                    <span className="subtle">
+                      {" "}
+                      (war bereits ausgestellt, keine zweite Rechnung)
+                    </span>
+                  ) : null}
                 </li>
               );
             })}
