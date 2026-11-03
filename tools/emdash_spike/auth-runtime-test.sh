@@ -17,7 +17,7 @@ if [ "$recovery:$orders" = true:true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|migration-operator|alias-http|alias-browser) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$recovery" = false ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
@@ -97,6 +97,10 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  # Prepended first, so it is applied after every other overlay.
+  if [ "${emdash_upgrade_legacy:-false}" = true ]; then
+    set -- --file "$root/infra/emdash-spike/emdash-upgrade-legacy.test.yml" "$@"
+  fi
   if [ "$cutover_rollback" = true ] && [ "$project" = "$recovery_target" ] && [ "${cutover_target_active:-false}" = true ]; then
     set -- --file "$root/infra/emdash-spike/cms-rollback-target.test.yml" "$@"
   fi
@@ -118,10 +122,10 @@ compose() {
   if [ "$orders" = true ]; then
     set -- --file "$root/infra/emdash-spike/orders.test.yml" "$@"
   fi
-  if [ "$mode" = migration ]; then
+  if [ "$mode" = migration ] || [ "$mode" = emdash-upgrade ]; then
     set -- --file "$root/infra/emdash-spike/import-runtime.test.yml" "$@"
   fi
-  if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ]; then
+  if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ] || [ "$mode" = emdash-upgrade ]; then
     set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
   fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
@@ -192,6 +196,8 @@ cleanup() {
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
   rm -f "$proof/recovery-aliases.json"
+  rm -f "$proof"/emdash-upgrade-*.json
+  if [ -n "${EMDASH_UPGRADE_LEGACY_ROOT:-}" ]; then rm -rf "$EMDASH_UPGRADE_LEGACY_ROOT"; fi
   if [ -d "$proof/core-commerce" ]; then
     rm -f "$proof/core-commerce/core-commerce-editorial.json"
     rmdir "$proof/core-commerce"
@@ -292,9 +298,12 @@ if [ "$recovery:$orders" = true:true ]; then
   compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
   echo "recovery-orders: fresh Twenty ready before Core/CMS, matching base startup dependency"
 fi
+if [ "$mode" = emdash-upgrade ]; then
+  . "$root/tools/emdash_spike/emdash-upgrade-legacy.sh"
+fi
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
-if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ]; then
+if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ] || [ "$mode" = emdash-upgrade ]; then
   compose up --detach --wait rustfs
   compose run --rm --no-deps cms-storage-operator
 fi
@@ -362,6 +371,10 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = emdash-upgrade ]; then
+    . "$root/tools/emdash_spike/emdash-upgrade-phase.sh"
+    exit 0
+  fi
   if [ "$mode" = alias-browser ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose up --no-deps --build --detach --wait web public mailpit worker

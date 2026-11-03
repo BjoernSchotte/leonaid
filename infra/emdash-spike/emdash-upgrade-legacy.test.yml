@@ -1,0 +1,15 @@
+# Test-only legacy phase of the EmDash binary upgrade proof. The CMS runs the
+# image built from the legacy release commit; provisioning and the Krapfentaxi
+# import run that commit's tools and locked packages. Core, proxy and storage
+# stay on the current checkout. Volumes (Core PostgreSQL, RustFS, bootstrap
+# state) are the project's own and survive the switch to the current release.
+services:
+  campaign-site:
+    image: ${EMDASH_UPGRADE_LEGACY_IMAGE:?legacy CMS image required}
+    build: !reset null
+  cms-db-operator:
+    volumes: !override
+      - ${EMDASH_UPGRADE_LEGACY_ROOT:?legacy checkout required}:/workspace:ro
+  krapfentaxi-import-probe:
+    volumes: !override
+      - ${EMDASH_UPGRADE_LEGACY_ROOT:?legacy checkout required}:/workspace:ro

@@ -1,6 +1,6 @@
 {
-  "emdash": "0.36.0",
-  "upstreamCommit": "603062902369d9695608e85c2d034d4f66f7a1f1",
+  "emdash": "1.4.0",
+  "upstreamCommit": "10beb8c5a99e41c3a8554b09ac5123c4dddc8d11",
   "routes": [
     {
       "pattern": "/_emdash/.well-known/auth",
@@ -9,7 +9,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/well-known/auth.mjs",
-      "sha256": "0c66bc4cef113ce5e778b167d3010f56aeb8fb9abf82e8f334be8c8feb062feb"
+      "sha256": "29d0f8cde63f1951b805960a79df6246275f7f51e193c7e62696aaae67c5af6b"
     },
     {
       "pattern": "/_emdash/admin/[...path]",
@@ -18,7 +18,7 @@
       ],
       "registration": "core",
       "module": "src/astro/routes/admin.astro",
-      "sha256": "8ffb84a6ee297983917c8f56b6678bc4b7b05c627a3a214759249717b130ed1a"
+      "sha256": "538f816fd14f02196ac5a8113dcc6f0d04e25e10ee2996cb833d15217d3f20c9"
     },
     {
       "pattern": "/_emdash/api/admin/allowed-domains",
@@ -28,7 +28,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/admin/allowed-domains/index.mjs",
-      "sha256": "96b257f704018226341d7345e5b1d2a128d658fa9bf14884a219492d07293175"
+      "sha256": "4705152176524211bf1ee108004d9cac5f4c76087b862fcb6d13c013711737a7"
     },
     {
       "pattern": "/_emdash/api/admin/allowed-domains/[domain]",
@@ -38,7 +38,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/admin/allowed-domains/_domain_.mjs",
-      "sha256": "87255b01463a9aa785513617c4b4827b9126c20bff164c30f1a81895c77f133e"
+      "sha256": "6b98ff44f6653ecf89683e2784d6aec1abaf661ebf78e4d8c59f9f1cc8b4ac58"
     },
     {
       "pattern": "/_emdash/api/admin/api-tokens",
@@ -48,7 +48,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/api-tokens/index.mjs",
-      "sha256": "d8ae0fe78eefdeec062bac478159f16eb8fd411ddef9938dcb9c0188380f3b29"
+      "sha256": "4b5d1ba1a7a5360bd6c3de2e52724195a3455c5793f51f46f14f436f3e854ea7"
     },
     {
       "pattern": "/_emdash/api/admin/api-tokens/[id]",
@@ -57,7 +57,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/api-tokens/_id_.mjs",
-      "sha256": "f4055e02d1859cc3d65737d45829d54abd23987dd39d185bdf9a45a2bd0ae576"
+      "sha256": "b7374811f31f59240a574b734ce0903237a90d0e7588beded2e73414896ebeb1"
     },
     {
       "pattern": "/_emdash/api/admin/byline-fields",
@@ -67,7 +67,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/byline-fields/index.mjs",
-      "sha256": "c7359c277feacef2a1ad300e41d8a1aa9e51ec622e3e2e27288443190cca943d"
+      "sha256": "99c328d06bb977a59cc4a18b8dda5a476e684545295c027e58c9455590566e3b"
     },
     {
       "pattern": "/_emdash/api/admin/byline-fields/[slug]",
@@ -78,7 +78,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/byline-fields/_slug_.mjs",
-      "sha256": "f704ca6a2f566330680d47f6a92202921638b3531d18ea5b894b5bf0b65a6cfc"
+      "sha256": "ab32c2179c8e60fae8df1af18df265bb8eedcfac8620eebc2ad9d4f23588084b"
     },
     {
       "pattern": "/_emdash/api/admin/byline-fields/[slug]/usage",
@@ -87,7 +87,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/byline-fields/_slug_/usage.mjs",
-      "sha256": "5d6b7f502dcb8aed2abfda63b7f75002383d6f6ca4d3c62debd566f6e0bcfe9f"
+      "sha256": "fbb4e59bf2f9685afd2e7a5959137c1a79ec641b6d8a7f723284e717e4d480b8"
     },
     {
       "pattern": "/_emdash/api/admin/byline-fields/reorder",
@@ -96,7 +96,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/byline-fields/reorder.mjs",
-      "sha256": "8014c6a603a99e21366a3b58bb7e894236e102192fa4540789b2768074640a14"
+      "sha256": "724b81aace4e94e91ff2c85bfa2efff2927aa9069fe3ae804f649eb2996221c7"
     },
     {
       "pattern": "/_emdash/api/admin/bylines",
@@ -106,7 +106,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/bylines/index.mjs",
-      "sha256": "0d2dd26b243ff0bf6f482d88320b2af84c490d26a5344ef3ab43bf5b54efb5e4"
+      "sha256": "d87241fd45114b7ca62b4ee5d5d5e094380b7e22d27c99554ea3942dbe7bf065"
     },
     {
       "pattern": "/_emdash/api/admin/bylines/[id]",
@@ -117,7 +117,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/bylines/_id_/index.mjs",
-      "sha256": "9a801b82bc8f49af066508ef8bbca96eb6c634b3631feaa8c137c845c22e3874"
+      "sha256": "90ca40bfc120a2a2fbf926c70280361da18cfbc9f8bc6b5f4165ed9dc802414c"
     },
     {
       "pattern": "/_emdash/api/admin/bylines/[id]/translations",
@@ -127,7 +127,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/bylines/_id_/translations.mjs",
-      "sha256": "7a113c59909fc42fc283ea6bca7dae32d3e11072c31df1746ba160f0ba4dc3db"
+      "sha256": "1b20868df2030b4379392ca29387ce18d1d47b60db68d435a795f5803acab3da"
     },
     {
       "pattern": "/_emdash/api/admin/comments",
@@ -136,7 +136,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/comments/index.mjs",
-      "sha256": "5adac916daadf99c1f02b43bc27d153cedc20a3c11687b327204c2f66d450586"
+      "sha256": "bf8243b2ebe116bef62b5257e6f505542ec156a184fd88ea4ead8ee0860d4660"
     },
     {
       "pattern": "/_emdash/api/admin/comments/[id]",
@@ -146,7 +146,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/comments/_id_.mjs",
-      "sha256": "1595c133b5a5d4824e256e0d1c52ac72307adb842bf67bca4f69761ea7b564f8"
+      "sha256": "5fa0ca8ac5b7d49515b3d588bfdba093132c45e151f93ee71f9c57c30d5ab1a9"
     },
     {
       "pattern": "/_emdash/api/admin/comments/[id]/status",
@@ -155,7 +155,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/comments/_id_/status.mjs",
-      "sha256": "d33a0a116788867e088d526f3dab1591c492e555ac46ea4ee79158506bbdab4c"
+      "sha256": "88b3c0db505aadbec85f499a537b8feaa04acac97bddca733b3b2cb861228e02"
     },
     {
       "pattern": "/_emdash/api/admin/comments/bulk",
@@ -164,7 +164,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/comments/bulk.mjs",
-      "sha256": "0eb20bd84d2ff33e8ac6935225125d32b29607788b5d7a50dae782cab0409333"
+      "sha256": "e81ab7140e98dee2a02903e353ad21aaac33ba514cbb7b80f00c2eb648826525"
     },
     {
       "pattern": "/_emdash/api/admin/comments/counts",
@@ -173,7 +173,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/comments/counts.mjs",
-      "sha256": "f4d2ddb965c342cc0348f4c40eba286e371fa4363b512bb2892c1084dacbb772"
+      "sha256": "623ccf8392a44e00816ca1ad2efa85db01977b8978086af08d00df76b25bbf22"
+    },
+    {
+      "pattern": "/_emdash/api/admin/core-update",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/core-update.mjs",
+      "sha256": "c0e1564d53e41555e60b97b49abfc79004540b811fda9f8cbc7afcaf2b0a2517"
     },
     {
       "pattern": "/_emdash/api/admin/hooks/exclusive",
@@ -182,7 +191,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/hooks/exclusive/index.mjs",
-      "sha256": "08e7b93f48d5c33a6538adc59e58ae624550c0a3397c702e46f8eb382117bdd0"
+      "sha256": "452fbd14e0399e5c01b36b0c52e39defac76d72418b9358560f0902e4a9f35a5"
     },
     {
       "pattern": "/_emdash/api/admin/hooks/exclusive/[hookName]",
@@ -191,7 +200,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/hooks/exclusive/_hookName_.mjs",
-      "sha256": "927b55532cb66ecd5ccc3b45559c9fd42f557135dd97674205527d72eaf96391"
+      "sha256": "e3f0e81adf1971edf8b61b932afa640338f95d0c6057c77e3b032c044a5363e3"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/activation",
@@ -201,7 +210,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/activation.mjs",
-      "sha256": "7e52d0717342996063105976f9e26c9e63668412a710997d898e6d4ba66fce1e"
+      "sha256": "c43f8f9570703f6c7e45f5114b7f3446eff9b0559adae2e7986542dc03dc3a16"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/collection-deletions",
@@ -210,7 +219,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/collection-deletions/index.mjs",
-      "sha256": "a16c32b107ab55a62b7be1fd1e72097346e3937ea394fd4d9779c0b6b31f0f48"
+      "sha256": "1cec0544ac11d9c49e32f15ee847c4beaa4894d3491b4a96d75bc189f23a47ad"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/collection-deletions/retry",
@@ -219,7 +228,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/collection-deletions/retry.mjs",
-      "sha256": "d0c803529efc1321fa3f226199bf075e90baf79e769865c8a13cc5bd84a03325"
+      "sha256": "418847891f10baaeb1eff841097945b787778b70a1b117f216f678d2d84f97ed"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/progress",
@@ -229,7 +238,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/progress.mjs",
-      "sha256": "8d20f0f111e4c63ead24303ae21e3bd3f70c1a75ba187cb6f4fa94c4bc19bb23"
+      "sha256": "1f7f3e5f811b526aff70d598fb8cdea7e282554b7bfedc72a45707c8ef5847be"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/repair",
@@ -238,7 +247,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/repair.mjs",
-      "sha256": "a48744a0ff1e13ee427a3c5bf8b415498553d72f769e5a8319f0745044170a7f"
+      "sha256": "85d41f9ede73d204f23b2f4cabf9d941035cf1e7379dac878ddf0f42e764954a"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/work",
@@ -247,7 +256,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/work/index.mjs",
-      "sha256": "9ded3d2980c5405fe3836c3af7d0e7f6bf09444b48d89e8b362c456815fdf0ef"
+      "sha256": "1da29bc77d3720ca3025c30ec82fa9a88212e2cb6ac61e3c54493ad001ac14b3"
     },
     {
       "pattern": "/_emdash/api/admin/media-usage/work/retry",
@@ -256,7 +265,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/media-usage/work/retry.mjs",
-      "sha256": "0b5e40e744cea96de44ae0c44d769e2cfbb96183ea93ccd790b150794e317561"
+      "sha256": "4a7e667f5c29992b7dac45c8cf42a09a66a24d99742f4c58bd90bdd9d8273786"
     },
     {
       "pattern": "/_emdash/api/admin/oauth-clients",
@@ -266,7 +275,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/oauth-clients/index.mjs",
-      "sha256": "3f2552b6702fb1e2fbd0c1dfc1f01e24a252b2aa6aab1705bcf17bc437c7fcb0"
+      "sha256": "0aea4998e426d9ca143f36a3014c9035124f17f323dcc8c12093ba19b8a12fe9"
     },
     {
       "pattern": "/_emdash/api/admin/oauth-clients/[id]",
@@ -277,7 +286,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/oauth-clients/_id_.mjs",
-      "sha256": "dee9c9d074097e5d7639b0eaeac18568dfa5582ef17fb7d8ab1e9f5073e34134"
+      "sha256": "8efd79cb346802aac7e61e50c30a32361c85d4c1d1cb9df1f6c19c5d7d20b2d4"
     },
     {
       "pattern": "/_emdash/api/admin/plugins",
@@ -286,7 +295,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/index.mjs",
-      "sha256": "ce5e8d9bedc88bf57c0c0c1c490a84031dcb3ab288e48e647c200446a9040a68"
+      "sha256": "68527606da53d7b423a2935a5df41d36f0cec137e5722213deb75e9c5efe8df2"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]",
@@ -295,7 +304,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/index.mjs",
-      "sha256": "7d680855c89e919a48ace77b730050cb28c2ff0260386521a65a46f9cdd9055a"
+      "sha256": "9d3fd3b2a20e971492b86b74cc3a3641a3025d8ea1b4fc117c90cfbf6ac8a15b"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/disable",
@@ -304,7 +313,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/disable.mjs",
-      "sha256": "56a790b2ae95dc2118d325f283f1d2d6ec10dc524007da14008dcfe31d57f9b1"
+      "sha256": "f6c74c1004a1cb1010aedfb41dd10bcb4888f978d66c52ed9ac0e3df5c3f4054"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/enable",
@@ -313,7 +322,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/enable.mjs",
-      "sha256": "9275d9cff500568cf1def520d110c43493fb74efeb8dd0c657257f1e20e863f1"
+      "sha256": "d3935962d1f4c43b161cc7e2956a95a3aa335e54a0c9a3faeb6423095a228d8f"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/mcp",
@@ -322,7 +331,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/mcp.mjs",
-      "sha256": "1d3c96db83d63067ff181051eb19d97524e85998c4df9b70eeaca8d372da7c9d"
+      "sha256": "8538bd282e4330d7d1752d3d20e85db4deb13f1243ba51282f8108347ca826c8"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/settings",
@@ -332,7 +341,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/settings.mjs",
-      "sha256": "b106cc1743ecbf227142a87341cfd036ab67e3b34e13e25e07683c9f361931dc"
+      "sha256": "32e8e7cae2c112af5b1feea1e0db0ce6a892fcdaeb476a88355148f977828325"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/uninstall",
@@ -341,7 +350,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/uninstall.mjs",
-      "sha256": "4e114b0bbd7bc65b6200e6066f70775a66e5b1295dae26f895492388d2f356a9"
+      "sha256": "35de349643f19f2e8559ddc121b42e618dcaace53b3d237af5ad37b8e395e9fd"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/[id]/update",
@@ -350,7 +359,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/_id_/update.mjs",
-      "sha256": "9fe35c33ee4639c5035c312164503ef9bac8e5e97d58392534e5c7b040f0f807"
+      "sha256": "60b4b758ba9b982625883d71953f85927cbea457a8c202a17aebb2f20745974f"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/marketplace",
@@ -359,7 +368,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/marketplace/index.mjs",
-      "sha256": "9df16b5f3c3a950e3189acc6013c2db5f81aab8e1380997535ba8f16d5da8154"
+      "sha256": "15c890088cb07db4a0a1394d0b3eb0920fe02575a8b76fcea02fb35a706bd365"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/marketplace/[id]",
@@ -368,7 +377,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/marketplace/_id_/index.mjs",
-      "sha256": "29e9f8e1538478671834c3820c37e6acb1e8e4d8c48c2f71f92fdffad9cc0a3a"
+      "sha256": "97172ac2a239858579de666d9208f9029cba459ed8869fbd670298796e320687"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/marketplace/[id]/icon",
@@ -377,7 +386,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/marketplace/_id_/icon.mjs",
-      "sha256": "d74fc00ef21534c18ea168ad9406a4c53051daab75aeb2437a3e0d467e9d64e7"
+      "sha256": "37c4530640c9f9c36174ae490e27c0ae63686813fb0b6ba02bb250a2a18b7bda"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/marketplace/[id]/install",
@@ -386,7 +395,25 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/marketplace/_id_/install.mjs",
-      "sha256": "144f615845101f8d5ef0b67be0b416312dc9b00c3ea4b9eb27cca16276aeb1f0"
+      "sha256": "cbdbd331ff34d2a3e5493d1db05c29c685e786cc77e7c9a4111670c6edd65477"
+    },
+    {
+      "pattern": "/_emdash/api/admin/plugins/registry/[id]/uninstall",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/plugins/registry/_id_/uninstall.mjs",
+      "sha256": "65ed8ab9fd7f21479724f9a958de76a86e82532de724cc7297696a5ee4a39eae"
+    },
+    {
+      "pattern": "/_emdash/api/admin/plugins/registry/[id]/update",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/plugins/registry/_id_/update.mjs",
+      "sha256": "c4136c4a609baaf335d0f1c5be728a8648d8e2c6664f438d698d7e0a1c909c44"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/registry/artifact",
@@ -395,7 +422,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/registry/artifact.mjs",
-      "sha256": "e01f82fc92b990d9eb3f839b9ffbd64b29857c76b02c626872548d26d281b613"
+      "sha256": "62e15805d8e1063c0be5f5f0994c961084fa894fff431dd1da62fe40c46b3a61"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/registry/install",
@@ -404,7 +431,25 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/registry/install.mjs",
-      "sha256": "4a5e38db763680ed88fa5303082c8831bcb9355d89076da0f5ebc7674a181099"
+      "sha256": "ca7b7cc39a1d0dd3a1bb8a01695026228c96b1fd924143d1514946e2c5ba537c"
+    },
+    {
+      "pattern": "/_emdash/api/admin/plugins/registry/publisher-handle",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/plugins/registry/publisher-handle.mjs",
+      "sha256": "ed31d53a1d215e35d555ee4821ac1c56a731319de61cb80503272b845956d78e"
+    },
+    {
+      "pattern": "/_emdash/api/admin/plugins/registry/verify",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/plugins/registry/verify.mjs",
+      "sha256": "68a1a37d7bc7fa7f0a929ae1e210f067dd65c7a019e039ea1720e2608c21a24f"
     },
     {
       "pattern": "/_emdash/api/admin/plugins/updates",
@@ -413,7 +458,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/plugins/updates.mjs",
-      "sha256": "3ceaf743ed5983285ee1ef8352a4965c97f47b7a007d715d9c02997bc0f1b26c"
+      "sha256": "e5c81f8432d1b88578557c8049ce24672260b4837fe508341d3e56d5d53eedd4"
+    },
+    {
+      "pattern": "/_emdash/api/admin/scheduled-policy-rejections/[collection]/[id]",
+      "methods": [
+        "DELETE"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/scheduled-policy-rejections/_collection_/_id_.mjs",
+      "sha256": "1148c75271f3bbfb1a3416840006a7edc71eb54a8ab1fa7b9818e4a9051d455f"
     },
     {
       "pattern": "/_emdash/api/admin/themes/marketplace",
@@ -422,7 +476,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/themes/marketplace/index.mjs",
-      "sha256": "a84a43f24cc7bcdb6d4c775e18d426ad8d1449dde7c6fc490d13ac08aa651474"
+      "sha256": "5db29ab75c54c5a7bf2c30d863f94e20e3d0df7c0a215881931df8276ae7c44c"
     },
     {
       "pattern": "/_emdash/api/admin/themes/marketplace/[id]",
@@ -431,7 +485,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/themes/marketplace/_id_/index.mjs",
-      "sha256": "6a6138a36cd3bd8d270ae5ae278497102c99624a8777e462a34fadd88ef8a948"
+      "sha256": "5cb58a9dea64e3538cc8d22e82e4368e653a6301e3272db6ad6c6fe9a2946764"
     },
     {
       "pattern": "/_emdash/api/admin/themes/marketplace/[id]/thumbnail",
@@ -440,7 +494,20 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/themes/marketplace/_id_/thumbnail.mjs",
-      "sha256": "b82fdf87e6870cbf6251ac1af04eb3334c0fc091b937d8c5d1b0d1cffe830961"
+      "sha256": "0bbed0d3c8da0a3b529317ed56603b61d6ed50ce316ee6e72d1c5e1243295f37"
+    },
+    {
+      "pattern": "/_emdash/api/admin/transfer/[...path]",
+      "methods": [
+        "DELETE",
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/admin/transfer/_...path_.mjs",
+      "sha256": "f09b959f0e25d5939fcc8fc716af8f4f7536aa9d26be90d46073b81557b8e9e1"
     },
     {
       "pattern": "/_emdash/api/admin/users",
@@ -449,7 +516,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/users/index.mjs",
-      "sha256": "1a4a6cbfd80c3a71498ea6d46ab5edb1f53983f885f540f4644d3c8e59f20a85"
+      "sha256": "9969d16842013526600dd9db6ca96b51ebe6c6b15750924df03788d32259e689"
     },
     {
       "pattern": "/_emdash/api/admin/users/[id]",
@@ -459,7 +526,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/users/_id_/index.mjs",
-      "sha256": "bfd9cb5eaaf0c628269b86574326f3a141e2674f4f0cf93211e5f69437c401fa"
+      "sha256": "f26f30942125e053972459a736c4e9b127c6d8ea33065deeae5a47fa88f8fc03"
     },
     {
       "pattern": "/_emdash/api/admin/users/[id]/disable",
@@ -468,7 +535,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/users/_id_/disable.mjs",
-      "sha256": "dbbb6a99690aa1c1e3c9e8d101a527201bef7cd53153ab64139567c07c0b9ff2"
+      "sha256": "3e2f96ba5c50944c63e849c0420b524e0f2205dbbacc942abbec18355373dcb7"
     },
     {
       "pattern": "/_emdash/api/admin/users/[id]/enable",
@@ -477,7 +544,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/users/_id_/enable.mjs",
-      "sha256": "9a745fa038a8237407ebe8877bdfa330dba21df0db9858dab5ef174cd91f0f7a"
+      "sha256": "4ead03d44c6b6acd512da3865c192022cec75d86598b6ef58271ab02b81e8908"
     },
     {
       "pattern": "/_emdash/api/admin/users/[id]/send-recovery",
@@ -486,7 +553,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/admin/users/_id_/send-recovery.mjs",
-      "sha256": "196dc7f3ac3b9ac98a8a4d39295d1a6ab200b13366352e5b795c1b69314e6ea2"
+      "sha256": "50388e6bb11cc6d177a1ce09ccfc17c0b27fc78e39bcb410795bbead14d59947"
     },
     {
       "pattern": "/_emdash/api/auth/dev-bypass",
@@ -496,7 +563,16 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/dev-bypass.mjs",
-      "sha256": "b5cba3584a1b0963c54498b4ca3ca684d024e57847a83f887e10cf72f444482b"
+      "sha256": "956d7edcf8c55f6eeaa1367a515399ea4c4ccb005cff01042e82ce853115bb35"
+    },
+    {
+      "pattern": "/_emdash/api/auth/handover",
+      "methods": [
+        "POST"
+      ],
+      "registration": "builtin-disabled",
+      "module": "dist/astro/routes/api/auth/handover.mjs",
+      "sha256": "931672f81c0b4bc9b3cca3d8eeebd60d39c571da19589a8a3be2b06a1a9c8f8a"
     },
     {
       "pattern": "/_emdash/api/auth/invite",
@@ -505,7 +581,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/invite/index.mjs",
-      "sha256": "5f8b827605943a4aa4f79154e066e073d807a90b9fb3c055f4ae8a19eee92a8b"
+      "sha256": "c784fdabaefa0c9f0c8813def20b81f7847d4616ea8f4c361fb933e975d5dc14"
     },
     {
       "pattern": "/_emdash/api/auth/invite/accept",
@@ -514,7 +590,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/invite/accept.mjs",
-      "sha256": "936931006cedb5e0e4810de807bc381a6ab657716fd5f0eb59e583f16cda3965"
+      "sha256": "c66dedd351d84de3d9e00b0bb9e6d4a42c5b10e6c2dd742a3ba140a123649f73"
     },
     {
       "pattern": "/_emdash/api/auth/invite/complete",
@@ -523,7 +599,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/invite/complete.mjs",
-      "sha256": "cc40925afc9dfc333c7a06c8b83cc8d1eda4e4b5156e8abf4351d790b95bd28b"
+      "sha256": "65a0bfbfcb0eda3694ed9d4c116dafea54feb9739973ad3ed0820a3df541fac3"
     },
     {
       "pattern": "/_emdash/api/auth/invite/register-options",
@@ -532,7 +608,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/invite/register-options.mjs",
-      "sha256": "49903bdb907d42fed89b99bb2be741318940fe8159925d66f77dd9255f2dd0f8"
+      "sha256": "1ba8d4252ab8b505c249eba132a451fa4ecf2e4fdcceaf2ee5e92594ed43707c"
     },
     {
       "pattern": "/_emdash/api/auth/logout",
@@ -541,7 +617,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/auth/logout.mjs",
-      "sha256": "752b8559447065d562b50a518f516947ba31e305685fc7f6efaec87e4f4072a8"
+      "sha256": "ff5a1282384a380471cae0f94dfb94c5a7e3ce8d9e5e7446fb493f31bb576501"
     },
     {
       "pattern": "/_emdash/api/auth/magic-link/send",
@@ -550,16 +626,17 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/magic-link/send.mjs",
-      "sha256": "ced74c29fe89f61842d7e14f09b71c6600d7b942d4a664963ec88de342c0d02a"
+      "sha256": "ccb51d08e29d660091619955d99777cd6268403504fbd1aa72105cb285fd196a"
     },
     {
       "pattern": "/_emdash/api/auth/magic-link/verify",
       "methods": [
-        "GET"
+        "GET",
+        "POST"
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/magic-link/verify.mjs",
-      "sha256": "06e270e6ab08025540843a37c5c609a199bdd4a24c9ad4c8363e3f4e055d048d"
+      "sha256": "0394484e3eaa7f9c27fd51d256040ca2e171692f305c62623ee9b85cb72864b7"
     },
     {
       "pattern": "/_emdash/api/auth/me",
@@ -569,7 +646,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/auth/me.mjs",
-      "sha256": "0fa45a760d851cedde4468ec93f7d0e60bbdf6f376e8a5e82abdba1bdb0dc9d7"
+      "sha256": "ac8f12bdfda1284b41bfa17308c8806d717c42546b90f1c90f5a0630d3d3ff45"
     },
     {
       "pattern": "/_emdash/api/auth/mode",
@@ -578,7 +655,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/auth/mode.mjs",
-      "sha256": "b0fb8967b2c4068e922aae2232361a1f3c81c05d32fa00f8f8c8bef61bcd1235"
+      "sha256": "673c4384881de3100a0fddec139f9e602b0f601cb0f07af0364ae7d5d536a0ed"
     },
     {
       "pattern": "/_emdash/api/auth/oauth/[provider]",
@@ -587,7 +664,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/oauth/_provider_.mjs",
-      "sha256": "51491a96e5ffca206d8c85024e25a1d38c7568efe2d2be1596bdf7b15b8e4e9b"
+      "sha256": "5d6126d72692c872f66d985c03402d9e4ec26b143f554ae039405f6a5ec003e2"
     },
     {
       "pattern": "/_emdash/api/auth/oauth/[provider]/callback",
@@ -596,7 +673,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/oauth/_provider_/callback.mjs",
-      "sha256": "bc59b1d72768a9e331e8ab436df48bea791483bbac11c448c4973338e4e8dfec"
+      "sha256": "be097c2ccb7a2daca09084ca8ad10c517a7a7cfc8615061c57207644adf9b576"
     },
     {
       "pattern": "/_emdash/api/auth/passkey",
@@ -605,7 +682,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/index.mjs",
-      "sha256": "f6d896492103eab42445ff6bd82a2a3c41cc446dc6bd6586705d239923cd24ea"
+      "sha256": "69d846d41bcaeac03a5606aa750b6004e3168b7bf9a22c8fab4dc46cee0d7fd6"
     },
     {
       "pattern": "/_emdash/api/auth/passkey/[id]",
@@ -615,7 +692,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/_id_.mjs",
-      "sha256": "a8d99734620527a6843c3cacaef00386c66c51be69b3ed14ee03ebbc0dfd2f1a"
+      "sha256": "aab118e2c1faea423b2fe44db0490fad4ccfef55db048a5acd15e171c4974295"
     },
     {
       "pattern": "/_emdash/api/auth/passkey/options",
@@ -624,7 +701,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/options.mjs",
-      "sha256": "8b79e25a74e3096ccbba979de39f512cb1bbf58b6ce8b93c4207abed05ea97fd"
+      "sha256": "55879dcf41789d9ed4f0693d7d7c6f24752d93bbcdf8a2e7efc6f100ab14c4be"
     },
     {
       "pattern": "/_emdash/api/auth/passkey/register/options",
@@ -633,7 +710,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/register/options.mjs",
-      "sha256": "f077014345ccd884f6317b52ef1c039d0ec79eb12e57a4f0611db558f59df3c7"
+      "sha256": "965235c9acf2c4fab6ed0be913415728e471d1c8992ab64da1ea9eb1abc9d421"
     },
     {
       "pattern": "/_emdash/api/auth/passkey/register/verify",
@@ -642,7 +719,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/register/verify.mjs",
-      "sha256": "42e0e6406153a2e01dda29cd1e4a66c2fa7f49143955c17c686228c540eaaed1"
+      "sha256": "383ca5341cfd93af8d08e01917aa9b2159281609bd0f7d035e7bd68f66dd93a0"
     },
     {
       "pattern": "/_emdash/api/auth/passkey/verify",
@@ -651,7 +728,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/passkey/verify.mjs",
-      "sha256": "2e807b9949d1750d0468814dc87877e3971ddfb554678e5c80141d8fbdad4c2e"
+      "sha256": "cf57487f02e592c062e11c81f83fb2049d62db793d7d05c4aed1af17768d0a54"
     },
     {
       "pattern": "/_emdash/api/auth/signup/complete",
@@ -660,7 +737,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/signup/complete.mjs",
-      "sha256": "9c2ba1f5454dbbf8ebf1723d6a4615892ba56234d99d70e3de141312d08e180b"
+      "sha256": "a5d357ffb8986e5f90cc8c532691e6930d0933aac04b8b1e692c31cc154f7f2a"
     },
     {
       "pattern": "/_emdash/api/auth/signup/request",
@@ -669,7 +746,7 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/signup/request.mjs",
-      "sha256": "03a9fa8c2c3b690460e78224b7048cce2bcc58db256ae71be57ab6b9deb6013b"
+      "sha256": "afcadf8659d42ba8d5d6bcbb90caf640e94e43f12a83d3b841e94fa90fb43b2c"
     },
     {
       "pattern": "/_emdash/api/auth/signup/verify",
@@ -678,7 +755,16 @@
       ],
       "registration": "builtin-disabled",
       "module": "dist/astro/routes/api/auth/signup/verify.mjs",
-      "sha256": "821d258c012d8ad8588bda9ea9f4deb5ff7af3c30138912e04675e1db726d976"
+      "sha256": "ca6a97161e8d49c6dda196aacc0fbde6437b6f6ae301e19825e5e5605c1ec85c"
+    },
+    {
+      "pattern": "/_emdash/api/calendar",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/calendar.mjs",
+      "sha256": "2c957088f35b4db290b15abe61986f79fe2e74c27fb467bb8cd2b6a18218ed7e"
     },
     {
       "pattern": "/_emdash/api/comments/[collection]/[contentId]",
@@ -688,7 +774,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/comments/_collection_/_contentId_/index.mjs",
-      "sha256": "2f8d89fcecd93acab4e9af57e1abf65d07a79e69b49f1f516a66663d12461cbb"
+      "sha256": "789c54823243391f004bbe407220f3f51d00627cb8d222ad590ec0c967cca193"
     },
     {
       "pattern": "/_emdash/api/comments/[collection]/[contentId]/reactions",
@@ -698,7 +784,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/comments/_collection_/_contentId_/reactions.mjs",
-      "sha256": "98206d219bbd6b615157aa5481cd4a6be4d1a8d8b86fe8204a6754d739977dba"
+      "sha256": "219c4d26673277269b342685bc253e8359146fc78dd1e3c2a680ffa9fc43b40a"
     },
     {
       "pattern": "/_emdash/api/content/[collection]",
@@ -708,7 +794,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/index.mjs",
-      "sha256": "90b822ae511e333d68bb4d15f747f98c2dca5925155891d6b6f5a2df73914c46"
+      "sha256": "22013e1bc060acc56a0a6cbd17cb7f7ee48ba03fb4ce87ac931832e2aab4a228"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]",
@@ -719,7 +805,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_.mjs",
-      "sha256": "4692bb015c00412ec2e4cf04f28ff2d69f1a1e1948894554ecd9c891f761acb2"
+      "sha256": "6311d01b801c76fb6a9127f338e476c39dd02100633fae1a6c592616a1522c43"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/compare",
@@ -728,7 +814,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/compare.mjs",
-      "sha256": "84e0ab4d6ca3f0fd4ca1d530df8b97fa251098cf9d8782c122bbaa8bce9c33e9"
+      "sha256": "c4af9239f01a04348f06bc6791e569f81dd2af6efcff54d23337614cee8f57d4"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/discard-draft",
@@ -737,7 +823,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/discard-draft.mjs",
-      "sha256": "109b98a84fcb20100e5699d688b04737af2397de9e87e9e4c4990d45717f376a"
+      "sha256": "3f1ed13e58a1510ffadbb0b4c78be2eae2065a70e60c421a99cd7905ecd04b9b"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/duplicate",
@@ -746,7 +832,18 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/duplicate.mjs",
-      "sha256": "598f9501a8611eece308eddc4f0915510d48fc291a0b6ae33e7abfc64ebc0aa0"
+      "sha256": "012ae20287e99ca8af18d99f264d3e0f17f327e9d6c624610b71234862373f78"
+    },
+    {
+      "pattern": "/_emdash/api/content/[collection]/[id]/lock",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/content/_collection_/_id_/lock.mjs",
+      "sha256": "dd3793de219a21d0221972c4ebf41b9fd59146993522ad5eae7808fbe1fd69b8"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/permanent",
@@ -755,7 +852,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/permanent.mjs",
-      "sha256": "f1978766aff66f32bc234482e1148ffac775e93a9a727b2bc1c87b32d1f6b12e"
+      "sha256": "f9dc389306e8377ab379c76825fb22a691a5c7b342d78b11361c196b3e4b327c"
+    },
+    {
+      "pattern": "/_emdash/api/content/[collection]/[id]/plugin-extensions/[pluginId]/[kind]/[extensionId]",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/content/_collection_/_id_/plugin-extensions/_pluginId_/_kind_/_extensionId_.mjs",
+      "sha256": "6cf3efff336bec4747ec69acd87e209e7615b816dfbeb02bf196ca0e3eee169f"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/preview-url",
@@ -764,7 +870,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/preview-url.mjs",
-      "sha256": "baf7a659a545775b5d9ecca13aeb71697d4b947142db95229865ef67733bd697"
+      "sha256": "dde1e47aa19b68ee31938c38a8416baad8016c3c9d5552c5c6855203981c7f1b"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/publish",
@@ -773,7 +879,25 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/publish.mjs",
-      "sha256": "b0712b6476426ad74599c829ff24b405b88a5e31972afe3aab7eb34ec708ec8f"
+      "sha256": "91fd1994dd91d350a12952905e5d2381636ac882ef1b2266e1735624de9401c4"
+    },
+    {
+      "pattern": "/_emdash/api/content/[collection]/[id]/references/[relation]/children",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/content/_collection_/_id_/references/_relation_/children.mjs",
+      "sha256": "eac7f647e8c67d5630d1aa124fcba1a33c69739fd91227ec8fef7c99e26e1f46"
+    },
+    {
+      "pattern": "/_emdash/api/content/[collection]/[id]/references/[relation]/parents",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/content/_collection_/_id_/references/_relation_/parents.mjs",
+      "sha256": "dadeca778c33d1e8a60f8e95c2519704c2ffb14f5e2eaf28955733ce2c394239"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/restore",
@@ -782,7 +906,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/restore.mjs",
-      "sha256": "eddf2659a30f9f28e884f010fb033a1a23a20e7e3e25f4fd9a9436352f0880ef"
+      "sha256": "66a8e1b7fc906613c6385fa54859d184a48e99ad728174c2f962c12f69c9b7fc"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/revisions",
@@ -791,7 +915,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/revisions.mjs",
-      "sha256": "fabc84e01829a0464112c8a493d796466378d22537690b240a94888e82a5932e"
+      "sha256": "ded2f3be7247670573a667b7d7f27e33cc3dcff20d0baa90e0229fc449923669"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/schedule",
@@ -801,7 +925,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/schedule.mjs",
-      "sha256": "11043beb3bd93bf4d6681274a7c68d694aa6c4b74af1e94dd382f6f10109b816"
+      "sha256": "b0fead792588e380d14d18ab3666613dde18d18b7baa831dbba29bec1f168a8b"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/terms/[taxonomy]",
@@ -811,7 +935,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/terms/_taxonomy_.mjs",
-      "sha256": "68db023451cabfabca66d4cb6c1764d2fa5fb8f0e037c1dc51fe5898345e90e1"
+      "sha256": "f6024994af7ea72a10cf4c66bdb305a429941d55a1ac117da4c62f3726ed0fa1"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/translations",
@@ -820,7 +944,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/translations.mjs",
-      "sha256": "4326f948acfe5b5dc367ad22a4289a882a1d875b8a2e61ac739d2e6ed7fb485e"
+      "sha256": "c45d856515ef743c61bb78fdb52b13934a1e4d4aa6bd198bb5c2110de834f167"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/[id]/unpublish",
@@ -829,7 +953,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/_id_/unpublish.mjs",
-      "sha256": "e661e47a9c5c3bbd74263b078bc1aed874ff2cc4156a72a8bdda0bad5868fde0"
+      "sha256": "3877556cfed4da5bf75bdb9ca3f122b4f6663516301a50c43c92185f256cc821"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/authors",
@@ -838,7 +962,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/authors.mjs",
-      "sha256": "72affa7140df46769f9b7ea42f74ec14025cd86f8edc13e9a74a5bf859f04d9d"
+      "sha256": "95996f1bfa732b60d8b93dbfee3b5f530042060b7b99bbbc8e00a85cd877bcb0"
     },
     {
       "pattern": "/_emdash/api/content/[collection]/trash",
@@ -847,7 +971,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/content/_collection_/trash.mjs",
-      "sha256": "f987902b2f506a53c5bdc74ab24318d57e977033a8caf149bd1ad096f261ad3a"
+      "sha256": "e85f598885896fe3b53315c28158ebb07efe766cac6f06dfb4b3e303947f630d"
     },
     {
       "pattern": "/_emdash/api/dashboard",
@@ -856,7 +980,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/dashboard.mjs",
-      "sha256": "b364bac91e22c029f2ca668c6585b517118647263e2d147beff7b2178f9c6dc4"
+      "sha256": "1480267a685346277ed2b86c9086d2b45ad6f6cc5951f6b3eeeeeec9826967ec"
     },
     {
       "pattern": "/_emdash/api/dev/emails",
@@ -866,7 +990,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/dev/emails.mjs",
-      "sha256": "4b2fe4118c4a803d4c81b2e42cb4691770956e8912b81dca526624d232c72822"
+      "sha256": "996d8186383f9439706551b10096b6d8113133aeb9a168d8ee545feb1ccb7783"
+    },
+    {
+      "pattern": "/_emdash/api/health",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/health.mjs",
+      "sha256": "948bc05d95456cd5b8c17020263ef908f615a36e40e356ceeab690381bb17f80"
     },
     {
       "pattern": "/_emdash/api/import/probe",
@@ -875,7 +1008,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/probe.mjs",
-      "sha256": "1f375643b8479aadaf54abc1b702e1c77d2992597a0b77e308f93f914c9577a1"
+      "sha256": "010fad4accd60519a8367d43a3cec9dd1345d95b9d0da22726ce9387c42f2870"
     },
     {
       "pattern": "/_emdash/api/import/wordpress-plugin/analyze",
@@ -884,7 +1017,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress-plugin/analyze.mjs",
-      "sha256": "b4c10db3dfe8c317269ffb577146800690974bfe65645a648e4bd456c203a4f7"
+      "sha256": "ffcd4f0aebbcca888a92b5383b58643729dd56ea733cf7e38200f4a9c6f696af"
     },
     {
       "pattern": "/_emdash/api/import/wordpress-plugin/callback",
@@ -893,7 +1026,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress-plugin/callback.mjs",
-      "sha256": "85aa6968eb760f92a85a07c4be557892e168a4a2d7813d1b9e492a582089d324"
+      "sha256": "86a672096f796965145d3e07e468e17e2376de5783d7098dac1b301069a9e9f9"
     },
     {
       "pattern": "/_emdash/api/import/wordpress-plugin/execute",
@@ -902,7 +1035,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress-plugin/execute.mjs",
-      "sha256": "595b4c2f0198a14150bfe95a7ddece54aa026188f7e52cc10b4d77a2c8f6aaed"
+      "sha256": "287dea1233ae32f04ce5370c0758784dd45efbbb3d6ee6e22bfd85065b2c54b9"
     },
     {
       "pattern": "/_emdash/api/import/wordpress/analyze",
@@ -911,7 +1044,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress/analyze.mjs",
-      "sha256": "e93876ff1199f36af38259938d6af70aba063193e6f73aa1c1c615b0e5507be4"
+      "sha256": "b8dc1c7d406c3917c9af52c2691702dfb59bd1df11d6d89f3e0cccc3dbd8f588"
     },
     {
       "pattern": "/_emdash/api/import/wordpress/execute",
@@ -920,7 +1053,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress/execute.mjs",
-      "sha256": "c790bd4032db21d7a9ff4649c98909fd25d5e246ce397d4aa9619ba3fd78419f"
+      "sha256": "8e3eef1e7c5619fab20fa2f584ef0152c9e1fccc07fd2348d041e581c2c10d31"
     },
     {
       "pattern": "/_emdash/api/import/wordpress/media",
@@ -929,7 +1062,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress/media.mjs",
-      "sha256": "ee1b40b805ff5b28410ffe2a55f0e3219e10a8afee046abf360d0801048a89a3"
+      "sha256": "0b841f1faf2afc5882a17eae56459fe557576178a5cb7c5d4698ee035e3eef99"
     },
     {
       "pattern": "/_emdash/api/import/wordpress/prepare",
@@ -938,7 +1071,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress/prepare.mjs",
-      "sha256": "b9e44f2a0269596dee40194f7a2d9ba337d167b798b2f3e874ba2574081a3b84"
+      "sha256": "af1d5e5a48cd45500d6084048f2703a70af6c9fe17f2bbd2e71316dc930f12a4"
     },
     {
       "pattern": "/_emdash/api/import/wordpress/rewrite-urls",
@@ -947,7 +1080,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/import/wordpress/rewrite-urls.mjs",
-      "sha256": "16fae03e223984f3289218fbc6a07376f59b6f5e0e368cb64e6e65a12f7f064e"
+      "sha256": "f8eb484066cf0e87812c382642f8a0cbca6f54340e19f1c4af91e2eafd111743"
     },
     {
       "pattern": "/_emdash/api/manifest",
@@ -956,7 +1089,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/manifest.mjs",
-      "sha256": "47cc380d7cb5850d9f705f5c3b70e9807b81ef1f5569a694a6bf87d50d8bec25"
+      "sha256": "0d0c0588f899281dea5b9b43c5864a292238b72ff965d87487ebb757fe9bf63a"
     },
     {
       "pattern": "/_emdash/api/mcp",
@@ -967,7 +1100,7 @@
       ],
       "registration": "mcp-disabled",
       "module": "dist/astro/routes/api/mcp.mjs",
-      "sha256": "2866eacbb02247cb208698cf0a7701d1998390a26b478cac28b5c5cda62cdbdc"
+      "sha256": "94d76bba6d83aa5e65252caaa2afc71d8fbdfa56abd71866879fe37e71cf6b43"
     },
     {
       "pattern": "/_emdash/api/media",
@@ -977,7 +1110,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media.mjs",
-      "sha256": "e722c6a2f7ac591774f33a7771e51ea3026d622a4643a6d1d422d5da93d3bd78"
+      "sha256": "77aadb0c5ac2b955962e6034238546739b02d32f4d51e0f1e4432718f15ccbff"
     },
     {
       "pattern": "/_emdash/api/media/[id]",
@@ -988,7 +1121,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/_id_.mjs",
-      "sha256": "c8044c58c12fc038ffa502021c7d804a19fe74ed815925b2fe45b174a9abc500"
+      "sha256": "a31414cfd9fea3577a57ad773b8b380325c18c1bf16c63bcc26b8add63a18905"
     },
     {
       "pattern": "/_emdash/api/media/[id]/confirm",
@@ -997,7 +1130,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/_id_/confirm.mjs",
-      "sha256": "ff8c198cef15a751ec9878b5a72990c09978dd6d0c7206deaffbeb513164ed0f"
+      "sha256": "b20c3606d899c9e13957993600b2045261fbde811121ffae496c98e49ba85ff1"
+    },
+    {
+      "pattern": "/_emdash/api/media/[id]/replace",
+      "methods": [
+        "PUT"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/media/_id_/replace.mjs",
+      "sha256": "be403e693f9fd1ef1015150fa28efa16b377e4cc693047e76cf5080cf8ea717a"
     },
     {
       "pattern": "/_emdash/api/media/[id]/upload",
@@ -1006,7 +1148,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/_id_/upload.mjs",
-      "sha256": "43d382beae37b860fc539c8720b248f2b458c70a87e6bf05634c98967696c2ee"
+      "sha256": "c05d68f8045f9260f2f8a1e08039a0e66ddfd54e7eb9e1b97045efcd865a5c26"
     },
     {
       "pattern": "/_emdash/api/media/[id]/usage",
@@ -1015,7 +1157,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/_id_/usage.mjs",
-      "sha256": "495907a5289b5f46ece5feea1c5bfe0b8d1fbdd5902f8ef3330b61f25c1cec1b"
+      "sha256": "14853e50de6eb1fb4b048828ff4a7ea512f3bcaa6470da252eb7a6fcfe948ee2"
+    },
+    {
+      "pattern": "/_emdash/api/media/asset/[id]/[filename]",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/media/asset/_id_/_filename_.mjs",
+      "sha256": "232c39eb09465e1b24563b16d383250832585b3fc7d6efb78b75021a87586e23"
     },
     {
       "pattern": "/_emdash/api/media/file/[...key]",
@@ -1024,7 +1175,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/file/_...key_.mjs",
-      "sha256": "e540037bb842a0564cce6b5e8f8c98b2f94ef3c70fa3a96f0ebdcc59d76228ec"
+      "sha256": "1ac1fd34a909c26312bbf8b8584e1dd9b8f71db30341ea64ccb006d3e22776e2"
     },
     {
       "pattern": "/_emdash/api/media/folders",
@@ -1034,7 +1185,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/folders/index.mjs",
-      "sha256": "4e72f8363a4eb9946a618f8d25e13f351f51a4fddf3b4df8b3b78b8a4bde23d5"
+      "sha256": "2f02d794fdc5c78d6dea2e3cc641b48684f5d30614df2969abd5819f5ed8367e"
     },
     {
       "pattern": "/_emdash/api/media/folders/[id]",
@@ -1045,7 +1196,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/folders/_id_.mjs",
-      "sha256": "4599cfe82c27bffeeea438c21483c8dbd11a2d30332d0b73e641c1f8f5a8608d"
+      "sha256": "346e66d0b4dfdf3b9c9193101f2185fea12a467f00081f5e63b6482d56daa1ab"
     },
     {
       "pattern": "/_emdash/api/media/providers",
@@ -1054,7 +1205,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/providers/index.mjs",
-      "sha256": "1de96eed8218e4ef0d9a1377a43265dd56c9905143b431fe051a77b8b913d249"
+      "sha256": "8d6cfb47afe0b54b5c861a8e0df4efd5f8375c9e3652f238ad0f9e1844008431"
     },
     {
       "pattern": "/_emdash/api/media/providers/[providerId]",
@@ -1064,7 +1215,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/providers/_providerId_/index.mjs",
-      "sha256": "e1a906d4453855532738fe13365f8e5754c19d361b66fa9690eebc3c894c6eb4"
+      "sha256": "38fc4bef864179ed970e73840f77cb8f6200f083de071ff2da6ed47312eb5dfb"
     },
     {
       "pattern": "/_emdash/api/media/providers/[providerId]/[itemId]",
@@ -1074,7 +1225,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/providers/_providerId_/_itemId_.mjs",
-      "sha256": "2dc55b29fbba48eb2ab7f3408c0e2b2465c1b67781877408204a690cfcd286b9"
+      "sha256": "b41f3e9b01f7a992475c6c2396104106e26ed21989dff962ade88144dccec1b2"
     },
     {
       "pattern": "/_emdash/api/media/upload-url",
@@ -1083,7 +1234,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/media/upload-url.mjs",
-      "sha256": "c5f3c5b2c881ae15c10136407e1853dd6479a81c16cda9afd301aa36e7f9c2d0"
+      "sha256": "95936a5eb5f4d2e86a0ea1b7872e27c563dace6dc9619f9e527001406c114e21"
     },
     {
       "pattern": "/_emdash/api/menus",
@@ -1093,7 +1244,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/index.mjs",
-      "sha256": "5f6ee5a5b85b1e2195d95bc0640e93af9b5fbe1b8bbd4f911312a0cb7e56a814"
+      "sha256": "da7390539e8e73298ec01cca3f1de6105bb91d6b950906f66300cf114de1f138"
     },
     {
       "pattern": "/_emdash/api/menus/[name]",
@@ -1104,7 +1255,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/_name_.mjs",
-      "sha256": "e418201bb9961a4da543eedfae967ec208c8f598524aac0a9ce9a212e5238af4"
+      "sha256": "358b519eee693b300e971b4d724cee7d60b2cc06d7cfa36fba6e1d010dedd974"
     },
     {
       "pattern": "/_emdash/api/menus/[name]/items",
@@ -1113,7 +1264,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/_name_/items.mjs",
-      "sha256": "81788edd5f383834337a494cbbf765647ab6aa64bd7bf3f7f98dfaf9b7315391"
+      "sha256": "09a7ec8a01f3a8d15b1a851ec52e62e5f0b623f5bfc645ec87ff2081e4397ca8"
     },
     {
       "pattern": "/_emdash/api/menus/[name]/items/[id]",
@@ -1123,7 +1274,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/_name_/items/_id_.mjs",
-      "sha256": "9b58c2fb88a4e1c1d4c8b13ccbbf15a1da5dc4ed0577ed737f99273239c66696"
+      "sha256": "4efdaf89bf78e733a882816ab16277604f236d00bcd0965dffaed934bf0c6912"
     },
     {
       "pattern": "/_emdash/api/menus/[name]/reorder",
@@ -1132,7 +1283,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/_name_/reorder.mjs",
-      "sha256": "c0616f7b59ba02739f74e850a5320d962b97f29ca65baa469e6248cbc501f316"
+      "sha256": "4f08c6d59e392654f8ca2d339455144d6ac482eede33e876ac20c13dff27e074"
     },
     {
       "pattern": "/_emdash/api/menus/[name]/translations",
@@ -1142,16 +1293,17 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/menus/_name_/translations.mjs",
-      "sha256": "037dd4fd7832c33e9d98c67aca203178801ec55df1f4d80d2b23efbdff869a0a"
+      "sha256": "34e7e8a0e5aa7d2c9edac4417a8a6cb1de87e88cc123b743545b180a5b4e84dd"
     },
     {
       "pattern": "/_emdash/api/oauth/device/authorize",
       "methods": [
+        "GET",
         "POST"
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/device/authorize.mjs",
-      "sha256": "f27ea42d68397be5e95eab9a2a4c3b2e667b922f2b088dba6d10222756470d37"
+      "sha256": "1f1253fe0b7ee6d4a5e3bc8d2052452b4c187202b1df35e50e120a0829d1b5f0"
     },
     {
       "pattern": "/_emdash/api/oauth/device/code",
@@ -1160,7 +1312,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/device/code.mjs",
-      "sha256": "92b8693cc7a55db7cc17726ffc5c2ee1a4b2d7087932bb09132d6f625c8116db"
+      "sha256": "57531689450cb20bb82f99a6d2453840a1665fcc9776ae5c85dd95da5ddbba62"
     },
     {
       "pattern": "/_emdash/api/oauth/device/token",
@@ -1169,7 +1321,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/device/token.mjs",
-      "sha256": "87eda2df07c4a0a6f5c91f2f47f9d5b39fc7defac6978cceecb072cf036e8044"
+      "sha256": "2311d02984f5562c12b6a963e314dbb0c05adb289d14a1fb5bb46c2f69bb291d"
     },
     {
       "pattern": "/_emdash/api/oauth/register",
@@ -1179,7 +1331,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/register.mjs",
-      "sha256": "800d8b5fe6302ba96b88b096405f48a285eaebc30fbb5c867877f998e705e759"
+      "sha256": "d9fa9c2700f6faaff5e13b6784925dcd76d6457e1226d37a17a9d30944d121ce"
     },
     {
       "pattern": "/_emdash/api/oauth/token",
@@ -1189,7 +1341,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/token.mjs",
-      "sha256": "4d3df35efb810bf6ba271e016ec8e6910565fade878fc13dedcbf8d8568e08fb"
+      "sha256": "ec37315df3618cdd44df147bf5f2ef09b9ce2d7f6ac56876f4dc2cb5812a5129"
     },
     {
       "pattern": "/_emdash/api/oauth/token/refresh",
@@ -1198,7 +1350,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/token/refresh.mjs",
-      "sha256": "c4db49ca5fdcaf8398a8e2c7d16c4454781d626661701a28464daf245d27ef35"
+      "sha256": "4aa4042ca7ad93313c41925d1cb902e32142228829e605b4b100e23d79e9e3f0"
     },
     {
       "pattern": "/_emdash/api/oauth/token/revoke",
@@ -1207,20 +1359,30 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/token/revoke.mjs",
-      "sha256": "716e90e15fb4955f5699e1edf9116991b087bb07dbcdccb2cc1d9363bd7f9d40"
+      "sha256": "9f7c406dadb57a17f341ed90cd408cc92ff7720129a1c5187605505ec6201c98"
+    },
+    {
+      "pattern": "/_emdash/api/openapi.json",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/openapi.json.mjs",
+      "sha256": "cc3ca07b0cfd4e68cb30ef6f70642e6c6def470adebbcd34e5c54c3bb7970668"
     },
     {
       "pattern": "/_emdash/api/plugins/[pluginId]/[...path]",
       "methods": [
         "DELETE",
         "GET",
+        "HEAD",
         "PATCH",
         "POST",
         "PUT"
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/plugins/_pluginId_/_...path_.mjs",
-      "sha256": "c8f638a142506bdf02f3794a403c416c6a1cff410d222f789547a5bce7922a21"
+      "sha256": "0bf215049b1362dd15ef7ed2f7a6ca679a5f0b66b96ad2b4bbde61158fb05ac6"
     },
     {
       "pattern": "/_emdash/api/redirects",
@@ -1230,7 +1392,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/redirects/index.mjs",
-      "sha256": "7a748cb3ac5177054169ef5f238f799267c831afb8f647264b9bad8e1c7f897d"
+      "sha256": "be627b2938470493fb31c19158c0fa202be3425f05c126158d675d9e7bfb9a8a"
     },
     {
       "pattern": "/_emdash/api/redirects/[id]",
@@ -1241,7 +1403,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/redirects/_id_.mjs",
-      "sha256": "cad8f7374132f389978e8480445940a03b105d2ff9885d5d10d65461cb302dfa"
+      "sha256": "9348e9907dce2b5ee58cdb03c43f27de0508a4891a81a0fc4ced6217e941a0c8"
     },
     {
       "pattern": "/_emdash/api/redirects/404s",
@@ -1252,7 +1414,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/redirects/404s/index.mjs",
-      "sha256": "e692da5490fb7eeec4c79a32232a962fb15c2f7e622fed80515a7044308eac92"
+      "sha256": "a7939034a2bcc3cb8d627c8374aec107e25190676dc09637d9ddf487fab9f9ac"
     },
     {
       "pattern": "/_emdash/api/redirects/404s/summary",
@@ -1261,7 +1423,28 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/redirects/404s/summary.mjs",
-      "sha256": "2f95765adf80559e48cef8efa8dcb2a8540a5d3ac87029c348bd4308fdaeb02c"
+      "sha256": "7c22ada1b1ffb51fc85f138b905fb17b401120e847df723eefb1fb25f42cb479"
+    },
+    {
+      "pattern": "/_emdash/api/relations",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/relations/index.mjs",
+      "sha256": "8149c712fe335b4e2443a8b8e93a32e1b246bffa5859b4ea37fa0cf915c00861"
+    },
+    {
+      "pattern": "/_emdash/api/relations/[id]",
+      "methods": [
+        "DELETE",
+        "GET",
+        "PATCH"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/relations/_id_/index.mjs",
+      "sha256": "d025358784ae3e4c5333ee42496d6e3e1213f2bdd8fb3fab65e6d6c2f8247923"
     },
     {
       "pattern": "/_emdash/api/revisions/[revisionId]",
@@ -1270,7 +1453,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/revisions/_revisionId_/index.mjs",
-      "sha256": "206e6ecdc8708bfc0b3130f4acf3d9cf8ff8fdddc38b9e27d230d988e75dd764"
+      "sha256": "42843066977b59c2ade7cbab7c51794d4879610d455a64fbe7da96765381c76c"
     },
     {
       "pattern": "/_emdash/api/revisions/[revisionId]/restore",
@@ -1279,7 +1462,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/revisions/_revisionId_/restore.mjs",
-      "sha256": "763eb2bb0f8038a499ac13c7d5b288ce8cec37f759692903c7e2f287b20c4943"
+      "sha256": "1fa33a18f18edc166a8be4f7738fe191463c8bc41ffb32cc342271149dcba5ff"
     },
     {
       "pattern": "/_emdash/api/schema",
@@ -1288,7 +1471,36 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/index.mjs",
-      "sha256": "f8148b0578f450fd78fba1e9b8a39efd222e40c7eb77104801d47dd82818c405"
+      "sha256": "7442d7b8446c1baaa0c2e2a6ca3e7d31e2daee632c0878248ce00933ffa0edc8"
+    },
+    {
+      "pattern": "/_emdash/api/schema/block-types",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/schema/block-types/index.mjs",
+      "sha256": "f1bdff5f9280af67b7b39037f50eee313a0214fabfc01e864f42fca839d57aac"
+    },
+    {
+      "pattern": "/_emdash/api/schema/block-types/[slug]",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/schema/block-types/_slug_/index.mjs",
+      "sha256": "e2ea589d3a390e04fb55b6f72f6f4cad63b5ef43ebb8867a0a4abbc53aa05edc"
+    },
+    {
+      "pattern": "/_emdash/api/schema/block-types/[slug]/versions/[version]/activate",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/schema/block-types/_slug_/versions/_version_/activate.mjs",
+      "sha256": "ad13ef3dab27bbfff4a583f7eb3f699b118d8f70aabeddd230b5c024adae1730"
     },
     {
       "pattern": "/_emdash/api/schema/collections",
@@ -1298,7 +1510,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/index.mjs",
-      "sha256": "c161f92532aeaeee1618c1229ea1bd981a1d7eb1de8adec63b741a62996bae52"
+      "sha256": "a204fcd8d949298d71e74bce2e889477680e92f6d42d127fe34cb39d5508d32b"
     },
     {
       "pattern": "/_emdash/api/schema/collections/[slug]",
@@ -1309,7 +1521,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/_slug_/index.mjs",
-      "sha256": "46114b03fccb4ef95a5212281b8e088d082ca77b8432cea9d05386a00756b450"
+      "sha256": "da771942f2dda4dd690b64797d2479ac747285da126c1355dea9b0e8320644c7"
     },
     {
       "pattern": "/_emdash/api/schema/collections/[slug]/fields",
@@ -1319,7 +1531,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/_slug_/fields/index.mjs",
-      "sha256": "7e9b8aba476a20a02a4007a65d94e32b1bb0fb0e339eefd6db1b78b9cc5f486e"
+      "sha256": "1f9d6a5310d3f4aa79f0184ba51b336a3c8ac0d774efb5c1af39234261ec610a"
     },
     {
       "pattern": "/_emdash/api/schema/collections/[slug]/fields/[fieldSlug]",
@@ -1330,7 +1542,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/_slug_/fields/_fieldSlug_.mjs",
-      "sha256": "98e01ec7932048901121b9918babeff59a00456d3ae655ee5614c99df53727ae"
+      "sha256": "35726c23293c704b195a6ef5f333250194e3613b633a082cf81b8a4f76f1e67a"
     },
     {
       "pattern": "/_emdash/api/schema/collections/[slug]/fields/reorder",
@@ -1339,7 +1551,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/_slug_/fields/reorder.mjs",
-      "sha256": "4fb8346f844f6d8b062abeb4992c1319f186d24a6c426ab839c3c2fb73f1133a"
+      "sha256": "dfdd2dd675784e34cdb777a8fdfe2ffc94bf6416ac3252bbd4016de9e11cf74e"
     },
     {
       "pattern": "/_emdash/api/schema/collections/reorder",
@@ -1348,7 +1560,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/collections/reorder.mjs",
-      "sha256": "47a3d4c7d2d1e53c9d4f47dfe49f677c5d3d2e3498dfdf56ee8c879aa3ff19a1"
+      "sha256": "34934c2fca4ab4f650c362c548217280024f5f97c486af3e6519a9c65ae2ead6"
     },
     {
       "pattern": "/_emdash/api/schema/orphans",
@@ -1357,7 +1569,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/orphans/index.mjs",
-      "sha256": "feb31667152409147bc622c9d2756d8d59b31f89805fa1a3e87fdd6a685c6bfc"
+      "sha256": "a9e20f8f7c33fa6d71907df693558ebab0a5174db01a4fecf5b3ab8c7231b101"
     },
     {
       "pattern": "/_emdash/api/schema/orphans/[slug]",
@@ -1366,7 +1578,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/schema/orphans/_slug_.mjs",
-      "sha256": "29c9b37125aa78849498fcdabb8599d5f582f2f53b9d7f1e33eaea14ee5894cf"
+      "sha256": "397875a835eb4c2dd1b173af630dd4aa3218d0db04404dd67f7970079d7f9dbd"
     },
     {
       "pattern": "/_emdash/api/search",
@@ -1375,7 +1587,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/search/index.mjs",
-      "sha256": "4c8e6cdd13022088cf75a6f4052827e56d574ccf20a741ff6e8084fa1ef36285"
+      "sha256": "4c9277964e84ab8f2f106bdfb77baea8b8b81d713cbbb9963f18b313e933e1c9"
     },
     {
       "pattern": "/_emdash/api/search/enable",
@@ -1384,7 +1596,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/search/enable.mjs",
-      "sha256": "832eacc1fd3e8b7ab2ea888de214f7c1b98d59dc379639a98d972a716a1d4697"
+      "sha256": "5b72c39c7be3fb28f7d2a36d7816195e0737a29f320a55c20bb439fcf9cf1059"
     },
     {
       "pattern": "/_emdash/api/search/rebuild",
@@ -1393,7 +1605,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/search/rebuild.mjs",
-      "sha256": "d024625ebefc584a0225a30a46b46b746ed821934f62a72d5cba3d8c157770ad"
+      "sha256": "b5d823eba3e7366ddcf8fe1d36628912eab6bb9d6a5de7ab6b3395bc1efcb5a7"
     },
     {
       "pattern": "/_emdash/api/search/stats",
@@ -1402,7 +1614,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/search/stats.mjs",
-      "sha256": "18f51eba583e3ab5836380431dd6c97cb5626e733ed537ec8d2a11f8c0afaf83"
+      "sha256": "f15b10d6af56584795e1d8efd2414712400624cda715d538e74ffc97811f8a55"
     },
     {
       "pattern": "/_emdash/api/search/suggest",
@@ -1411,7 +1623,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/search/suggest.mjs",
-      "sha256": "b5b2a0f4d0c1c2738476517d093dd047f5145aaf1bd87a559ea3c395e3296f5d"
+      "sha256": "151cd541006d80441ba5327cc0f411b6177330bf06790af7715a355f88605849"
     },
     {
       "pattern": "/_emdash/api/sections",
@@ -1421,7 +1633,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/sections/index.mjs",
-      "sha256": "86ca01becad5b0a6586544fefec14858997cc79765640f39c36478c87b1cffcd"
+      "sha256": "38744162b3931cd46ad563b987d1ad8616516eabd9e0feea96a4ee4e669e577b"
     },
     {
       "pattern": "/_emdash/api/sections/[slug]",
@@ -1432,7 +1644,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/sections/_slug_.mjs",
-      "sha256": "a18c664cf9ecf75b2470c42e4d8b32f89d2fad49be8311001bc01b5d83fea312"
+      "sha256": "539e61ca828d4349cfa420eb851baf38fc2d8000865b94c1ed4244fe5fc6a6b2"
     },
     {
       "pattern": "/_emdash/api/settings",
@@ -1442,7 +1654,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings.mjs",
-      "sha256": "a9e4f09242bb020e5cbd0b6b36a813abc0c489ebf6bc6ce185d3497f2c08b2aa"
+      "sha256": "8ab64d8b131fe6560e0fde5d69096df9564e545dd5d552d3dc7eb8d2a5bf7541"
     },
     {
       "pattern": "/_emdash/api/settings/backups",
@@ -1452,7 +1664,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings/backups/index.mjs",
-      "sha256": "aca60f144d0e16502e134d04fd7a78f31b80e993d2f5fe35d974e0d41cdf3e1a"
+      "sha256": "0a1d36dcb5ea44cb397c840e938cd57fc54092ea1028d1fcb9f5958300ae6c7d"
     },
     {
       "pattern": "/_emdash/api/settings/backups/archives",
@@ -1461,7 +1673,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings/backups/archives/index.mjs",
-      "sha256": "849fd65c241fd5240b705ff448e02ceb1209847d5862c6debe4ab4207086dd5c"
+      "sha256": "130f6da9db8e4c34ec9b0873234e61b882fbdaa37336d38b4643dba379e4b780"
     },
     {
       "pattern": "/_emdash/api/settings/backups/archives/[name]",
@@ -1471,7 +1683,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings/backups/archives/_name_.mjs",
-      "sha256": "aca0965fc7a19c185b67c37a5ff594a0fb5d796999db0498bf2aae7be81f6569"
+      "sha256": "11cc5ad2b4c8eb99cce7e39c02609f9da21b015eb6faf1b2f56172a049f11f7a"
     },
     {
       "pattern": "/_emdash/api/settings/backups/export",
@@ -1480,7 +1692,26 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings/backups/export.mjs",
-      "sha256": "c7c70ecc8c178d926a3e72844e58a31a1200d597aa89e97a361b08f2bb9a0d55"
+      "sha256": "27a273566cf4d0425cb402adf3160c927905b115e5ee753beabc66649a8161b0"
+    },
+    {
+      "pattern": "/_emdash/api/settings/domain",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/settings/domain.mjs",
+      "sha256": "aab89a8377fd0983a23c1546c8d1c384c53790e9e7f510ea84a678ee1f124ae5"
+    },
+    {
+      "pattern": "/_emdash/api/settings/domain/notify",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/settings/domain-notify.mjs",
+      "sha256": "ae53c0d5b967636df63cbfd558c8212a381365668e0bdb93ef4d6205cbbc5290"
     },
     {
       "pattern": "/_emdash/api/settings/email",
@@ -1490,7 +1721,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/settings/email.mjs",
-      "sha256": "bfa0101a52b836c039fb3c0fb5e9c15f475f07cd00638f5b1025cdca0161f1ea"
+      "sha256": "9f1a38e0d9ed5393f7aeeedc5e469bf58a935e46dcbdc5e4cdc300bc41c3368f"
     },
     {
       "pattern": "/_emdash/api/setup",
@@ -1499,7 +1730,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/index.mjs",
-      "sha256": "efc78246daaa1963fb6ee5980a31079b7dd966eb6452c14c471f47aa09c2765a"
+      "sha256": "1c1244b7ea198397ae46222ee5431b9dfebf7b21ffcb953512f209afb9a86cc4"
     },
     {
       "pattern": "/_emdash/api/setup/admin",
@@ -1508,7 +1739,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/admin.mjs",
-      "sha256": "44fe3c14a41a90dddc2224ca438d9024244b52eff8f16e933653b8a4c4d28c50"
+      "sha256": "51f8bed7989c61ec25d10b9f19bbfcd1ba3b8ae81d177fc719eb8e3c33e7a032"
     },
     {
       "pattern": "/_emdash/api/setup/admin/verify",
@@ -1517,7 +1748,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/admin-verify.mjs",
-      "sha256": "f3b2b535fe15772545a31cfe59104d56c127ac4d516ef6a73718ab84e4a065b6"
+      "sha256": "09b191615accef13ac82cafa2150794f9c2fa906118e272f4b01b7a7f96f3f0d"
     },
     {
       "pattern": "/_emdash/api/setup/dev-bypass",
@@ -1527,7 +1758,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/dev-bypass.mjs",
-      "sha256": "dc7c18cba36fac8fa3ad59264eb24dd3ec865573905e481ee72ee03baf89104f"
+      "sha256": "4ee91e061cdca159d262bd9ffe55a4b0e1e432d7d57adeccef9a946b9d34bdba"
     },
     {
       "pattern": "/_emdash/api/setup/dev-reset",
@@ -1536,7 +1767,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/dev-reset.mjs",
-      "sha256": "789ed6e7dc4c91a791495e319e0f5d963d014e70efcabde2c81f43150434ceed"
+      "sha256": "b7d253911b9238f20c677e797d56fc45698e8c35d77d9973917667f22479a94d"
     },
     {
       "pattern": "/_emdash/api/setup/status",
@@ -1545,7 +1776,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/setup/status.mjs",
-      "sha256": "8064e1703bc77ae71d7eea447aceffdf61d781b2f74afa31e6f563836a0250c2"
+      "sha256": "d639146302fed2bf16aca9284ff5f2af3eababe85f619e9f4428eeffb43e0b79"
+    },
+    {
+      "pattern": "/_emdash/api/site/domain-proof",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/site/domain-proof.mjs",
+      "sha256": "180093d3fb3a410a5f425fcb75cbe65a482dc0b934fa8cb5eca63dcd6ea5babf"
     },
     {
       "pattern": "/_emdash/api/snapshot",
@@ -1554,7 +1794,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/snapshot.mjs",
-      "sha256": "9d4e364a21a9350de996666ea802c65b6ccc0d3fab93ae09cb61dbd4295133ca"
+      "sha256": "79a61050f0e05a70d34e94bc0fd6e4656076f6ca7ceba7d9eb21abaf8b6cf99a"
     },
     {
       "pattern": "/_emdash/api/taxonomies",
@@ -1564,7 +1804,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/index.mjs",
-      "sha256": "19e6ef532d38dbb4a5dafb1417381a619a58d07555eb808e84e4344f658b4845"
+      "sha256": "e5b4ae11014208605de282b95b11888629ec9226640e66eff0cc9cef920e75bd"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]",
@@ -1575,7 +1815,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_.mjs",
-      "sha256": "0e4a890125f3182fd050229a5661e2bf9f1b8342c37adc0a898fbbd5714527ac"
+      "sha256": "015c00999f9e712ea5faf8cb597b305a43e52d7b0f1ac8969fd935b949b66184"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]/reorder",
@@ -1584,7 +1824,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_/reorder.mjs",
-      "sha256": "cff95fe8a2b5c2b30222bf60560e197e78fd6eb454ae42bd645bef7ab74b52cd"
+      "sha256": "c0411f06e644b3e9476bd336354efeba9fe802bef2e997f96d5c81c5eeaa32d2"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]/terms",
@@ -1594,7 +1834,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_/terms/index.mjs",
-      "sha256": "fb733b425146ccd7e8c8a72e74ae69239c3cc0eea1a98f0c12482c533acab3b9"
+      "sha256": "7432e494f26e2e8bfff8ec7e57e03ef74044098fc6d720b007bf5b4dd8f5e4b1"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]/terms/[slug]",
@@ -1605,7 +1845,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_/terms/_slug_.mjs",
-      "sha256": "9c45d98e77f272721638b650a72b392c3be16ade3caa2c4e2c99c5e5090d14aa"
+      "sha256": "b9722c4cf19f416cc83ead93f0a45eb90339ec8f63664a4e22001990d8c1e8e2"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]/terms/[slug]/translations",
@@ -1615,7 +1855,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_/terms/_slug_/translations.mjs",
-      "sha256": "5d908d985a5dbfc81dad4d437a908bf91090f942533f87ca5b0581f51780fbe4"
+      "sha256": "adf9b15b8229451c9b49d7d8f0fff8d25e4d89a5dcd3225c683da7caee07b9d7"
     },
     {
       "pattern": "/_emdash/api/taxonomies/[name]/translations",
@@ -1624,7 +1864,16 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/taxonomies/_name_/translations.mjs",
-      "sha256": "dd41be8b6f783d2f444ae0100410c14806802e2ac18fd8fef331523b0a72915e"
+      "sha256": "27d49098812d39799a2c6b02c68dfaab818dfbc164e1664418f079ebce6f9710"
+    },
+    {
+      "pattern": "/_emdash/api/taxonomies/bulk-tag",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/taxonomies/bulk-tag.mjs",
+      "sha256": "e5d90030fdeec7c5249c556d6ba312b1182373de424ea82b6d6062bf70bf2d5e"
     },
     {
       "pattern": "/_emdash/api/themes/preview",
@@ -1633,7 +1882,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/themes/preview.mjs",
-      "sha256": "32a0bfb51b62b79eb5006fcbfdc0e2378f137b5f1cf9a84514eda0e0a57995f8"
+      "sha256": "69f3a25c9023ac777e6d09778a5bf33fa9dbab074532c559b97ea9555de3a86e"
     },
     {
       "pattern": "/_emdash/api/typegen",
@@ -1643,7 +1892,34 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/typegen.mjs",
-      "sha256": "2d3ffc699b9302ec2ef28b94ca6d3d518ee970c98b6278e5754c360e70269877"
+      "sha256": "75d9dd16c2f3988ec8016518ea162856a01287c1fca3fd1d021468ab5ada838a"
+    },
+    {
+      "pattern": "/_emdash/api/visual-editing/action-token",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/visual-editing/action-token.mjs",
+      "sha256": "875714726bafded7e05d6a1584d231791d45a1028ca7bf82acf5692291133d74"
+    },
+    {
+      "pattern": "/_emdash/api/visual-editing/content/[collection]/[id]/publish",
+      "methods": [
+        "POST"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/visual-editing/content/_collection_/_id_/publish.mjs",
+      "sha256": "240ba72f6ee3e59b1e52cad1a281b50d6167c6924bbd8ca25eb5f46863ba5073"
+    },
+    {
+      "pattern": "/_emdash/api/visual-editing/toolbar-labels",
+      "methods": [
+        "GET"
+      ],
+      "registration": "core",
+      "module": "dist/astro/routes/api/visual-editing/toolbar-labels.mjs",
+      "sha256": "50a4eafb1bbbaeab4a7e224951858847c94bb118c80f0ffd06a1ffc65e577cf0"
     },
     {
       "pattern": "/_emdash/api/widget-areas",
@@ -1653,7 +1929,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-areas/index.mjs",
-      "sha256": "ad9d1edb2eba227a097548759ef3ae0fee202694526c2d640b66658da4ec425b"
+      "sha256": "3ca8e939e7b7c4f87a6989c7d2858f285679222034fe9c89ee447c4e21433930"
     },
     {
       "pattern": "/_emdash/api/widget-areas/[name]",
@@ -1663,7 +1939,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-areas/_name_.mjs",
-      "sha256": "dd4df9ce7a09b29822923e3e11618757462c77ae24442e0b2f704bd788b74c8b"
+      "sha256": "fe081fbd17e78b6c5c9268ae64acb852ec8cdd5a7000acfbf572fe2f46905e86"
     },
     {
       "pattern": "/_emdash/api/widget-areas/[name]/reorder",
@@ -1672,7 +1948,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-areas/_name_/reorder.mjs",
-      "sha256": "35cc4d5f1a820e262b3b94139f7ba1e2c815b3a05cffbc22dd8b67cbff05c821"
+      "sha256": "40410acc91b5ba1bea06f8bde969ac04a6233fff13743edcae2a2018f4f7286c"
     },
     {
       "pattern": "/_emdash/api/widget-areas/[name]/widgets",
@@ -1681,7 +1957,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-areas/_name_/widgets.mjs",
-      "sha256": "fffc651544d7c481b8cd31931591c8496a11ab868416ae460bf65f0ca9467bf4"
+      "sha256": "b0af4c17c3f7fd33d31c2ca84b23f16da19ccd93f62d339fc65db742ffd436c2"
     },
     {
       "pattern": "/_emdash/api/widget-areas/[name]/widgets/[id]",
@@ -1691,7 +1967,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-areas/_name_/widgets/_id_.mjs",
-      "sha256": "99338d0f13fd09d8b4bd7427a66878b70d8ba1e78c6bbeca256cc6a8ae08752d"
+      "sha256": "5cfe982ec89a17b55a73035c81b5f217f59a876c25266418b290175fea3930da"
     },
     {
       "pattern": "/_emdash/api/widget-components",
@@ -1700,7 +1976,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/widget-components.mjs",
-      "sha256": "ea1fcba0718550dd1e5af5f069f19fb114d9f95f549da9aa84e9e99d196cc373"
+      "sha256": "92872eac05ee8129f29d57146720c528a493aa7777688d238536f8ab64ceb5ff"
     },
     {
       "pattern": "/_emdash/oauth/authorize",
@@ -1710,7 +1986,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/oauth/authorize.mjs",
-      "sha256": "b02e7a602da94d13ff8f719366c052168f3fa3100476e59b82a6803e61b25272"
+      "sha256": "dd1525daae204b3ba27e1b42cdab64997c210cd5b2ebacf71f67b93f2523dc17"
     },
     {
       "pattern": "/.well-known/oauth-authorization-server/_emdash",
@@ -1719,7 +1995,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/well-known/oauth-authorization-server.mjs",
-      "sha256": "f5df4dd149555821031bad60028cf9f5beb4b015765bc084c0bf874457277c31"
+      "sha256": "741debbfadffb5fbe437969f7b20cce8dcb7c2914738d688e99ca6afd0fc9d6d"
     },
     {
       "pattern": "/.well-known/oauth-protected-resource",
@@ -1728,7 +2004,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/api/well-known/oauth-protected-resource.mjs",
-      "sha256": "9190253a8c4ffb17923a3211e8600f4fc11a7b75e314a08203cc2bda4a5b81fe"
+      "sha256": "4bfb2afecebbe07cf79873910473fcedf83fc81491231bce14e978c25aa0fdb3"
     },
     {
       "pattern": "/robots.txt",
@@ -1737,7 +2013,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/robots.txt.mjs",
-      "sha256": "2f543c24322cfbdd68d936ef1d32ff527257d7716d9ea71e5d2e8e37d1da114e"
+      "sha256": "45d2128a65e923851b2b2807887a0cf1315c8b07ddcc3a8f3aacaf94a500bd77"
     },
     {
       "pattern": "/sitemap-[collection].xml",
@@ -1746,7 +2022,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/sitemap-_collection_.xml.mjs",
-      "sha256": "2547381fb9e91718ce1c098fdc5651306e4b72509dea921b85bbd10bc8173fb0"
+      "sha256": "436fc224d7f50d03ba7220dd503f0025e6c55aa51db3ccc18cbecf32a02ff911"
     },
     {
       "pattern": "/sitemap.xml",
@@ -1755,7 +2031,7 @@
       ],
       "registration": "core",
       "module": "dist/astro/routes/sitemap.xml.mjs",
-      "sha256": "b74c9eae334004ec64527e562cbfaaa0cd2af18329daf4608a016af058bff3ef"
+      "sha256": "09967305a30424b754e02f7256de5e76dc803f0fa13f7162ba23d35696a14a06"
     }
   ]
 }

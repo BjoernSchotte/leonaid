@@ -109,7 +109,44 @@ export const onRequest = defineMiddleware(async (context, next) => {
             });
       return result;
     };
-    emdash.handleContentGet = async (collection, id) => {
+    // EmDash 1.x routes pass the acting user and source to publication
+    // handlers. Admit only that echo; never a backdated publish or any other
+    // option. `_rev` keeps upstream's optimistic concurrency check.
+    const mutationOptions = (options: unknown) => {
+      if (options === undefined) return {};
+      if (!options || typeof options !== "object" || Array.isArray(options))
+        throw new CoreIdentityError(403);
+      const {
+        _rev,
+        actor: optionActor,
+        origin,
+        ...rest
+      } = options as Record<string, unknown>;
+      if (Object.values(rest).some((value) => value !== undefined))
+        throw new CoreIdentityError(403);
+      if (_rev !== undefined && (typeof _rev !== "string" || _rev.length > 512))
+        throw new CoreIdentityError(403);
+      if (optionActor !== undefined && !sameActor(optionActor))
+        throw new CoreIdentityError(403);
+      if (
+        origin !== undefined &&
+        JSON.stringify(origin) !== JSON.stringify({ source: "api" })
+      )
+        throw new CoreIdentityError(403);
+      return {
+        ...(_rev === undefined ? {} : { _rev: _rev as string }),
+        ...(optionActor === undefined
+          ? {}
+          : { actor: { id: user.id, role: user.role } }),
+        ...(origin === undefined ? {} : { origin: { source: "api" as const } }),
+      };
+    };
+    const sameActor = (value: unknown) =>
+      Boolean(value) &&
+      typeof value === "object" &&
+      JSON.stringify(value) ===
+        JSON.stringify({ id: user.id, role: user.role });
+    emdash.handleContentGet = async (collection, id, locale, references) => {
       const access = await getCampaignContent(
         database,
         profile,
@@ -117,9 +154,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
         id,
       );
       if (!access.success) return access;
+      // Campaign pages are single-locale; a stored entry echoes its own locale.
+      if (locale !== undefined && locale !== access.data.item.locale)
+        throw new CoreIdentityError(403);
       // Preserve upstream draft hydration; its lower-level handler reads only
       // the live columns. Binding guards prevent rebinding between these reads.
-      const result = await runtimeGet(collection, id);
+      const result = await runtimeGet(collection, id, locale, references);
       if (result.success) {
         const item = result.data?.item;
         const data = item?.data;
@@ -144,16 +184,26 @@ export const onRequest = defineMiddleware(async (context, next) => {
       return result;
     };
     emdash.handleContentUpdate = async (collection, id, body) => {
+      // The 1.x route adds the acting user. Admit only this request's user.
+      const { actor: bodyActor, ...editorBody } = body ?? {};
+      if (bodyActor !== undefined && !sameActor(bodyActor))
+        throw new CoreIdentityError(403);
       const denied = await authorizeCampaignUpdate(
         database,
         profile,
         collection,
         id,
-        body,
+        editorBody,
       );
       // This native runtime flag is omitted from the upstream Locals type.
       // Normalize it explicitly; do not cast away the public handler contract.
-      const revisionedBody = { ...body, skipRevision: false };
+      const revisionedBody = {
+        ...editorBody,
+        ...(bodyActor === undefined
+          ? {}
+          : { actor: { id: user.id, role: user.role } }),
+        skipRevision: false,
+      };
       return (
         denied ??
         updateCampaignAtomically(
@@ -174,7 +224,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       getCampaignRevision(database, profile, id);
     emdash.handleContentCompare = (collection, id) =>
       compareCampaignContent(database, profile, collection, id);
-    emdash.handleContentUnpublish = async (collection, id) => {
+    emdash.handleContentUnpublish = async (collection, id, options) => {
       const access = await getCampaignContent(
         database,
         profile,
@@ -182,6 +232,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         id,
       );
       if (!access.success) return access;
+      const admitted = mutationOptions(options);
       return mutateCampaignAtomically(
         emdash,
         collection,
@@ -189,7 +240,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         actor,
         async () => {
           // Withdrawal must remain possible after Core publication is closed.
-          const result = await runtimeUnpublish(collection, id);
+          const result = await runtimeUnpublish(collection, id, admitted);
           // Preserve the existing draft in the response, not stale live columns.
           return result.success ? runtimeGet(collection, id) : result;
         },
@@ -204,11 +255,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         id,
       );
       if (!access.success) return access;
-      if (
-        options &&
-        Object.values(options).some((value) => value !== undefined)
-      )
-        throw new CoreIdentityError(403);
+      const admitted = mutationOptions(options);
       const actionId = access.data.item.data.action_id;
       if (typeof actionId !== "string") throw new CoreIdentityError(503);
       return mutateCampaignAtomically(
@@ -218,12 +265,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
         actor,
         async () => {
           await requireCorePublication(request, actionId);
-          return runtimePublish(collection, id);
+          return runtimePublish(collection, id, admitted);
         },
         "publish",
       );
     };
-    emdash.handleContentDiscardDraft = async (collection, id) => {
+    emdash.handleContentDiscardDraft = async (collection, id, options) => {
       const access = await getCampaignContent(
         database,
         profile,
@@ -231,12 +278,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
         id,
       );
       if (!access.success) return access;
+      const { _rev } = mutationOptions(options);
       return mutateCampaignAtomically(
         emdash,
         collection,
         id,
         actor,
-        () => runtimeDiscard(collection, id),
+        () => runtimeDiscard(collection, id, { _rev }),
         "discard-draft",
       );
     };

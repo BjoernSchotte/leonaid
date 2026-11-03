@@ -1,12 +1,12 @@
 ---
 title: Upgrade and roll back
-description: Update pinned Core, Twenty, and RustFS versions behind a maintenance boundary with a tested recovery path.
+description: Update pinned Core, Twenty, RustFS, and EmDash versions behind a maintenance boundary with a tested recovery path.
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: 417858db2e419436eb003e8ccb4eb83fbaf3125d
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
 reviewer: Björn Schotte
 ---
 
@@ -114,3 +114,41 @@ attempt restored from the recovery point.
 After 1.0.4 has run on the volume, do not start beta.11 again. Roll back by
 restoring the full RustFS volume together with Core PostgreSQL from the
 recovery point.
+
+## EmDash campaign site 0.36 to 1.4
+
+This applies only when the optional campaign site (Compose profile `emdash`)
+runs. EmDash 1.4 adds the database migrations `074` to `091`. They touch
+existing content: migration `079` rewrites every content date and every
+revision snapshot to UTC ISO format, `080` and `081` add unique indexes and
+write guards to content and redirects. EmDash runs no migration on its own:
+the campaign site checks the schema at startup and refuses a database that is
+not fully migrated.
+
+1. Create and verify a recovery point that contains the CMS database, the media
+   bucket, the encryption key and the CMS image (`./leonaid backup`).
+2. Close CMS traffic with the current image:
+   `docker compose … run --rm --no-deps --entrypoint node campaign-site
+/app/operator/cms-migration-operator.mjs close`. The durable marker in the
+   `cms-bootstrap-state` volume keeps every later CMS process closed.
+3. Build the new CMS image and recreate `campaign-site` from it without
+   starting it (`docker compose … up --no-deps --no-start campaign-site`).
+4. Run the reviewed controller with the same Compose files as the deployment:
+   `tools/pilot_release/migrate-cms.sh <checkout> <project> <image>
+upgrade-emdash <compose files…>`. It verifies the image identity, refuses an
+   unknown or gapped migration history, runs EmDash's own migrator under the
+   traffic gate and then checks the exact migration inventory, the campaign
+   bindings, the media guards and the campaign schema. A second run applies
+   nothing. `verify` must pass afterwards.
+5. Check the campaign pages. Then reopen CMS traffic by removing the marker
+   (`docker compose … run --rm --no-deps --entrypoint rmdir campaign-site
+/app/bootstrap-state/cms-maintenance`) and start `campaign-site`.
+
+If the controller refuses or a migration fails, CMS traffic stays closed. Do
+not start the old image against the partly or fully migrated database.
+Restore the CMS SQL, media, key and image of the recovery point instead.
+`./leonaid test-emdash-spike --case emdash-upgrade` proves this path. It
+imports the real Krapfentaxi campaign with EmDash 0.36.0, upgrades the same
+database with this controller, compares every content row, revision, media
+item and binding before and after, and edits and publishes the page in three
+browsers.
