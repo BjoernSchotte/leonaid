@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 
 import { cn } from "../lib/utils";
 
@@ -16,28 +23,47 @@ export interface ModalProps {
   readonly role?: "dialog" | "alertdialog";
 }
 
-// Open modals; the page scroll stays locked while any is open.
-let openModals = 0;
+/*
+ * Open modals, innermost last. It drives the page scroll lock (a class on
+ * <html>, CSP-safe) and tells the toaster where the top layer is: content
+ * outside the topmost modal dialog is hidden behind it and inert.
+ */
 const SCROLL_LOCK_CLASS = "modal-open";
+const openSlots: HTMLElement[] = [];
+const listeners = new Set<() => void>();
 
-function useScrollLock() {
-  const locked = useRef(false);
-  return {
-    lock() {
-      if (locked.current) return;
-      locked.current = true;
-      openModals += 1;
-      document.documentElement.classList.add(SCROLL_LOCK_CLASS);
-    },
-    unlock() {
-      if (!locked.current) return;
-      locked.current = false;
-      openModals = Math.max(0, openModals - 1);
-      if (openModals === 0) {
-        document.documentElement.classList.remove(SCROLL_LOCK_CLASS);
-      }
-    },
+function register(slot: HTMLElement) {
+  if (openSlots.includes(slot)) return;
+  openSlots.push(slot);
+  document.documentElement.classList.add(SCROLL_LOCK_CLASS);
+  listeners.forEach((listener) => listener());
+}
+
+function unregister(slot: HTMLElement) {
+  const index = openSlots.indexOf(slot);
+  if (index < 0) return;
+  openSlots.splice(index, 1);
+  if (openSlots.length === 0) {
+    document.documentElement.classList.remove(SCROLL_LOCK_CLASS);
+  }
+  listeners.forEach((listener) => listener());
+}
+
+/** The toast slot of the topmost open modal, or null. */
+export function topModalSlot(): HTMLElement | null {
+  return openSlots.at(-1) ?? null;
+}
+
+export function subscribeModalStack(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
   };
+}
+
+/** React bubbles `cancel`/`close` of nested dialogs and inputs; skip those. */
+function isOwn(event: SyntheticEvent) {
+  return event.target === event.currentTarget;
 }
 
 /**
@@ -56,6 +82,7 @@ export function Modal({
   title,
 }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -63,35 +90,45 @@ export function Modal({
   openRef.current = open;
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const scrollLock = useScrollLock();
-  const scrollLockRef = useRef(scrollLock);
-  scrollLockRef.current = scrollLock;
+  const pointerDownOnBackdrop = useRef(false);
+  // Bumped after a forced close, so the effect re-opens a modal the consumer
+  // keeps open.
+  const [forcedCloses, setForcedCloses] = useState(0);
 
   useEffect(() => {
     const dialog = ref.current;
+    const slot = slotRef.current;
     openRef.current = open;
-    if (!dialog) return;
+    if (!dialog || !slot) return;
     if (open) {
-      if (!dialog.open) {
-        returnFocus.current = document.activeElement as HTMLElement | null;
+      if (dialog.open) return;
+      const show = () => {
+        if (!openRef.current || dialog.open || !dialog.isConnected) return;
+        returnFocus.current ??= document.activeElement as HTMLElement | null;
         dialog.showModal();
-      }
-      scrollLockRef.current.lock();
+        register(slot);
+      };
+      // A child effect runs before its parent's. Wait for an enclosing
+      // dialog that opens in the same commit, so the child ends on top.
+      const parent = dialog.parentElement?.closest("dialog");
+      if (parent && !parent.open) queueMicrotask(show);
+      else show();
       return;
     }
     if (dialog.open) dialog.close();
-    scrollLockRef.current.unlock();
+    unregister(slot);
     restoreFocus(returnFocus);
-  }, [open]);
+  }, [open, forcedCloses]);
 
   // An open modal that unmounts (conditional rendering) still hands focus back.
   useEffect(() => {
     const dialog = ref.current;
+    const slot = slotRef.current;
     return () => {
       // Not a user close: do not report it through onClose.
       openRef.current = false;
       if (dialog?.open) dialog.close();
-      scrollLockRef.current.unlock();
+      if (slot) unregister(slot);
       restoreFocus(returnFocus);
     };
   }, []);
@@ -102,19 +139,27 @@ export function Modal({
       aria-labelledby={titleId}
       className={cn("modal", `modal-${size}`, className)}
       onCancel={(event) => {
+        if (!isOwn(event)) return;
         event.preventDefault();
         onCloseRef.current();
       }}
       onClick={(event) => {
-        if (event.target === ref.current) onCloseRef.current();
+        // Only a press and release both on the backdrop close it, not a text
+        // selection that ends there.
+        const onBackdrop =
+          pointerDownOnBackdrop.current && event.target === ref.current;
+        pointerDownOnBackdrop.current = false;
+        if (onBackdrop) onCloseRef.current();
       }}
-      onClose={() => {
+      onClose={(event) => {
+        if (!isOwn(event) || !openRef.current) return;
         // Chromium closes without a cancelable `cancel` on a repeated Esc.
-        if (openRef.current) {
-          scrollLockRef.current.unlock();
-          restoreFocus(returnFocus);
-          onCloseRef.current();
-        }
+        // Report it; the effect then closes for good or opens again.
+        onCloseRef.current();
+        setForcedCloses((count) => count + 1);
+      }}
+      onPointerDown={(event) => {
+        pointerDownOnBackdrop.current = event.target === ref.current;
       }}
       ref={ref}
       role={role}
@@ -135,6 +180,8 @@ export function Modal({
           {footer ? <footer className="modal-footer">{footer}</footer> : null}
         </div>
       ) : null}
+      {/* The toaster renders here while this is the topmost modal. */}
+      <div className="modal-toast-slot" ref={slotRef} />
     </dialog>
   );
 }

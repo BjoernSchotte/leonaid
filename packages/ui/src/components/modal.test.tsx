@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { installDialogPolyfill } from "../test-utils/dialog-polyfill";
+import { ConfirmDialog } from "./confirm-dialog";
 import { Modal } from "./modal";
 
 beforeAll(installDialogPolyfill);
@@ -87,8 +94,20 @@ describe("Modal", () => {
     await user.click(screen.getByRole("textbox", { name: "Grund" }));
     expect(onClose).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("dialog"));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.pointerDown(dialog);
+    fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not close when a drag starts inside and ends on the backdrop", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    await user.click(screen.getByRole("button", { name: "Öffnen" }));
+    fireEvent.pointerDown(screen.getByRole("textbox", { name: "Grund" }));
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("reports a close the browser forced (second Esc in Chromium)", async () => {
@@ -99,10 +118,121 @@ describe("Modal", () => {
     await user.click(opener);
 
     // The browser may close without a cancelable `cancel` event.
-    (document.querySelector("dialog") as HTMLDialogElement).close();
+    act(() => (document.querySelector("dialog") as HTMLDialogElement).close());
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(opener);
+  });
+
+  it("re-opens after a forced close when the consumer keeps it open", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    function Stubborn() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)} type="button">
+            Öffnen
+          </button>
+          <Modal onClose={onClose} open={open} title="Wird gespeichert">
+            <input aria-label="Grund" />
+          </Modal>
+        </>
+      );
+    }
+    render(<Stubborn />);
+    await user.click(screen.getByRole("button", { name: "Öffnen" }));
+    const dialog = document.querySelector("dialog") as HTMLDialogElement;
+    act(() => dialog.close());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialog.open).toBe(true);
+    expect(document.documentElement.classList.contains("modal-open")).toBe(
+      true,
+    );
+  });
+
+  it("ignores cancel and close events of nested elements", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    await user.click(screen.getByRole("button", { name: "Öffnen" }));
+    const input = screen.getByRole("textbox", { name: "Grund" });
+    // A dismissed file picker fires `cancel` on its input.
+    fireEvent(input, new Event("cancel", { bubbles: true, cancelable: true }));
+    fireEvent(input, new Event("close", { bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector("dialog")?.open).toBe(true);
+  });
+
+  it("closes only the nested ConfirmDialog on Esc and Abbrechen", async () => {
+    const user = userEvent.setup();
+    const outerClose = vi.fn();
+    const innerChange = vi.fn();
+    function Nested() {
+      const [confirm, setConfirm] = useState(false);
+      return (
+        <Modal onClose={outerClose} open title="Bearbeiten">
+          <button onClick={() => setConfirm(true)} type="button">
+            Löschen
+          </button>
+          <ConfirmDialog
+            confirmLabel="Löschen"
+            description="Der Eintrag wird entfernt."
+            onConfirm={() => undefined}
+            onOpenChange={(open) => {
+              innerChange(open);
+              setConfirm(open);
+            }}
+            open={confirm}
+            title="Eintrag löschen?"
+          />
+        </Modal>
+      );
+    }
+    render(<Nested />);
+    const opener = screen.getByRole("button", { name: "Löschen" });
+    await user.click(opener);
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(innerChange).toHaveBeenCalledWith(false);
+    expect(outerClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(opener);
+
+    await user.click(opener);
+    await user.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(outerClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Bearbeiten" })).toHaveProperty(
+      "open",
+      true,
+    );
+  });
+
+  it("opens a child modal on top when parent and child open together", async () => {
+    const order: string[] = [];
+    const original = HTMLDialogElement.prototype.showModal;
+    const spy = vi
+      .spyOn(HTMLDialogElement.prototype, "showModal")
+      .mockImplementation(function (this: HTMLDialogElement) {
+        order.push(this.getAttribute("aria-labelledby") ?? "");
+        original.call(this);
+      });
+    await act(async () => {
+      render(
+        <Modal onClose={() => undefined} open title="Eltern">
+          <Modal onClose={() => undefined} open title="Kind">
+            Inhalt
+          </Modal>
+        </Modal>,
+      );
+    });
+    spy.mockRestore();
+    const parent = screen.getByRole("dialog", { name: "Eltern" });
+    const child = screen.getByRole("dialog", { name: "Kind" });
+    expect(order).toEqual([
+      parent.getAttribute("aria-labelledby"),
+      child.getAttribute("aria-labelledby"),
+    ]);
   });
 
   it("returns focus when the open modal unmounts", async () => {
