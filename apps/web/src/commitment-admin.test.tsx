@@ -152,6 +152,7 @@ const identity: CurrentIdentityResponse = {
   freshLoginAt: "2026-11-03T10:00:00Z",
   freshUntil: "2026-11-03T10:10:00Z",
   globalRoles: [],
+  installation: { clubName: "Lions Club Musterstadt" },
   navigation: [],
   roleLabels: [],
   sessionExpiresAt: "2026-11-04T10:00:00Z",
