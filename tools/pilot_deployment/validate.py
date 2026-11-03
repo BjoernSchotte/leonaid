@@ -317,6 +317,9 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     if "MAIL_TEST_API_URL" in api_environment:
         raise DeploymentContractError("production API contains a mail test API")
 
+    club_name = string_value(api_environment, "LEONAID_CLUB_NAME")
+    if not club_name.strip() or is_placeholder(club_name):
+        raise DeploymentContractError("production API has no club name")
     public_url = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
     validate_public_url(public_url, "LEONAID_PUBLIC_BASE_URL")
     for origin in string_value(api_environment, "LEONAID_ALLOWED_ORIGINS").split(","):

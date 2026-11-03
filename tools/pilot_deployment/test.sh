@@ -308,6 +308,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_PUBLIC_IMAGE=registry.example.org/leonaid/public@sha256:$digest" \
     "LEONAID_PROXY_IMAGE=registry.example.org/leonaid/proxy@sha256:$digest" \
     "LEONAID_SURVEY_VALIDATOR_IMAGE=registry.example.org/leonaid/survey-validator@sha256:$digest" \
+    "LEONAID_CLUB_NAME=Lions Club Beispielstadt" \
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://portal.leonaid.org" \

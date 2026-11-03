@@ -4695,6 +4695,9 @@
             "title": "Globalroles",
             "type": "array"
           },
+          "installation": {
+            "$ref": "#/components/schemas/InstallationResponse"
+          },
           "navigation": {
             "items": {
               "$ref": "#/components/schemas/NavigationItemResponse"
@@ -4736,7 +4739,8 @@
           "sessionExpiresAt",
           "sessionLastSeenAt",
           "freshLoginAt",
-          "freshUntil"
+          "freshUntil",
+          "installation"
         ],
         "title": "CurrentIdentityResponse",
         "type": "object"
@@ -6177,6 +6181,21 @@
           "answers"
         ],
         "title": "IndividualResponse",
+        "type": "object"
+      },
+      "InstallationResponse": {
+        "additionalProperties": false,
+        "description": "Installation facts every signed-in surface shows (one club per install).",
+        "properties": {
+          "clubName": {
+            "title": "Clubname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clubName"
+        ],
+        "title": "InstallationResponse",
         "type": "object"
       },
       "InvitationAcceptanceResponse": {

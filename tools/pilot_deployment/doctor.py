@@ -57,6 +57,7 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "CADDY_ACME_EMAIL",
     "LEONAID_ALLOWED_ORIGINS",
     "LEONAID_ALERT_HEARTBEAT_URL_FILE",
+    "LEONAID_CLUB_NAME",
     "LEONAID_ALERT_WEBHOOK_URL_FILE",
     "LEONAID_BACKUP_MANIFEST_PATH",
     "LEONAID_COMPOSE_PROJECT",
@@ -181,6 +182,8 @@ def validate_environment(
 
     if values["LEONAID_ENV"] != "production":
         raise DoctorError("environment_not_production")
+    if is_placeholder(values["LEONAID_CLUB_NAME"]):
+        raise DoctorError("club_name_invalid")
     stage = values["LEONAID_DEPLOYMENT_STAGE"]
     if stage not in {"production", "staging"}:
         raise DoctorError("deployment_stage_invalid")
