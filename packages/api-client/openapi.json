@@ -7651,6 +7651,32 @@
           "monitoring": {
             "$ref": "#/components/schemas/OperationalMonitoringResponse"
           },
+          "nextPendingAttemptAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Earliest available_at of a pending job; null when none waits.",
+            "title": "Nextpendingattemptat"
+          },
+          "oldestDuePendingAgeSeconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds the oldest due pending job has waited; null when none is due.",
+            "title": "Oldestduependingageseconds"
+          },
           "outbox": {
             "$ref": "#/components/schemas/OperationalStatusCountsResponse"
           },

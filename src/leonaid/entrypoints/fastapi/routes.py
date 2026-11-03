@@ -2354,6 +2354,8 @@ async def operations_overview(
             for item in snapshot.dependencies
         ],
         outbox=OperationalStatusCountsResponse.model_validate(snapshot.outbox),
+        next_pending_attempt_at=snapshot.next_pending_attempt_at,
+        oldest_due_pending_age_seconds=snapshot.oldest_due_pending_age_seconds,
         mail=OperationalStatusCountsResponse.model_validate(snapshot.mail),
         login=OperationalLoginMetricsResponse.model_validate(snapshot.login),
         failed_jobs=[

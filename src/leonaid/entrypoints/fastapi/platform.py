@@ -54,6 +54,7 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
     build_survey_services,
     module_navigation,
+    parked_event_types,
     register_api_modules,
 )
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
@@ -224,6 +225,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 else None
             ),
             release=settings.release_commit or settings.service_version,
+            parked_event_types=parked_event_types(disabled_modules),
         )
         application.state.api_metrics = api_metrics
         application.state.request_diagnostics = InMemoryRequestDiagnostics(

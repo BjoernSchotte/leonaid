@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
+contentRevision: 11
+reviewedRevision: 11
 verifiedAgainst: 6dbd0207c70d70a1c2b077fa013898b54f55e24d
 reviewer: Björn Schotte
 ---
@@ -93,6 +93,12 @@ retried with the error code `job_timeout`. Jobs store only the safe error
 code as their error detail, never exception text. Every job log line
 (`outbox.job.*`) carries `durationMs` when the job finished, failed or lost
 its claim.
+
+The outbox card on `/admin/system` also shows the next pending attempt
+and how long the oldest due job has waited (API fields `nextPendingAttemptAt`
+and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
+of both values, because they wait on purpose. A growing wait with a running
+worker points to a stuck or overloaded queue.
 
 ## Runtime limits and identity
 

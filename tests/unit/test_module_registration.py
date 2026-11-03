@@ -8,7 +8,8 @@ from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
 
 from leonaid.application.identity import navigation_for
-from leonaid.bootstrap.api import API_MODULES, module_navigation
+from leonaid.bootstrap.api import API_MODULES, module_navigation, parked_event_types
+from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
     RegistrationError,
@@ -353,3 +354,20 @@ def test_malformed_module_switch_list_is_rejected(
     monkeypatch.setenv("LEONAID_DISABLED_MODULES", "Surveys")
     with pytest.raises(ConfigurationError, match="LEONAID_DISABLED_MODULES"):
         load_module_settings()
+
+
+def test_parked_event_types_match_the_survey_handlers() -> None:
+    placeholder = cast(Any, object())
+    surveys = worker_modules(
+        "postgresql://unused",
+        HandlerDependencies(
+            pool=placeholder,
+            storage=placeholder,
+            mail_transport=placeholder,
+            payload_secret="0" * 64,
+        ),
+    )[0]
+
+    assert set(surveys.handlers) == SURVEY_EVENT_TYPES
+    assert parked_event_types(frozenset({"surveys"})) == SURVEY_EVENT_TYPES
+    assert parked_event_types(frozenset()) == frozenset()
