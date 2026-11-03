@@ -150,6 +150,20 @@ def main() -> None:
                 f"{timestamp_result.stdout}{timestamp_result.stderr}"
             )
 
+        uuid_artifacts = workspace / "uuid-artifacts"
+        uuid_artifacts.mkdir()
+        (uuid_artifacts / "command.log").write_text(
+            '{"requestId":"566bbb6b-0855-4240-8756-6569c7885bd0"}\n'
+            "id 10855424-0875-4656-9788-012345678901 done\n",
+            encoding="utf-8",
+        )
+        uuid_result = run_sanitizer(sanitizer, uuid_artifacts, env_file, proof)
+        if uuid_result.returncode != 0:
+            raise AssertionError(
+                "UUID digit groups were rejected as a phone number: "
+                f"{uuid_result.stdout}{uuid_result.stderr}"
+            )
+
         layer_artifacts = workspace / "layer-artifacts"
         layer_artifacts.mkdir()
         layer_log = layer_artifacts / "command.log"
@@ -186,6 +200,10 @@ def main() -> None:
             "private-phone-local.txt": b"Kontakt: 089 12345678",
             "private-phone-plus49.txt": b"Kontakt: +49 89 12345678",
             "private-phone-0049.txt": b"Kontakt: 0049 (89) 12345678",
+            "private-phone-after-uuid.txt": (
+                b"566bbb6b-0855-4240-8756-6569c7885bd0 Kontakt: 089 12345678"
+            ),
+            "private-uuid-like-phone.txt": b"Kontakt: 0855-4240-8756",
         }
         for name, payload in cases.items():
             assert_rejected(

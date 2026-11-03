@@ -75,6 +75,8 @@ jobs:
         shard: ${{ fromJSON(needs.inventory.outputs.shards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Reuse persistent Docker build layers
         uses: ./.github/actions/build-cache
         with:
@@ -85,6 +87,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Execute each assigned check once with fresh owned service state
         env:
           SURVEY_GATE_SHARD: ${{ matrix.shard }}
@@ -153,8 +157,12 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/${{ matrix.command }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Bootstrap pinned Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run isolated backup and recovery proof
         env:
           TEST_COMMAND: ${{ matrix.command }}

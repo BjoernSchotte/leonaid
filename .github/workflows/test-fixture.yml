@@ -22,8 +22,14 @@ jobs:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture
           key: ${{ steps.key.outputs.value }}
           lookup-only: true
+      - name: Start freeing runner disk from unused toolchains
+        if: steps.cached.outputs.cache-hit != 'true'
+        run: sh tools/ci/free-runner-disk.sh start
       - if: steps.cached.outputs.cache-hit != 'true'
         uses: ./.github/actions/build-cache
+      - name: Finish freeing runner disk
+        if: steps.cached.outputs.cache-hit != 'true'
+        run: sh tools/ci/free-runner-disk.sh wait
       - if: steps.cached.outputs.cache-hit != 'true'
         name: Build an isolated synthetic fixture from repository inputs
         run: python3 tools/testing/ci_fixture.py build "$RUNNER_TEMP/leonaid-synthetic-fixture"
