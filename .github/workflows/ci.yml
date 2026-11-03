@@ -111,6 +111,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -133,6 +135,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run real service integration suite
         run: bash tools/ci/run-job.sh integration-${{ matrix.shard }} bash tools/ci/integration.sh ${{ matrix.shard }}
       - name: Publish integration evidence
@@ -172,6 +176,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -188,6 +194,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run OpenAPI and cross-system contracts
         run: bash tools/ci/run-job.sh contract bash tools/ci/contract.sh
       - name: Publish contract evidence
@@ -216,6 +224,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -232,6 +242,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run real browser shard
         run: >-
           bash tools/ci/run-job.sh
@@ -285,6 +297,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -303,6 +317,8 @@ jobs:
             static) sh tools/ci/retry-infra.sh ./leonaid bootstrap ;;
             *) sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh browser ;;
           esac
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run EmDash proof cases
         env:
           EMDASH_GROUP: ${{ matrix.group }}
@@ -441,6 +457,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -457,6 +475,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run complete cross-browser Golden Journey
         run: |
           if [ "$LEONAID_GOLDEN_PART" = primary ] && [ -n "${LEONAID_CI_FIXTURE:-}" ]; then
@@ -578,10 +598,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prove empty Docker state without caches
         run: docker system prune --all --volumes --force
       - name: Bootstrap locked Docker toolchains
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Run complete synthetic pilot rehearsal from empty state
         run: >-
           bash tools/ci/run-job.sh
