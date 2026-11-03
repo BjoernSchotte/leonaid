@@ -31,13 +31,14 @@ docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
   python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
-/bin/sh "$root/tools/pilot/test.sh" "$root"
-# The browser image is only needed here; free its ~2.7 GB for the image
-# gates below unless it was already present (see pulled-images.sh).
+# The browser image is only needed by the pilot and release tests; free its
+# ~2.7 GB for the image gates below unless it was already present before
+# this run (see pulled-images.sh).
 playwright_pulled=false
 if pinned_image_absent "$PLAYWRIGHT_IMAGE"; then
   playwright_pulled=true
 fi
+/bin/sh "$root/tools/pilot/test.sh" "$root"
 docker run --rm --network none \
   --user "$(id -u):$(id -g)" -e HOME=/tmp \
   --volume "$root:/workspace:ro" \
