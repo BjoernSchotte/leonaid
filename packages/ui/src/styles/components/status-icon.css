@@ -1,0 +1,28 @@
+/* StatusIcon and StatusLabel: ported from the Leitsystem prototype (components.css). */
+.status-icon.tone-neutral {
+  color: var(--neutral);
+}
+.status-icon.tone-ok {
+  color: var(--ok);
+}
+.status-icon.tone-warn {
+  color: var(--warn);
+}
+.status-icon.tone-danger {
+  color: var(--danger);
+}
+.status-icon.tone-info {
+  color: var(--info);
+}
+.status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.status-label.is-cancelled span {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

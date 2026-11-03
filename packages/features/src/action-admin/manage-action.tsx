@@ -16,7 +16,7 @@ import {
   type CharityActionResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
 import { CampaignAliasesSection } from "./campaign-aliases";
@@ -261,7 +261,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           {statusLabels[action.status]}
         </span>
         <a
-          className="ui-button ui-button--secondary"
+          className={buttonClassName({ variant: "secondary" })}
           href={`/_emdash/admin/campaigns/${action.id}`}
         >
           Microsite bearbeiten

@@ -11,7 +11,7 @@ import {
   type SurveyDeletionResponse,
   type SurveyDraftResponse,
 } from "@leonaid/api-client";
-import { Button } from "@leonaid/ui";
+import { Button, buttonClassName } from "@leonaid/ui";
 import {
   SurveyEditor,
   SurveyPublicationPreview,
@@ -432,7 +432,10 @@ export function SurveysPage({
           </p>
         </div>
         {!id && !createNew && (
-          <a className="ui-button ui-button--primary" href="/admin/surveys/new">
+          <a
+            className={buttonClassName({ variant: "primary" })}
+            href="/admin/surveys/new"
+          >
             Neue Umfrage
           </a>
         )}

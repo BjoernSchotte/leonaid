@@ -546,7 +546,7 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .dashboard-next .ui-button {
+  .dashboard-next .btn {
     grid-column: 1 / -1;
     width: 100%;
   }

@@ -132,7 +132,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.privacy-search-form .ui-button {
+.privacy-search-form .btn {
   min-height: 2.75rem;
 }
 
@@ -328,8 +328,8 @@
     grid-template-columns: 1fr;
   }
 
-  .privacy-search-form .ui-button,
-  .privacy-erasure-control .ui-button {
+  .privacy-search-form .btn,
+  .privacy-erasure-control .btn {
     width: 100%;
   }
 

@@ -502,7 +502,7 @@
   line-height: 1.5;
 }
 
-.acq-empty .ui-button {
+.acq-empty .btn {
   margin-top: 0.55rem;
 }
 
@@ -813,7 +813,7 @@
     align-items: start;
   }
 
-  .acq-page__header--with-action button.ui-button {
+  .acq-page__header--with-action button.btn {
     display: none;
   }
 

@@ -2,6 +2,12 @@
 @import "./fonts.css";
 @import "./leitsystem.css";
 @import "./tokens.css";
+@import "./components/button.css";
+@import "./components/kbd.css";
+@import "./components/badge.css";
+@import "./components/status-icon.css";
+@import "./components/avatar.css";
+@import "./components/meter.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
@@ -388,7 +394,6 @@ a {
   display: none;
 }
 
-.ui-button,
 .ui-icon-button {
   display: inline-flex;
   min-height: 2.75rem;
@@ -552,42 +557,10 @@ a {
   background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
 }
 
-.ui-button {
-  padding: 0.62rem 0.9rem;
-}
-
-.ui-button__icon {
-  display: inline-grid;
-  place-items: center;
-}
-
-.ui-button--primary {
-  color: var(--primary-foreground);
-  background: var(--primary);
-}
-
-.ui-button--secondary {
-  border-color: var(--border);
-  color: var(--foreground);
-  background: var(--surface);
-}
-
-.ui-button--ghost {
-  color: var(--muted);
-  background: transparent;
-}
-
-.ui-button--danger {
-  color: var(--danger-foreground);
-  background: var(--danger);
-}
-
-.ui-button:hover:not(:disabled),
 .ui-icon-button:hover:not(:disabled) {
   filter: brightness(0.96);
 }
 
-.ui-button:disabled,
 .ui-icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
@@ -1018,11 +991,11 @@ a {
     display: none;
   }
 
-  .ui-topbar__actions .ui-button span:last-child {
+  .ui-topbar__actions .btn .btn-label {
     display: none;
   }
 
-  .ui-topbar__actions .ui-button {
+  .ui-topbar__actions .btn {
     width: 2.75rem;
     padding-inline: 0;
   }
@@ -1043,7 +1016,7 @@ a {
     flex-direction: column-reverse;
   }
 
-  .ui-dialog__actions .ui-button {
+  .ui-dialog__actions .btn {
     width: 100%;
   }
 }

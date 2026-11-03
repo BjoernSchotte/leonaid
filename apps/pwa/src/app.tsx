@@ -22,7 +22,7 @@ import {
   SponsorWorkspace,
   useCurrentActionId,
 } from "@leonaid/features";
-import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+import { AppShell, Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 
@@ -326,7 +326,10 @@ export function App({ client }: AppProps) {
                 : "LeonAid konnte deine Zuständigkeiten gerade nicht laden. Prüfe deine Verbindung."}
             </p>
             {signedOut ? (
-              <a className="ui-button ui-button--primary" href="/login">
+              <a
+                className={buttonClassName({ variant: "primary" })}
+                href="/login"
+              >
                 Zur Anmeldung
               </a>
             ) : (

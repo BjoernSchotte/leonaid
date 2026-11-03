@@ -161,12 +161,12 @@
   border-radius: var(--radius-sm);
 }
 
-.inbox-results .ui-button {
+.inbox-results .btn {
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: start;
 }
 
-.inbox-workspace .ui-button {
+.inbox-workspace .btn {
   justify-self: start;
 }

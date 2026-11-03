@@ -15,7 +15,7 @@ import {
   type CharityActionResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
 import { DeliverySection } from "./delivery-section";
@@ -218,7 +218,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           </>
         )}
         <a
-          className="ui-button ui-button--secondary"
+          className={buttonClassName({ variant: "secondary" })}
           href={`/admin/actions/${created.id}${created.capabilities.includes("delivery") ? "#delivery" : ""}`}
         >
           Aktion jetzt verwalten

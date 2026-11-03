@@ -12,7 +12,7 @@ import {
   type FeatureFlagAdminResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import {
@@ -225,7 +225,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
           </p>
         </div>
         <a
-          className="ui-button ui-button--secondary feature-admin-header__catalog"
+          className={`${buttonClassName({ variant: "secondary" })} feature-admin-header__catalog`}
           href="/admin/system/ui"
         >
           UI-Basis

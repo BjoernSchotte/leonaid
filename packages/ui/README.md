@@ -1,7 +1,7 @@
 # `@leonaid/ui`
 
 Shared, host-neutral open-code components for web and PWA. The shadcn/ui
-configuration is fixed to Base UI and only the free Hugeicons packages.
+configuration is fixed to Base UI and Lucide icons.
 
 The tokens have three layers:
 
@@ -34,7 +34,12 @@ rebuilt variants:
 
 | Situation                  | Component/pattern            | Contract                                                                                                   |
 | -------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Main and secondary actions | `Button`                     | at most one dominant primary action per page; danger always as text and color                              |
+| Main and secondary actions | `Button`, `IconButton`       | at most one dominant primary action per page; danger always as text and color                              |
+| Record status              | `StatusIcon`, `StatusLabel`  | shape carries the status, tone repeats it; `statusShape` is the only domain-status → shape map             |
+| Secondary fact             | `Badge`                      | never the main record status                                                                               |
+| Progress                   | `Meter`                      | `role="meter"` with value, max and label; fill via CSSOM, never `style=`                                   |
+| Person                     | `Avatar`                     | initials and a hue class bucket from the name; decorative unless labelled                                  |
+| Keyboard hint              | `Kbd`                        | `aria-hidden`; ⌘/Strg per platform; subtle hints hide on touch-only devices                                |
 | Field with explanation     | `FormField`                  | visible label, short description, error directly at the field and via `aria-describedby`                   |
 | Non-blocking result        | `ToastProvider` / `useToast` | success, notice or error; errors are announced urgently, a toast never replaces a persistent error message |
 | Blocking confirmation      | `ConfirmDialog`              | concrete effect in the text, focus trap and focus return by Base UI                                        |
@@ -43,7 +48,8 @@ rebuilt variants:
 | Tabular data               | `DataTable`                  | native table with caption; focusable horizontal scroll area on small displays                              |
 | Signed-in application      | `AppShell`                   | role and current work context visible; desktop sidebar, mobile drawer or PWA tab bar                       |
 
-All interactive targets are at least `44px` high. The global `:focus-visible`
+Buttons follow the Leitsystem heights (`sm` 28, `md` 32, `lg` 44 px); on
+the mobile layout (≤ 800 px) every interactive target is at least `44px` high. The global `:focus-visible`
 ring stays in place. Pages start with a unique `h1`; dialogs have a title and a
 description. Status must never be conveyed only through color or position.
 
@@ -55,10 +61,23 @@ the running API and contains the states for actions, feedback, form fields,
 table and empty state. This makes it the stable surface for accessibility and
 visual regression tests as well.
 
+## Icons
+
+New code renders icons from [`lucide-react`](https://lucide.dev) through the
+`Icon` adapter: `<Icon icon={Plus} />` at 14, 16 (default) or 20 px. Without
+`label` the icon is `aria-hidden`; with `label` it becomes `role="img"` with
+that accessible name. An icon never stands alone: an icon-only control is an
+`IconButton`, whose required `label` becomes `aria-label` and `title`.
+`Button`, `IconButton` and `Badge` take a Lucide icon component directly and
+size it themselves.
+
+Older feature code still uses the free Hugeicons packages. Screens move to
+Lucide one by one; do not add new Hugeicons usages.
+
 ## Dependencies and license boundary
 
 The exact versions stay pinned in `package.json` and `bun.lock`. License and
 origin notices are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-Product code may use only icons from `@hugeicons/core-free-icons`. Hugeicons
-Pro, copied web SVGs or other asset packages need their own license decision
-before they are added.
+Product code may use only icons from `lucide-react` and, until the remaining
+screens move, `@hugeicons/core-free-icons`. Hugeicons Pro, copied web SVGs or
+other asset packages need their own license decision before they are added.

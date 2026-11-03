@@ -1,0 +1,30 @@
+/* Meter: ported from the Leitsystem prototype (components.css). */
+.meter {
+  --meter: 0;
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(var(--meter));
+  border-radius: inherit;
+  background: var(--zone);
+  transition: transform var(--dur-3) var(--ease-out);
+}
+.meter.tone-ok .meter-fill {
+  background: var(--ok);
+}
+.meter.tone-warn .meter-fill {
+  background: var(--warn);
+}
+.meter.tone-danger .meter-fill {
+  background: var(--danger);
+}
+.meter.tone-accent .meter-fill {
+  background: var(--accent);
+}
