@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
 import {
   closeInvoice,
-  invoiceRowLink,
+  invoiceRow,
   invoiceRows,
   openInvoice,
   showInvoiceView,
@@ -83,9 +83,7 @@ test("charity admin books payments exactly and reverses them traceably", async (
     await showInvoiceView(page, "Alle");
     await expect(invoiceRows(page)).toHaveCount(4);
 
-    const openRow = page.locator(".listview .row", {
-      has: invoiceRowLink(page, { id: openInvoiceId }),
-    });
+    const openRow = invoiceRow(page, openInvoiceId);
     await expect(openRow).toContainText("360,00");
     await expect(
       page.locator(".listview .row").filter({ hasText: "KT26-0002" }),

@@ -6,6 +6,11 @@ export function invoiceRows(page) {
   return page.locator(".listview .row");
 }
 
+/** The whole row of one invoice (chips, amount), by invoice id. */
+export function invoiceRow(page, id) {
+  return page.locator(`.listview .row:has([data-invoice-row="${id}"])`);
+}
+
 /** The row link of one invoice, by invoice id or by its number. */
 export function invoiceRowLink(page, { id, number }) {
   if (id) {

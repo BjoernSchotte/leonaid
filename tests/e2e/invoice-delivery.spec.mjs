@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
-import { invoiceRowLink, openInvoice } from "./invoice-list.mjs";
+import { invoiceRow, openInvoice } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -48,9 +48,7 @@ test("charity admin sees an SMTP outage and restarts exactly that delivery", asy
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    const row = page.locator(".listview .row", {
-      has: invoiceRowLink(page, { id: invoiceId }),
-    });
+    const row = invoiceRow(page, invoiceId);
     await expect(row).toContainText("Versand fehlgeschlagen");
     const invoice = await openInvoice(page, { id: invoiceId });
 

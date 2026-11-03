@@ -126,7 +126,9 @@ test("invoice list: j/k, Enter, Esc, x and read-only status by keyboard", async 
     ).toBeVisible();
     await expect(page.getByTestId("payments-table")).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Rechnungen", exact: true }),
+      page
+        .getByRole("navigation", { name: "Finanzbereiche" })
+        .getByRole("link", { name: "Rechnungen", exact: true }),
     ).toHaveAttribute("href", /\/admin\/invoices\?action=/);
     await expectNoSeriousAccessibilityViolations(page, "Zahlungen");
     expect(pageErrors).toEqual([]);
