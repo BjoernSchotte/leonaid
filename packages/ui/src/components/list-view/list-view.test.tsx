@@ -805,3 +805,116 @@ describe("review fixes", () => {
     ).toBeTruthy();
   });
 });
+
+describe("options that arrive after mount", () => {
+  function Late({
+    names,
+    status,
+    useCommands,
+  }: {
+    names: readonly string[];
+    status?: "ready" | "loading";
+    useCommands?: (commands: readonly ListCommand[]) => void;
+  }) {
+    const assignee = (row: Order) =>
+      row.id === "o1" || row.id === "o3" ? "x" : "y";
+    const properties: ListProperty<Order>[] = [
+      {
+        id: "assignee",
+        label: "Zuständig",
+        icon: Globe,
+        get: assignee,
+        options: names.map((name) => ({ value: name, label: name })),
+      },
+    ];
+    return (
+      <HotkeyProvider>
+        <ListView<Order>
+          columns={{ primary: (row) => row.number }}
+          detailTitle={(row) => row.number}
+          emptyIcon={ShoppingBasket}
+          entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
+          getId={(row) => row.id}
+          id="late"
+          properties={properties}
+          rowHref={(row) => `/admin/orders/${row.id}`}
+          rows={fixture()}
+          searchText={(row) => row.number}
+          sorts={sorts}
+          status={status}
+          title="Bestellungen"
+          useCommands={useCommands}
+          views={[views[0]!]}
+        />
+      </HotkeyProvider>
+    );
+  }
+
+  it("keeps a URL filter until the options arrive, then applies it", () => {
+    setUrl("?f.assignee=x");
+    const { rerender } = render(<Late names={[]} />);
+    expect(window.location.search).toBe("?f.assignee=x");
+    rerender(<Late names={["x", "y"]} />);
+    expect(window.location.search).toBe("?f.assignee=x");
+    expect(rowLinks()).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Filter Zuständig entfernen" }),
+    ).toBeTruthy();
+  });
+
+  it("drops the value when the arrived options do not offer it", () => {
+    setUrl("?f.assignee=x");
+    const { rerender } = render(<Late names={[]} />);
+    rerender(<Late names={["y"]} />);
+    expect(rowLinks()).toHaveLength(4);
+    expect(window.location.search).toBe("");
+  });
+
+  it("does not validate or rewrite while the list is loading", () => {
+    setUrl("?f.assignee=x");
+    const { rerender } = render(<Late names={["y"]} status="loading" />);
+    expect(window.location.search).toBe("?f.assignee=x");
+    rerender(<Late names={["x", "y"]} status="ready" />);
+    expect(window.location.search).toBe("?f.assignee=x");
+    expect(rowLinks()).toHaveLength(2);
+  });
+
+  it("reads useCommands once and warns when it changes", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(<Late names={["x"]} useCommands={first} />);
+    rerender(<Late names={["x"]} useCommands={second} />);
+    expect(second).not.toHaveBeenCalled();
+    expect(first).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("hidden checked rows", () => {
+  it("Esc and the palette clear checked rows that are all hidden", () => {
+    setUrl("?group=status");
+    render(<Harness />);
+    press("j");
+    press("j");
+    press("j");
+    press("x"); // o2 in "Bestätigt"
+    fireEvent.click(
+      screen.getByRole("button", { name: /Bestätigt/, expanded: true }),
+    );
+    expect(screen.queryByRole("region", { name: "Auswahl" })).toBeNull();
+    expect(published.map((command) => command.label)).toContain(
+      "Auswahl aufheben",
+    );
+    act(() => document.body.focus());
+    press("Escape", document.body);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Bestätigt/, expanded: false }),
+    );
+    expect(screen.queryByRole("region", { name: "Auswahl" })).toBeNull();
+    expect(
+      (screen.getByRole("checkbox", { name: /B-002/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+  });
+});

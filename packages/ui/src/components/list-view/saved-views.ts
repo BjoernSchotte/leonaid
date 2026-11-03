@@ -56,6 +56,11 @@ export interface ListSchema {
   readonly views: readonly ListViewDefinition[];
   /** Filterable property id → its option values. */
   readonly filterable: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Filterable properties whose options are not known yet (still loading
+   * from the server). Their values are kept as given, not validated.
+   */
+  readonly pending?: ReadonlySet<string>;
   readonly groupable: ReadonlySet<string>;
   readonly sorts: ReadonlySet<string>;
 }
@@ -113,18 +118,15 @@ export function parseListState(search: string, schema: ListSchema): ListState {
     schema.views.find((item) => item.id === params.get(URL_KEYS.view)) ??
     fallback;
 
-  // Only known properties and option values count. A link with nothing but
+  // Only known properties and option values count (values of properties
+  // whose options are still loading are kept). A link with nothing but
   // stale filters keeps the view's own filters.
   const filters: ListFilter[] = [];
   let hasFilterParams = params.get(URL_KEYS.filtersCleared) === CLEARED;
   for (const key of new Set(params.keys())) {
     if (!key.startsWith(URL_KEYS.filterPrefix)) continue;
     const prop = key.slice(URL_KEYS.filterPrefix.length);
-    const allowed = schema.filterable.get(prop);
-    if (!allowed) continue;
-    const values = [
-      ...new Set(params.getAll(key).filter((value) => allowed.has(value))),
-    ];
+    const values = validValues(schema, prop, params.getAll(key));
     if (values.length === 0) continue;
     hasFilterParams = true;
     filters.push({ prop, values });
@@ -214,6 +216,39 @@ export function serializeListState(
   return text ? `?${text}` : "";
 }
 
+/** The distinct values a property accepts; unknown property → []. */
+function validValues(
+  schema: Omit<ListSchema, "views">,
+  prop: string,
+  values: readonly string[],
+): string[] {
+  const allowed = schema.filterable.get(prop);
+  if (!allowed) return [];
+  const pending = schema.pending?.has(prop) ?? false;
+  return [
+    ...new Set(
+      values.filter((value) => value && (pending || allowed.has(value))),
+    ),
+  ];
+}
+
+/**
+ * Filters checked against the schema: unknown properties and option values
+ * are dropped; values of pending properties stay. Returns the same array
+ * when nothing changes.
+ */
+export function sanitizeFilters(
+  filters: readonly ListFilter[],
+  schema: Omit<ListSchema, "views">,
+): readonly ListFilter[] {
+  const next: ListFilter[] = [];
+  for (const filter of filters) {
+    const values = validValues(schema, filter.prop, filter.values);
+    if (values.length > 0) next.push({ prop: filter.prop, values });
+  }
+  return sameFilters(next, filters) ? filters : next;
+}
+
 /**
  * A saved view checked against the list's current properties and sorts:
  * unknown filters, option values, grouping and sort are dropped, so an old
@@ -224,16 +259,9 @@ export function sanitizeView(
   schema: Omit<ListSchema, "views">,
   fallbackSort: string,
 ): ListViewDefinition {
-  const filters: ListFilter[] = [];
-  for (const filter of view.filters) {
-    const allowed = schema.filterable.get(filter.prop);
-    if (!allowed) continue;
-    const values = filter.values.filter((value) => allowed.has(value));
-    if (values.length > 0) filters.push({ prop: filter.prop, values });
-  }
   return {
     ...view,
-    filters,
+    filters: sanitizeFilters(view.filters, schema),
     groupBy:
       view.groupBy !== null && schema.groupable.has(view.groupBy)
         ? view.groupBy

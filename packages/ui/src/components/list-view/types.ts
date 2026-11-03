@@ -15,7 +15,11 @@ export interface ListProperty<T> {
   readonly icon: LucideIcon;
   /** The row's value(s); option values, not labels. */
   readonly get: (row: T) => string | readonly string[];
-  /** In display order; the group order follows it. */
+  /**
+   * In display order; the group order follows it. Options that come from
+   * the server may be empty while loading: URL filters on the property are
+   * kept until they arrive (or while `status` is "loading"), then checked.
+   */
   readonly options: readonly OptionMenuOption<string>[];
   /** Offered in the filter menu (default true). */
   readonly filterable?: boolean;
@@ -43,6 +47,8 @@ export interface ListPropertyEdit<T> {
   readonly key: string;
   /**
    * The values that may be set on these rows (allowed transitions, rights).
+   * With several rows, return only values valid for every one of them (the
+   * intersection): `apply` gets them all and one failure reports for all.
    * Default: every option. An empty result shows a hint instead of a menu.
    */
   readonly options?: (
@@ -121,8 +127,9 @@ export interface ListViewBaseProps<T> {
   readonly onRetry?: () => void;
   /**
    * Publishes the list's palette commands (views, filters, grouping,
-   * selection, create). Pass the palette's `useContextCommands`; it is
-   * called as a hook on every render, so it must never change.
+   * selection, create). Pass the palette's `useContextCommands`. It is
+   * called as a hook, so it is read once at mount; a later change is
+   * ignored with a console warning.
    */
   readonly useCommands?: (commands: readonly ListCommand[]) => void;
 }

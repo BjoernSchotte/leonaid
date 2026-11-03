@@ -42,6 +42,7 @@ import {
   isDirty,
   parseListState,
   withoutListParams,
+  sanitizeFilters,
   sanitizeView,
   readSavedViews,
   serializeListState,
@@ -298,6 +299,12 @@ export function ListView<T>(props: ListViewProps<T>) {
     () => properties.filter((prop) => prop.chip),
     [properties],
   );
+  /*
+   * Options that come from the server may still be loading. Until they are
+   * known, URL filter values on those properties are kept as given, and the
+   * URL is not rewritten from the half-known schema.
+   */
+  const loading = props.status === "loading";
   const fieldSchema = useMemo<Omit<ListSchema, "views">>(
     () => ({
       filterable: new Map(
@@ -306,11 +313,17 @@ export function ListView<T>(props: ListViewProps<T>) {
           new Set(prop.options.map((option) => option.value)),
         ]),
       ),
+      pending: new Set(
+        filterable
+          .filter((prop) => loading || prop.options.length === 0)
+          .map((prop) => prop.id),
+      ),
       groupable: new Set(groupable.map((prop) => prop.id)),
       sorts: new Set(sorts.map((sort) => sort.id)),
     }),
-    [filterable, groupable, sorts],
+    [filterable, groupable, sorts, loading],
   );
+  const schemaReady = (fieldSchema.pending?.size ?? 0) === 0;
   /* Saved views are checked against today's properties and sorts. */
   const allViews = useMemo(
     () => [
@@ -336,7 +349,28 @@ export function ListView<T>(props: ListViewProps<T>) {
     setState((current) => ({ ...current, ...patch }));
   }, []);
 
+  /*
+   * Once options arrive (or change): an untouched list re-reads the URL,
+   * which was not rewritten meanwhile, so stale-only filters still fall
+   * back to the view. A list the person changed drops the values the
+   * options do not offer.
+   */
+  const untouched = useRef<ListState | null>(state);
   useEffect(() => {
+    setState((current) => {
+      if (current === untouched.current) {
+        const reparsed = parseListState(window.location.search, schema);
+        untouched.current = reparsed;
+        return reparsed;
+      }
+      const filters = sanitizeFilters(current.filters, fieldSchema);
+      return filters === current.filters ? current : { ...current, filters };
+    });
+    // Only the options matter here; schema follows fieldSchema.
+  }, [fieldSchema]);
+
+  useEffect(() => {
+    if (!schemaReady) return;
     const next = serializeListState(window.location.search, state, schema);
     const push = pushNext.current;
     pushNext.current = false;
@@ -344,7 +378,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     const url = `${window.location.pathname}${next}${window.location.hash}`;
     if (push) window.history.pushState(window.history.state, "", url);
     else window.history.replaceState(window.history.state, "", url);
-  }, [state, schema]);
+  }, [state, schema, schemaReady]);
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
@@ -768,8 +802,8 @@ export function ListView<T>(props: ListViewProps<T>) {
       keys: "escape",
       label: "Detail schließen / Auswahl aufheben",
       group: LIST_HOTKEY_GROUP,
-      when: () =>
-        listField() !== null || openRow !== null || checkedIds.length > 0,
+      // Also clears checked rows that are all hidden (no bulk bar shown).
+      when: () => listField() !== null || openRow !== null || checked.size > 0,
       run: () => {
         const active = document.activeElement;
         if (active === searchRef.current) {
@@ -872,7 +906,7 @@ export function ListView<T>(props: ListViewProps<T>) {
           },
         ]
       : []),
-    ...(checkedIds.length > 0
+    ...(checked.size > 0
       ? [
           {
             id: `list:${props.id}:select-none`,
@@ -896,7 +930,18 @@ export function ListView<T>(props: ListViewProps<T>) {
         ]
       : []),
   ];
-  const useCommands = props.useCommands ?? useNoCommands;
+  // A hook passed as a prop: fixed at mount, so the hook order never changes.
+  const [useCommands] = useState(() => props.useCommands ?? useNoCommands);
+  const warnedCommands = useRef(false);
+  if (
+    (props.useCommands ?? useNoCommands) !== useCommands &&
+    !warnedCommands.current
+  ) {
+    warnedCommands.current = true;
+    console.warn(
+      "ListView: useCommands changed after mount; the first one stays in use.",
+    );
+  }
   useCommands(commands);
 
   /* ----- rows ----- */
