@@ -57,6 +57,8 @@
 }
 
 .operations-summary code {
+  /* A flex item's min-width defaults to its nowrap text; let it ellipsize. */
+  min-width: 0;
   max-width: 23rem;
   overflow: hidden;
   color: var(--muted);
@@ -517,7 +519,10 @@
     width: 100%;
   }
 
+  /* Stacked: the code line is stretched to the column; containment keeps its
+     nowrap text from widening the page at 320 px. */
   .operations-summary code {
     max-width: 100%;
+    contain: inline-size;
   }
 }
