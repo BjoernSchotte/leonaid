@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./surveys": "./src/surveys/module.tsx",
-    "./tasks": "./src/tasks/module.tsx"
+    "./tasks": "./src/tasks/module.tsx",
+    "./materials": "./src/materials/module.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

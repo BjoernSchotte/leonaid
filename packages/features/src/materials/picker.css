@@ -1,0 +1,45 @@
+.material-picker {
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+}
+.material-picker ul {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.material-picker li {
+  min-width: 0;
+}
+.material-picker li .ui-button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.material-picker-paging {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.material-picker label {
+  display: grid;
+  gap: 0.5rem;
+}
+.material-picker input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.65rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+.material-picker input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}

@@ -19,6 +19,7 @@ dependencies = [
   "psycopg[binary]==3.2.9",
   "pypdf==6.21.4",
   "pydantic-settings==2.10.1",
+  "python-multipart==0.0.33",
   "sqlalchemy==2.0.41",
   "starlette==1.10.0",
   "uvicorn[standard]==0.35.0",

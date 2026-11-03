@@ -211,7 +211,7 @@ def test_navigation_contributions_keep_module_order() -> None:
 
 
 def test_modules_are_registered_with_routes_and_navigation() -> None:
-    assert [module.id for module in API_MODULES] == ["surveys", "tasks"]
+    assert [module.id for module in API_MODULES] == ["surveys", "tasks", "materials"]
     items = navigation_for(principal(), module_navigation(frozenset())(principal()))
 
     assert [(item.key, item.href, item.surface) for item in items] == [
@@ -221,6 +221,8 @@ def test_modules_are_registered_with_routes_and_navigation() -> None:
         ("surveys", "/admin/surveys", "pwa"),
         ("tasks", "/admin/tasks", "web"),
         ("tasks", "/app/tasks", "pwa"),
+        ("materials", "/admin/materials", "web"),
+        ("materials", "/app/materials", "pwa"),
     ]
 
 
@@ -258,6 +260,7 @@ def test_worker_registers_every_existing_handler_once() -> None:
     assert [module.id for module in modules] == [
         "surveys",
         "tasks",
+        "materials",
         "actions",
         "invoicing",
         "mail",
@@ -331,7 +334,7 @@ def test_api_and_worker_offer_the_same_switchable_modules() -> None:
         for module in worker_modules("postgresql://unused", None)
         if module.switchable
     }
-    assert api == worker == {"surveys", "tasks"}
+    assert api == worker == {"surveys", "tasks", "materials"}
 
 
 def test_switched_off_module_has_no_routes_navigation_or_loops(
@@ -344,7 +347,10 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
 
     assert paths
     assert not any("/surveys" in path for path in paths)
-    assert {item.key for item in module_navigation(off)(principal())} == {"tasks"}
+    assert {item.key for item in module_navigation(off)(principal())} == {
+        "tasks",
+        "materials",
+    }
     assert any(path.startswith("/api/v1/task") for path in paths)
     assert background_loops("postgresql://unused", off) == ()
     assert module_switch_problems(off) == []

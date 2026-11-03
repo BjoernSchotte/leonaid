@@ -27,6 +27,10 @@ from leonaid.bootstrap.registry import (
 from leonaid.configuration import Settings
 from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
+from leonaid.modules.materials.api import MaterialService
+from leonaid.modules.materials.api import navigation as material_navigation
+from leonaid.modules.materials.repository import AsyncpgMaterialRepository
+from leonaid.modules.materials.routes import router as materials_router
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.modules.tasks.api import TaskService
 from leonaid.modules.tasks.api import navigation as task_navigation
@@ -46,6 +50,12 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
         navigation=task_navigation,
         switchable=True,
     ),
+    ModuleRegistration(
+        "materials",
+        router=materials_router,
+        navigation=material_navigation,
+        switchable=True,
+    ),
 )
 
 
@@ -54,6 +64,7 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
 MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {
     "surveys": SURVEY_EVENT_TYPES,
     "tasks": frozenset(),
+    "materials": frozenset(),
 }
 
 
@@ -105,3 +116,9 @@ def build_survey_services(
 
 def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
     return TaskService(AsyncpgTaskRepository(pool))
+
+
+def build_material_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> MaterialService:
+    return MaterialService(AsyncpgMaterialRepository(pool, storage))

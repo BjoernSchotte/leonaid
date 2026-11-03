@@ -28,7 +28,7 @@ from leonaid.domain.identity import (
 )
 
 # Module entries every active account sees on both surfaces.
-WORK_MODULES = {"surveys", "tasks"}
+WORK_MODULES = {"surveys", "tasks", "materials"}
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")

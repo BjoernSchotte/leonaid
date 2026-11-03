@@ -12,12 +12,23 @@ from uuid import uuid4
 
 import asyncpg
 
+from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 FIXTURE = Path(os.environ.get("LEONAID_MODULE_FIXTURE", "/proof/module-fixture.json"))
 
 
 async def main() -> None:
+    # Material uploads need the private versioned bucket of a fresh stack.
+    await S3ObjectStorage(
+        endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
+        access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
+        secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
+        bucket=os.environ["OBJECT_STORAGE_BUCKET"],
+        region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
+        path_style=os.environ.get("OBJECT_STORAGE_PATH_STYLE", "true").casefold()
+        == "true",
+    ).ensure_private_versioned_bucket()
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     tokens: list[str] = []
     users: list[str] = []

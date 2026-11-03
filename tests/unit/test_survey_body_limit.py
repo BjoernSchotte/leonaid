@@ -1,57 +1,109 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from leonaid.entrypoints.fastapi.survey_body_limit import (
-    SURVEY_REQUEST_BYTES,
-    SurveyBodyLimitMiddleware,
-)
+from leonaid.entrypoints.fastapi.platform import BODY_LIMITS
+from leonaid.platform.http_body import RequestBodyLimitMiddleware
+
+SURVEY_REQUEST_BYTES = 1_048_576
+Message = dict[str, Any]
 
 
-def test_body_limit_counts_streamed_bytes_instead_of_trusting_content_length():
-    async def run():
+def run_middleware(
+    path: str,
+    chunks: list[bytes],
+    app: Callable[..., Awaitable[None]],
+    *,
+    declared: int | None = None,
+) -> tuple[list[Message], dict[str, Any]]:
+    async def run() -> tuple[list[Message], dict[str, Any]]:
         messages = iter(
             [
                 {
                     "type": "http.request",
-                    "body": b"x" * SURVEY_REQUEST_BYTES,
-                    "more_body": True,
-                },
-                {"type": "http.request", "body": b"x", "more_body": True},
+                    "body": chunk,
+                    "more_body": index < len(chunks) - 1,
+                }
+                for index, chunk in enumerate(chunks)
             ]
         )
-        output = []
+        output: list[Message] = []
 
-        async def receive():
+        async def receive() -> Message:
             return next(messages)
 
-        async def send(message):
+        async def send(message: Message) -> None:
             output.append(message)
 
-        async def forbidden_app(scope, receive, send):
-            raise AssertionError("An over-limit request reached the application")
-
-        scope = {
-            "type": "http",
-            "path": "/api/v1/public/surveys/compact-id/participations",
-            "headers": [(b"content-length", b"1")],
-        }
-        await SurveyBodyLimitMiddleware(forbidden_app)(scope, receive, send)
-        assert output[0]["status"] == 413
-        assert scope["state"]["error_code"] == "limit_exceeded"
-        assert b"limit_exceeded" in output[1]["body"]
-
-    asyncio.run(run())
-
-
-def test_disconnect_during_body_never_dispatches_a_partial_request():
-    async def run():
-        async def receive():
-            return {"type": "http.disconnect"}
-
-        async def forbidden(*args):
-            raise AssertionError("Disconnected request was dispatched or answered")
-
-        await SurveyBodyLimitMiddleware(forbidden)(
-            {"type": "http", "path": "/api/v1/survey-settings"}, receive, forbidden
+        headers = (
+            [(b"content-length", str(declared).encode())]
+            if declared is not None
+            else []
         )
+        scope: dict[str, Any] = {"type": "http", "path": path, "headers": headers}
+        await RequestBodyLimitMiddleware(app, BODY_LIMITS)(scope, receive, send)
+        return output, scope
 
-    asyncio.run(run())
+    return asyncio.run(run())
+
+
+async def read_whole_body(scope: Any, receive: Any, send: Any) -> None:
+    """Like FastAPI: the endpoint runs only after the full body was read."""
+    while True:
+        message = await receive()
+        if not message.get("more_body", False):
+            break
+    raise AssertionError("An over-limit request reached the endpoint")
+
+
+def test_body_limit_counts_streamed_bytes_instead_of_trusting_content_length() -> None:
+    output, scope = run_middleware(
+        "/api/v1/public/surveys/compact-id/participations",
+        [b"x" * SURVEY_REQUEST_BYTES, b"x"],
+        read_whole_body,
+        declared=1,
+    )
+    assert output[0]["status"] == 413
+    assert scope["state"]["error_code"] == "limit_exceeded"
+    assert b"limit_exceeded" in output[1]["body"]
+
+
+def test_declared_oversized_body_is_rejected_before_the_app_runs() -> None:
+    async def forbidden(*_args: Any) -> None:
+        raise AssertionError("An over-limit request reached the application")
+
+    output, _ = run_middleware(
+        "/api/v1/survey-settings", [b""], forbidden, declared=SURVEY_REQUEST_BYTES + 1
+    )
+    assert output[0]["status"] == 413
+
+
+def test_body_at_the_limit_reaches_the_app() -> None:
+    reached: list[int] = []
+
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        total = 0
+        while True:
+            message = await receive()
+            total += len(message["body"])
+            if not message["more_body"]:
+                break
+        reached.append(total)
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    output, _ = run_middleware(
+        "/api/v1/surveys", [b"x" * (SURVEY_REQUEST_BYTES - 1), b"x"], app
+    )
+    assert reached == [SURVEY_REQUEST_BYTES]
+    assert output[0]["status"] == 204
+
+
+def test_paths_without_a_limit_are_not_counted() -> None:
+    reached: list[int] = []
+
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        reached.append(len((await receive())["body"]))
+
+    run_middleware("/api/v1/identity/me", [b"x" * (SURVEY_REQUEST_BYTES * 2)], app)
+    assert reached == [SURVEY_REQUEST_BYTES * 2]
