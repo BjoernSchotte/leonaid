@@ -49,6 +49,14 @@
         "property-newly-required:CommitmentResponse.deliveryCompletionVersion"
       ],
       "rationale": "Manager delivery completion (PR #47, port of #3) adds an output-only optimistic version to every commitment response. Core always serializes it; clients send it back unchanged to completeCommitmentDelivery. Existing response properties and all request contracts remain intact. The generated client ships with the matching Core release. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "fb4ef6782da9fe5c3d506adbecdb19d86592f92e7b9cb16891b956e42fc8ba0b",
+      "newSha256": "45994c0909b49237cba7aaf4bba1f4f6551e1880ee00c40909af4a2dba1b5929",
+      "changes": [
+        "property-type-changed:PrivacyReferenceResponse.referenceType"
+      ],
+      "rationale": "Inbox module (port of PR #7, step 7): the privacy subject report gains the response-only reference type 'inbox_case' so system administrators see inbox cases of a data subject. Existing values are unchanged; the only client, the generated TypeScript client and the privacy admin view, is updated in the same change and labels the new type."
     }
   ]
 }
