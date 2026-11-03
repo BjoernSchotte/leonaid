@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { OptionMenuOption } from "../option-menu";
-import type { ListViewDefinition } from "./saved-views";
+import type { ListState, ListViewDefinition } from "./saved-views";
 
 /**
  * A record property: filter chip, group header, row chip and inline edit in
@@ -46,8 +46,16 @@ export interface ListProperty<T> {
   readonly chip?: (row: T) => ReactNode;
 }
 
-/** What `apply` reports: "cancelled" means nothing changed and no toast. */
-export type ListEditOutcome = void | "cancelled";
+/**
+ * What `apply` reports: "cancelled" means nothing changed and no toast; an
+ * `undo` adds "Rückgängig" to the success toast.
+ */
+export type ListEditOutcome = void | "cancelled" | ListEditUndo;
+
+export interface ListEditUndo {
+  /** Reverts the change; a rejection shows an error toast. */
+  readonly undo: () => void | Promise<void>;
+}
 
 export interface ListPropertyEdit<T> {
   /** Opens the option menu on the focused row; listed in the help. */
@@ -65,7 +73,8 @@ export interface ListPropertyEdit<T> {
    * Applies the value to every checked row when the edited row is checked,
    * otherwise to that row. It may first ask for more (a note, a fresh
    * sign-in) and resolve "cancelled" when the person backs out: no toast.
-   * Resolving otherwise shows a success toast, rejecting an error toast.
+   * Resolving otherwise shows a success toast (with "Rückgängig" when it
+   * returns an `undo`), rejecting an error toast.
    * The rows are busy (`aria-busy`, no second edit) until it settles.
    */
   readonly apply: (
@@ -139,6 +148,26 @@ export interface ListViewBaseProps<T> {
    * ignored with a console warning.
    */
   readonly useCommands?: (commands: readonly ListCommand[]) => void;
+  /**
+   * Palette id of the create command (default `list:<id>:create`). Pass the
+   * module's create id (e.g. "create:task") so the palette's own create link
+   * steps aside for the in-place form.
+   */
+  readonly createCommandId?: string;
+  /**
+   * Called with the list state on mount and after every change (view,
+   * filters, grouping, sort, search, open row), e.g. to load the rows a view
+   * needs from the server.
+   */
+  readonly onStateChange?: (state: ListState) => void;
+  /**
+   * Asked before the pane closes or shows another row (Esc, close button,
+   * j/k, another row, Back). Return false to keep it, e.g. while a draft is
+   * unsaved.
+   */
+  readonly paneGuard?: () => boolean;
+  /** Form of address of the built-in copy: "sie" (default) or "du" (app). */
+  readonly address?: "sie" | "du";
 }
 
 /**

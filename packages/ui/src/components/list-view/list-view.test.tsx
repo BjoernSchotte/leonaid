@@ -29,6 +29,7 @@ import type {
   ListEditOutcome,
   ListProperty,
   ListSort,
+  ListViewBaseProps,
 } from "./types";
 
 class TestResizeObserver {
@@ -126,6 +127,7 @@ function Harness({
   apply,
   editOptions,
   onOpen,
+  hooks,
 }: {
   apply?: (
     ids: readonly string[],
@@ -133,6 +135,10 @@ function Harness({
   ) => ListEditOutcome | Promise<ListEditOutcome>;
   editOptions?: (rows: readonly Order[]) => { value: string; label: string }[];
   onOpen?: (row: Order | null) => void;
+  hooks?: Pick<
+    ListViewBaseProps<Order>,
+    "address" | "createCommandId" | "onCreate" | "onStateChange" | "paneGuard"
+  >;
 }) {
   const [rows, setRows] = useState(fixture);
   const properties: ListProperty<Order>[] = [
@@ -190,6 +196,7 @@ function Harness({
           title="Bestellungen"
           useCommands={useCaptureCommands}
           views={views}
+          {...hooks}
         />
       </HotkeyProvider>
     </ToastProvider>
@@ -956,5 +963,116 @@ describe("hidden checked rows", () => {
       (screen.getByRole("checkbox", { name: /B-002/ }) as HTMLInputElement)
         .checked,
     ).toBe(false);
+  });
+});
+
+describe("page hooks", () => {
+  it("reports the state on mount and after every change", () => {
+    const onStateChange = vi.fn();
+    setUrl("?view=new");
+    render(<Harness hooks={{ onStateChange }} />);
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ viewId: "new", groupBy: "status" }),
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "kern" },
+    });
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ viewId: "new", query: "kern" }),
+    );
+  });
+
+  it("keeps the pane while the guard refuses, on Esc, j and Back", async () => {
+    let allow = false;
+    const paneGuard = vi.fn(() => allow);
+    render(<Harness hooks={{ paneGuard }} />);
+    fireEvent.click(rowLinks()[0]!);
+    expect(window.location.search).toBe("?open=o1");
+    expect(paneGuard).not.toHaveBeenCalled();
+
+    press("Escape");
+    expect(screen.getByRole("complementary", { name: /B-001/ })).toBeTruthy();
+    press("j");
+    expect(window.location.search).toBe("?open=o1");
+    fireEvent.click(rowLinks()[1]!);
+    expect(window.location.search).toBe("?open=o1");
+
+    // Back to the list: refused, so the entry comes back and the pane stays.
+    act(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(window.location.search).toBe("?open=o1");
+    expect(screen.getByRole("complementary", { name: /B-001/ })).toBeTruthy();
+
+    allow = true;
+    press("j");
+    expect(window.location.search).toBe("?open=o2");
+    vi.useFakeTimers();
+    press("Escape");
+    act(() => vi.runAllTimers());
+    vi.useRealTimers();
+    expect(screen.queryByRole("complementary")).toBeNull();
+  });
+
+  it("offers Rückgängig after an edit that returns an undo", async () => {
+    const undo = vi.fn();
+    render(<Harness apply={() => ({ undo })} />);
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    await act(async () => {});
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }));
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failed undo", async () => {
+    render(
+      <Harness
+        apply={() => ({ undo: () => Promise.reject(new Error("409")) })}
+      />,
+    );
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    await act(async () => {});
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }));
+    expect(
+      await screen.findByText("Status wurde nicht zurückgesetzt."),
+    ).toBeTruthy();
+  });
+
+  it("speaks with Du in the app", async () => {
+    render(
+      <Harness
+        apply={() => Promise.reject(new Error("403"))}
+        hooks={{ address: "du" }}
+      />,
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "zzz" },
+    });
+    expect(
+      screen.getByText("Entferne einen Filter oder ändere den Suchbegriff."),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "" },
+    });
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    expect(await screen.findByText("Bitte versuche es erneut.")).toBeTruthy();
+  });
+
+  it("publishes the create command under the page's id", () => {
+    render(
+      <Harness
+        hooks={{ onCreate: () => {}, createCommandId: "create:task" }}
+      />,
+    );
+    expect(published.map((command) => command.id)).toContain("create:task");
+    expect(published.map((command) => command.id)).not.toContain(
+      "list:orders:create",
+    );
   });
 });
