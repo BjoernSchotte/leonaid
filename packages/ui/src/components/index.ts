@@ -1,3 +1,4 @@
+export * from "./page-layout";
 export * from "./rail-shell";
 export * from "./button";
 export * from "./confirm-dialog";

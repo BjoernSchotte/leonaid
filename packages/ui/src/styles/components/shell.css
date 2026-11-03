@@ -389,6 +389,18 @@
   padding: var(--s-6) var(--s-8) var(--s-12);
   max-width: 1320px;
 }
+/* Product: full-bleed pages (components/page-layout.ts). The prototype puts
+   its list pages straight into main; here the page root opts out of the
+   padding and width cap. Other direct children (the preview notice) keep an
+   inset. */
+.page:has(> [data-page-layout="full-bleed"]) {
+  padding: 0;
+  max-width: none;
+}
+.page:has(> [data-page-layout="full-bleed"])
+  > :not([data-page-layout="full-bleed"]) {
+  margin: var(--s-4) var(--s-6) 0;
+}
 .page-header {
   display: flex;
   align-items: center;
