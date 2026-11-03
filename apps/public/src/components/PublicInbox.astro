@@ -1,0 +1,274 @@
+---
+interface Props {
+  actionId?: string;
+  actionName?: string;
+}
+const { actionId, actionName } = Astro.props;
+---
+
+<section
+  class="inbox-public site-shell"
+  id="kontakt"
+  aria-labelledby="inbox-public-heading"
+>
+  <h2 id="inbox-public-heading">Kontakt aufnehmen</h2>
+  <p>
+    {
+      actionName
+        ? `Deine Anfrage zur Aktion „${actionName}“.`
+        : "Deine Kontakt- oder Hilfsanfrage an das Team."
+    }
+  </p>
+  <p>
+    Wir speichern deine Nachricht und Kontaktdaten zur Bearbeitung. Die
+    Eingangsbestätigung ist keine Zusage für eine Unterstützung. Es wird keine
+    automatische E-Mail versendet.
+  </p>
+  <p>Vorname, Nachname, Betreff und Nachricht sind Pflichtangaben.</p>
+  <leonaid-inbox-form data-action-id={actionId}>
+    <form>
+      <fieldset>
+        <legend class="sr-only">Deine Anfrage</legend>
+        <div class="inbox-public-grid">
+          <label
+            >Vorname<input
+              name="givenName"
+              autocomplete="given-name"
+              required
+              maxlength="200"
+            /></label
+          >
+          <label
+            >Nachname<input
+              name="familyName"
+              autocomplete="family-name"
+              required
+              maxlength="200"
+            /></label
+          >
+          <label
+            >E-Mail-Adresse<input
+              name="email"
+              type="email"
+              aria-describedby="inbox-contact-hint"
+              autocomplete="email"
+              maxlength="320"
+            /></label
+          >
+          <label
+            >Telefonnummer<input
+              name="phone"
+              type="tel"
+              autocomplete="tel"
+              minlength="7"
+              maxlength="40"
+              aria-describedby="inbox-contact-hint"
+            /></label
+          >
+        </div>
+        <p id="inbox-contact-hint">
+          Bitte gib eine E-Mail-Adresse oder Telefonnummer an. Telefonnummern
+          mit Ländervorwahl, zum Beispiel +49.
+        </p>
+        <label>Betreff<input name="subject" required maxlength="240" /></label>
+        <label
+          >Deine Nachricht<textarea
+            name="message"
+            required
+            maxlength="10000"
+            rows="6"></textarea></label
+        >
+      </fieldset>
+      <p data-result role="status" tabindex="-1"></p>
+      <button type="submit" disabled>
+        <svg
+          aria-hidden="true"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><path d="m22 2-7 20-4-9-9-4 20-7Z"></path><path d="M22 2 11 13"
+          ></path></svg
+        >
+        <span>Anfrage senden</span>
+      </button>
+      <noscript
+        >Bitte aktiviere JavaScript, um deine Anfrage zu senden.</noscript
+      >
+    </form>
+  </leonaid-inbox-form>
+</section>
+<script>
+  import {
+    ApiError,
+    LeonAidApiClient,
+    type SubmitCase,
+  } from "@leonaid/api-client";
+  class InboxForm extends HTMLElement {
+    connectedCallback() {
+      const form = this.querySelector("form")!;
+      const fields = form.querySelector("fieldset")!;
+      const button = form.querySelector("button")!;
+      const label = button.querySelector("span")!;
+      const result = form.querySelector<HTMLElement>("[data-result]")!;
+      const client = new LeonAidApiClient("");
+      let pending: SubmitCase | null = null;
+      let busy = false;
+      let confirmed = false;
+      let uncertain = false;
+      button.disabled = false;
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (busy || confirmed) return;
+        if (!pending) {
+          const data = new FormData(form);
+          const value = (name: string) => String(data.get(name) ?? "").trim();
+          if (!value("email") && !value("phone")) {
+            result.textContent =
+              "Bitte gib eine E-Mail-Adresse oder Telefonnummer an.";
+            result.focus();
+            return;
+          }
+          pending = {
+            idempotencyKey: crypto.randomUUID(),
+            actionId: this.dataset.actionId || null,
+            givenName: value("givenName"),
+            familyName: value("familyName"),
+            email: value("email") || null,
+            phone: value("phone") || null,
+            subject: value("subject"),
+            message: value("message"),
+          };
+        }
+        busy = true;
+        fields.disabled = true;
+        button.disabled = true;
+        label.textContent = "Wird gesendet …";
+        result.textContent = "";
+        try {
+          const receipt = await client.submitInboxCase(pending, {
+            signal: AbortSignal.timeout(15000),
+            headers: { "X-Request-ID": `public-inbox:${crypto.randomUUID()}` },
+          });
+          confirmed = true;
+          fields.hidden = true;
+          result.textContent = `Deine Anfrage ist eingegangen. Deine Referenz: ${receipt.reference}. Bitte bewahre sie für Rückfragen auf.`;
+          label.textContent = "Anfrage eingegangen";
+          form.reset();
+        } catch (error) {
+          // An uncertain transport outcome must repeat the identical command.
+          // Only a definitive rejected request may unlock the draft for edits.
+          const rejected =
+            error instanceof ApiError &&
+            [400, 403, 404, 422, 429].includes(error.status);
+          if (rejected && !uncertain) {
+            pending = null;
+            fields.disabled = false;
+          }
+          if (!rejected) uncertain = true;
+          result.textContent = uncertain
+            ? "Der Eingang deiner Anfrage ist noch unklar. Bitte warte etwas und sende dieselbe Anfrage erneut; sie wird nicht doppelt angelegt. Deine Angaben bleiben dafür unverändert erhalten."
+            : error instanceof ApiError && error.status === 429
+              ? "Zu viele Anfragen. Bitte warte etwas und versuche es erneut. Deine Eingaben bleiben erhalten."
+              : "Die Anfrage wurde nicht angenommen. Prüfe deine Eingaben und ob die Aktion noch geöffnet ist. Deine Eingaben bleiben erhalten.";
+          label.textContent = "Erneut senden";
+          button.disabled = false;
+        } finally {
+          busy = false;
+          result.focus();
+        }
+      });
+    }
+  }
+  if (!customElements.get("leonaid-inbox-form"))
+    customElements.define("leonaid-inbox-form", InboxForm);
+</script>
+<style>
+  .inbox-public {
+    padding-block: var(--space-3xl);
+    max-width: 58rem;
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    margin-bottom: var(--space-md);
+  }
+  p {
+    max-width: 70ch;
+    line-height: 1.6;
+    margin-bottom: var(--space-lg);
+  }
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  label {
+    display: grid;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-lg);
+    font-weight: 600;
+  }
+  input,
+  textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid var(--ink-muted);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    padding: var(--space-sm);
+  }
+  textarea {
+    resize: vertical;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    border: 0;
+    border-radius: 6px;
+    color: white;
+    background: var(--lions-blue-800);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) {
+    background: var(--lions-blue-900);
+  }
+  button:disabled {
+    opacity: 0.65;
+    cursor: default;
+  }
+  [data-result] {
+    overflow-wrap: anywhere;
+  }
+  [data-result]:empty {
+    display: none;
+  }
+  .inbox-public-grid {
+    display: grid;
+    gap: 0 var(--space-lg);
+  }
+  @media (min-width: 40rem) {
+    .inbox-public-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+</style>

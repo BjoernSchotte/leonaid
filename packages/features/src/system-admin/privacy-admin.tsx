@@ -38,6 +38,7 @@ const referenceLabels = {
   assignment: "Akquise-Zuordnung",
   commitment: "Bestellung / Zusage",
   document: "Dokument",
+  inbox_case: "Eingang (Anfrage)",
   invoice: "Rechnung",
 } as const;
 

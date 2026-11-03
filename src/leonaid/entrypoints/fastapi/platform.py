@@ -52,12 +52,14 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
+    build_inbox_service,
     build_knowledge_service,
     build_material_service,
     build_survey_services,
     build_task_service,
     module_navigation,
     parked_event_types,
+    privacy_contributors,
     register_api_modules,
 )
 from leonaid.platform.http_body import RequestBodyLimitMiddleware
@@ -137,6 +139,8 @@ BODY_LIMITS: tuple[tuple[str, int], ...] = (
     ("/api/v1/public/surveys", SURVEY_REQUEST_BYTES),
     ("/api/v1/survey-settings", SURVEY_REQUEST_BYTES),
     ("/api/v1/materials", MATERIAL_UPLOAD_BYTES),
+    ("/api/v1/public/inbox-cases", 64 * 1024),
+    ("/api/v1/inbox-cases", 64 * 1024),
 )
 REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 PATH_UUID = re.compile(
@@ -161,6 +165,9 @@ def error_response(
         status_code=status_code,
         headers={"Cache-Control": "no-store"}
         if status_code in {401, 403}
+        or request.url.path.startswith(
+            ("/api/v1/inbox-cases", "/api/v1/public/inbox-cases")
+        )
         or request.url.path.startswith("/api/v1/public/actions/")
         or (
             request.url.path.startswith("/api/v1/actions/")
@@ -309,6 +316,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 subject_hmac_secret=(
                     settings.invitation_hmac_secret.get_secret_value()
                 ),
+                contributors=privacy_contributors(),
             )
         )
         application.state.privacy_service = privacy_service
@@ -408,6 +416,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.assignment_management_service = None
             application.state.activity_management_service = None
             application.state.public_order_service = None
+        application.state.inbox_service = build_inbox_service(
+            pool, object_storage, crm_gateway
+        )
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()

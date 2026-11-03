@@ -1,4 +1,5 @@
 import { validateUiModules, type UiModule } from "@leonaid/features";
+import { inboxModule } from "@leonaid/features/inbox";
 import { knowledgeModule } from "@leonaid/features/knowledge";
 import { materialsModule } from "@leonaid/features/materials";
 import { tasksModule } from "@leonaid/features/tasks";
@@ -9,6 +10,7 @@ export const pwaModules: readonly UiModule[] = [
   tasksModule,
   materialsModule,
   knowledgeModule,
+  inboxModule,
 ];
 validateUiModules(pwaModules);
 
@@ -18,6 +20,7 @@ export const pwaModuleNavigationKeys = [
   "tasks",
   "materials",
   "knowledge",
+  "inbox",
 ] as const;
 
 export function pwaPath(pathname: string): string {

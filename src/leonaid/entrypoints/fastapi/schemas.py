@@ -264,6 +264,7 @@ class PrivacyReferenceResponse(TransportModel):
         "document",
         "assignment",
         "activity",
+        "inbox_case",
     ]
     action_id: UUID | None
     status: str | None

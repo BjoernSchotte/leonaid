@@ -176,11 +176,14 @@ class PrivacySubjectReport:
     assignments: tuple[PrivacyReference, ...]
     activities: tuple[PrivacyReference, ...]
     order_deliveries: tuple[PrivacyOrderDelivery, ...] = ()
+    # Records that business modules hold for this subject, such as inbox cases.
+    module_references: tuple[PrivacyReference, ...] = ()
 
     @property
     def found(self) -> bool:
         return any(
             (
+                self.module_references,
                 self.twenty_company_ids,
                 self.twenty_person_ids,
                 self.consents,

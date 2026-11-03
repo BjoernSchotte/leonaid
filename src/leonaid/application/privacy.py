@@ -10,6 +10,7 @@ from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.policies import require_system_admin
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.privacy import (
+    PrivacyReference,
     ContactChannel,
     ConsentRecord,
     PrivacyErasureResult,
@@ -22,6 +23,22 @@ OPEN_LEGAL_DECISIONS = (
     "Löschung im Twenty-CRM und Benachrichtigung von Empfängern operationalisieren.",
     "Automatisierten Fristablauf und nachweisbare Löschläufe operationalisieren.",
 )
+
+
+class PrivacySubjectContributor(Protocol):
+    """Personal data a business module keeps, found and erased by e-mail.
+
+    Both calls run on the privacy transaction's connection, so the report and
+    the erasure see the same rows and commit together with the core erasure.
+    """
+
+    async def references(
+        self, connection: object, normalized_email: str
+    ) -> tuple[PrivacyReference, ...]: ...
+
+    async def anonymize(
+        self, connection: object, normalized_email: str, occurred_at: datetime
+    ) -> int: ...
 
 
 class PrivacyRepository(Protocol):
