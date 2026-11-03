@@ -394,6 +394,16 @@
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
 }
+/* Align status and dispatch columns across rows (prototype Invoices.css). */
+.ui-list-demo .inv-list .row-chips {
+  display: grid;
+  grid-template-columns: 112px 190px;
+}
+@media (max-width: 720px) {
+  .ui-list-demo .inv-list .row-chips {
+    display: flex;
+  }
+}
 .ui-list-demo .next-step {
   display: grid;
   gap: var(--s-3);

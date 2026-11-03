@@ -259,6 +259,7 @@ export function InvoiceDemoList() {
 
   return (
     <ListView<DemoInvoice>
+      className="inv-list"
       columns={columns}
       detailTitle={(row) =>
         row.number === "Entwurf"
