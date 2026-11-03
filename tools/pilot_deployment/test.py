@@ -27,12 +27,24 @@ def main() -> None:
     mutations: list[tuple[str, dict[str, Any]]] = []
 
     changed = copy.deepcopy(config)
+    changed["services"]["api"]["environment"]["LEONAID_CLUB_NAME"] = "__CLUB_NAME__"
+    mutations.append(("club name placeholder", changed))
+
+    changed = copy.deepcopy(config)
+    del changed["services"]["api"]["environment"]["LEONAID_CLUB_NAME"]
+    mutations.append(("missing club name", changed))
+
+    changed = copy.deepcopy(config)
     changed["services"]["proxy"]["build"] = {"context": "../proxy/image"}
     mutations.append(("proxy live build", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["proxy"]["image"] = "registry.example.org/leonaid/proxy:latest"
     mutations.append(("unpinned proxy image", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["proxy"].pop("init", None)
+    mutations.append(("proxy without init", changed))
 
     changed = copy.deepcopy(config)
     changed["services"]["api"]["ports"] = [

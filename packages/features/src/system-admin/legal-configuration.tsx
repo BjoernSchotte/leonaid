@@ -273,7 +273,7 @@ export function LegalConfigurationPage({
       configuration.error instanceof ApiError &&
       configuration.error.status === 403;
     return (
-      <main className="ui-main">
+      <div>
         <StatusMessage tone="error">
           <h1>
             {forbidden
@@ -286,7 +286,7 @@ export function LegalConfigurationPage({
               : "Die Konfiguration konnte gerade nicht geladen werden."}
           </p>
         </StatusMessage>
-      </main>
+      </div>
     );
   }
 

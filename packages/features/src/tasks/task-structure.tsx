@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, IconButton, StatusMessage } from "@leonaid/ui";
+import { Button, IconButton, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 import { Trash2 } from "lucide-react";
 
 import { says, type Address } from "./task-copy";
@@ -53,6 +53,7 @@ export function TaskStructurePanel({
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useLeaveGuard(dirty);
   const tags = useQuery({
     queryKey: ["task-tags", task.listId],
     queryFn: () => client.listTaskTags(task.listId, { limit: 100 }),

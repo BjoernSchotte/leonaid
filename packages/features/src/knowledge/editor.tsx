@@ -22,7 +22,7 @@ import {
 import { FormattingToolbar } from "./formatting-toolbar";
 import { normalizePastedHTML } from "./paste";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "../shared/module-workspace.css";
 import "./knowledge.css";
@@ -285,15 +285,7 @@ function PageEditor({
       false,
     );
   }, [editor, canEdit, save.isPending, invalid, taskOpen]);
-  useEffect(() => {
-    if (!dirty && !taskOpen) return;
-    const prevent = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", prevent);
-    return () => window.removeEventListener("beforeunload", prevent);
-  }, [dirty, taskOpen]);
+  useLeaveGuard(dirty || taskOpen);
   return (
     <div className="knowledge-page-editor">
       <header className="knowledge-editor-header">

@@ -186,7 +186,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
     const forbidden =
       flags.error instanceof ApiError && flags.error.status === 403;
     return (
-      <main className="ui-main">
+      <div>
         <StatusMessage tone="error">
           <h1>
             {forbidden
@@ -204,7 +204,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
             </Button>
           )}
         </StatusMessage>
-      </main>
+      </div>
     );
   }
 

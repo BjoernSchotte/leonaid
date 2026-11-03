@@ -5,6 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
+import { columnQueries } from "./column-queries";
+
 const BUILD_ID_TOKEN = "__LEONAID_BUILD_ID__";
 const ASSETS_TOKEN = "/* __LEONAID_BUILD_ASSETS__ */ []";
 
@@ -63,6 +65,9 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+  },
+  css: {
+    postcss: { plugins: [columnQueries()] },
   },
   plugins: [react(), tailwindcss(), serviceWorkerBuild()],
 });

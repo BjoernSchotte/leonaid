@@ -174,23 +174,21 @@ for (const [surface, width] of [
     await quickForm.getByLabel("Titel", { exact: true }).press("Escape");
     await expect(quickForm).toHaveCount(0);
     if (surface === "app") {
-      const tabbar = page.locator(".ui-pwa-tabbar");
-      const taskNavigation = tabbar.getByRole("link", { name: "Aufgaben" });
+      // Tasks live in the "Mehr" sheet; the tab bar stays in the viewport.
+      const tabbar = page.locator(".pwa-tabs");
       await expect(tabbar).toBeVisible();
-      await expect(taskNavigation).toBeVisible();
       const tabbarBox = await tabbar.boundingBox();
-      const taskNavigationBox = await taskNavigation.boundingBox();
-      expect(taskNavigationBox.x + taskNavigationBox.width).toBeLessThanOrEqual(
-        tabbarBox.x + tabbarBox.width,
-      );
-      expect(
-        taskNavigationBox.y + taskNavigationBox.height,
-      ).toBeLessThanOrEqual(tabbarBox.y + tabbarBox.height);
-      expect(
-        await taskNavigation
-          .locator("span")
-          .evaluate((label) => label.scrollWidth <= label.clientWidth),
-      ).toBe(true);
+      expect(tabbarBox.x).toBeGreaterThanOrEqual(0);
+      expect(tabbarBox.x + tabbarBox.width).toBeLessThanOrEqual(width + 1);
+      await page.getByTestId("pwa-menu").click();
+      const sheet = page.getByRole("dialog", { name: "Mehr" });
+      const taskNavigation = sheet.getByRole("link", { name: "Aufgaben" });
+      await expect(taskNavigation).toHaveAttribute("aria-current", "page");
+      const taskBox = await taskNavigation.boundingBox();
+      expect(taskBox.width).toBeGreaterThanOrEqual(44);
+      expect(taskBox.height).toBeGreaterThanOrEqual(44);
+      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await expect(sheet).toBeHidden();
     }
     await switcher.click();
     await expect(switcher).toHaveAttribute("aria-expanded", "true");
@@ -314,6 +312,16 @@ for (const [surface, width] of [
       );
     }
 
+    if (surface === "app") {
+      // The task sheet is modal: the shell's tabs and sheet links are out
+      // of reach until it closes, and closing asks about the draft.
+      expect(
+        await page.evaluate(() =>
+          document.querySelector("dialog.pane-sheet")?.matches(":modal"),
+        ),
+      ).toBe(true);
+    }
+
     page.once("dialog", async (dialog) => dialog.accept());
     await editor.getByRole("button", { name: "Abbrechen" }).click();
     await expect(taskPane(page)).toHaveCount(0);
@@ -330,6 +338,22 @@ for (const [surface, width] of [
       path: testInfo.outputPath(`s2-${surface}-workspace.png`),
       fullPage: false,
     });
+    if (surface === "app") {
+      // A typed search loses nothing: a tab leaves without the shell asking.
+      const dialogs = [];
+      page.on("dialog", (dialog) => {
+        dialogs.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await taskSearch(page).fill("Detail 0");
+      await page
+        .getByRole("navigation", { name: "App-Navigation" })
+        .getByRole("link", { name: "Start" })
+        .click();
+      await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
+      expect(dialogs).toEqual([]);
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    }
     await context.close();
   });
 }

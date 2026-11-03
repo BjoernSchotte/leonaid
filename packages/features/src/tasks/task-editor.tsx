@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 
 import { AssigneePicker } from "./assignee-picker";
 import { EpicPicker } from "./epic-picker";
@@ -208,12 +208,7 @@ export function TaskEditor({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
-  useEffect(() => {
-    if (!dirty) return;
-    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", prevent);
-    return () => window.removeEventListener("beforeunload", prevent);
-  }, [dirty]);
+  useLeaveGuard(dirty);
   // Unmounting with a draft (pane closed, row gone) leaves no stale flag.
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const save = useMutation({

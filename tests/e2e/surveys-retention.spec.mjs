@@ -25,10 +25,9 @@ test("admin configures retention through the module and a member cannot", async 
   const context = await contextFor(browser, process.env.SURVEY_ADMIN_SESSION);
   const page = await context.newPage();
   await page.goto(`${base}/admin/`);
-  await page.getByRole("button", { name: "Navigation öffnen" }).click();
+  await page.getByRole("button", { name: "Mehr" }).click();
   await page
-    .getByRole("navigation", { name: "Hauptnavigation" })
-    .first()
+    .getByRole("dialog", { name: "Alle Bereiche" })
     .getByRole("link", { name: "Umfragen", exact: true })
     .click();
   await page.getByText("Aufbewahrung und Papierkorb", { exact: true }).click();

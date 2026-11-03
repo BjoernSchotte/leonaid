@@ -21,6 +21,7 @@ from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.identity import IdentityAdministrationService
+from leonaid.configuration import DEVELOPMENT_CLUB_NAME
 from leonaid.domain.identity import (
     AccountStatus,
     ActionRole,
@@ -116,6 +117,14 @@ def require_identity(
         raise ContractFailure(f"identity response for {display_name} is invalid")
     if response.headers.get("cache-control") != "no-store":
         raise ContractFailure("identity response is not protected against caching")
+    installation = payload.get("installation")
+    expected_club = os.environ.get("LEONAID_CLUB_NAME") or DEVELOPMENT_CLUB_NAME
+    if not isinstance(installation, dict) or installation.get("clubName") != " ".join(
+        expected_club.split()
+    ):
+        raise ContractFailure(
+            "identity response does not carry the configured club name"
+        )
     return payload
 
 

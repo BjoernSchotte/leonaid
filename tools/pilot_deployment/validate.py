@@ -292,6 +292,12 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
 
     for service_name in sorted(HARDENED_SERVICES):
         validate_hardened_runtime(service_name, services[service_name])
+    # Caddy as PID 1 never reaps orphaned exec children (healthcheck helpers);
+    # their zombies exhaust pids_limit and abort the Go runtime.
+    if services["proxy"].get("init") is not True:
+        raise DeploymentContractError(
+            "proxy runs without an init process that reaps zombies"
+        )
     for service_name in ("api", "worker"):
         if services[service_name].get("user") != CORE_RUNTIME_USER:
             raise DeploymentContractError(
@@ -317,6 +323,9 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     if "MAIL_TEST_API_URL" in api_environment:
         raise DeploymentContractError("production API contains a mail test API")
 
+    club_name = string_value(api_environment, "LEONAID_CLUB_NAME")
+    if not club_name.strip() or is_placeholder(club_name):
+        raise DeploymentContractError("production API has no club name")
     public_url = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
     validate_public_url(public_url, "LEONAID_PUBLIC_BASE_URL")
     for origin in string_value(api_environment, "LEONAID_ALLOWED_ORIGINS").split(","):

@@ -47,6 +47,8 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
             "LEONAID_COMPOSE_PROJECT": f"leonaid-production-test-preflight-{os.getpid()}",
             "LEONAID_SERVICE_VERSION": "0.1.0",
             "LEONAID_RELEASE_COMMIT": commit,
+            # Set here: an older .env.local has no club name yet.
+            "LEONAID_CLUB_NAME": "Lions Club Beispielstadt",
             "LEONAID_PUBLIC_DOMAIN": "portal.leonaid.org",
             "LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.org",
             "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",

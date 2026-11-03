@@ -6,15 +6,15 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@hugeicons/core-free-icons": "4.2.3",
-    "@hugeicons/react": "1.1.9",
     "@leonaid/api-client": "workspace:*",
     "@leonaid/features": "workspace:*",
     "@leonaid/ui": "workspace:*",
     "@tanstack/react-query": "5.101.4",
+    "lucide-react": "1.60.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   }

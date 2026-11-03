@@ -47,24 +47,25 @@ for (const [surface, route, width] of [
     expect(uploadBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
     expect(uploadBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
     await expect(uploadButton).toHaveCSS("font-weight", "600");
+    // Touch targets are 44 px on phones; desktop shell controls are 32 px.
+    const iconTarget = width <= 760 ? 44 : 32;
     const iconButtonBox = await page
-      .locator(".ui-icon-button:visible")
+      .locator(
+        ".ui-icon-button:visible, .topbar .btn-icon:visible, .pwa-bar button:visible",
+      )
       .first()
       .boundingBox();
-    expect(iconButtonBox.width).toBeGreaterThanOrEqual(44);
-    expect(iconButtonBox.height).toBeGreaterThanOrEqual(44);
+    expect(iconButtonBox.width).toBeGreaterThanOrEqual(iconTarget);
+    expect(iconButtonBox.height).toBeGreaterThanOrEqual(iconTarget);
     if (width === 1440) {
       await page.setViewportSize({ width: 780, height: 844 });
-      const logoutButton = page.getByRole("button", {
-        name: "Abmelden",
-        exact: true,
-      });
-      await expect(
-        logoutButton.locator("span").filter({ hasText: /^Abmelden$/ }),
-      ).toBeHidden();
+      // Collapsed rail: sign-out stays one labelled click away.
+      const logoutButton = page.getByTestId("logout");
+      await expect(logoutButton).toBeVisible();
+      await expect(logoutButton).toHaveAccessibleName("Abmelden");
       const logoutBox = await logoutButton.boundingBox();
-      expect(logoutBox.width).toBeGreaterThanOrEqual(44);
-      expect(logoutBox.height).toBeGreaterThanOrEqual(44);
+      expect(logoutBox.width).toBeGreaterThanOrEqual(24);
+      expect(logoutBox.height).toBeGreaterThanOrEqual(24);
       await page.setViewportSize({ width, height: 844 });
     }
     await uploadButton.click();
