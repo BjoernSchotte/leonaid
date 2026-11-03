@@ -219,7 +219,11 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   const sheet = page.getByRole("dialog", { name: "Mehr" });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByTestId("logout")).toBeVisible();
-  // Every control of the sheet (outside the column) is a 44 px target.
+  // Every control of the sheet (outside the column) is a 44 px target,
+  // measured after the sheet's rise animation.
+  await sheet.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  );
   const sheetTargets = await sheet
     .locator("a:visible, button:visible, summary:visible")
     .evaluateAll((elements) =>
