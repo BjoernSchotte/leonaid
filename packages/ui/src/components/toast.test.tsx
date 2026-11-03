@@ -26,9 +26,10 @@ afterEach(() => {
 });
 
 describe("Toast", () => {
-  it("announces toasts in one polite live region with prototype markup", () => {
+  it("announces info and success toasts in the polite live region", () => {
     const region = screen.getByRole("status");
-    expect(region.className).toBe("toaster");
+    expect(region.className).toBe("toaster-region");
+    expect(region.parentElement?.className).toBe("toaster");
     expect(region.getAttribute("aria-live")).toBe("polite");
 
     act(() => {
@@ -45,6 +46,17 @@ describe("Toast", () => {
     expect(toast.querySelector(".toast-text")?.textContent).toBe(
       "GespeichertDie Zuordnung wurde aktualisiert.",
     );
+  });
+
+  it("announces error toasts in the assertive live region", () => {
+    const alert = screen.getByRole("alert");
+    expect(alert.getAttribute("aria-live")).toBe("assertive");
+    act(() => {
+      show({ title: "Nicht gespeichert", tone: "error" });
+      show({ title: "Hinweis", tone: "info" });
+    });
+    expect(alert.textContent).toBe("Nicht gespeichert");
+    expect(screen.getByRole("status").textContent).toBe("Hinweis");
   });
 
   it.each([

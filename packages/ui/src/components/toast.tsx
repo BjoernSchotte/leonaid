@@ -129,7 +129,7 @@ function ToastItem({
   );
 }
 
-/** Holds the toasts and renders the polite live region, bottom right. */
+/** Holds the toasts and renders their live regions, bottom right. */
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [toasts, setToasts] = useState<readonly ToastEntry[]>([]);
   const nextId = useRef(0);
@@ -150,10 +150,23 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div aria-live="polite" className="toaster" role="status">
-        {toasts.map((toast) => (
-          <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
-        ))}
+      {/* Errors go to an assertive region, everything else to a polite one.
+          Both regions always exist, so screen readers pick up insertions. */}
+      <div className="toaster">
+        <div aria-live="polite" className="toaster-region" role="status">
+          {toasts
+            .filter((toast) => toast.tone !== "error")
+            .map((toast) => (
+              <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
+            ))}
+        </div>
+        <div aria-live="assertive" className="toaster-region" role="alert">
+          {toasts
+            .filter((toast) => toast.tone === "error")
+            .map((toast) => (
+              <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
+            ))}
+        </div>
       </div>
     </ToastContext.Provider>
   );

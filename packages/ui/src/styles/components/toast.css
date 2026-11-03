@@ -5,8 +5,15 @@
   bottom: var(--s-4);
   z-index: 1000;
   display: grid;
-  gap: var(--s-2);
   width: min(380px, calc(100vw - 32px));
+}
+/* Polite and assertive live regions inside the toaster (product a11y). */
+.toaster-region {
+  display: grid;
+  gap: var(--s-2);
+}
+.toaster-region:not(:empty) + .toaster-region:not(:empty) {
+  margin-top: var(--s-2);
 }
 .toast {
   display: flex;
