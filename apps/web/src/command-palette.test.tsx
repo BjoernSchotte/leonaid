@@ -294,6 +294,18 @@ describe("CommandPalette", () => {
     expect(within(list).queryByText("Aufgaben")).toBeNull();
     expect(within(list).queryByText("Eingang")).toBeNull();
     expect(within(list).queryByText("Eingänge")).toBeNull();
+    // Approved zone order, not server order.
+    expect(
+      [...list.querySelectorAll("[data-zone] .palette-label")].map(
+        (label) => label.textContent,
+      ),
+    ).toEqual([
+      "Übersicht",
+      "Bestellungen",
+      "Rechnungen",
+      "Materialien",
+      "Wissen",
+    ]);
     expect(
       within(list).getByText("Auf dieser Seite · Mitglieder"),
     ).toBeTruthy();

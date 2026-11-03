@@ -32,7 +32,7 @@ import {
 } from "react";
 
 import type { ModulePageContext, ModuleSurface, UiModule } from "../modules";
-import { zoneForNavKey } from "../navigation/zones";
+import { navigationZones, zoneForNavKey } from "../navigation/zones";
 import {
   enabledSearchModules,
   isSearchQuery,
@@ -113,6 +113,24 @@ function rank<T>(
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.item);
+}
+
+const zoneOrder = new Map(
+  navigationZones.map((zone, index) => [zone.navKey, index]),
+);
+
+/** The approved zone order (prototype "g" map); unknown keys keep server order at the end. */
+function byZoneOrder(
+  items: readonly NavigationItemResponse[],
+): NavigationItemResponse[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort(
+      (a, b) =>
+        (zoneOrder.get(a.item.key) ?? Infinity) -
+          (zoneOrder.get(b.item.key) ?? Infinity) || a.index - b.index,
+    )
     .map((entry) => entry.item);
 }
 
@@ -286,7 +304,7 @@ export function CommandPalette({
     [pageCommands, text],
   );
   const visibleNavigation = rank(
-    items.map((item) => ({ item, zone: zoneForNavKey(item.key) })),
+    byZoneOrder(items).map((item) => ({ item, zone: zoneForNavKey(item.key) })),
     text,
     ({ item }) => `Gehe zu ${item.label}`,
     ({ zone }) => (zone ? [zone.label, zone.hint] : undefined),
