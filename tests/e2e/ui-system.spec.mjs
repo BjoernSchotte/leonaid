@@ -116,6 +116,8 @@ test("UI catalog proves all base states with real identity", async ({
     await expect(page.getByTestId("toast")).toContainText(
       "Änderung gespeichert",
     );
+    // axe measures contrast through opacity; wait until the fade-in ends.
+    await expect(page.getByTestId("toast")).toHaveCSS("opacity", "1");
     await expectNoSeriousAccessibilityViolations(page, "Toast");
 
     await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
