@@ -3,6 +3,8 @@ dialog {
   color: var(--text);
 }
 .modal {
+  /* UA centring for modal dialogs; Tailwind preflight resets margin to 0. */
+  margin: auto;
   width: min(560px, calc(100vw - 32px));
   max-height: min(720px, calc(100dvh - 48px));
   padding: 0;

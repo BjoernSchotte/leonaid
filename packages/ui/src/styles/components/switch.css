@@ -50,3 +50,9 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+/* Switch with its label: from the prototype page CSS (Campaigns.css). */
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
