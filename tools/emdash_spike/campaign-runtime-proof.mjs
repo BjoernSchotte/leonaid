@@ -716,9 +716,12 @@ if (
     (await call(`${path}/revisions`, 200)).data.total,
     historyBeforeRestore.data.total + 1,
   );
+  // EmDash 1.x revision lists add the resolved author display; the single
+  // revision read does not. The stored revision itself must be unchanged.
+  const { author: _listAuthor, ...storedTarget } = restoreTarget;
   assert.deepEqual(
     (await call(`/_emdash/api/revisions/${restoreTarget.id}`, 200)).data.item,
-    restoreTarget,
+    storedTarget,
   );
   await call("/_emdash/api/revisions/00000000000000000000000000/restore", 404, {
     method: "POST",
