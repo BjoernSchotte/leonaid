@@ -329,6 +329,25 @@ and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
 
+## Security job disk budget
+
+The Security job builds all own images and scans every pinned third-party
+image on one runner. Measured on an Azure runner (145 GB disk), the job
+consumes about 19 GB: Playwright image 2.7 GB, Trivy and Java advisory DBs
+3.3 GB, own images about 7 GB (daemon images plus the Buildx builder volume),
+third-party images about 3 GB. Hosted runners differ in free disk; an AWS
+runner ran out while building the own images.
+
+- `tools/ci/free-runner-disk.sh start|wait` deletes preinstalled toolchains
+  LeonAid never uses (Android SDK, .NET, GHC, CodeQL) in the background while
+  the build cache is imported. It refuses to run outside GitHub Actions.
+- `tools/security/pulled-images.sh` removes a pinned image right after its use
+  only when that exact digest was absent before. Locally present images,
+  including any other tags of the same image, stay untouched.
+- `LEONAID_CI_DISK_REPORT=1` makes the scan log `tools/ci/disk-report.sh`
+  output after every phase and target.
+
+`tools/ci/workflow_contract.py` requires the disk step before the gates.
 
 ## Five-minute workflow budget
 

@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "run: sh tools/ci/free-runner-disk.sh wait",
+        "run: true",
+        "free runner disk",
+    ),
+    (
+        "run: sh tools/ci/free-runner-disk.sh start",
+        "run: true",
+        "free runner disk",
+    ),
+    (
         "actions/upload-artifact@",
         "actions/removed-artifact@",
         "evidence artifacts",

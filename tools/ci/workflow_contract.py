@@ -150,6 +150,14 @@ def check(path: Path) -> list[str]:
     for shard in INTEGRATION_SHARDS:
         if shard not in select_suites.INTEGRATION_SHARDS:
             problems.append(f"Integration shard missing: {shard}")
+    security = job_block(text, "security")
+    # All own images plus every pinned third-party image exceed the free disk
+    # of a stock runner; the Security gate must not fail on space.
+    start = security.find("tools/ci/free-runner-disk.sh start")
+    finish = security.find("tools/ci/free-runner-disk.sh wait")
+    gate = security.find("tools/ci/security.sh")
+    if not 0 <= start < finish < gate:
+        problems.append("Security job does not free runner disk before the gates.")
     leaves = job_block(text, "e2e")
     if "shard: ${{ fromJSON(needs.select.outputs.e2e) }}" not in leaves:
         problems.append("E2E leaves must come from the suite selector.")
