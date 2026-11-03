@@ -46,6 +46,13 @@ COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/campaign-site/dist ./dist
 COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs ./operator/
 COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs ./operator/auth/
+# sharp/libvips size their worker pool from the host's CPU count, not the
+# container's CPU quota (32 threads per image pipeline on a 32-core host). With
+# the service's pids_limit, concurrent image transforms then fail to create
+# threads ("glib: Error creating thread"), Astro serves the image unoptimized,
+# and libvips can crash Node with SIGSEGV in vips_sink_disc. The service is
+# limited to one CPU, so one libvips worker per pipeline loses nothing.
+ENV VIPS_CONCURRENCY=1
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV NODE_ENV=production
