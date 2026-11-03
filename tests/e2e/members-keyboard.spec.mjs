@@ -24,6 +24,17 @@ function sessionCookie(value) {
 }
 
 async function expectNoSeriousAccessibilityViolations(page, label) {
+  // A dialog that still fades in fails colour contrast; let motion settle.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) => animation.effect?.getTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished),
+    ),
+  );
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(
     accessibility.violations
@@ -91,9 +102,9 @@ test("member list: j/k, Enter, Esc, x, filter and invite by keyboard", async ({
     await page.keyboard.press("x");
     const bulk = page.getByRole("region", { name: "Auswahl" });
     await expect(bulk).toContainText("2 ausgewählt");
-    await expect(bulk.getByRole("button", { name: /Status|Rolle/ })).toHaveCount(
-      0,
-    );
+    await expect(
+      bulk.getByRole("button", { name: /Status|Rolle/ }),
+    ).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(bulk).toHaveCount(0);
 

@@ -36,9 +36,9 @@ export async function openMember(page, name) {
   return pane;
 }
 
-/** A toast with this text (role=status region or the alert region). */
+/** The newest toast with this text (earlier ones may still be shown). */
 export function toast(page, text) {
-  return page.locator(".toast").filter({ hasText: text });
+  return page.locator(".toast").filter({ hasText: text }).last();
 }
 
 /** Opens the invitation dialog from the list header and returns it. */
@@ -86,9 +86,11 @@ export async function changeRole(page, { actionId, role, enabled, label }) {
     .click();
   await expect(dialog).toBeHidden();
   await expect(
-    toast(page, `${label}`).filter({
-      hasText: enabled ? "zugewiesen" : "entzogen",
-    }),
+    page
+      .locator(".toast")
+      .filter({ hasText: label })
+      .filter({ hasText: enabled ? "zugewiesen" : "entzogen" })
+      .last(),
   ).toBeVisible();
   await expect(
     pane.getByTestId(

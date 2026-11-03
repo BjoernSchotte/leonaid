@@ -9,7 +9,7 @@ const staleSystemSession = process.env.SYSTEM_STALE_SESSION;
 const annaSession = process.env.ANNA_SESSION;
 const systemEmail = "system-admin@leonaid.invalid";
 const annaEmail = "anna.akquise@leonaid.invalid";
-const annaId = "10000000-0000-4000-8000-000000000002";
+const annaId = "10000000-0000-4000-8000-000000000004";
 
 if (
   !baseUrl ||
