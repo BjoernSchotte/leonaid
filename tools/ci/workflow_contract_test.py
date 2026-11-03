@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[1]))
 
-import workflow_contract as contract  # noqa: E402
+from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
@@ -137,7 +137,7 @@ CI_MUTATIONS = (
         "continue-on-error hides failures",
     ),
     (
-        "    - cron: \"7 3 * * *\"\n",
+        '    - cron: "7 3 * * *"\n',
         "",
         "nightly complete run",
     ),
@@ -155,10 +155,25 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     ("surveys.yml", "  merge_group:\n", "", "must run on merge_group"),
-    ("surveys.yml", "acceptance, backup-recovery]", "backup-recovery]", "gate does not require: acceptance"),
-    ("api-contract.yml", "  pull_request:\n", "  pull_request:\n    paths: [src/**]\n", "path filters"),
+    (
+        "surveys.yml",
+        "acceptance, backup-recovery]",
+        "backup-recovery]",
+        "gate does not require: acceptance",
+    ),
+    (
+        "api-contract.yml",
+        "  pull_request:\n",
+        "  pull_request:\n    paths: [src/**]\n",
+        "path filters",
+    ),
     ("api-contract.yml", "python3 tools/ci/gate.py", "true", "tools/ci/gate.py"),
-    ("pins.yml", "    needs: [select, policy, reproducibility, sbom]", "    needs: [select, policy]", "gate does not require"),
+    (
+        "pins.yml",
+        "    needs: [select, policy, reproducibility, sbom]",
+        "    needs: [select, policy]",
+        "gate does not require",
+    ),
     (
         "pins.yml",
         'sh tools/ci/retry-infra.sh docker pull "$PYTHON_IMAGE"',
@@ -197,7 +212,9 @@ def main() -> None:
         text=True,
     )
     if result.returncode != 0:
-        raise AssertionError(f"The current workflows violate the contract:\n{result.stderr}")
+        raise AssertionError(
+            f"The current workflows violate the contract:\n{result.stderr}"
+        )
     workflows = root / ".github/workflows"
     failures: list[str] = []
     with tempfile.TemporaryDirectory() as temporary:
@@ -217,7 +234,9 @@ def main() -> None:
             target = copy / ".github/workflows" / name
             original = (workflows / name).read_text(encoding="utf-8")
             if old not in original:
-                failures.append(f"{name}: mutation anchor vanished: {old.strip()[:60]!r}")
+                failures.append(
+                    f"{name}: mutation anchor vanished: {old.strip()[:60]!r}"
+                )
                 continue
             target.write_text(original.replace(old, new, 1), encoding="utf-8")
             if not rejected(contract.check_repository(copy), expected):
@@ -227,7 +246,9 @@ def main() -> None:
             target = copy / relative
             original = (root / relative).read_text(encoding="utf-8")
             if old not in original:
-                failures.append(f"{relative}: mutation anchor vanished: {old.strip()[:60]!r}")
+                failures.append(
+                    f"{relative}: mutation anchor vanished: {old.strip()[:60]!r}"
+                )
                 continue
             target.write_text(original.replace(old, new, 1), encoding="utf-8")
             if not rejected(contract.check_repository(copy), expected):

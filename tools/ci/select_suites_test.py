@@ -7,11 +7,12 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[1]))
 
-import select_suites as s  # noqa: E402
+from tools.ci import select_suites as s  # noqa: E402
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else HERE.parents[1]).resolve()
 FAILURES: list[str] = []
@@ -27,10 +28,10 @@ def pr(*paths: str) -> s.Selection:
 
 
 def full(selection: s.Selection) -> bool:
-    return selection.full and selection.suites == s.everything()
+    return bool(selection.full and selection.suites == s.everything())
 
 
-def outputs(*paths: str) -> dict[str, object]:
+def outputs(*paths: str) -> dict[str, Any]:
     return {k: json.loads(v) for k, v in pr(*paths).outputs().items() if k != "reason"}
 
 
@@ -52,7 +53,11 @@ def main() -> int:
     # No readable diff is never an excuse to skip.
     expect(full(pr()), "an empty PR diff must select everything")
     # Unknown paths select everything.
-    for path in ("brand-new/thing.py", "tools/new_module/test.sh", "apps/web/src/app.tsx"):
+    for path in (
+        "brand-new/thing.py",
+        "tools/new_module/test.sh",
+        "apps/web/src/app.tsx",
+    ):
         expect(full(pr(path)), f"unmapped {path} must select everything")
     # Shared infrastructure selects everything.
     for path in (
@@ -85,39 +90,67 @@ def main() -> int:
         "README.md",
     )
     expect(
-        docs["integration"] == [] and docs["e2e"] == [] and docs["emdash"] == []
+        docs["integration"] == []
+        and docs["e2e"] == []
+        and docs["emdash"] == []
         and not any(docs[flag] for flag in s.FLAGS),
         f"docs-only PR selected stack suites: {docs}",
     )
     # Module-local changes stay local.
-    tasks = outputs("src/leonaid/modules/tasks/api.py", "tests/e2e/tasks-views.spec.mjs")
+    tasks = outputs(
+        "src/leonaid/modules/tasks/api.py", "tests/e2e/tasks-views.spec.mjs"
+    )
     expect(tasks["e2e"] == ["tasks"], f"tasks module: {tasks}")
-    expect(tasks["integration"] == [] and tasks["emdash"] == [], f"tasks module: {tasks}")
+    expect(
+        tasks["integration"] == [] and tasks["emdash"] == [], f"tasks module: {tasks}"
+    )
     expect(tasks["api"] is True and tasks["surveys"] is False, f"tasks module: {tasks}")
     delivery = outputs("tools/delivery/foundation.py")
-    expect(delivery["integration"] == ["delivery"] and delivery["e2e"] == [], f"delivery: {delivery}")
-    campaign = outputs("apps/campaign-site/emdash-editor-patch.mjs", "tools/emdash_spike/auth-patch-proof.mjs")
+    expect(
+        delivery["integration"] == ["delivery"] and delivery["e2e"] == [],
+        f"delivery: {delivery}",
+    )
+    campaign = outputs(
+        "apps/campaign-site/emdash-editor-patch.mjs",
+        "tools/emdash_spike/auth-patch-proof.mjs",
+    )
     expect(campaign["emdash"] == list(s.EMDASH_GROUPS), f"campaign site: {campaign}")
     expect(
-        campaign["e2e"] == [] and campaign["integration"] == [] and campaign["api"] is False,
+        campaign["e2e"] == []
+        and campaign["integration"] == []
+        and campaign["api"] is False,
         f"campaign site must not start Core suites: {campaign}",
     )
-    surveys = outputs("packages/surveys/src/index.ts", "tests/e2e/surveys-editor.spec.mjs")
+    surveys = outputs(
+        "packages/surveys/src/index.ts", "tests/e2e/surveys-editor.spec.mjs"
+    )
     expect(surveys["surveys"] is True and surveys["e2e"] == [], f"surveys: {surveys}")
     # Cross-suite helpers select every suite that imports them.
     orders = outputs("tools/public_orders/contract.py")
-    expect(orders["emdash"] != [] and "public-orders" in orders["e2e"], f"public orders: {orders}")
+    expect(
+        orders["emdash"] != [] and "public-orders" in orders["e2e"],
+        f"public orders: {orders}",
+    )
     expect("delivery" in orders["integration"], f"public orders: {orders}")
     identity = outputs("tools/identity/contract.py")
-    expect(identity["emdash"] != [] and identity["e2e"] == ["identity"], f"identity: {identity}")
+    expect(
+        identity["emdash"] != [] and identity["e2e"] == ["identity"],
+        f"identity: {identity}",
+    )
     # Formerly path-filtered workflows keep their historical filters.
-    expect(outputs("infra/security/vulnerability-allowlist.json")["pins"] is True, "pins filter")
+    expect(
+        outputs("infra/security/vulnerability-allowlist.json")["pins"] is True,
+        "pins filter",
+    )
     expect(outputs("tools/openapi/generate.py")["api"] is True, "API filter")
-    expect(outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit")
+    expect(
+        outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
+    )
     expect(outputs("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
     # Matrix order is preserved (long jobs first).
     expect(
-        json.loads(s.select("push", []).outputs()["integration"]) == list(s.INTEGRATION_SHARDS),
+        json.loads(s.select("push", []).outputs()["integration"])
+        == list(s.INTEGRATION_SHARDS),
         "full integration matrix must keep the declared order",
     )
     # Rules must point at the suites that exist in the CI entry points.
@@ -143,17 +176,30 @@ def main() -> int:
             prefix = pattern.split("*", 1)[0].rstrip("/")
             if prefix and "/" in pattern and not pattern.startswith("**"):
                 base = prefix if pattern.endswith("/**") else str(Path(prefix).parent)
-                expect((ROOT / base).exists(), f"rule {rule.reason!r}: {pattern} matches nothing")
+                expect(
+                    (ROOT / base).exists(),
+                    f"rule {rule.reason!r}: {pattern} matches nothing",
+                )
     # Glob semantics.
-    expect(s.matches("a/b/c.md", ["**/*.md"]) and s.matches("c.md", ["**/*.md"]), "** spans depth")
-    expect(not s.matches("tools/ci2/x", ["tools/ci/**"]), "** must not leak into siblings")
-    expect(not s.matches("tests/e2e/sub/x.spec.mjs", ["tests/e2e/*.spec.mjs"]), "* is one segment")
+    expect(
+        s.matches("a/b/c.md", ["**/*.md"]) and s.matches("c.md", ["**/*.md"]),
+        "** spans depth",
+    )
+    expect(
+        not s.matches("tools/ci2/x", ["tools/ci/**"]), "** must not leak into siblings"
+    )
+    expect(
+        not s.matches("tests/e2e/sub/x.spec.mjs", ["tests/e2e/*.spec.mjs"]),
+        "* is one segment",
+    )
 
     if FAILURES:
         for failure in FAILURES:
             print(f"select-suites-test: ERROR: {failure}", file=sys.stderr)
         return 1
-    print("select-suites-test: OK: tiers, shared infra, docs-only, module-local and unknown paths")
+    print(
+        "select-suites-test: OK: tiers, shared infra, docs-only, module-local and unknown paths"
+    )
     return 0
 
 

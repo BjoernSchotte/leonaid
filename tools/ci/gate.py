@@ -50,7 +50,9 @@ def evaluate(
             expected = "success" if selected else "skipped"
             rows.append((job, result, expected, result == expected))
         elif job in may_skip:
-            rows.append((job, result, "success or skipped", result in ("success", "skipped")))
+            rows.append(
+                (job, result, "success or skipped", result in ("success", "skipped"))
+            )
         else:
             rows.append((job, result, "success", result == "success"))
     for job in sorted(set(selectable) - set(needs)):
@@ -63,7 +65,9 @@ def parse_selectable(values: Sequence[str]) -> dict[str, str]:
     for value in values:
         job, separator, key = value.partition("=")
         if not separator or not job or not key:
-            raise SystemExit(f"ci-gate: ERROR: expected job=selector-key, got {value!r}")
+            raise SystemExit(
+                f"ci-gate: ERROR: expected job=selector-key, got {value!r}"
+            )
         mapping[job] = key
     return mapping
 
@@ -81,7 +85,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"ci-gate: ERROR: NEEDS is not JSON: {raw[:200]!r}", file=sys.stderr)
         return 1
     rows = evaluate(needs, parse_selectable(args.selectable), args.may_skip)
-    lines = [f"### {args.name}", "", "| Job | Result | Expected | |", "|---|---|---|---|"]
+    lines = [
+        f"### {args.name}",
+        "",
+        "| Job | Result | Expected | |",
+        "|---|---|---|---|",
+    ]
     for job, result, expected, ok in rows:
         lines.append(f"| {job} | {result} | {expected} | {'✅' if ok else '❌'} |")
     report = "\n".join(lines) + "\n"

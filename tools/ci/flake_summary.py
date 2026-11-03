@@ -18,15 +18,17 @@ import urllib.request
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
-Fetch = Callable[[str], Mapping[str, object]]
+# Decoded GitHub REST JSON.
+Fetch = Callable[[str], Any]
 # "cancelled" is left out: cancel-in-progress cancels superseded runs.
 FAILED = {"failure", "timed_out", "startup_failure"}
 IGNORED = {"skipped", "cancelled"}
 
 
 def github_fetch(token: str) -> Fetch:
-    def fetch(path: str) -> Mapping[str, object]:
+    def fetch(path: str) -> Any:
         request = urllib.request.Request(
             f"https://api.github.com/{path}",
             headers={
@@ -49,14 +51,16 @@ class JobStats:
     links: list[str] = field(default_factory=list)
 
 
-def jobs_of_attempt(fetch: Fetch, repository: str, run_id: int, attempt: int) -> list[Mapping[str, object]]:
+def jobs_of_attempt(
+    fetch: Fetch, repository: str, run_id: int, attempt: int
+) -> list[Mapping[str, object]]:
     jobs: list[Mapping[str, object]] = []
     page = 1
     while True:
         data = fetch(
             f"repos/{repository}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100&page={page}"
         )
-        batch = list(data.get("jobs", []))  # type: ignore[arg-type]
+        batch = list(data.get("jobs", []))
         jobs.extend(batch)
         if len(batch) < 100:
             return jobs
@@ -66,17 +70,22 @@ def jobs_of_attempt(fetch: Fetch, repository: str, run_id: int, attempt: int) ->
 RunAttempts = Sequence[Sequence[Mapping[str, object]]]
 
 
-def collect(fetch: Fetch, repository: str, workflow: str, runs: int) -> list[RunAttempts]:
+def collect(
+    fetch: Fetch, repository: str, workflow: str, runs: int
+) -> list[RunAttempts]:
     """Jobs of every attempt (oldest first) of the last ``runs`` runs."""
     data = fetch(
         f"repos/{repository}/actions/workflows/{workflow}/runs?status=completed&per_page={runs}"
     )
     collected: list[RunAttempts] = []
-    for run in list(data.get("workflow_runs", []))[:runs]:  # type: ignore[arg-type]
+    for run in list(data.get("workflow_runs", []))[:runs]:
         run_id = int(run["id"])
         attempts = int(run.get("run_attempt", 1))
         collected.append(
-            [jobs_of_attempt(fetch, repository, run_id, n) for n in range(1, attempts + 1)]
+            [
+                jobs_of_attempt(fetch, repository, run_id, n)
+                for n in range(1, attempts + 1)
+            ]
         )
     return collected
 
@@ -113,7 +122,9 @@ def tally(runs: Sequence[RunAttempts]) -> tuple[dict[str, JobStats], int, int]:
     return dict(stats), len(runs), rerun_runs
 
 
-def render(workflow: str, stats: Mapping[str, JobStats], total: int, reruns: int) -> str:
+def render(
+    workflow: str, stats: Mapping[str, JobStats], total: int, reruns: int
+) -> str:
     lines = [
         f"### {workflow}: last {total} completed runs, {reruns} with reruns",
         "",
@@ -154,7 +165,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     fetch = github_fetch(token)
     report = ["## Flake summary", ""]
     for workflow in args.workflow:
-        stats, total, reruns = tally(collect(fetch, args.repository, workflow, args.runs))
+        stats, total, reruns = tally(
+            collect(fetch, args.repository, workflow, args.runs)
+        )
         report.append(render(workflow, stats, total, reruns))
     text = "\n".join(report)
     print(text)

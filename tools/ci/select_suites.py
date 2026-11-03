@@ -134,8 +134,14 @@ RULES: tuple[Rule, ...] = (
     ),
     # Documentation and specifications: the Documentation workflow and the
     # always-on checks cover them; no stack suite reads them.
-    Rule(("specs/leonaid-poc/openapi-breaking-approvals.json",), frozenset({"api"}), "API approvals"),
-    Rule(("specs/emdash-campaign-microsite-spike/**",), EMDASH, "EmDash route inventory"),
+    Rule(
+        ("specs/leonaid-poc/openapi-breaking-approvals.json",),
+        frozenset({"api"}),
+        "API approvals",
+    ),
+    Rule(
+        ("specs/emdash-campaign-microsite-spike/**",), EMDASH, "EmDash route inventory"
+    ),
     # Pilot plan, decisions and readiness documents feed the Contract job.
     Rule(("specs/leonaid-pilot/**",), frozenset({"contract"}), "pilot contracts"),
     Rule(
@@ -181,19 +187,41 @@ RULES: tuple[Rule, ...] = (
         "tasks module",
     ),
     # tools/schema/test.sh also runs the tasks schema contract.
-    Rule(("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"),
+    Rule(
+        ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
+    ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),
     Rule(("tools/compose/**",), integration("compose", "profiles"), "Compose proofs"),
     Rule(("tools/core/**",), integration("core"), "Core proofs"),
-    Rule(("tools/schema/**", "tools/outbox/**"), integration("schema-outbox"), "schema/outbox proofs"),
+    Rule(
+        ("tools/schema/**", "tools/outbox/**"),
+        integration("schema-outbox"),
+        "schema/outbox proofs",
+    ),
     Rule(("tools/storage/**",), integration("storage"), "storage proofs"),
-    Rule(("tools/documents/**", "tests/e2e/documents.spec.mjs"), integration("documents"), "document proofs"),
+    Rule(
+        ("tools/documents/**", "tests/e2e/documents.spec.mjs"),
+        integration("documents"),
+        "document proofs",
+    ),
     Rule(("tools/policy/**",), integration("policy"), "policy proofs"),
     # E2E leaves with their own proof directories and specs.
-    Rule(("tools/invoices/**", "tests/e2e/invoices.spec.mjs"), e2e("invoices"), "invoice proofs"),
-    Rule(("tools/commitments/**", "tests/e2e/commitments.spec.mjs"), e2e("commitments"), "commitment proofs"),
-    Rule(("tools/matching/**", "tests/e2e/matching.spec.mjs"), e2e("matching", "acquisition-management"), "matching proofs"),
+    Rule(
+        ("tools/invoices/**", "tests/e2e/invoices.spec.mjs"),
+        e2e("invoices"),
+        "invoice proofs",
+    ),
+    Rule(
+        ("tools/commitments/**", "tests/e2e/commitments.spec.mjs"),
+        e2e("commitments"),
+        "commitment proofs",
+    ),
+    Rule(
+        ("tools/matching/**", "tests/e2e/matching.spec.mjs"),
+        e2e("matching", "acquisition-management"),
+        "matching proofs",
+    ),
     Rule(("tools/pwa/**", "tests/e2e/pwa*.spec.mjs"), e2e("pwa"), "PWA proofs"),
     Rule(
         (
@@ -211,8 +239,14 @@ RULES: tuple[Rule, ...] = (
         e2e("public-orders", "public-catalog") | integration("delivery") | EMDASH,
         "public order proofs",
     ),
-    Rule(("tests/e2e/public-orders.spec.mjs",), e2e("public-orders"), "public order spec"),
-    Rule(("tools/action_admin/**", "tests/e2e/action-admin.spec.mjs"), e2e("action-admin"), "action admin proofs"),
+    Rule(
+        ("tests/e2e/public-orders.spec.mjs",), e2e("public-orders"), "public order spec"
+    ),
+    Rule(
+        ("tools/action_admin/**", "tests/e2e/action-admin.spec.mjs"),
+        e2e("action-admin"),
+        "action admin proofs",
+    ),
     Rule(
         (
             "tools/invitations/**",
@@ -229,7 +263,11 @@ RULES: tuple[Rule, ...] = (
         "action template proofs",
     ),
     Rule(
-        ("tools/assignments/**", "tools/activities/**", "tests/e2e/activities.spec.mjs"),
+        (
+            "tools/assignments/**",
+            "tools/activities/**",
+            "tests/e2e/activities.spec.mjs",
+        ),
         e2e("acquisition-management"),
         "acquisition management proofs",
     ),
@@ -245,7 +283,11 @@ RULES: tuple[Rule, ...] = (
         "public catalog proofs",
     ),
     Rule(
-        ("tools/golden_journey/**", "tools/golden/**", "tests/e2e/golden-journey.spec.mjs"),
+        (
+            "tools/golden_journey/**",
+            "tools/golden/**",
+            "tests/e2e/golden-journey.spec.mjs",
+        ),
         frozenset({"golden"}),
         "Golden Journey",
     ),
@@ -260,7 +302,11 @@ RULES: tuple[Rule, ...] = (
         frozenset({"contract"}),
         "Contract job inputs",
     ),
-    Rule(("tools/openapi/**", "tests/contract/**"), frozenset({"api", "contract"}), "API contract"),
+    Rule(
+        ("tools/openapi/**", "tests/contract/**"),
+        frozenset({"api", "contract"}),
+        "API contract",
+    ),
     Rule(
         (
             "tools/pins/**",
@@ -278,14 +324,26 @@ RULES: tuple[Rule, ...] = (
         e2e("commitments", "invoices") | integration("delivery") | {"golden"},
         "commitment UI",
     ),
-    Rule(("packages/features/src/invoices/**",), e2e("invoices") | {"golden"}, "invoice UI"),
+    Rule(
+        ("packages/features/src/invoices/**",),
+        e2e("invoices") | {"golden"},
+        "invoice UI",
+    ),
     Rule(
         ("packages/features/src/acquisition/**",),
         e2e("acquisition-management", "matching") | {"golden"},
         "acquisition UI",
     ),
-    Rule(("packages/features/src/action-admin/**",), e2e("action-admin"), "action admin UI"),
-    Rule(("packages/features/src/activity-feed/**",), e2e("public-catalog"), "activity feed UI"),
+    Rule(
+        ("packages/features/src/action-admin/**",),
+        e2e("action-admin"),
+        "action admin UI",
+    ),
+    Rule(
+        ("packages/features/src/activity-feed/**",),
+        e2e("public-catalog"),
+        "activity feed UI",
+    ),
 )
 
 # Historical path filters of the two formerly filtered workflows. The
@@ -353,10 +411,7 @@ def matches(path: str, patterns: Iterable[str]) -> bool:
 
 def everything() -> frozenset[str]:
     return frozenset(
-        integration(*INTEGRATION_SHARDS)
-        | e2e(*E2E_SHARDS)
-        | EMDASH
-        | frozenset(FLAGS)
+        integration(*INTEGRATION_SHARDS) | e2e(*E2E_SHARDS) | EMDASH | frozenset(FLAGS)
     )
 
 
@@ -385,7 +440,9 @@ class Selection:
             "reason": self.reason,
             "integration": listed("integration", INTEGRATION_SHARDS),
             "e2e": listed("e2e", E2E_SHARDS),
-            "emdash": json.dumps(list(EMDASH_GROUPS) if "emdash" in self.suites else []),
+            "emdash": json.dumps(
+                list(EMDASH_GROUPS) if "emdash" in self.suites else []
+            ),
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
@@ -397,7 +454,9 @@ def select(event: str, paths: Sequence[str]) -> Selection:
         return Selection(True, f"{event}: complete suite", everything())
     changed = sorted({p.strip() for p in paths if p.strip()})
     if not changed:
-        return Selection(True, "pull_request without a readable diff: complete suite", everything())
+        return Selection(
+            True, "pull_request without a readable diff: complete suite", everything()
+        )
     suites: set[str] = set()
     explanation = []
     for path in changed:
@@ -409,7 +468,9 @@ def select(event: str, paths: Sequence[str]) -> Selection:
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
     full = frozenset(suites) >= everything()
-    reason = "pull_request: complete suite" if full else "pull_request: changed inputs only"
+    reason = (
+        "pull_request: complete suite" if full else "pull_request: changed inputs only"
+    )
     return Selection(full, reason, frozenset(suites), tuple(explanation))
 
 
@@ -463,7 +524,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 paths = changed_paths(args.base, args.head)
             except subprocess.CalledProcessError as error:
-                print(f"select-suites: WARNING: git diff failed: {error.stderr}", file=sys.stderr)
+                print(
+                    f"select-suites: WARNING: git diff failed: {error.stderr}",
+                    file=sys.stderr,
+                )
                 paths = []
     selection = select(args.event, paths)
     outputs = selection.outputs()

@@ -12,9 +12,9 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import select_suites  # noqa: E402
+from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
     "artifact-probe",
@@ -138,7 +138,9 @@ def check(path: Path) -> list[str]:
         )
     if "services:" in text:
         problems.append("Workflow must not define services that differ from Compose.")
-    problems.extend(check_summary(text, "integration", "integration-shards", "integration"))
+    problems.extend(
+        check_summary(text, "integration", "integration-shards", "integration")
+    )
     problems.extend(check_summary(text, "e2e-summary", "e2e", "E2E"))
     problems.extend(check_summary(text, "emdash-proofs", "emdash-cases", "EmDash"))
     problems.extend(check_summary(text, "golden-journey", "golden-parts", "Golden"))
@@ -162,7 +164,10 @@ def check(path: Path) -> list[str]:
         ("golden-parts", "golden"),
     ):
         block = job_block(text, job)
-        if "select" not in needs_of(block) or f"needs.select.outputs.{key}" not in block:
+        if (
+            "select" not in needs_of(block)
+            or f"needs.select.outputs.{key}" not in block
+        ):
             problems.append(f"{job} must depend on the suite selector output {key}.")
         if "needs.select.result == 'success'" not in block:
             problems.append(f"{job} must not run when the suite selector failed.")
@@ -215,7 +220,9 @@ def check_tiers(text: str, name: str) -> list[str]:
     on = triggers(text)
     for event in ("pull_request:", "merge_group:"):
         if f"\n  {event}" not in on:
-            problems.append(f"{name}: must run on {event.rstrip(':')} (merge queue tier).")
+            problems.append(
+                f"{name}: must run on {event.rstrip(':')} (merge queue tier)."
+            )
     if "paths:" in on or "paths-ignore:" in on:
         problems.append(f"{name}: required CI must not use path filters.")
     if name in GATED_WORKFLOWS:
@@ -234,11 +241,18 @@ def check_gate(text: str, name: str) -> list[str]:
         return problems
     if "    if: ${{ always()" not in block:
         problems.append(f"{name}: the gate must run after failures (always()).")
-    if "python3 tools/ci/gate.py" not in block or "NEEDS: ${{ toJSON(needs) }}" not in block:
-        problems.append(f"{name}: the gate must evaluate every need with tools/ci/gate.py.")
+    if (
+        "python3 tools/ci/gate.py" not in block
+        or "NEEDS: ${{ toJSON(needs) }}" not in block
+    ):
+        problems.append(
+            f"{name}: the gate must evaluate every need with tools/ci/gate.py."
+        )
     missing = set(jobs_of(text)) - OUTSIDE_GATE - needs_of(block)
     if missing:
-        problems.append(f"{name}: the gate does not require: {', '.join(sorted(missing))}")
+        problems.append(
+            f"{name}: the gate does not require: {', '.join(sorted(missing))}"
+        )
     return problems
 
 
@@ -249,7 +263,9 @@ def check_retries(text: str, name: str) -> list[str]:
     for line in text.splitlines():
         if re.search(r"(?i)retry", line) and not line.lstrip().startswith("#"):
             if not RETRYABLE.search(line):
-                problems.append(f"{name}: only infrastructure commands may be retried: {line.strip()}")
+                problems.append(
+                    f"{name}: only infrastructure commands may be retried: {line.strip()}"
+                )
     return problems
 
 
@@ -258,7 +274,10 @@ def check_nightly(text: str) -> list[str]:
     if not re.search(r"\n  schedule:\n    - cron: ", triggers(text)):
         problems.append("ci.yml: nightly complete run (schedule) missing.")
     report = job_block(text, "flake-summary")
-    if "github.event_name == 'schedule'" not in report or "tools/ci/flake_summary.py" not in report:
+    if (
+        "github.event_name == 'schedule'" not in report
+        or "tools/ci/flake_summary.py" not in report
+    ):
         problems.append("ci.yml: nightly flake summary missing.")
     return problems
 
@@ -267,10 +286,17 @@ def check_first_attempts(root: Path) -> list[str]:
     problems: list[str] = []
     for relative, step in FIRST_ATTEMPTS.items():
         text = (root / relative).read_text(encoding="utf-8")
-        if text.count("continue-on-error: true") != 1 or f"id: {step}\n      continue-on-error: true" not in text:
-            problems.append(f"{relative}: only the '{step}' first attempt may continue on error.")
+        if (
+            text.count("continue-on-error: true") != 1
+            or f"id: {step}\n      continue-on-error: true" not in text
+        ):
+            problems.append(
+                f"{relative}: only the '{step}' first attempt may continue on error."
+            )
         if text.count(f"if: steps.{step}.outcome == 'failure'") < 2:
-            problems.append(f"{relative}: a failed '{step}' first attempt must be retried once.")
+            problems.append(
+                f"{relative}: a failed '{step}' first attempt must be retried once."
+            )
     return problems
 
 
