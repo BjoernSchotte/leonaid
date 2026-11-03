@@ -164,6 +164,35 @@ def main() -> None:
                 f"{uuid_result.stdout}{uuid_result.stderr}"
             )
 
+        # Identifier fragments that contain phone-like digit groups. Each line
+        # is checked on its own so a failure names the exact false positive.
+        identifier_lines = (
+            "request 566bbb6b-0855-4240-8756 (truncated UUID)",
+            "request ...0855-4240-8756-6569c7885bd0 (UUID with cut head)",
+            "ref deadbeef-0123-4567-89ab tail",
+            "traceparent 00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01",
+            "commit 0123456789abcdef0123",
+            "digest sha256:0123456789012345678901234567890123456789"
+            "012345678901234567890123",
+            "span 0102030405060708",
+            "id=012345678901234567890",
+            "artifact 20261103-012345678",
+            '{"durationSeconds":0.12345678}',
+            '{"score": 0.123456789012}',
+            "took 0.0123456789 s",
+            "ts=1730612345.0123456789",
+        )
+        for index, line in enumerate(identifier_lines):
+            case = workspace / f"identifier-{index}"
+            case.mkdir()
+            (case / "command.log").write_text(f"{line}\n", encoding="utf-8")
+            identifier_result = run_sanitizer(sanitizer, case, env_file, proof)
+            if identifier_result.returncode != 0:
+                raise AssertionError(
+                    f"Identifier was rejected as a phone number: {line!r}: "
+                    f"{identifier_result.stdout}{identifier_result.stderr}"
+                )
+
         layer_artifacts = workspace / "layer-artifacts"
         layer_artifacts.mkdir()
         layer_log = layer_artifacts / "command.log"
@@ -204,6 +233,22 @@ def main() -> None:
                 b"566bbb6b-0855-4240-8756-6569c7885bd0 Kontakt: 089 12345678"
             ),
             "private-uuid-like-phone.txt": b"Kontakt: 0855-4240-8756",
+            "private-phone-trunk-in-parens.txt": b"Tel. +49 (0)89 1234567",
+            "private-phone-trunk-spaced.txt": b"Tel. +49 (0) 171 1234567",
+            "private-phone-national-parens.txt": b"(0)89 1234567",
+            "private-phone-mobile.txt": b"Mobil 0171 1234567",
+            "private-phone-compact.txt": b"Mobil 01711234567",
+            "private-phone-e164.txt": b"+491711234567",
+            "private-phone-hyphens.txt": b"+49-171-1234567",
+            "private-phone-slash.txt": b"Tel.:089/123 456-78",
+            "private-phone-after-abbrev.txt": b"Tel.0171 1234567",
+            "private-phone-area-parens.txt": b"(089) 123 45 67",
+            "private-phone-short-subscriber.txt": b"030 123456",
+            "private-phone-extension.txt": b"089 1234567-12",
+            "private-phone-sentence.txt": b"Ruf an: 0171 1234567.",
+            "private-phone-after-word.txt": b"Fax-0171 1234567",
+            "private-phone-ambiguous-id.txt": b"run-0123-4567-8901",
+            "private-phone-json.json": b'{"contact":"+49 171 1234567"}',
         }
         for name, payload in cases.items():
             assert_rejected(
