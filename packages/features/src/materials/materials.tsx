@@ -343,7 +343,10 @@ function materialMemberSource(
       return { ...result, revision: result.accessRevision };
     },
     change: (command, expectedRevision, idempotencyKey) => {
-      const common = { expectedAccessRevision: expectedRevision, idempotencyKey };
+      const common = {
+        expectedAccessRevision: expectedRevision,
+        idempotencyKey,
+      };
       return "email" in command
         ? client.setMaterialMemberByEmail(materialId, { ...common, ...command })
         : client.setMaterialMember(materialId, { ...common, ...command });

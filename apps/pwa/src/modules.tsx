@@ -8,7 +8,11 @@ export const pwaModules: readonly UiModule[] = [tasksModule, materialsModule];
 validateUiModules(pwaModules);
 
 // Module navigation keys the PWA renders as links, pages or not.
-export const pwaModuleNavigationKeys = ["surveys", "tasks", "materials"] as const;
+export const pwaModuleNavigationKeys = [
+  "surveys",
+  "tasks",
+  "materials",
+] as const;
 
 export function pwaPath(pathname: string): string {
   const relative =

@@ -431,5 +431,26 @@
       "file": "src/leonaid/modules/tasks/api.py",
       "contains": ["\"Aufgaben\", \"/admin/tasks\", \"web\""]
     }
+  ],
+  "DOC-P042": [
+    {
+      "file": "packages/features/src/materials/materials.tsx",
+      "contains": [
+        "Neues Material",
+        "Materialtitel",
+        "Kontext des Materials",
+        "Material hochladen",
+        "Neue Version hochladen",
+        "Aktuelle Dateiversion",
+        "Dateiversion herunterladen",
+        "Materialfreigaben",
+        "Materialzugriff",
+        "Eine Datei bis 25 MiB."
+      ]
+    },
+    {
+      "file": "src/leonaid/modules/materials/api.py",
+      "contains": ["\"Materialien\", \"/admin/materials\", \"web\""]
+    }
   ]
 }

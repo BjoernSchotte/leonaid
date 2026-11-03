@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 12
-reviewedRevision: 12
+contentRevision: 13
+reviewedRevision: 13
 verifiedAgainst: 6dbd0207c70d70a1c2b077fa013898b54f55e24d
 reviewer: Björn Schotte
 ---
@@ -72,7 +72,7 @@ leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 
 Business modules are on by default. `LEONAID_DISABLED_MODULES` in the
 installation's env file switches modules off, comma-separated, for example
-`LEONAID_DISABLED_MODULES=surveys`. Switchable modules are `surveys` and `tasks`; core areas such as mail and invoicing cannot be switched off. The API
+`LEONAID_DISABLED_MODULES=surveys`. Switchable modules are `surveys`, `tasks` and `materials`; core areas such as mail and invoicing cannot be switched off. The API
 and the worker read the same value; restart both after a change.
 
 A switched-off module keeps all its data. It shows no navigation, its API
@@ -82,6 +82,15 @@ they are neither attempted nor dead-lettered, and they run once the module
 is on again. An unknown or non-switchable ID, or switching off a module that
 another enabled module requires, stops the API at start and the worker with
 `worker.configuration.invalid`.
+
+## Material upload cleanup
+
+An interrupted material upload can leave a private object-storage version
+that no material references. Repeating the upload adopts it. To remove one
+such version for good, run `docker compose exec api python -m
+leonaid.entrypoints.material_cleanup` with the exact material, upload and
+storage version; it checks first and deletes only with `--apply`. The
+procedure is in `tools/materials/README.md`.
 
 ## Job runtime and error details
 
