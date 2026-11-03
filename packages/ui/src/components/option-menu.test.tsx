@@ -12,19 +12,32 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { OptionMenu, type OptionMenuOption } from "./option-menu";
 import { Popover } from "./popover";
 
+// jsdom lacks ResizeObserver; this one lets tests trigger the callbacks.
+const resizeCallbacks = new Set<() => void>();
+class TestResizeObserver {
+  constructor(private readonly callback: () => void) {}
+  observe() {
+    resizeCallbacks.add(this.callback);
+  }
+  unobserve() {
+    resizeCallbacks.delete(this.callback);
+  }
+  disconnect() {
+    resizeCallbacks.delete(this.callback);
+  }
+}
+
 beforeAll(() => {
-  // jsdom lacks both; cmdk uses them for list height and active-item scroll.
-  globalThis.ResizeObserver ??= class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
+  globalThis.ResizeObserver =
+    TestResizeObserver as unknown as typeof ResizeObserver;
+  // cmdk scrolls the active item into view.
   Element.prototype.scrollIntoView ??= () => {};
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  resizeCallbacks.clear();
 });
 
 type Status = "open" | "doing" | "done";
@@ -38,14 +51,17 @@ const options: OptionMenuOption<Status>[] = [
 function Harness({
   multiple,
   onSelect = () => {},
+  inDialog,
 }: {
   multiple?: boolean;
   onSelect?: (value: Status) => void;
+  inDialog?: boolean;
 }) {
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const Wrapper = inDialog ? "dialog" : "div";
   return (
-    <>
+    <Wrapper open={inDialog || undefined}>
       <button onClick={() => setOpen(true)} ref={anchor} type="button">
         Status
       </button>
@@ -66,7 +82,7 @@ function Harness({
           value={multiple ? ["open", "done"] : "doing"}
         />
       </Popover>
-    </>
+    </Wrapper>
   );
 }
 
@@ -130,6 +146,17 @@ describe("Popover with OptionMenu", () => {
     expect(onSelect).toHaveBeenCalledWith("done");
   });
 
+  it("ignores number keys with Ctrl, Meta or Alt held", () => {
+    const onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} />);
+    const input = openMenu();
+    fireEvent.keyDown(input, { key: "1", ctrlKey: true });
+    fireEvent.keyDown(input, { key: "1", metaKey: true });
+    fireEvent.keyDown(input, { key: "1", altKey: true });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
   it("does not treat number keys as picks while searching", () => {
     const onSelect = vi.fn();
     render(<Harness onSelect={onSelect} />);
@@ -159,6 +186,52 @@ describe("Popover with OptionMenu", () => {
       .filter((option) => option.getAttribute("aria-checked") === "true");
     expect(checked).toHaveLength(2);
     expect(document.querySelector(".menu-item .kbd-group")).toBeNull();
+    expect(
+      screen.getByRole("listbox").getAttribute("aria-multiselectable"),
+    ).toBe("true");
+  });
+
+  it("is not multiselectable for a single value", () => {
+    render(<Harness />);
+    openMenu();
+    expect(
+      screen.getByRole("listbox").hasAttribute("aria-multiselectable"),
+    ).toBe(false);
+  });
+
+  it("portals into the dialog that contains the trigger", () => {
+    render(<Harness inDialog />);
+    openMenu();
+    const layer = screen.getByRole("dialog", { name: "Status ändern" });
+    expect(layer.parentElement?.tagName).toBe("DIALOG");
+  });
+
+  it("portals to the body outside a dialog", () => {
+    render(<Harness />);
+    openMenu();
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
+  });
+
+  it("stays attached above the trigger when the list height changes", () => {
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Status" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(100, 700, 80, 30),
+    );
+    let height = 300;
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+      () => height,
+    );
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    openMenu();
+    const layer = screen.getByRole("dialog");
+    const y = () => layer.style.getPropertyValue("--pop-y");
+    expect(y()).toBe(`${700 - 300 - 6}px`);
+    height = 80;
+    act(() => {
+      for (const callback of resizeCallbacks) callback();
+    });
+    expect(y()).toBe(`${700 - 80 - 6}px`);
   });
 
   it("closes with Escape and returns focus to the trigger", () => {

@@ -349,3 +349,23 @@
     width: 100%;
   }
 }
+
+/* Native modal dialog that proves option menus work above the top layer. */
+.ui-catalog-menu-dialog {
+  width: min(calc(100vw - 2rem), 28rem);
+  margin: auto;
+  padding: var(--s-5);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+.ui-catalog-menu-dialog::backdrop {
+  background: rgb(15 23 42 / 0.55);
+}
+
+.ui-catalog-menu-dialog h3 {
+  margin: 0 0 var(--s-2);
+}

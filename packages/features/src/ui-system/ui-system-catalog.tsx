@@ -138,16 +138,20 @@ type FilterProp = (typeof filterProps)[number]["value"];
 function OptionMenuDemo() {
   const filterButton = useRef<HTMLButtonElement>(null);
   const statusButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogStatusButton = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<
     | { kind: "filter-prop" }
     | { kind: "filter-values"; prop: FilterProp }
     | { kind: "status" }
+    | { kind: "dialog-status" }
     | null
   >(null);
   const [filters, setFilters] = useState<Record<string, readonly string[]>>({
     status: ["Aktiv", "Geplant"],
   });
   const [status, setStatus] = useState<CampaignStatus>("Aktiv");
+  const [dialogStatus, setDialogStatus] = useState<CampaignStatus>("Geplant");
   const close = () => setMenu(null);
   const filterProp =
     menu?.kind === "filter-values"
@@ -179,6 +183,66 @@ function OptionMenuDemo() {
       >
         Status: {status}
       </Button>
+      <Button
+        onClick={() => dialogRef.current?.showModal()}
+        size="sm"
+        variant="ghost"
+      >
+        Im Dialog
+      </Button>
+      <dialog
+        aria-labelledby="ui-catalog-menu-dialog-title"
+        className="ui-catalog-menu-dialog"
+        onClose={close}
+        ref={dialogRef}
+      >
+        <h3 id="ui-catalog-menu-dialog-title">Aktion bearbeiten</h3>
+        <p className="ui-catalog-small">
+          Menüs aus einem modalen Dialog liegen über dem Dialog und bleiben
+          bedienbar.
+        </p>
+        <div className="ui-catalog-cluster">
+          <Button
+            aria-expanded={menu?.kind === "dialog-status"}
+            aria-haspopup="dialog"
+            icon={
+              <StatusIcon
+                label=""
+                status={statusShape[dialogStatus] ?? "open"}
+              />
+            }
+            onClick={() => setMenu({ kind: "dialog-status" })}
+            ref={dialogStatusButton}
+            size="sm"
+            variant="secondary"
+          >
+            Status: {dialogStatus}
+          </Button>
+          <Button
+            onClick={() => dialogRef.current?.close()}
+            size="sm"
+            variant="primary"
+          >
+            Fertig
+          </Button>
+        </div>
+        <Popover
+          anchor={dialogStatusButton}
+          label="Status im Dialog ändern"
+          onClose={close}
+          open={menu?.kind === "dialog-status"}
+        >
+          <OptionMenu
+            onSelect={(value) => {
+              setDialogStatus(value);
+              close();
+            }}
+            options={statusOptions}
+            placeholder="Status ändern …"
+            value={dialogStatus}
+          />
+        </Popover>
+      </dialog>
       <Popover
         anchor={filterButton}
         label="Filter wählen"

@@ -181,6 +181,33 @@ test("UI catalog proves all base states with real identity", async ({
       page.getByRole("button", { name: "Filter (3)" }),
     ).toBeFocused();
 
+    // A menu opened inside a modal <dialog> sits above it and stays usable.
+    await page.getByRole("button", { name: "Im Dialog" }).click();
+    const editDialog = page.getByRole("dialog", { name: "Aktion bearbeiten" });
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByRole("button", { name: "Status: Geplant" }).click();
+    const dialogMenu = page.getByRole("dialog", {
+      name: "Status im Dialog ändern",
+    });
+    await expect(dialogMenu.getByRole("combobox")).toBeFocused();
+    await expect(dialogMenu).toHaveCSS("opacity", "1");
+    expect(
+      await dialogMenu.evaluate((layer) => layer.matches(":popover-open")),
+    ).toBe(true);
+    await expectNoSeriousAccessibilityViolations(page, "Auswahlmenü im Dialog");
+    // Escape closes only the menu, not the dialog around it.
+    await page.keyboard.press("Escape");
+    await expect(dialogMenu).toHaveCount(0);
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByRole("button", { name: "Status: Geplant" }).click();
+    // A real click: Playwright fails it if the option is covered or inert.
+    await dialogMenu.getByRole("option", { name: /Abgeschlossen/ }).click();
+    await expect(
+      editDialog.getByRole("button", { name: "Status: Abgeschlossen" }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(editDialog).toBeHidden();
+
     await page.getByTestId("sidebar-toggle").click();
     await expect(page.locator(".ui-shell")).toHaveAttribute(
       "data-sidebar-collapsed",

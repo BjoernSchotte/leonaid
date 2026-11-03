@@ -117,6 +117,14 @@
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+/* The global reduced-motion rule stops all animations, which would leave a
+   frozen ring that no longer says "busy". The spinner is an essential
+   progress cue, so it keeps turning, slower. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: spin 1.6s linear infinite !important;
+  }
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);

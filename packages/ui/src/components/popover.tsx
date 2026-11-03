@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useState,
   useLayoutEffect,
   useRef,
   type ReactNode,
@@ -19,6 +20,10 @@ export interface PopoverProps {
 }
 
 const GAP = 6;
+/** Without the API the attribute is left off, so nothing hides the layer. */
+const supportsPopover =
+  typeof HTMLElement !== "undefined" &&
+  typeof HTMLElement.prototype.showPopover === "function";
 const EDGE = 8;
 const FOCUSABLE =
   "input, textarea, select, button, [tabindex]:not([tabindex='-1'])";
@@ -29,6 +34,12 @@ const FOCUSABLE =
  * through CSSOM custom properties, never a style attribute (strict CSP).
  * Closes on Escape and on a pointer press outside; focus returns to the
  * trigger.
+ *
+ * Inside a modal <dialog> the layer portals into that dialog, because a
+ * modal dialog makes everything outside it inert. It is also shown with the
+ * Popover API (popover="manual") when available, so it sits in the top layer
+ * above the dialog and is placed against the viewport even when an ancestor
+ * has a transform.
  */
 export function Popover({
   anchor,
@@ -39,14 +50,27 @@ export function Popover({
   align = "start",
 }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+
+  // Pick the portal target once the anchor is mounted and the layer opens.
+  useLayoutEffect(() => {
+    if (!open) {
+      setContainer(null);
+      return;
+    }
+    setContainer(anchor.current?.closest("dialog") ?? document.body);
+  }, [open, anchor]);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    const layer = ref.current;
+    if (!open || !container || !layer) return;
+    if (supportsPopover && !layer.matches(":popover-open")) {
+      layer.showPopover();
+    }
     const timers: number[] = [];
     const place = () => {
       const trigger = anchor.current;
-      const layer = ref.current;
-      if (!trigger || !layer) return;
+      if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       const width = layer.offsetWidth;
       const height = layer.offsetHeight;
@@ -62,8 +86,7 @@ export function Popover({
     };
     // autoFocus fails while the layer is still unplaced; focus explicitly.
     const focusFirst = () => {
-      const layer = ref.current;
-      if (!layer?.isConnected || layer.contains(document.activeElement)) {
+      if (!layer.isConnected || layer.contains(document.activeElement)) {
         return;
       }
       layer.querySelector<HTMLElement>(FOCUSABLE)?.focus();
@@ -75,14 +98,25 @@ export function Popover({
     for (const delay of [0, 30, 90]) {
       timers.push(window.setTimeout(focusFirst, delay));
     }
+    // Scrolling the option list itself does not move the layer.
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && layer.contains(event.target)) return;
+      place();
+    };
+    // Filtering changes the height; a layer flipped above the trigger must
+    // move so it stays attached.
+    const resizeObserver =
+      typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+    resizeObserver?.observe(layer);
     window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       for (const timer of timers) window.clearTimeout(timer);
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open, anchor, align]);
+  }, [open, container, anchor, align]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,7 +138,7 @@ export function Popover({
     wasOpen.current = open;
   }, [open, anchor]);
 
-  if (!open) return null;
+  if (!open || !container) return null;
   return createPortal(
     <div
       aria-label={label}
@@ -116,11 +150,12 @@ export function Popover({
           onClose();
         }
       }}
+      popover={supportsPopover ? "manual" : undefined}
       ref={ref}
       role="dialog"
     >
       {children}
     </div>,
-    document.body,
+    container,
   );
 }

@@ -48,7 +48,8 @@ export function OptionMenu<T extends string | number>({
       label={placeholder}
       loop
       onKeyDown={(event) => {
-        if (query || !/^[1-9]$/.test(event.key)) return;
+        if (query || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (!/^[1-9]$/.test(event.key)) return;
         const option = options[Number(event.key) - 1];
         if (!option) return;
         event.preventDefault();
@@ -62,7 +63,11 @@ export function OptionMenu<T extends string | number>({
         placeholder={placeholder}
         value={query}
       />
-      <Command.List className="menu-list" label="Optionen">
+      <Command.List
+        aria-multiselectable={multiple || undefined}
+        className="menu-list"
+        label="Optionen"
+      >
         <Command.Empty className="menu-empty">Nichts gefunden</Command.Empty>
         {options.map((option, index) => {
           const isSelected = selected.includes(option.value);
