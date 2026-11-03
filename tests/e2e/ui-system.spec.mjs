@@ -464,6 +464,17 @@ test("rail shell: g navigation, zone band, skip link and narrow layouts", async 
       "page",
     );
     await expect(rail.locator('[data-nav-key="orders"]')).toHaveCount(0);
+    // Club name from LEONAID_CLUB_NAME (test stacks use the sample name).
+    await expect(page.locator(".rail-brand .brand-club")).toHaveText(
+      "Lions Club Musterstadt",
+    );
+    // Cross-surface link into the PWA, with its own zone.
+    await expect(
+      rail.locator('[data-nav-key="acquisition-app"]'),
+    ).toHaveAttribute("href", "/app/");
+    await expect(
+      rail.locator('[data-nav-key="acquisition-app"]'),
+    ).toHaveAttribute("data-zone", "acquisition-app");
     const systemZone = await zoneColours(page);
     expect(systemZone.band).toBe(systemZone.zone);
     expect(systemZone.bandHeight).toBe("3px");
