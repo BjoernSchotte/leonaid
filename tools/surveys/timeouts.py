@@ -15,6 +15,13 @@ import httpx
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 
+
+def cookie_header(cookies):
+    """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
+    if not cookies:
+        return None
+    return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 async def main():
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     token = Path("/proof/session.env").read_text().strip().split("=", 1)[1]
@@ -23,7 +30,9 @@ async def main():
     async with httpx.AsyncClient(base_url="http://api:8000") as client:
 
         async def call(method, path, body=None, cookies=None, expected=200):
-            response = await client.request(method, path, json=body, cookies=cookies)
+            response = await client.request(
+                method, path, json=body, headers=cookie_header(cookies)
+            )
             assert response.status_code == expected, (
                 path,
                 response.status_code,
