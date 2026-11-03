@@ -108,6 +108,16 @@ def main() -> None:
                 "needs.emdash-cases.outputs.result",
                 "EmDash summary check",
             ),
+            (
+                "run: sh tools/ci/free-runner-disk.sh wait",
+                "run: true",
+                "free runner disk",
+            ),
+            (
+                "run: sh tools/ci/free-runner-disk.sh start",
+                "run: true",
+                "free runner disk",
+            ),
         )
         for old, new, expected in mutations:
             broken.write_text(text.replace(old, new, 1), encoding="utf-8")
