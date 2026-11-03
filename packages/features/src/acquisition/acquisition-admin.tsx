@@ -110,7 +110,7 @@ export function AcquisitionAdminPage({
   if (memberships.length === 0) {
     return (
       <EmptyState
-        description="Sobald du eine Charity-Aktion verwaltest, erscheint hier ihre aktionsweite Sponsor-Pipeline."
+        description="Sobald Sie eine Charity-Aktion verwalten, erscheint hier ihre aktionsweite Sponsor-Pipeline."
         headingLevel={2}
         icon={Contact}
         title="Keine verwaltete Akquise-Aktion"
@@ -300,7 +300,7 @@ export function AcquisitionAdminPage({
             </div>
           ) : (
             <EmptyState
-              description="Ändere Status oder Suchbegriff. Die zugrunde liegenden Zuordnungen bleiben unverändert."
+              description="Ändern Sie Status oder Suchbegriff. Die zugrunde liegenden Zuordnungen bleiben unverändert."
               title="Keine Zuordnung in dieser Ansicht"
             />
           )}
