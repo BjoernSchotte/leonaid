@@ -64,6 +64,8 @@ import {
   useToast,
 } from "@leonaid/ui";
 
+import { navigationZones } from "../navigation/zones";
+
 export interface UiSystemCatalogPageProps {
   readonly identity: CurrentIdentityResponse;
 }
@@ -106,27 +108,6 @@ const shortcutRows: readonly (readonly [string, string])[] = [
   ["shift+t", "Hell/Dunkel wechseln"],
 ];
 
-/** Zones of the "g" map, keyed by server navigation key (preview only). */
-const goToZones: readonly (readonly [string, string, string])[] = [
-  ["d", "overview-web", "Übersicht"],
-  ["a", "actions", "Aktionen"],
-  ["b", "orders", "Bestellungen"],
-  ["l", "delivery", "Auslieferung"],
-  ["r", "invoices", "Rechnungen"],
-  ["t", "tasks", "Aufgaben"],
-  ["u", "surveys", "Umfragen"],
-  ["e", "inbox", "Eingang"],
-  ["x", "materials", "Material"],
-  ["w", "knowledge", "Wissen"],
-  ["f", "activities", "Aktivität"],
-  ["m", "members", "Mitglieder"],
-  ["k", "microsite", "Kampagnenseiten"],
-  ["j", "legal", "Rechtliches"],
-  ["s", "system", "System"],
-  ["p", "acquisition-web", "Akquise-App"],
-  ["o", "public", "Bestellseite"],
-];
-
 /**
  * Live preview of the hotkey registry: "?" opens the shortcut help, "g"
  * shows the prefix hint. The bindings only announce what they would do.
@@ -151,12 +132,12 @@ function HotkeyPreview() {
       group: "Allgemein",
       run: preview("Hell/Dunkel wechseln"),
     },
-    ...goToZones.map(
-      ([key, zone, label]): HotkeyBinding => ({
+    ...navigationZones.map(
+      ({ key, label, navKey }): HotkeyBinding => ({
         keys: `g ${key}`,
         label,
         group: GO_TO_GROUP,
-        zone,
+        zone: navKey,
         run: preview(`Gehe zu ${label}`),
       }),
     ),
