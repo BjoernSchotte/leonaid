@@ -11,6 +11,7 @@ import {
   type UiModule,
 } from "@leonaid/features";
 
+import { moduleEnabled } from "../../public/src/lib/modules";
 import { webModules } from "./modules";
 
 const context = {
@@ -72,7 +73,13 @@ describe("UI module registration", () => {
   });
 
   it("keeps the existing survey URLs", () => {
-    expect(webModules.map((module) => module.id)).toEqual(["surveys"]);
+    expect(webModules.map((module) => module.id)).toEqual([
+      "surveys",
+      "tasks",
+      "materials",
+      "knowledge",
+      "inbox",
+    ]);
     const surveyId = "0b8a3c1e-2f4d-4e5a-9b6c-7d8e9f0a1b2c";
     const cases = [
       ["/surveys", { createNew: false, surveyId: undefined }],
@@ -88,6 +95,25 @@ describe("UI module registration", () => {
     }
     expect(resolveModuleRoute(webModules, "web", "/surveys/edit")).toBeNull();
     expect(resolveModuleRoute(webModules, "web", "/")).toBeNull();
+  });
+
+  it("resolves Inbox lists and cases", () => {
+    const caseId = "10000000-0000-4000-8000-000000000001";
+    expect(resolveModuleRoute(webModules, "web", "/inbox")?.moduleId).toBe(
+      "inbox",
+    );
+    const route = resolveModuleRoute(webModules, "web", `/inbox/${caseId}`);
+    expect(route?.moduleId).toBe("inbox");
+    const page = pageElement(route?.render(context));
+    expect(page.props).toMatchObject({ caseId, basePath: "/admin/inbox" });
+    expect(resolveModuleRoute(webModules, "web", "/inbox/invalid")).toBeNull();
+  });
+
+  it("hides public module forms that the installation switched off", () => {
+    expect(moduleEnabled("inbox", undefined)).toBe(true);
+    expect(moduleEnabled("inbox", "")).toBe(true);
+    expect(moduleEnabled("inbox", "surveys, inbox")).toBe(false);
+    expect(moduleEnabled("inbox", "surveys,inboxes")).toBe(true);
   });
 });
 

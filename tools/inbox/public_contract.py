@@ -46,6 +46,8 @@ async def main(*, trust_proxy_headers: bool = False) -> None:
         "givenName": "Test",
         "familyName": "Person",
         "email": "test@example.org",
+        "privacyConsent": True,
+        "privacyNoticeVersion": "inbox-privacy-2026-11",
     }
     headers = {"Origin": "https://inbox.leonaid.invalid"}
     app = create_app(settings)
@@ -134,6 +136,24 @@ async def main(*, trust_proxy_headers: bool = False) -> None:
                         root, headers=headers, json={**body, "actionId": str(uuid4())}
                     )
                 ).status_code == 409
+                # The consent to the shown notice is mandatory and versioned.
+                without_consent = {
+                    key: value
+                    for key, value in body.items()
+                    if key != "privacyConsent"
+                }
+                for rejected in (
+                    {**body, "privacyConsent": False},
+                    without_consent,
+                    {**body, "privacyNoticeVersion": "inbox-privacy-1999-01"},
+                ):
+                    assert (
+                        await client.post(
+                            root,
+                            headers=headers,
+                            json={**rejected, "idempotencyKey": str(uuid4())},
+                        )
+                    ).status_code == 422
                 missing = {
                     **body,
                     "idempotencyKey": str(uuid4()),
@@ -173,6 +193,14 @@ async def main(*, trust_proxy_headers: bool = False) -> None:
             assert len(events) == 3 and all(
                 row["event_type"] == "inbox.contact_link.v1" for row in events
             )
+            consent = await conn.fetchrow(
+                "SELECT consent_text_version, consent_recorded_at FROM inbox_case WHERE public_reference=$1",
+                references[0],
+            )
+            # The consent record follows once the CRM person is known.
+            assert consent is not None
+            assert consent["consent_text_version"] == "inbox-privacy-2026-11"
+            assert consent["consent_recorded_at"] is None
         # Same persisted quota after a completely new application lifespan.
         app = create_app(settings)
         async with app.router.lifespan_context(app):
@@ -184,7 +212,7 @@ async def main(*, trust_proxy_headers: bool = False) -> None:
                     await client.post(root, headers=headers, json=body)
                 ).status_code == 429
         print(
-            f"PASS public Inbox (trusted proxy={trust_proxy_headers}): receipt-only confirmation, replay, validation, real concurrent/address quota, restart persistence, origin rejection, hidden cases and streamed body limit"
+            f"PASS public Inbox (trusted proxy={trust_proxy_headers}): receipt-only confirmation, replay, validation, mandatory versioned consent, real concurrent/address quota, restart persistence, origin rejection, hidden cases and streamed body limit"
         )
     finally:
         async with conn.transaction():

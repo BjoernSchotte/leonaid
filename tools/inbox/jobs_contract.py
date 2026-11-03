@@ -39,12 +39,36 @@ from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccoun
 from leonaid.modules.inbox.api import (
     InboxService,
     Case,
+    INBOX_PRIVACY_NOTICE_VERSION,
     SubmitCase,
     UpdateCase,
     ContactQuery,
     ConfirmContact,
 )
 from leonaid.modules.inbox.jobs import InboxContactError, InboxContactHandler
+
+
+async def assert_consent_recorded(conn: asyncpg.Connection[Any], case_id: UUID) -> None:
+    """A linked case carries exactly one consent record for its CRM person."""
+    rows = await conn.fetch(
+        """
+        SELECT r.purpose, r.source, r.evidence_kind, r.legal_basis_status,
+               r.text_version, r.granted_at, c.received_at, c.consent_recorded_at
+        FROM inbox_case c
+        JOIN consent_record r ON r.twenty_person_id=c.twenty_person_id
+         AND r.source='public_inbox_form'
+        WHERE c.id=$1
+        """,
+        case_id,
+    )
+    assert len(rows) == 1, rows
+    row = rows[0]
+    assert row["purpose"] == "inbox_case_handling"
+    assert row["evidence_kind"] == "explicit_consent"
+    assert row["legal_basis_status"] == "confirmed"
+    assert row["text_version"] == INBOX_PRIVACY_NOTICE_VERSION
+    assert row["granted_at"] == row["received_at"]
+    assert row["consent_recorded_at"] is not None
 
 
 async def confirm_existing_contact(
@@ -244,6 +268,7 @@ async def confirm_existing_contact(
             )
             == 1
         )
+        await assert_consent_recorded(conn, case_id)
         await conn.execute(
             "DELETE FROM user_global_role WHERE user_id=$1 AND role='system_admin'",
             user_id,
@@ -266,7 +291,7 @@ async def confirm_existing_contact(
                 user_id,
             )
     print(
-        "PASS inbox manual contact: actual Twenty selection, stale preview/revision, atomic audit rollback, HTTP/direct concurrent replay, active-worker exclusion, completed queue and revoked manager"
+        "PASS inbox manual contact: actual Twenty selection, stale preview/revision, atomic audit rollback, HTTP/direct concurrent replay, recorded consent, active-worker exclusion, completed queue and revoked manager"
     )
 
 
@@ -367,6 +392,8 @@ async def timeout_after_real_create(
     server = await asyncio.start_server(forward, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
     command = SubmitCase(
+        privacy_consent=True,
+        privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
         idempotency_key=uuid4(),
         subject="Inbox lost response",
         message="Synthetischer Eingang",
@@ -446,6 +473,8 @@ async def main(mode: str, state_path: Path) -> None:
         if mode == "expect-outage":
             user = uuid4()
             command = SubmitCase(
+                privacy_consent=True,
+                privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
                 idempotency_key=uuid4(),
                 subject="Inbox worker proof",
                 message="Synthetischer Eingang",
@@ -547,6 +576,7 @@ async def main(mode: str, state_path: Path) -> None:
                     and row["contact_status"] == "linked"
                     and row["revision"] == 2
                 )
+                await assert_consent_recorded(conn, case_id)
             person = await crm.get_person(
                 UUID(state["createId"]), correlation_id="inbox-live-verify"
             )
@@ -566,6 +596,8 @@ async def main(mode: str, state_path: Path) -> None:
                 "fenced",
             ):
                 command = SubmitCase(
+                    privacy_consent=True,
+                    privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
                     idempotency_key=uuid4(),
                     subject=f"Inbox {scenario}",
                     message="Synthetischer Eingang",
@@ -685,7 +717,7 @@ async def main(mode: str, state_path: Path) -> None:
                     )
                     assert len(matches) == 1
         print(
-            "PASS inbox restart: one contact, completed job, exact-ID recovery after external commit, unproven/mismatch clarification, no overwrite and fenced stale worker"
+            "PASS inbox restart: one contact, recorded consent, completed job, exact-ID recovery after external commit, unproven/mismatch clarification, no overwrite and fenced stale worker"
         )
     finally:
         try:

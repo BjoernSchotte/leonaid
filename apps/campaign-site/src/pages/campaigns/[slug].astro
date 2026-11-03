@@ -1,7 +1,9 @@
 ---
 import { actions } from "astro:actions";
 import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
+import PublicInbox from "../../../../public/src/components/PublicInbox.astro";
 import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
+import { moduleEnabled } from "../../../../public/src/lib/modules";
 import PublicAction from "../../../../public/src/components/PublicAction.astro";
 import { resolveCampaignTheme } from "../../themes";
 import { withEmDashRuntime } from "emdash/middleware";
@@ -273,6 +275,14 @@ const units = {
         orderResult={orderResult}
       />
     )
+  }
+  {
+    !ThemeIntro &&
+      action &&
+      route?.availability === "published" &&
+      moduleEnabled("inbox") && (
+        <PublicInbox actionId={action.id} actionName={action.name} />
+      )
   }
 </PublicLayout>
 <style>

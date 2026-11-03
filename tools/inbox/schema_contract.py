@@ -26,7 +26,7 @@ async def main() -> None:
             f"inbox-contact:{case}",
         )
         await conn.execute(
-            "INSERT INTO inbox_case(id,public_reference,subject,message,given_name,family_name,email,contact_create_id,contact_job_id) VALUES ($1,$2,'Kontaktanfrage','Synthetische Nachricht','Test','Person','test@example.org',$3,$4)",
+            "INSERT INTO inbox_case(id,public_reference,subject,message,given_name,family_name,email,contact_create_id,contact_job_id,consent_text_version) VALUES ($1,$2,'Kontaktanfrage','Synthetische Nachricht','Test','Person','test@example.org',$3,$4,'inbox-privacy-2026-11')",
             case,
             uuid4(),
             uuid4(),
@@ -46,6 +46,8 @@ async def main() -> None:
             "UPDATE inbox_case SET family_name='' WHERE id=$1",
             "UPDATE inbox_case SET email=NULL,phone=NULL WHERE id=$1",
             "UPDATE inbox_case SET phone=' ' WHERE id=$1",
+            "UPDATE inbox_case SET consent_text_version=' ' WHERE id=$1",
+            "UPDATE inbox_case SET consent_text_version=NULL WHERE id=$1",
             "UPDATE inbox_case SET revision=0 WHERE id=$1",
             "UPDATE inbox_case SET status='approved' WHERE id=$1",
             "UPDATE inbox_case SET status='closed' WHERE id=$1",
@@ -139,7 +141,6 @@ async def main() -> None:
             ),
             ("UPDATE inbox_case_comment SET body=' ' WHERE case_id=$1", (case,)),
             ("UPDATE inbox_case_task SET task_id=$2 WHERE case_id=$1", (case, uuid4())),
-            ("DELETE FROM outbox_event WHERE id=$1", (job,)),
         ):
             try:
                 async with conn.transaction():
@@ -148,6 +149,19 @@ async def main() -> None:
                 pass
             else:
                 raise AssertionError(sql)
+        # Outbox retention may delete the completed job; the case keeps its state.
+        await conn.execute("DELETE FROM outbox_event WHERE id=$1", job)
+        assert (
+            await conn.fetchval(
+                "SELECT contact_job_id FROM inbox_case WHERE id=$1", case
+            )
+            is None
+        )
+        # Only a privacy erasure may remove both contact channels.
+        await conn.execute(
+            "UPDATE inbox_case SET email=NULL,phone=NULL,erased_at=now() WHERE id=$1",
+            case,
+        )
         await conn.execute("DELETE FROM inbox_case WHERE id=$1", case)
         assert await conn.fetchval("SELECT count(*) FROM task WHERE id=$1", task) == 1
         assert (
@@ -163,7 +177,7 @@ async def main() -> None:
             == 0
         )
         print(
-            "PASS inbox schema: bounded snapshot, required job, close/reopen, independent contact state, exact references, comments and 23 invalid writes"
+            "PASS inbox schema: bounded snapshot, consent version, job cleared by retention, erasure without contact, close/reopen, independent contact state, exact references, comments and 24 invalid writes"
         )
     finally:
         await transaction.rollback()

@@ -5,7 +5,9 @@ import type {
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 
+import PublicInbox from "./PublicInbox.astro";
 import PublicOrder from "./PublicOrder.astro";
+import { moduleEnabled } from "../lib/modules";
 import { offeringPrice, offeringUnit } from "../lib/order-presentation";
 import type { PublicTheme } from "../themes";
 
@@ -35,6 +37,9 @@ if (!action) {
 }
 
 const isArchive = route.availability === "archive";
+// Contact requests belong to a live action; the archive stays read-only.
+const inboxForm =
+  route.availability === "published" && moduleEnabled("inbox");
 const orderForm =
   route.submissionsAllowed && !isArchive && orderAlias
     ? action.orderForm
@@ -291,6 +296,12 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
           </div>
         </div>
       </section>
+    )
+  }
+
+  {
+    inboxForm && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
     )
   }
 

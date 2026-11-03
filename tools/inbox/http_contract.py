@@ -16,7 +16,7 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 from leonaid.entrypoints.fastapi.platform import create_app
-from leonaid.modules.inbox.api import SubmitCase
+from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, SubmitCase
 
 
 async def main() -> None:
@@ -43,6 +43,8 @@ async def main() -> None:
     tokens = [uuid4().hex + uuid4().hex for _ in users]
     case_id = None
     command = SubmitCase(
+        privacy_consent=True,
+        privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
         idempotency_key=uuid4(),
         subject="HTTP Inbox",
         message="Synthetischer Eingang",

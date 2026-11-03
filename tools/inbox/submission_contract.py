@@ -10,7 +10,7 @@ import asyncpg
 from pydantic import ValidationError
 
 from leonaid.application.errors import Conflict, ResourceNotFound
-from leonaid.modules.inbox.api import SubmitCase
+from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, SubmitCase
 from leonaid.bootstrap.api import build_inbox_service
 
 
@@ -23,6 +23,8 @@ async def main() -> None:
     action = uuid4()
     commands = [
         SubmitCase(
+            privacy_consent=True,
+            privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
             idempotency_key=uuid4(),
             subject="Kontaktanfrage",
             message=f"Synthetischer Eingang {action}",

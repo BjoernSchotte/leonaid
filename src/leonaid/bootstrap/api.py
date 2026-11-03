@@ -170,8 +170,9 @@ def build_knowledge_service(
 
 
 def build_inbox_service(
-    pool: asyncpg.Pool[Any], storage: ObjectStorage, crm: CrmGateway | None
+    pool: asyncpg.Pool[Any], crm: CrmGateway | None = None
 ) -> InboxService:
+    # Inbox only references material versions; it never reads object storage.
     return InboxService(
         AsyncpgInboxRepository(
             pool,
@@ -179,7 +180,7 @@ def build_inbox_service(
                 AsyncpgTaskRepository(pool, connection=connection)
             ),
             lambda connection: MaterialService(
-                AsyncpgMaterialRepository(pool, storage, connection=connection)
+                AsyncpgMaterialRepository(pool, connection=connection)
             ),
             complete_resolved_event,
         ),

@@ -20,7 +20,7 @@ from leonaid.modules.inbox.jobs import InboxContactHandler, InboxContactError
 from leonaid.bootstrap.api import build_inbox_service, build_task_service
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
-from leonaid.modules.inbox.api import AddComment, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, AddComment, SubmitCase, UpdateCase
 from leonaid.modules.tasks.api import CreateList, CreateTask, SetListMember
 
 
@@ -74,6 +74,8 @@ async def main(output: Path) -> None:
         inbox = build_inbox_service(pool)
         receipt = await inbox.submit(
             SubmitCase(
+                privacy_consent=True,
+                privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
                 idempotency_key=uuid4(),
                 subject="Unterstützung beim gemeinsamen Mittagstisch",
                 message="Guten Tag,\nwir möchten einen barrierefreien gemeinsamen Mittagstisch vorbereiten. Können wir einen Termin zur Abstimmung vereinbaren?\nVielen Dank!",

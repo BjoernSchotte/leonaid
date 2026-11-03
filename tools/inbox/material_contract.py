@@ -20,7 +20,7 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 from leonaid.entrypoints.fastapi.platform import create_app
-from leonaid.modules.inbox.api import SetMaterialReference, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, SetMaterialReference, SubmitCase, UpdateCase
 from leonaid.modules.materials.api import (
     AddVersion,
     CreateMaterial,
@@ -77,6 +77,8 @@ async def main() -> None:
     token = uuid4().hex + uuid4().hex
     commands = [
         SubmitCase(
+            privacy_consent=True,
+            privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
             idempotency_key=uuid4(),
             subject="Linked file",
             message="Synthetic",

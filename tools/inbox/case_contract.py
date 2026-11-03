@@ -28,6 +28,7 @@ from leonaid.modules.inbox.api import (
     CommentQuery,
     AssigneeQuery,
     CaseQuery,
+    INBOX_PRIVACY_NOTICE_VERSION,
     SubmitCase,
     UpdateCase,
 )
@@ -55,6 +56,8 @@ async def main() -> None:
     marker = f"Inbox case proof {actions[0]}"
     commands = [
         SubmitCase(
+            privacy_consent=True,
+            privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
             idempotency_key=uuid4(),
             action_id=action,
             subject=marker,

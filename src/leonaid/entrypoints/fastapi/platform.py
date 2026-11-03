@@ -417,7 +417,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.activity_management_service = None
             application.state.public_order_service = None
         application.state.inbox_service = build_inbox_service(
-            pool, object_storage, crm_gateway
+            pool, crm_gateway
         )
         try:
             if settings.survey_erasure_archive_dir is not None:

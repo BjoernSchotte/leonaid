@@ -19,7 +19,7 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 from leonaid.entrypoints.fastapi.platform import create_app
-from leonaid.modules.inbox.api import SetTaskReference, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import INBOX_PRIVACY_NOTICE_VERSION, SetTaskReference, SubmitCase, UpdateCase
 from leonaid.modules.tasks.api import CreateList, CreateTask, SetListMember, UpdateTask
 
 
@@ -60,6 +60,8 @@ async def main() -> None:
     owner, assigned, outsider = actors
     token = uuid4().hex + uuid4().hex
     command = SubmitCase(
+        privacy_consent=True,
+        privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
         idempotency_key=uuid4(),
         subject="Linked task",
         message="Synthetic",

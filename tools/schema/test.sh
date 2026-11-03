@@ -91,7 +91,14 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tools/knowledge/action_contract.py \
     /repo/tools/knowledge/task_contract.py \
     /repo/tools/knowledge/material_contract.py \
-    /repo/tools/knowledge/http_contract.py
+    /repo/tools/knowledge/http_contract.py \
+    /repo/tools/inbox/schema_contract.py \
+    /repo/tools/inbox/submission_contract.py \
+    /repo/tools/inbox/case_contract.py \
+    /repo/tools/inbox/http_contract.py \
+    /repo/tools/inbox/public_contract.py \
+    /repo/tools/inbox/task_contract.py \
+    /repo/tools/inbox/material_contract.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans

@@ -30,6 +30,9 @@ CONSENT_ID = UUID("d0000000-0000-4000-8000-000000000001")
 INVOICE_ID = UUID("90000000-0000-4000-8000-000000000002")
 LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
 EMAIL = "mara.muster@musterwerk.leonaid.invalid"
+INBOX_CASE_ID = UUID("e0000000-0000-4000-8000-000000000001")
+FOREIGN_INBOX_CASE_ID = UUID("e0000000-0000-4000-8000-000000000002")
+INBOX_MESSAGE = "Bitte ruft mich wegen der Abholung zurück."
 SESSION_NAMESPACE = UUID("d7b23eb1-c615-4665-99e1-c35029b9c460")
 FOREIGN_CANARIES = (
     "40000000-0000-4000-8000-000000000002",
@@ -128,12 +131,36 @@ async def immutable_hashes(connection: asyncpg.Connection[Any]) -> dict[str, str
     }
 
 
+async def seed_inbox_cases(connection: asyncpg.Connection[Any]) -> None:
+    """One public inquiry of the subject (mixed-case address) and a foreign one."""
+    for case_id, email in (
+        (INBOX_CASE_ID, EMAIL.replace("mara", "Mara", 1)),
+        (FOREIGN_INBOX_CASE_ID, "jona.fremd@leonaid.invalid"),
+    ):
+        await connection.execute(
+            """
+            INSERT INTO inbox_case (
+                id, public_reference, action_id, subject, message, given_name,
+                family_name, email, phone, contact_create_id, consent_text_version
+            )
+            VALUES ($1, gen_random_uuid(), $2, 'Rückruf', $3, 'Mara', 'Muster',
+                    $4, '+49 170 1234567', gen_random_uuid(),
+                    'inbox-privacy-2026-11')
+            """,
+            case_id,
+            ACTION_ID,
+            INBOX_MESSAGE,
+            email,
+        )
+
+
 async def prepare(
     connection: asyncpg.Connection[Any],
     sessions_path: Path,
     baseline_path: Path,
 ) -> None:
     tokens = await seed_sessions(connection, sessions_path)
+    await seed_inbox_cases(connection)
     baseline_path.write_text(
         json.dumps(await immutable_hashes(connection), indent=2) + "\n",
         encoding="utf-8",
@@ -208,6 +235,13 @@ async def prepare(
             raise ContractFailure(
                 "Privacy lookup hides retention periods or PoC limits"
             )
+        inbox_references = [
+            item
+            for item in payload.get("references", [])
+            if item.get("referenceType") == "inbox_case"
+        ]
+        if [item.get("id") for item in inbox_references] != [str(INBOX_CASE_ID)]:
+            raise ContractFailure("Privacy lookup misses or mixes inbox cases")
 
         export = await api.post(
             "/api/v1/admin/privacy/exports",
@@ -221,6 +255,8 @@ async def prepare(
             or any(canary in serialized for canary in FOREIGN_CANARIES)
             or str(INVOICE_ID) not in serialized
             or str(LEGAL_CONFIGURATION_ID) not in serialized
+            or str(INBOX_CASE_ID) not in serialized
+            or str(FOREIGN_INBOX_CASE_ID) in serialized
         ):
             raise ContractFailure("Data export contains foreign or incomplete data")
 
@@ -319,6 +355,30 @@ async def assert_result(
         or "3650 Tage" not in erasure["retention_reasons"]
     ):
         raise ContractFailure("Erasure record is incomplete or contains raw PII")
+    inbox_cases = {
+        row["id"]: row
+        for row in await connection.fetch(
+            "SELECT * FROM inbox_case WHERE id = ANY($1::uuid[])",
+            [INBOX_CASE_ID, FOREIGN_INBOX_CASE_ID],
+        )
+    }
+    erased_case = inbox_cases.get(INBOX_CASE_ID)
+    if (
+        erased_case is None
+        or erased_case["erased_at"] is None
+        or erased_case["email"] is not None
+        or erased_case["phone"] is not None
+        or erased_case["given_name"] != "Anonymisiert"
+        or erased_case["message"] == INBOX_MESSAGE
+    ):
+        raise ContractFailure("Inbox case of the subject was not anonymized")
+    foreign_case = inbox_cases.get(FOREIGN_INBOX_CASE_ID)
+    if (
+        foreign_case is None
+        or foreign_case["erased_at"] is not None
+        or foreign_case["message"] != INBOX_MESSAGE
+    ):
+        raise ContractFailure("Erasure changed a foreign inbox case")
     audit_leak = await connection.fetchval(
         "SELECT count(*) FROM audit_event WHERE payload::text ILIKE '%' || $1 || '%'",
         EMAIL,
