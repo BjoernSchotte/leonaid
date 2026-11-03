@@ -49,6 +49,32 @@ assert.ok(
     "if (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\tif (itemError && !rawItem) {",
   ),
 );
+// The 0.36 editor reset the form on every entry sync (publish refetch,
+// autosave response) and lost input typed meanwhile (PR #56 merged around
+// it). EmDash 1.4 skips that reset while the form is dirty, keeps the form
+// during a publish and an autosave completion, and publishes the response
+// directly instead of refetching. Assert the upstream guards this relies on.
+assert.ok(
+  revisioned.includes(
+    "\t\t\tif (isDirtyRef.current && !itemReset && !autosaveJustCompleted && !restored) return;",
+  ),
+);
+assert.ok(
+  revisioned.includes(
+    "\t\t\tif (restored || !isPublishingRef.current && !autosaveJustCompleted && !hasSaveConflictRef.current) {\n\t\t\t\tsetFormData(item.data);",
+  ),
+);
+assert.ok(
+  revisioned.includes(
+    "\t\t\trecordWriteRevision(id, publishedItem);\n\t\t\tqueryClient.setQueriesData({ queryKey: [",
+  ),
+);
+// The handler marks the form dirty synchronously, before React re-renders.
+assert.ok(
+  revisioned.includes(
+    "\tconst handleFieldChange = React$1.useCallback((name, value) => {\n\t\teditorGenerationRef.current++;\n\t\tmarkDirty();",
+  ),
+);
 // EmDash 1.x guards unsaved edits itself (TanStack useBlocker, which also
 // prompts on beforeunload). New forms count as unsaved only after an edit;
 // the LeonAid campaign prefill is part of their initial state.
