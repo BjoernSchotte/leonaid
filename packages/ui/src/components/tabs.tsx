@@ -1,10 +1,4 @@
-import {
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { cn } from "../lib/utils";
 
@@ -33,8 +27,8 @@ export const tabPanelId = (prefix: string, id: string) =>
   `${prefix}-panel-${id}`;
 
 /**
- * Tab list with a roving tab stop. Arrow keys, Home and End move focus;
- * Enter or Space selects the focused tab.
+ * Tab list with a roving tab stop on the selected tab. Arrow keys, Home and
+ * End move focus and select (automatic activation, as in the prototype).
  */
 export function Tabs<T extends string>({
   className,
@@ -47,12 +41,6 @@ export function Tabs<T extends string>({
   const generatedPrefix = useId();
   const prefix = idPrefix ?? generatedPrefix;
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  // The focused tab holds the tab stop while focus is inside the list.
-  const [focusedId, setFocusedId] = useState<T | null>(null);
-  const stopId =
-    focusedId !== null && items.some((item) => item.id === focusedId)
-      ? focusedId
-      : value;
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const last = items.length - 1;
@@ -70,22 +58,15 @@ export function Tabs<T extends string>({
             : event.key === "End"
               ? last
               : -1;
-    if (next < 0) return;
+    const target = items[next];
+    if (!target) return;
     event.preventDefault();
+    onChange(target.id);
     refs.current[next]?.focus();
   }
 
   return (
-    <div
-      aria-label={label}
-      className={cn("tabs", className)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setFocusedId(null);
-        }
-      }}
-      role="tablist"
-    >
+    <div aria-label={label} className={cn("tabs", className)} role="tablist">
       {items.map((item, index) => {
         const selected = item.id === value;
         return (
@@ -96,13 +77,12 @@ export function Tabs<T extends string>({
             id={tabId(prefix, item.id)}
             key={item.id}
             onClick={() => onChange(item.id)}
-            onFocus={() => setFocusedId(item.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
             ref={(element) => {
               refs.current[index] = element;
             }}
             role="tab"
-            tabIndex={item.id === stopId ? 0 : -1}
+            tabIndex={selected ? 0 : -1}
             type="button"
           >
             {item.label}

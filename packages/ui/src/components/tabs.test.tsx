@@ -55,7 +55,7 @@ describe("Tabs", () => {
     expect(panel.id).toBe("orders-panel-open");
   });
 
-  it("moves focus with ArrowRight/ArrowLeft without selecting, roving tabindex", async () => {
+  it("moves focus and selection with ArrowRight/ArrowLeft, Home and End", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
@@ -63,45 +63,45 @@ describe("Tabs", () => {
     expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
 
     await user.click(tabs[0]!);
-    onChange.mockClear();
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(tabs[1]);
+    expect(onChange).toHaveBeenLastCalledWith("done");
+    expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
     expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("tabpanel").textContent).toBe("Inhalt done");
 
     await user.keyboard("{ArrowLeft}{ArrowLeft}");
     expect(document.activeElement).toBe(tabs[2]);
+    expect(onChange).toHaveBeenLastCalledWith("all");
     await user.keyboard("{Home}");
     expect(document.activeElement).toBe(tabs[0]);
+    expect(onChange).toHaveBeenLastCalledWith("open");
     await user.keyboard("{End}");
     expect(document.activeElement).toBe(tabs[2]);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith("all");
   });
 
-  it("selects the focused tab on Enter and Space", async () => {
+  it("keeps Enter and Space as native activation", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     const tabs = screen.getAllByRole("tab");
-    await user.click(tabs[0]!);
-    onChange.mockClear();
-
-    await user.keyboard("{ArrowRight}{Enter}");
+    tabs[1]!.focus();
+    await user.keyboard("{Enter}");
     expect(onChange).toHaveBeenLastCalledWith("done");
-    expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("tabpanel").textContent).toBe("Inhalt done");
-
-    await user.keyboard("{ArrowRight} ");
+    tabs[2]!.focus();
+    await user.keyboard(" ");
     expect(onChange).toHaveBeenLastCalledWith("all");
   });
 
-  it("puts the tab stop back on the selected tab when focus leaves", async () => {
+  it("keeps the single tab stop on the selected tab", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     const tabs = screen.getAllByRole("tab");
     await user.click(tabs[0]!);
     await user.keyboard("{ArrowRight}");
     await user.tab();
-    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+    expect(document.activeElement?.getAttribute("role")).toBe("tabpanel");
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
   });
 });
