@@ -49,6 +49,64 @@ assert.ok(
     "if (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {",
   ),
 );
+// A later entry sync (autosave response, publish refetch) never overwrites
+// unsaved input: changed fields keep the local value, the form stays dirty.
+assert.ok(
+  !revisioned.includes(
+    '\t\t\tsetFormData(item.data);\n\t\t\tsetSlug(item.slug || "");',
+  ),
+);
+assert.ok(
+  revisioned.includes(
+    "\t\t\tif (unsaved) for (const key of new Set([...Object.keys(base.data), ...Object.keys(local)])) {",
+  ),
+);
+assert.ok(revisioned.includes("\t\t\tsetFormData(merged);"));
+{
+  const start = revisioned.indexOf("\t\t\tconst base = leonaidSynced.current;");
+  const end = revisioned.indexOf("\t\t\tsetFormData(merged);");
+  assert.ok(start > 0 && end > start);
+  const sync = new Function(
+    "leonaidSynced",
+    "item",
+    "formDataRef",
+    "slugRef",
+    "activeBylines",
+    "lastSavedData",
+    "serializeEditorState",
+    `${revisioned.slice(start, end)}\nreturn { merged, keepSlug };`,
+  );
+  const serialize = (input) => JSON.stringify(input);
+  const run = (base, local, server, saved) =>
+    sync(
+      { current: { data: base, slug: "s" } },
+      { data: server, slug: "s" },
+      { current: local },
+      { current: "s" },
+      [],
+      serialize({ data: saved, slug: "s", bylines: [] }),
+      serialize,
+    );
+  const base = { story_title: "draft", title: "T", hero: { id: "1" } };
+  // Publish refetch lands after the user typed: the input survives, the
+  // server's other fields are taken.
+  assert.deepEqual(
+    run(base, { ...base, story_title: "typed" }, { ...base, hero: { id: "2" } }, base).merged,
+    { story_title: "typed", title: "T", hero: { id: "2" } },
+  );
+  // Nothing unsaved: the upstream full reset (discard draft, restore).
+  assert.deepEqual(
+    run(base, base, { ...base, story_title: "published" }, base).merged,
+    { ...base, story_title: "published" },
+  );
+}
+// Saves after publishing wait for the refreshed revision token.
+assert.ok(
+  revisioned.includes(
+    "{ ...changes, _rev: await leonaidRevisions.current.get(targetId) },",
+  ),
+);
+assert.ok(revisioned.includes("leonaidRevisions.current.set(id, refreshing);"));
 const guard = revisioned.match(
   /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !leonaidUnsaved\)[\s\S]+?\}, \[collection, leonaidUnsaved\]\);/,
 );

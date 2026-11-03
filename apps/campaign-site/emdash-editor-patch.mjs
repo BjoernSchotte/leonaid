@@ -160,13 +160,69 @@ export function patchEditorSource(source) {
 \t\t\tskipRevision: true
 \t\t}),`,
   );
+  // Publishing changes the entry's revision token, but the publish response
+  // carries none. Saves issued before the refreshed token arrives wait for it
+  // instead of racing with a stale token. If the refresh fails, the next
+  // loaded entry supplies the token, exactly as on first load.
+  replace(
+    "\t\t\t{ ...changes, _rev: leonaidRevisions.current.get(targetId) },",
+    "\t\t\t{ ...changes, _rev: await leonaidRevisions.current.get(targetId) },",
+  );
   replace(
     `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
 \t\tonSuccess: () => {`,
     `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
 \t\tonSuccess: async () => {
-\t\t\tconst refreshed = await fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale });
-\t\t\tleonaidRevisions.current.set(id, refreshed._rev);`,
+\t\t\tconst refreshing = fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale }).then((refreshed) => refreshed._rev);
+\t\t\tleonaidRevisions.current.set(id, refreshing);
+\t\t\trefreshing.then((rev) => {
+\t\t\t\tif (leonaidRevisions.current.get(id) === refreshing) leonaidRevisions.current.set(id, rev);
+\t\t\t}, () => {
+\t\t\t\tif (leonaidRevisions.current.get(id) === refreshing) leonaidRevisions.current.delete(id);
+\t\t\t});`,
+  );
+  // A content or draft refetch started before this autosave was stored (for
+  // example the one a publish triggers) may answer after it and would put the
+  // older entry back. Cancel such fetches before patching the saved state in.
+  replace(
+    "\t\tonSuccess: (savedItem, variables) => {\n\t\t\trecordAutosaveCompletion(variables.targetId);\n\t\t\tpatchAutosaveQueries(queryClient, {",
+    `\t\tonSuccess: async (savedItem, variables) => {
+\t\t\tawait queryClient.cancelQueries({ queryKey: ["content", collection, variables.targetId] });
+\t\t\tif (savedItem.draftRevisionId) await queryClient.cancelQueries({ queryKey: ["revision", savedItem.draftRevisionId] });
+\t\t\trecordAutosaveCompletion(variables.targetId);
+\t\t\tpatchAutosaveQueries(queryClient, {`,
+  );
+  // Upstream re-syncs the whole form whenever the loaded entry changes
+  // (autosave response, publish, background refetch) and so discards input
+  // typed while that request was in flight. With unsaved input, merge per
+  // field instead: a field the user changed since the last sync keeps the
+  // local value, every other field takes the server value. The form then
+  // stays dirty, so autosave persists the kept input. Without unsaved input
+  // the upstream full reset applies (discard draft, restore revision).
+  replace(
+    "\tconst [previousItemId, setPreviousItemId] = React$1.useState(item?.id ?? null);\n\tif (item && item.id !== previousItemId) {\n\t\tsetPreviousItemId(item.id);",
+    '\tconst leonaidSynced = React$1.useRef({ data: item?.data || {}, slug: item?.slug || "" });\n\tconst [previousItemId, setPreviousItemId] = React$1.useState(item?.id ?? null);\n\tif (item && item.id !== previousItemId) {\n\t\tleonaidSynced.current = { data: item.data, slug: item.slug || "" };\n\t\tsetPreviousItemId(item.id);',
+  );
+  replace(
+    '\tReact$1.useEffect(() => {\n\t\tif (item) {\n\t\t\tconst nextBylines = resolveEditorBylines(item).explicitCredits;\n\t\t\tsetFormData(item.data);\n\t\t\tsetSlug(item.slug || "");\n\t\t\tsetSlugTouched(!!item.slug);',
+    `\tReact$1.useEffect(() => {
+\t\tif (item) {
+\t\t\tconst nextBylines = resolveEditorBylines(item).explicitCredits;
+\t\t\tconst base = leonaidSynced.current;
+\t\t\tleonaidSynced.current = { data: item.data, slug: item.slug || "" };
+\t\t\tconst local = formDataRef.current;
+\t\t\tconst unsaved = serializeEditorState({ data: local, slug: slugRef.current, bylines: activeBylines }) !== lastSavedData;
+\t\t\tconst edited = (a, b) => !Object.is(a, b) && JSON.stringify(a) !== JSON.stringify(b);
+\t\t\tconst merged = { ...item.data };
+\t\t\tif (unsaved) for (const key of new Set([...Object.keys(base.data), ...Object.keys(local)])) {
+\t\t\t\tif (!edited(local[key], base.data[key])) continue;
+\t\t\t\tif (Object.hasOwn(local, key)) merged[key] = local[key];
+\t\t\t\telse delete merged[key];
+\t\t\t}
+\t\t\tconst keepSlug = unsaved && slugRef.current !== base.slug;
+\t\t\tsetFormData(merged);
+\t\t\tsetSlug(keepSlug ? slugRef.current : item.slug || "");
+\t\t\tif (!keepSlug) setSlugTouched(!!item.slug);`,
   );
   // Upstream mounts the editor as soon as the live item arrives and merges the
   // draft revision one request later. The merge resets the form to the draft,
