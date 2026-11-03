@@ -22,14 +22,21 @@ import {
   DataTable,
   EmptyState,
   FormField,
+  GO_TO_GROUP,
+  HotkeyProvider,
+  type HotkeyBinding,
   Icon,
   IconButton,
   Kbd,
   Meter,
+  PrefixHint,
+  ShortcutHelp,
   StatusIcon,
   StatusLabel,
   StatusMessage,
   type StatusShape,
+  useHotkeys,
+  useShortcutHelp,
   useToast,
 } from "@leonaid/ui";
 
@@ -74,6 +81,77 @@ const shortcutRows: readonly (readonly [string, string])[] = [
   ["escape", "Schließen, Auswahl aufheben, Feld verlassen"],
   ["shift+t", "Hell/Dunkel wechseln"],
 ];
+
+/** Zones of the "g" map, keyed by server navigation key (preview only). */
+const goToZones: readonly (readonly [string, string, string])[] = [
+  ["d", "overview-web", "Übersicht"],
+  ["a", "actions", "Aktionen"],
+  ["b", "orders", "Bestellungen"],
+  ["l", "delivery", "Auslieferung"],
+  ["r", "invoices", "Rechnungen"],
+  ["t", "tasks", "Aufgaben"],
+  ["u", "surveys", "Umfragen"],
+  ["e", "inbox", "Eingang"],
+  ["x", "materials", "Material"],
+  ["w", "knowledge", "Wissen"],
+  ["f", "activities", "Aktivität"],
+  ["m", "members", "Mitglieder"],
+  ["k", "microsite", "Kampagnenseiten"],
+  ["j", "legal", "Rechtliches"],
+  ["s", "system", "System"],
+  ["p", "acquisition-web", "Akquise-App"],
+  ["o", "public", "Bestellseite"],
+];
+
+/**
+ * Live preview of the hotkey registry: "?" opens the shortcut help, "g"
+ * shows the prefix hint. The bindings only announce what they would do.
+ */
+function HotkeyPreview() {
+  const toast = useToast();
+  const help = useShortcutHelp();
+  const preview = (text: string) => () =>
+    toast.show({ title: `${text} (Vorschau)`, tone: "info" });
+  const bindings: HotkeyBinding[] = [
+    {
+      keys: "mod+k",
+      label: "Befehlspalette öffnen",
+      group: "Allgemein",
+      inDialog: true,
+      allowInInput: true,
+      run: preview("Befehlspalette öffnen"),
+    },
+    {
+      keys: "shift+t",
+      label: "Hell/Dunkel wechseln",
+      group: "Allgemein",
+      run: preview("Hell/Dunkel wechseln"),
+    },
+    ...goToZones.map(
+      ([key, zone, label]): HotkeyBinding => ({
+        keys: `g ${key}`,
+        label,
+        group: GO_TO_GROUP,
+        zone,
+        run: preview(`Gehe zu ${label}`),
+      }),
+    ),
+  ];
+  useHotkeys(bindings);
+  return (
+    <>
+      <Button
+        onClick={() => help.setOpen(true)}
+        shortcut="?"
+        variant="secondary"
+      >
+        Alle Tastenkürzel anzeigen
+      </Button>
+      <ShortcutHelp />
+      <PrefixHint />
+    </>
+  );
+}
 
 export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -284,6 +362,11 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
               ))}
             </tbody>
           </table>
+          <div className="ui-catalog-cluster" id="hotkeys">
+            <HotkeyProvider>
+              <HotkeyPreview />
+            </HotkeyProvider>
+          </div>
         </div>
         <p className="ui-catalog-note">
           <Icon icon={CircleAlert} size={14} /> Icons stammen aus Lucide
