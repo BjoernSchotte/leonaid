@@ -5,6 +5,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from "react";
 
 import { cn } from "../lib/utils";
@@ -26,6 +27,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** A binding such as "c" or "mod+enter", shown as subtle keycaps. */
   readonly shortcut?: string;
   readonly loading?: boolean;
+  /** For anchoring a Popover to the button. */
+  readonly ref?: Ref<HTMLButtonElement>;
 }
 
 /** Class names for links that look like a button. */

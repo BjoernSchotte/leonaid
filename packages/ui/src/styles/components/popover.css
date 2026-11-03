@@ -1,0 +1,88 @@
+/* Popover and option menu: ported from the Leitsystem prototype
+   (components.css, "Popover / option menu"). */
+.popover {
+  --pop-x: 0px;
+  --pop-y: 0px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 900;
+  transform: translate(var(--pop-x), var(--pop-y));
+  min-width: 240px;
+  max-width: min(360px, calc(100vw - 16px));
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+/* Placed in useLayoutEffect before the first paint, so no hidden phase is
+   needed (a hidden phase broke focus in WebKit). */
+.popover.is-placed {
+  animation: pop var(--dur-1) var(--ease-out);
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.menu-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-bottom: var(--hair) solid var(--border);
+  background: transparent;
+  font-size: var(--fs-sm);
+  outline: none;
+}
+/* In the prototype the global :focus-visible ring loads first and loses to
+   outline: none above; here globals.css comes later, so restate it. */
+.menu-input:focus-visible {
+  outline: none;
+}
+.menu-list {
+  max-height: 300px;
+  overflow: auto;
+  padding: var(--s-1);
+}
+.menu-empty {
+  padding: var(--s-3);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 34px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.menu-item[data-selected="true"] {
+  background: var(--row-active);
+}
+.menu-check {
+  display: inline-grid;
+  width: 16px;
+  color: var(--accent);
+}
+.menu-icon {
+  display: inline-flex;
+  color: var(--text-2);
+}
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-hint {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
