@@ -91,7 +91,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
     { width: 390, height: 844 },
   );
   try {
-    const mobileNavigation = page.locator(".ui-pwa-tabbar");
+    const mobileNavigation = page.locator(".pwa-tabs");
     await expect(
       page.getByRole("heading", { name: "Guten Tag, Anna." }),
     ).toBeVisible();

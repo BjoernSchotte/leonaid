@@ -146,6 +146,93 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   await expect(actionSelector.locator("option")).toHaveCount(1);
 });
 
+test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
+  context,
+  page,
+}, testInfo) => {
+  await authenticate(context, annaSession);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("display-name")).toHaveText("Anna Akquise");
+  await expect(page.getByTestId("current-action")).toHaveText(
+    "Krapfentaxi 2026",
+  );
+
+  const tabs = page.getByRole("navigation", { name: "App-Navigation" });
+  const links = tabs.getByRole("link");
+  await expect(links).toHaveText([
+    "Start",
+    "Sponsoren",
+    "Neu",
+    "Wiedervorlagen",
+    "Neues",
+  ]);
+  await expect(tabs.getByRole("link", { name: "Sponsoren" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const viewport = page.viewportSize();
+  const column = await page.locator(".pwa").boundingBox();
+  expect(column.width).toBeLessThanOrEqual(480);
+  // Centred on the stage on wide screens.
+  expect(
+    Math.abs(column.x - (viewport.width - column.width) / 2),
+  ).toBeLessThanOrEqual(1);
+  const tabBar = await tabs.boundingBox();
+  expect(tabBar.y + tabBar.height).toBeLessThanOrEqual(viewport.height + 1);
+  for (let index = 0; index < 5; index += 1) {
+    const box = await links.nth(index).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x).toBeGreaterThanOrEqual(column.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(column.x + column.width + 1);
+  }
+  const menuButton = page.getByRole("button", { name: "Mehr" });
+  const menuBox = await menuButton.boundingBox();
+  expect(menuBox.width).toBeGreaterThanOrEqual(44);
+  expect(menuBox.height).toBeGreaterThanOrEqual(44);
+  await expect(page.getByRole("img", { name: "Online" })).toBeVisible();
+  await expect(page.getByTestId("offline-banner")).toHaveCount(0);
+
+  await menuButton.click();
+  const sheet = page.getByRole("dialog", { name: "Mehr" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId("logout")).toBeVisible();
+  const logoutBox = await sheet.getByTestId("logout").boundingBox();
+  expect(logoutBox.height).toBeGreaterThanOrEqual(44);
+  await sheet.getByRole("button", { name: "Dunkel" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await assertNoSeriousAxeFindings(page);
+  await page.screenshot({
+    path: `${artifactDirectory}/pwa-sheet-${testInfo.project.name}.png`,
+  });
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(menuButton).toBeFocused();
+  await page.keyboard.press("Shift+T");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  // Tab shortcuts 1–5 follow the tab order.
+  await page.locator("main h1").click();
+  await page.keyboard.press("5");
+  await expect(page).toHaveURL(/\/app\/activities$/);
+  await expect(tabs.getByRole("link", { name: "Neues" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await tabs.getByRole("link", { name: "Wiedervorlagen" }).click();
+  await expect(page).toHaveURL(/\/app\/activities\?view=contacts$/);
+  await expect(
+    page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
+  ).toBeVisible();
+  await expect(
+    tabs.getByRole("link", { name: "Wiedervorlagen" }),
+  ).toHaveAttribute("aria-current", "page");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
 test("POC-062 shows a real empty work queue", async ({
   context,
   page,

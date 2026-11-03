@@ -1,28 +1,25 @@
-import {
-  Download04Icon,
-  RefreshIcon,
-  WifiDisconnected01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
+import { Download, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  ApiError,
-  type CurrentIdentityResponse,
-  type LeonAidApiClient,
-} from "@leonaid/api-client";
+import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
+  mobileNavigation,
   ModuleSearch,
   resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
   useCurrentActionId,
 } from "@leonaid/features";
-import { AppShell, Button, buttonClassName, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  MobileShell,
+  StatusMessage,
+} from "@leonaid/ui";
 
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 
@@ -35,20 +32,38 @@ interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-function currentRoute() {
-  if (window.location.pathname.startsWith("/app/commitments")) {
-    return "commitment" as const;
+type PwaRoute = "overview" | "sponsors" | "commitment" | "follow-ups" | "news";
+
+function currentRoute(): PwaRoute {
+  const { pathname, search } = window.location;
+  if (pathname.startsWith("/app/commitments")) return "commitment";
+  if (pathname.startsWith("/app/activities")) {
+    return new URLSearchParams(search).get("view") === "contacts"
+      ? "follow-ups"
+      : "news";
   }
-  if (window.location.pathname.startsWith("/app/activities")) {
-    return "activities" as const;
-  }
-  if (window.location.pathname.startsWith("/app/sponsors")) {
-    return "sponsors" as const;
-  }
-  return "overview" as const;
+  if (pathname.startsWith("/app/sponsors")) return "sponsors";
+  return "overview";
 }
 
-function PwaLifecycle() {
+// Core PWA pages; module pages come from the module registry.
+const corePwaNavigation = [
+  "overview-pwa",
+  "sponsors",
+  "commitment",
+  "activities",
+];
+
+interface PwaLifecycle {
+  readonly online: boolean;
+  readonly updateReady: boolean;
+  readonly canInstall: boolean;
+  readonly install: () => Promise<void>;
+  readonly activateUpdate: () => void;
+}
+
+/** Service worker, update, install prompt and network state of the PWA. */
+function usePwaLifecycle(): PwaLifecycle {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
     null,
   );
@@ -151,144 +166,56 @@ function PwaLifecycle() {
     }
   }
 
-  if (!online) {
-    return (
-      <aside
-        aria-live="polite"
-        className="pwa-system-banner pwa-system-banner--offline"
-        data-testid="offline-banner"
-      >
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={WifiDisconnected01Icon}
-          size={20}
-          strokeWidth={1.8}
-        />
-        <div>
-          <strong>Du bist offline</strong>
-          <span>
-            Geöffnete Inhalte bleiben sichtbar. LeonAid speichert keine
-            Änderungen im Hintergrund.
-          </span>
-        </div>
-      </aside>
-    );
-  }
+  return {
+    activateUpdate,
+    canInstall: installPrompt !== null,
+    install,
+    online,
+    updateReady,
+  };
+}
 
-  if (updateReady) {
+/** Update and install notices; offline is the shell's own banner. */
+function PwaNotices({ lifecycle }: { readonly lifecycle: PwaLifecycle }) {
+  if (!lifecycle.online) return null;
+  if (lifecycle.updateReady) {
     return (
-      <aside
-        aria-live="polite"
-        className="pwa-system-banner"
-        data-testid="pwa-update"
-      >
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={RefreshIcon}
-          size={20}
-          strokeWidth={1.8}
-        />
-        <div>
-          <strong>Eine neue Version ist bereit</strong>
-          <span>
-            Speichere offene Eingaben vorher. Danach wird LeonAid neu geladen.
-          </span>
-        </div>
-        <Button onClick={activateUpdate} variant="secondary">
+      <aside aria-live="polite" className="pwa-notice" data-testid="pwa-update">
+        <RefreshCw aria-hidden="true" size={16} />
+        <span className="pwa-notice-text">
+          <strong>Eine neue Version ist bereit.</strong> Speichere offene
+          Eingaben vorher. Danach wird LeonAid neu geladen.
+        </span>
+        <Button onClick={lifecycle.activateUpdate} variant="secondary">
           Jetzt aktualisieren
         </Button>
       </aside>
     );
   }
-
-  if (installPrompt) {
+  if (lifecycle.canInstall) {
     return (
       <aside
         aria-live="polite"
-        className="pwa-system-banner pwa-system-banner--install"
+        className="pwa-notice"
         data-testid="pwa-install"
       >
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={Download04Icon}
-          size={20}
-          strokeWidth={1.8}
-        />
-        <div>
-          <strong>LeonAid griffbereit</strong>
-        </div>
-        <Button onClick={() => void install()} variant="secondary">
+        <Download aria-hidden="true" size={16} />
+        <span className="pwa-notice-text">
+          <strong>LeonAid griffbereit:</strong> Installiere die App auf deinem
+          Startbildschirm.
+        </span>
+        <Button onClick={() => void lifecycle.install()} variant="secondary">
           Installieren
         </Button>
       </aside>
     );
   }
-
   return null;
-}
-
-function ActivityHub({
-  client,
-  identity,
-}: {
-  readonly client: LeonAidApiClient;
-  readonly identity: CurrentIdentityResponse;
-}) {
-  const [view, setView] = useState<"news" | "contacts">(() =>
-    new URLSearchParams(window.location.search).get("view") === "contacts"
-      ? "contacts"
-      : "news",
-  );
-
-  function select(next: "news" | "contacts") {
-    setView(next);
-    const nextUrl = new URL(window.location.href);
-    if (next === "contacts") nextUrl.searchParams.set("view", "contacts");
-    else nextUrl.searchParams.delete("view");
-    window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
-  }
-
-  return (
-    <div className="activity-hub">
-      <div
-        aria-label="Aktivitätsbereich"
-        className="activity-hub-tabs"
-        role="tablist"
-      >
-        <button
-          aria-controls="activity-news-panel"
-          aria-selected={view === "news"}
-          onClick={() => select("news")}
-          role="tab"
-          type="button"
-        >
-          Neues
-        </button>
-        <button
-          aria-controls="activity-contacts-panel"
-          aria-selected={view === "contacts"}
-          onClick={() => select("contacts")}
-          role="tab"
-          type="button"
-        >
-          Kontakt dokumentieren
-        </button>
-      </div>
-      {view === "news" ? (
-        <div id="activity-news-panel" role="tabpanel">
-          <ActivityFeedPage client={client} surface="pwa" />
-        </div>
-      ) : (
-        <div id="activity-contacts-panel" role="tabpanel">
-          <ActivityWorkspace client={client} identity={identity} />
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function App({ client }: AppProps) {
   const currentActionId = useCurrentActionId();
+  const lifecycle = usePwaLifecycle();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -365,42 +292,53 @@ export function App({ client }: AppProps) {
     memberships[0]?.actionName ??
     "Keine aktive Akquise-Aktion";
 
+  const navigation = mobileNavigation(
+    identity.data.navigation,
+    new Set([...corePwaNavigation, ...pwaModuleNavigationKeys]),
+    window.location,
+  );
+
   return (
-    <>
-      <AppShell
-        moduleNavigationKeys={pwaModuleNavigationKeys}
-        currentActionName={moduleRoute ? moduleRoute.label : currentAction}
-        identity={identity.data}
-        onLogout={() => {
-          void client.logout().finally(() => {
-            window.location.assign("/login");
-          });
-        }}
-        surface="pwa"
-        systemBanner={<PwaLifecycle />}
-      >
+    <MobileShell
+      active={navigation.active}
+      campaign={currentAction}
+      menuItems={navigation.menu}
+      menuSearch={
         <ModuleSearch
-          modules={availableModules}
-          surface="pwa"
           client={client}
           identity={identity.data}
+          modules={availableModules}
+          surface="pwa"
         />
-        {moduleRoute ? (
-          moduleRoute.render({ client, identity: identity.data })
-        ) : route === "sponsors" ? (
-          <SponsorWorkspace client={client} identity={identity.data} />
-        ) : route === "commitment" ? (
-          <CommitmentCapturePage client={client} identity={identity.data} />
-        ) : route === "activities" ? (
-          <ActivityHub client={client} identity={identity.data} />
-        ) : (
-          <RoleDashboardPage
-            client={client}
-            identity={identity.data}
-            mode="acquirer"
-          />
-        )}
-      </AppShell>
-    </>
+      }
+      notices={<PwaNotices lifecycle={lifecycle} />}
+      offline={!lifecycle.online}
+      onLogout={() => {
+        void client.logout().finally(() => {
+          window.location.assign("/login");
+        });
+      }}
+      person={identity.data.displayName}
+      role={identity.data.roleLabels.join(" · ")}
+      tabs={navigation.tabs}
+    >
+      {moduleRoute ? (
+        moduleRoute.render({ client, identity: identity.data })
+      ) : route === "sponsors" ? (
+        <SponsorWorkspace client={client} identity={identity.data} />
+      ) : route === "commitment" ? (
+        <CommitmentCapturePage client={client} identity={identity.data} />
+      ) : route === "follow-ups" ? (
+        <ActivityWorkspace client={client} identity={identity.data} />
+      ) : route === "news" ? (
+        <ActivityFeedPage client={client} surface="pwa" />
+      ) : (
+        <RoleDashboardPage
+          client={client}
+          identity={identity.data}
+          mode="acquirer"
+        />
+      )}
+    </MobileShell>
   );
 }

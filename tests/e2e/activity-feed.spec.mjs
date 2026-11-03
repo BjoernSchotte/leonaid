@@ -103,7 +103,11 @@ test("Anna sees exclusive and shared public orders", async ({ browser }) => {
     await expect(entries).toContainText("Doppelkontakt AG");
     await expect(entries).not.toContainText("Musterwerk GmbH");
 
-    await page.getByRole("tab", { name: "Kontakt dokumentieren" }).click();
+    await page
+      .getByRole("navigation", { name: "App-Navigation" })
+      .getByRole("link", { name: "Wiedervorlagen" })
+      .click();
+    await expect(page).toHaveURL(/\/app\/activities\?view=contacts/);
     await expect(
       page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
     ).toBeVisible();

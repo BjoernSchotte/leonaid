@@ -16,6 +16,7 @@
 @import "./components/toast.css";
 @import "./components/states.css";
 @import "./components/switch.css";
+@import "./components/mobile-shell.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";

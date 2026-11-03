@@ -168,23 +168,21 @@ for (const [surface, width] of [
       ),
     ).toBe(true);
     if (surface === "app") {
-      const tabbar = page.locator(".ui-pwa-tabbar");
-      const taskNavigation = tabbar.getByRole("link", { name: "Aufgaben" });
+      // Tasks live in the "Mehr" sheet; the tab bar stays in the viewport.
+      const tabbar = page.locator(".pwa-tabs");
       await expect(tabbar).toBeVisible();
-      await expect(taskNavigation).toBeVisible();
       const tabbarBox = await tabbar.boundingBox();
-      const taskNavigationBox = await taskNavigation.boundingBox();
-      expect(taskNavigationBox.x + taskNavigationBox.width).toBeLessThanOrEqual(
-        tabbarBox.x + tabbarBox.width,
-      );
-      expect(
-        taskNavigationBox.y + taskNavigationBox.height,
-      ).toBeLessThanOrEqual(tabbarBox.y + tabbarBox.height);
-      expect(
-        await taskNavigation
-          .locator("span")
-          .evaluate((label) => label.scrollWidth <= label.clientWidth),
-      ).toBe(true);
+      expect(tabbarBox.x).toBeGreaterThanOrEqual(0);
+      expect(tabbarBox.x + tabbarBox.width).toBeLessThanOrEqual(width + 1);
+      await page.getByTestId("pwa-menu").click();
+      const sheet = page.getByRole("dialog", { name: "Mehr" });
+      const taskNavigation = sheet.getByRole("link", { name: "Aufgaben" });
+      await expect(taskNavigation).toHaveAttribute("aria-current", "page");
+      const taskBox = await taskNavigation.boundingBox();
+      expect(taskBox.width).toBeGreaterThanOrEqual(44);
+      expect(taskBox.height).toBeGreaterThanOrEqual(44);
+      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await expect(sheet).toBeHidden();
     }
     if (width <= 1024) {
       const scopeBox = await page.getByLabel("Bereich").boundingBox();
@@ -211,7 +209,7 @@ for (const [surface, width] of [
     const editor = page.getByRole("form", { name: "Aufgabe bearbeiten" });
     await expect(editor).toBeVisible();
     if (surface === "app") {
-      await expect(page.locator(".ui-pwa-tabbar")).toBeHidden();
+      await expect(page.locator(".pwa-tabs")).toBeHidden();
       const editorActions = editor
         .getByRole("button", { name: "Speichern" })
         .locator("..");
@@ -312,7 +310,7 @@ for (const [surface, width] of [
     await expect(page).toHaveURL(/view=open/);
     await expect(page).toHaveURL(/search=Detail/);
     if (surface === "app") {
-      await expect(page.locator(".ui-pwa-tabbar")).toBeVisible();
+      await expect(page.locator(".pwa-tabs")).toBeVisible();
     }
     await expect(target).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(
