@@ -1015,6 +1015,42 @@ describe("page hooks", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
+  it("lets the pane body close the pane, through the guard", () => {
+    let allow = false;
+    render(
+      <ToastProvider>
+        <HotkeyProvider>
+          <ListView<Order>
+            columns={{ primary: (row) => row.number }}
+            detailTitle={(row) => row.number}
+            emptyIcon={ShoppingBasket}
+            entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
+            getId={(row) => row.id}
+            id="orders"
+            paneGuard={() => allow}
+            properties={[]}
+            renderDetail={(row, pane) => (
+              <button onClick={pane.close} type="button">
+                Schließen {row.number}
+              </button>
+            )}
+            rows={fixture()}
+            searchText={(row) => row.number}
+            sorts={sorts}
+            title="Bestellungen"
+            views={views}
+          />
+        </HotkeyProvider>
+      </ToastProvider>,
+    );
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Schließen B-001" }));
+    expect(window.location.search).toBe("?open=o1");
+    allow = true;
+    fireEvent.click(screen.getByRole("button", { name: "Schließen B-001" }));
+    expect(window.location.search).toBe("");
+  });
+
   it("offers Rückgängig after an edit that returns an undo", async () => {
     const undo = vi.fn();
     render(<Harness apply={() => ({ undo })} />);

@@ -1417,7 +1417,7 @@ export function ListView<T>(props: ListViewProps<T>) {
               })}
             </div>
           ) : null}
-          {renderDetail(openRow)}
+          {renderDetail(openRow, { close: closePane })}
         </DetailPane>
       ) : null}
 

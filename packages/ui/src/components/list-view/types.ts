@@ -179,8 +179,11 @@ export interface ListViewBaseProps<T> {
  */
 export type ListOpenProps<T> =
   | {
-      /** Pane body below the editable property rows. */
-      readonly renderDetail: (row: T) => ReactNode;
+      /**
+       * Pane body below the editable property rows. `pane.close()` closes
+       * it as Esc does (the pane guard still asks).
+       */
+      readonly renderDetail: (row: T, pane: ListPaneControls) => ReactNode;
       /** Called when a row opens (row) or the pane closes (null). */
       readonly onOpen?: (row: T | null) => void;
       /** Link target for new tab / copy; default this page + `?open=<id>`. */
@@ -198,6 +201,10 @@ export type ListOpenProps<T> =
     };
 
 export type ListViewProps<T> = ListViewBaseProps<T> & ListOpenProps<T>;
+
+export interface ListPaneControls {
+  readonly close: () => void;
+}
 
 /** A palette command; structurally the palette's `PaletteCommand`. */
 export interface ListCommand {
