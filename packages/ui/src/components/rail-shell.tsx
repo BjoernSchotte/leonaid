@@ -299,15 +299,6 @@ function ThemeButton() {
     return () => media.removeEventListener("change", update);
   }, []);
 
-  useHotkeys([
-    {
-      keys: "shift+t",
-      label: "Hell/Dunkel wechseln",
-      group: "Allgemein",
-      run: () => void toggleTheme(),
-    },
-  ]);
-
   return (
     <IconButton
       data-testid="theme-toggle"
@@ -320,6 +311,19 @@ function ThemeButton() {
       onClick={() => void toggleTheme()}
     />
   );
+}
+
+/** Registered between the palette and the help, as listed in the prototype. */
+function ThemeHotkey() {
+  useHotkeys([
+    {
+      keys: "shift+t",
+      label: "Hell/Dunkel wechseln",
+      group: "Allgemein",
+      run: () => void toggleTheme(),
+    },
+  ]);
+  return null;
 }
 
 function MoreSheet({
@@ -470,6 +474,7 @@ function ShellFrame({
       </a>
       {/* Overlays render before the page so page bindings ("/", "?") win. */}
       {palette}
+      <ThemeHotkey />
       <ShortcutHelp />
       <PrefixHint />
       <aside
