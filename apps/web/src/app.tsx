@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -26,6 +26,7 @@ import {
   railCampaigns,
   railNavigation,
   readStoredCampaign,
+  replaceActionInUrl,
   resolveModuleRoute,
   selectCampaign,
   storeCampaign,
@@ -113,14 +114,25 @@ function urlCampaign(): string {
 }
 
 /**
- * A campaign-scoped page opened without `?action=` gets the stored choice
- * before it mounts, so it reads the same campaign the rail shows.
+ * A campaign-scoped page opened without `?action=` gets the rail's campaign
+ * before it mounts, so it reads the same one. The page waits one layout
+ * pass: the URL is set in a layout effect, which runs before the browser
+ * paints, so nothing flickers.
  */
-function carryCampaignIntoUrl(actionId: string): void {
-  const url = new URL(window.location.href);
-  if (!actionId || url.searchParams.get("action")) return;
-  url.searchParams.set("action", actionId);
-  window.history.replaceState(window.history.state, "", url);
+function CampaignUrlGate({
+  actionId,
+  children,
+}: {
+  readonly actionId: string;
+  readonly children: ReactNode;
+}) {
+  const [ready, setReady] = useState(!actionId);
+  useLayoutEffect(() => {
+    if (!actionId) return;
+    replaceActionInUrl(actionId);
+    setReady(true);
+  }, [actionId]);
+  return ready ? children : null;
 }
 
 function route(available: readonly UiModule[]) {
@@ -256,7 +268,7 @@ export function App({ client }: AppProps) {
       (membership) => membership.role === "charity_admin",
     )?.actionId,
   });
-  if (scoped && !selectedActionId) carryCampaignIntoUrl(currentCampaignId);
+  const campaignToCarry = scoped && !selectedActionId ? currentCampaignId : "";
   const actionId =
     currentRoute.kind === "manage" ? currentRoute.actionId : currentCampaignId;
   const editorHref = campaignEditorHref(identity.data, actionId);
@@ -326,47 +338,52 @@ export function App({ client }: AppProps) {
         }}
       >
         <div className="page">
-          <PreviewNotice />
-          {currentRoute.kind === "module" ? (
-            currentRoute.render({ client, identity: identity.data })
-          ) : currentRoute.kind === "new" ? (
-            <CreateActionPage client={client} />
-          ) : currentRoute.kind === "manage" ? (
-            <ManageActionPage
-              actionId={currentRoute.actionId}
-              client={client}
-              key={currentRoute.actionId}
-            />
-          ) : currentRoute.kind === "members" ? (
-            <MemberAdministrationPage
-              client={client}
-              identity={identity.data}
-            />
-          ) : currentRoute.kind === "orders" ? (
-            <CommitmentAdminPage client={client} identity={identity.data} />
-          ) : currentRoute.kind === "invoices" ? (
-            <InvoiceAdminPage client={client} identity={identity.data} />
-          ) : currentRoute.kind === "activities" ? (
-            <ActivityFeedPage client={client} surface="web" />
-          ) : currentRoute.kind === "acquisition" ? (
-            <AcquisitionAdminPage client={client} identity={identity.data} />
-          ) : currentRoute.kind === "system" ? (
-            <FeatureFlagAdminPage client={client} />
-          ) : currentRoute.kind === "privacy" ? (
-            <PrivacyAdminPage client={client} />
-          ) : currentRoute.kind === "legal" ? (
-            <LegalConfigurationPage client={client} identity={identity.data} />
-          ) : currentRoute.kind === "system-ui" ? (
-            <UiSystemCatalogPage identity={identity.data} />
-          ) : currentRoute.kind === "dashboard" ? (
-            <RoleDashboardPage
-              client={client}
-              identity={identity.data}
-              mode="charity_admin"
-            />
-          ) : (
-            <ActionListPage identity={identity.data} />
-          )}
+          <CampaignUrlGate actionId={campaignToCarry}>
+            <PreviewNotice />
+            {currentRoute.kind === "module" ? (
+              currentRoute.render({ client, identity: identity.data })
+            ) : currentRoute.kind === "new" ? (
+              <CreateActionPage client={client} />
+            ) : currentRoute.kind === "manage" ? (
+              <ManageActionPage
+                actionId={currentRoute.actionId}
+                client={client}
+                key={currentRoute.actionId}
+              />
+            ) : currentRoute.kind === "members" ? (
+              <MemberAdministrationPage
+                client={client}
+                identity={identity.data}
+              />
+            ) : currentRoute.kind === "orders" ? (
+              <CommitmentAdminPage client={client} identity={identity.data} />
+            ) : currentRoute.kind === "invoices" ? (
+              <InvoiceAdminPage client={client} identity={identity.data} />
+            ) : currentRoute.kind === "activities" ? (
+              <ActivityFeedPage client={client} surface="web" />
+            ) : currentRoute.kind === "acquisition" ? (
+              <AcquisitionAdminPage client={client} identity={identity.data} />
+            ) : currentRoute.kind === "system" ? (
+              <FeatureFlagAdminPage client={client} />
+            ) : currentRoute.kind === "privacy" ? (
+              <PrivacyAdminPage client={client} />
+            ) : currentRoute.kind === "legal" ? (
+              <LegalConfigurationPage
+                client={client}
+                identity={identity.data}
+              />
+            ) : currentRoute.kind === "system-ui" ? (
+              <UiSystemCatalogPage identity={identity.data} />
+            ) : currentRoute.kind === "dashboard" ? (
+              <RoleDashboardPage
+                client={client}
+                identity={identity.data}
+                mode="charity_admin"
+              />
+            ) : (
+              <ActionListPage identity={identity.data} />
+            )}
+          </CampaignUrlGate>
         </div>
       </RailShell>
     </FeatureFlagProvider>
