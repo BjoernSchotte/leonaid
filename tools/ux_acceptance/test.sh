@@ -169,9 +169,10 @@ run_browser tests/e2e/ux-acceptance.spec.mjs tests/e2e/command-palette.spec.mjs 
   --output=/browser-results/run
 
 # Review Focus #1: with modules switched off, the palette offers neither
-# their navigation nor their search. Only the API reads the switch; it is
-# restored afterwards (also on failure, see cleanup).
-palette_disabled_modules=tasks,inbox
+# their navigation nor their search. Knowledge and inbox require tasks, so
+# tasks only switches off together with both. Only the API reads the
+# switch; it is restored afterwards (also on failure, see cleanup).
+palette_disabled_modules=tasks,inbox,knowledge
 api_switched=true
 LEONAID_DISABLED_MODULES=$palette_disabled_modules \
   compose up --detach --wait --wait-timeout 420 --no-deps --force-recreate api

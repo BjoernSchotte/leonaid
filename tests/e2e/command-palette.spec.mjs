@@ -280,13 +280,15 @@ test.describe("switched-off modules", () => {
   test("a switched-off module contributes no navigation and no search", async ({
     browser,
   }) => {
-    expect(disabledModules).toEqual(["tasks", "inbox"]);
+    // Knowledge and inbox require tasks, so the server only accepts tasks off
+    // together with both (bootstrap/api.py).
+    expect(disabledModules).toEqual(["tasks", "inbox", "knowledge"]);
     const context = await signedIn(browser, klaraSession);
     const page = await context.newPage();
     const moduleRequests = [];
     page.on("request", (request) => {
       const path = new URL(request.url()).pathname;
-      if (/^\/api\/v1\/(tasks|task-lists|inbox)/.test(path)) {
+      if (/^\/api\/v1\/(tasks|task-lists|inbox|knowledge)/.test(path)) {
         moduleRequests.push(path);
       }
     });
@@ -300,11 +302,13 @@ test.describe("switched-off modules", () => {
       );
       expect(keys).not.toContain("tasks");
       expect(keys).not.toContain("inbox");
-      expect(keys).toContain("knowledge");
+      expect(keys).not.toContain("knowledge");
+      expect(keys).toContain("materials");
 
       await openPalette(page);
       const goTo = palette(page).getByRole("group", { name: "Gehe zu" });
-      await expect(navLabel(goTo, "Wissen")).toBeVisible();
+      await expect(navLabel(goTo, "Materialien")).toBeVisible();
+      await expect(navLabel(goTo, "Wissen")).toHaveCount(0);
       await expect(navLabel(goTo, "Aufgaben")).toHaveCount(0);
       await expect(navLabel(goTo, "Eingänge")).toHaveCount(0);
 
@@ -314,11 +318,11 @@ test.describe("switched-off modules", () => {
       await expect(palette(page).getByRole("status")).toBeHidden();
       await expect(
         palette(page).locator(
-          "[data-hit-type='task'], [data-hit-type='inbox-case']",
+          "[data-hit-type='task'], [data-hit-type='inbox-case'], [data-hit-type='knowledge-page']",
         ),
       ).toHaveCount(0);
       await expect(palette(page).locator(".palette-footer")).not.toContainText(
-        /Aufgaben|Eingänge/,
+        /Aufgaben|Eingänge|Wissen/,
       );
       expect(moduleRequests).toEqual([]);
     } finally {
