@@ -252,13 +252,26 @@ async def main() -> None:
                     )
                 ).status_code == 413
 
+                # A real multipart upload without Content-Length: the limit is
+                # enforced while the body streams, not trusted from headers.
+                boundary = "leonaid-oversized-proof"
+
                 async def oversized() -> AsyncIterator[bytes]:
+                    yield (
+                        f"--{boundary}\r\nContent-Disposition: form-data; "
+                        'name="file"; filename="big.bin"\r\n'
+                        "Content-Type: application/octet-stream\r\n\r\n"
+                    ).encode()
                     for _ in range(26):
                         yield b"x" * 1_048_576
+                    yield f"\r\n--{boundary}--\r\n".encode()
 
                 rejected = await client.post(
                     root,
-                    headers={**headers, "Content-Type": "application/octet-stream"},
+                    headers={
+                        **headers,
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    },
                     content=oversized(),
                 )
                 assert rejected.status_code == 413, rejected.text
