@@ -338,7 +338,7 @@ async def test_results_are_ranked_merged_limited_and_point_to_admin_routes() -> 
             SearchResultType.MEMBER,
             "Anna Krapf",
             "anna@example.test · Gesperrt",
-            "/admin/members",
+            f"/admin/members?open={member.id}",
         ),
     ]
     assert repository_limit(service) == 5

@@ -213,9 +213,19 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   Wartet: "progress",
 };
 
-/** Shape plus word; the word carries the meaning, so the shape is decorative. */
-export function StatusLabel({ status }: { readonly status: string }) {
-  const shape = statusShape[status] ?? "open";
+/**
+ * Shape plus word; the word carries the meaning, so the shape is decorative.
+ * `shape` overrides the mapping for a word that means something else in
+ * another domain (a member "Aktiv" is done, a campaign "Aktiv" in progress).
+ */
+export function StatusLabel({
+  status,
+  shape: explicitShape,
+}: {
+  readonly status: string;
+  readonly shape?: StatusShape;
+}) {
+  const shape = explicitShape ?? statusShape[status] ?? "open";
   return (
     <span className={`status-label is-${shape}`}>
       <StatusSvg shape={shape} size={14} />

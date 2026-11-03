@@ -121,6 +121,12 @@ export interface ListViewBaseProps<T> {
   /** Primary header action with keycap C. */
   readonly onCreate?: () => void;
   readonly createLabel?: string;
+  /**
+   * Palette id of the create command (default `list:<id>:create`). Use the
+   * id of a static "Anlegen" entry such as `create:member-invitation`, so
+   * the page command replaces it instead of showing twice.
+   */
+  readonly createCommandId?: string;
   /** Icon of the "Noch keine …" empty state. */
   readonly emptyIcon: LucideIcon;
   /** Header actions before the create button. */

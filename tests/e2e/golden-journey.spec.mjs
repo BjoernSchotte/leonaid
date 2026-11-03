@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
 import { openInvoice } from "./invoice-list.mjs";
+import { openInviteDialog, toast } from "./member-list.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -210,19 +211,19 @@ test("complete Krapfentaxi journey without database intervention", async ({
   await adminPage.goto(`${baseUrl}/admin/members`);
   await expect(adminPage).toHaveURL(`${baseUrl}/admin/members`);
   await expect(adminPage.getByTestId("display-name")).toHaveText("Klara Kern");
-  await adminPage.getByRole("tab", { name: /Mitglied einladen/ }).click();
-  await expect(adminPage.getByTestId("invite-action")).toBeEnabled();
-  await adminPage
-    .getByRole("textbox", { name: "Name des Mitglieds" })
-    .fill(identity.displayName);
-  await adminPage
-    .getByRole("textbox", { name: "Login-E-Mail" })
+  const inviteDialog = await openInviteDialog(adminPage);
+  await inviteDialog
+    .getByRole("textbox", { name: "E-Mail-Adresse" })
     .fill(identity.email);
-  await adminPage.getByTestId("invite-role").selectOption("acquirer");
-  await adminPage.getByTestId("invite-submit").click();
-  await expect(adminPage.locator("#invitation-status")).toContainText(
-    "Einladung ist unterwegs",
-  );
+  await inviteDialog
+    .getByRole("textbox", { name: "Name", exact: true })
+    .fill(identity.displayName);
+  await inviteDialog.getByTestId("invite-role").selectOption("acquirer");
+  await inviteDialog.getByTestId("invite-submit").click();
+  await expect(inviteDialog).toBeHidden();
+  await expect(
+    toast(adminPage, `Einladung an ${identity.email} gesendet.`),
+  ).toBeVisible();
   const invitationCode = await waitForCode(
     adminContext.request,
     identity.email,

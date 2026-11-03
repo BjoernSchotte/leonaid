@@ -281,6 +281,8 @@ RULES: tuple[Rule, ...] = (
     Rule(
         (
             "tests/e2e/identity.spec.mjs",
+            "tests/e2e/members-keyboard.spec.mjs",
+            "tests/e2e/member-list.mjs",
             "tests/e2e/y-role-management.spec.mjs",
             "tests/e2e/z-account-status.spec.mjs",
         ),
@@ -308,6 +310,7 @@ RULES: tuple[Rule, ...] = (
             "tools/sessions/**",
             "tests/e2e/invitations.spec.mjs",
             "tests/e2e/sessions.spec.mjs",
+            "tests/e2e/member-list.mjs",
         ),
         e2e("membership"),
         "membership proofs",

@@ -1,0 +1,546 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import {
+  ApiError,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
+  type MemberDirectoryActionResponse,
+  type MemberDirectoryMemberResponse,
+  type MemberDirectoryResponse,
+} from "@leonaid/api-client";
+import {
+  MemberAdministrationPage,
+  resetCommandPaletteState,
+} from "@leonaid/features";
+import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
+
+import {
+  familyNameKey,
+  loadMemberDirectory,
+  migrateLegacyInviteParam,
+  roleFilterValues,
+} from "../../../packages/features/src/action-admin/member-model";
+import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
+
+const ownAction = "20000000-0000-4000-8000-000000000001";
+const foreignAction = "20000000-0000-4000-8000-000000000003";
+const adminId = "10000000-0000-4000-8000-000000000001";
+const annaId = "10000000-0000-4000-8000-000000000004";
+const klaraId = "10000000-0000-4000-8000-000000000002";
+
+beforeAll(() => {
+  installDialogPolyfill();
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  Element.prototype.scrollIntoView ??= () => {};
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+});
+
+afterEach(() => {
+  resetCommandPaletteState();
+  window.localStorage.clear();
+  window.history.replaceState(null, "", "/admin/members");
+  vi.restoreAllMocks();
+});
+
+function member(
+  userId: string,
+  displayName: string,
+  overrides: Partial<MemberDirectoryMemberResponse> = {},
+): MemberDirectoryMemberResponse {
+  return {
+    actionMemberships: [],
+    activeSessionCount: 1,
+    displayName,
+    email: `${displayName.toLowerCase().replace(/\s+/g, ".")}@leonaid.invalid`,
+    globalRoleLabels: [],
+    globalRoles: [],
+    lastLoginAt: "2026-11-01T10:00:00Z",
+    revision: 3,
+    status: "active",
+    statusLabel: "Aktiv",
+    userId,
+    ...overrides,
+  };
+}
+
+const members: MemberDirectoryMemberResponse[] = [
+  member(adminId, "Simone System", {
+    globalRoles: ["system_admin"],
+    globalRoleLabels: ["System-Admin"],
+  }),
+  member(klaraId, "Klara Kern", {
+    actionMemberships: [
+      {
+        actionId: ownAction,
+        actionName: "Krapfentaxi 2026",
+        role: "charity_admin",
+        roleLabel: "Charity-Admin",
+      },
+    ],
+  }),
+  member(annaId, "Anna Akquise", {
+    actionMemberships: [
+      {
+        actionId: ownAction,
+        actionName: "Krapfentaxi 2026",
+        role: "acquirer",
+        roleLabel: "Akquisiteur",
+      },
+      {
+        actionId: foreignAction,
+        actionName: "Krapfentaxi Nord 2026",
+        role: "driver",
+        roleLabel: "Ausfahrer",
+      },
+    ],
+  }),
+  member("10000000-0000-4000-8000-000000000005", "Gesa Gesperrt", {
+    status: "suspended",
+    statusLabel: "Gesperrt",
+    lastLoginAt: null,
+  }),
+];
+
+const ownActionEntry: MemberDirectoryActionResponse = {
+  actionId: ownAction,
+  actionName: "Krapfentaxi 2026",
+  availableRoles: ["charity_admin", "acquirer", "finance_reader", "driver"],
+};
+
+function identity(systemAdmin: boolean): CurrentIdentityResponse {
+  return {
+    actionMemberships: [],
+    displayName: systemAdmin ? "Simone System" : "Klara Kern",
+    email: "x@leonaid.invalid",
+    freshLoginAt: "2026-11-03T10:00:00Z",
+    freshUntil: "2026-11-03T10:10:00Z",
+    globalRoles: systemAdmin ? ["system_admin"] : [],
+    navigation: [],
+    roleLabels: [],
+    sessionExpiresAt: "2026-11-04T10:00:00Z",
+    sessionLastSeenAt: "2026-11-03T10:00:00Z",
+    userId: systemAdmin ? adminId : klaraId,
+  } as unknown as CurrentIdentityResponse;
+}
+
+function fakeClient({
+  partial = false,
+  pages = [members],
+}: {
+  readonly partial?: boolean;
+  readonly pages?: readonly (readonly MemberDirectoryMemberResponse[])[];
+} = {}) {
+  return {
+    listMembers: vi.fn(
+      async ({
+        cursor,
+      }: {
+        cursor?: string;
+      }): Promise<MemberDirectoryResponse> => {
+        const index = cursor ? Number(cursor) : 0;
+        return {
+          actions: [ownActionEntry],
+          items: [...(pages[index] ?? [])],
+          nextCursor: index + 1 < pages.length ? String(index + 1) : null,
+          partial,
+          total: pages.flat().length,
+        };
+      },
+    ),
+    getMember: vi.fn(async (userId: string) => {
+      const found = pages.flat().find((item) => item.userId === userId);
+      if (!found) throw new Error("unknown member");
+      return found;
+    }),
+    changeMemberActionRole: vi.fn(),
+    changeMemberGlobalRole: vi.fn(),
+    changeMemberStatus: vi.fn(),
+    createMemberEmailChange: vi.fn(),
+    getInvitationOptions: vi.fn(async () => ({
+      actions: [{ id: ownAction, name: "Krapfentaxi 2026" }],
+      roles: [
+        { label: "Akquisiteur", value: "acquirer" },
+        { label: "Ausfahrer", value: "driver" },
+      ],
+    })),
+    createInvitation: vi.fn(async () => ({
+      invitationId: "inv-1",
+      status: "queued",
+    })),
+    listInvitations: vi.fn(async () => ({ items: [] })),
+  };
+}
+
+async function renderPage(
+  options: {
+    readonly client?: ReturnType<typeof fakeClient>;
+    readonly systemAdmin?: boolean;
+    readonly url?: string;
+  } = {},
+) {
+  window.history.replaceState(null, "", options.url ?? "/admin/members");
+  const client = options.client ?? fakeClient();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <HotkeyProvider>
+          <MemberAdministrationPage
+            client={client as unknown as LeonAidApiClient}
+            identity={identity(options.systemAdmin ?? true)}
+          />
+        </HotkeyProvider>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+  return client;
+}
+
+async function openMember(name: string) {
+  const link = (await screen.findAllByText(name))
+    .find((element) => element.closest(".row-link"))
+    ?.closest("a");
+  if (!link) throw new Error(`row ${name} not shown`);
+  fireEvent.click(link);
+  return within(await screen.findByTestId("member-detail"));
+}
+
+function confirmDialog() {
+  return within(screen.getByRole("alertdialog"));
+}
+
+describe("member model", () => {
+  it("sorts by family name and keeps both finance scopes apart", () => {
+    expect(familyNameKey("Klara Kern")).toBe("Kern Klara");
+    expect(
+      roleFilterValues(
+        member("u", "Fiona Finanz", {
+          globalRoles: ["finance_reader"],
+          actionMemberships: [
+            {
+              actionId: ownAction,
+              actionName: "A",
+              role: "finance_reader",
+              roleLabel: "Finanzen lesen",
+            },
+          ],
+        }),
+      ),
+    ).toEqual(["global:finance_reader", "action:finance_reader"]);
+  });
+
+  it("walks every page and keeps a member once", async () => {
+    const client = fakeClient({
+      pages: [members.slice(0, 2), [members[1]!, ...members.slice(2)]],
+    });
+    const directory = await loadMemberDirectory(
+      client as unknown as LeonAidApiClient,
+    );
+    expect(client.listMembers).toHaveBeenCalledTimes(2);
+    expect(client.listMembers).toHaveBeenLastCalledWith(
+      { cursor: "1", limit: 100 },
+      {},
+    );
+    expect(directory.items.map((item) => item.displayName)).toEqual([
+      "Simone System",
+      "Klara Kern",
+      "Anna Akquise",
+      "Gesa Gesperrt",
+    ]);
+    expect(directory.truncated).toBe(false);
+  });
+
+  it("turns the old invite tab link into the create request", () => {
+    window.history.replaceState(null, "", "/admin/members?view=invite&x=1");
+    migrateLegacyInviteParam();
+    expect(window.location.search).toBe("?x=1&create=member-invitation");
+  });
+});
+
+describe("member list", () => {
+  it("lists every member, sorted by family name, with views", async () => {
+    await renderPage();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Mitglieder" }),
+    ).toBeTruthy();
+    await screen.findByText("4 Mitglieder");
+    const names = [...document.querySelectorAll(".row-link .row-primary")].map(
+      (element) => element.textContent,
+    );
+    expect(names).toEqual([
+      "Anna Akquise",
+      "Gesa Gesperrt",
+      "Klara Kern",
+      "Simone System",
+    ]);
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "Gespeicherte Ansichten" }),
+      ).getByRole("button", { name: "Gesperrt" }),
+    );
+    await screen.findByText("1 von 4");
+    expect(window.location.search).toBe("?view=blocked");
+  });
+
+  it("opens the invitation dialog for ?view=invite and sends the invitation", async () => {
+    const client = await renderPage({ url: "/admin/members?view=invite" });
+    const dialog = within(
+      await screen.findByRole("dialog", { name: "Mitglied einladen" }),
+    );
+    expect(window.location.search).toBe("");
+    await dialog.findByTestId("invite-action");
+    fireEvent.click(dialog.getByTestId("invite-submit"));
+    expect(
+      dialog.getByText(
+        "Bitte eine gültige E-Mail-Adresse eingeben, z. B. name@beispiel.de.",
+      ),
+    ).toBeTruthy();
+    expect(client.createInvitation).not.toHaveBeenCalled();
+    fireEvent.change(dialog.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "neu@leonaid.invalid" },
+    });
+    fireEvent.change(dialog.getByLabelText("Name"), {
+      target: { value: "Nora Neu" },
+    });
+    fireEvent.click(dialog.getByTestId("invite-submit"));
+    await waitFor(() =>
+      expect(client.createInvitation).toHaveBeenCalledWith({
+        actionId: ownAction,
+        displayName: "Nora Neu",
+        email: "neu@leonaid.invalid",
+        role: "acquirer",
+      }),
+    );
+    expect(
+      await screen.findByText("Einladung an neu@leonaid.invalid gesendet."),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Mitglied einladen" }),
+      ).toBeNull(),
+    );
+  });
+
+  it("shows the server's refusal instead of the list", async () => {
+    const client = fakeClient();
+    client.listMembers.mockRejectedValue(
+      new ApiError(403, {
+        code: "member_directory_forbidden",
+        message: "Keine Berechtigung.",
+        requestId: "req-1",
+      }),
+    );
+    await renderPage({ client });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Mitglieder konnten nicht geladen werden",
+      }),
+    ).toBeTruthy();
+    expect(document.querySelector(".listview")).toBeNull();
+  });
+});
+
+describe("member pane", () => {
+  it("grants an action role only after the confirmation, with revision and key", async () => {
+    const client = await renderPage();
+    client.changeMemberActionRole.mockResolvedValue({
+      actionId: ownAction,
+      actionName: "Krapfentaxi 2026",
+      enabled: true,
+      replayed: false,
+      revision: 4,
+      role: "finance_reader",
+      roleLabel: "Finanzen lesen",
+      scope: "action",
+      userId: annaId,
+    });
+    const pane = await openMember("Anna Akquise");
+    expect(window.location.search).toBe(`?open=${annaId}`);
+    fireEvent.change(pane.getByTestId("member-role-add-role"), {
+      target: { value: "finance_reader" },
+    });
+    fireEvent.click(pane.getByTestId("member-role-add-submit"));
+    expect(client.changeMemberActionRole).not.toHaveBeenCalled();
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Rolle zuweisen" }),
+    );
+    await waitFor(() =>
+      expect(client.changeMemberActionRole).toHaveBeenCalledWith(
+        annaId,
+        ownAction,
+        "finance_reader",
+        { enabled: true, expectedRevision: 3 },
+        {
+          headers: {
+            "Idempotency-Key": expect.stringMatching(/^pilot012:member-role:/),
+          },
+        },
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Finanzen lesen wurde zugewiesen · Krapfentaxi 2026.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("offers only roles in actions the account manages", async () => {
+    await renderPage();
+    const pane = await openMember("Anna Akquise");
+    expect(
+      pane.getByTestId(`member-revoke-action-${ownAction}-acquirer`),
+    ).toBeTruthy();
+    expect(
+      pane.queryByTestId(`member-revoke-action-${foreignAction}-driver`),
+    ).toBeNull();
+    const roleOptions = [
+      ...pane.getByTestId("member-role-add-role").querySelectorAll("option"),
+    ].map((option) => option.value);
+    expect(roleOptions).toEqual(["charity_admin", "finance_reader", "driver"]);
+  });
+
+  it("sends a role change that needs a fresh sign-in to /fresh-login and back to the pane", async () => {
+    const client = await renderPage();
+    client.changeMemberActionRole.mockRejectedValue(
+      new ApiError(403, {
+        code: "fresh_login_required",
+        message: "Bitte erneut anmelden.",
+        requestId: "req-2",
+      }),
+    );
+    const pane = await openMember("Anna Akquise");
+    fireEvent.click(
+      pane.getByTestId(`member-revoke-action-${ownAction}-acquirer`),
+    );
+    const assign = vi.fn();
+    const { pathname, search } = window.location;
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+      pathname,
+      search,
+    } as Location);
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Rolle entziehen" }),
+    );
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `/fresh-login?returnTo=${encodeURIComponent(`/admin/members?open=${annaId}`)}`,
+      ),
+    );
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/wurde entzogen/)).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("keeps the last charity admin of an action", async () => {
+    const client = await renderPage();
+    const pane = await openMember("Klara Kern");
+    expect(pane.getByText("Letzte Aktionsleitung")).toBeTruthy();
+    fireEvent.click(
+      pane.getByTestId(`member-revoke-action-${ownAction}-charity_admin`),
+    );
+    expect(
+      await screen.findByText(
+        "Klara Kern ist die letzte Aktionsleitung von Krapfentaxi 2026.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(client.changeMemberActionRole).not.toHaveBeenCalled();
+  });
+
+  it("suspends through the confirmation and reports the ended sessions", async () => {
+    const client = await renderPage();
+    client.changeMemberStatus.mockResolvedValue({
+      displayName: "Anna Akquise",
+      previousStatus: "active",
+      previousStatusLabel: "Aktiv",
+      replayed: false,
+      revision: 4,
+      revokedSessionCount: 1,
+      status: "suspended",
+      statusLabel: "Gesperrt",
+      userId: annaId,
+    });
+    const pane = await openMember("Anna Akquise");
+    fireEvent.click(pane.getByTestId("member-status-suspend"));
+    expect(
+      confirmDialog().getByText(
+        "Anna Akquise verliert sofort den Zugriff. Die aktive Sitzung wird unwiderruflich beendet.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Zugang sperren" }),
+    );
+    expect(await screen.findByText("Anna Akquise ist gesperrt.")).toBeTruthy();
+    expect(screen.getByText("1 Sitzung wurde sofort beendet.")).toBeTruthy();
+    expect(client.changeMemberStatus).toHaveBeenCalledWith(
+      annaId,
+      { expectedRevision: 3, status: "suspended" },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^pilot011:member-status:/),
+        },
+      },
+    );
+  });
+
+  it("guards the only system admin and the own access", async () => {
+    await renderPage();
+    const pane = await openMember("Simone System");
+    expect(pane.getByText(/Einzige aktive Systemverwaltung/)).toBeTruthy();
+    expect(
+      (
+        pane.getByTestId(
+          "member-revoke-global-system_admin",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(pane.getByTestId("member-status-self")).toBeTruthy();
+    expect(pane.queryByTestId("member-status-suspend")).toBeNull();
+  });
+
+  it("hides club-wide roles and access controls in the charity admin's scope", async () => {
+    await renderPage({
+      client: fakeClient({ partial: true }),
+      systemAdmin: false,
+    });
+    expect(await screen.findByTestId("member-scope-note")).toBeTruthy();
+    const pane = await openMember("Anna Akquise");
+    expect(pane.queryByText("Systemrollen")).toBeNull();
+    expect(pane.queryByText("Zugang")).toBeNull();
+    expect(pane.queryByTestId("member-email-change-open")).toBeNull();
+    expect(pane.getByTestId("member-scope-pane-note")).toBeTruthy();
+  });
+
+  it("reopens the pane from ?open= after the fresh sign-in", async () => {
+    await renderPage({ url: `/admin/members?open=${annaId}` });
+    const pane = within(await screen.findByTestId("member-detail"));
+    expect(pane.getByTestId("member-detail-status").textContent).toBe("Aktiv");
+    await act(async () => {});
+  });
+});

@@ -360,7 +360,7 @@ async def assert_readable_where_it_points(
             record = "commitment" if kind == "order" else "invoice"
             assert item_id in {entry[record]["id"] for entry in listing.json()["items"]}
         elif kind == "member":
-            assert href == "/admin/members"
+            assert href == f"/admin/members?open={item_id}"
             member = await session.get(f"/api/v1/admin/members/{item_id}")
             assert member.status_code == 200, member.text
         else:

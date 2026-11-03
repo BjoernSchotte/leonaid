@@ -934,7 +934,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     ...(props.onCreate
       ? [
           {
-            id: `list:${props.id}:create`,
+            id: props.createCommandId ?? `list:${props.id}:create`,
             label: props.createLabel ?? "Neu anlegen",
             group: title,
             icon: Plus,

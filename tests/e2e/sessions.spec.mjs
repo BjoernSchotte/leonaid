@@ -1,4 +1,5 @@
 import { expect, test } from "./csp-guard.mjs";
+import { openInviteDialog, toast } from "./member-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
@@ -118,8 +119,11 @@ test("login, normal work, fresh login, admin action and logout", async ({
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Klara Kern",
     );
-    await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
-    await expect(page.locator('[data-testid="invite-action"]')).toBeEnabled();
+    await openInviteDialog(page);
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "Mitglied einladen" }),
+    ).toBeHidden();
 
     const cookies = await context.cookies(baseUrl);
     const session = cookies.find(
@@ -170,18 +174,18 @@ test("login, normal work, fresh login, admin action and logout", async ({
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Klara Kern",
     );
-    await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
-
-    await page
-      .getByRole("textbox", { name: "Name des Mitglieds" })
-      .fill("E2E Session Sponsor");
-    await page
-      .getByRole("textbox", { name: "Login-E-Mail" })
+    const inviteDialog = await openInviteDialog(page);
+    await inviteDialog
+      .getByRole("textbox", { name: "E-Mail-Adresse" })
       .fill("e2e-session@leonaid.invalid");
-    await page.locator('[data-testid="invite-submit"]').click();
-    await expect(page.locator("#invitation-status")).toContainText(
-      "Einladung ist unterwegs",
-    );
+    await inviteDialog
+      .getByRole("textbox", { name: "Name", exact: true })
+      .fill("E2E Session Sponsor");
+    await inviteDialog.getByTestId("invite-submit").click();
+    await expect(inviteDialog).toBeHidden();
+    await expect(
+      toast(page, "Einladung an e2e-session@leonaid.invalid gesendet."),
+    ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/session-fresh-admin.png`,
       fullPage: true,
