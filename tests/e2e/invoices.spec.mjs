@@ -353,8 +353,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toEqual([]);
     expect(pageErrors).toEqual([]);
 
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-dark").click();
+    await page.getByTestId("theme-toggle").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.screenshot({
       path: `${artifactDirectory}/invoice-ledger-dark.png`,

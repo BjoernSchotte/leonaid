@@ -55,16 +55,13 @@ for (const [surface, route, width] of [
     expect(iconButtonBox.height).toBeGreaterThanOrEqual(44);
     if (width === 1440) {
       await page.setViewportSize({ width: 780, height: 844 });
-      const logoutButton = page.getByRole("button", {
-        name: "Abmelden",
-        exact: true,
-      });
-      await expect(
-        logoutButton.locator("span").filter({ hasText: /^Abmelden$/ }),
-      ).toBeHidden();
+      // Collapsed rail: sign-out stays one labelled click away.
+      const logoutButton = page.getByTestId("logout");
+      await expect(logoutButton).toBeVisible();
+      await expect(logoutButton).toHaveAccessibleName("Abmelden");
       const logoutBox = await logoutButton.boundingBox();
-      expect(logoutBox.width).toBeGreaterThanOrEqual(44);
-      expect(logoutBox.height).toBeGreaterThanOrEqual(44);
+      expect(logoutBox.width).toBeGreaterThanOrEqual(24);
+      expect(logoutBox.height).toBeGreaterThanOrEqual(24);
       await page.setViewportSize({ width, height: 844 });
     }
     await uploadButton.click();

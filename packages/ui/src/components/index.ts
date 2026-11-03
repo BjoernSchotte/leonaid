@@ -1,4 +1,5 @@
 export * from "./app-shell";
+export * from "./rail-shell";
 export * from "./button";
 export * from "./confirm-dialog";
 export * from "./data-table";

@@ -21,10 +21,18 @@ import {
   useCurrentActionId,
   campaignEditorHref,
   ModuleSearch,
+  railCampaigns,
+  railNavigation,
   resolveModuleRoute,
   type UiModule,
 } from "@leonaid/features";
-import { AppShell, Button, buttonClassName, StatusMessage } from "@leonaid/ui";
+import {
+  activeNavigationKey,
+  Button,
+  buttonClassName,
+  RailShell,
+  StatusMessage,
+} from "@leonaid/ui";
 
 import { webModules } from "./modules";
 
@@ -46,6 +54,20 @@ function RedirectToOperationalApp() {
       </div>
     </main>
   );
+}
+
+/**
+ * The current page for another campaign: a campaign's own management page
+ * switches to the other campaign, every other page keeps its path and gets
+ * the campaign as `?action=` (pages read it when they load).
+ */
+function campaignHref(actionId: string): string {
+  const url = new URL(window.location.href);
+  if (/^\/admin\/actions\/[0-9a-f-]{36}\/?$/.test(url.pathname)) {
+    return `/admin/actions/${actionId}`;
+  }
+  url.searchParams.set("action", actionId);
+  return `${url.pathname}${url.search}`;
 }
 
 function route(available: readonly UiModule[]) {
@@ -153,116 +175,99 @@ export function App({ client }: AppProps) {
           )
         ? selectedActionId
         : "";
-  const selectedMembership = identity.data.actionMemberships.find(
-    (membership) => membership.actionId === actionId,
-  );
   const editorHref = campaignEditorHref(identity.data, actionId);
-  const currentAction =
-    currentRoute.kind === "module"
-      ? currentRoute.label
-      : currentRoute.kind === "manage"
-        ? (identity.data.actionMemberships.find(
-            (item) => item.actionId === currentRoute.actionId,
-          )?.actionName ?? "Aktion verwalten")
-        : currentRoute.kind === "new"
-          ? "Neue Aktion"
-          : currentRoute.kind === "activities"
-            ? "Neues"
-            : currentRoute.kind === "acquisition"
-              ? "Akquise"
-              : currentRoute.kind === "orders"
-                ? "Bestellungen"
-                : currentRoute.kind === "invoices"
-                  ? "Rechnungen"
-                  : currentRoute.kind === "members"
-                    ? "Mitglieder"
-                    : currentRoute.kind === "system"
-                      ? "System"
-                      : currentRoute.kind === "privacy"
-                        ? "Datenschutz"
-                        : currentRoute.kind === "legal"
-                          ? "Organisation & Recht"
-                          : currentRoute.kind === "system-ui"
-                            ? "UI-Basis"
-                            : currentRoute.kind === "dashboard"
-                              ? (identity.data.actionMemberships.find(
-                                  (item) =>
-                                    item.role === "charity_admin" &&
-                                    item.actionId ===
-                                      new URLSearchParams(
-                                        window.location.search,
-                                      ).get("action"),
-                                )?.actionName ??
-                                identity.data.actionMemberships.find(
-                                  (item) => item.role === "charity_admin",
-                                )?.actionName ??
-                                "Charity-Übersicht")
-                              : "Alle Aktionen";
+  const navigation = railNavigation(
+    identity.data.navigation.map((item) =>
+      item.key === "microsite" && editorHref
+        ? { ...item, href: editorHref }
+        : item,
+    ),
+    webModules.map((module) => module.id),
+  );
+  const campaigns = railCampaigns(identity.data);
+  const currentCampaignId =
+    campaigns.find((campaign) => campaign.id === (actionId || selectedActionId))
+      ?.id ??
+    identity.data.actionMemberships.find(
+      (membership) => membership.role === "charity_admin",
+    )?.actionId ??
+    campaigns[0]?.id ??
+    "";
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
-      <AppShell
-        moduleNavigationKeys={webModules.map((module) => module.id)}
-        currentActionName={selectedMembership?.actionName ?? currentAction}
-        identity={{
-          ...identity.data,
-          navigation: identity.data.navigation.map((item) =>
-            item.key === "microsite" && editorHref
-              ? { ...item, href: editorHref }
-              : item,
-          ),
-        }}
+      <RailShell
+        activeKey={activeNavigationKey(navigation, window.location.pathname)}
+        campaignSwitcher={
+          campaigns.length > 0
+            ? {
+                campaigns,
+                currentId: currentCampaignId,
+                onSelect: (id) => window.location.assign(campaignHref(id)),
+              }
+            : undefined
+        }
+        navigation={navigation}
         onLogout={() => {
           void client.logout().finally(() => {
             window.location.assign("/login");
           });
         }}
+        user={{
+          name: identity.data.displayName,
+          role: identity.data.roleLabels.join(" · "),
+        }}
       >
-        <ModuleSearch
-          modules={availableModules}
-          surface="web"
-          client={client}
-          identity={identity.data}
-        />
-        <PreviewNotice />
-        {currentRoute.kind === "module" ? (
-          currentRoute.render({ client, identity: identity.data })
-        ) : currentRoute.kind === "new" ? (
-          <CreateActionPage client={client} />
-        ) : currentRoute.kind === "manage" ? (
-          <ManageActionPage
-            actionId={currentRoute.actionId}
-            client={client}
-            key={currentRoute.actionId}
-          />
-        ) : currentRoute.kind === "members" ? (
-          <MemberAdministrationPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "orders" ? (
-          <CommitmentAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "invoices" ? (
-          <InvoiceAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "activities" ? (
-          <ActivityFeedPage client={client} surface="web" />
-        ) : currentRoute.kind === "acquisition" ? (
-          <AcquisitionAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "system" ? (
-          <FeatureFlagAdminPage client={client} />
-        ) : currentRoute.kind === "privacy" ? (
-          <PrivacyAdminPage client={client} />
-        ) : currentRoute.kind === "legal" ? (
-          <LegalConfigurationPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "system-ui" ? (
-          <UiSystemCatalogPage identity={identity.data} />
-        ) : currentRoute.kind === "dashboard" ? (
-          <RoleDashboardPage
+        <div className="page">
+          <ModuleSearch
+            modules={availableModules}
+            surface="web"
             client={client}
             identity={identity.data}
-            mode="charity_admin"
           />
-        ) : (
-          <ActionListPage identity={identity.data} />
-        )}
-      </AppShell>
+          <PreviewNotice />
+          {currentRoute.kind === "module" ? (
+            currentRoute.render({ client, identity: identity.data })
+          ) : currentRoute.kind === "new" ? (
+            <CreateActionPage client={client} />
+          ) : currentRoute.kind === "manage" ? (
+            <ManageActionPage
+              actionId={currentRoute.actionId}
+              client={client}
+              key={currentRoute.actionId}
+            />
+          ) : currentRoute.kind === "members" ? (
+            <MemberAdministrationPage
+              client={client}
+              identity={identity.data}
+            />
+          ) : currentRoute.kind === "orders" ? (
+            <CommitmentAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "invoices" ? (
+            <InvoiceAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "activities" ? (
+            <ActivityFeedPage client={client} surface="web" />
+          ) : currentRoute.kind === "acquisition" ? (
+            <AcquisitionAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "system" ? (
+            <FeatureFlagAdminPage client={client} />
+          ) : currentRoute.kind === "privacy" ? (
+            <PrivacyAdminPage client={client} />
+          ) : currentRoute.kind === "legal" ? (
+            <LegalConfigurationPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "system-ui" ? (
+            <UiSystemCatalogPage identity={identity.data} />
+          ) : currentRoute.kind === "dashboard" ? (
+            <RoleDashboardPage
+              client={client}
+              identity={identity.data}
+              mode="charity_admin"
+            />
+          ) : (
+            <ActionListPage identity={identity.data} />
+          )}
+        </div>
+      </RailShell>
     </FeatureFlagProvider>
   );
 }

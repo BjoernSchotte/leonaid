@@ -160,7 +160,7 @@ export { expect };
  * strict CSP blocks (so it never applied); the CSSOM is not subject to CSP.
  */
 export async function screenshotWithStaticTopbar(locator, options) {
-  const topbars = locator.page().locator(".ui-topbar");
+  const topbars = locator.page().locator(".ui-topbar, .topbar");
   await topbars.evaluateAll((elements) => {
     for (const element of elements) {
       element.style.setProperty("position", "static", "important");

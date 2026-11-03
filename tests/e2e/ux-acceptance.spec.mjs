@@ -125,7 +125,7 @@ test("charity admin completes the desktop review path without losing context", a
 
     await page.keyboard.press("Tab");
     await expect(
-      page.getByRole("link", { name: "Zum Hauptinhalt" }),
+      page.getByRole("link", { name: "Zum Inhalt springen" }),
     ).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#main-content")).toBeFocused();

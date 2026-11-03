@@ -10,6 +10,7 @@
 @import "./components/meter.css";
 @import "./components/shortcut-help.css";
 @import "./components/popover.css";
+@import "./components/shell.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";

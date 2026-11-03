@@ -41,7 +41,6 @@ async function createCatalogPage(browser, viewport) {
   await context.addCookies([sessionCookie(simoneSession)]);
   await context.addInitScript(() => {
     window.localStorage.setItem("leonaid.theme", "light");
-    window.localStorage.setItem("leonaid.sidebar-collapsed", "false");
   });
   const page = await context.newPage();
   const pageErrors = [];
@@ -70,7 +69,11 @@ test("UI catalog proves all base states with real identity", async ({
     await expect(
       catalog.getByText("System-Admin", { exact: true }).first(),
     ).toBeVisible();
-    await expect(page.getByTestId("current-action")).toHaveText("UI-Basis");
+    await expect(page.getByTestId("topbar-zone")).toHaveText("System");
+    await expect(page.getByTestId("rail-shell")).toHaveAttribute(
+      "data-zone",
+      "system",
+    );
     await expect(
       page.getByRole("table", {
         name: "Rollen und Zuständigkeiten der angemeldeten Person",
@@ -102,7 +105,7 @@ test("UI catalog proves all base states with real identity", async ({
 
     await page.keyboard.press("Tab");
     await expect(
-      page.getByRole("link", { name: "Zum Hauptinhalt" }),
+      page.getByRole("link", { name: "Zum Inhalt springen" }),
     ).toBeFocused();
 
     await page.getByRole("button", { name: "Toast anzeigen" }).click();
@@ -208,30 +211,31 @@ test("UI catalog proves all base states with real identity", async ({
     await page.keyboard.press("Escape");
     await expect(editDialog).toBeHidden();
 
-    await page.getByTestId("sidebar-toggle").click();
-    await expect(page.locator(".ui-shell")).toHaveAttribute(
-      "data-sidebar-collapsed",
-      "true",
-    );
+    // ≤ 1024 px: the rail collapses to its icon column.
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    const rail = page.getByTestId("desktop-sidebar");
+    await expect(rail).toBeVisible();
+    expect((await rail.boundingBox()).width).toBe(72);
+    await expect(
+      rail.getByRole("link", { name: "System" }).locator(".nav-label"),
+    ).toBeHidden();
     await page.screenshot({
       path: `${artifactDirectory}/ui-system-desktop-collapsed.png`,
       fullPage: false,
     });
+    await page.setViewportSize({ width: 1440, height: 1000 });
 
-    const themeMenu = page.getByRole("menu");
-    await page.getByTestId("theme-trigger").click();
-    await expect(themeMenu).toHaveCSS("opacity", "1");
-    await expectNoSeriousAccessibilityViolations(page, "Farbschema-Menü Light");
-    await page.getByTestId("theme-dark").click();
+    const themeToggle = page.getByTestId("theme-toggle");
+    await expect(themeToggle).toHaveAccessibleName(
+      "Dunkle Darstellung (Umschalt+T)",
+    );
+    await themeToggle.click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await expect(page.locator(".ui-theme-menu")).toHaveCount(0);
+    await expect(themeToggle).toHaveAccessibleName(
+      "Helle Darstellung (Umschalt+T)",
+    );
+    await expect(themeToggle).toBeFocused();
     await expectNoSeriousAccessibilityViolations(page, "Katalog Dark");
-    await page.getByTestId("theme-trigger").click();
-    await expect(themeMenu).toHaveCSS("opacity", "1");
-    await expectNoSeriousAccessibilityViolations(page, "Farbschema-Menü Dark");
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".ui-theme-menu")).toHaveCount(0);
-    await expect(page.getByTestId("theme-trigger")).toBeFocused();
     await page.screenshot({
       path: `${artifactDirectory}/ui-system-dark.png`,
       fullPage: false,
@@ -312,7 +316,7 @@ test("uses self-hosted Leitsystem fonts", async ({ browser }) => {
   }
 });
 
-test("mobile shell keeps role and work context visible", async ({
+test("mobile shell shows the area and opens every area in the Mehr sheet", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await createCatalogPage(browser, {
@@ -322,9 +326,10 @@ test("mobile shell keeps role and work context visible", async ({
 
   try {
     await expect(page.getByTestId("desktop-sidebar")).toBeHidden();
-    const workContext = page.getByTestId("mobile-work-context");
-    await expect(workContext).toContainText("System-Admin");
-    await expect(workContext).toContainText("UI-Basis");
+    await expect(page.getByTestId("topbar-zone")).toHaveText("System");
+    await expect(
+      page.getByRole("navigation", { name: "Hauptnavigation mobil" }),
+    ).toBeVisible();
 
     await expect(page).toHaveScreenshot("ui-system-mobile.png", {
       animations: "disabled",
@@ -337,12 +342,130 @@ test("mobile shell keeps role and work context visible", async ({
     });
 
     await page.getByTestId("mobile-menu").click();
-    const drawer = page.getByRole("dialog", { name: "Navigation" });
-    await expect(drawer).toBeVisible();
-    await expect(drawer.getByTestId("current-action")).toHaveText("UI-Basis");
+    const sheet = page.getByRole("dialog", { name: "Alle Bereiche" });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('[data-nav-key="system"]')).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(sheet.getByText("System-Admin")).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Abmelden" })).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/ui-system-mobile-sheet.png`,
+      fullPage: false,
+    });
     await expectNoSeriousAccessibilityViolations(page, "Mobile Navigation");
     await page.keyboard.press("Escape");
-    await expect(drawer).toHaveCount(0);
+    await expect(sheet).toBeHidden();
+    await expect(page.getByTestId("mobile-menu")).toBeFocused();
+
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+/** The zone colour as the shell resolves it, through a CSSOM probe. */
+async function zoneColours(page) {
+  return page.evaluate(() => {
+    const shell = document.querySelector(".shell");
+    const probe = document.createElement("span");
+    probe.style.setProperty("background-color", "var(--zone)");
+    shell.append(probe);
+    const zone = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const band = getComputedStyle(
+      document.querySelector(".topbar"),
+      "::before",
+    );
+    return { zone, band: band.backgroundColor, bandHeight: band.height };
+  });
+}
+
+async function expectNoHorizontalOverflow(page, label) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow, label).toBeLessThanOrEqual(1);
+}
+
+test("rail shell: g navigation, zone band, skip link and narrow layouts", async ({
+  browser,
+}) => {
+  const { context, page, pageErrors } = await createCatalogPage(browser, {
+    width: 1440,
+    height: 900,
+  });
+
+  try {
+    // Only what the server returned: Simone has no orders or invoices.
+    const rail = page.getByRole("navigation", { name: "Hauptnavigation" });
+    await expect(rail.locator('[data-nav-key="system"]')).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(rail.locator('[data-nav-key="orders"]')).toHaveCount(0);
+    const systemZone = await zoneColours(page);
+    expect(systemZone.band).toBe(systemZone.zone);
+    expect(systemZone.bandHeight).toBe("3px");
+
+    // Skip link first in tab order, then into the rail.
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("link", { name: "Zum Inhalt springen" }),
+    ).toBeFocused();
+
+    // "g m" goes to the members zone and recolours the band.
+    await page.keyboard.press("g");
+    await expect(page.locator(".prefix-hint")).toContainText("gedrückt");
+    await page.keyboard.press("m");
+    await page.waitForURL(`${baseUrl}/admin/members`);
+    await expect(page.getByTestId("rail-shell")).toHaveAttribute(
+      "data-zone",
+      "members",
+    );
+    await expect(page.getByTestId("topbar-zone")).toHaveText("Mitglieder");
+    const membersZone = await zoneColours(page);
+    expect(membersZone.band).toBe(membersZone.zone);
+    expect(membersZone.band).not.toBe(systemZone.band);
+
+    // Every g binding of the help points at an entry the rail shows.
+    await page.keyboard.press("?");
+    const help = page.getByRole("dialog", { name: "Tastenkürzel" });
+    await expect(help).toBeVisible();
+    const goTo = help.locator("section", { hasText: "Gehe zu" }).locator("li");
+    const railLinks = await rail.locator("a[data-nav-key]").count();
+    const lettered = await rail.locator("a[data-nav-key] .kbd-group").count();
+    expect(await goTo.count()).toBe(lettered);
+    expect(lettered).toBeGreaterThan(0);
+    expect(lettered).toBeLessThanOrEqual(railLinks);
+    await page.keyboard.press("Escape");
+
+    // 200 % zoom on 1280 px: 640 CSS px. The rail gives way, nothing overflows.
+    await page.setViewportSize({ width: 640, height: 400 });
+    await expect(page.getByTestId("desktop-sidebar")).toBeHidden();
+    await expect(
+      page.getByRole("navigation", { name: "Hauptnavigation mobil" }),
+    ).toBeVisible();
+    await expectNoHorizontalOverflow(page, "200 % Zoom bei 1280 px");
+
+    // 1024 px: collapsed icon rail without overflow.
+    await page.setViewportSize({ width: 1024, height: 768 });
+    expect(
+      (await page.getByTestId("desktop-sidebar").boundingBox()).width,
+    ).toBe(72);
+    await expectNoHorizontalOverflow(page, "1024 px");
+
+    // 390 px: bottom nav with 44 px targets, no overflow.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoHorizontalOverflow(page, "390 px");
+    for (const item of await page
+      .getByRole("navigation", { name: "Hauptnavigation mobil" })
+      .locator(".nav-item")
+      .all()) {
+      const box = await item.boundingBox();
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
 
     expect(pageErrors).toEqual([]);
   } finally {
