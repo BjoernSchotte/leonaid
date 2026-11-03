@@ -850,6 +850,12 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           >
             Listenansicht öffnen
           </a>
+          <a
+            className={buttonClassName({ variant: "secondary" })}
+            href="/admin/system/ui?listview&invoices"
+          >
+            Rechnungsliste öffnen
+          </a>
         </div>
       </section>
 

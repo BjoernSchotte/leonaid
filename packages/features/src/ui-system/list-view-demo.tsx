@@ -32,6 +32,7 @@ import {
 } from "@leonaid/ui";
 
 import { useContextCommands } from "../command-palette/store";
+import { InvoiceDemoList } from "./invoice-list-demo";
 
 /*
  * Catalog demo of the Linear-style list (fixture rows, nothing is stored on
@@ -467,18 +468,25 @@ function DemoList() {
 }
 
 /**
- * Full-page list demo (`/admin/system/ui?listview`) in the orders zone. Uses
- * the shell's hotkey registry when there is one, its own otherwise.
+ * Full-page list demos in their zones: orders (`/admin/system/ui?listview`)
+ * and invoices (`?listview&invoices`). Uses the shell's hotkey registry
+ * when there is one, its own otherwise.
  */
 export function ListViewDemo() {
   const shellRegistry = useOptionalHotkeyRegistry();
+  const invoices = new URLSearchParams(window.location.search).has("invoices");
+  const list = invoices ? <InvoiceDemoList /> : <DemoList />;
   return (
-    <div className="ui-list-demo" data-testid="ui-list-demo" data-zone="orders">
+    <div
+      className="ui-list-demo"
+      data-testid="ui-list-demo"
+      data-zone={invoices ? "invoices" : "orders"}
+    >
       {shellRegistry ? (
-        <DemoList />
+        list
       ) : (
         <HotkeyProvider>
-          <DemoList />
+          {list}
           <ShortcutHelp />
           <PrefixHint />
         </HotkeyProvider>

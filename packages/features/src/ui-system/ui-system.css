@@ -388,6 +388,12 @@
   text-decoration: line-through;
   color: var(--text-3);
 }
+.ui-list-demo .inv-open {
+  align-self: center;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
 .ui-list-demo .next-step {
   display: grid;
   gap: var(--s-3);
