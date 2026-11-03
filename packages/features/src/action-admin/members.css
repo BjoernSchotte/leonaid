@@ -5,6 +5,16 @@
  * so they do not leak into other screens.
  */
 
+/*
+ * The prototype renders its lists full-bleed under the topbar; the shell's
+ * .page padding (for ordinary pages) would inset the list and its pane.
+ * The Einladungen table brings its own .page padding below.
+ */
+.page:has(.members-page) {
+  max-width: none;
+  padding: 0;
+}
+
 /* ---------- subnav (prototype pages/Invoices.css) ---------- */
 .members-top {
   padding: var(--s-4) var(--s-6) 0;
