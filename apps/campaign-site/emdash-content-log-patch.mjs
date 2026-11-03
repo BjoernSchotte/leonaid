@@ -6,19 +6,21 @@ import { dirname, join } from "node:path";
 
 export function contentHandlerEntry() {
   const require = createRequire(import.meta.url);
-  return join(dirname(require.resolve("emdash")), "api-B0w3uBiG.mjs");
+  return join(dirname(require.resolve("emdash")), "api--PYoyeTo.mjs");
 }
 
 // This exact published bundle is shared by content handlers and revision work.
 // Preserve fixed failure signals, never the raw database exception or item IDs.
+// 1.x adds the scheduled policy rejection handler with the same raw log.
 export function patchContentLogs(source) {
   assert.equal(
     createHash("sha256").update(source).digest("hex"),
-    "fd3a3c5680b620ec28a719c9aec511d632408f287e94b990b4c8096b6b40b756",
+    "be0f86b65e91a6c360a3feae4bd0009df4b98e5f5cc540b07dbff1e4348ed9bb",
     "EmDash content source changed; re-review log sanitization",
   );
-  const content = /console\.error\(("Content [^"]+ error:"), (?:error|err)\);/g;
-  assert.equal([...source.matchAll(content)].length, 20);
+  const content =
+    /console\.error\(("(?:Content [^"]+|Scheduled policy rejection) error:"), (?:error|err)\);/g;
+  assert.equal([...source.matchAll(content)].length, 21);
   const revision =
     "console.error(`[revisions] Failed to prune revisions for ${revision.collection}/${revision.entryId}:`, error);";
   assert.equal(source.split(revision).length, 2);

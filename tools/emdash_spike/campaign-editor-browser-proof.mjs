@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { guardCsp } from "./csp-guard.mjs";
+import { confirmPublish, unpublishButton } from "./editor-actions.mjs";
 import {
   browserLogin,
   browserFreshLogin,
@@ -173,18 +174,22 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           new URL(response.url()).pathname === `${apiPath}/publish` &&
           response.request().method() === "POST",
       );
-      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await confirmPublish(page);
       assert.equal((await published).status(), 200);
       // Wait for the editor's publish/refetch transition, not merely receipt
       // of the HTTP response, before starting the next user edit.
-      await expect(
-        page.getByRole("button", { name: /^Unpublish / }),
-      ).toBeVisible();
+      await expect(unpublishButton(page)).toBeVisible();
       await expect(title).toHaveValue(editedTitle);
       const live = await json(apiPath);
       assert.equal(live.item.data.title, editedTitle);
       assert.equal(live.item.draftRevisionId, null);
-      assert.equal(live.item.liveRevisionId, draft.item.draftRevisionId);
+      // EmDash 1.x saves the editor state before it publishes, so the live
+      // revision is that attributed save of the autosaved draft content.
+      const liveRevision = await json(
+        `/_emdash/api/revisions/${live.item.liveRevisionId}`,
+      );
+      assert.equal(liveRevision.item.data.title, editedTitle);
+      assert.equal(liveRevision.item.authorId, identity.id);
       // A later edit remains private, including after the next page load.
       const followup = page.waitForResponse(
         (response) =>
@@ -211,6 +216,43 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         `${editedTitle} explicitly saved draft`,
       );
       assert.equal((await json(apiPath)).item.liveData.title, editedTitle);
+      if (!login && !charity) {
+        // Input typed while the editor's post-publish refetch is slow must
+        // survive and autosave (EmDash's save-then-refetch reset and a stale
+        // refetch after autosave both dropped it). The real responses are
+        // only held back; their content is never changed.
+        let delayRefetch = false;
+        const entryReads =
+          /\/_emdash\/api\/(?:content\/campaign_pages\/[0-9A-Z]{26}|revisions\/[0-9A-Z]{26})(?:\?.*)?$/;
+        await context.route(entryReads, async (route) => {
+          if (!delayRefetch || route.request().method() !== "GET")
+            return route.continue();
+          const response = await route.fetch();
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          await route.fulfill({ response });
+        });
+        for (const offset of [0, 750, 1500]) {
+          delayRefetch = true;
+          const publishedAgain = page.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === `${apiPath}/publish` &&
+              response.request().method() === "POST",
+          );
+          await confirmPublish(page);
+          assert.equal((await publishedAgain).status(), 200);
+          await page.waitForTimeout(offset);
+          const typed = `${editedTitle} typed ${offset} ms after publish`;
+          await title.fill(typed);
+          await expect
+            .poll(async () => (await json(apiPath)).item.data.title, {
+              timeout: 15000,
+            })
+            .toBe(typed);
+          await expect(title).toHaveValue(typed);
+          delayRefetch = false;
+        }
+        await context.unroute(entryReads);
+      }
       assert.equal(
         (await context.cookies()).some((item) =>
           ["emdash_session", "astro-session"].includes(item.name),

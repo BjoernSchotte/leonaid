@@ -1,7 +1,7 @@
 ---
 title: Eingänge bearbeiten
 description: Öffentliche Kontaktanfragen lesen, zuweisen, den CRM-Kontakt klären, Aufgaben und Dateiversionen verknüpfen und abschließen.
-docId: DOC-P044
+docId: DOC-P045
 audience: [user]
 diataxis: how-to
 contentRevision: 1

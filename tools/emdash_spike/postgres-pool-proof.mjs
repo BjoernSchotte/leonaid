@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Kysely, sql } from "kysely";
 import {
+  cmsPoolConfig,
   patchPostgresSource,
   postgresAdapterEntry,
 } from "../../apps/campaign-site/emdash-postgres-patch.mjs";
@@ -40,7 +41,7 @@ const { createDialect } = await import(
   `data:text/javascript;base64,${Buffer.from(executable).toString("base64")}`
 );
 const database = new Kysely({
-  dialect: createDialect({ pool: { min: 0, max: 5 } }),
+  dialect: createDialect({ pool: { ...cmsPoolConfig } }),
 });
 let release;
 const released = new Promise((done) => {

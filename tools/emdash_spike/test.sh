@@ -15,7 +15,7 @@ fi
 case "$test_case" in
   core-readiness-pool) ;;
   twenty-startup|alias-renderer|cutover-rollback) ;;
-  migration-operator) ;;
+  migration-operator|emdash-upgrade) ;;
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
   release-image-identity) ;;
@@ -32,6 +32,10 @@ if [ "$test_case" = twenty-startup ]; then
 fi
 if [ "$test_case" = migration-operator ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration-operator
+fi
+if [ "$test_case" = emdash-upgrade ]; then
+  # Needs the legacy release commit locally (see emdash-upgrade-legacy.sh).
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" emdash-upgrade
 fi
 if [ "$test_case" = release-image-identity ]; then
   /bin/sh "$root/tools/emdash_spike/release-image-identity.sh" "$root"

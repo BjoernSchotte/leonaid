@@ -17,32 +17,38 @@ export function patchCampaignMediaEditor(source) {
     "const LeonAidMediaCampaign = React$1.createContext(null);\nfunction ContentEditor({ leonaidActionId,",
   );
   replace(
-    '\treturn /* @__PURE__ */ jsx("form", {\n\t\tonSubmit: handleSubmit,\n\t\tclassName: cn("transition-all duration-300",',
-    '\tconst mediaCampaign = collection === "campaign_pages" ? (isNew ? formData.action_id : item?.data?.action_id) : null;\n\treturn jsx(LeonAidMediaCampaign.Provider, { value: mediaCampaign, children: jsx("form", {\n\t\tonSubmit: handleSubmit,\n\t\tclassName: cn("transition-all duration-300",',
+    '\treturn /* @__PURE__ */ jsxs("form", {\n\t\tonSubmit: handleSubmit,\n\t\tclassName: cn("flex h-full flex-col bg-kumo-elevated",',
+    '\tconst mediaCampaign = collection === "campaign_pages" ? (isNew ? formData.action_id : item?.data?.action_id) : null;\n\treturn jsx(LeonAidMediaCampaign.Provider, { value: mediaCampaign, children: jsxs("form", {\n\t\tonSubmit: handleSubmit,\n\t\tclassName: cn("flex h-full flex-col bg-kumo-elevated",',
   );
   replace(
-    "\t});\n}\nfunction ContentEditorSettingsResizeHandle({ panelId })",
-    '\t}) }, mediaCampaign ?? "unbound");\n}\nfunction ContentEditorSettingsResizeHandle({ panelId })',
+    "\t\t]\n\t});\n}\nfunction ContentEditorSettingsResizeHandle({ panelId })",
+    '\t\t]\n\t}) }, mediaCampaign ?? "unbound");\n}\nfunction ContentEditorSettingsResizeHandle({ panelId })',
   );
   const pickerStart = source.indexOf("function MediaPickerModal(");
   assert.ok(pickerStart > 0);
   const pickerHeaderEnd = source.indexOf("\n", pickerStart);
   const pickerHeader = source.slice(pickerStart, pickerHeaderEnd);
+  // Campaign media is a flat, campaign-scoped library: no global folders, no
+  // external providers and no URL source. The picker keeps native paging.
   replace(
     pickerHeader,
-    `${pickerHeader}\n\tconst campaign = React$1.useContext(LeonAidMediaCampaign);\n\tlocalOnly = true;\n\thideUrlInput = true;`,
+    `${pickerHeader}\n\tconst campaign = React$1.useContext(LeonAidMediaCampaign);\n\tlocalOnly = true;\n\thideUrlInput = true;\n\tif (campaign && mimeTypeFilters === void 0) mimeTypeFilters = ["image/png", "image/jpeg", "image/webp"];`,
   );
   replace(
-    '\tconst mediaQueryKey = [\n\t\t"media",',
-    '\tconst mediaQueryKey = [\n\t\t"media",\n\t\tcampaign,',
+    '\tconst localQueryKey = React$1.useMemo(() => [\n\t\t"media",\n\t\t"picker",',
+    '\tconst localQueryKey = React$1.useMemo(() => [\n\t\t"media",\n\t\t"picker",\n\t\tcampaign,',
   );
   replace(
-    "\t\tqueryFn: ({ pageParam }) => fetchMediaList({\n\t\t\tmimeType: filters,",
-    "\t\tqueryFn: ({ pageParam }) => fetchMediaList({\n\t\t\tcampaign,\n\t\t\tmimeType: filters,",
+    "\t\tqueryFn: () => fetchMediaList({\n\t\t\tpage,\n\t\t\tlimit: PICKER_PAGE_SIZE,\n\t\t\tsearch: activeSearch || void 0,\n\t\t\tmimeType: effectiveMimeFilters,\n\t\t\tfolderId: activeSearch ? void 0 : folderId ?? null\n\t\t}),",
+    "\t\tqueryFn: () => fetchMediaList({\n\t\t\tcampaign,\n\t\t\tpage,\n\t\t\tlimit: PICKER_PAGE_SIZE,\n\t\t\tsearch: activeSearch || void 0,\n\t\t\tmimeType: effectiveMimeFilters,\n\t\t\tfolderId: campaign || activeSearch ? void 0 : folderId ?? null\n\t\t}),",
   );
   replace(
-    "mutationFn: (file) => uploadMedia(file, { fieldId }),",
-    "mutationFn: (file) => uploadMedia(file, { fieldId, campaign }),",
+    '\tconst showFolderResults = activeSource === "local" &&',
+    '\tconst showFolderResults = !campaign && activeSource === "local" &&',
+  );
+  replace(
+    "\t\t\titem: withLocalMediaUrl(await uploadMedia(file, {\n\t\t\t\tfieldId,\n\t\t\t\tfolderId: folderId ?? null,\n\t\t\t\tsignal\n\t\t\t}))",
+    "\t\t\titem: withLocalMediaUrl(await uploadMedia(file, {\n\t\t\t\tfieldId,\n\t\t\t\tcampaign,\n\t\t\t\tfolderId: campaign ? void 0 : folderId ?? null,\n\t\t\t\tsignal\n\t\t\t}))",
   );
   replace(
     "\t\t\tonChange: (v) => onChange(v),\n\t\t\trequired: subField.required\n\t\t});\n\t\tdefault:",
@@ -59,8 +65,8 @@ export function patchCampaignMediaEditor(source) {
   // A public optimizer cannot forward the private Core session. Keep previews
   // on the authenticated endpoint; do not create a second anonymous media path.
   replace(
-    "function getMediaThumbnailUrl(originalUrl, mimeType, width = MEDIA_THUMBNAIL_WIDTH) {",
-    "function getMediaThumbnailUrl(originalUrl, mimeType, width = MEDIA_THUMBNAIL_WIDTH) {\n\tif (originalUrl.startsWith(INTERNAL_MEDIA_PREFIX)) return originalUrl;",
+    "function getMediaThumbnailUrl(originalUrl, mimeType, width = MEDIA_THUMBNAIL_WIDTH, contentHash) {",
+    "function getMediaThumbnailUrl(originalUrl, mimeType, width = MEDIA_THUMBNAIL_WIDTH, contentHash) {\n\tif (originalUrl.startsWith(INTERNAL_MEDIA_PREFIX)) return originalUrl;",
   );
   return source;
 }

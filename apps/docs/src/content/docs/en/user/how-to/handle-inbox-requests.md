@@ -1,7 +1,7 @@
 ---
 title: Handle inbox requests
 description: Read public contact requests, assign them, clarify the CRM contact, link tasks and file versions, and close them.
-docId: DOC-P044
+docId: DOC-P045
 audience: [user]
 diataxis: how-to
 contentRevision: 1

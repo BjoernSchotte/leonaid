@@ -542,6 +542,41 @@
   ],
   "DOC-P042": [
     {
+      "file": "packages/features/src/action-admin/manage-action.tsx",
+      "contains": [
+        "Microsite bearbeiten"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/emdash-editor-patch.mjs",
+      "contains": [
+        "Zurück zu LeonAid",
+        "isEditorDirtyRef.current"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/emdash-media-editor-patch.mjs",
+      "contains": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ]
+    },
+    {
+      "file": "tools/emdash_spike/editor-actions.mjs",
+      "contains": [
+        "Publish (now|changes)"
+      ]
+    },
+    {
+      "file": "apps/campaign-site/src/auth/campaign-update.mjs",
+      "contains": [
+        "body.slug !== existing.data.item.slug"
+      ]
+    }
+  ],
+  "DOC-P043": [
+    {
       "file": "packages/features/src/materials/materials.tsx",
       "contains": [
         "Neues Material",
@@ -563,7 +598,7 @@
       ]
     }
   ],
-  "DOC-P043": [
+  "DOC-P044": [
     {
       "file": "packages/features/src/knowledge/knowledge.tsx",
       "contains": [
@@ -609,7 +644,7 @@
       ]
     }
   ],
-  "DOC-P044": [
+  "DOC-P045": [
     {
       "file": "packages/features/src/inbox/inbox.tsx",
       "contains": [
