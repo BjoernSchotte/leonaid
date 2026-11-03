@@ -64,8 +64,8 @@ export interface InboxPageProps extends ModulePageContext {
 
 /**
  * The inbox ("Eingang") on the list view, in the admin web and the PWA.
- * The PWA shell has no hotkey or toast provider yet; the page brings its
- * own then, so the list keys and the edit toasts work there too.
+ * Both shells provide the hotkey and toast providers; the page brings its
+ * own only when rendered without them (tests, embedding).
  */
 export function InboxPage(props: InboxPageProps) {
   useState(() => {

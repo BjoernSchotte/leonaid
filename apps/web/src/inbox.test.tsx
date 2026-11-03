@@ -94,6 +94,7 @@ function identity(
     freshLoginAt: "2026-11-03T08:00:00Z",
     freshUntil: "2026-11-03T09:00:00Z",
     globalRoles: ["system_admin"],
+    installation: { clubName: "Lions Club Beispielstadt" },
     navigation: [],
     roleLabels: [],
     sessionExpiresAt: "2026-11-04T08:00:00Z",

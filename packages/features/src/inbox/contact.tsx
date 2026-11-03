@@ -15,6 +15,7 @@ import {
   StatusLabel,
   StatusMessage,
   Textarea,
+  useLeaveGuard,
 } from "@leonaid/ui";
 
 import { acceptCases, contactStateLabels, type Address } from "./inbox-model";
@@ -101,6 +102,7 @@ function ContactMatch({
   const [note, setNote] = useState("");
   const operation = useRef(crypto.randomUUID());
   const sie = address === "Sie";
+  useLeaveGuard(note.trim().length > 0);
   const search = useMutation({
     mutationFn: () =>
       client.listInboxContactCandidates(item.id, {

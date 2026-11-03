@@ -6,7 +6,14 @@ import {
   type Case,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, Field, Modal, StatusMessage, Textarea } from "@leonaid/ui";
+import {
+  Button,
+  Field,
+  Modal,
+  StatusMessage,
+  Textarea,
+  useLeaveGuard,
+} from "@leonaid/ui";
 
 import {
   acceptCases,
@@ -131,6 +138,7 @@ function CloseCaseForm({
   const [error, setError] = useState<string>();
   const [serverError, setServerError] = useState<string>();
   const [pending, setPending] = useState(false);
+  useLeaveGuard(note.trim().length > 0);
   const first = cases[0]!;
   const fieldId = `close-note-${first.id}`;
 

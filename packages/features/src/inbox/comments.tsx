@@ -7,7 +7,7 @@ import { Lock, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { Case, LeonAidApiClient } from "@leonaid/api-client";
-import { Button, Icon, Input, StatusMessage } from "@leonaid/ui";
+import { Button, Icon, Input, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 
 import type { Address } from "./inbox-model";
 
@@ -35,6 +35,7 @@ export function InboxComments({
   const cache = useQueryClient();
   const [body, setBody] = useState("");
   const operation = useRef(crypto.randomUUID());
+  useLeaveGuard(body.trim().length > 0);
   const queryKey = ["inbox-comments", item.id];
   const comments = useInfiniteQuery({
     queryKey,
