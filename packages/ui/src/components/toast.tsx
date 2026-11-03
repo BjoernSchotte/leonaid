@@ -235,20 +235,42 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
 
   const api = useMemo(() => ({ dismiss, show }), [dismiss, show]);
 
-  // A toast enters its live region one frame after show(). A modal that
-  // closes in the same update has moved the host by then, so the toast is
-  // inserted into a region that is connected and visible, which screen
-  // readers announce.
-  const waiting = toasts.some((toast) => !toast.ready);
+  /*
+   * A toast enters its live region one frame after the commit that added it.
+   * A modal that closes in the same update has moved the host by then, so the
+   * toast is inserted into a region that is connected and visible, which
+   * screen readers announce. Each toast has its own frame. Background tabs
+   * run no frames, so there a zero timeout stands in; only the dismiss timer
+   * waits for the tab to become visible.
+   */
+  const scheduled = useRef(new Map<string, () => void>()).current;
   useEffect(() => {
-    if (!waiting) return;
-    const frame = window.requestAnimationFrame(() => {
-      setToasts((list) =>
-        list.map((toast) => (toast.ready ? toast : { ...toast, ready: true })),
-      );
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [waiting]);
+    for (const toast of toasts) {
+      if (toast.ready || scheduled.has(toast.id)) continue;
+      const markReady = () => {
+        scheduled.delete(toast.id);
+        setToasts((list) =>
+          list.map((entry) =>
+            entry.id === toast.id ? { ...entry, ready: true } : entry,
+          ),
+        );
+      };
+      if (document.hidden) {
+        const timer = window.setTimeout(markReady, 0);
+        scheduled.set(toast.id, () => window.clearTimeout(timer));
+      } else {
+        const frame = window.requestAnimationFrame(markReady);
+        scheduled.set(toast.id, () => window.cancelAnimationFrame(frame));
+      }
+    }
+  }, [scheduled, toasts]);
+  useEffect(
+    () => () => {
+      scheduled.forEach((cancel) => cancel());
+      scheduled.clear();
+    },
+    [scheduled],
+  );
   const visible = toasts.filter((toast) => toast.ready);
 
   const item = (toast: ToastEntry) => (

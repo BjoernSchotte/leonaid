@@ -76,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -205,6 +206,51 @@ describe("Toast reach", () => {
     });
     document.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("schedules one readiness frame per toast, after the commit that adds it", () => {
+    const raf = vi.spyOn(window, "requestAnimationFrame");
+    renderPage();
+    act(() => {
+      show({ timeout: 0, title: "eins" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(5);
+    });
+    act(() => {
+      setModalOpen(false);
+      show({ timeout: 0, title: "zwei" });
+    });
+    expect(raf).toHaveBeenCalledTimes(2);
+    frame();
+    expect(regions().polite.textContent).toBe("einszwei");
+    raf.mockRestore();
+  });
+
+  it("inserts a toast shown in a hidden tab without waiting for a frame", () => {
+    let hidden = true;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+    renderPage();
+    act(() => {
+      show({ title: "im Hintergrund" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(regions().polite.textContent).toBe("im Hintergrund");
+    // The dismiss timer waits until the tab is visible again.
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByTestId("toast")).toBeTruthy();
+    act(() => {
+      hidden = false;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    act(() => {
+      vi.advanceTimersByTime(5_200);
+    });
+    expect(screen.queryByTestId("toast")).toBeNull();
   });
 
   it("pauses timers while the page is hidden", () => {
