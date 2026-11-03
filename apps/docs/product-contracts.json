@@ -442,12 +442,7 @@
     },
     {
       "file": "packages/features/src/tasks/task-model.ts",
-      "contains": [
-        "Heute fällig",
-        "Diese Woche",
-        "Später",
-        "Irgendwann"
-      ]
+      "contains": ["Heute fällig", "Diese Woche", "Später", "Irgendwann"]
     },
     {
       "file": "packages/features/src/tasks/task-editor.tsx",
