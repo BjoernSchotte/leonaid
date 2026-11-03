@@ -39,7 +39,7 @@ import {
   setThemePreference,
   storedTheme,
   toggleTheme,
-} from "./theme-switcher";
+} from "./theme";
 import { ToastProvider } from "./toast";
 
 /** One rail destination, built from an item the server navigation returned. */

@@ -1,4 +1,3 @@
-export * from "./app-shell";
 export * from "./rail-shell";
 export * from "./button";
 export * from "./confirm-dialog";
@@ -7,7 +6,7 @@ export * from "./empty-state";
 export * from "./error-boundary";
 export * from "./form-field";
 export * from "./status-message";
-export * from "./theme-switcher";
+export * from "./theme";
 export * from "./toast";
 export * from "./avatar";
 export * from "./badge";

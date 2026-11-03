@@ -29,7 +29,7 @@ import {
   setThemePreference,
   storedTheme,
   type ThemeMode,
-} from "./theme-switcher";
+} from "./theme";
 import { ToastProvider } from "./toast";
 
 export interface MobileShellTab {
