@@ -26,7 +26,8 @@ Commands:
   repair-ownership  Give root-owned files in the checkout back to the current user
   release [--dry-run] [--no-ci-check]
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
-  dev               Build and start the ready PoC core stack
+  dev               Build and start the ready PoC core stack (plus local
+                    extensions from .local/dev, see infra/compose/README.md)
   check             Run non-mutating quality and policy gates
   docs-dev          Serve the bilingual documentation source for authoring
   docs-check        Validate the documentation project and frontmatter schema
@@ -479,8 +480,27 @@ compose_queue_store_guard() {
   done
 }
 
+# Uncommitted local development extensions live in the git-ignored .local/dev.
+# They apply only to the default dev project, so every command that recreates
+# its proxy (dev, seed, provision-twenty, ...) keeps the same mounts. Test
+# stacks use their own project names and the pilot has its own compose
+# commands; neither ever loads these files.
+dev_local_enabled() {
+  [ "${LEONAID_COMPOSE_PROJECT:-leonaid}" = leonaid ] && [ -d "$root/.local/dev" ]
+}
+
 compose() {
   compose_queue_store_guard "$@"
+  if dev_local_enabled; then
+    # Create the bind-mount sources as the invoking user; a missing source
+    # would make Docker create it as root.
+    mkdir -p "$root/.local/dev/caddy.d" "$root/.local/dev/static"
+    # Prepended in reverse: the overlay loads before the developer's override.
+    if [ -f "$root/.local/dev/compose.override.yml" ]; then
+      set -- --file "$root/.local/dev/compose.override.yml" "$@"
+    fi
+    set -- --file "$root/infra/compose/compose.dev-local.yml" "$@"
+  fi
   integration_key=${TWENTY_INTEGRATION_API_KEY:-}
   if [ -z "$integration_key" ] && [ -f "$root/.local/twenty/integration.env" ]; then
     integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \

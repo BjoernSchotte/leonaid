@@ -36,4 +36,40 @@ for caddyfile in \
   fi
   count=$((count + 1))
 done
-echo "caddyfile-check: OK: $count Caddyfiles adapt and validate with the pinned Caddy"
+
+# The dev Caddyfile imports uncommitted snippets from .local/dev/caddy.d (see
+# infra/compose/README.md). Prove that the import point accepts a typical
+# snippet: a static single-page app under its own path with the strict policy.
+local_snippets=$(mktemp -d)
+trap 'rm -rf "$local_snippets"' EXIT
+cat >"$local_snippets/example.caddy" <<'SNIPPET'
+handle_path /example/* {
+	import leonaid_headers
+	root * /srv/local-static/example
+	try_files {path} /index.html
+	file_server
+}
+SNIPPET
+chmod 0755 "$local_snippets"
+chmod 0644 "$local_snippets/example.caddy"
+if ! output=$(docker run --rm --network none \
+  --env LEONAID_HTTPS_PORT=8443 \
+  --env LEONAID_LAN_HOST=127.0.0.1 \
+  --env LEONAID_REMOTE_HOST=127.0.0.1 \
+  --volume "$root/infra/proxy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  --volume "$local_snippets:/etc/caddy/local.d:ro" \
+  "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile \
+  --adapter caddyfile --validate 2>&1); then
+  printf '%s\n' "$output" | grep '"level":"error"' >&2 || printf '%s\n' "$output" >&2
+  echo "caddyfile-check: ERROR: infra/proxy/Caddyfile rejects a local dev snippet" >&2
+  exit 1
+fi
+case $output in
+  *'"root":"/srv/local-static/example"'*) ;;
+  *)
+    echo "caddyfile-check: ERROR: infra/proxy/Caddyfile did not import the local dev snippet" >&2
+    exit 1
+    ;;
+esac
+count=$((count + 1))
+echo "caddyfile-check: OK: $count Caddyfile configurations adapt and validate with the pinned Caddy"

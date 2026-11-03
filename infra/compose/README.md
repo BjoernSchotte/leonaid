@@ -5,8 +5,9 @@ Current bilingual installation tutorial:
 [English](../../apps/docs/src/content/docs/en/ops/tutorials/local-demo.md).
 This file remains the low-level Compose reference.
 
-`compose.yml` is the only definition for local development and integration
-tests.
+`compose.yml` is the only committed definition for local development and
+integration tests. `compose.dev-local.yml` only mounts uncommitted local
+extensions into the dev proxy (see below).
 
 The default start contains Caddy, FastAPI, core worker/PostgreSQL, web, PWA,
 public web, Twenty server/worker/PostgreSQL/Valkey (service `twenty-redis`)
@@ -31,6 +32,62 @@ docker compose --env-file .env.local -f infra/compose/compose.yml \
 docker compose --env-file .env.local -f infra/compose/compose.yml \
   --profile observability up -d --wait
 ```
+
+## Local dev extensions
+
+A developer can extend the local dev stack without committing anything. All
+files live in the git-ignored `.local/dev/` directory. Create it to opt in:
+
+```sh
+mkdir -p .local/dev/caddy.d .local/dev/static
+```
+
+When `.local/dev/` exists, every `./leonaid` command that runs Compose for the
+default dev project (`leonaid`) adds these files:
+
+1. `infra/compose/compose.dev-local.yml`. It mounts two directories into the
+   `proxy` service, read-only:
+   - `.local/dev/caddy.d` → `/etc/caddy/local.d`
+   - `.local/dev/static` → `/srv/local-static`
+2. `.local/dev/compose.override.yml`, if it exists. It is an ordinary Compose
+   file and can add or change services of the dev stack.
+
+The CLI creates both mount directories as the current user, so Docker never
+creates root-owned directories. Test stacks use their own project names and
+the pilot uses its own Compose commands; neither loads these files.
+
+The dev Caddyfile imports `/etc/caddy/local.d/*.caddy` inside the shared
+`leonaid_routes` block, after the built-in routes and before the catch-all
+route to the public site. A snippet can therefore add a route under a new path
+prefix. Use a prefix that no built-in route uses: Caddy sorts `handle` blocks
+by path length, so a longer path inside an existing prefix (for example
+`/admin/x/*`) would take those requests away from the built-in route. Import `leonaid_headers` in every snippet to get the
+strict Content-Security-Policy. Without it, the response has no CSP.
+
+Example: serve a static single-page app from `.local/dev/static/example` at
+`/example/`, with a fallback to `index.html` for client-side routes.
+`.local/dev/caddy.d/example.caddy`:
+
+```caddyfile
+handle_path /example/* {
+	import leonaid_headers
+	root * /srv/local-static/example
+	try_files {path} /index.html
+	file_server
+}
+```
+
+Caddy reads snippets at start. Apply new or changed snippets with a reload:
+
+```sh
+docker compose --project-name leonaid exec proxy \
+  caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+Run `./leonaid dev` once after you create `.local/dev/` or change
+`compose.override.yml`, so that Compose recreates the affected containers.
+Plain `docker compose` commands without the CLI do not load the local files;
+if they recreate the proxy, run `./leonaid dev` again.
 
 `./leonaid test-integration` uses an isolated Compose project and cleans up
 only its own containers, networks and volumes. The test starts from empty
