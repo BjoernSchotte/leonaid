@@ -106,7 +106,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
       mobileNavigation.locator('[data-nav-key="activities"]'),
     ).toBeVisible();
     await expect(
-      mobileNavigation.locator('[data-nav-key="commitment"]'),
+      mobileNavigation.locator('[data-nav-key="sponsor-new"]'),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);

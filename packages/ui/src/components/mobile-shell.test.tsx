@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Bell, Home, ListChecks, Plus, Truck, Users } from "lucide-react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -15,16 +21,36 @@ afterEach(() => {
 });
 
 const tabs: MobileShellProps["tabs"] = [
-  { key: "overview-pwa", label: "Start", href: "/app/", icon: Home },
-  { key: "sponsors", label: "Sponsoren", href: "/app/sponsors", icon: Users },
   {
-    key: "commitment",
+    key: "overview-pwa",
+    label: "Start",
+    href: "/app/",
+    icon: Home,
+    shortcut: "1",
+  },
+  {
+    key: "sponsors",
+    label: "Sponsoren",
+    href: "/app/sponsors",
+    icon: Users,
+    shortcut: "2",
+  },
+  {
+    key: "sponsor-new",
     label: "Neu",
-    href: "/app/commitments/new",
+    href: "/app/sponsors?view=new",
     icon: Plus,
     primary: true,
+    shortcut: "3",
   },
-  { key: "activities", label: "Neues", href: "/app/activities", icon: Bell },
+  // No "4": the follow-up tab is missing for this account.
+  {
+    key: "activities",
+    label: "Neues",
+    href: "/app/activities",
+    icon: Bell,
+    shortcut: "5",
+  },
 ];
 
 function renderShell(overrides: Partial<MobileShellProps> = {}) {
@@ -51,6 +77,7 @@ function renderShell(overrides: Partial<MobileShellProps> = {}) {
       {...overrides}
     >
       <h1>Meine Sponsoren</h1>
+      <input aria-label="Straße" />
     </MobileShell>,
   );
   return { onLogout };
@@ -107,7 +134,7 @@ describe("MobileShell", () => {
   it("shows the offline banner and the gold network state", () => {
     renderShell({ offline: true });
     const banner = screen.getByTestId("offline-banner");
-    expect(banner.getAttribute("role")).toBe("status");
+    expect(banner.parentElement?.getAttribute("role")).toBe("status");
     expect(banner.textContent).toContain("Du bist offline.");
     expect(banner.textContent).toContain(
       "LeonAid speichert keine Änderungen im Hintergrund.",
@@ -123,6 +150,10 @@ describe("MobileShell", () => {
   it("hides the offline banner while online", () => {
     renderShell();
     expect(screen.queryByTestId("offline-banner")).toBeNull();
+    // The live region stays mounted (empty), so a later banner is announced.
+    const region = document.querySelector(".pwa-offline-region");
+    expect(region?.getAttribute("role")).toBe("status");
+    expect(region?.textContent).toBe("");
     expect(screen.getByRole("img", { name: "Online" }).className).toBe(
       "pwa-net",
     );
@@ -182,5 +213,55 @@ describe("MobileShell", () => {
     renderShell();
     await user.keyboard("{Shift>}T{/Shift}");
     expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("binds fixed digits per tab and leaves missing slots unbound", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.keyboard("?");
+    const help = screen.getByRole("dialog", { name: "Tastenkürzel" });
+    const keys = [...help.querySelectorAll(".kbd")].map(
+      (key) => key.textContent,
+    );
+    expect(keys).toEqual(expect.arrayContaining(["1", "2", "3", "5"]));
+    expect(keys).not.toContain("4");
+  });
+
+  it("asks before a tab drops typed input", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderShell();
+    const nav = screen.getByRole("navigation", { name: "App-Navigation" });
+    const start = within(nav).getByRole("link", { name: "Start" });
+    // Nothing typed: no question.
+    expect(fireEvent.click(start)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+
+    await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    start.dispatchEvent(event);
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Du hast Eingaben, die noch nicht gespeichert sind.",
+      ),
+    );
+    expect(event.defaultPrevented).toBe(true);
+
+    confirm.mockReturnValue(true);
+    const accepted = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    start.dispatchEvent(accepted);
+    expect(accepted.defaultPrevented).toBe(false);
+
+    // A cleared field no longer counts.
+    confirm.mockClear();
+    await user.clear(screen.getByRole("textbox", { name: "Straße" }));
+    start.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });

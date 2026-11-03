@@ -180,10 +180,12 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   await expect(page.getByTestId("commitment-party")).toContainText(
     "Musterwerk GmbH",
   );
-  const neu = page
-    .getByRole("navigation", { name: "App-Navigation" })
-    .getByRole("link", { name: "Neu", exact: true });
-  await expect(neu).toHaveAttribute("aria-current", "page");
+  // Orders have no tab of their own ("Neu" creates a sponsor).
+  await expect(
+    page
+      .getByRole("navigation", { name: "App-Navigation" })
+      .locator('[aria-current="page"]'),
+  ).toHaveCount(0);
   const street = page.getByTestId("commitment-street");
   await street.fill("Offlineweg 7");
   await page.getByTestId("commitment-quantity").fill("3");
@@ -191,7 +193,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   await context.setOffline(true);
   const banner = page.getByTestId("offline-banner");
   await expect(banner).toBeVisible();
-  await expect(banner).toHaveAttribute("role", "status");
+  await expect(banner.locator("..")).toHaveAttribute("role", "status");
   await expect(banner).toContainText("Du bist offline.");
   // What the acquirer already entered stays on screen and editable.
   await expect(street).toHaveValue("Offlineweg 7");
@@ -220,6 +222,17 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
     path: `${artifactDirectory}/pwa-offline-capture-chromium-390.png`,
     fullPage: true,
   });
+
+  // Saving offline fails in Du wording and keeps every entry.
+  await page.getByTestId("commitment-save-draft").click();
+  await expect(page.locator("main")).toContainText(
+    "Die Bestellung konnte nicht gespeichert werden. Prüfe deine Verbindung; deine Eingaben bleiben erhalten.",
+  );
+  await expect(street).toHaveValue("Offlineweg 7");
+  await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
+  await expect(page.getByTestId("commitment-party")).toContainText(
+    "Musterwerk GmbH",
+  );
 
   await context.setOffline(false);
   await expect(banner).toHaveCount(0);

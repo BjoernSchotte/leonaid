@@ -219,8 +219,24 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   const sheet = page.getByRole("dialog", { name: "Mehr" });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByTestId("logout")).toBeVisible();
-  const logoutBox = await sheet.getByTestId("logout").boundingBox();
-  expect(logoutBox.height).toBeGreaterThanOrEqual(44);
+  // Every control of the sheet (outside the column) is a 44 px target.
+  const sheetTargets = await sheet
+    .locator("a:visible, button:visible, summary:visible")
+    .evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          height: box.height,
+          text: (element.textContent ?? "").trim().slice(0, 40),
+          width: box.width,
+        };
+      }),
+    );
+  expect(sheetTargets.length).toBeGreaterThan(5);
+  for (const target of sheetTargets) {
+    expect(target.height, target.text).toBeGreaterThanOrEqual(44);
+    expect(target.width, target.text).toBeGreaterThanOrEqual(44);
+  }
   await sheet.getByRole("button", { name: "Dunkel" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await assertNoSeriousAxeFindings(page);
@@ -232,6 +248,60 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await expect(menuButton).toBeFocused();
   await page.keyboard.press("Shift+T");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  // Shortcut help, also outside the column: phone targets up to 800 px.
+  await page.keyboard.press("?");
+  const help = page.getByRole("dialog", { name: "Tastenkürzel" });
+  await expect(help).toBeVisible();
+  await expect(help).toContainText("App: Wiedervorlagen");
+  const helpClose = await help
+    .getByRole("button", { name: "Schließen" })
+    .boundingBox();
+  const helpTarget = viewport.width <= 800 ? 44 : 28;
+  expect(helpClose.height).toBeGreaterThanOrEqual(helpTarget);
+  expect(helpClose.width).toBeGreaterThanOrEqual(helpTarget);
+  await page.keyboard.press("Escape");
+  await expect(help).toBeHidden();
+
+  // "Neu" opens the sponsor capture, as in the prototype; the in-page
+  // switch back moves the active tab without a page load.
+  await tabs.getByRole("link", { name: "Neu", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/sponsors\?view=new$/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Sponsor erfassen" }),
+  ).toBeVisible();
+  await expect(
+    tabs.getByRole("link", { name: "Neu", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page.getByRole("tab", { name: "Übersicht" }).click();
+  await expect(page).toHaveURL(/\/app\/sponsors$/);
+  await expect(tabs.getByRole("link", { name: "Sponsoren" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.goBack();
+  await expect(
+    tabs.getByRole("link", { name: "Neu", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+
+  // A tab asks before it drops typed input.
+  const company = page.getByLabel("Firmenname");
+  await company.fill("Ungespeichert GmbH");
+  const question = page.waitForEvent("dialog");
+  const startTab = tabs.getByRole("link", { name: "Start" });
+  const tapped = startTab.click();
+  const dialog = await question;
+  expect(dialog.type()).toBe("confirm");
+  expect(dialog.message()).toContain(
+    "Du hast Eingaben, die noch nicht gespeichert sind.",
+  );
+  await dialog.dismiss();
+  await tapped;
+  await expect(page).toHaveURL(/\/app\/sponsors\?view=new$/);
+  await expect(company).toHaveValue("Ungespeichert GmbH");
+  page.once("dialog", (next) => void next.accept());
+  await startTab.click();
+  await expect(page).toHaveURL(/\/app\/$/);
 
   // Tab shortcuts 1–5 follow the tab order.
   await page.locator("main h1").click();

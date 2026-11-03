@@ -41,3 +41,8 @@
     animation-duration: 2s;
   }
 }
+
+/* Module search inside the "Mehr" sheet: the sheet's grid gap spaces it. */
+.pwa-sheet-body .module-search {
+  margin-block-end: 0;
+}

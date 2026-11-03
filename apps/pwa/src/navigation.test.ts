@@ -35,15 +35,30 @@ const at = (pathname: string, search = "") => ({ pathname, search });
 describe("mobile navigation", () => {
   it("builds the five prototype tabs from the server navigation", () => {
     const { tabs } = mobileNavigation(acquirer, implemented, at("/app/"));
-    expect(tabs.map((tab) => [tab.key, tab.label, tab.href])).toEqual([
-      ["overview-pwa", "Start", "/app/"],
-      ["sponsors", "Sponsoren", "/app/sponsors"],
-      ["commitment", "Neu", "/app/commitments/new"],
-      ["follow-ups", "Wiedervorlagen", "/app/activities?view=contacts"],
-      ["activities", "Neues", "/app/activities"],
+    expect(
+      tabs.map((tab) => [tab.key, tab.label, tab.href, tab.shortcut]),
+    ).toEqual([
+      ["overview-pwa", "Start", "/app/", "1"],
+      ["sponsors", "Sponsoren", "/app/sponsors", "2"],
+      ["sponsor-new", "Neu", "/app/sponsors?view=new", "3"],
+      ["follow-ups", "Wiedervorlagen", "/app/activities?view=contacts", "4"],
+      ["activities", "Neues", "/app/activities", "5"],
     ]);
     expect(tabs.filter((tab) => tab.primary).map((tab) => tab.key)).toEqual([
-      "commitment",
+      "sponsor-new",
+    ]);
+  });
+
+  it("keeps the fixed digits when a tab is missing", () => {
+    const { tabs } = mobileNavigation(
+      acquirer.filter((entry) => entry.key !== "sponsors"),
+      implemented,
+      at("/app/"),
+    );
+    expect(tabs.map((tab) => [tab.key, tab.shortcut])).toEqual([
+      ["overview-pwa", "1"],
+      ["follow-ups", "4"],
+      ["activities", "5"],
     ]);
   });
 
@@ -57,9 +72,22 @@ describe("mobile navigation", () => {
       [
         ["tasks", "/app/tasks", true],
         ["surveys", "/admin/surveys", false],
+        ["commitment", "/app/commitments/new", false],
         ["delivery", null, false],
       ],
     );
+  });
+
+  it("marks the order tile, not Neu, on order pages", () => {
+    const result = mobileNavigation(
+      acquirer,
+      implemented,
+      at("/app/commitments/abc"),
+    );
+    expect(result.active).toBeNull();
+    expect(
+      result.menu.find((entry) => entry.key === "commitment")?.current,
+    ).toBe(true);
   });
 
   it("shows only what the server grants", () => {
@@ -88,8 +116,11 @@ describe("mobile navigation", () => {
     expect(activeMobileTab(tabs, "/app/sponsors", "?status=open")).toBe(
       "sponsors",
     );
+    expect(activeMobileTab(tabs, "/app/sponsors", "?view=new&action=1")).toBe(
+      "sponsor-new",
+    );
     expect(activeMobileTab(tabs, "/app/commitments/new", "?action=1")).toBe(
-      "commitment",
+      null,
     );
     expect(
       activeMobileTab(tabs, "/app/activities", "?view=contacts&assignment=x"),

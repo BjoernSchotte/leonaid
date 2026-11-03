@@ -19,6 +19,8 @@ export interface MobileNavTab {
   readonly href: string;
   readonly icon: LucideIcon;
   readonly primary?: boolean;
+  /** Fixed digit of the prototype's slot ("1"–"5"). */
+  readonly shortcut: string;
 }
 
 /** Further PWA area, shown in the "Mehr" sheet. */
@@ -37,74 +39,108 @@ export interface MobileNavigation {
   readonly menu: readonly MobileNavMenuItem[];
 }
 
+export const NEW_SPONSOR_TAB_KEY = "sponsor-new";
 /** Follow-ups live in the contact view of the activities page. */
 export const FOLLOW_UPS_TAB_KEY = "follow-ups";
-const FOLLOW_UPS_HREF = "/app/activities?view=contacts";
 
-/*
- * The prototype's five tabs (Start, Sponsoren, Neu, Wiedervorlagen, Neues),
- * each backed by the server navigation key that grants it.
- */
-const TAB_DEFINITIONS: readonly {
+interface TabDefinition {
   readonly key: string;
+  /** Server navigation key that grants the tab. */
   readonly navKey: string;
   readonly label: string;
   readonly icon: LucideIcon;
+  readonly shortcut: string;
+  /** Fixed target; otherwise the server href. */
   readonly href?: string;
   readonly primary?: boolean;
-}[] = [
-  { key: "overview-pwa", navKey: "overview-pwa", label: "Start", icon: Home },
-  { key: "sponsors", navKey: "sponsors", label: "Sponsoren", icon: Users },
+  /** Whether the tab is the current one for a path and its query. */
+  readonly matches: (
+    path: string,
+    query: URLSearchParams,
+    base: string,
+  ) => boolean;
+}
+
+const under = (path: string, base: string) =>
+  path === base || path.startsWith(`${base}/`);
+
+/*
+ * The prototype's five tabs with their fixed keys. "Neu" creates a sponsor
+ * (the capture view of the sponsor page), as in the prototype.
+ */
+const TAB_DEFINITIONS: readonly TabDefinition[] = [
   {
-    key: "commitment",
-    navKey: "commitment",
+    key: "overview-pwa",
+    navKey: "overview-pwa",
+    label: "Start",
+    icon: Home,
+    shortcut: "1",
+    matches: (path, _query, base) => path === base,
+  },
+  {
+    key: "sponsors",
+    navKey: "sponsors",
+    label: "Sponsoren",
+    icon: Users,
+    shortcut: "2",
+    matches: (path, query, base) =>
+      under(path, base) && query.get("view") !== "new",
+  },
+  {
+    key: NEW_SPONSOR_TAB_KEY,
+    navKey: "sponsors",
     label: "Neu",
     icon: Plus,
+    shortcut: "3",
+    href: "/app/sponsors?view=new",
     primary: true,
+    matches: (path, query, base) =>
+      under(path, base) && query.get("view") === "new",
   },
   {
     key: FOLLOW_UPS_TAB_KEY,
     navKey: "activities",
     label: "Wiedervorlagen",
     icon: ListTodo,
-    href: FOLLOW_UPS_HREF,
+    shortcut: "4",
+    href: "/app/activities?view=contacts",
+    matches: (path, query, base) =>
+      under(path, base) && query.get("view") === "contacts",
   },
-  { key: "activities", navKey: "activities", label: "Neues", icon: Bell },
+  {
+    key: "activities",
+    navKey: "activities",
+    label: "Neues",
+    icon: Bell,
+    shortcut: "5",
+    matches: (path, query, base) =>
+      under(path, base) && query.get("view") !== "contacts",
+  },
 ];
 
 const TAB_NAV_KEYS = new Set(TAB_DEFINITIONS.map((tab) => tab.navKey));
+const definitionsByKey = new Map(TAB_DEFINITIONS.map((tab) => [tab.key, tab]));
 
 function pathOf(href: string): string {
   return new URL(href, "https://leonaid.invalid").pathname.replace(/\/+$/, "");
 }
 
-function startsWithPath(pathname: string, href: string): boolean {
-  const base = pathOf(href);
-  return pathname === base || pathname.startsWith(`${base}/`);
+/** The area of a sheet entry: its first two path segments ("/app/commitments"). */
+function areaOf(href: string): string {
+  return pathOf(href).split("/").slice(0, 3).join("/");
 }
 
-/** The tab for a location, or null (module pages, unknown paths). */
+/** The tab for a location, or null (module pages, orders, unknown paths). */
 export function activeMobileTab(
   tabs: readonly MobileNavTab[],
   pathname: string,
   search: string,
 ): string | null {
-  const path = pathname.replace(/\/+$/, "") || "/";
-  const view = new URLSearchParams(search).get("view");
+  const path = pathname.replace(/\/+$/, "");
+  const query = new URLSearchParams(search);
   for (const tab of tabs) {
-    if (tab.key === FOLLOW_UPS_TAB_KEY) {
-      if (startsWithPath(path, tab.href) && view === "contacts") return tab.key;
-      continue;
-    }
-    if (tab.key === "activities") {
-      if (startsWithPath(path, tab.href) && view !== "contacts") return tab.key;
-      continue;
-    }
-    if (tab.key === "overview-pwa") {
-      if (path === pathOf(tab.href)) return tab.key;
-      continue;
-    }
-    if (startsWithPath(path, tab.href)) return tab.key;
+    const definition = definitionsByKey.get(tab.key);
+    if (definition?.matches(path, query, pathOf(tab.href))) return tab.key;
   }
   return null;
 }
@@ -131,9 +167,10 @@ export function mobileNavigation(
       href: definition.href ?? item.href,
       icon: definition.icon,
       primary: definition.primary,
+      shortcut: definition.shortcut,
     });
   }
-  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const path = location.pathname.replace(/\/+$/, "");
   const menu = pwa
     .filter((item) => !TAB_NAV_KEYS.has(item.key) || !implemented.has(item.key))
     .map((item) => {
@@ -143,7 +180,7 @@ export function mobileNavigation(
         label: item.label,
         icon: zoneForNavKey(item.key)?.icon ?? LayoutDashboard,
         href,
-        current: href !== null && startsWithPath(path, href),
+        current: href !== null && under(path, areaOf(href)),
       };
     });
   return {

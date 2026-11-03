@@ -33,6 +33,8 @@ import {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { navigateInPage, useLocationHref } from "../shared/location";
+
 interface SponsorWorkspaceProps {
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
@@ -872,7 +874,20 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   ].includes(requestedStatus ?? "")
     ? (requestedStatus as SponsorStatusFilter)
     : "all";
-  const [view, setView] = useState<SponsorView>("list");
+  // The view is part of the URL (?view=new), so the PWA's "Neu" tab and
+  // Back both reach the capture form.
+  const href = useLocationHref();
+  const view: SponsorView =
+    new URLSearchParams(href.split("?")[1] ?? "").get("view") === "new"
+      ? "new"
+      : "list";
+  function setView(next: SponsorView) {
+    if (next === view) return;
+    const url = new URL(window.location.href);
+    if (next === "new") url.searchParams.set("view", "new");
+    else url.searchParams.delete("view");
+    navigateInPage(`${url.pathname}${url.search}`);
+  }
   const board = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 50 }),

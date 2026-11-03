@@ -6,7 +6,13 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 import {
   HotkeyProvider,
@@ -32,6 +38,8 @@ export interface MobileShellTab {
   readonly icon: LucideIcon;
   /** The filled accent tab ("Neu"). */
   readonly primary?: boolean;
+  /** Digit that opens the tab ("1"–"9"), fixed per tab. */
+  readonly shortcut?: string;
 }
 
 export interface MobileShellMenuItem {
@@ -71,6 +79,66 @@ const OFFLINE_TEXT =
 const SHORTCUT_FOOTNOTE =
   "Kürzel wirken nicht, während du in ein Feld schreibst. Esc verlässt jedes Feld und jeden Dialog.";
 
+const LEAVE_QUESTION =
+  "Du hast Eingaben, die noch nicht gespeichert sind. Wenn du die Seite wechselst, gehen sie verloren. Trotzdem wechseln?";
+
+const TEXT_INPUT_TYPES = new Set([
+  "date",
+  "datetime-local",
+  "email",
+  "month",
+  "number",
+  "search",
+  "tel",
+  "text",
+  "time",
+  "url",
+  "week",
+]);
+
+/**
+ * Asks before shell navigation (tabs, digit keys, sheet links) would drop
+ * typed input. A field counts once the user typed into it, while it is
+ * still on the page and not empty: a saved form that resets or unmounts
+ * stops counting.
+ */
+function useLeaveGuard() {
+  const mainRef = useRef<HTMLElement>(null);
+  const touched = useRef(new Set<HTMLInputElement | HTMLTextAreaElement>());
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const onInput = (event: Event) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLInputElement &&
+          TEXT_INPUT_TYPES.has(target.type))
+      ) {
+        touched.current.add(target);
+      }
+    };
+    main.addEventListener("input", onInput, true);
+    return () => main.removeEventListener("input", onInput, true);
+  }, []);
+
+  function hasUnsavedInput(): boolean {
+    for (const field of touched.current) {
+      if (!field.isConnected) touched.current.delete(field);
+      else if (field.value.trim() !== "") return true;
+    }
+    return false;
+  }
+
+  /** True when leaving is fine: nothing typed, or the user confirmed. */
+  function confirmLeave(): boolean {
+    return !hasUnsavedInput() || window.confirm(LEAVE_QUESTION);
+  }
+
+  return { confirmLeave, mainRef };
+}
+
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Hell" },
@@ -109,6 +177,10 @@ function MobileShellFrame({
 }: MobileShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
+  const { confirmLeave, mainRef } = useLeaveGuard();
+  const guardLink = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!confirmLeave()) event.preventDefault();
+  };
 
   function chooseTheme(mode: ThemeMode) {
     setThemePreference(mode);
@@ -128,6 +200,7 @@ function MobileShellFrame({
     <div className="pwa-stage" data-zone={zone}>
       {/* Before the page: page bindings register later and win. */}
       <ShellHotkeys
+        confirmLeave={confirmLeave}
         onToggleTheme={() =>
           chooseTheme(resolvedTheme() === "dark" ? "light" : "dark")
         }
@@ -175,14 +248,18 @@ function MobileShellFrame({
             </button>
           </span>
         </header>
-        {offline ? (
-          <p className="pwa-offline" data-testid="offline-banner" role="status">
-            <CloudOff aria-hidden="true" size={16} />
-            {OFFLINE_TEXT}
-          </p>
-        ) : null}
+        {/* Always mounted, so screen readers announce the text when it
+            appears. */}
+        <div className="pwa-offline-region" role="status">
+          {offline ? (
+            <p className="pwa-offline" data-testid="offline-banner">
+              <CloudOff aria-hidden="true" size={16} />
+              {OFFLINE_TEXT}
+            </p>
+          ) : null}
+        </div>
         {notices}
-        <main className="pwa-main" id="main" tabIndex={-1}>
+        <main className="pwa-main" id="main" ref={mainRef} tabIndex={-1}>
           <div className="pwa-screen">{children}</div>
         </main>
         {tabs.length ? (
@@ -200,6 +277,7 @@ function MobileShellFrame({
                   data-nav-key={tab.key}
                   href={tab.href}
                   key={tab.key}
+                  onClick={guardLink}
                 >
                   <span aria-hidden="true" className="pwa-tab-icon">
                     <tab.icon size={tab.primary ? 22 : 20} />
@@ -213,6 +291,7 @@ function MobileShellFrame({
       </div>
       <MoreSheet
         items={menuItems}
+        onNavigate={guardLink}
         onClose={() => setMenuOpen(false)}
         onLogout={onLogout}
         onTheme={chooseTheme}
@@ -228,18 +307,30 @@ function MobileShellFrame({
 }
 
 function ShellHotkeys({
+  confirmLeave,
   onToggleTheme,
   tabs,
 }: {
+  readonly confirmLeave: () => boolean;
   readonly onToggleTheme: () => void;
   readonly tabs: readonly MobileShellTab[];
 }) {
-  const bindings: HotkeyBinding[] = tabs.slice(0, 9).map((tab, index) => ({
-    keys: String(index + 1),
-    label: `App: ${tab.label}`,
-    group: "Akquise-App",
-    run: () => window.location.assign(tab.href),
-  }));
+  // Fixed digits per tab, as in the prototype: a missing tab leaves its
+  // digit unbound instead of shifting the others.
+  const bindings: HotkeyBinding[] = tabs.flatMap((tab) =>
+    tab.shortcut
+      ? [
+          {
+            keys: tab.shortcut,
+            label: `App: ${tab.label}`,
+            group: "Akquise-App",
+            run: () => {
+              if (confirmLeave()) window.location.assign(tab.href);
+            },
+          },
+        ]
+      : [],
+  );
   bindings.push({
     keys: "shift+t",
     label: "Hell/Dunkel wechseln",
@@ -253,6 +344,7 @@ function ShellHotkeys({
 function MoreSheet({
   items,
   onClose,
+  onNavigate,
   onLogout,
   onTheme,
   open,
@@ -263,6 +355,7 @@ function MoreSheet({
 }: {
   readonly items: readonly MobileShellMenuItem[];
   readonly onClose: () => void;
+  readonly onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
   readonly onLogout: () => void;
   readonly onTheme: (mode: ThemeMode) => void;
   readonly open: boolean;
@@ -340,6 +433,7 @@ function MoreSheet({
                     data-zone={item.key}
                     href={item.href}
                     key={item.key}
+                    onClick={onNavigate}
                   >
                     <span aria-hidden="true" className="pwa-sheet-tile-icon">
                       <item.icon size={18} />

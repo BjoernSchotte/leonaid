@@ -12,6 +12,7 @@ import {
   RoleDashboardPage,
   SponsorWorkspace,
   useCurrentActionId,
+  useLocationHref,
 } from "@leonaid/features";
 import {
   Button,
@@ -216,6 +217,8 @@ function PwaNotices({ lifecycle }: { readonly lifecycle: PwaLifecycle }) {
 export function App({ client }: AppProps) {
   const currentActionId = useCurrentActionId();
   const lifecycle = usePwaLifecycle();
+  // In-page view switches (e.g. the sponsor capture) move the active tab.
+  useLocationHref();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
