@@ -5,6 +5,10 @@ delivery details, must be completed before an invoice can be issued. Only
 action managers may do this. The command never changes buyer, lines or prices,
 keeps an already booked delivery window immutable and is guarded by an
 optimistic version of exactly the fields it may change.
+
+Unlike order capture, a manager may select a window that has already started
+(retired or not) to record when the order was actually delivered; the audit
+event marks such completions as historical.
 """
 
 from __future__ import annotations

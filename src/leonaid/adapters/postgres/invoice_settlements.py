@@ -9,6 +9,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.retry import (
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.invoice_settlements import InvoiceSettlementRepository
 from leonaid.domain.commitments import Money
@@ -42,7 +46,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         occurred_at: datetime,
     ) -> PaymentRecord:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._record_payment_once(
@@ -59,12 +63,13 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_payment_concurrent_retry",
                             "Der Zahlungseingang wurde gleichzeitig bearbeitet. "
                             "Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Die Zahlungstransaktion wurde nicht ausgeführt.")
 
     async def cancel(
@@ -80,7 +85,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         occurred_at: datetime,
     ) -> InvoiceCancellation:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._cancel_once(
@@ -95,12 +100,13 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_cancellation_concurrent_retry",
                             "Das Storno wurde gleichzeitig bearbeitet. Bitte "
                             "versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Die Stornotransaktion wurde nicht ausgeführt.")
 
     async def _record_payment_once(

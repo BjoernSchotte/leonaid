@@ -225,7 +225,11 @@ async def exercise_delivery_completion(
     api: httpx.AsyncClient,
     tokens: dict[str, str],
 ) -> dict[str, Any]:
-    """Delivery planning enabled after capture blocks invoicing until completed."""
+    """Delivery planning enabled after capture blocks invoicing until completed.
+
+    The only configured window has already passed: the manager records the
+    delivery historically, after which the invoice can be issued.
+    """
     window_id = UUID("98000000-0000-4000-8000-000000000001")
     await connection.execute(
         """
@@ -246,11 +250,11 @@ async def exercise_delivery_completion(
     await connection.execute(
         """
         INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at)
-        -- A fixed local day time: a window may not cross local midnight.
+        -- A fixed local day time in the past: a window may not cross local midnight.
         VALUES ($1, $2,
-            ((now() AT TIME ZONE 'Europe/Berlin')::date + 1 + time '10:00')
+            ((now() AT TIME ZONE 'Europe/Berlin')::date - 2 + time '10:00')
                 AT TIME ZONE 'Europe/Berlin',
-            ((now() AT TIME ZONE 'Europe/Berlin')::date + 1 + time '12:00')
+            ((now() AT TIME ZONE 'Europe/Berlin')::date - 2 + time '12:00')
                 AT TIME ZONE 'Europe/Berlin')
         """,
         window_id,
@@ -341,6 +345,20 @@ async def exercise_delivery_completion(
     replay.raise_for_status()
     if not replay.json()["replayed"] or replay.json()["id"] != completed["id"]:
         raise ContractFailure("Delivery completion replay was not exact")
+    audit = await connection.fetch(
+        """
+        SELECT payload FROM audit_event
+        WHERE entity_id = $1 AND event_type = 'commitment_delivery_completed'
+        """,
+        COMMITMENT_ID,
+    )
+    payloads = [json.loads(row["payload"]) for row in audit]
+    if payloads != [
+        {"previousStatus": "review_ready", "status": "review_ready", "historical": True}
+    ]:
+        raise ContractFailure(f"Historical completion was not audited: {payloads}")
+    if "Lagerweg" in str(payloads) or "sonnenseite" in str(payloads):
+        raise ContractFailure("Delivery completion audit contains personal data")
     return completed
 
 
