@@ -20,6 +20,13 @@ beforeEach(() => {
   );
 });
 
+/** New toasts appear one frame after show(). */
+function frame() {
+  act(() => {
+    vi.advanceTimersByTime(20);
+  });
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -39,6 +46,7 @@ describe("Toast", () => {
         tone: "success",
       });
     });
+    frame();
     const toast = screen.getByTestId("toast");
     expect(region.contains(toast)).toBe(true);
     expect(toast.className).toBe("toast tone-ok");
@@ -57,6 +65,7 @@ describe("Toast", () => {
       show({ title: "Nicht gespeichert", tone: "error" });
       show({ title: "Hinweis", tone: "info" });
     });
+    frame();
     expect(alert.textContent).toBe("Nicht gespeichert");
     expect(screen.getByRole("status").textContent).toBe("Hinweis");
   });
@@ -68,6 +77,7 @@ describe("Toast", () => {
     act(() => {
       show({ title: "x", tone });
     });
+    frame();
     expect(screen.getByTestId("toast").className).toBe(className);
   });
 
@@ -75,6 +85,7 @@ describe("Toast", () => {
     act(() => {
       show({ title: "Gespeichert" });
     });
+    frame();
     act(() => {
       screen.getByRole("button", { name: "Meldung schließen" }).click();
     });
@@ -86,6 +97,7 @@ describe("Toast", () => {
       show({ title: "kurz" });
       show({ timeout: 0, title: "bleibt" });
     });
+    frame();
     act(() => {
       vi.advanceTimersByTime(5_199);
     });
@@ -102,6 +114,7 @@ describe("Toast", () => {
     act(() => {
       show({ title: "kurz" });
     });
+    frame();
     const toast = screen.getByTestId("toast");
     act(() => {
       vi.advanceTimersByTime(3_000);
@@ -130,6 +143,7 @@ describe("Toast", () => {
     act(() => {
       for (const title of ["1", "2", "3", "4"]) show({ timeout: 0, title });
     });
+    frame();
     expect(screen.getAllByTestId("toast").map((t) => t.textContent)).toEqual([
       "2",
       "3",
@@ -142,6 +156,7 @@ describe("Toast", () => {
     act(() => {
       show({ action: { label: "Rückgängig", run }, title: "Bestätigt" });
     });
+    frame();
     const action = screen.getByRole("button", { name: "Rückgängig" });
     expect(action.className).toBe("toast-action");
     act(() => {
@@ -156,6 +171,7 @@ describe("Toast", () => {
     act(() => {
       ids = [show({ title: "a" }), show({ title: "b" })];
     });
+    frame();
     expect(new Set(ids).size).toBe(2);
   });
 });

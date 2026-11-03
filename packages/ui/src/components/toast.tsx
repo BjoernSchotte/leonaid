@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,8 @@ export interface LeonAidToast {
 
 interface ToastEntry extends LeonAidToast {
   readonly id: string;
+  /** False until the frame after show(); see ToastProvider. */
+  readonly ready: boolean;
 }
 
 const DEFAULT_TIMEOUT = 5_200;
@@ -151,13 +154,35 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const toastsRef = useRef(toasts);
   toastsRef.current = toasts;
   const toasterRef = useRef<HTMLDivElement>(null);
-  // Outside the topmost modal dialog the toaster would sit behind it and be
-  // inert, so it renders into that dialog while one is open.
-  const modalSlot = useSyncExternalStore(
-    subscribeModalStack,
-    topModalSlot,
-    () => null,
+  /*
+   * One persistent host node holds the toaster, so both live regions keep
+   * their identity. Outside the topmost modal dialog the toaster would sit
+   * behind it and be inert, so the host moves into that dialog while one is
+   * open and back to <body> afterwards.
+   */
+  const [host] = useState(() =>
+    typeof document === "undefined" ? null : document.createElement("div"),
   );
+  useLayoutEffect(() => {
+    if (!host) return;
+    const place = () => {
+      const target = topModalSlot() ?? document.body;
+      if (host.parentNode === target) return;
+      const active = document.activeElement;
+      const hadFocus = active instanceof HTMLElement && host.contains(active);
+      target.appendChild(host);
+      // Moving a node drops focus; give it back to the toast.
+      if (hadFocus && document.activeElement !== active) {
+        active.focus({ preventScroll: true });
+      }
+    };
+    place();
+    const unsubscribe = subscribeModalStack(place);
+    return () => {
+      unsubscribe();
+      host.remove();
+    };
+  }, [host]);
   const hidden = useSyncExternalStore(
     subscribeVisibility,
     () => document.hidden,
@@ -201,11 +226,30 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const show = useCallback((toast: LeonAidToast) => {
     nextId.current += 1;
     const id = `toast-${nextId.current}`;
-    setToasts((list) => [...list.slice(-(LIMIT - 1)), { ...toast, id }]);
+    setToasts((list) => [
+      ...list.slice(-(LIMIT - 1)),
+      { ...toast, id, ready: false },
+    ]);
     return id;
   }, []);
 
   const api = useMemo(() => ({ dismiss, show }), [dismiss, show]);
+
+  // A toast enters its live region one frame after show(). A modal that
+  // closes in the same update has moved the host by then, so the toast is
+  // inserted into a region that is connected and visible, which screen
+  // readers announce.
+  const waiting = toasts.some((toast) => !toast.ready);
+  useEffect(() => {
+    if (!waiting) return;
+    const frame = window.requestAnimationFrame(() => {
+      setToasts((list) =>
+        list.map((toast) => (toast.ready ? toast : { ...toast, ready: true })),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [waiting]);
+  const visible = toasts.filter((toast) => toast.ready);
 
   const item = (toast: ToastEntry) => (
     <ToastItem
@@ -223,10 +267,10 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const toaster = (
     <div className="toaster" ref={toasterRef}>
       <div aria-live="polite" className="toaster-region" role="status">
-        {toasts.filter((toast) => toast.tone !== "error").map(item)}
+        {visible.filter((toast) => toast.tone !== "error").map(item)}
       </div>
       <div aria-live="assertive" className="toaster-region">
-        {toasts.filter((toast) => toast.tone === "error").map(item)}
+        {visible.filter((toast) => toast.tone === "error").map(item)}
       </div>
     </div>
   );
@@ -234,7 +278,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {modalSlot ? createPortal(toaster, modalSlot) : toaster}
+      {host ? createPortal(toaster, host) : null}
     </ToastContext.Provider>
   );
 }

@@ -7,7 +7,15 @@ import {
   screen,
 } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { installDialogPolyfill } from "../test-utils/dialog-polyfill";
 import { Modal } from "./modal";
@@ -17,19 +25,41 @@ beforeAll(installDialogPolyfill);
 
 let show: (toast: LeonAidToast) => string = () => "";
 let setModalOpen: (open: boolean) => void = () => undefined;
+let setModalMounted: (mounted: boolean) => void = () => undefined;
 
 function Page() {
   show = useToast().show;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(true);
   setModalOpen = setOpen;
+  setModalMounted = setMounted;
   return (
     <>
       <button type="button">Seite</button>
-      <Modal onClose={() => setOpen(false)} open={open} title="Dialog">
-        <input aria-label="Grund" />
-      </Modal>
+      {mounted ? (
+        <Modal onClose={() => setOpen(false)} open={open} title="Dialog">
+          <input aria-label="Grund" />
+        </Modal>
+      ) : null}
     </>
   );
+}
+
+/** New toasts appear one frame after show(). */
+function frame() {
+  act(() => {
+    vi.advanceTimersByTime(20);
+  });
+}
+
+function regions() {
+  const polite = document.querySelector<HTMLElement>(
+    '.toaster-region[role="status"]',
+  )!;
+  const assertive = document.querySelector<HTMLElement>(
+    '.toaster-region[aria-live="assertive"]',
+  )!;
+  return { assertive, polite };
 }
 
 function renderPage() {
@@ -40,9 +70,74 @@ function renderPage() {
   );
 }
 
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+describe("Toast live regions", () => {
+  it("keeps both region nodes when a modal closes and shows a toast in one update", () => {
+    renderPage();
+    const before = regions();
+    act(() => setModalOpen(true));
+    expect(screen.getByRole("dialog").contains(before.polite)).toBe(true);
+
+    act(() => {
+      setModalOpen(false);
+      show({ timeout: 0, title: "KT26-0004 storniert." });
+      show({ timeout: 0, title: "Versand fehlgeschlagen", tone: "error" });
+    });
+    // Not yet inserted: the regions first settle outside the closed dialog.
+    expect(screen.queryByTestId("toast")).toBeNull();
+    frame();
+
+    const after = regions();
+    expect(after.polite).toBe(before.polite);
+    expect(after.assertive).toBe(before.assertive);
+    expect(document.body.contains(after.polite)).toBe(true);
+    expect(after.polite.closest("dialog")).toBeNull();
+    expect(after.polite.textContent).toBe("KT26-0004 storniert.");
+    expect(after.assertive.textContent).toBe("Versand fehlgeschlagen");
+  });
+
+  it("keeps both region nodes when the open modal unmounts with a toast", () => {
+    renderPage();
+    const before = regions();
+    act(() => setModalOpen(true));
+    act(() => {
+      setModalMounted(false);
+      show({ timeout: 0, title: "Gespeichert" });
+    });
+    frame();
+    const after = regions();
+    expect(after.polite).toBe(before.polite);
+    expect(after.polite.isConnected).toBe(true);
+    expect(after.polite.textContent).toBe("Gespeichert");
+  });
+
+  it("keeps region nodes and the hover pause when a modal opens", () => {
+    renderPage();
+    const before = regions();
+    act(() => {
+      show({ title: "kurz" });
+    });
+    frame();
+    const toast = screen.getByTestId("toast");
+    act(() => {
+      toast.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    act(() => setModalOpen(true));
+    expect(regions().polite).toBe(before.polite);
+    expect(screen.getByRole("dialog").contains(toast)).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByTestId("toast")).toBe(toast);
+  });
 });
 
 describe("Toast reach", () => {
@@ -52,6 +147,7 @@ describe("Toast reach", () => {
     act(() => {
       show({ timeout: 0, title: "Gespeichert" });
     });
+    frame();
     const dialog = screen.getByRole("dialog", { name: "Dialog" });
     expect(dialog.contains(screen.getByTestId("toast"))).toBe(true);
 
@@ -62,11 +158,11 @@ describe("Toast reach", () => {
   });
 
   it("keeps the remaining time when the toaster moves into a modal", () => {
-    vi.useFakeTimers();
     renderPage();
     act(() => {
       show({ title: "kurz" });
     });
+    frame();
     act(() => {
       vi.advanceTimersByTime(4_000);
     });
@@ -78,7 +174,6 @@ describe("Toast reach", () => {
   });
 
   it("jumps to the newest toast with F6 and pauses it there", () => {
-    vi.useFakeTimers();
     renderPage();
     act(() => {
       show({ title: "alt" });
@@ -87,6 +182,7 @@ describe("Toast reach", () => {
         title: "neu",
       });
     });
+    frame();
     screen.getByRole("button", { name: "Seite" }).focus();
     fireEvent.keyDown(document, { key: "F6" });
     expect(document.activeElement).toBe(
@@ -112,13 +208,13 @@ describe("Toast reach", () => {
   });
 
   it("pauses timers while the page is hidden", () => {
-    vi.useFakeTimers();
     let hidden = false;
     vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
     renderPage();
     act(() => {
       show({ title: "kurz" });
     });
+    frame();
     act(() => {
       vi.advanceTimersByTime(2_000);
       hidden = true;

@@ -138,6 +138,35 @@ test("UI catalog proves all base states with real identity", async ({
       page.getByRole("button", { name: "Bestätigung öffnen" }),
     ).toBeFocused();
 
+    // Toasts stay visible above an open modal: the toaster moves into it.
+    await expect(page.locator(".toaster-region").first()).toBeAttached();
+    await page.evaluate(() => {
+      window.__toastRegions = [...document.querySelectorAll(".toaster-region")];
+    });
+    await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
+    await expect(dialog.getByTestId("toast").first()).toBeVisible();
+    // Confirm closes the dialog and shows the result in the same update;
+    // the result lands in the same, already connected live regions.
+    await dialog.getByRole("button", { name: "Aktion bestätigen" }).click();
+    await expect(dialog).toHaveCount(0);
+    const result = page
+      .getByTestId("toast")
+      .filter({ hasText: "Bestätigung abgeschlossen" });
+    await expect(result).toBeVisible();
+    expect(
+      await page.evaluate(() => {
+        const regions = [...document.querySelectorAll(".toaster-region")];
+        return (
+          regions.length === 2 &&
+          regions.every(
+            (region, index) => region === window.__toastRegions[index],
+          ) &&
+          regions.every((region) => !region.closest("dialog")) &&
+          regions[0].textContent.includes("Bestätigung abgeschlossen")
+        );
+      }),
+    ).toBe(true);
+
     await page.getByTestId("sidebar-toggle").click();
     await expect(page.locator(".ui-shell")).toHaveAttribute(
       "data-sidebar-collapsed",

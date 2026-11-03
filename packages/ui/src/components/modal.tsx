@@ -1,6 +1,6 @@
 import {
-  useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -95,7 +95,9 @@ export function Modal({
   // keeps open.
   const [forcedCloses, setForcedCloses] = useState(0);
 
-  useEffect(() => {
+  // Layout effects: the modal stack (scroll lock, toaster placement) changes
+  // in the same commit as the dialog, before the browser paints.
+  useLayoutEffect(() => {
     const dialog = ref.current;
     const slot = slotRef.current;
     openRef.current = open;
@@ -121,7 +123,7 @@ export function Modal({
   }, [open, forcedCloses]);
 
   // An open modal that unmounts (conditional rendering) still hands focus back.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = ref.current;
     const slot = slotRef.current;
     return () => {
