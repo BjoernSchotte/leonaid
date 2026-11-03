@@ -21,7 +21,6 @@ import {
   UiSystemCatalogPage,
   useCurrentActionId,
   campaignEditorHref,
-  ModuleSearch,
   railCampaigns,
   railNavigation,
   resolveModuleRoute,
@@ -259,12 +258,6 @@ export function App({ client }: AppProps) {
         }}
       >
         <div className="page">
-          <ModuleSearch
-            modules={availableModules}
-            surface="web"
-            client={client}
-            identity={identity.data}
-          />
           <PreviewNotice />
           {currentRoute.kind === "module" ? (
             currentRoute.render({ client, identity: identity.data })
