@@ -20,6 +20,7 @@ import { useHotkeys } from "../keyboard/use-hotkeys";
 import {
   activeNavigationKey,
   mobilePrimaryItems,
+  openCampaignSwitcher,
   RailShell,
   type RailNavItem,
   type RailShellProps,
@@ -143,9 +144,19 @@ describe("RailShell", () => {
     expect(screen.getByTestId("topbar-zone").textContent).toBe("Bestellungen");
   });
 
-  it("falls back to the overview zone when no item is active", () => {
+  it("gives a page without a rail entry a neutral zone and no area name", () => {
     shell({ activeKey: undefined });
-    expect(screen.getByTestId("rail-shell").dataset.zone).toBe("overview-web");
+    expect(screen.getByTestId("rail-shell").dataset.zone).toBe("none");
+    expect(document.getElementById("main-content")?.dataset.zone).toBe("none");
+    expect(screen.getByTestId("topbar-zone").textContent).toBe("");
+    expect(document.querySelector(".zone-mark")).toBeNull();
+  });
+
+  it("puts the active zone on the shell and on main", () => {
+    shell();
+    expect(document.getElementById("main-content")?.dataset.zone).toBe(
+      "orders",
+    );
   });
 
   it("navigates with g and the zone letter for every item it shows", () => {
@@ -365,5 +376,78 @@ describe("mobilePrimaryItems", () => {
     expect(mobilePrimaryItems([actions]).map((item) => item.key)).toEqual([
       "actions",
     ]);
+  });
+});
+
+describe("campaign switching", () => {
+  const campaigns = {
+    campaigns: [
+      { id: "a1", name: "Krapfentaxi 2026" },
+      { id: "a2", name: "Weihnachtsmarkt" },
+    ],
+    currentId: "a1",
+  };
+  let mobile = false;
+
+  beforeEach(() => {
+    mobile = false;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("720px") ? mobile : false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+  });
+
+  it("offers a compact trigger for the collapsed rail with the same menu", () => {
+    const onSelect = vi.fn();
+    shell({ campaignSwitcher: { ...campaigns, onSelect } });
+    const compact = screen.getByTestId("campaign-switcher-compact");
+    expect(compact.getAttribute("aria-label")).toBe(
+      "Aktion wechseln: Krapfentaxi 2026",
+    );
+    fireEvent.click(compact);
+    fireEvent.click(screen.getByRole("option", { name: /Weihnachtsmarkt/ }));
+    expect(onSelect).toHaveBeenCalledWith("a2");
+  });
+
+  it("shows a placeholder when the page's campaign is not in the list", () => {
+    shell({
+      campaignSwitcher: { ...campaigns, currentId: "", onSelect: vi.fn() },
+    });
+    expect(screen.getByTestId("current-action").textContent).toBe(
+      "Aktion wählen",
+    );
+  });
+
+  it("opens the rail switcher from openCampaignSwitcher() on wide screens", async () => {
+    shell({ campaignSwitcher: { ...campaigns, onSelect: vi.fn() } });
+    await act(async () => {
+      openCampaignSwitcher();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(
+      screen.getByRole("dialog", { name: "Aktion wechseln" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("campaign-switcher").getAttribute("aria-expanded"),
+    ).toBe("true");
+  });
+
+  it("opens the sheet's switcher from openCampaignSwitcher() on phones", async () => {
+    mobile = true;
+    const onSelect = vi.fn();
+    shell({ campaignSwitcher: { ...campaigns, onSelect } });
+    await act(async () => {
+      openCampaignSwitcher();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    const sheet = screen.getByTestId("mobile-sheet");
+    expect(sheet.hasAttribute("open")).toBe(true);
+    const menu = within(sheet).getByRole("dialog", { name: "Aktion wechseln" });
+    fireEvent.click(
+      within(menu).getByRole("option", { name: /Weihnachtsmarkt/ }),
+    );
+    expect(onSelect).toHaveBeenCalledWith("a2");
   });
 });

@@ -672,3 +672,62 @@
     gap: var(--s-1);
   }
 }
+
+/* Product: pages without a rail entry get a neutral band. */
+[data-zone="none"] {
+  --zone-c: 0;
+}
+
+/* Product: "Alle Bereiche" takes the prototype's base.css heading style. */
+.sheet-header h2 {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+/* Product: campaign switching at ≤ 1024 px (collapsed rail, sheet). */
+.rail-campaign-compact {
+  display: none;
+}
+.sheet-campaign-row {
+  margin-top: var(--s-4);
+}
+.sheet-campaign {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s-2) var(--s-3);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-campaign .rail-campaign-label {
+  color: var(--text-2);
+}
+.sheet-campaign svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--text-2);
+}
+@media (max-width: 1024px) {
+  .rail-campaign-compact {
+    display: grid;
+    place-items: center;
+    height: 40px;
+    margin: 0 var(--s-2) var(--s-2);
+    border: var(--hair) solid oklch(1 0 0 / 0.14);
+    border-radius: var(--r-md);
+    background: var(--rail-bg-2);
+    color: var(--rail-text);
+    cursor: pointer;
+  }
+  .rail-campaign-compact:hover {
+    border-color: oklch(1 0 0 / 0.24);
+  }
+}

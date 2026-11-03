@@ -10,7 +10,14 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { GO_TO_GROUP } from "../keyboard/shortcut-help";
 import {
@@ -91,8 +98,10 @@ function assignLocation(href: string) {
   window.location.assign(href);
 }
 
-/** Zone used when no navigation item matches the current page. */
-export const DEFAULT_ZONE = "overview-web";
+/** Zone of a page without a rail entry: a neutral band and no area name. */
+export const NEUTRAL_ZONE = "none";
+
+const MOBILE_QUERY = "(max-width: 720px)";
 
 const DEFAULT_MOBILE_PRIMARY = [
   "overview-web",
@@ -193,44 +202,98 @@ function BrandMark() {
   );
 }
 
+const campaignOpeners = new Set<() => void>();
+
+/**
+ * Opens the campaign switcher where it is visible: the rail (also the
+ * collapsed rail) above 720 px, the "Mehr" sheet below. For the palette's
+ * "Aktion wechseln …" command.
+ */
+export function openCampaignSwitcher(): void {
+  // Let a closing dialog (the palette) restore focus first.
+  window.setTimeout(() => {
+    for (const open of campaignOpeners) open();
+  }, 0);
+}
+
+function isVisible(element: HTMLElement | null): element is HTMLElement {
+  return Boolean(element && element.getClientRects().length > 0);
+}
+
 function CampaignSwitcher({
   campaigns,
   currentId,
   onSelect,
-}: RailCampaignSwitcherProps) {
-  const anchor = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const current =
-    campaigns.find((campaign) => campaign.id === currentId) ?? campaigns[0];
-  if (!current) return null;
+  open,
+  onOpenChange,
+  variant,
+}: RailCampaignSwitcherProps & {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly variant: "rail" | "sheet";
+}) {
+  const full = useRef<HTMLButtonElement>(null);
+  const compact = useRef<HTMLButtonElement>(null);
+  // The popover follows whichever trigger the layout shows right now.
+  const anchor = useMemo<RefObject<HTMLButtonElement | null>>(
+    () => ({
+      get current() {
+        if (isVisible(full.current)) return full.current;
+        return compact.current ?? full.current;
+      },
+    }),
+    [],
+  );
+  const current = campaigns.find((campaign) => campaign.id === currentId);
+  if (campaigns.length === 0) return null;
+  const name = current?.name ?? "Aktion wählen";
+  const toggle = () => onOpenChange(!open);
   return (
     <>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="rail-campaign"
-        data-testid="campaign-switcher"
-        onClick={() => setOpen((value) => !value)}
-        ref={anchor}
+        className={variant === "rail" ? "rail-campaign" : "sheet-campaign"}
+        data-testid={variant === "rail" ? "campaign-switcher" : undefined}
+        onClick={toggle}
+        ref={full}
         type="button"
       >
         <span className="rail-campaign-label">Aktion</span>
-        <span className="rail-campaign-name" data-testid="current-action">
-          {current.name}
+        <span
+          className="rail-campaign-name"
+          data-testid={variant === "rail" ? "current-action" : undefined}
+        >
+          {name}
         </span>
         <span className="sr-only"> wechseln</span>
         <ChevronsUpDown aria-hidden="true" size={14} />
       </button>
+      {variant === "rail" ? (
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={`Aktion wechseln: ${name}`}
+          className="rail-campaign-compact"
+          data-testid="campaign-switcher-compact"
+          onClick={toggle}
+          ref={compact}
+          title={`Aktion: ${name}`}
+          type="button"
+        >
+          <ChevronsUpDown aria-hidden="true" size={16} />
+        </button>
+      ) : null}
       <Popover
         anchor={anchor}
         label="Aktion wechseln"
-        onClose={() => setOpen(false)}
+        onClose={() => onOpenChange(false)}
         open={open}
       >
         <OptionMenu
           onSelect={(id) => {
-            setOpen(false);
-            if (id !== current.id) onSelect(id);
+            onOpenChange(false);
+            if (id !== current?.id) onSelect(id);
           }}
           options={campaigns.map((campaign) => ({
             value: campaign.id,
@@ -238,7 +301,7 @@ function CampaignSwitcher({
             hint: campaign.hint,
           }))}
           placeholder="Aktion suchen …"
-          value={current.id}
+          value={current?.id ?? ""}
         />
       </Popover>
     </>
@@ -326,6 +389,12 @@ function ThemeHotkey() {
   return null;
 }
 
+function closeDialog(dialog: HTMLDialogElement) {
+  if (!dialog.open) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
 function MoreSheet({
   open,
   onClose,
@@ -334,6 +403,9 @@ function MoreSheet({
   user,
   onLogout,
   onOpenPalette,
+  campaignSwitcher,
+  campaignOpen,
+  onCampaignOpenChange,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -342,6 +414,9 @@ function MoreSheet({
   readonly user: RailShellUser;
   readonly onLogout: () => void;
   readonly onOpenPalette?: () => void;
+  readonly campaignSwitcher?: RailCampaignSwitcherProps;
+  readonly campaignOpen: boolean;
+  readonly onCampaignOpenChange: (open: boolean) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -352,10 +427,7 @@ function MoreSheet({
       if (typeof dialog.showModal === "function") dialog.showModal();
       else dialog.setAttribute("open", "");
     }
-    if (!open && dialog.open) {
-      if (typeof dialog.close === "function") dialog.close();
-      else dialog.removeAttribute("open");
-    }
+    if (!open && dialog.open) closeDialog(dialog);
   }, [open]);
 
   return (
@@ -382,6 +454,9 @@ function MoreSheet({
             <button
               className="rail-search sheet-search"
               onClick={() => {
+                // Close first, so focus is back on "Mehr" when the palette
+                // opens and records where to return.
+                if (ref.current) closeDialog(ref.current);
                 onClose();
                 onOpenPalette();
               }}
@@ -411,6 +486,16 @@ function MoreSheet({
               );
             })}
           </nav>
+          {campaignSwitcher ? (
+            <div className="sheet-campaign-row">
+              <CampaignSwitcher
+                {...campaignSwitcher}
+                onOpenChange={onCampaignOpenChange}
+                open={campaignOpen}
+                variant="sheet"
+              />
+            </div>
+          ) : null}
           <div className="sheet-account">
             <Avatar name={user.name} size="md" />
             <span className="sheet-account-text">
@@ -448,8 +533,45 @@ function ShellFrame({
 }: RailShellProps) {
   const help = useShortcutHelp();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [railCampaignOpen, setRailCampaignOpen] = useState(false);
+  const [sheetCampaignOpen, setSheetCampaignOpen] = useState(false);
   const active = navigation.find((item) => item.key === activeKey);
   const ActiveIcon = active?.icon;
+  // A page without a rail entry gets a neutral band, not the overview hue.
+  const zone = active?.key ?? NEUTRAL_ZONE;
+
+  // The sheet belongs to the bottom nav: growing past 720 px closes it.
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(MOBILE_QUERY);
+    const update = () => {
+      if (!media.matches) {
+        setMoreOpen(false);
+        setSheetCampaignOpen(false);
+      }
+    };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  // openCampaignSwitcher(): the rail switcher, or the sheet's on phones.
+  useEffect(() => {
+    const open = () => {
+      const mobile =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia(MOBILE_QUERY).matches;
+      if (mobile) {
+        setMoreOpen(true);
+        setSheetCampaignOpen(true);
+      } else {
+        setRailCampaignOpen(true);
+      }
+    };
+    campaignOpeners.add(open);
+    return () => {
+      campaignOpeners.delete(open);
+    };
+  }, []);
 
   // Registered here, before the page renders, so page bindings win.
   const bindings: HotkeyBinding[] = navigation
@@ -464,11 +586,7 @@ function ShellFrame({
   useHotkeys(bindings);
 
   return (
-    <div
-      className="shell"
-      data-testid="rail-shell"
-      data-zone={active?.key ?? DEFAULT_ZONE}
-    >
+    <div className="shell" data-testid="rail-shell" data-zone={zone}>
       <a className="skip-link" href="#main-content">
         Zum Inhalt springen
       </a>
@@ -492,7 +610,14 @@ function ShellFrame({
               ) : null}
             </span>
           </div>
-          {campaignSwitcher ? <CampaignSwitcher {...campaignSwitcher} /> : null}
+          {campaignSwitcher ? (
+            <CampaignSwitcher
+              {...campaignSwitcher}
+              onOpenChange={setRailCampaignOpen}
+              open={railCampaignOpen}
+              variant="rail"
+            />
+          ) : null}
           {onOpenPalette ? (
             <button
               aria-label="Suchen und Befehle"
@@ -526,9 +651,11 @@ function ShellFrame({
         {systemBanner}
         <header className="topbar">
           <div className="topbar-start">
-            <span aria-hidden="true" className="zone-mark">
-              {ActiveIcon ? <ActiveIcon aria-hidden="true" size={16} /> : null}
-            </span>
+            {ActiveIcon ? (
+              <span aria-hidden="true" className="zone-mark">
+                <ActiveIcon aria-hidden="true" size={16} />
+              </span>
+            ) : null}
             <span className="topbar-zone" data-testid="topbar-zone">
               {active?.label}
             </span>
@@ -556,7 +683,7 @@ function ShellFrame({
             <ThemeButton />
           </div>
         </header>
-        <main className="main" id="main-content" tabIndex={-1}>
+        <main className="main" data-zone={zone} id="main-content" tabIndex={-1}>
           {children}
         </main>
       </div>
@@ -587,8 +714,14 @@ function ShellFrame({
 
       <MoreSheet
         activeKey={active?.key}
+        campaignOpen={sheetCampaignOpen}
+        campaignSwitcher={campaignSwitcher}
         items={navigation}
-        onClose={() => setMoreOpen(false)}
+        onCampaignOpenChange={setSheetCampaignOpen}
+        onClose={() => {
+          setMoreOpen(false);
+          setSheetCampaignOpen(false);
+        }}
         onLogout={onLogout}
         onOpenPalette={onOpenPalette}
         open={moreOpen}
