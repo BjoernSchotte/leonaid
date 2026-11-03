@@ -881,6 +881,8 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
     new URLSearchParams(href.split("?")[1] ?? "").get("view") === "new"
       ? "new"
       : "list";
+  const [captureOpened, setCaptureOpened] = useState(view === "new");
+  if (view === "new" && !captureOpened) setCaptureOpened(true);
   function setView(next: SponsorView) {
     if (next === view) return;
     const url = new URL(window.location.href);
@@ -968,17 +970,22 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         </div>
       </div>
 
-      {view === "new" ? (
-        <SponsorCapture
-          actionId={actionId}
-          client={client}
-          identity={identity}
-          key={actionId}
-          onAssigned={async () => {
-            await board.refetch();
-          }}
-        />
-      ) : board.isPending ? (
+      {captureOpened ? (
+        // Stays mounted once opened: switching to the list or going Back
+        // keeps what was typed, and "Neu" shows it again.
+        <div hidden={view !== "new"}>
+          <SponsorCapture
+            actionId={actionId}
+            client={client}
+            identity={identity}
+            key={actionId}
+            onAssigned={async () => {
+              await board.refetch();
+            }}
+          />
+        </div>
+      ) : null}
+      {view === "new" ? null : board.isPending ? (
         <div aria-live="polite" className="acq-skeleton" role="status">
           <span />
           <span />

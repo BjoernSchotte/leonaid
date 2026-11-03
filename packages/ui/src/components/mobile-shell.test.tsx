@@ -78,6 +78,13 @@ function renderShell(overrides: Partial<MobileShellProps> = {}) {
     >
       <h1>Meine Sponsoren</h1>
       <input aria-label="Straße" />
+      <input aria-label="Aufgaben suchen" type="search" />
+      <form role="search">
+        <input aria-label="Material filtern" />
+      </form>
+      <div data-leave-guard="off">
+        <input aria-label="Notizfilter" />
+      </div>
     </MobileShell>,
   );
   return { onLogout };
@@ -263,5 +270,75 @@ describe("MobileShell", () => {
     );
     expect(confirm).not.toHaveBeenCalled();
     confirm.mockRestore();
+  });
+
+  describe("leave guard exceptions", () => {
+    function clickStart(init: MouseEventInit = {}) {
+      const nav = screen.getByRole("navigation", { name: "App-Navigation" });
+      const event = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      within(nav).getByRole("link", { name: "Start" }).dispatchEvent(event);
+      return event;
+    }
+
+    it("does not ask for search and filter fields or opted-out fields", async () => {
+      const user = userEvent.setup();
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      renderShell();
+      await user.type(
+        screen.getByRole("searchbox", { name: "Aufgaben suchen" }),
+        "Detail",
+      );
+      await user.type(
+        screen.getByRole("textbox", { name: "Material filtern" }),
+        "Flyer",
+      );
+      await user.type(
+        screen.getByRole("textbox", { name: "Notizfilter" }),
+        "Plan",
+      );
+      expect(clickStart().defaultPrevented).toBe(false);
+      expect(confirm).not.toHaveBeenCalled();
+      confirm.mockRestore();
+    });
+
+    it("does not ask for a new tab or window", async () => {
+      const user = userEvent.setup();
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      renderShell();
+      await user.type(screen.getByRole("textbox", { name: "Straße" }), "Weg 7");
+      for (const init of [
+        { ctrlKey: true },
+        { metaKey: true },
+        { shiftKey: true },
+        { button: 1 },
+      ]) {
+        expect(clickStart(init).defaultPrevented).toBe(false);
+      }
+      expect(confirm).not.toHaveBeenCalled();
+      confirm.mockRestore();
+    });
+
+    it("leaves the question to a page's own beforeunload guard", async () => {
+      const user = userEvent.setup();
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const pageGuard = (event: Event) => event.preventDefault();
+      window.addEventListener("beforeunload", pageGuard);
+      try {
+        renderShell();
+        await user.type(
+          screen.getByRole("textbox", { name: "Straße" }),
+          "Weg 7",
+        );
+        expect(clickStart().defaultPrevented).toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener("beforeunload", pageGuard);
+        confirm.mockRestore();
+      }
+    });
   });
 });

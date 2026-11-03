@@ -322,6 +322,21 @@ for (const [surface, width] of [
       path: testInfo.outputPath(`s2-${surface}-workspace.png`),
       fullPage: false,
     });
+    if (surface === "app") {
+      // A typed filter loses nothing: a tab leaves without the shell asking.
+      const dialogs = [];
+      page.on("dialog", (dialog) => {
+        dialogs.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await page.getByLabel("Aufgaben suchen").fill("Detail 0");
+      await page
+        .getByRole("navigation", { name: "App-Navigation" })
+        .getByRole("link", { name: "Start" })
+        .click();
+      await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
+      expect(dialogs).toEqual([]);
+    }
     await context.close();
   });
 }

@@ -88,7 +88,6 @@ const TEXT_INPUT_TYPES = new Set([
   "email",
   "month",
   "number",
-  "search",
   "tel",
   "text",
   "time",
@@ -96,11 +95,41 @@ const TEXT_INPUT_TYPES = new Set([
   "week",
 ]);
 
+/** Put on a field or a container whose input must not count as unsaved. */
+export const LEAVE_GUARD_OFF_ATTRIBUTE = "data-leave-guard";
+
+/**
+ * Search and filter fields lose nothing on leaving (filters live in the
+ * URL), so they never count: `type="search"`, `role="searchbox"`, fields
+ * inside `role="search"` and anything under `data-leave-guard="off"`.
+ */
+function countsAsInput(
+  field: Element,
+): field is HTMLInputElement | HTMLTextAreaElement {
+  const typed =
+    field instanceof HTMLTextAreaElement ||
+    (field instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(field.type));
+  if (!typed) return false;
+  if (field.getAttribute("role") === "searchbox") return false;
+  return !field.closest(
+    `[${LEAVE_GUARD_OFF_ATTRIBUTE}="off"], [role="search"]`,
+  );
+}
+
+/** A page's own leave guard (beforeunload) would ask the browser anyway. */
+function pageGuardsLeaving(): boolean {
+  const probe = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(probe);
+  const value = (probe as Event & { returnValue?: unknown }).returnValue;
+  return probe.defaultPrevented || (typeof value === "string" && value !== "");
+}
+
 /**
  * Asks before shell navigation (tabs, digit keys, sheet links) would drop
  * typed input. A field counts once the user typed into it, while it is
  * still on the page and not empty: a saved form that resets or unmounts
- * stops counting.
+ * stops counting. When the page has its own beforeunload guard, the
+ * browser's dialog asks instead (one question, not two).
  */
 function useLeaveGuard() {
   const mainRef = useRef<HTMLElement>(null);
@@ -111,11 +140,7 @@ function useLeaveGuard() {
     if (!main) return;
     const onInput = (event: Event) => {
       const target = event.target;
-      if (
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLInputElement &&
-          TEXT_INPUT_TYPES.has(target.type))
-      ) {
+      if (target instanceof Element && countsAsInput(target)) {
         touched.current.add(target);
       }
     };
@@ -133,7 +158,8 @@ function useLeaveGuard() {
 
   /** True when leaving is fine: nothing typed, or the user confirmed. */
   function confirmLeave(): boolean {
-    return !hasUnsavedInput() || window.confirm(LEAVE_QUESTION);
+    if (!hasUnsavedInput() || pageGuardsLeaving()) return true;
+    return window.confirm(LEAVE_QUESTION);
   }
 
   return { confirmLeave, mainRef };
@@ -179,6 +205,16 @@ function MobileShellFrame({
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
   const { confirmLeave, mainRef } = useLeaveGuard();
   const guardLink = (event: MouseEvent<HTMLAnchorElement>) => {
+    // A new tab or window (modifier or middle click) drops nothing here.
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
     if (!confirmLeave()) event.preventDefault();
   };
 

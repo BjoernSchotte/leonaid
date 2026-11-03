@@ -276,6 +276,10 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await expect(
     tabs.getByRole("link", { name: "Neu", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  // Typed sponsor data survives the in-page switch and Back: the capture
+  // stays mounted, as the prototype keeps its flow without a question.
+  const company = page.getByLabel("Firmenname");
+  await company.fill("Ungespeichert GmbH");
   await page.getByRole("tab", { name: "Übersicht" }).click();
   await expect(page).toHaveURL(/\/app\/sponsors$/);
   await expect(tabs.getByRole("link", { name: "Sponsoren" })).toHaveAttribute(
@@ -286,10 +290,9 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await expect(
     tabs.getByRole("link", { name: "Neu", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(company).toHaveValue("Ungespeichert GmbH");
 
   // A tab asks before it drops typed input.
-  const company = page.getByLabel("Firmenname");
-  await company.fill("Ungespeichert GmbH");
   const question = page.waitForEvent("dialog");
   const startTab = tabs.getByRole("link", { name: "Start" });
   const tapped = startTab.click();
