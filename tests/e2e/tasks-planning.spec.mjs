@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 

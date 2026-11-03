@@ -32,6 +32,8 @@ OUTBOX_REFERENCES: tuple[tuple[str, str, bool], ...] = (
 # and its link becomes NULL when the job is deleted (ON DELETE SET NULL).
 OUTBOX_DETACHED_REFERENCES: tuple[tuple[str, str], ...] = (
     ("mail_delivery", "outbox_event_id"),
+    # The case keeps its contact state; the completed link job may go.
+    ("inbox_case", "contact_job_id"),
 )
 
 _UNREFERENCED = "\n".join(
@@ -55,6 +57,24 @@ USING doomed
 WHERE event.id = doomed.id
   AND event.status = 'completed'
 """
+
+
+async def complete_resolved_event(
+    connection: asyncpg.Connection[Any], event_id: UUID
+) -> None:
+    """Complete a resting job whose outcome was verified by its owning module."""
+    status = await connection.execute(
+        """
+        UPDATE outbox_event
+        SET status='completed', completed_at=now(), dead_lettered_at=NULL,
+            claim_token=NULL, claimed_by=NULL, last_error_code=NULL,
+            last_error_detail=NULL
+        WHERE id=$1 AND status IN ('pending','dead_letter')
+        """,
+        event_id,
+    )
+    if status != "UPDATE 1":
+        raise ValueError("Only a resting job can be completed by its module.")
 
 
 class AsyncpgOutboxQueue:

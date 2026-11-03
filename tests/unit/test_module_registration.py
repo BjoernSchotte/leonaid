@@ -216,6 +216,7 @@ def test_modules_are_registered_with_routes_and_navigation() -> None:
         "tasks",
         "materials",
         "knowledge",
+        "inbox",
     ]
     items = navigation_for(principal(), module_navigation(frozenset())(principal()))
 
@@ -230,6 +231,8 @@ def test_modules_are_registered_with_routes_and_navigation() -> None:
         ("materials", "/app/materials", "pwa"),
         ("knowledge", "/admin/knowledge", "web"),
         ("knowledge", "/app/knowledge", "pwa"),
+        ("inbox", "/admin/inbox", "web"),
+        ("inbox", "/app/inbox", "pwa"),
     ]
 
 
@@ -269,6 +272,7 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "tasks",
         "materials",
         "knowledge",
+        "inbox",
         "actions",
         "invoicing",
         "mail",
@@ -295,6 +299,7 @@ def test_worker_handler_set_is_unchanged() -> None:
 
     assert sorted(handlers) == [
         "charity_action.progress.recorded.v1",
+        "inbox.contact_link.v1",
         "invoice.document.render.requested.v1",
         "invoice.mail.send.requested.v1",
         "mail.send.v1",
@@ -342,7 +347,7 @@ def test_api_and_worker_offer_the_same_switchable_modules() -> None:
         for module in worker_modules("postgresql://unused", None)
         if module.switchable
     }
-    assert api == worker == {"surveys", "tasks", "materials", "knowledge"}
+    assert api == worker == {"surveys", "tasks", "materials", "knowledge", "inbox"}
 
 
 def test_switched_off_module_has_no_routes_navigation_or_loops(
@@ -359,6 +364,7 @@ def test_switched_off_module_has_no_routes_navigation_or_loops(
         "tasks",
         "materials",
         "knowledge",
+        "inbox",
     }
     assert any(path.startswith("/api/v1/task") for path in paths)
     assert background_loops("postgresql://unused", off) == ()

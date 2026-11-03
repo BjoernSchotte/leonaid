@@ -27,6 +27,14 @@ from leonaid.bootstrap.registry import (
 from leonaid.configuration import Settings
 from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
+from leonaid.adapters.postgres.outbox import complete_resolved_event
+from leonaid.application.crm import CrmGateway
+from leonaid.modules.inbox.api import InboxService
+from leonaid.modules.inbox.api import navigation as inbox_navigation
+from leonaid.modules.inbox.jobs import INBOX_EVENT_TYPES
+from leonaid.modules.inbox.privacy import InboxPrivacyContributor
+from leonaid.modules.inbox.repository import AsyncpgInboxRepository
+from leonaid.modules.inbox.routes import router as inbox_router
 from leonaid.modules.knowledge.api import KnowledgeService
 from leonaid.modules.knowledge.api import navigation as knowledge_navigation
 from leonaid.modules.knowledge.repository import AsyncpgKnowledgeRepository
@@ -67,6 +75,13 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
         switchable=True,
         requires=("tasks", "materials"),
     ),
+    ModuleRegistration(
+        "inbox",
+        router=inbox_router,
+        navigation=inbox_navigation,
+        switchable=True,
+        requires=("tasks", "materials"),
+    ),
 )
 
 
@@ -77,6 +92,7 @@ MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {
     "tasks": frozenset(),
     "materials": frozenset(),
     "knowledge": frozenset(),
+    "inbox": INBOX_EVENT_TYPES,
 }
 
 
@@ -151,3 +167,27 @@ def build_knowledge_service(
             ),
         )
     )
+
+
+def build_inbox_service(
+    pool: asyncpg.Pool[Any], crm: CrmGateway | None = None
+) -> InboxService:
+    # Inbox only references material versions; it never reads object storage.
+    return InboxService(
+        AsyncpgInboxRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+            lambda connection: MaterialService(
+                AsyncpgMaterialRepository(pool, connection=connection)
+            ),
+            complete_resolved_event,
+        ),
+        crm,
+    )
+
+
+def privacy_contributors() -> tuple[InboxPrivacyContributor, ...]:
+    """Module data the privacy workflow covers, also for switched-off modules."""
+    return (InboxPrivacyContributor(),)

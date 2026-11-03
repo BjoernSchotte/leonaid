@@ -643,5 +643,70 @@
         "requires=(\"tasks\", \"materials\")"
       ]
     }
+  ],
+  "DOC-P045": [
+    {
+      "file": "packages/features/src/inbox/inbox.tsx",
+      "contains": [
+        "Alle Eingänge",
+        "Kontakt zugeordnet",
+        "Kontaktzuordnung benötigt Klärung",
+        "Abschlussnotiz"
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/case-editor.tsx",
+      "contains": [
+        "Bearbeitung speichern",
+        "Zuständigkeit",
+        "Neu",
+        "In Bearbeitung",
+        "Abgeschlossen"
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/comments.tsx",
+      "contains": [
+        "Interne Notizen",
+        "Notiz speichern"
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/contact.tsx",
+      "contains": [
+        "Bestehenden Kontakt suchen",
+        "In Twenty suchen",
+        "Kontakt auswählen",
+        "Kontaktzuordnung bestätigen"
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/tasks.tsx",
+      "contains": [
+        "Aufgabe verknüpfen",
+        "Bestehende Aufgabe auswählen"
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/materials.tsx",
+      "contains": [
+        "Material verknüpfen"
+      ]
+    },
+    {
+      "file": "apps/public/src/components/PublicInbox.astro",
+      "contains": [
+        "Kontakt aufnehmen",
+        "Hinweise zur Datenverarbeitung",
+        "Ich willige ein",
+        "inbox-privacy-2026-11"
+      ]
+    },
+    {
+      "file": "src/leonaid/entrypoints/fastapi/security.py",
+      "contains": [
+        "RateLimitPolicy(\"inbox.public.submit\", 5, timedelta(minutes=10))"
+      ]
+    }
   ]
 }

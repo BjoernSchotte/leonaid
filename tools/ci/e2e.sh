@@ -28,7 +28,7 @@ case "$shard" in
     python3 "$root/tools/testing/shared_stack.py" core \
       tools/identity/test.sh
     ;;
-  tasks|materials|knowledge)
+  tasks|materials|knowledge|inbox)
     python3 "$root/tools/testing/shared_stack.py" core "tools/$shard/test.sh"
     ;;
   acquisition)

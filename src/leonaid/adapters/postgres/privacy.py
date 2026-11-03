@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -14,7 +16,7 @@ from leonaid.adapters.postgres.delivery import (
     decode_window_snapshot,
 )
 from leonaid.application.errors import Conflict
-from leonaid.application.privacy import PrivacyRepository
+from leonaid.application.privacy import PrivacyRepository, PrivacySubjectContributor
 from leonaid.domain.privacy import (
     ContactChannel,
     ConsentEvidenceKind,
@@ -79,16 +81,36 @@ def _reference(
 
 
 class AsyncpgPrivacyRepository(PrivacyRepository):
-    def __init__(self, pool: asyncpg.Pool[Any], *, subject_hmac_secret: str) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        *,
+        subject_hmac_secret: str,
+        contributors: Sequence[PrivacySubjectContributor] = (),
+    ) -> None:
         self._pool = pool
         self._subject_hmac_secret = subject_hmac_secret
+        self._contributors = tuple(contributors)
 
     async def subject_report(self, normalized_email: str) -> PrivacySubjectReport:
         async with self._pool.acquire() as connection:
             return await self._subject_report(connection, normalized_email)
 
-    @staticmethod
     async def _subject_report(
+        self,
+        connection: asyncpg.Connection[Any],
+        normalized_email: str,
+    ) -> PrivacySubjectReport:
+        report = await self._core_subject_report(connection, normalized_email)
+        module_references: list[PrivacyReference] = []
+        for contributor in self._contributors:
+            module_references.extend(
+                await contributor.references(connection, normalized_email)
+            )
+        return replace(report, module_references=tuple(module_references))
+
+    @staticmethod
+    async def _core_subject_report(
         connection: asyncpg.Connection[Any],
         normalized_email: str,
     ) -> PrivacySubjectReport:
@@ -483,6 +505,10 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     person_ids,
                     occurred_at,
                 )
+                for contributor in self._contributors:
+                    await contributor.anonymize(
+                        connection, normalized_email, occurred_at
+                    )
                 revoked_status = await connection.execute(
                     """
                     UPDATE consent_record

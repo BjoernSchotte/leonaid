@@ -65,6 +65,12 @@ test("active, inactive and archived public pages stay functionally identical in 
     page.getByRole("heading", { name: "Wem die Aktion hilft" }),
   ).toBeVisible();
   await expect(page.getByText("Zukunftswerk Beispielstadt")).toBeVisible();
+  // A live action takes contact requests only with the consent checkbox.
+  const inquiry = page.locator("leonaid-inbox-form");
+  await expect(inquiry).toBeVisible();
+  await expect(
+    inquiry.getByRole("checkbox", { name: /Ich willige ein/ }),
+  ).toHaveAttribute("required", "");
   await expect(
     page.getByRole("heading", {
       name: "Transparent, bevor Daten erhoben werden.",
@@ -99,7 +105,13 @@ test("active, inactive and archived public pages stay functionally identical in 
     );
   expect(unloadedImages).toEqual([]);
   await expect(page.locator('img[src*="lions-krapfentaxi.de"]')).toHaveCount(0);
-  await expect(page.locator("script")).toHaveCount(0);
+  // The inquiry form is the only enhanced element of this page.
+  await expect(page.locator("script")).toHaveCount(1);
+  await expect(page.locator("script")).toHaveAttribute(
+    "src",
+    /\/_astro\/PublicInbox\./,
+  );
+  await expect(page.locator("[data-order-form]")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await expectTouchTargets(page);
 

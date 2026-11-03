@@ -2,10 +2,12 @@
 import { actions } from "astro:actions";
 
 import PublicAction from "../components/PublicAction.astro";
+import PublicInbox from "../components/PublicInbox.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { resolvePublicTheme } from "../themes";
 import { campaignRedirect } from "../lib/campaign-redirect";
+import { moduleEnabled } from "../lib/modules";
 
 const rawPath = Astro.params.path ?? "";
 const publicOrderResult = Astro.getActionResult(actions.createPublicOrder);
@@ -166,4 +168,5 @@ const robots =
       />
     )
   }
+  {state === "home" && moduleEnabled("inbox") && <PublicInbox />}
 </PublicLayout>

@@ -131,11 +131,25 @@ async def assert_astro_matches(
     source = response.text
     has_client_script = "<script" in source.casefold()
     submissions_allowed = direct.get("submissionsAllowed") is True
-    if submissions_allowed and not has_client_script:
+    # Only a live action takes contact requests; archive and inactive do not.
+    inbox_allowed = expected_state == "published"
+    if ("<leonaid-inbox-form" in source) != inbox_allowed:
+        raise ContractFailure(
+            f"Astro route {path} shows the inquiry form against its publication state"
+        )
+    if inbox_allowed and 'name="privacyConsent"' not in source:
+        raise ContractFailure(
+            f"Astro route {path} offers the inquiry form without the consent checkbox"
+        )
+    if not submissions_allowed and "data-order-form" in source:
+        raise ContractFailure(
+            f"Astro route {path} shows an order form although orders are closed"
+        )
+    if (submissions_allowed or inbox_allowed) and not has_client_script:
         raise ContractFailure(
             f"Astro route {path} does not enhance the active form in the browser"
         )
-    if not submissions_allowed and has_client_script:
+    if not (submissions_allowed or inbox_allowed) and has_client_script:
         raise ContractFailure(
             f"Astro route {path} ships needless client JavaScript without a form"
         )

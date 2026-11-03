@@ -48,6 +48,7 @@ services:
       S3_ACCESS_KEY_ID: leonaid-emdash
       S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY:-}
       S3_REGION: us-east-1
+      LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
       EMDASH_SITE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
@@ -234,6 +235,8 @@ services:
     environment:
       LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      TWENTY_BASE_URL: http://twenty-server:3000
+      TWENTY_INTEGRATION_API_KEY: ${TWENTY_INTEGRATION_API_KEY:-}
       RUSTFS_ENDPOINT_URL: http://rustfs:9000
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
@@ -392,6 +395,8 @@ services:
     environment:
       CORE_API_URL: http://api:8000
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
+      # Hides public forms of switched-off modules (inbox).
+      LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
       HOST: 0.0.0.0
       PORT: "3000"
     networks:

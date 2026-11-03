@@ -1,6 +1,8 @@
 # Sourced by module browser leaves (tools/<module>/test.sh) inside a borrowed
 # shared stack. Expects root, leaf and module_specs; seeds two synthetic
 # accounts and runs the module's Playwright specs against the real proxy.
+# Optional: shared_services (services the leaf needs) and module_seed (a
+# repository script that extends the fixture with module data).
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 integration_key=""
@@ -22,13 +24,19 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-shared_services="api web pwa proxy rustfs"
+shared_services=${shared_services:-"api web pwa proxy rustfs"}
 . "$root/tools/testing/borrow_stack.sh"
 
 compose run --rm --no-deps --user "$(id -u):$(id -g)" \
   --env LEONAID_MODULE_FIXTURE=/proof/module-fixture.json \
   --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --entrypoint python api /repo/tools/testing/module_browser_seed.py
+if [ -n "${module_seed:-}" ]; then
+  compose run --rm --no-deps --user "$(id -u):$(id -g)" \
+    --env LEONAID_MODULE_FIXTURE=/proof/module-fixture.json \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --entrypoint python api "/repo/$module_seed"
+fi
 
 # Intentional splitting of the module's spec list.
 # shellcheck disable=SC2086

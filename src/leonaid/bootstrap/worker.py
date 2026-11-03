@@ -13,6 +13,7 @@ from datetime import timedelta
 from typing import Any
 
 import asyncpg
+from pydantic import SecretStr
 
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
@@ -29,8 +30,10 @@ from leonaid.adapters.postgres.invoice_deliveries import (
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
+from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
+from leonaid.application.crm import CrmGateway
 from leonaid.application.object_storage import ObjectStorage
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.bootstrap.registry import (
@@ -43,6 +46,10 @@ from leonaid.bootstrap.registry import (
 )
 from leonaid.configuration import load_mail_transport_settings, load_module_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
+from leonaid.modules.inbox.jobs import (
+    INBOX_HANDLER_TIMEOUTS,
+    InboxContactHandler,
+)
 from leonaid.modules.surveys.jobs import (
     SURVEY_HANDLER_TIMEOUTS,
     survey_handlers,
@@ -81,6 +88,7 @@ class HandlerDependencies:
     storage: ObjectStorage
     mail_transport: SmtpTransport
     payload_secret: str
+    crm: CrmGateway | None = None
 
 
 def worker_modules(
@@ -106,6 +114,13 @@ def worker_modules(
             "knowledge", switchable=True, requires=("tasks", "materials")
         ),
         ModuleRegistration(
+            "inbox",
+            handlers=_inbox_handlers(dependencies) if dependencies else {},
+            handler_timeouts=INBOX_HANDLER_TIMEOUTS if dependencies else {},
+            switchable=True,
+            requires=("tasks", "materials"),
+        ),
+        ModuleRegistration(
             "actions",
             handlers=_action_handlers(dependencies) if dependencies else {},
         ),
@@ -129,6 +144,16 @@ def _survey_handlers(
         dependencies.mail_transport,
         dependencies.payload_secret,
     )
+
+
+def _inbox_handlers(
+    dependencies: HandlerDependencies,
+) -> dict[str, OutboxEventHandler]:
+    return {
+        "inbox.contact_link.v1": InboxContactHandler(
+            dependencies.pool, dependencies.crm
+        )
+    }
 
 
 def _action_handlers(
@@ -199,6 +224,21 @@ def object_storage_from_environment() -> S3ObjectStorage:
     )
 
 
+def crm_gateway_from_environment() -> TwentyCrmGateway | None:
+    """The CRM gateway for jobs; absent without an integration key."""
+    key = os.environ.get("TWENTY_INTEGRATION_API_KEY", "").strip()
+    if not key:
+        return None
+    return TwentyCrmGateway(
+        TwentyGatewaySettings(
+            base_url=os.environ["TWENTY_BASE_URL"],
+            api_key=SecretStr(key),
+            # Durable job retries own the waiting; keep only the rate limiter.
+            max_rate_limit_retries=0,
+        )
+    )
+
+
 def mail_transport_from_environment() -> SmtpTransport:
     mail_settings = load_mail_transport_settings()
     return SmtpTransport(
@@ -245,6 +285,7 @@ async def build_worker(
         load_module_settings().disabled_modules if disabled is None else disabled
     )
     pool = await create_pool(database_url, maximum_size=5)
+    crm = crm_gateway_from_environment()
     all_modules = worker_modules(
         database_url,
         HandlerDependencies(
@@ -252,6 +293,7 @@ async def build_worker(
             storage=object_storage_from_environment(),
             mail_transport=mail_transport_from_environment(),
             payload_secret=os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+            crm=crm,
         ),
     )
     modules, parked = split_enabled(all_modules, switched_off)
@@ -277,5 +319,6 @@ async def build_worker(
             maximum_delay=timedelta(minutes=15),
         ),
         observer=observe_job,
+        on_close=crm.close if crm is not None else None,
     )
     return pool, queue, worker

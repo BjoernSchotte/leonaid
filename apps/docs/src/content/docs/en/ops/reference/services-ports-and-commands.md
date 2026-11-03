@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 14
-reviewedRevision: 14
-verifiedAgainst: e16f01e1b86aab7869fc2937806dbbc15fb04e47
+contentRevision: 15
+reviewedRevision: 15
+verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
 reviewer: Björn Schotte
 ---
 
@@ -72,9 +72,11 @@ leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 
 Business modules are on by default. `LEONAID_DISABLED_MODULES` in the
 installation's env file switches modules off, comma-separated, for example
-`LEONAID_DISABLED_MODULES=surveys`. Switchable modules are `surveys`, `tasks`, `materials` and `knowledge`
-(knowledge needs tasks and materials); core areas such as mail and invoicing cannot be switched off. The API
-and the worker read the same value; restart both after a change.
+`LEONAID_DISABLED_MODULES=surveys`. Switchable modules are `surveys`, `tasks`, `materials`, `knowledge` and `inbox`
+(knowledge and inbox need tasks and materials); core areas such as mail and invoicing cannot be switched off. The API,
+the worker and the public sites (`public`, `campaign-site`) read the same
+value; restart them after a change. With `inbox` switched off, the public
+pages show no inquiry form.
 
 A switched-off module keeps all its data. It shows no navigation, its API
 routes are not registered and answer 404, and the web pages fall back to the

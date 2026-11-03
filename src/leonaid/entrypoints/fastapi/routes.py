@@ -735,6 +735,7 @@ def privacy_report_response(
         *report.documents,
         *report.assignments,
         *report.activities,
+        *report.module_references,
     )
     return PrivacySubjectReportResponse(
         found=report.found,

@@ -64,6 +64,7 @@ E2E_SHARDS = (
     "tasks",
     "materials",
     "knowledge",
+    "inbox",
 )
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
@@ -224,6 +225,25 @@ RULES: tuple[Rule, ...] = (
         ("tools/knowledge/**",),
         e2e("knowledge") | integration("schema-outbox"),
         "knowledge proofs",
+    ),
+    # Inbox module.
+    Rule(
+        (
+            "src/leonaid/modules/inbox/**",
+            "packages/features/src/inbox/**",
+            "tests/e2e/modules-inbox.spec.mjs",
+            "tests/e2e/public-inbox-retry.spec.mjs",
+            "apps/public/src/components/PublicInbox.astro",
+            "apps/public/src/lib/modules.ts",
+        ),
+        e2e("inbox"),
+        "inbox module",
+    ),
+    # tools/schema/test.sh also runs the inbox schema contracts.
+    Rule(
+        ("tools/inbox/**",),
+        e2e("inbox") | integration("schema-outbox"),
+        "inbox proofs",
     ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),
