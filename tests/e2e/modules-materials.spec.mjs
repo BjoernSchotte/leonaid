@@ -47,12 +47,14 @@ for (const [surface, route, width] of [
     expect(uploadBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
     expect(uploadBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
     await expect(uploadButton).toHaveCSS("font-weight", "600");
+    // Touch targets are 44 px on phones; desktop shell controls are 32 px.
+    const iconTarget = width <= 760 ? 44 : 32;
     const iconButtonBox = await page
-      .locator(".ui-icon-button:visible")
+      .locator(".ui-icon-button:visible, .topbar .btn-icon:visible")
       .first()
       .boundingBox();
-    expect(iconButtonBox.width).toBeGreaterThanOrEqual(44);
-    expect(iconButtonBox.height).toBeGreaterThanOrEqual(44);
+    expect(iconButtonBox.width).toBeGreaterThanOrEqual(iconTarget);
+    expect(iconButtonBox.height).toBeGreaterThanOrEqual(iconTarget);
     if (width === 1440) {
       await page.setViewportSize({ width: 780, height: 844 });
       // Collapsed rail: sign-out stays one labelled click away.
