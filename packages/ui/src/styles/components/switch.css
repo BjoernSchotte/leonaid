@@ -1,0 +1,58 @@
+/* Toggle switch: ported from the Leitsystem prototype (components.css). */
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 20px;
+  flex: none;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch-track {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.switch input:checked + .switch-track {
+  background: var(--accent);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(16px);
+}
+.switch input:disabled {
+  cursor: not-allowed;
+}
+.switch input:disabled + .switch-track {
+  opacity: 0.45;
+}
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* Switch with its label: from the prototype page CSS (Campaigns.css). */
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}

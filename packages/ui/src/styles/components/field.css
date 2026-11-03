@@ -1,0 +1,92 @@
+/* Forms: ported from the Leitsystem prototype (components.css). */
+.field {
+  display: grid;
+  gap: 6px;
+}
+.field-label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.field-optional {
+  font-weight: var(--fw-regular);
+  color: var(--text-3);
+}
+.field-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.field-required {
+  color: var(--danger);
+}
+.field-error {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--danger);
+}
+.input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border: var(--hair) solid var(--control-border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-md);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+.input:hover {
+  border-color: var(--text-3);
+}
+.input:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px oklch(from var(--focus) l c h / 0.25);
+}
+.field.has-error .input {
+  border-color: var(--danger);
+}
+.textarea {
+  min-height: 96px;
+  padding: var(--s-2) var(--s-3);
+  line-height: var(--lh-prose);
+  resize: vertical;
+}
+.select {
+  appearance: none;
+  padding-inline-end: var(--s-8);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 55%,
+    calc(100% - 11px) 55%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* Product touch targets (README): controls are at least 44 px on <= 800 px. */
+@media (max-width: 800px) {
+  .input {
+    min-height: 44px;
+  }
+}

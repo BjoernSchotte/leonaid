@@ -16,3 +16,7 @@ export * from "./meter";
 export * from "./status-icon";
 export * from "./option-menu";
 export * from "./popover";
+export * from "./modal";
+export * from "./skeleton-rows";
+export * from "./switch";
+export * from "./tabs";

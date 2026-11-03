@@ -1,32 +1,46 @@
-import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  createElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import { cn } from "../lib/utils";
 
 export interface EmptyStateProps {
   readonly action?: ReactNode;
   readonly className?: string;
-  readonly description: ReactNode;
-  readonly icon?: ReactNode;
+  /** What is missing and what to do next. */
+  readonly description?: ReactNode;
+  /** A Lucide icon (drawn at 22 px) or an icon element. */
+  readonly icon?: LucideIcon | ReactElement;
   readonly title: ReactNode;
+  /** 3 inside a section (default), 2 when the state replaces a whole page. */
+  readonly headingLevel?: 2 | 3;
 }
 
 export function EmptyState({
   action,
   className,
   description,
+  headingLevel = 3,
   icon,
   title,
 }: EmptyStateProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
-    <section className={cn("ui-empty-state", className)}>
+    <div className={cn("empty", className)}>
       {icon ? (
-        <div aria-hidden="true" className="ui-empty-state__icon">
-          {icon}
-        </div>
+        <span aria-hidden="true" className="empty-icon">
+          {isValidElement(icon)
+            ? icon
+            : createElement(icon as LucideIcon, { size: 22 })}
+        </span>
       ) : null}
-      <h2>{title}</h2>
-      <p>{description}</p>
-      {action ? <div className="ui-empty-state__action">{action}</div> : null}
-    </section>
+      <Heading className="empty-title">{title}</Heading>
+      {description ? <div className="empty-text">{description}</div> : null}
+      {action ? <div className="empty-action">{action}</div> : null}
+    </div>
   );
 }
