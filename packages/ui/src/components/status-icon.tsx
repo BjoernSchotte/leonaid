@@ -193,6 +193,14 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   Neu: "open",
   "In Bearbeitung": "progress",
   Abgeschlossen: "done",
+  // inbox contact matching (row chip and pane wording)
+  "Zuordnung ausstehend": "draft",
+  "Kontaktzuordnung ausstehend": "draft",
+  "Kontakt zugeordnet": "done",
+  "Klärung nötig": "review",
+  "Kontaktzuordnung benötigt Klärung": "review",
+  "Zuordnung fehlgeschlagen": "alert",
+  "Kontaktzuordnung fehlgeschlagen": "alert",
   // surveys / campaigns / pages
   Live: "progress",
   Geschlossen: "done",

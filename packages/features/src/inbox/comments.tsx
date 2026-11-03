@@ -1,172 +1,167 @@
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  FloppyDiskIcon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Lock, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
-import { Button, StatusMessage } from "@leonaid/ui";
-import type { LeonAidApiClient } from "@leonaid/api-client";
 
+import type { Case, LeonAidApiClient } from "@leonaid/api-client";
+import { Button, Icon, Input, StatusMessage } from "@leonaid/ui";
+
+import type { Address } from "./inbox-model";
+
+const PAGE = 25;
+const dateTime = (value: string) =>
+  new Date(value).toLocaleString("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+/**
+ * "Interne Notizen": oldest first, as in the prototype, so a new note lands
+ * right above the input. Older pages load on request. The closing note of a
+ * closed case is the last entry. No e-mail is sent.
+ */
 export function InboxComments({
+  address,
   client,
-  caseId,
+  item,
 }: {
-  client: LeonAidApiClient;
-  caseId: string;
+  readonly address: Address;
+  readonly client: LeonAidApiClient;
+  readonly item: Case;
 }) {
   const cache = useQueryClient();
   const [body, setBody] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [notice, setNotice] = useState("");
   const operation = useRef(crypto.randomUUID());
-  const comments = useQuery({
-    queryKey: ["inbox-comments", caseId, offset],
-    queryFn: () => client.listInboxComments(caseId, { offset, limit: 25 }),
+  const queryKey = ["inbox-comments", item.id];
+  const comments = useInfiniteQuery({
+    queryKey,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      client.listInboxComments(item.id, { offset: pageParam, limit: PAGE }),
+    getNextPageParam: (page) => page.nextOffset ?? undefined,
     retry: false,
   });
   const add = useMutation({
     mutationFn: () =>
-      client.addInboxComment(caseId, {
+      client.addInboxComment(item.id, {
         body: body.trim(),
         idempotencyKey: operation.current,
       }),
     onSuccess: () => {
       setBody("");
-      setOffset(0);
       operation.current = crypto.randomUUID();
-      setNotice("Interne Notiz gespeichert.");
-      void cache.invalidateQueries({ queryKey: ["inbox-comments", caseId] });
+      void cache.invalidateQueries({ queryKey });
     },
   });
+  // Offset pages overlap after a new note; keep each note once.
+  const notes = [
+    ...new Map(
+      (comments.data?.pages ?? [])
+        .flatMap((page) => page.items)
+        .map((comment) => [comment.id, comment]),
+    ).values(),
+  ].reverse();
   return (
-    <section aria-labelledby="inbox-comments-heading">
-      <h2 id="inbox-comments-heading">Interne Notizen</h2>
-      <p>
-        Nur für Personen mit Zugriff auf diesen Eingang. Es wird keine E-Mail
-        versendet.
-      </p>
-      <form
-        className="inbox-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setNotice("");
-          add.mutate();
-        }}
-      >
-        <label>
-          Neue Notiz
-          <textarea
-            required
-            maxLength={4000}
-            rows={4}
-            value={body}
-            disabled={add.isPending}
-            onChange={(event) => {
-              setBody(event.target.value);
-              operation.current = crypto.randomUUID();
-              add.reset();
-              setNotice("");
-            }}
-          />
-        </label>
-        <Button
-          icon={
-            <HugeiconsIcon
-              icon={FloppyDiskIcon}
-              size={16}
-              strokeWidth={1.7}
-              aria-hidden="true"
-            />
-          }
-          variant="primary"
-          type="submit"
-          disabled={add.isPending || !body.trim()}
-        >
-          {add.isPending ? "Wird gespeichert …" : "Notiz speichern"}
-        </Button>
-        {add.error && (
-          <StatusMessage tone="error">
-            <p>
-              Die Notiz konnte nicht gespeichert werden. Dein Text bleibt
-              erhalten; prüfe deinen Zugriff und versuche es erneut.
-            </p>
-          </StatusMessage>
-        )}
-        {notice && <p role="status">{notice}</p>}
-      </form>
-      {comments.isPending && <p role="status">Notizen werden geladen …</p>}
-      {comments.error && (
+    <>
+      {comments.isPending ? (
+        <p className="small subtle" role="status">
+          Notizen werden geladen …
+        </p>
+      ) : null}
+      {comments.error ? (
         <StatusMessage tone="error">
           <p>Die Notizen konnten nicht geladen werden.</p>
           <Button
-            icon={
-              <HugeiconsIcon
-                icon={RefreshIcon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="secondary"
+            icon={RefreshCw}
             onClick={() => void comments.refetch()}
+            size="sm"
+            variant="secondary"
           >
             Notizen erneut laden
           </Button>
         </StatusMessage>
-      )}
-      {!comments.error && comments.data && (
-        <>
-          {comments.data.items.length === 0 ? (
-            <p>Noch keine internen Notizen.</p>
-          ) : (
-            <ol className="inbox-results">
-              {comments.data.items.map((comment) => (
-                <li key={comment.id}>
-                  <time dateTime={comment.createdAt}>
-                    {new Date(comment.createdAt).toLocaleString("de-DE")}
-                  </time>
-                  <p className="inbox-message">{comment.body}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-          <nav className="inbox-paging" aria-label="Notizenseiten">
-            <Button
-              icon={
-                <HugeiconsIcon
-                  icon={ArrowLeft01Icon}
-                  size={16}
-                  strokeWidth={1.7}
-                  aria-hidden="true"
-                />
-              }
-              variant="secondary"
-              disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - 25))}
-            >
-              Neuere Notizen
-            </Button>
-            <Button
-              icon={
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={16}
-                  strokeWidth={1.7}
-                  aria-hidden="true"
-                />
-              }
-              variant="secondary"
-              disabled={comments.data.nextOffset == null}
-              onClick={() => setOffset(comments.data.nextOffset ?? offset)}
-            >
-              Ältere Notizen
-            </Button>
-          </nav>
-        </>
-      )}
-    </section>
+      ) : null}
+      {comments.hasNextPage ? (
+        <Button
+          className="case-older"
+          loading={comments.isFetchingNextPage}
+          onClick={() => void comments.fetchNextPage()}
+          size="sm"
+          variant="ghost"
+        >
+          Ältere Notizen laden
+        </Button>
+      ) : null}
+      {comments.data && (notes.length > 0 || item.closureNote) ? (
+        <ul className="case-notes" data-testid="inbox-notes">
+          {notes.map((comment) => (
+            <li key={comment.id}>
+              <Icon icon={Lock} size={12} />
+              <span className="case-note-text">{comment.body}</span>
+              <time className="subtle" dateTime={comment.createdAt}>
+                {dateTime(comment.createdAt)}
+              </time>
+            </li>
+          ))}
+          {item.closureNote ? (
+            <li data-testid="inbox-closure-note">
+              <Icon icon={Lock} size={12} />
+              <span className="case-note-text">
+                Abschlussnotiz: {item.closureNote}
+              </span>
+              {item.closedAt ? (
+                <time className="subtle" dateTime={item.closedAt}>
+                  {dateTime(item.closedAt)}
+                </time>
+              ) : null}
+            </li>
+          ) : null}
+        </ul>
+      ) : comments.data ? (
+        <p className="small subtle case-gap-bottom">Noch keine Notizen.</p>
+      ) : null}
+      <form
+        className="case-note-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!body.trim() || add.isPending) return;
+          add.mutate();
+        }}
+      >
+        <label className="sr-only" htmlFor={`note-${item.id}`}>
+          Interne Notiz
+        </label>
+        <Input
+          disabled={add.isPending}
+          id={`note-${item.id}`}
+          maxLength={4000}
+          onChange={(event) => {
+            setBody(event.target.value);
+            operation.current = crypto.randomUUID();
+            add.reset();
+          }}
+          placeholder="Notiz für das Team …"
+          value={body}
+        />
+        <Button
+          disabled={!body.trim()}
+          loading={add.isPending}
+          size="sm"
+          type="submit"
+        >
+          Hinzufügen
+        </Button>
+      </form>
+      {add.error ? (
+        <StatusMessage tone="error">
+          {address === "Sie"
+            ? "Die Notiz konnte nicht gespeichert werden. Ihr Text bleibt erhalten; prüfen Sie Ihren Zugriff und versuchen Sie es erneut."
+            : "Die Notiz konnte nicht gespeichert werden. Dein Text bleibt erhalten; prüfe deinen Zugriff und versuche es erneut."}
+        </StatusMessage>
+      ) : null}
+    </>
   );
 }

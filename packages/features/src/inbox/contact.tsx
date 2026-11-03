@@ -1,21 +1,97 @@
-import { Search01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link2, Search } from "lucide-react";
 import { useRef, useState } from "react";
+
 import {
   ApiError,
   type Case,
   type ContactCandidate,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  Field,
+  Input,
+  StatusLabel,
+  StatusMessage,
+  Textarea,
+} from "@leonaid/ui";
 
+import { acceptCases, contactStateLabels, type Address } from "./inbox-model";
+
+/** The case's contact state; the short form is the row chip. */
+export function ContactStateLabel({
+  state,
+  short = false,
+}: {
+  readonly state: Case["contactStatus"];
+  readonly short?: boolean;
+}) {
+  const label = contactStateLabels[state];
+  return (
+    <span className="inbox-contact-state" title={label.full}>
+      <StatusLabel status={short ? label.short : label.full} />
+    </span>
+  );
+}
+
+function stateHint(item: Case, manage: boolean): string {
+  switch (item.contactStatus) {
+    case "linked":
+      return "Mit einem Kontakt in Twenty verknüpft. Die Kontaktdaten in Twenty bleiben unverändert.";
+    case "pending":
+      return "Die Zuordnung läuft noch. Die Anfrage bleibt unabhängig davon bearbeitbar.";
+    case "needs_review":
+      return manage
+        ? "Mehrere mögliche Kontakte gefunden. Bitte den richtigen auswählen."
+        : "Mehrere mögliche Kontakte gefunden. Die Fallverwaltung wählt den richtigen aus.";
+    case "failed":
+      return manage
+        ? "Die automatische Zuordnung ist fehlgeschlagen: kein eindeutiger Treffer in Twenty."
+        : "Die automatische Zuordnung ist fehlgeschlagen. Die Fallverwaltung klärt den Kontakt.";
+  }
+}
+
+/**
+ * "Kontakt in Twenty": the matching state and, for the case management, the
+ * deliberate confirmation of an existing Twenty person.
+ */
 export function InboxContact({
+  address,
+  client,
+  item,
+  manage,
+}: {
+  readonly address: Address;
+  readonly client: LeonAidApiClient;
+  readonly item: Case;
+  /** Server permission `canManage` of this case. */
+  readonly manage: boolean;
+}) {
+  const resolvable =
+    manage &&
+    (item.contactStatus === "needs_review" || item.contactStatus === "failed");
+  return (
+    <>
+      <ContactStateLabel state={item.contactStatus} />
+      <div className="case-gap stack">
+        <p className="small muted">{stateHint(item, manage)}</p>
+        {resolvable ? (
+          <ContactMatch address={address} client={client} item={item} />
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+function ContactMatch({
+  address,
   client,
   item,
 }: {
-  client: LeonAidApiClient;
-  item: Case;
+  readonly address: Address;
+  readonly client: LeonAidApiClient;
+  readonly item: Case;
 }) {
   const cache = useQueryClient();
   const [givenName, setGivenName] = useState(item.givenName);
@@ -24,11 +100,7 @@ export function InboxContact({
   const [revision, setRevision] = useState(item.contactRevision);
   const [note, setNote] = useState("");
   const operation = useRef(crypto.randomUUID());
-  const permissions = useQuery({
-    queryKey: ["inbox-permissions", item.id],
-    queryFn: () => client.getInboxCasePermissions(item.id),
-    retry: false,
-  });
+  const sie = address === "Sie";
   const search = useMutation({
     mutationFn: () =>
       client.listInboxContactCandidates(item.id, {
@@ -48,8 +120,7 @@ export function InboxContact({
       });
     },
     onSuccess: (value) => {
-      cache.setQueryData(["inbox-case", item.id], value);
-      void cache.invalidateQueries({ queryKey: ["inbox-cases"] });
+      acceptCases(cache, [value]);
       setSelected(null);
       setNote("");
       operation.current = crypto.randomUUID();
@@ -58,7 +129,7 @@ export function InboxContact({
       if (error instanceof ApiError && error.status === 409) {
         setSelected(null);
         search.reset();
-        void cache.invalidateQueries({ queryKey: ["inbox-case", item.id] });
+        void cache.invalidateQueries({ queryKey: ["inbox-cases"] });
       }
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
         setSelected(null);
@@ -69,26 +140,17 @@ export function InboxContact({
       }
     },
   });
-  if (
-    !permissions.data?.canManage ||
-    permissions.error ||
-    !["needs_review", "failed"].includes(item.contactStatus)
-  )
-    return null;
   const changedSearch = () => {
     setSelected(null);
     search.reset();
     confirm.reset();
     operation.current = crypto.randomUUID();
   };
+  const busy = search.isPending || confirm.isPending;
   return (
-    <div className="inbox-contact-resolution">
-      <p>
-        Prüfe einen bestehenden Twenty-Kontakt und bestätige die Zuordnung
-        bewusst. Die Kontaktdaten in Twenty werden dabei nicht verändert.
-      </p>
+    <div className="stack" data-testid="inbox-contact-match">
       <form
-        className="inbox-form"
+        className="match-search"
         onSubmit={(event) => {
           event.preventDefault();
           setSelected(null);
@@ -98,156 +160,154 @@ export function InboxContact({
           search.mutate();
         }}
       >
-        <fieldset disabled={search.isPending || confirm.isPending}>
-          <legend>Bestehenden Kontakt suchen</legend>
-          <label>
-            Vorname
-            <input
-              required
-              maxLength={200}
-              value={givenName}
-              onChange={(event) => {
-                setGivenName(event.target.value);
-                changedSearch();
-              }}
-            />
-          </label>
-          <label>
-            Nachname
-            <input
-              required
-              maxLength={200}
-              value={familyName}
-              onChange={(event) => {
-                setFamilyName(event.target.value);
-                changedSearch();
-              }}
-            />
-          </label>
-          <Button
-            icon={
-              <HugeiconsIcon
-                icon={Search01Icon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="primary"
-            type="submit"
-            disabled={!givenName.trim() || !familyName.trim()}
-          >
-            {search.isPending ? "Wird gesucht …" : "In Twenty suchen"}
-          </Button>
-        </fieldset>
+        <Field id={`match-given-${item.id}`} label="Vorname">
+          <Input
+            disabled={busy}
+            maxLength={200}
+            onChange={(event) => {
+              setGivenName(event.target.value);
+              changedSearch();
+            }}
+            required
+            value={givenName}
+          />
+        </Field>
+        <Field id={`match-family-${item.id}`} label="Nachname">
+          <Input
+            disabled={busy}
+            maxLength={200}
+            onChange={(event) => {
+              setFamilyName(event.target.value);
+              changedSearch();
+            }}
+            required
+            value={familyName}
+          />
+        </Field>
+        <Button
+          disabled={busy || !givenName.trim() || !familyName.trim()}
+          icon={Search}
+          loading={search.isPending}
+          size="sm"
+          type="submit"
+        >
+          In Twenty suchen
+        </Button>
       </form>
-      {search.error && (
+      {search.error ? (
         <StatusMessage tone="error">
-          <p>
-            Twenty-Kontakte konnten nicht geladen werden. Prüfe deinen Zugriff
-            oder versuche es später erneut.
-          </p>
+          {sie
+            ? "Twenty-Kontakte konnten nicht geladen werden. Prüfen Sie Ihren Zugriff oder versuchen Sie es später erneut."
+            : "Twenty-Kontakte konnten nicht geladen werden. Prüfe deinen Zugriff oder versuche es später erneut."}
         </StatusMessage>
-      )}
-      {search.isSuccess && !search.isPending && (
+      ) : null}
+      {search.isSuccess && !search.isPending ? (
         <>
-          {search.data.truncated && (
-            <p>Es gibt mehr als 50 Treffer. Grenze die Namen weiter ein.</p>
-          )}
+          {search.data.truncated ? (
+            <p className="small subtle">
+              Es gibt mehr als 50 Treffer.{" "}
+              {sie
+                ? "Grenzen Sie die Namen weiter ein."
+                : "Grenze die Namen weiter ein."}
+            </p>
+          ) : null}
           {search.data.items.length === 0 ? (
-            <p>
-              Kein passender Kontakt gefunden. Prüfe die Schreibweise oder kläre
-              den Kontakt in Twenty.
+            <p className="small subtle">
+              {sie
+                ? "Kein Kontakt gefunden. Prüfen Sie die Schreibweise oder klären Sie den Kontakt in Twenty."
+                : "Kein Kontakt gefunden. Prüfe die Schreibweise oder kläre den Kontakt in Twenty."}
             </p>
           ) : (
-            <fieldset
-              className="inbox-contact-options"
-              disabled={confirm.isPending}
-            >
-              <legend>Kontakt anhand der Daten auswählen</legend>
-              {search.data.items.map((person) => (
-                <label key={person.personId}>
-                  <input
-                    type="radio"
-                    name={`inbox-contact-${item.id}`}
-                    checked={selected?.personId === person.personId}
-                    onChange={() => {
-                      setSelected(person);
-                      operation.current = crypto.randomUUID();
-                      confirm.reset();
-                    }}
-                  />
-                  <span>
-                    <strong>
-                      {person.givenName} {person.familyName}
-                    </strong>
-                    <span>{person.email ?? "Keine E-Mail-Adresse"}</span>
-                    <span>{person.phone ?? "Keine Telefonnummer"}</span>
-                  </span>
-                </label>
-              ))}
+            <fieldset className="match-fieldset" disabled={confirm.isPending}>
+              <legend className="sr-only">
+                Kontakt anhand der Daten auswählen
+              </legend>
+              <ul aria-label="Treffer" className="match-results">
+                {search.data.items.map((person) => (
+                  <li key={person.personId}>
+                    <label className="match-option">
+                      <input
+                        checked={selected?.personId === person.personId}
+                        name={`inbox-contact-${item.id}`}
+                        onChange={() => {
+                          setSelected(person);
+                          operation.current = crypto.randomUUID();
+                          confirm.reset();
+                        }}
+                        type="radio"
+                      />
+                      <span>
+                        <strong>
+                          {person.givenName} {person.familyName}
+                        </strong>
+                        <span className="subtle small">
+                          {person.email ?? "Keine E-Mail-Adresse"} ·{" "}
+                          {person.phone ?? "Keine Telefonnummer"}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
             </fieldset>
           )}
         </>
-      )}
-      {selected && (
+      ) : null}
+      {selected ? (
         <form
-          className="inbox-form"
+          className="stack"
           onSubmit={(event) => {
             event.preventDefault();
             confirm.mutate();
           }}
         >
-          <p>
-            Ausgewählt:{" "}
-            <strong>
-              {selected.givenName} {selected.familyName}
-            </strong>
-            . Vergleiche die Kontaktangaben mit dem Eingang.
-          </p>
-          <label>
-            Begründung der Zuordnung
-            <textarea
-              required
-              maxLength={2000}
-              rows={3}
+          <Field
+            hint={`Ausgewählt: ${selected.givenName} ${selected.familyName}. Die Kontaktdaten in Twenty werden nicht verändert.`}
+            id={`match-note-${item.id}`}
+            label="Begründung der Zuordnung"
+          >
+            <Textarea
               disabled={confirm.isPending}
-              value={note}
+              maxLength={2000}
               onChange={(event) => {
                 setNote(event.target.value);
                 operation.current = crypto.randomUUID();
                 confirm.reset();
               }}
+              required
+              rows={3}
+              value={note}
             />
-          </label>
-          <Button
-            icon={
-              <HugeiconsIcon
-                icon={Tick02Icon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="primary"
-            type="submit"
-            disabled={confirm.isPending || !note.trim()}
-          >
-            {confirm.isPending
-              ? "Wird zugeordnet …"
-              : "Kontaktzuordnung bestätigen"}
-          </Button>
+          </Field>
+          <div className="cluster">
+            <Button
+              disabled={confirm.isPending || !note.trim()}
+              icon={Link2}
+              loading={confirm.isPending}
+              size="sm"
+              type="submit"
+              variant="primary"
+            >
+              Zuordnung bestätigen
+            </Button>
+          </div>
         </form>
-      )}
-      {confirm.error && (
+      ) : null}
+      {confirm.error ? (
         <StatusMessage tone="error">
-          <p>
-            {confirm.error instanceof ApiError && confirm.error.status === 409
-              ? "Der Kontakt, die Zuordnung oder der Auftrag wurde inzwischen geändert. Suche erneut und prüfe die aktuellen Daten. Deine Begründung bleibt erhalten."
-              : "Die Zuordnung konnte nicht bestätigt werden. Prüfe deinen Zugriff oder versuche es später erneut. Deine Begründung bleibt erhalten."}
-          </p>
+          {confirm.error instanceof ApiError && confirm.error.status === 409
+            ? `Der Kontakt, die Zuordnung oder der Auftrag wurde inzwischen geändert. ${
+                sie
+                  ? "Suchen Sie erneut und prüfen Sie"
+                  : "Suche erneut und prüfe"
+              } die aktuellen Daten. Die Begründung bleibt erhalten.`
+            : `Die Zuordnung konnte nicht bestätigt werden. ${
+                sie
+                  ? "Prüfen Sie Ihren Zugriff oder versuchen Sie es später erneut."
+                  : "Prüfe deinen Zugriff oder versuche es später erneut."
+              } Die Begründung bleibt erhalten.`}
         </StatusMessage>
-      )}
+      ) : null}
     </div>
   );
 }

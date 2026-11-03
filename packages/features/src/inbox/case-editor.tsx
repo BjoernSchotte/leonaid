@@ -1,323 +1,228 @@
-import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  FloppyDiskIcon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+
 import {
   ApiError,
   type Case,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, Field, Modal, StatusMessage, Textarea } from "@leonaid/ui";
 
-export function CaseEditor({
-  client,
-  initialCase,
-}: {
-  client: LeonAidApiClient;
-  initialCase: Case;
-}) {
+import {
+  acceptCases,
+  CASES_KEY,
+  MIN_CLOSURE_NOTE,
+  shortReference,
+  type Address,
+} from "./inbox-model";
+
+export interface CaseChange {
+  readonly status?: Case["status"];
+  readonly assigneeUserId?: string | null;
+  /** Required when the status becomes closed. */
+  readonly closureNote?: string;
+}
+
+/** Some of the cases were not saved; `firstError` is the first server error. */
+export class CaseUpdateError extends Error {
+  constructor(
+    readonly failed: number,
+    readonly total: number,
+    readonly firstError: unknown,
+  ) {
+    super(`${failed} of ${total} inbox cases were not updated`);
+  }
+}
+
+function updateBody(item: Case, change: CaseChange) {
+  const status = change.status ?? item.status;
+  return {
+    // One key per attempt; the expected revision stops a double apply.
+    idempotencyKey: crypto.randomUUID(),
+    expectedRevision: item.revision,
+    status,
+    assigneeUserId:
+      change.assigneeUserId !== undefined
+        ? change.assigneeUserId
+        : item.assigneeUserId,
+    closureNote:
+      status === "closed"
+        ? (change.closureNote ?? item.closureNote ?? "").trim()
+        : null,
+  };
+}
+
+/**
+ * Saves one change on several cases (`PUT /inbox-cases/{id}` each, with its
+ * own revision). Saved cases land in the cache even when others fail; then
+ * the whole batch rejects with a {@link CaseUpdateError}.
+ */
+export function useCaseUpdates(client: LeonAidApiClient) {
   const cache = useQueryClient();
-  const [base, setBase] = useState(initialCase);
-  const [status, setStatus] = useState(base.status);
-  const [assignee, setAssignee] = useState(base.assigneeUserId ?? "");
-  const [note, setNote] = useState(base.closureNote ?? "");
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [notice, setNotice] = useState("");
-  const operation = useRef(crypto.randomUUID());
-  const permissions = useQuery({
-    queryKey: ["inbox-permissions", base.id],
-    queryFn: () => client.getInboxCasePermissions(base.id),
-    retry: false,
-  });
-  const manage = permissions.data?.canManage === true && !permissions.error;
-  const candidates = useQuery({
-    queryKey: ["inbox-assignees", base.id, search, offset],
-    queryFn: () =>
-      client.listInboxAssignees(base.id, { search, offset, limit: 25 }),
-    enabled: manage,
-    retry: false,
-  });
-  const dirty =
-    status !== base.status ||
-    assignee !== (base.assigneeUserId ?? "") ||
-    (status === "closed" && note !== (base.closureNote ?? ""));
-  const accept = (value: Case) => {
-    setBase(value);
-    setStatus(value.status);
-    setAssignee(value.assigneeUserId ?? "");
-    setNote(value.closureNote ?? "");
-    operation.current = crypto.randomUUID();
-    cache.setQueryData(["inbox-case", value.id], value);
-    void cache.invalidateQueries({ queryKey: ["inbox-cases"] });
-    void cache.invalidateQueries({ queryKey: ["inbox-permissions", value.id] });
-  };
-  const save = useMutation({
-    mutationFn: () =>
-      client.updateInboxCase(base.id, {
-        idempotencyKey: operation.current,
-        expectedRevision: base.revision,
-        status,
-        assigneeUserId: manage ? assignee || null : base.assigneeUserId,
-        closureNote: status === "closed" ? note.trim() : null,
-      }),
-    onSuccess: (value) => {
-      accept(value);
-      setNotice("Bearbeitung gespeichert.");
+  return useCallback(
+    async (cases: readonly Case[], change: CaseChange) => {
+      const results = await Promise.allSettled(
+        cases.map((item) =>
+          client.updateInboxCase(item.id, updateBody(item, change)),
+        ),
+      );
+      const saved = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      acceptCases(cache, saved);
+      const failures = results.flatMap((result) =>
+        result.status === "rejected" ? [result.reason as unknown] : [],
+      );
+      if (failures.length > 0) {
+        void cache.invalidateQueries({ queryKey: CASES_KEY });
+        throw new CaseUpdateError(failures.length, cases.length, failures[0]);
+      }
+      return saved;
     },
-  });
-  const reload = useMutation({
-    mutationFn: () => client.getInboxCase(base.id),
-    onSuccess: (value) => {
-      accept(value);
-      save.reset();
-      setNotice("Aktueller Stand geladen.");
-    },
-  });
-  const changed = () => {
-    operation.current = crypto.randomUUID();
-    setNotice("");
-    save.reset();
-  };
-  const busy = save.isPending || reload.isPending;
-  useEffect(() => {
-    if (dirty || busy || initialCase.revision === base.revision) return;
-    setBase(initialCase);
-    setStatus(initialCase.status);
-    setAssignee(initialCase.assigneeUserId ?? "");
-    setNote(initialCase.closureNote ?? "");
-    operation.current = crypto.randomUUID();
-  }, [initialCase, base.revision, dirty, busy]);
+    [cache, client],
+  );
+}
+
+function closeError(error: unknown, address: Address): string {
+  const cause = error instanceof CaseUpdateError ? error.firstError : error;
+  const partial =
+    error instanceof CaseUpdateError && error.total > 1
+      ? `${error.failed} von ${error.total} Anfragen wurden nicht abgeschlossen. `
+      : "";
+  if (cause instanceof ApiError && cause.status === 409)
+    return `${partial}Die Anfrage wurde inzwischen geändert. Der aktuelle Stand wird geladen; die Notiz bleibt erhalten.`;
+  return `${partial}Die Anfrage konnte nicht abgeschlossen werden. Die Notiz bleibt erhalten. ${
+    address === "Sie"
+      ? "Prüfen Sie Ihren Zugriff und versuchen Sie es erneut."
+      : "Prüfe deinen Zugriff und versuche es erneut."
+  }`;
+}
+
+export interface CloseCaseDialogProps {
+  readonly client: LeonAidApiClient;
+  readonly address: Address;
+  /** The cases to close, read fresh on every render; null keeps it shut. */
+  readonly cases: readonly Case[] | null;
+  readonly onDone: (closed: readonly Case[]) => void;
+  readonly onCancel: () => void;
+}
+
+/** "Anfrage abschließen": closing always records an internal note. */
+export function CloseCaseDialog(props: CloseCaseDialogProps) {
+  // A fresh form per opening: the key resets the note and errors.
+  return props.cases?.length ? (
+    <CloseCaseForm
+      key={props.cases.map((item) => item.id).join(",")}
+      {...props}
+      cases={props.cases}
+    />
+  ) : null;
+}
+
+function CloseCaseForm({
+  address,
+  cases,
+  client,
+  onCancel,
+  onDone,
+}: CloseCaseDialogProps & { readonly cases: readonly Case[] }) {
+  const update = useCaseUpdates(client);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string>();
+  const [serverError, setServerError] = useState<string>();
+  const [pending, setPending] = useState(false);
+  const first = cases[0]!;
+  const fieldId = `close-note-${first.id}`;
+
+  async function submit() {
+    if (pending) return;
+    setServerError(undefined);
+    if (note.trim().length < MIN_CLOSURE_NOTE) {
+      setError(
+        `Bitte kurz festhalten, was erledigt wurde (mindestens ${MIN_CLOSURE_NOTE} Zeichen). Die Notiz bleibt intern.`,
+      );
+      return;
+    }
+    // Cases a previous, partly failed attempt already closed stay closed.
+    const open = cases.filter((item) => item.status !== "closed");
+    setPending(true);
+    try {
+      const closed = await update(open, {
+        status: "closed",
+        closureNote: note.trim(),
+      });
+      onDone(closed);
+    } catch (cause) {
+      setServerError(closeError(cause, address));
+      setPending(false);
+    }
+  }
+
   return (
-    <section aria-labelledby="inbox-edit-heading">
-      <h2 id="inbox-edit-heading">Bearbeitung</h2>
+    <Modal
+      className="inbox-dialog"
+      description={
+        cases.length === 1
+          ? `${shortReference(first.publicReference)} · ${first.subject}`
+          : `${cases.length} Anfragen`
+      }
+      footer={
+        <>
+          <Button disabled={pending} onClick={onCancel} variant="ghost">
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="close-case-submit"
+            form="close-case-form"
+            loading={pending}
+            type="submit"
+            variant="primary"
+          >
+            Abschließen
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!pending) onCancel();
+      }}
+      open
+      title={
+        cases.length === 1
+          ? "Anfrage abschließen"
+          : `${cases.length} Anfragen abschließen`
+      }
+    >
       <form
-        className="inbox-form"
+        className="stack"
+        id="close-case-form"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          setNotice("");
-          save.mutate();
+          void submit();
         }}
       >
-        <label>
-          Status
-          <select
-            value={status}
-            disabled={busy}
+        <Field
+          error={error}
+          hint="Pflichtfeld. Nur für das Team sichtbar. Der Abschluss ist keine Förderzusage oder Auszahlung."
+          id={fieldId}
+          label="Abschlussnotiz"
+        >
+          <Textarea
+            autoFocus
+            data-testid="close-case-note"
+            disabled={pending}
+            maxLength={4000}
             onChange={(event) => {
-              setStatus(event.target.value as Case["status"]);
-              changed();
+              setNote(event.target.value);
+              setError(undefined);
             }}
-          >
-            <option value="new">Neu</option>
-            <option value="in_progress">In Bearbeitung</option>
-            <option value="closed">Abgeschlossen</option>
-          </select>
-        </label>
-        {manage && (
-          <fieldset disabled={busy}>
-            <legend>Zuständigkeit</legend>
-            <label>
-              Person suchen
-              <input
-                type="search"
-                maxLength={200}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setOffset(0);
-                }}
-              />
-            </label>
-            <label>
-              Zuständige Person
-              <select
-                value={assignee}
-                onChange={(event) => {
-                  setAssignee(event.target.value);
-                  changed();
-                }}
-              >
-                <option value="">Nicht zugewiesen</option>
-                {assignee &&
-                  !candidates.data?.items.some(
-                    (person) => person.userId === assignee,
-                  ) && (
-                    <option value={assignee}>
-                      Ausgewählte Person beibehalten
-                    </option>
-                  )}
-                {!candidates.error &&
-                  candidates.data?.items.map((person) => (
-                    <option key={person.userId} value={person.userId}>
-                      {person.displayName}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {candidates.isPending && (
-              <p role="status">Personen werden geladen …</p>
-            )}
-            {candidates.error && (
-              <StatusMessage tone="error">
-                <p>Personen konnten nicht geladen werden.</p>
-                <Button
-                  icon={
-                    <HugeiconsIcon
-                      icon={RefreshIcon}
-                      size={16}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  }
-                  variant="secondary"
-                  type="button"
-                  onClick={() => void candidates.refetch()}
-                >
-                  Personen erneut laden
-                </Button>
-              </StatusMessage>
-            )}
-            <div className="inbox-paging">
-              <Button
-                icon={
-                  <HugeiconsIcon
-                    icon={ArrowLeft01Icon}
-                    size={16}
-                    strokeWidth={1.7}
-                    aria-hidden="true"
-                  />
-                }
-                variant="secondary"
-                type="button"
-                disabled={offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - 25))}
-              >
-                Vorherige Personen
-              </Button>
-              <Button
-                icon={
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    size={16}
-                    strokeWidth={1.7}
-                    aria-hidden="true"
-                  />
-                }
-                variant="secondary"
-                type="button"
-                disabled={
-                  candidates.data?.nextOffset == null || !!candidates.error
-                }
-                onClick={() => setOffset(candidates.data?.nextOffset ?? offset)}
-              >
-                Weitere Personen
-              </Button>
-            </div>
-          </fieldset>
-        )}
-        {status === "closed" && (
-          <label>
-            Abschlussnotiz
-            <textarea
-              required
-              maxLength={4000}
-              rows={4}
-              value={note}
-              disabled={busy}
-              onChange={(event) => {
-                setNote(event.target.value);
-                changed();
-              }}
-            />
-          </label>
-        )}
-        {status === "closed" && (
-          <p>
-            Der Abschluss dokumentiert die Bearbeitung. Er ist keine
-            Förderzusage oder Auszahlung.
-          </p>
-        )}
-        {permissions.error && (
-          <StatusMessage tone="error">
-            <p>
-              Die aktuellen Verwaltungsrechte konnten nicht geladen werden. Die
-              Zuständigkeit bleibt unverändert.
-            </p>
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => void permissions.refetch()}
-            >
-              Rechte erneut prüfen
-            </Button>
-          </StatusMessage>
-        )}
-        <div className="inbox-paging">
-          <Button
-            icon={
-              <HugeiconsIcon
-                icon={FloppyDiskIcon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="primary"
-            type="submit"
-            disabled={busy || !dirty || (status === "closed" && !note.trim())}
-          >
-            {save.isPending ? "Wird gespeichert …" : "Bearbeitung speichern"}
-          </Button>
-          <Button
-            icon={
-              <HugeiconsIcon
-                icon={RefreshIcon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="secondary"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              if (
-                !dirty ||
-                window.confirm(
-                  "Deinen ungespeicherten Entwurf verwerfen und den aktuellen Fallstand laden?",
-                )
-              )
-                reload.mutate();
-            }}
-          >
-            Aktuellen Stand laden
-          </Button>
-        </div>
-        {save.error && (
-          <StatusMessage tone="error">
-            <p>
-              {save.error instanceof ApiError && save.error.status === 409
-                ? "Der Fall wurde inzwischen geändert. Dein Entwurf bleibt erhalten. Lade den aktuellen Stand und übernimm deine Änderung erneut."
-                : "Die Bearbeitung konnte nicht gespeichert werden. Dein Entwurf bleibt erhalten. Prüfe deinen Zugriff und versuche es erneut."}
-            </p>
-          </StatusMessage>
-        )}
-        {reload.error && (
-          <StatusMessage tone="error">
-            <p>
-              Der aktuelle Fallstand konnte nicht geladen werden. Dein Entwurf
-              bleibt erhalten.
-            </p>
-          </StatusMessage>
-        )}
-        {notice && <p role="status">{notice}</p>}
+            value={note}
+          />
+        </Field>
+        {serverError ? (
+          <StatusMessage tone="error">{serverError}</StatusMessage>
+        ) : null}
       </form>
-    </section>
+    </Modal>
   );
 }
