@@ -96,7 +96,7 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
         "deliveryContact": {"name": " Reception ", "phone": "+49 123 / 456"},
     }
 
-    def headers():
+    def headers() -> dict[str, str]:
         return {"Idempotency-Key": f"delivery:{uuid4()}"}
 
     async with httpx.AsyncClient(
