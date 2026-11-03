@@ -9,6 +9,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -17,7 +18,7 @@ import httpx
 from tools.public_orders.contract import twenty_collection
 
 
-def decoded(value):
+def decoded(value: object) -> Any:
     return json.loads(value) if isinstance(value, str) else value
 
 
