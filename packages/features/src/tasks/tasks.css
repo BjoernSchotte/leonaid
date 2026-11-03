@@ -388,7 +388,9 @@
 }
 
 /* The list is full-bleed as in the prototype: the admin shell's page
-   padding and width cap do not apply (the list view has its own gutters). */
+   padding and width cap do not apply (the list view has its own gutters).
+   Stopgap until the shell's `.page:has(> [data-page-layout="full-bleed"])`
+   rule (leitsystem/4c) is merged; remove it then. */
 .page:has(.tasks-page) {
   max-width: none;
   padding: 0;

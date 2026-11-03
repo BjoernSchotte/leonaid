@@ -1393,7 +1393,9 @@ function TasksWorkspace({
   );
 
   return (
-    <div className="tasks-page" data-zone="tasks">
+    // Full-bleed page contract of the admin shell (ls-4a, 4c): the list
+    // brings its own gutters. Spread `fullBleedPage` once it is in @leonaid/ui.
+    <div className="tasks-page" data-page-layout="full-bleed" data-zone="tasks">
       <TaskOrdering
         ids={movableIds}
         onCancel={() => setMoveMessage("Verschieben abgebrochen.")}
