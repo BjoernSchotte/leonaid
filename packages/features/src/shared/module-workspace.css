@@ -4,7 +4,8 @@
     .materials-workspace,
     .knowledge-workspace,
     .inbox-workspace
-  ) .ui-button {
+  )
+  .ui-button {
   min-height: 2.5rem;
   max-width: 100%;
   padding: 0.5rem 0.75rem;
@@ -38,11 +39,12 @@
 
 @media (pointer: coarse), (max-width: 760px) {
   :is(
-    .tasks-workspace,
-    .materials-workspace,
-    .knowledge-workspace,
-    .inbox-workspace
-  ) .ui-button {
+      .tasks-workspace,
+      .materials-workspace,
+      .knowledge-workspace,
+      .inbox-workspace
+    )
+    .ui-button {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }
