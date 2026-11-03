@@ -131,6 +131,9 @@ export function MemberAdministrationPage({
       className={
         section === "list" ? "members-page" : "members-page members-ledger-page"
       }
+      // Same contract as fullBleedPage (@leonaid/ui, leitsystem/4c); swap to
+      // the spread once that lands on feat/leitsystem.
+      data-page-layout="full-bleed"
       data-zone="members"
     >
       <div className="members-top">

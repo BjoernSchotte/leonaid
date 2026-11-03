@@ -8,9 +8,10 @@
 /*
  * The prototype renders its lists full-bleed under the topbar; the shell's
  * .page padding (for ordinary pages) would inset the list and its pane.
- * The Einladungen table brings its own .page padding below.
+ * The Einladungen table brings its own .page padding below. Temporary:
+ * leitsystem/4c ships this rule in packages/ui; drop it after that merge.
  */
-.page:has(.members-page) {
+.page:has(> [data-page-layout="full-bleed"]) {
   max-width: none;
   padding: 0;
 }
