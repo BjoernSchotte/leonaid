@@ -123,6 +123,12 @@ test("UI catalog proves all base states with real identity", async ({
     await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Kritische Aktion bestätigen?");
+    // axe measures contrast through opacity; wait until the rise ends.
+    await dialog.evaluate((element) =>
+      Promise.all(
+        element.getAnimations().map((animation) => animation.finished),
+      ),
+    );
     await expectNoSeriousAccessibilityViolations(page, "Bestätigungsdialog");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
