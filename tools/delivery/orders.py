@@ -20,6 +20,7 @@ from leonaid.application.public_orders import (
 )
 from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import (
+    Commitment,
     BuyerSnapshot,
     CommitmentPartyKind,
     CommitmentSource,
@@ -63,7 +64,7 @@ async def prove_orders(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> N
         value: CommitmentDraft,
         key: str,
         status: CommitmentStatus = CommitmentStatus.REVIEW_READY,
-    ):
+    ) -> Commitment:
         return await repo.create(
             action_id=action_id,
             actor_user_id=admin_id,

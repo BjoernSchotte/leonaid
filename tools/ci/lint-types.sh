@@ -37,7 +37,7 @@ run_python uv run --frozen --no-sync ruff format --check \
 
 run_python uv run --frozen --no-sync ruff check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
-  tools/activity_feed tools/assignments tools/ci tools/commitments \
+  tools/activity_feed tools/assignments tools/ci tools/commitments tools/delivery \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
@@ -48,7 +48,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
-  tools/activity_feed tools/assignments tools/ci tools/commitments \
+  tools/activity_feed tools/assignments tools/ci tools/commitments tools/delivery \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
@@ -59,7 +59,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
-  tools/activity_feed tools/assignments tools/ci tools/commitments \
+  tools/activity_feed tools/assignments tools/ci tools/commitments tools/delivery \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
