@@ -239,11 +239,12 @@ test("finance read access starts directly in the invoice journal", async ({
     await expect(page.locator('[data-testid="roles"]')).toContainText(
       "Finanzen",
     );
+    // The invoice list (Task 5.2) marks the finance reader's view.
+    await expect(page.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
+    );
     await expect(
-      page.getByText("Nur Lesezugriff", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Rechnungen" }),
+      page.getByRole("heading", { level: 1, name: "Rechnungen" }),
     ).toBeVisible();
     await expect(page.locator('[data-testid="record-payment"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="cancel-invoice"]')).toHaveCount(0);
