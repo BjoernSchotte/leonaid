@@ -254,12 +254,15 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   const help = page.getByRole("dialog", { name: "Tastenkürzel" });
   await expect(help).toBeVisible();
   await expect(help).toContainText("App: Wiedervorlagen");
-  const helpClose = await help
-    .getByRole("button", { name: "Schließen" })
-    .boundingBox();
   const helpTarget = viewport.width <= 800 ? 44 : 28;
-  expect(helpClose.height).toBeGreaterThanOrEqual(helpTarget);
-  expect(helpClose.width).toBeGreaterThanOrEqual(helpTarget);
+  const helpClose = help.getByRole("button", { name: "Schließen" });
+  // Measured after the dialog's rise animation has ended.
+  await expect
+    .poll(async () => {
+      const box = await helpClose.boundingBox();
+      return Math.min(box.width, box.height);
+    })
+    .toBeGreaterThanOrEqual(helpTarget);
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
 
@@ -301,7 +304,7 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await expect(company).toHaveValue("Ungespeichert GmbH");
   page.once("dialog", (next) => void next.accept());
   await startTab.click();
-  await expect(page).toHaveURL(/\/app\/$/);
+  await expect(page).toHaveURL(/\/app\/(\?.*)?$/);
 
   // Tab shortcuts 1–5 follow the tab order.
   await page.locator("main h1").click();
