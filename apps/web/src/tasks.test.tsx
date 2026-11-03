@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Fragment, StrictMode } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -198,26 +199,35 @@ function renderPage(
     path = "/admin/tasks",
     listId,
     surface = "web",
-  }: { path?: string; listId?: string; surface?: "web" | "pwa" } = {},
+    strict = false,
+  }: {
+    path?: string;
+    listId?: string;
+    surface?: "web" | "pwa";
+    strict?: boolean;
+  } = {},
 ) {
   window.history.replaceState(null, "", path);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const Wrapper = strict ? StrictMode : Fragment;
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <HotkeyProvider>
-          <TasksPage
-            basePath={surface === "web" ? "/admin/tasks" : "/app/tasks"}
-            client={client as unknown as LeonAidApiClient}
-            identity={identity}
-            listId={listId}
-            surface={surface}
-          />
-        </HotkeyProvider>
-      </ToastProvider>
-    </QueryClientProvider>,
+    <Wrapper>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <HotkeyProvider>
+            <TasksPage
+              basePath={surface === "web" ? "/admin/tasks" : "/app/tasks"}
+              client={client as unknown as LeonAidApiClient}
+              identity={identity}
+              listId={listId}
+              surface={surface}
+            />
+          </HotkeyProvider>
+        </ToastProvider>
+      </QueryClientProvider>
+    </Wrapper>,
   );
 }
 
@@ -430,6 +440,15 @@ describe("tasks page", () => {
         "Aufgabe „Glühwein bestellen“ angelegt – im Plan unter Heute.",
       ),
     ).toBeTruthy();
+  });
+
+  it("opens the quick add for the palette's create request", async () => {
+    const client = harness({});
+    renderPage(client, { path: "/admin/tasks?create=task", strict: true });
+    const field = await screen.findByRole("textbox", { name: "Titel" });
+    await act(async () => {});
+    expect(document.activeElement).toBe(field);
+    expect(window.location.search).not.toContain("create");
   });
 
   it("asks before a draft in the pane is dropped", async () => {

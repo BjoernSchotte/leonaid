@@ -229,7 +229,12 @@ function TasksWorkspace({
     }
     return null;
   });
-  const [createRequested] = useState(() => consumeCreateRequest("task"));
+  // Consumed in an effect: StrictMode calls state initialisers twice, and
+  // the second call would find the parameter already gone.
+  const [createRequested, setCreateRequested] = useState(false);
+  useEffect(() => {
+    if (consumeCreateRequest("task")) setCreateRequested(true);
+  }, []);
 
   const selected = useQuery({
     queryKey: ["task-list", listId],
