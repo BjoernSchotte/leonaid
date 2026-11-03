@@ -51,6 +51,11 @@ export interface CommandPaletteControls {
   readonly toggle: () => void;
 }
 
+/** Opens the palette without subscribing the caller to its open state. */
+export function openCommandPalette(): void {
+  openStore.set(true);
+}
+
 /** Open state of the palette, shared with buttons that open it. */
 export function useCommandPalette(): CommandPaletteControls {
   const open = useSyncExternalStore(
