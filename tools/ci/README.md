@@ -329,7 +329,14 @@ and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
 
-## Security job disk budget
+## Runner disk budget
+
+GitHub-hosted `ubuntu-24.04` runners differ: AWS-hosted ones have a 72 GB disk
+with about 14 GB free, Azure-hosted ones 145 GB with 86 GB free. Every job
+that builds or loads LeonAid images therefore runs
+`tools/ci/free-runner-disk.sh start` right after checkout and
+`tools/ci/free-runner-disk.sh wait` right before its suite. Deletion overlaps
+cache import and fixture restore and frees about 18 GB.
 
 The Security job builds all own images and scans every pinned third-party
 image on one runner. Measured on an Azure runner (145 GB disk), the job
@@ -339,15 +346,17 @@ third-party images about 3 GB. Hosted runners differ in free disk; an AWS
 runner ran out while building the own images.
 
 - `tools/ci/free-runner-disk.sh start|wait` deletes preinstalled toolchains
-  LeonAid never uses (Android SDK, .NET, GHC, CodeQL) in the background while
-  the build cache is imported. It refuses to run outside GitHub Actions.
+  LeonAid never uses (Android SDK, .NET, GHC, CodeQL) in the background, in
+  parallel per subdirectory. It refuses to run outside GitHub Actions.
 - `tools/security/pulled-images.sh` removes a pinned image right after its use
   only when that exact digest was absent before. Locally present images,
   including any other tags of the same image, stay untouched.
 - `LEONAID_CI_DISK_REPORT=1` makes the scan log `tools/ci/disk-report.sh`
   output after every phase and target.
 
-`tools/ci/workflow_contract.py` requires the disk step before the gates.
+`tools/ci/workflow_contract.py` requires both steps in every job that uses the
+build cache (except the single-image API contract and SBOM jobs), in the cold
+rehearsal and in the nightly recovery proofs.
 
 ## Five-minute workflow budget
 
