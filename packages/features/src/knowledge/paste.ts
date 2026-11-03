@@ -9,11 +9,21 @@ export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 32];
 // Keep Tiptap in charge of structure; normalize fonts and link attributes.
 export function normalizePastedHTML(html: string): string {
   const document = new DOMParser().parseFromString(html, "text/html");
+  // The strict CSP stops the live document from applying inline styles, so
+  // supported values become the editor's formatting classes here, in the
+  // inert parsed document, and every style attribute is dropped.
   for (const element of document.querySelectorAll<HTMLElement>("[style]")) {
-    if (!FONT_FAMILIES.some(({ value }) => value === element.style.fontFamily))
-      element.style.removeProperty("font-family");
-    if (!FONT_SIZES.some((size) => element.style.fontSize === `${size}px`))
-      element.style.removeProperty("font-size");
+    const family = element.style.fontFamily;
+    if (FONT_FAMILIES.some(({ value }) => value === family))
+      element.classList.add(`knowledge-font-${family}`);
+    const size = FONT_SIZES.find(
+      (value) => element.style.fontSize === `${value}px`,
+    );
+    if (size !== undefined) element.classList.add(`knowledge-size-${size}`);
+    const align = element.style.textAlign;
+    if (["left", "center", "right", "justify"].includes(align))
+      element.classList.add(`knowledge-align-${align}`);
+    element.removeAttribute("style");
   }
   for (const link of document.querySelectorAll("a")) {
     link.removeAttribute("class");

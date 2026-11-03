@@ -8,6 +8,7 @@ import {
   ClassTextAlign,
   ClassTextStyle,
 } from "../../../packages/features/src/knowledge/class-formatting";
+import { normalizePastedHTML } from "../../../packages/features/src/knowledge/paste";
 
 const extensions = [
   StarterKit,
@@ -62,6 +63,20 @@ describe("CSP-safe formatting", () => {
     expect(json.content[0].content[0].marks[0].attrs).toEqual({
       fontFamily: "serif",
       fontSize: null,
+    });
+  });
+
+  it("turns supported pasted styles into classes and drops the rest", () => {
+    const html = normalizePastedHTML(
+      '<p style="text-align: center"><span style="font-family: Arial; font-size: 17pt">a</span><span style="font-family: serif; font-size: 20px">b</span></p>',
+    );
+    expect(html).not.toContain("style=");
+    expect(html).toContain('class="knowledge-align-center"');
+    expect(html).toContain('class="knowledge-font-serif knowledge-size-20"');
+    const json = generateJSON(html, extensions);
+    expect(json.content[0].content[1].marks[0].attrs).toEqual({
+      fontFamily: "serif",
+      fontSize: "20px",
     });
   });
 });
