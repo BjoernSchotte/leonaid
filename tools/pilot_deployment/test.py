@@ -35,6 +35,10 @@ def main() -> None:
     mutations.append(("unpinned proxy image", changed))
 
     changed = copy.deepcopy(config)
+    changed["services"]["proxy"].pop("init", None)
+    mutations.append(("proxy without init", changed))
+
+    changed = copy.deepcopy(config)
     changed["services"]["api"]["ports"] = [
         {"target": 8000, "published": "8000", "protocol": "tcp"}
     ]
