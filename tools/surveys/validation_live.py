@@ -17,6 +17,13 @@ from leonaid.modules.surveys.domain.validation import (
 )
 
 
+
+def cookie_header(cookies):
+    """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
+    if not cookies:
+        return None
+    return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 async def main() -> None:
     mode = sys.argv[1]
     proof = Path("/proof/validator-failure.json")
@@ -49,7 +56,9 @@ async def main() -> None:
     async with httpx.AsyncClient(base_url="http://api:8000", timeout=15) as client:
 
         async def call(method, path, body=None, cookies=None, expected=200):
-            response = await client.request(method, path, json=body, cookies=cookies)
+            response = await client.request(
+                method, path, json=body, headers=cookie_header(cookies)
+            )
             assert response.status_code == expected, (
                 path,
                 response.status_code,
