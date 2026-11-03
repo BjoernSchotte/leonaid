@@ -34,3 +34,4 @@ export * from "./system-admin/operations-admin";
 export * from "./system-admin/privacy-admin";
 export * from "./system-admin/support-diagnostics";
 export * from "./ui-system/ui-system-catalog";
+export { ModuleSearch } from "./shared/module-search";

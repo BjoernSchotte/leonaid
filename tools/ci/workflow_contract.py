@@ -28,6 +28,8 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
+# Module browser proofs; each module's journeys run only in its own leaf.
+E2E_SHARDS = ("tasks",)
 
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 
@@ -85,6 +87,10 @@ def check(path: Path) -> list[str]:
     for shard in INTEGRATION_SHARDS:
         if not re.search(rf"^\s+{re.escape(shard)},$", shards, re.MULTILINE):
             problems.append(f"Integration shard missing: {shard}")
+    leaves = job_block(text, "e2e")
+    for shard in E2E_SHARDS:
+        if not re.search(rf"^\s+- {re.escape(shard)}$", leaves, re.MULTILINE):
+            problems.append(f"E2E shard missing: {shard}")
     problems.extend(check_emdash(text))
     return problems
 

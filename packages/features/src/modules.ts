@@ -21,7 +21,27 @@ export interface ModuleRoute {
   readonly render: (
     context: ModulePageContext,
     match: RegExpMatchArray,
+    surface: ModuleSurface,
   ) => ReactNode;
+}
+
+export interface ModuleSearchResult {
+  readonly id: string;
+  readonly type: "task" | "knowledge-page" | "material" | "inbox-case";
+  readonly title: string;
+  readonly context: string;
+  readonly href: string;
+}
+
+export interface ModuleSearchProvider {
+  readonly label: string;
+  /** Returns only objects the server lets the current account read. */
+  readonly find: (
+    context: ModulePageContext,
+    query: string,
+    surface: ModuleSurface,
+    signal: AbortSignal,
+  ) => Promise<readonly ModuleSearchResult[]>;
 }
 
 /**
@@ -36,6 +56,7 @@ export interface UiModule {
   readonly label: string;
   readonly surfaces: readonly ModuleSurface[];
   readonly routes: readonly ModuleRoute[];
+  readonly search?: ModuleSearchProvider;
 }
 
 export interface ResolvedModuleRoute {
@@ -87,7 +108,7 @@ export function resolveModuleRoute(
         matches.push({
           moduleId: module.id,
           label: module.label,
-          render: (context) => route.render(context, match),
+          render: (context) => route.render(context, match, surface),
         });
       }
     }
