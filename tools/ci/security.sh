@@ -3,6 +3,7 @@ set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
+. "$root/tools/security/pulled-images.sh"
 
 python3 "$root/tools/local_tests_test.py"
 python3 "$root/tools/testing/ci_fixture_test.py"
@@ -31,11 +32,20 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
 /bin/sh "$root/tools/pilot/test.sh" "$root"
+# The browser image is only needed here; free its ~2.7 GB for the image
+# gates below unless it was already present (see pulled-images.sh).
+playwright_pulled=false
+if pinned_image_absent "$PLAYWRIGHT_IMAGE"; then
+  playwright_pulled=true
+fi
 docker run --rm --network none \
   --user "$(id -u):$(id -g)" -e HOME=/tmp \
   --volume "$root:/workspace:ro" \
   "$PLAYWRIGHT_IMAGE" \
   python3 /workspace/tools/release/release_test.py
+if [ "$playwright_pulled" = true ]; then
+  remove_pulled_image "$PLAYWRIGHT_IMAGE"
+fi
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \

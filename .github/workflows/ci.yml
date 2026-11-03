@@ -346,6 +346,8 @@ jobs:
           fetch-depth: 0
       - name: Report runner disk at job start
         run: sh tools/ci/disk-report.sh "job start"
+      - name: Start freeing runner disk from unused toolchains
+        run: sh tools/ci/free-runner-disk.sh start
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -362,6 +364,8 @@ jobs:
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}
+      - name: Finish freeing runner disk
+        run: sh tools/ci/free-runner-disk.sh wait
       - name: Report runner disk after preparation
         run: sh tools/ci/disk-report.sh "prepared"
       - name: Run policies, secret scan and critical vulnerability gates
