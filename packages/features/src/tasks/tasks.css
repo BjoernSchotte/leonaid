@@ -653,7 +653,7 @@
   gap: 0.5rem;
   box-shadow: var(--shadow-sm);
 }
-.task-row-menu > div > .ui-button {
+.task-row-menu > div > .btn {
   justify-content: flex-start;
 }
 .task-menu-directions {

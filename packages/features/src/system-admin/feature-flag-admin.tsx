@@ -225,7 +225,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
           </p>
         </div>
         <a
-          className="ui-button ui-button--secondary feature-admin-header__catalog"
+          className="btn btn-secondary btn-md feature-admin-header__catalog"
           href="/admin/system/ui"
         >
           UI-Basis

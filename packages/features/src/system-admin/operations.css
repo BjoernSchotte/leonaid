@@ -512,8 +512,8 @@
     grid-template-columns: 1fr;
   }
 
-  .pilot-daily-report__header .ui-button,
-  .pilot-daily-report__next .ui-button {
+  .pilot-daily-report__header .btn,
+  .pilot-daily-report__next .btn {
     width: 100%;
   }
 

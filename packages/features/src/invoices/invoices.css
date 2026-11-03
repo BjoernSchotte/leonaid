@@ -414,7 +414,7 @@
   gap: 0.55rem;
 }
 
-.invoice-document__actions .ui-button {
+.invoice-document__actions .btn {
   min-height: 2.75rem;
   justify-content: center;
 }
@@ -600,13 +600,13 @@
   line-height: 1.45;
 }
 
-.invoice-delivery__timeline .ui-button {
+.invoice-delivery__timeline .btn {
   min-height: 2.75rem;
   grid-column: 2;
   justify-self: start;
 }
 
-.invoice-delivery > .ui-button {
+.invoice-delivery > .btn {
   min-height: 2.75rem;
   justify-self: start;
 }
@@ -639,7 +639,7 @@
   gap: 0.55rem;
 }
 
-.invoice-delivery__confirm .ui-button {
+.invoice-delivery__confirm .btn {
   min-height: 2.75rem;
   justify-content: center;
 }
@@ -809,7 +809,7 @@
   line-height: 1.45;
 }
 
-.invoice-settlement > .ui-button {
+.invoice-settlement > .btn {
   min-height: 2.75rem;
   justify-self: start;
 }
@@ -951,14 +951,14 @@
   gap: 0.55rem;
 }
 
-.invoice-settlement__form-actions .ui-button {
+.invoice-settlement__form-actions .btn {
   min-height: 2.75rem;
   justify-content: center;
 }
 
 .invoice-settlement__form--danger
   .invoice-settlement__form-actions
-  .ui-button--primary {
+  .btn-primary {
   border-color: var(--danger-text);
   color: var(--background);
   background: var(--danger-text);
@@ -1051,7 +1051,7 @@
   line-height: 1.5;
 }
 
-.invoice-empty .ui-button {
+.invoice-empty .btn {
   margin-top: 0.7rem;
 }
 
@@ -1130,7 +1130,7 @@
     justify-content: start;
   }
 
-  .invoice-document__actions .ui-button {
+  .invoice-document__actions .btn {
     min-width: 10.5rem;
   }
 
@@ -1147,7 +1147,7 @@
     align-items: center;
   }
 
-  .invoice-delivery__timeline .ui-button {
+  .invoice-delivery__timeline .btn {
     grid-column: 3;
   }
 

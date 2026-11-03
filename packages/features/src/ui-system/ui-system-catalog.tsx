@@ -9,17 +9,27 @@ import {
   TableIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { CircleAlert, Plus, Search, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
 import {
+  Avatar,
+  Badge,
   Button,
   ConfirmDialog,
   DataTable,
   EmptyState,
   FormField,
+  Icon,
+  IconButton,
+  Kbd,
+  Meter,
+  StatusIcon,
+  StatusLabel,
   StatusMessage,
   useToast,
+  type StatusShape,
 } from "@leonaid/ui";
 
 export interface UiSystemCatalogPageProps {
@@ -43,6 +53,26 @@ function PatternHeading({
     </div>
   );
 }
+
+const statusShapes: readonly (readonly [StatusShape, string])[] = [
+  ["draft", "Entwurf"],
+  ["open", "Offen / Eingegangen"],
+  ["review", "Prüfbereit"],
+  ["progress", "In Arbeit / Bestätigt"],
+  ["done", "Erledigt / Bezahlt"],
+  ["alert", "Überfällig / Fehler"],
+  ["cancelled", "Storniert"],
+];
+
+const shortcutRows: readonly (readonly [string, string])[] = [
+  ["mod+k", "Befehlspalette: Bereiche, Datensätze, Befehle"],
+  ["?", "Alle Kürzel der aktuellen Seite"],
+  ["g b", "Gehe zu Bestellungen (G und Buchstabe für jeden Bereich)"],
+  ["j", "Nächste Zeile"],
+  ["enter", "Öffnen"],
+  ["escape", "Schließen, Auswahl aufheben, Feld verlassen"],
+  ["shift+t", "Hell/Dunkel wechseln"],
+];
 
 export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -97,7 +127,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             <span>{identity.roleLabels.join(" · ")}</span>
           </div>
         </div>
-        <a className="ui-button ui-button--secondary" href="/admin/system">
+        <a className="btn btn-secondary btn-md" href="/admin/system">
           <HugeiconsIcon
             aria-hidden="true"
             icon={ArrowLeft01Icon}
@@ -110,6 +140,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
 
       <nav aria-label="Katalogabschnitte" className="ui-catalog-jumpnav">
         <a href="#actions">Aktionen</a>
+        <a href="#primitives">Grundbausteine</a>
         <a href="#feedback">Feedback</a>
         <a href="#forms">Formulare</a>
         <a href="#data">Daten</a>
@@ -132,6 +163,124 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         <p className="ui-catalog-note">
           Tastaturfokus nutzt auf allen Bedienelementen denselben sichtbaren
           Fokus-Ring. Gefährliche Aktionen erhalten zusätzlich eine Bestätigung.
+        </p>
+      </section>
+
+      <section aria-labelledby="primitives" className="ui-catalog-section">
+        <PatternHeading
+          description="Leitsystem-Bausteine: Status als Form, Kennzeichen, Fortschritt, Personen und Tastenkürzel."
+          id="primitives"
+        >
+          Grundbausteine
+        </PatternHeading>
+        <div className="ui-catalog-components">
+          <div className="ui-catalog-component">
+            <h3>Knöpfe</h3>
+            <div className="ui-catalog-cluster">
+              <Button icon={Plus} variant="primary">
+                Bestellung anlegen
+              </Button>
+              <Button variant="secondary">Rückfrage stellen</Button>
+              <Button variant="ghost">Abbrechen</Button>
+              <Button icon={Trash2} variant="danger">
+                Stornieren
+              </Button>
+              <Button loading variant="secondary">
+                Wird gesendet
+              </Button>
+            </div>
+            <div className="ui-catalog-cluster">
+              <Button size="sm" variant="secondary">
+                Klein
+              </Button>
+              <Button icon={Search} shortcut="mod+k" variant="secondary">
+                Suchen
+              </Button>
+              <Button shortcut="c" variant="primary">
+                Neu
+              </Button>
+              <Button size="lg" variant="zone">
+                Bereich
+              </Button>
+              <IconButton icon={Users} label="Mitglieder anzeigen" />
+            </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Status als Form</h3>
+            <ul className="ui-catalog-shapes">
+              {statusShapes.map(([shape, label]) => (
+                <li key={shape}>
+                  <StatusIcon label={label} size={16} status={shape} />
+                  <span aria-hidden="true">{label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Kennzeichen</h3>
+            <div className="ui-catalog-cluster">
+              <Badge tone="ok">Bezahlt</Badge>
+              <Badge tone="warn">Prüfen</Badge>
+              <Badge tone="danger">Überfällig</Badge>
+              <Badge tone="info">Öffentlich</Badge>
+              <Badge tone="accent">Neu</Badge>
+              <Badge icon={CircleAlert} tone="danger">
+                Versand fehlgeschlagen
+              </Badge>
+            </div>
+            <div className="ui-catalog-cluster">
+              <StatusLabel status="Bezahlt" />
+              <StatusLabel status="Überfällig" />
+              <StatusLabel status="Storniert" />
+            </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Fortschritt</h3>
+            <div className="ui-catalog-stack" data-zone="actions">
+              <span className="ui-catalog-small">
+                <strong className="ui-catalog-num">7.128 €</strong> von 10.000 €
+                für Kinderhafen und Jugendhilfe
+              </span>
+              <Meter
+                label="Spendenziel Krapfentaxi 2026"
+                max={10000}
+                value={7128}
+              />
+            </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Personen</h3>
+            <div className="ui-catalog-cluster">
+              <Avatar
+                label={identity.displayName}
+                name={identity.displayName}
+              />
+              <Avatar name={identity.displayName} size="md" />
+              <Avatar name="Anna Akquise" size="xs" />
+              <span className="ui-catalog-small">{identity.displayName}</span>
+            </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Tastatur</h3>
+            <table className="ui-catalog-keys">
+              <caption>Tastenkürzel</caption>
+              <tbody>
+                {shortcutRows.map(([keys, label]) => (
+                  <tr key={keys}>
+                    <td>
+                      <Kbd keys={keys} />
+                    </td>
+                    <td>{label}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p className="ui-catalog-note">
+          <Icon icon={CircleAlert} size={14} /> Icons stammen aus Lucide
+          (14/16/20 px). Sie stehen nie allein: Jeder Icon-Knopf hat eine
+          Beschriftung für Screenreader und einen Tooltip.
         </p>
       </section>
 

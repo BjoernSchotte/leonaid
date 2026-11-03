@@ -264,9 +264,7 @@ for (const [surface, width] of [
     const newTaskBox = await newTaskButton.boundingBox();
     expect(newTaskBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
     expect(newTaskBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
-    const iconBox = await newTaskButton
-      .locator(".ui-button__icon")
-      .boundingBox();
+    const iconBox = await newTaskButton.locator("svg").boundingBox();
     const textBox = await newTaskButton
       .locator("span")
       .filter({ hasText: /^Neue Aufgabe$/ })

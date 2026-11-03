@@ -32,7 +32,7 @@ export function ActionListPage({ identity }: ActionListPageProps) {
             Veröffentlichung an einem Ort.
           </p>
         </div>
-        <a className="ui-button ui-button--primary" href="/admin/actions/new">
+        <a className="btn btn-primary btn-md" href="/admin/actions/new">
           <HugeiconsIcon
             aria-hidden="true"
             icon={Add01Icon}

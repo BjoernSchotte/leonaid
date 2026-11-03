@@ -270,16 +270,19 @@ function InvoiceDocumentPanel({
       <span className="invoice-document__status">Bereit</span>
       <div className="invoice-document__actions">
         <a
-          className="ui-button ui-button--primary"
+          className="btn btn-primary btn-md"
           data-testid="preview-document"
           href={previewHref}
           rel="noopener noreferrer"
           target="_blank"
         >
-          <span className="ui-button__icon">
-            <HugeiconsIcon icon={FileViewIcon} size={18} strokeWidth={1.8} />
-          </span>
-          <span>PDF öffnen</span>
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={FileViewIcon}
+            size={18}
+            strokeWidth={1.8}
+          />
+          <span className="btn-label">PDF öffnen</span>
         </a>
         <Button
           data-testid="download-document"
@@ -1410,10 +1413,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
                 kontrolliert und verbindlich freigegeben werden.
               </span>
               {context.data?.mayIssue ? (
-                <a
-                  className="ui-button ui-button--secondary"
-                  href="/admin/orders"
-                >
+                <a className="btn btn-secondary btn-md" href="/admin/orders">
                   Zu den Bestellungen
                 </a>
               ) : null}

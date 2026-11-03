@@ -5,7 +5,8 @@
     .knowledge-workspace,
     .inbox-workspace
   )
-  .ui-button {
+  .btn {
+  height: auto;
   min-height: 2.5rem;
   max-width: 100%;
   padding: 0.5rem 0.75rem;
@@ -21,8 +22,8 @@
     .knowledge-workspace,
     .inbox-workspace
   )
-  .ui-button
-  > span:last-child {
+  .btn
+  > .btn-label {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -33,7 +34,8 @@
     .knowledge-workspace,
     .inbox-workspace
   )
-  .ui-button__icon {
+  .btn
+  > svg {
   flex-shrink: 0;
 }
 
@@ -44,7 +46,7 @@
       .knowledge-workspace,
       .inbox-workspace
     )
-    .ui-button {
+    .btn {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }

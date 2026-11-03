@@ -37,7 +37,7 @@ export function ConfirmDialog({
             </AlertDialog.Description>
             <div className="ui-dialog__actions">
               <AlertDialog.Close
-                className="ui-button ui-button--secondary"
+                className="btn btn-secondary btn-md"
                 disabled={pending}
               >
                 Abbrechen

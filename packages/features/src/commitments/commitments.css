@@ -307,7 +307,7 @@
   gap: 0.3rem;
 }
 
-.commitment-submit-choices .ui-button {
+.commitment-submit-choices .btn {
   width: 100%;
   min-height: 3rem;
   white-space: normal;
@@ -609,7 +609,7 @@
   align-items: center;
 }
 
-.commitment-ledger-row__action .ui-button {
+.commitment-ledger-row__action .btn {
   width: 100%;
   white-space: nowrap;
 }
@@ -910,7 +910,7 @@
     flex-direction: column;
   }
 
-  .commitment-success__actions .ui-button {
+  .commitment-success__actions .btn {
     width: 100%;
   }
 
@@ -934,7 +934,7 @@
     grid-column: auto;
   }
 
-  .commitment-invoice-review__actions .ui-button {
+  .commitment-invoice-review__actions .btn {
     width: 100%;
   }
 }
@@ -1051,8 +1051,8 @@
   gap: 1rem;
 }
 
-.commitment-delivery .ui-button,
-.commitment-draft-completion .ui-button {
+.commitment-delivery .btn,
+.commitment-draft-completion .btn {
   white-space: normal;
 }
 
@@ -1086,7 +1086,7 @@
   margin: 0;
 }
 
-.commitment-delivery-completion .ui-button {
+.commitment-delivery-completion .btn {
   justify-self: start;
   white-space: normal;
 }

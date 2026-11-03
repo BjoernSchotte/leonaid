@@ -1,0 +1,139 @@
+/* Buttons: ported from the Leitsystem prototype (components.css). */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--control-h);
+  padding: 0 var(--s-3);
+  border: var(--hair) solid transparent;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.btn-sm {
+  height: 28px;
+  padding: 0 var(--s-2);
+  font-size: var(--fs-xs);
+}
+.btn-lg {
+  height: var(--control-h-lg);
+  padding: 0 var(--s-5);
+  font-size: var(--fs-md);
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.btn-danger {
+  background: var(--danger);
+  color: var(--text-inverse);
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.btn-zone {
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  border-color: var(--zone-line);
+}
+.btn-icon {
+  width: var(--control-h);
+  padding: 0;
+}
+.btn-icon.btn-sm {
+  width: 28px;
+}
+.btn .kbd-group {
+  margin-inline-start: var(--s-1);
+}
+.btn-primary .kbd {
+  background: oklch(1 0 0 / 0.16);
+  border-color: oklch(1 0 0 / 0.24);
+  color: inherit;
+}
+:root[data-theme="dark"] .btn-primary .kbd {
+  background: oklch(0 0 0 / 0.12);
+  border-color: oklch(0 0 0 / 0.2);
+}
+/* Button always renders subtle keycaps; keep them legible on the accent fill. */
+.btn-primary .kbd-group.is-subtle .kbd {
+  color: inherit;
+  background: oklch(1 0 0 / 0.16);
+  border-color: oklch(1 0 0 / 0.36);
+}
+:root[data-theme="dark"] .btn-primary .kbd-group.is-subtle .kbd {
+  color: var(--on-accent);
+  background: oklch(0 0 0 / 0.1);
+  border-color: oklch(0 0 0 / 0.3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn-primary .kbd-group.is-subtle .kbd {
+    color: var(--on-accent);
+    background: oklch(0 0 0 / 0.1);
+    border-color: oklch(0 0 0 / 0.3);
+  }
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The prototype's base.css gives every button a pointer cursor. */
+.btn {
+  cursor: pointer;
+}
+/* Product touch-target contract: every interactive target on the mobile
+   layout (≤ 800 px, the shell breakpoint) is at least 44 px. */
+@media (max-width: 800px) {
+  .btn {
+    min-height: var(--control-h-lg);
+  }
+  .btn-icon {
+    min-width: var(--control-h-lg);
+  }
+}

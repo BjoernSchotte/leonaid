@@ -196,7 +196,7 @@ function Pipeline({
       {counts.total === 0 ? (
         <EmptyState
           action={
-            <a className="ui-button ui-button--secondary" href={baseHref}>
+            <a className="btn btn-secondary btn-md" href={baseHref}>
               Akquise öffnen
             </a>
           }
@@ -303,7 +303,7 @@ function AcquirerDashboard({
             {data.reminders.unscheduled} ohne Termin
           </span>
         </div>
-        <a className="ui-button ui-button--primary" href={nextHref}>
+        <a className="btn btn-primary btn-md" href={nextHref}>
           Jetzt öffnen
           <HugeiconsIcon
             aria-hidden="true"

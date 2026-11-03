@@ -110,7 +110,7 @@ export function App({ client }: AppProps) {
               : "LeonAid konnte deine Rollen gerade nicht laden. Versuche es bitte noch einmal."}
           </p>
           {signedOut ? (
-            <a className="ui-button ui-button--primary" href="/login">
+            <a className="btn btn-primary btn-md" href="/login">
               Zur Anmeldung
             </a>
           ) : (

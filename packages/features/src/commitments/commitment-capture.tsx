@@ -153,7 +153,7 @@ function CaptureSuccess({
         />
       ) : null}
       <div className="commitment-success__actions">
-        <a className="ui-button ui-button--secondary" href="/app/sponsors">
+        <a className="btn btn-secondary btn-md" href="/app/sponsors">
           Zurück zu meinen Sponsoren
         </a>
         <Button onClick={onContinue} variant="ghost">

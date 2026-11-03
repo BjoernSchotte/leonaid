@@ -395,7 +395,7 @@
     position: static;
   }
 
-  .legal-form-footer .ui-button {
+  .legal-form-footer .btn {
     width: 100%;
   }
 }

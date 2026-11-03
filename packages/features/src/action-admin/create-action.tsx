@@ -218,7 +218,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           </>
         )}
         <a
-          className="ui-button ui-button--secondary"
+          className="btn btn-secondary btn-md"
           href={`/admin/actions/${created.id}${created.capabilities.includes("delivery") ? "#delivery" : ""}`}
         >
           Aktion jetzt verwalten

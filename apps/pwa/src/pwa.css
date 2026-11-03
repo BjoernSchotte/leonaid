@@ -206,7 +206,7 @@
   color: var(--muted);
 }
 
-.pwa-system-banner--install .ui-button {
+.pwa-system-banner--install .btn {
   grid-column: auto;
   width: auto;
   min-height: 2.75rem;
@@ -231,12 +231,12 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .pwa-system-banner .ui-button {
+  .pwa-system-banner .btn {
     grid-column: 1 / -1;
     width: 100%;
   }
 
-  .pwa-system-banner--install .ui-button {
+  .pwa-system-banner--install .btn {
     grid-column: auto;
     width: auto;
   }

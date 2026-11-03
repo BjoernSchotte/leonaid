@@ -432,7 +432,7 @@ export function SurveysPage({
           </p>
         </div>
         {!id && !createNew && (
-          <a className="ui-button ui-button--primary" href="/admin/surveys/new">
+          <a className="btn btn-primary btn-md" href="/admin/surveys/new">
             Neue Umfrage
           </a>
         )}

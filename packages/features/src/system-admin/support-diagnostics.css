@@ -174,8 +174,8 @@
     flex-direction: column;
   }
 
-  .support-diagnostics__header .ui-button,
-  .support-diagnostics__form .ui-button {
+  .support-diagnostics__header .btn,
+  .support-diagnostics__form .btn {
     width: 100%;
   }
 

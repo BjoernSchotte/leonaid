@@ -35,7 +35,7 @@ export function CampaignEditorLink({
   if (!href) return null;
 
   return (
-    <a className="ui-button ui-button--secondary" href={href}>
+    <a className="btn btn-secondary btn-md" href={href}>
       Microsite bearbeiten
     </a>
   );

@@ -326,7 +326,7 @@ export function App({ client }: AppProps) {
                 : "LeonAid konnte deine Zuständigkeiten gerade nicht laden. Prüfe deine Verbindung."}
             </p>
             {signedOut ? (
-              <a className="ui-button ui-button--primary" href="/login">
+              <a className="btn btn-primary btn-md" href="/login">
                 Zur Anmeldung
               </a>
             ) : (
