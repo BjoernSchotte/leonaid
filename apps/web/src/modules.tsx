@@ -1,5 +1,6 @@
 import { validateUiModules, type UiModule } from "@leonaid/features";
 import { surveysModule } from "@leonaid/features/surveys";
+import { knowledgeModule } from "@leonaid/features/knowledge";
 import { materialsModule } from "@leonaid/features/materials";
 import { tasksModule } from "@leonaid/features/tasks";
 
@@ -8,5 +9,6 @@ export const webModules: readonly UiModule[] = [
   surveysModule,
   tasksModule,
   materialsModule,
+  knowledgeModule,
 ];
 validateUiModules(webModules);

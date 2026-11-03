@@ -35,6 +35,26 @@ async def main() -> None:
                 owner,
             )
         await conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        pages = [uuid4(), uuid4()]
+        await conn.execute("SET CONSTRAINTS knowledge_page_current_revision DEFERRED")
+        for page in pages:
+            await conn.execute(
+                "INSERT INTO knowledge_page(id,owner_user_id) VALUES ($1,$2)",
+                page,
+                owner,
+            )
+            await conn.execute(
+                """INSERT INTO knowledge_page_revision(page_id,revision,title,content,created_by)
+                    VALUES ($1,1,'Reference page','{"type":"doc","content":[]}'::jsonb,$2)""",
+                page,
+                owner,
+            )
+            await conn.execute(
+                "INSERT INTO knowledge_page_material(page_id,revision,material_id,material_version) VALUES ($1,1,$2,1)",
+                page,
+                material,
+            )
+        await conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
         rejected = [
             ("UPDATE material SET current_version=2 WHERE id=$1", material),
             ("UPDATE material SET title=' ' WHERE id=$1", material),
@@ -70,6 +90,14 @@ async def main() -> None:
             ),
             ("DELETE FROM material_version WHERE material_id=$1", material),
             ("DELETE FROM material WHERE id=$1", material),
+            (
+                "UPDATE knowledge_page_material SET material_version=99 WHERE material_id=$1",
+                material,
+            ),
+            (
+                "UPDATE knowledge_page_material SET revision=99 WHERE material_id=$1",
+                material,
+            ),
             (
                 "INSERT INTO material_member(material_id,user_id,access) VALUES ($1,$2,'admin')",
                 material,
@@ -109,10 +137,25 @@ async def main() -> None:
         )
         assert (
             await conn.fetchval(
+                "SELECT count(*) FROM knowledge_page_material WHERE material_id=$1 AND material_version=1",
+                material,
+            )
+            == 2
+        )
+        assert (
+            await conn.fetchval(
                 "SELECT sha256 FROM material_version WHERE material_id=$1 AND version=1",
                 material,
             )
             == "a" * 64
+        )
+        await conn.execute("DELETE FROM knowledge_page WHERE id=ANY($1::uuid[])", pages)
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM knowledge_page_material WHERE material_id=$1",
+                material,
+            )
+            == 0
         )
         assert (
             await conn.fetchval(
@@ -121,7 +164,7 @@ async def main() -> None:
             == 2
         )
         print(
-            "PASS material head/version metadata, immutable older versions and 19 invalid writes rejected"
+            "PASS material head/version metadata, exact references from two pages, independent file lifetime and 21 invalid writes rejected"
         )
     finally:
         await transaction.rollback()

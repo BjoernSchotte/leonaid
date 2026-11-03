@@ -27,6 +27,10 @@ from leonaid.bootstrap.registry import (
 from leonaid.configuration import Settings
 from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
+from leonaid.modules.knowledge.api import KnowledgeService
+from leonaid.modules.knowledge.api import navigation as knowledge_navigation
+from leonaid.modules.knowledge.repository import AsyncpgKnowledgeRepository
+from leonaid.modules.knowledge.routes import router as knowledge_router
 from leonaid.modules.materials.api import MaterialService
 from leonaid.modules.materials.api import navigation as material_navigation
 from leonaid.modules.materials.repository import AsyncpgMaterialRepository
@@ -56,6 +60,13 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
         navigation=material_navigation,
         switchable=True,
     ),
+    ModuleRegistration(
+        "knowledge",
+        router=knowledge_router,
+        navigation=knowledge_navigation,
+        switchable=True,
+        requires=("tasks", "materials"),
+    ),
 )
 
 
@@ -65,6 +76,7 @@ MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {
     "surveys": SURVEY_EVENT_TYPES,
     "tasks": frozenset(),
     "materials": frozenset(),
+    "knowledge": frozenset(),
 }
 
 
@@ -122,3 +134,20 @@ def build_material_service(
     pool: asyncpg.Pool[Any], storage: ObjectStorage
 ) -> MaterialService:
     return MaterialService(AsyncpgMaterialRepository(pool, storage))
+
+
+def build_knowledge_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> KnowledgeService:
+    """Task and material operations join the page transaction they run in."""
+    return KnowledgeService(
+        AsyncpgKnowledgeRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+            lambda connection: MaterialService(
+                AsyncpgMaterialRepository(pool, storage, connection=connection)
+            ),
+        )
+    )

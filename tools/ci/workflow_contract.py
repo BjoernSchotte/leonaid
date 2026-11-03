@@ -29,7 +29,7 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
 # Module browser proofs; each module's journeys run only in its own leaf.
-E2E_SHARDS = ("tasks", "materials")
+E2E_SHARDS = ("tasks", "materials", "knowledge")
 
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 

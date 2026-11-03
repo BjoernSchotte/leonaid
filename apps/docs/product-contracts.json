@@ -452,5 +452,41 @@
       "file": "src/leonaid/modules/materials/api.py",
       "contains": ["\"Materialien\", \"/admin/materials\", \"web\""]
     }
+  ],
+  "DOC-P043": [
+    {
+      "file": "packages/features/src/knowledge/knowledge.tsx",
+      "contains": ["Neue Seite", "Seitentitel", "Seite anlegen", "Eigenständig"]
+    },
+    {
+      "file": "packages/features/src/knowledge/editor.tsx",
+      "contains": [
+        "Seiteninhalt",
+        "Gespeichert.",
+        "Einfügen",
+        "Aufgabe aus dieser Seite",
+        "Freigaben verwalten",
+        "Seitenfreigaben",
+        "Seitenzugriff"
+      ]
+    },
+    {
+      "file": "packages/features/src/knowledge/formatting-toolbar.tsx",
+      "contains": [
+        "\"Fett\"",
+        "\"Kursiv\"",
+        "\"Zentriert\"",
+        "Schriftart",
+        "Schriftgröße"
+      ]
+    },
+    {
+      "file": "packages/features/src/materials/picker.tsx",
+      "contains": ["Material verknüpfen", "Dateiversion einfügen"]
+    },
+    {
+      "file": "src/leonaid/bootstrap/api.py",
+      "contains": ["requires=(\"tasks\", \"materials\")"]
+    }
   ]
 }

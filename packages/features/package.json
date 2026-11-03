@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./surveys": "./src/surveys/module.tsx",
     "./tasks": "./src/tasks/module.tsx",
-    "./materials": "./src/materials/module.tsx"
+    "./materials": "./src/materials/module.tsx",
+    "./knowledge": "./src/knowledge/module.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
@@ -21,6 +22,12 @@
     "@leonaid/ui": "workspace:*",
     "@openfeature/react-sdk": "1.4.1",
     "@tanstack/react-query": "5.101.4",
+    "@tiptap/core": "3.32.2",
+    "@tiptap/extension-text-align": "3.32.2",
+    "@tiptap/extension-text-style": "3.32.2",
+    "@tiptap/pm": "3.32.2",
+    "@tiptap/react": "3.32.2",
+    "@tiptap/starter-kit": "3.32.2",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   }
