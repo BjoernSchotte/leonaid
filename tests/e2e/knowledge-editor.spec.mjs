@@ -100,20 +100,26 @@ for (const [surface, width] of [
     await clickAction("Wiederholen");
     await expect(editor.locator("h2")).toHaveText("Gemeinsam planen");
 
-    await page.evaluate(async () =>
-      navigator.clipboard.write([
-        new ClipboardItem({
-          "text/html": new Blob(
-            [
-              '<p><span style="font-family: Arial; font-size: 17pt">Aus Word eingefügt</span> <strong>bleibt fett</strong> <a href="https://example.org/redaktion" class="foreign-link" target="_parent" rel="external">Quelle</a></p><p><span style="font-family: serif; font-size: 20px">Erlaubte Schrift</span></p>',
-            ],
-            { type: "text/html" },
-          ),
-        }),
-      ]),
-    );
+    // A real paste from another application delivers the raw HTML. Writing it
+    // through navigator.clipboard would sanitize it inside this page, where
+    // the strict CSP already blocks the inline styles, so the paste event is
+    // dispatched with the foreign HTML directly.
     await editor.press("ControlOrMeta+a");
-    await editor.press("ControlOrMeta+v");
+    await editor.evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData(
+        "text/html",
+        '<p><span style="font-family: Arial; font-size: 17pt">Aus Word eingefügt</span> <strong>bleibt fett</strong> <a href="https://example.org/redaktion" class="foreign-link" target="_parent" rel="external">Quelle</a></p><p><span style="font-family: serif; font-size: 20px">Erlaubte Schrift</span></p>',
+      );
+      data.setData("text/plain", "Aus Word eingefügt bleibt fett Quelle");
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
     await expect(editor).toContainText("Aus Word eingefügt");
     await expect(editor.locator("strong")).toHaveText("bleibt fett");
     await expect(
