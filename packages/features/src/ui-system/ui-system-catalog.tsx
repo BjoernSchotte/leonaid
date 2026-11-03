@@ -9,8 +9,18 @@ import {
   TableIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CircleAlert, Plus, Search, Trash2, Users } from "lucide-react";
-import { useState } from "react";
+import {
+  CircleAlert,
+  CircleDot,
+  Filter,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  UserRound,
+  Users,
+} from "lucide-react";
+import { useRef, useState } from "react";
 
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
 import {
@@ -31,9 +41,13 @@ import {
   Meter,
   PrefixHint,
   ShortcutHelp,
+  OptionMenu,
+  type OptionMenuOption,
+  Popover,
   StatusIcon,
   StatusLabel,
   StatusMessage,
+  statusShape,
   type StatusShape,
   useHotkeys,
   useShortcutHelp,
@@ -150,6 +164,219 @@ function HotkeyPreview() {
       <ShortcutHelp />
       <PrefixHint />
     </>
+  );
+}
+
+const campaignStatuses = [
+  "Aktiv",
+  "Geplant",
+  "Entwurf",
+  "Abgeschlossen",
+  "Archiviert",
+] as const;
+type CampaignStatus = (typeof campaignStatuses)[number];
+
+const statusOptions: readonly OptionMenuOption<CampaignStatus>[] =
+  campaignStatuses.map((status) => ({
+    value: status,
+    label: status,
+    icon: <StatusIcon label={status} status={statusShape[status] ?? "open"} />,
+  }));
+
+const filterProps = [
+  {
+    value: "status",
+    label: "Status",
+    icon: <Icon icon={CircleDot} size={14} />,
+    options: statusOptions as readonly OptionMenuOption<string>[],
+  },
+  {
+    value: "kind",
+    label: "Art",
+    icon: <Icon icon={Tag} size={14} />,
+    options: ["Krapfentaxi", "Weihnachtsmarkt", "Golfturnier"].map((kind) => ({
+      value: kind,
+      label: kind,
+    })),
+  },
+  {
+    value: "lead",
+    label: "Leitung",
+    icon: <Icon icon={UserRound} size={14} />,
+    options: ["Klara Charity", "Anna Akquise", "Simone System"].map((name) => ({
+      value: name,
+      label: name,
+      hint: "Mitglied",
+    })),
+  },
+] as const;
+type FilterProp = (typeof filterProps)[number]["value"];
+
+/** Filter and inline-edit menus as the list views use them. */
+function OptionMenuDemo() {
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const statusButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogStatusButton = useRef<HTMLButtonElement>(null);
+  const [menu, setMenu] = useState<
+    | { kind: "filter-prop" }
+    | { kind: "filter-values"; prop: FilterProp }
+    | { kind: "status" }
+    | { kind: "dialog-status" }
+    | null
+  >(null);
+  const [filters, setFilters] = useState<Record<string, readonly string[]>>({
+    status: ["Aktiv", "Geplant"],
+  });
+  const [status, setStatus] = useState<CampaignStatus>("Aktiv");
+  const [dialogStatus, setDialogStatus] = useState<CampaignStatus>("Geplant");
+  const close = () => setMenu(null);
+  const filterProp =
+    menu?.kind === "filter-values"
+      ? filterProps.find((prop) => prop.value === menu.prop)
+      : undefined;
+  const filterCount = Object.values(filters).flat().length;
+
+  return (
+    <div className="ui-catalog-cluster">
+      <Button
+        aria-expanded={menu?.kind === "filter-prop" || Boolean(filterProp)}
+        aria-haspopup="dialog"
+        icon={Filter}
+        onClick={() => setMenu({ kind: "filter-prop" })}
+        ref={filterButton}
+        size="sm"
+        variant="secondary"
+      >
+        Filter{filterCount ? ` (${filterCount})` : ""}
+      </Button>
+      <Button
+        aria-expanded={menu?.kind === "status"}
+        aria-haspopup="dialog"
+        icon={<StatusIcon label="" status={statusShape[status] ?? "open"} />}
+        onClick={() => setMenu({ kind: "status" })}
+        ref={statusButton}
+        size="sm"
+        variant="secondary"
+      >
+        Status: {status}
+      </Button>
+      <Button
+        onClick={() => dialogRef.current?.showModal()}
+        size="sm"
+        variant="ghost"
+      >
+        Im Dialog
+      </Button>
+      <dialog
+        aria-labelledby="ui-catalog-menu-dialog-title"
+        className="ui-catalog-menu-dialog"
+        onClose={close}
+        ref={dialogRef}
+      >
+        <h3 id="ui-catalog-menu-dialog-title">Aktion bearbeiten</h3>
+        <p className="ui-catalog-small">
+          Menüs aus einem modalen Dialog liegen über dem Dialog und bleiben
+          bedienbar.
+        </p>
+        <div className="ui-catalog-cluster">
+          <Button
+            aria-expanded={menu?.kind === "dialog-status"}
+            aria-haspopup="dialog"
+            icon={
+              <StatusIcon
+                label=""
+                status={statusShape[dialogStatus] ?? "open"}
+              />
+            }
+            onClick={() => setMenu({ kind: "dialog-status" })}
+            ref={dialogStatusButton}
+            size="sm"
+            variant="secondary"
+          >
+            Status: {dialogStatus}
+          </Button>
+          <Button
+            onClick={() => dialogRef.current?.close()}
+            size="sm"
+            variant="primary"
+          >
+            Fertig
+          </Button>
+        </div>
+        <Popover
+          anchor={dialogStatusButton}
+          label="Status im Dialog ändern"
+          onClose={close}
+          open={menu?.kind === "dialog-status"}
+        >
+          <OptionMenu
+            onSelect={(value) => {
+              setDialogStatus(value);
+              close();
+            }}
+            options={statusOptions}
+            placeholder="Status ändern …"
+            value={dialogStatus}
+          />
+        </Popover>
+      </dialog>
+      <Popover
+        anchor={filterButton}
+        label="Filter wählen"
+        onClose={close}
+        open={menu?.kind === "filter-prop"}
+      >
+        <OptionMenu
+          onSelect={(prop) => setMenu({ kind: "filter-values", prop })}
+          options={filterProps}
+          placeholder="Filtern nach …"
+          value={[]}
+        />
+      </Popover>
+      <Popover
+        anchor={filterButton}
+        label={filterProp ? `Filter ${filterProp.label}` : "Filter"}
+        onClose={close}
+        open={Boolean(filterProp)}
+      >
+        {filterProp ? (
+          <OptionMenu
+            multiple
+            onSelect={(value) =>
+              setFilters((current) => {
+                const values = current[filterProp.value] ?? [];
+                return {
+                  ...current,
+                  [filterProp.value]: values.includes(value)
+                    ? values.filter((entry) => entry !== value)
+                    : [...values, value],
+                };
+              })
+            }
+            options={filterProp.options}
+            placeholder={`${filterProp.label} …`}
+            value={filters[filterProp.value] ?? []}
+          />
+        ) : null}
+      </Popover>
+      <Popover
+        anchor={statusButton}
+        label="Status ändern"
+        onClose={close}
+        open={menu?.kind === "status"}
+      >
+        <OptionMenu
+          onSelect={(value) => {
+            setStatus(value);
+            close();
+          }}
+          options={statusOptions}
+          placeholder="Status ändern …"
+          value={status}
+        />
+      </Popover>
+    </div>
   );
 }
 
@@ -329,6 +556,14 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
                 value={7128}
               />
             </div>
+          </div>
+          <div className="ui-catalog-component">
+            <h3>Auswahlmenüs</h3>
+            <OptionMenuDemo />
+            <p className="ui-catalog-small">
+              Tippen filtert, Pfeile wählen, Enter übernimmt, 1–9 springt
+              direkt, Esc schließt.
+            </p>
           </div>
           <div className="ui-catalog-component">
             <h3>Personen</h3>

@@ -130,6 +130,84 @@ test("UI catalog proves all base states with real identity", async ({
       page.getByRole("button", { name: "Bestätigung öffnen" }),
     ).toBeFocused();
 
+    // Option menu (cmdk in a Popover): search, Enter, number keys, Escape.
+    const statusTrigger = page.getByRole("button", { name: "Status: Aktiv" });
+    await statusTrigger.click();
+    const statusMenu = page.getByRole("dialog", { name: "Status ändern" });
+    const statusSearch = statusMenu.getByRole("combobox");
+    await expect(statusSearch).toBeFocused();
+    await expect(statusMenu).toHaveCSS("opacity", "1");
+    await expect(statusMenu.getByRole("option")).toHaveCount(5);
+    await expect(
+      statusMenu.getByRole("option", { name: /Aktiv/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    await expect(statusMenu).toHaveScreenshot("ui-system-option-menu.png", {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.001,
+    });
+    await expectNoSeriousAccessibilityViolations(page, "Auswahlmenü");
+    await statusSearch.fill("arch");
+    await expect(statusMenu.getByRole("option")).toHaveCount(1);
+    await page.keyboard.press("Enter");
+    await expect(statusMenu).toHaveCount(0);
+    const archivedTrigger = page.getByRole("button", {
+      name: "Status: Archiviert",
+    });
+    await expect(archivedTrigger).toBeFocused();
+    await archivedTrigger.click();
+    await expect(statusSearch).toBeFocused();
+    await page.keyboard.press("2");
+    await expect(
+      page.getByRole("button", { name: "Status: Geplant" }),
+    ).toBeFocused();
+
+    const filterTrigger = page.getByRole("button", { name: "Filter (2)" });
+    await filterTrigger.click();
+    const filterMenu = page.getByRole("dialog", { name: "Filter wählen" });
+    await expect(filterMenu.getByRole("combobox")).toBeFocused();
+    await page.keyboard.type("Art");
+    await page.keyboard.press("Enter");
+    const kindMenu = page.getByRole("dialog", { name: "Filter Art" });
+    await expect(kindMenu.getByRole("combobox")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(
+      kindMenu.getByRole("option", { name: /Krapfentaxi/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    await expectNoSeriousAccessibilityViolations(page, "Mehrfachauswahl");
+    await page.keyboard.press("Escape");
+    await expect(kindMenu).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Filter (3)" }),
+    ).toBeFocused();
+
+    // A menu opened inside a modal <dialog> sits above it and stays usable.
+    await page.getByRole("button", { name: "Im Dialog" }).click();
+    const editDialog = page.getByRole("dialog", { name: "Aktion bearbeiten" });
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByRole("button", { name: "Status: Geplant" }).click();
+    const dialogMenu = page.getByRole("dialog", {
+      name: "Status im Dialog ändern",
+    });
+    await expect(dialogMenu.getByRole("combobox")).toBeFocused();
+    await expect(dialogMenu).toHaveCSS("opacity", "1");
+    expect(
+      await dialogMenu.evaluate((layer) => layer.matches(":popover-open")),
+    ).toBe(true);
+    await expectNoSeriousAccessibilityViolations(page, "Auswahlmenü im Dialog");
+    // Escape closes only the menu, not the dialog around it.
+    await page.keyboard.press("Escape");
+    await expect(dialogMenu).toHaveCount(0);
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByRole("button", { name: "Status: Geplant" }).click();
+    // A real click: Playwright fails it if the option is covered or inert.
+    await dialogMenu.getByRole("option", { name: /Abgeschlossen/ }).click();
+    await expect(
+      editDialog.getByRole("button", { name: "Status: Abgeschlossen" }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(editDialog).toBeHidden();
+
     await page.getByTestId("sidebar-toggle").click();
     await expect(page.locator(".ui-shell")).toHaveAttribute(
       "data-sidebar-collapsed",

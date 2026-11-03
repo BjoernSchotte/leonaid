@@ -9,6 +9,7 @@
 @import "./components/avatar.css";
 @import "./components/meter.css";
 @import "./components/shortcut-help.css";
+@import "./components/popover.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
@@ -1030,6 +1031,7 @@ a {
   *,
   *::before,
   *::after {
+    animation: none !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
