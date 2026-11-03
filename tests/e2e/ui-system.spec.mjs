@@ -145,6 +145,28 @@ test("UI catalog proves all base states with real identity", async ({
     });
     await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
     await expect(dialog.getByTestId("toast").first()).toBeVisible();
+    // Dismissing a toast inside the open modal must not replay its rise.
+    await dialog.evaluate((element) =>
+      Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished),
+      ),
+    );
+    await dialog
+      .getByTestId("toast")
+      .first()
+      .getByRole("button", { name: "Meldung schließen" })
+      .click();
+    await expect(dialog.getByTestId("toast")).toHaveCount(0);
+    expect(
+      await dialog.evaluate((element) => ({
+        animations: element.getAnimations({ subtree: true }).length,
+        dialogAnimation: getComputedStyle(element).animationName,
+        opacity: getComputedStyle(element.querySelector(".modal-body")).opacity,
+      })),
+    ).toEqual({ animations: 0, dialogAnimation: "none", opacity: "1" });
+    await expect(dialog).toBeVisible();
     // Confirm closes the dialog and shows the result in the same update;
     // the result lands in the same, already connected live regions.
     await dialog.getByRole("button", { name: "Aktion bestätigen" }).click();

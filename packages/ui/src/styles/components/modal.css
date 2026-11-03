@@ -2,16 +2,21 @@
 dialog {
   color: var(--text);
 }
+/*
+ * The prototype draws the box and the rise on the <dialog>. Here the visible
+ * box is .modal-body and only it animates: a transform on the dialog would
+ * make it the containing block of the fixed toaster inside it. The dialog is
+ * an unstyled container of the same size, so the result looks the same.
+ */
 .modal {
   /* UA centring for modal dialogs; Tailwind preflight resets margin to 0. */
   margin: auto;
   width: min(560px, calc(100vw - 32px));
   max-height: min(720px, calc(100dvh - 48px));
   padding: 0;
-  border: var(--hair) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-3);
+  border: 0;
+  background: transparent;
+  overflow: visible;
 }
 .modal-sm {
   width: min(420px, calc(100vw - 32px));
@@ -22,7 +27,7 @@ dialog {
 .modal::backdrop {
   background: var(--overlay);
 }
-.modal[open] {
+.modal[open] > .modal-body {
   animation: rise var(--dur-2) var(--ease-out);
 }
 @keyframes rise {
@@ -39,6 +44,11 @@ dialog {
   display: grid;
   max-height: inherit;
   grid-template-rows: auto 1fr auto;
+  overflow: auto;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
 }
 .modal-header {
   padding: var(--s-5) var(--s-6) var(--s-3);
@@ -77,13 +87,4 @@ dialog {
 /* Page scroll lock while a modal is open (class set by Modal, CSP-safe). */
 :root.modal-open {
   overflow: hidden;
-}
-
-/*
- * During the rise, `transform` makes the dialog the containing block of the
- * fixed toaster inside it, and the UA `overflow: auto` would clip a toast.
- * With a toast in the dialog the modal skips straight to its final box.
- */
-.modal[open]:has(.modal-toast-slot .toast) {
-  animation: none;
 }
