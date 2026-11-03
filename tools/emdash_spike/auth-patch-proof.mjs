@@ -91,7 +91,12 @@ assert.ok(revisioned.includes("\t\t\tsetFormData(merged);"));
   // Publish refetch lands after the user typed: the input survives, the
   // server's other fields are taken.
   assert.deepEqual(
-    run(base, { ...base, story_title: "typed" }, { ...base, hero: { id: "2" } }, base).merged,
+    run(
+      base,
+      { ...base, story_title: "typed" },
+      { ...base, hero: { id: "2" } },
+      base,
+    ).merged,
     { story_title: "typed", title: "T", hero: { id: "2" } },
   );
   // Nothing unsaved: the upstream full reset (discard draft, restore).
