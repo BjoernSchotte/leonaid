@@ -6,6 +6,7 @@ import {
   ActionListPage,
   AcquisitionAdminPage,
   ActivityFeedPage,
+  CommandPalette,
   CommitmentAdminPage,
   CreateActionPage,
   FeatureFlagAdminPage,
@@ -24,7 +25,14 @@ import {
   resolveModuleRoute,
   type UiModule,
 } from "@leonaid/features";
-import { AppShell, Button, buttonClassName, StatusMessage } from "@leonaid/ui";
+import {
+  AppShell,
+  Button,
+  buttonClassName,
+  HotkeyProvider,
+  ShortcutHelp,
+  StatusMessage,
+} from "@leonaid/ui";
 
 import { webModules } from "./modules";
 
@@ -199,70 +207,81 @@ export function App({ client }: AppProps) {
                                 "Charity-Übersicht")
                               : "Alle Aktionen";
 
+  const navigation = identity.data.navigation.map((item) =>
+    item.key === "microsite" && editorHref
+      ? { ...item, href: editorHref }
+      : item,
+  );
+
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
-      <AppShell
-        moduleNavigationKeys={webModules.map((module) => module.id)}
-        currentActionName={selectedMembership?.actionName ?? currentAction}
-        identity={{
-          ...identity.data,
-          navigation: identity.data.navigation.map((item) =>
-            item.key === "microsite" && editorHref
-              ? { ...item, href: editorHref }
-              : item,
-          ),
-        }}
-        onLogout={() => {
-          void client.logout().finally(() => {
-            window.location.assign("/login");
-          });
-        }}
-      >
-        <ModuleSearch
-          modules={availableModules}
+      <HotkeyProvider>
+        <CommandPalette
+          context={{ client, identity: identity.data }}
+          modules={webModules}
+          navigation={navigation}
           surface="web"
-          client={client}
-          identity={identity.data}
         />
-        <PreviewNotice />
-        {currentRoute.kind === "module" ? (
-          currentRoute.render({ client, identity: identity.data })
-        ) : currentRoute.kind === "new" ? (
-          <CreateActionPage client={client} />
-        ) : currentRoute.kind === "manage" ? (
-          <ManageActionPage
-            actionId={currentRoute.actionId}
-            client={client}
-            key={currentRoute.actionId}
-          />
-        ) : currentRoute.kind === "members" ? (
-          <MemberAdministrationPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "orders" ? (
-          <CommitmentAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "invoices" ? (
-          <InvoiceAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "activities" ? (
-          <ActivityFeedPage client={client} surface="web" />
-        ) : currentRoute.kind === "acquisition" ? (
-          <AcquisitionAdminPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "system" ? (
-          <FeatureFlagAdminPage client={client} />
-        ) : currentRoute.kind === "privacy" ? (
-          <PrivacyAdminPage client={client} />
-        ) : currentRoute.kind === "legal" ? (
-          <LegalConfigurationPage client={client} identity={identity.data} />
-        ) : currentRoute.kind === "system-ui" ? (
-          <UiSystemCatalogPage identity={identity.data} />
-        ) : currentRoute.kind === "dashboard" ? (
-          <RoleDashboardPage
+        <ShortcutHelp />
+        <AppShell
+          moduleNavigationKeys={webModules.map((module) => module.id)}
+          currentActionName={selectedMembership?.actionName ?? currentAction}
+          identity={{ ...identity.data, navigation }}
+          onLogout={() => {
+            void client.logout().finally(() => {
+              window.location.assign("/login");
+            });
+          }}
+        >
+          <ModuleSearch
+            modules={availableModules}
+            surface="web"
             client={client}
             identity={identity.data}
-            mode="charity_admin"
           />
-        ) : (
-          <ActionListPage identity={identity.data} />
-        )}
-      </AppShell>
+          <PreviewNotice />
+          {currentRoute.kind === "module" ? (
+            currentRoute.render({ client, identity: identity.data })
+          ) : currentRoute.kind === "new" ? (
+            <CreateActionPage client={client} />
+          ) : currentRoute.kind === "manage" ? (
+            <ManageActionPage
+              actionId={currentRoute.actionId}
+              client={client}
+              key={currentRoute.actionId}
+            />
+          ) : currentRoute.kind === "members" ? (
+            <MemberAdministrationPage
+              client={client}
+              identity={identity.data}
+            />
+          ) : currentRoute.kind === "orders" ? (
+            <CommitmentAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "invoices" ? (
+            <InvoiceAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "activities" ? (
+            <ActivityFeedPage client={client} surface="web" />
+          ) : currentRoute.kind === "acquisition" ? (
+            <AcquisitionAdminPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "system" ? (
+            <FeatureFlagAdminPage client={client} />
+          ) : currentRoute.kind === "privacy" ? (
+            <PrivacyAdminPage client={client} />
+          ) : currentRoute.kind === "legal" ? (
+            <LegalConfigurationPage client={client} identity={identity.data} />
+          ) : currentRoute.kind === "system-ui" ? (
+            <UiSystemCatalogPage identity={identity.data} />
+          ) : currentRoute.kind === "dashboard" ? (
+            <RoleDashboardPage
+              client={client}
+              identity={identity.data}
+              mode="charity_admin"
+            />
+          ) : (
+            <ActionListPage identity={identity.data} />
+          )}
+        </AppShell>
+      </HotkeyProvider>
     </FeatureFlagProvider>
   );
 }

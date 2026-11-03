@@ -130,6 +130,22 @@ test("charity admin completes the desktop review path without losing context", a
     await page.keyboard.press("Enter");
     await expect(page.locator("#main-content")).toBeFocused();
 
+    // Keyboard walkthrough: palette → Aufgaben → back.
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+    await expect(palette.getByRole("combobox")).toBeFocused();
+    await page.keyboard.type("Aufgaben");
+    await expect(
+      palette.locator("[cmdk-item][data-selected='true'] .palette-label"),
+    ).toHaveText("Aufgaben");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/admin\/tasks(?:[/?]|$)/);
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/admin/\\?action=${actionId}`));
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+    ).toBeVisible();
+
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
     await expect(page).toHaveURL(/\/admin\/invoices\?.*status=open/);

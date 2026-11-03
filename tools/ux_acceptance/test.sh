@@ -31,8 +31,19 @@ compose() {
       "$@"
 }
 
+api_switched=false
+restore_api() {
+  if [ "$api_switched" = true ]; then
+    LEONAID_DISABLED_MODULES= compose up --detach --wait --wait-timeout 420 \
+      --no-deps --force-recreate api
+    api_switched=false
+  fi
+}
+
 cleanup() {
   status=$?
+  # A borrowed stack must leave with the default module set.
+  if [ -n "${LEONAID_TEST_STACK:-}" ] && ! restore_api; then status=1; fi
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "ux-acceptance-test: diagnostics for the failed services:" >&2
     compose ps --all >&2 || true
@@ -127,26 +138,47 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 compose up --detach --wait --wait-timeout 420 public pwa web proxy
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --volume "$browser_results:/browser-results" \
-  --env ANNA_SESSION=poc101-10000000-0000-4000-8000-000000000004-server-session-token-value \
-  --env KLARA_SESSION=poc101-10000000-0000-4000-8000-000000000002-server-session-token-value \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  tests/e2e/ux-acceptance.spec.mjs \
-  --browser=chromium \
-  --output=/browser-results/run \
-  --trace=retain-on-failure \
-  --reporter=line
+# Runs Playwright specs against the proxy; extra arguments go to
+# `playwright test`.
+run_browser() {
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+    --env LEONAID_PALETTE_DISABLED_MODULES="${palette_disabled_modules:-}" \
+    --volume "$browser_results:/browser-results" \
+    --env ANNA_SESSION=poc101-10000000-0000-4000-8000-000000000004-server-session-token-value \
+    --env KLARA_SESSION=poc101-10000000-0000-4000-8000-000000000002-server-session-token-value \
+    --env FELIX_SESSION=poc101-10000000-0000-4000-8000-000000000003-server-session-token-value \
+    --env SIMONE_SESSION=poc101-10000000-0000-4000-8000-000000000001-server-session-token-value \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test \
+    --browser=chromium \
+    --trace=retain-on-failure \
+    --reporter=line \
+    "$@"
+}
+
+run_browser tests/e2e/ux-acceptance.spec.mjs tests/e2e/command-palette.spec.mjs \
+  --output=/browser-results/run
+
+# Review Focus #1: with modules switched off, the palette offers neither
+# their navigation nor their search. Only the API reads the switch; it is
+# restored afterwards (also on failure, see cleanup).
+palette_disabled_modules=tasks,inbox
+api_switched=true
+LEONAID_DISABLED_MODULES=$palette_disabled_modules \
+  compose up --detach --wait --wait-timeout 420 --no-deps --force-recreate api
+run_browser tests/e2e/command-palette.spec.mjs \
+  --output=/browser-results/disabled-modules
+restore_api
+palette_disabled_modules=
 
 for report in \
   performance-report.json \
