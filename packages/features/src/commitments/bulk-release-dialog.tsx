@@ -317,7 +317,7 @@ function ReleaseTable({
               <tr data-release-id={commitment.id} key={commitment.id}>
                 <th scope="row">{commitment.buyer.displayName}</th>
                 <td>
-                  <span className="mono">{commitment.id.slice(0, 8)}</span> ·{" "}
+                  <span className="mono">…{commitment.id.slice(-8)}</span> ·{" "}
                   {berlinDate.format(new Date(row.createdAt))}
                 </td>
                 <td className="num">{commitment.lines.length}</td>

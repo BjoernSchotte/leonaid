@@ -459,7 +459,7 @@ test("bulk release issues several invoices with one service date and retries saf
   let zweiAnswers = 0;
   await page.route(issuePath(bulkOrders.zwei), async (route) => {
     const response = await route.fetch();
-    if (response.status() === 200 && zweiAnswers === 0) {
+    if (response.ok() && zweiAnswers === 0) {
       zweiAnswers += 1;
       await route.abort("connectionreset");
       return;
@@ -523,33 +523,32 @@ test("bulk release issues several invoices with one service date and retries saf
       serviceOn,
     );
 
-    // Eins issued, the answer for Zwei is lost: the run stops there.
+    // The list order is newest first: Drei, Zwei, Eins. Drei is refused and
+    // the run goes on; the answer for Zwei is lost, so the run stops there.
     await dialog
       .getByRole("button", { name: "3 Rechnungen verbindlich ausstellen" })
       .click();
     const result = page.getByRole("dialog", { name: "Ergebnis der Freigabe" });
-    await expect(result.getByTestId("bulk-release-issued")).toContainText(
-      "Sammel Eins KG",
+    const failed = result.getByTestId("bulk-release-failed");
+    await expect(failed).toContainText(
+      "Sammel Drei KG: Die Bestellung ist nicht mehr prüfbereit.",
     );
-    await expect(result.getByTestId("bulk-release-open")).toContainText(
-      "Sammel Zwei KG",
-    );
-    await expect(result.getByTestId("bulk-release-open")).toContainText(
-      "Sammel Drei KG: nicht gesendet.",
-    );
+    const unfinished = result.getByTestId("bulk-release-open");
+    await expect(unfinished).toContainText("Sammel Zwei KG: Keine Antwort");
+    await expect(unfinished).toContainText("Sammel Eins KG: nicht gesendet.");
+    const issued = result.getByTestId("bulk-release-issued");
+    await expect(issued).toContainText("Ausgestellt (0)");
     expect(zweiAnswers).toBe(1);
 
-    // The retry replays Zwei's key (no second invoice) and reports Drei.
+    // The retry replays Zwei's key (no second invoice) and issues Eins.
     await result
       .getByRole("button", { name: "2 Rechnungen erneut senden" })
       .click();
-    const issued = result.getByTestId("bulk-release-issued");
-    await expect(issued).toContainText("Sammel Zwei KG");
     await expect(issued).toContainText("Ausgestellt (2)");
-    await expect(result.getByTestId("bulk-release-failed")).toContainText(
-      "Sammel Drei KG: Die Bestellung ist nicht mehr prüfbereit.",
-    );
-    await expect(result.getByTestId("bulk-release-open")).toHaveCount(0);
+    await expect(issued).toContainText("Sammel Zwei KG");
+    await expect(issued).toContainText("Sammel Eins KG");
+    await expect(failed).toContainText("Sammel Drei KG");
+    await expect(unfinished).toHaveCount(0);
     const shownNumbers = await issued.locator("a").allTextContents();
     expect(shownNumbers).toHaveLength(2);
     await page.screenshot({
@@ -576,7 +575,10 @@ test("bulk release issues several invoices with one service date and retries saf
     ))
       expect(item.invoice.serviceOn).toBe(serviceOn);
 
-    await result.getByRole("button", { name: "Schließen" }).click();
+    await result
+      .locator(".modal-footer")
+      .getByRole("button", { name: "Schließen" })
+      .click();
     await expect(result).toHaveCount(0);
     const einsRow = page.locator(".listview li.row", {
       has: page.locator(`[data-order-id="${bulkOrders.eins}"]`),
