@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import fields, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
@@ -267,6 +267,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CreateInvitationRequest,
     CreateCharityActionRequest,
     CurrentIdentityResponse,
+    InstallationResponse,
     DashboardCommitmentResponse,
     DashboardGoalResponse,
     DashboardInvoiceResponse,
@@ -2039,7 +2040,12 @@ async def current_identity(
 ) -> CurrentIdentityResponse:
     result = await identity_service(request).current_identity(session_token(request))
     response.headers["Cache-Control"] = "no-store"
-    return CurrentIdentityResponse.model_validate(result)
+    return CurrentIdentityResponse.model_validate(
+        {
+            **{field.name: getattr(result, field.name) for field in fields(result)},
+            "installation": InstallationResponse(club_name=request.app.state.club_name),
+        }
+    )
 
 
 @router.get(

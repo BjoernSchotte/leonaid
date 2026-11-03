@@ -152,7 +152,12 @@ for (const [surface, width] of [
     expect(quickSubmitBox.height).toBeLessThanOrEqual(48);
     expect(quickSubmitBox.width).toBeLessThanOrEqual(200);
     expect(quickSubmitBox.y).toBeGreaterThanOrEqual(quickAssigneeBox.y - 2);
-    if (width <= 1024) {
+    // The workspace stacks the quick form below 850 px of its own width
+    // (container query); at 1024 px the rail is collapsed and it still fits.
+    const quickWorkspaceWidth = (
+      await page.locator(".tasks-workspace").boundingBox()
+    ).width;
+    if (quickWorkspaceWidth <= 850) {
       expect(quickTitleBox.width).toBeGreaterThanOrEqual(
         quickFormBox.width * 0.9,
       );
@@ -184,8 +189,11 @@ for (const [surface, width] of [
       await sheet.getByRole("button", { name: "Schließen" }).click();
       await expect(sheet).toBeHidden();
     }
-    if (width <= 1024) {
-      const scopeBox = await page.getByLabel("Bereich").boundingBox();
+    // Same 850 px container breakpoint for the list tools.
+    if (quickWorkspaceWidth <= 850) {
+      const scopeBox = await page
+        .getByRole("combobox", { name: /^Bereich/ })
+        .boundingBox();
       const statusBox = await page.getByLabel("Ansicht").boundingBox();
       const searchBox = await page.getByLabel("Aufgaben suchen").boundingBox();
       expect(Math.abs(scopeBox.y - statusBox.y)).toBeLessThanOrEqual(2);

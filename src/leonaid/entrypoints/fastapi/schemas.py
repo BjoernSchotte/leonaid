@@ -90,6 +90,12 @@ class NavigationItemResponse(TransportModel):
     surface: Literal["web", "pwa"]
 
 
+class InstallationResponse(TransportModel):
+    """Installation facts every signed-in surface shows (one club per install)."""
+
+    club_name: str
+
+
 class CurrentIdentityResponse(TransportModel):
     user_id: UUID
     display_name: str
@@ -102,6 +108,7 @@ class CurrentIdentityResponse(TransportModel):
     session_last_seen_at: datetime
     fresh_login_at: datetime
     fresh_until: datetime
+    installation: InstallationResponse
 
 
 class MemberDirectoryMembershipResponse(TransportModel):

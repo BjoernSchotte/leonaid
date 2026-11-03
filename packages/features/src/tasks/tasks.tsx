@@ -1104,7 +1104,7 @@ export function TasksPage({
       <div
         className={`tasks-layout${detailTaskId ? " tasks-layout--detail" : ""}`}
       >
-        <main className="tasks-main">
+        <div className="tasks-main">
           {(!listId || selected.data?.canEdit) && (
             <QuickTaskForm
               client={client}
@@ -1747,7 +1747,7 @@ export function TasksPage({
               </Button>
             </div>
           )}
-        </main>
+        </div>
         {detailTaskId && (
           <aside className="tasks-detail-panel" aria-label="Aufgabendetails">
             {!detailTask ||

@@ -45,7 +45,7 @@ async function selectAnna(page) {
   await page
     .getByRole("searchbox", { name: "Mitglied suchen" })
     .fill("Anna Akquise");
-  await page.getByRole("button", { name: "Suchen" }).click();
+  await page.getByRole("button", { name: "Suchen", exact: true }).click();
   await expect(page.getByTestId("member-card")).toHaveCount(1);
   await page.getByTestId("member-card").click();
   await expect(
@@ -262,14 +262,11 @@ test("system admin performs a role change and full offboarding through the UI", 
     await annaPwaSheet.getByRole("button", { name: "Schließen" }).click();
     await annaWebPage.goto(`${baseUrl}/admin/`);
     await annaWebPage.getByTestId("mobile-menu").click();
-    await expect(
-      annaWebPage
-        .locator(".ui-mobile-drawer")
-        .locator('[data-nav-key="invoices"]'),
-    ).toBeVisible();
-    await annaWebPage
-      .getByRole("button", { name: "Navigation schließen" })
-      .click();
+    const annaSheet = annaWebPage.getByRole("dialog", {
+      name: "Alle Bereiche",
+    });
+    await expect(annaSheet.locator('[data-nav-key="invoices"]')).toBeVisible();
+    await annaSheet.getByRole("button", { name: "Schließen" }).click();
 
     await changeRole(systemPage, globalFinanceId, false, "Finanzen");
     await changeRole(systemPage, actionFinanceId, false, "Finanzen");

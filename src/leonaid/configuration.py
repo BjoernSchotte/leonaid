@@ -6,6 +6,7 @@ from email.utils import parseaddr
 from ipaddress import ip_address
 from pathlib import Path
 import re
+import unicodedata
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -18,6 +19,13 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+CLUB_NAME_MAX_LENGTH = 120
+DEVELOPMENT_CLUB_NAME = "Lions Club Musterstadt"
+PRODUCTION_CLUB_NAME_MISSING = (
+    "Production requires LEONAID_CLUB_NAME (the club name shown in the admin rail)."
+)
 
 
 class ConfigurationError(RuntimeError):
@@ -83,6 +91,8 @@ class Settings(BaseSettings):
         default=None, alias="LEONAID_ORDER_SUBMISSION_KEY"
     )
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    # One club per installation; shown in the admin rail. Required in production.
+    club_name_value: str | None = Field(default=None, alias="LEONAID_CLUB_NAME")
     survey_erasure_archive_dir: Path | None = Field(
         default=None, alias="LEONAID_SURVEY_ERASURE_ARCHIVE_DIR"
     )
@@ -188,6 +198,29 @@ class Settings(BaseSettings):
             raise ValueError("invalid PostgreSQL DSN")
         return value
 
+    @field_validator("club_name_value", mode="before")
+    @classmethod
+    def validate_club_name(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("LEONAID_CLUB_NAME must be text.")
+        name = " ".join(value.split())
+        if not name:
+            return None
+        if len(name) > CLUB_NAME_MAX_LENGTH or any(
+            unicodedata.category(character).startswith("C") for character in name
+        ):
+            raise ValueError(
+                f"LEONAID_CLUB_NAME must be 1 to {CLUB_NAME_MAX_LENGTH} printable characters."
+            )
+        return name
+
+    @property
+    def club_name(self) -> str:
+        """The configured club name; local and test fall back to a sample."""
+        return self.club_name_value or DEVELOPMENT_CLUB_NAME
+
     @model_validator(mode="after")
     def validate_production_boundary(self) -> Settings:
         if (self.pilot_monitor_status_url is None) != (
@@ -198,6 +231,8 @@ class Settings(BaseSettings):
             )
         if self.environment != "production":
             return self
+        if self.club_name_value is None:
+            raise ValueError(PRODUCTION_CLUB_NAME_MISSING)
         if (
             self.release_commit is None
             or re.fullmatch(
@@ -497,6 +532,12 @@ def load_settings() -> Settings:
                 for item in error.errors(include_url=False, include_input=False)
             }
         )
+        # The club name rule names the variable; its text holds no input.
+        if any(
+            PRODUCTION_CLUB_NAME_MISSING in item["msg"]
+            for item in error.errors(include_url=False, include_input=False)
+        ):
+            diagnostics.insert(0, PRODUCTION_CLUB_NAME_MISSING)
         raise ConfigurationError(
             "LeonAid configuration is invalid: " + ", ".join(diagnostics)
         ) from None

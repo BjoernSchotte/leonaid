@@ -3,7 +3,14 @@ from __future__ import annotations
 from pydantic import ValidationError
 from pytest import raises
 
-from leonaid.configuration import MailTransportSettings, Settings
+from leonaid.configuration import (
+    DEVELOPMENT_CLUB_NAME,
+    PRODUCTION_CLUB_NAME_MISSING,
+    ConfigurationError,
+    MailTransportSettings,
+    Settings,
+    load_settings,
+)
 
 
 def valid_settings(**overrides: str) -> Settings:
@@ -39,6 +46,7 @@ def valid_production_settings(**overrides: str) -> Settings:
         "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
         "MAIL_HEALTH_URL": "https://status.mail-provider.org/health",
         "OBJECT_STORAGE_BUCKET": "leonaid-production-club-111",
+        "LEONAID_CLUB_NAME": "Lions Club Beispielstadt",
     }
     values.update(overrides)
     return valid_settings(**values)
@@ -260,3 +268,57 @@ def test_mail_credentials_must_be_complete() -> None:
                 "MAIL_SMTP_USERNAME": "only-a-user",
             }
         )
+
+
+def test_club_name_defaults_outside_production_and_is_normalised() -> None:
+    assert valid_settings().club_name == DEVELOPMENT_CLUB_NAME
+    assert valid_settings(LEONAID_CLUB_NAME="   ").club_name == DEVELOPMENT_CLUB_NAME
+    assert (
+        valid_settings(LEONAID_CLUB_NAME="  Lions Club   Am See ").club_name
+        == "Lions Club Am See"
+    )
+
+
+def test_club_name_rejects_control_characters_and_overlong_values() -> None:
+    for value in ("Lions\u0000Club", "Lions Club\u200b", "L" * 121):
+        with raises(ValidationError):
+            valid_settings(LEONAID_CLUB_NAME=value)
+    assert valid_settings(LEONAID_CLUB_NAME="L" * 120).club_name == "L" * 120
+
+
+def test_production_requires_a_club_name() -> None:
+    assert valid_production_settings().club_name == "Lions Club Beispielstadt"
+    for missing in ("", "  "):
+        with raises(ValidationError, match="LEONAID_CLUB_NAME"):
+            valid_production_settings(LEONAID_CLUB_NAME=missing)
+
+
+def test_startup_names_the_missing_club_name(monkeypatch) -> None:
+    production = {
+        "LEONAID_ENV": "production",
+        "LEONAID_RELEASE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+        "LEONAID_TRUST_PROXY_HEADERS": "true",
+        "LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.org",
+        "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
+        "MAIL_HEALTH_URL": "https://status.mail-provider.org/health",
+        "OBJECT_STORAGE_BUCKET": "leonaid-production-club-111",
+        "CORE_DATABASE_URL": "postgresql://golden-user:top-secret@core-postgres/leonaid",
+        "LEONAID_SECRET_KEY": "invitation-hmac-secret-with-at-least-32-characters",
+        "LEONAID_SESSION_ENCRYPTION_KEY": "mail-payload-secret-with-at-least-32-characters",
+        "TWENTY_BASE_URL": "http://twenty-server:3000",
+        "TWENTY_HEALTH_URL": "http://twenty-server:3000/healthz",
+        "RUSTFS_HEALTH_URL": "http://rustfs:9000/health",
+        "OBJECT_STORAGE_ENDPOINT_URL": "http://rustfs:9000",
+        "OBJECT_STORAGE_ACCESS_KEY": "golden-storage-access",
+        "OBJECT_STORAGE_SECRET_KEY": "golden-storage-secret",
+    }
+    monkeypatch.delenv("LEONAID_CLUB_NAME", raising=False)
+    for key, value in production.items():
+        monkeypatch.setenv(key, value)
+    with raises(
+        ConfigurationError,
+        match=PRODUCTION_CLUB_NAME_MISSING.replace("(", r"\(").replace(")", r"\)"),
+    ):
+        load_settings()
+    monkeypatch.setenv("LEONAID_CLUB_NAME", "Lions Club Beispielstadt")
+    assert load_settings().club_name == "Lions Club Beispielstadt"
