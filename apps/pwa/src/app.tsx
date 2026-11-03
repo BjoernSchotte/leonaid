@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
+import {
+  ApiError,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
+} from "@leonaid/api-client";
 import {
   ActivityFeedPage,
   ActivityWorkspace,
@@ -18,6 +22,7 @@ import {
   Button,
   buttonClassName,
   MobileShell,
+  type MobileShellProps,
   StatusMessage,
 } from "@leonaid/ui";
 
@@ -214,11 +219,37 @@ function PwaNotices({ lifecycle }: { readonly lifecycle: PwaLifecycle }) {
   return null;
 }
 
+const implementedPwaNavigation = new Set([
+  ...corePwaNavigation,
+  ...pwaModuleNavigationKeys,
+]);
+
+/**
+ * The shell follows in-page URL changes (the sponsor capture view, Back),
+ * so the active tab moves. Only the shell re-renders: the page element
+ * comes from App unchanged, and module pages keep reading the URL
+ * themselves.
+ */
+function PwaShell({
+  navigation,
+  ...props
+}: Omit<MobileShellProps, "active" | "menuItems" | "tabs"> & {
+  readonly navigation: CurrentIdentityResponse["navigation"];
+}) {
+  useLocationHref();
+  const { active, menu, tabs } = mobileNavigation(
+    navigation,
+    implementedPwaNavigation,
+    window.location,
+  );
+  return (
+    <MobileShell active={active} menuItems={menu} tabs={tabs} {...props} />
+  );
+}
+
 export function App({ client }: AppProps) {
   const currentActionId = useCurrentActionId();
   const lifecycle = usePwaLifecycle();
-  // In-page view switches (e.g. the sponsor capture) move the active tab.
-  useLocationHref();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -295,17 +326,10 @@ export function App({ client }: AppProps) {
     memberships[0]?.actionName ??
     "Keine aktive Akquise-Aktion";
 
-  const navigation = mobileNavigation(
-    identity.data.navigation,
-    new Set([...corePwaNavigation, ...pwaModuleNavigationKeys]),
-    window.location,
-  );
-
   return (
-    <MobileShell
-      active={navigation.active}
+    <PwaShell
       campaign={currentAction}
-      menuItems={navigation.menu}
+      navigation={identity.data.navigation}
       menuSearch={
         <ModuleSearch
           client={client}
@@ -323,7 +347,6 @@ export function App({ client }: AppProps) {
       }}
       person={identity.data.displayName}
       role={identity.data.roleLabels.join(" · ")}
-      tabs={navigation.tabs}
     >
       {moduleRoute ? (
         moduleRoute.render({ client, identity: identity.data })
@@ -342,6 +365,6 @@ export function App({ client }: AppProps) {
           mode="acquirer"
         />
       )}
-    </MobileShell>
+    </PwaShell>
   );
 }
