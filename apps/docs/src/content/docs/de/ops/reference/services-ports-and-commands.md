@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 10
-reviewedRevision: 10
-verifiedAgainst: 6dbd0207c70d70a1c2b077fa013898b54f55e24d
+contentRevision: 11
+reviewedRevision: 11
+verifiedAgainst: 8fb732e8f06e7faed03fd3982c87065812131518
 reviewer: Björn Schotte
 ---
 
@@ -99,6 +99,13 @@ Grenze überschreitet, wird abgebrochen und mit dem Fehlercode `job_timeout`
 erneut versucht. Jobs speichern als Fehlerangabe nur den sicheren Fehlercode,
 nie Ausnahmetext. Jede Joblogzeile (`outbox.job.*`) enthält `durationMs`,
 wenn der Job abgeschlossen wurde, fehlschlug oder seinen Claim verlor.
+
+Die Outbox-Karte unter `/admin/system` zeigt außerdem den nächsten
+wartenden Versuch und wie lange der älteste fällige Job schon wartet
+(API-Felder `nextPendingAttemptAt` und `oldestDuePendingAgeSeconds`). Jobs
+abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
+warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
+hängende oder überlastete Queue.
 
 ## Laufzeitgrenzen und Identität
 

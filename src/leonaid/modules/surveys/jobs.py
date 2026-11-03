@@ -29,6 +29,10 @@ from leonaid.application.outbox import OutboxEventHandler
 from leonaid.platform.background import BackgroundLoop, LoopReporter
 
 SURVEY_SWEEP_LOOP = "survey_sweep"
+# Event types the survey handlers own; known without building any handler.
+SURVEY_EVENT_TYPES = frozenset(
+    {"survey.delete.v1", "survey.export.render.v1", "survey.invitation.send.v1"}
+)
 # Rendering is repeatable. In #7's benchmark the slowest export of 5,000
 # synthetic responses took about 12 s; 240 s stays below the default lease.
 SURVEY_HANDLER_TIMEOUTS = {"survey.export.render.v1": 240.0}

@@ -547,6 +547,19 @@ export function OperationsAdminPanel({
           <span>Outbox</span>
           <strong>{overview.data.outbox.pending} wartend</strong>
           <small>{overview.data.outbox.deadLetter} fehlgeschlagen</small>
+          <small>
+            Nächster Versuch:{" "}
+            {overview.data.nextPendingAttemptAt
+              ? formatDate(overview.data.nextPendingAttemptAt)
+              : "keine wartenden Jobs"}
+          </small>
+          <small>
+            {overview.data.oldestDuePendingAgeSeconds != null
+              ? `Ältester fälliger Job wartet seit ${Math.floor(
+                  overview.data.oldestDuePendingAgeSeconds,
+                ).toLocaleString("de-DE")} s`
+              : "Kein fälliger Job wartet"}
+          </small>
         </article>
         <article>
           <HugeiconsIcon
