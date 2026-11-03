@@ -58,6 +58,13 @@ async function signedIn(
   return context;
 }
 
+// The loading screen also has an h1; the mounted palette means the shell
+// and its hotkeys are live.
+async function shellReady(page) {
+  await expect(page.locator("dialog.palette")).toBeAttached();
+  await expect(page.locator("main h1, #main-content h1").first()).toBeVisible();
+}
+
 const palette = (page) => page.getByRole("dialog", { name: "Befehlspalette" });
 const paletteInput = (page) => palette(page).getByRole("combobox");
 
@@ -88,7 +95,7 @@ test.describe("enabled modules", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await page.keyboard.press("Tab");
       const skipLink = page.getByRole("link", { name: "Zum Hauptinhalt" });
       await expect(skipLink).toBeFocused();
@@ -158,7 +165,7 @@ test.describe("enabled modules", () => {
         }
       });
       await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await openPalette(page);
       const sent = page.waitForRequest(
         (request) =>
@@ -195,7 +202,7 @@ test.describe("enabled modules", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await openPalette(page);
       const creates = palette(page).getByRole("group", { name: "Anlegen" });
       for (const label of [
@@ -260,7 +267,7 @@ test.describe("enabled modules", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await page.keyboard.press("?");
       const help = page.getByRole("dialog", { name: "Tastenkürzel" });
       await expect(help).toBeVisible();
@@ -298,7 +305,7 @@ test.describe("enabled modules", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${baseUrl}/admin/`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await openPalette(page);
       const response = searchResponse(page, "KT26");
       await paletteInput(page).fill("KT26");
@@ -326,7 +333,7 @@ test.describe("enabled modules", () => {
     const page = await context.newPage();
     try {
       await page.goto(`${baseUrl}/admin/actions`);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await shellReady(page);
       await openPalette(page);
       const invoiceSearch = searchResponse(page, "KT26-0001");
       await paletteInput(page).fill("KT26-0001");
