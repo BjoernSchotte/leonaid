@@ -64,6 +64,8 @@ import {
   useToast,
 } from "@leonaid/ui";
 
+import { ListViewDemo } from "./list-view-demo";
+
 export interface UiSystemCatalogPageProps {
   readonly identity: CurrentIdentityResponse;
 }
@@ -437,6 +439,10 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
     );
   }
 
+  if (new URLSearchParams(window.location.search).has("listview")) {
+    return <ListViewDemo />;
+  }
+
   return (
     <div className="ui-catalog" data-testid="ui-catalog">
       <header className="ui-catalog-hero">
@@ -480,6 +486,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         <a href="#feedback">Feedback</a>
         <a href="#forms">Formulare</a>
         <a href="#data">Daten</a>
+        <a href="#lists">Listen</a>
       </nav>
 
       <section aria-labelledby="actions" className="ui-catalog-section">
@@ -872,6 +879,27 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           icon={PackageOpen}
           title="Keine passenden Bestellungen"
         />
+      </section>
+
+      <section aria-labelledby="lists" className="ui-catalog-section">
+        <PatternHeading
+          description="Gespeicherte Ansichten, Filter-Chips, Gruppen, Tastatur (J/K, Enter, Esc, X, F, /) und Detailbereich mit Beispieldaten."
+          id="lists"
+        >
+          Listenansicht
+        </PatternHeading>
+        <p className="ui-catalog-note">
+          Die Listenansicht braucht die volle Seitenbreite. Filter und Ansicht
+          stehen in der Adresse und bleiben nach dem Neuladen erhalten.
+        </p>
+        <div className="ui-catalog-row">
+          <a
+            className={buttonClassName({ variant: "secondary" })}
+            href="/admin/system/ui?listview"
+          >
+            Listenansicht öffnen
+          </a>
+        </div>
       </section>
 
       <section

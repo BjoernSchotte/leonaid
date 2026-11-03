@@ -32,14 +32,15 @@ const SCROLL_LOCK_CLASS = "modal-open";
 const openSlots: HTMLElement[] = [];
 const listeners = new Set<() => void>();
 
-function register(slot: HTMLElement) {
+/** Adds a modal layer (scroll lock, toaster slot); for custom native dialogs. */
+export function registerModalLayer(slot: HTMLElement) {
   if (openSlots.includes(slot)) return;
   openSlots.push(slot);
   document.documentElement.classList.add(SCROLL_LOCK_CLASS);
   listeners.forEach((listener) => listener());
 }
 
-function unregister(slot: HTMLElement) {
+export function unregisterModalLayer(slot: HTMLElement) {
   const index = openSlots.indexOf(slot);
   if (index < 0) return;
   openSlots.splice(index, 1);
@@ -108,7 +109,7 @@ export function Modal({
         if (!openRef.current || dialog.open || !dialog.isConnected) return;
         returnFocus.current ??= document.activeElement as HTMLElement | null;
         dialog.showModal();
-        register(slot);
+        registerModalLayer(slot);
       };
       // A child effect runs before its parent's. Wait for an enclosing
       // dialog that opens in the same commit, so the child ends on top.
@@ -118,7 +119,7 @@ export function Modal({
       return;
     }
     if (dialog.open) dialog.close();
-    unregister(slot);
+    unregisterModalLayer(slot);
     restoreFocus(returnFocus);
   }, [open, forcedCloses]);
 
@@ -130,7 +131,7 @@ export function Modal({
       // Not a user close: do not report it through onClose.
       openRef.current = false;
       if (dialog?.open) dialog.close();
-      if (slot) unregister(slot);
+      if (slot) unregisterModalLayer(slot);
       restoreFocus(returnFocus);
     };
   }, []);

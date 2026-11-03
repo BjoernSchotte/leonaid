@@ -369,3 +369,31 @@
 .ui-catalog-menu-dialog h3 {
   margin: 0 0 var(--s-2);
 }
+
+/* List view demo (?listview): page bits of the prototype's orders list
+   (prototype pages.css). */
+.ui-list-demo .flag-high {
+  color: var(--danger);
+}
+.ui-list-demo .flag-space {
+  display: inline-block;
+  width: 14px;
+}
+.ui-list-demo .order-no {
+  color: var(--text-3);
+  font-size: 0.82em;
+  margin-inline-end: var(--s-1);
+}
+.ui-list-demo .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.ui-list-demo .next-step {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  font-size: var(--fs-sm);
+}
