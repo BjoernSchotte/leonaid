@@ -40,6 +40,13 @@ WORKDIR /app
 RUN rm -rf /opt/yarn-v1.22.22 /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm
 COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/public/dist ./dist
+# sharp/libvips size their worker pool from the host's CPU count, not the
+# container's CPU quota (32 threads per image pipeline on a 32-core host). With
+# the service's pids_limit, concurrent image transforms then fail to create
+# threads ("glib: Error creating thread"), Astro serves the image unoptimized,
+# and libvips can crash Node with SIGSEGV in vips_sink_disc. The service is
+# limited to one CPU, so one libvips worker per pipeline loses nothing.
+ENV VIPS_CONCURRENCY=1
 ENV HOST=0.0.0.0
 ENV PORT=3000
 USER node
