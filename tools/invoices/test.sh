@@ -151,26 +151,31 @@ fi
 compose --profile dev-mail up --detach --wait --wait-timeout 420 \
   worker pwa web proxy
 
-docker run --rm \
-  --network "${project}_edge" \
-  --env CI=1 \
-  --env HOME=/tmp \
-  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-  --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
-  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env-file "$proof/sessions.env" \
-  --volume "$root:/workspace:ro" \
-  --volume "$proof:/proof" \
-  --workdir /workspace \
-  --user "$(id -u):$(id -g)" \
-  "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
-  invoices.spec.mjs \
-  --project=chromium-1440 \
-  --output=/proof/test-results \
-  --trace=retain-on-failure \
-  --reporter=line
+# The bulk fault proof runs after the main proof: it relies on its invoice
+# numbers and seeded orders, and its source is pinned in
+# tools/ci/reviewed_network_faults.json.
+for spec in invoices.spec.mjs invoices-bulk-faults.spec.mjs; do
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+    --env-file "$proof/sessions.env" \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test \
+    --config=tests/e2e/pwa.config.mjs \
+    "$spec" \
+    --project=chromium-1440 \
+    --output="/proof/test-results/${spec%.spec.mjs}" \
+    --trace=retain-on-failure \
+    --reporter=line
+done
 
 for screenshot in \
   invoice-review-desktop.png \
@@ -179,7 +184,9 @@ for screenshot in \
   invoice-ledger-dark.png \
   invoice-finance-mobile.png \
   invoice-bulk-release-desktop.png \
-  invoice-bulk-release-result.png; do
+  invoice-bulk-release-result.png \
+  invoice-bulk-release-retry.png \
+  invoice-bulk-release-refused.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invoice-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1

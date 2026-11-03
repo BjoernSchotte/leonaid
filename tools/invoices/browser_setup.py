@@ -31,6 +31,11 @@ BULK_ORDERS = (
     (UUID("80000000-0000-4000-8000-0000000000b1"), "Sammel Eins KG"),
     (UUID("80000000-0000-4000-8000-0000000000b2"), "Sammel Zwei KG"),
     (UUID("80000000-0000-4000-8000-0000000000b3"), "Sammel Drei KG"),
+    # For tests/e2e/invoices-bulk-faults.spec.mjs.
+    (UUID("80000000-0000-4000-8000-0000000000b4"), "Sammel Vier KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b5"), "Sammel Fünf KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b6"), "Sammel Sechs KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b7"), "Sammel Sieben KG"),
 )
 
 
@@ -146,6 +151,14 @@ async def main() -> None:
             "KLARA_BULK_SESSION",
             KLARA_ID,
             "poc090-browser-klara-bulk-stale-session-token-value",
+            stale_at,
+            stale_at,
+        ),
+        (
+            # The bulk fault proof signs in freshly on its own.
+            "KLARA_FAULT_SESSION",
+            KLARA_ID,
+            "poc090-browser-klara-fault-stale-session-token-value",
             stale_at,
             stale_at,
         ),
