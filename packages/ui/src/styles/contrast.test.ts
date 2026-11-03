@@ -191,6 +191,7 @@ const zones: {
     zone: "bestellungen",
     keys: [
       "orders",
+      "acquisition-app",
       "acquisition-web",
       "acquisition-pwa",
       "sponsors",

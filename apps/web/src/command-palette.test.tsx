@@ -73,6 +73,7 @@ function identity(
     displayName: "Klara Admin",
     email: "klara@example.org",
     freshLoginAt: "2026-11-03T10:00:00Z",
+    installation: { clubName: "Lions Club Musterstadt" },
     freshUntil: "2026-11-03T10:10:00Z",
     globalRoles: [],
     navigation,

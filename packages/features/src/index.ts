@@ -27,6 +27,8 @@ export * from "./commitments/commitment-capture";
 export * from "./dashboard/dashboard";
 export * from "./invoices/invoice-admin";
 export * from "./modules";
+export * from "./navigation/campaign-selection";
+export * from "./navigation/rail-navigation";
 export * from "./navigation/zones";
 export * from "./feature-flags/openfeature-provider";
 export * from "./system-admin/feature-flag-admin";
@@ -46,9 +48,11 @@ export {
   type PaletteSearchOutcome,
 } from "./command-palette/sources";
 export {
+  openCommandPalette,
   resetCommandPaletteState,
   useCommandPalette,
   useContextCommands,
   type CommandPaletteControls,
   type PaletteCommand,
 } from "./command-palette/store";
+export { navigateInPage, useLocationHref } from "./shared/location";

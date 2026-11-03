@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Flag,
   Globe,
+  Handshake,
   Inbox,
   LayoutDashboard,
   ListChecks,
@@ -69,6 +70,14 @@ export const navigationZones: readonly NavigationZone[] = [
     icon: ShoppingBasket,
     group: "Arbeit",
     hint: "Zusagen und Bestellungen",
+  },
+  {
+    navKey: "acquisition-web",
+    key: "q",
+    label: "Akquise",
+    icon: Handshake,
+    group: "Arbeit",
+    hint: "Sponsoren-Pipeline und Zuordnungen",
   },
   {
     navKey: "delivery",
@@ -167,7 +176,7 @@ export const navigationZones: readonly NavigationZone[] = [
     hint: "Betrieb, Aufgaben, Funktionen, Sicherungen",
   },
   {
-    navKey: "acquisition-web",
+    navKey: "acquisition-app",
     key: "p",
     label: "Akquise-App",
     icon: Smartphone,
@@ -187,6 +196,14 @@ export const navigationZones: readonly NavigationZone[] = [
 const zonesByNavKey: ReadonlyMap<string, NavigationZone> = new Map(
   navigationZones.map((zone) => [zone.navKey, zone]),
 );
+
+/**
+ * The cross-surface link from the admin rail into the acquisition PWA. It is
+ * not a server navigation item: the admin shows it when the account has any
+ * PWA item, and it never relabels the PWA's own overview.
+ */
+export const ACQUISITION_APP_KEY = "acquisition-app";
+export const ACQUISITION_APP_HREF = "/app/";
 
 export function zoneForNavKey(navKey: string): NavigationZone | undefined {
   return zonesByNavKey.get(navKey);

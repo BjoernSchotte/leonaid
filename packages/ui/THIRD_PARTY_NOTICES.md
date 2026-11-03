@@ -9,10 +9,9 @@ authoritative.
 | Package/project                                                                          |                                Version used | License | Use                                              |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------: | ------- | ------------------------------------------------ |
 | [shadcn/ui](https://github.com/shadcn-ui/ui)                                             | open-code configuration, no runtime package | MIT     | component structure and `components.json`        |
-| [`@base-ui/react`](https://github.com/mui/base-ui)                                       |                                       1.6.0 | MIT     | accessible dialog, menu and toast primitives     |
 | [`@fontsource/barlow`](https://github.com/fontsource/font-files)                         |                                       5.3.0 | OFL-1.1 | self-hosted Barlow text font (latin, 400–700)    |
 | [`@fontsource-variable/jetbrains-mono`](https://github.com/fontsource/font-files)        |                                       5.3.0 | OFL-1.1 | self-hosted JetBrains Mono for numbers and codes |
-| [`@hugeicons/core-free-icons`](https://www.npmjs.com/package/@hugeicons/core-free-icons) |                                       4.2.3 | MIT     | free icon data only (older screens)              |
+| [`@hugeicons/core-free-icons`](https://www.npmjs.com/package/@hugeicons/core-free-icons) |                                       4.2.3 | MIT     | free icon data (older feature screens)           |
 | [`@hugeicons/react`](https://github.com/hugeicons/hugeicons)                             |                                       1.1.9 | MIT     | React renderer for free Hugeicons                |
 | [`lucide-react`](https://github.com/lucide-icons/lucide)                                 |                                      1.60.0 | ISC     | icon set for new UI (`Icon` adapter)             |
 | [React](https://github.com/facebook/react)                                               |                                      19.2.8 | MIT     | component runtime                                |

@@ -4,7 +4,7 @@
  * Zones: every work area carries a wayfinding hue (--zone-h), set on the
  * area root with [data-zone="<server navigation key>"]. Components read
  * --zone, --zone-soft, --zone-line and --zone-ink.
- * Theme: [data-theme] on <html> (theme-init.js, ThemeSwitcher); without it the
+ * Theme: [data-theme] on <html> (theme-init.js, setThemePreference in components/theme.ts); without it the
  * system preference applies. contrast.test.ts checks every pair's WCAG target.
  */
 
@@ -347,6 +347,7 @@
 } /* system */
 /* Acquisition app surface and its entries (akquise = bestellungen hue). */
 [data-zone="pwa"],
+[data-zone="acquisition-app"],
 [data-zone="acquisition-web"],
 [data-zone="acquisition-pwa"],
 [data-zone="sponsors"],

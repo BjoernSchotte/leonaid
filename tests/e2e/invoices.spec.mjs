@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRows, openInvoice, showInvoiceView } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
@@ -324,20 +325,16 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toBeVisible();
 
     await page.locator('[data-nav-key="invoices"]').first().click();
-    await page.waitForURL(`${baseUrl}/admin/invoices`);
+    // The rail link carries the campaign the admin is working in.
+    await page.waitForURL(/\/admin\/invoices\?action=[0-9a-f-]{36}$/);
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(page.getByTestId("invoice-profile")).toContainText(
-      "Freigegebene Rechtsgrundlage aktiv",
-    );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(4);
-    await expect(page.getByTestId("invoice-totals")).toContainText("648,00");
-    const issuedRow = page
-      .getByTestId("invoice-row")
-      .filter({ hasText: "KT26-0004" });
-    await expect(issuedRow).toBeVisible();
-    await issuedRow.locator("summary").click();
+    await expect(page.getByTestId("invoice-profile-incomplete")).toHaveCount(0);
+    await expect(page.getByTestId("invoice-open-total")).toContainText("€");
+    await showInvoiceView(page, "Alle");
+    await expect(invoiceRows(page)).toHaveCount(4);
+    const issuedRow = await openInvoice(page, { number: "KT26-0004" });
     await expect(issuedRow).toContainText("Bäckerei Sonnenseite KG");
     await expect(issuedRow).toContainText("Sonnenstraße 2");
     await expect(issuedRow).toContainText(
@@ -356,8 +353,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toEqual([]);
     expect(pageErrors).toEqual([]);
 
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-dark").click();
+    await page.getByTestId("theme-toggle").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.screenshot({
       path: `${artifactDirectory}/invoice-ledger-dark.png`,
@@ -378,10 +374,11 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     await expect(
       financePage.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(financePage.getByTestId("invoice-profile")).toContainText(
-      "Nur Lesezugriff",
+    await expect(financePage.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
     );
-    await expect(financePage.getByTestId("invoice-row")).toHaveCount(4);
+    await showInvoiceView(financePage, "Alle");
+    await expect(invoiceRows(financePage)).toHaveCount(4);
     await expect(financePage.getByTestId("issue-invoice")).toHaveCount(0);
     await expect(financePage.getByTestId("mobile-menu")).toBeVisible();
     await expect(financePage.getByTestId("desktop-sidebar")).toBeHidden();

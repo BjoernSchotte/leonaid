@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRows } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -125,7 +126,7 @@ test("charity admin completes the desktop review path without losing context", a
 
     await page.keyboard.press("Tab");
     await expect(
-      page.getByRole("link", { name: "Zum Hauptinhalt" }),
+      page.getByRole("link", { name: "Zum Inhalt springen" }),
     ).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#main-content")).toBeFocused();
@@ -148,12 +149,15 @@ test("charity admin completes the desktop review path without losing context", a
 
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
-    await expect(page).toHaveURL(/\/admin\/invoices\?.*status=open/);
-    await expect(page.getByTestId("invoice-filter-open")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(1);
+    // The dashboard's ?status=open link lands in the "Offen" list view.
+    await expect(page).toHaveURL(/\/admin\/invoices\?action=/);
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Gespeicherte Ansichten" })
+        .getByRole("button", { name: "Offen", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(invoiceRows(page)).toHaveCount(1);
     await expect(
       page.getByRole("heading", { level: 1, name: "Rechnungen" }),
     ).toBeVisible();
@@ -187,6 +191,100 @@ test("charity admin completes the desktop review path without losing context", a
       `${artifactDirectory}/ux-admin-accessibility.json`,
       `${JSON.stringify(accessibility, null, 2)}\n`,
     );
+    expectNoUnexpectedPageErrors(pageErrors);
+  } finally {
+    await context.close();
+  }
+});
+
+const previousActionId = "20000000-0000-4000-8000-000000000002";
+
+test("charity admin keeps the chosen campaign across pages and widths", async ({
+  browser,
+}) => {
+  const context = await contextFor(browser, klaraSession, {
+    width: 1440,
+    height: 1000,
+  });
+  const page = await context.newPage();
+  const pageErrors = collectPageErrors(page);
+  const switcherMenu = page.getByRole("dialog", { name: "Aktion wechseln" });
+  try {
+    await page.goto(`${baseUrl}/admin/?action=${actionId}`);
+    const current = page.getByTestId("current-action");
+    await expect(current).toHaveText("Krapfentaxi 2026");
+
+    // Rail switcher: the dashboard reloads with the other campaign.
+    await page.getByTestId("campaign-switcher").click();
+    await switcherMenu
+      .getByRole("option", { name: /Krapfentaxi 2025/ })
+      .click();
+    await page.waitForURL(`${baseUrl}/admin/?action=${previousActionId}`);
+    await expect(current).toHaveText("Krapfentaxi 2025");
+
+    // Rail links carry the choice into campaign-scoped pages.
+    const rail = page.getByRole("navigation", { name: "Hauptnavigation" });
+    await rail.locator('[data-nav-key="orders"]').click();
+    await page.waitForURL(
+      /\/admin\/orders\?action=20000000-0000-4000-8000-000000000002$/,
+    );
+    await expect(current).toHaveText("Krapfentaxi 2025");
+    // A page that ignores the campaign keeps it in the rail.
+    await rail.locator('[data-nav-key="members"]').click();
+    await page.waitForURL(`${baseUrl}/admin/members`);
+    await expect(current).toHaveText("Krapfentaxi 2025");
+    // Typed URL without ?action=: the tab's choice still applies.
+    await page.goto(`${baseUrl}/admin/invoices`);
+    await expect(page.getByTestId("invoice-action")).toHaveValue(
+      previousActionId,
+    );
+    await expect(page).toHaveURL(/action=20000000-0000-4000-8000-000000000002/);
+    await expect(current).toHaveText("Krapfentaxi 2025");
+
+    // Palette command: the rail switcher opens with focus in its search.
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+    await palette.getByRole("combobox").fill("Aktion wechseln");
+    await palette.getByRole("option", { name: /Aktion wechseln/ }).click();
+    await expect(switcherMenu).toBeVisible();
+    await expect(switcherMenu.getByRole("combobox")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(switcherMenu).toHaveCount(0);
+
+    // 1024 px: the collapsed rail keeps a compact switcher.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await expect(page.getByTestId("campaign-switcher")).toBeHidden();
+    await page.getByTestId("campaign-switcher-compact").click();
+    await switcherMenu
+      .getByRole("option", { name: /Krapfentaxi 2026/ })
+      .click();
+    await page.waitForURL(
+      /\/admin\/invoices\?action=20000000-0000-4000-8000-000000000001$/,
+    );
+    await expect(page.getByTestId("invoice-action")).toHaveValue(actionId);
+
+    // 390 px: the "Mehr" sheet has the switcher and hands off to the palette.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId("mobile-menu").click();
+    const sheet = page.getByRole("dialog", { name: "Alle Bereiche" });
+    await expect(sheet).toBeVisible();
+    await sheet.locator(".sheet-campaign").click();
+    await expect(
+      sheet.getByRole("dialog", { name: "Aktion wechseln" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await sheet.getByRole("button", { name: "Suchen und Befehle" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(palette.getByRole("combobox")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("mobile-menu")).toBeFocused();
+    await expectNoHorizontalOverflow(page, "Kampagnenwahl Smartphone");
+
+    // Growing past 720 px closes an open sheet.
+    await page.getByTestId("mobile-menu").click();
+    await expect(sheet).toBeVisible();
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await expect(sheet).toBeHidden();
     expectNoUnexpectedPageErrors(pageErrors);
   } finally {
     await context.close();

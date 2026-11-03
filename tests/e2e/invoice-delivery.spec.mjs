@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRow, openInvoice } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -43,13 +44,13 @@ test("charity admin sees an SMTP outage and restarts exactly that delivery", asy
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   try {
-    await page.goto(`${baseUrl}/admin/invoices`);
+    await page.goto(`${baseUrl}/admin/invoices?view=all`);
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    const invoice = page.locator(`[data-invoice-id="${invoiceId}"]`);
-    await expect(invoice).toBeVisible();
-    await invoice.locator("summary").click();
+    const row = invoiceRow(page, invoiceId);
+    await expect(row).toContainText("Versand fehlgeschlagen");
+    const invoice = await openInvoice(page, { id: invoiceId });
 
     await expect(invoice.getByTestId("invoice-delivery")).toHaveAttribute(
       "data-state",
@@ -66,7 +67,7 @@ test("charity admin sees an SMTP outage and restarts exactly that delivery", asy
 
     await invoice.getByTestId("retry-invoice-delivery").click();
     await expect(invoice).toContainText(
-      /Wird neu gestartet|In Bearbeitung|Erfolgreich versendet/,
+      /Für Versand eingeplant|Wird gerade versendet|Automatischer Neuversuch|Erfolgreich versendet/,
     );
     await expect
       .poll(

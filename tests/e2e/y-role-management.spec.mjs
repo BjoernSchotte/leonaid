@@ -45,7 +45,7 @@ async function selectAnna(page) {
   await page
     .getByRole("searchbox", { name: "Mitglied suchen" })
     .fill("Anna Akquise");
-  await page.getByRole("button", { name: "Suchen" }).click();
+  await page.getByRole("button", { name: "Suchen", exact: true }).click();
   await expect(page.getByTestId("member-card")).toHaveCount(1);
   await page.getByTestId("member-card").click();
   await expect(
@@ -222,7 +222,7 @@ test("system admin performs a role change and full offboarding through the UI", 
 
   try {
     await annaPage.goto(`${baseUrl}/app/`);
-    const annaMobileNavigation = annaPage.locator(".ui-pwa-tabbar");
+    const annaMobileNavigation = annaPage.locator(".pwa-tabs");
     await expect(
       annaMobileNavigation.locator('[data-nav-key="sponsors"]'),
     ).toBeVisible();
@@ -254,19 +254,19 @@ test("system admin performs a role change and full offboarding through the UI", 
         (item) => item.surface === "pwa" && item.key === "delivery",
       ),
     ).toBeTruthy();
+    await annaPage.getByTestId("pwa-menu").click();
+    const annaPwaSheet = annaPage.getByRole("dialog", { name: "Mehr" });
     await expect(
-      annaMobileNavigation.locator('[data-nav-key="delivery"]'),
+      annaPwaSheet.locator('[data-nav-key="delivery"]'),
     ).toHaveAttribute("aria-disabled", "true");
+    await annaPwaSheet.getByRole("button", { name: "Schließen" }).click();
     await annaWebPage.goto(`${baseUrl}/admin/`);
     await annaWebPage.getByTestId("mobile-menu").click();
-    await expect(
-      annaWebPage
-        .locator(".ui-mobile-drawer")
-        .locator('[data-nav-key="invoices"]'),
-    ).toBeVisible();
-    await annaWebPage
-      .getByRole("button", { name: "Navigation schließen" })
-      .click();
+    const annaSheet = annaWebPage.getByRole("dialog", {
+      name: "Alle Bereiche",
+    });
+    await expect(annaSheet.locator('[data-nav-key="invoices"]')).toBeVisible();
+    await annaSheet.getByRole("button", { name: "Schließen" }).click();
 
     await changeRole(systemPage, globalFinanceId, false, "Finanzen");
     await changeRole(systemPage, actionFinanceId, false, "Finanzen");
@@ -280,16 +280,23 @@ test("system admin performs a role change and full offboarding through the UI", 
     ).toHaveCount(0);
 
     await annaPage.reload();
-    const mobileNavigation = annaPage.locator(".ui-pwa-tabbar");
+    const mobileNavigation = annaPage.locator(".pwa-tabs");
     await expect(
       mobileNavigation.locator('[data-nav-key="overview-pwa"]'),
     ).toBeVisible();
     await expect(
       mobileNavigation.locator('[data-nav-key="sponsors"]'),
     ).toHaveCount(0);
+    await annaPage.getByTestId("pwa-menu").click();
     await expect(
-      mobileNavigation.locator('[data-nav-key="delivery"]'),
+      annaPage
+        .getByRole("dialog", { name: "Mehr" })
+        .locator('[data-nav-key="delivery"]'),
     ).toHaveCount(0);
+    await annaPage
+      .getByRole("dialog", { name: "Mehr" })
+      .getByRole("button", { name: "Schließen" })
+      .click();
     await annaWebPage.reload();
     await expect(annaWebPage.locator('[data-nav-key="invoices"]')).toHaveCount(
       0,
