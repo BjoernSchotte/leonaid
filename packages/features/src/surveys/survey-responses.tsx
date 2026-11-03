@@ -874,12 +874,11 @@ function ResponseList({
       {new Date(selection.createdAt).toLocaleString("de-DE")} ({zone}).
       Zeitraum:{" "}
       {filter.createdFrom
-        ? new Date(filter.createdFrom).toLocaleString("de-DE")
+        ? `ab ${new Date(filter.createdFrom).toLocaleString("de-DE")}`
         : "offener Beginn"}{" "}
-      bis vor{" "}
       {filter.createdBefore
-        ? new Date(filter.createdBefore).toLocaleString("de-DE")
-        : "offenes Ende"}
+        ? `bis vor ${new Date(filter.createdBefore).toLocaleString("de-DE")}`
+        : "bis offenes Ende"}
       .
     </p>
   );
