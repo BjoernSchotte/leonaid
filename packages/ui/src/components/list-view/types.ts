@@ -109,4 +109,23 @@ export interface ListViewProps<T> {
   readonly status?: ListStatus;
   /** Shown with the error state as "Erneut versuchen". */
   readonly onRetry?: () => void;
+  /**
+   * Publishes the list's palette commands (views, filters, grouping,
+   * selection, create). Pass the palette's `useContextCommands`; it is
+   * called as a hook on every render, so it must never change.
+   */
+  readonly useCommands?: (commands: readonly ListCommand[]) => void;
+}
+
+/** A palette command; structurally the palette's `PaletteCommand`. */
+export interface ListCommand {
+  readonly id: string;
+  readonly label: string;
+  /** Palette section: the list title. */
+  readonly group: string;
+  readonly icon?: LucideIcon;
+  /** Binding shown as keycaps. */
+  readonly keys?: string;
+  readonly keywords?: readonly string[];
+  readonly run: () => void;
 }

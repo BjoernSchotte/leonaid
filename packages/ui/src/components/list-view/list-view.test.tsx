@@ -24,7 +24,7 @@ import { installDialogPolyfill } from "../../test-utils/dialog-polyfill";
 import { ToastProvider } from "../toast";
 import { ListView } from "./list-view";
 import { STORAGE_PREFIX, type ListViewDefinition } from "./saved-views";
-import type { ListProperty, ListSort } from "./types";
+import type { ListCommand, ListProperty, ListSort } from "./types";
 
 class TestResizeObserver {
   observe() {}
@@ -107,6 +107,16 @@ const sorts: ListSort<Order>[] = [
   { id: "amount", label: "Betrag", compare: (a, b) => b.cents - a.cents },
 ];
 
+let published: readonly ListCommand[] = [];
+function useCaptureCommands(commands: readonly ListCommand[]) {
+  published = commands;
+}
+function runCommand(label: string) {
+  const command = published.find((item) => item.label === label);
+  if (!command) throw new Error(`No command "${label}"`);
+  act(() => command.run());
+}
+
 function Harness({
   apply,
   onOpen,
@@ -167,6 +177,7 @@ function Harness({
           searchText={(row) => `${row.number} ${row.sponsor}`}
           sorts={sorts}
           title="Bestellungen"
+          useCommands={useCaptureCommands}
           views={views}
         />
       </HotkeyProvider>
@@ -557,5 +568,56 @@ describe("detail pane on phones", () => {
     press("Escape", sheet);
     expect(document.querySelector("dialog.pane-sheet")).toBeNull();
     expect(window.location.search).toBe("");
+  });
+});
+
+describe("palette commands", () => {
+  it("switches views, filters, groups and selects through the palette", () => {
+    vi.useFakeTimers();
+    render(<Harness />);
+    const labels = () => published.map((command) => command.label);
+    expect(labels()).toEqual(
+      expect.arrayContaining([
+        "Ansicht: Alle",
+        "Ansicht: Neu",
+        "Filter hinzufügen",
+        "Filtern nach Status",
+        "Filtern nach Herkunft",
+        "Gruppieren nach Status",
+        "Alle Bestellungen auswählen",
+      ]),
+    );
+    // Not groupable, nothing to clear or unselect yet.
+    expect(labels()).not.toContain("Gruppieren nach Herkunft");
+    expect(labels()).not.toContain("Filter zurücksetzen");
+    expect(labels()).not.toContain("Auswahl aufheben");
+    expect(published.every((command) => command.group === "Bestellungen")).toBe(
+      true,
+    );
+
+    runCommand("Ansicht: Neu");
+    expect(window.location.search).toBe("?view=new");
+    expect(rowLinks()).toHaveLength(2);
+
+    runCommand("Filter zurücksetzen");
+    expect(rowLinks()).toHaveLength(4);
+    expect(window.location.search).toBe("?view=new&f=none");
+
+    runCommand("Alle Bestellungen auswählen");
+    expect(screen.getByText("4 ausgewählt")).toBeTruthy();
+    runCommand("Auswahl aufheben");
+    expect(screen.queryByRole("region", { name: "Auswahl" })).toBeNull();
+
+    runCommand("Filter hinzufügen");
+    act(() => vi.advanceTimersByTime(20));
+    expect(screen.getByRole("dialog", { name: "Filter wählen" })).toBeTruthy();
+    press("Escape", screen.getByRole("dialog", { name: "Filter wählen" }));
+
+    runCommand("Filtern nach Herkunft");
+    act(() => vi.advanceTimersByTime(20));
+    expect(
+      screen.getByRole("dialog", { name: "Filter Herkunft" }),
+    ).toBeTruthy();
+    vi.useRealTimers();
   });
 });

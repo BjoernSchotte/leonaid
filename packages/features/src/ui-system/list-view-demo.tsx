@@ -31,6 +31,8 @@ import {
   type ListViewDefinition,
 } from "@leonaid/ui";
 
+import { useContextCommands } from "../command-palette/store";
+
 /*
  * Catalog demo of the Linear-style list (fixture rows, nothing is stored on
  * the server). It mirrors the prototype's orders list, so the fidelity check
@@ -458,6 +460,7 @@ function DemoList() {
       }
       sorts={sorts}
       title="Bestellungen"
+      useCommands={useContextCommands}
       views={views}
     />
   );

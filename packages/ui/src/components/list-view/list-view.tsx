@@ -1,9 +1,14 @@
 import {
   Bookmark,
   BookmarkPlus,
+  CheckSquare,
   ChevronDown,
+  FilterX,
+  Layers,
+  ListFilter as ListFilterIcon,
   Plus,
   SearchX,
+  SquareX,
   X,
 } from "lucide-react";
 import {
@@ -46,7 +51,12 @@ import {
   type ListState,
   type ListViewDefinition,
 } from "./saved-views";
-import type { ListColumns, ListProperty, ListViewProps } from "./types";
+import type {
+  ListColumns,
+  ListCommand,
+  ListProperty,
+  ListViewProps,
+} from "./types";
 
 /** Help overlay section of every list binding. */
 export const LIST_HOTKEY_GROUP = "Liste";
@@ -65,6 +75,12 @@ interface Group<T> {
 }
 
 const ALL_GROUP = "__all";
+
+/** Without a palette the list publishes no commands. */
+function useNoCommands(_commands: readonly ListCommand[]): void {}
+
+/* The palette closes and hands focus back first; open menus after that. */
+const AFTER_PALETTE_MS = 10;
 
 function valuesOf<T>(prop: ListProperty<T>, row: T): readonly string[] {
   const value = prop.get(row);
@@ -690,6 +706,97 @@ export function ListView<T>(props: ListViewProps<T>) {
       : []),
   ];
   useHotkeys(bindings);
+
+  /* ----- palette ----- */
+  const openMenuSoon = (next: Menu) =>
+    window.setTimeout(() => setMenu(next), AFTER_PALETTE_MS);
+  const commands: ListCommand[] = [
+    ...allViews.map(
+      (view): ListCommand => ({
+        id: `list:${props.id}:view:${view.id}`,
+        label: `Ansicht: ${view.label}`,
+        group: title,
+        icon: Bookmark,
+        run: () => applyView(view),
+      }),
+    ),
+    {
+      id: `list:${props.id}:filter`,
+      label: "Filter hinzufügen",
+      group: title,
+      icon: ListFilterIcon,
+      keys: "f",
+      run: () => openMenuSoon({ kind: "filter-prop" }),
+    },
+    ...filterable.map(
+      (prop): ListCommand => ({
+        id: `list:${props.id}:filter:${prop.id}`,
+        label: `Filtern nach ${prop.label}`,
+        group: title,
+        icon: ListFilterIcon,
+        run: () => {
+          filterAnchor.current = filterButton.current;
+          openMenuSoon({ kind: "filter-values", prop: prop.id });
+        },
+      }),
+    ),
+    ...(state.filters.length > 0
+      ? [
+          {
+            id: `list:${props.id}:filter-clear`,
+            label: "Filter zurücksetzen",
+            group: title,
+            icon: FilterX,
+            run: () => setFilters([]),
+          },
+        ]
+      : []),
+    ...groupable.map(
+      (prop): ListCommand => ({
+        id: `list:${props.id}:group:${prop.id}`,
+        label: `Gruppieren nach ${prop.label}`,
+        group: title,
+        icon: Layers,
+        run: () => update({ groupBy: prop.id }),
+      }),
+    ),
+    ...(visible.length > 0
+      ? [
+          {
+            id: `list:${props.id}:select-all`,
+            label: `Alle ${entityLabel.many} auswählen`,
+            group: title,
+            icon: CheckSquare,
+            run: () => setChecked(new Set(visible.map(getId))),
+          },
+        ]
+      : []),
+    ...(checkedIds.length > 0
+      ? [
+          {
+            id: `list:${props.id}:select-none`,
+            label: "Auswahl aufheben",
+            group: title,
+            icon: SquareX,
+            run: clearChecked,
+          },
+        ]
+      : []),
+    ...(props.onCreate
+      ? [
+          {
+            id: `list:${props.id}:create`,
+            label: props.createLabel ?? "Neu anlegen",
+            group: title,
+            icon: Plus,
+            keys: "c",
+            run: () => props.onCreate?.(),
+          },
+        ]
+      : []),
+  ];
+  const useCommands = props.useCommands ?? useNoCommands;
+  useCommands(commands);
 
   /* ----- rows ----- */
   const onLinkClick = useStableCallback(
