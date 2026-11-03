@@ -7,8 +7,12 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
+
+import { subscribeModalStack, topModalSlot } from "./modal";
 
 export type ToastTone = "error" | "info" | "success";
 
@@ -53,42 +57,51 @@ interface ToastApi {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+function subscribeVisibility(listener: () => void) {
+  document.addEventListener("visibilitychange", listener);
+  return () => document.removeEventListener("visibilitychange", listener);
+}
+
 function ToastItem({
+  hidden,
   onDismiss,
+  remainingTimes,
   toast,
 }: {
+  /** The page is in a background tab. */
+  readonly hidden: boolean;
   readonly onDismiss: (id: string) => void;
+  /** Remaining ms per toast; survives a remount when the toaster moves. */
+  readonly remainingTimes: Map<string, number>;
   readonly toast: ToastEntry;
 }) {
   const tone = toast.tone ?? "info";
   const ToneIcon = toneIcon[tone];
   const timeout = toast.timeout ?? DEFAULT_TIMEOUT;
-  // The timer pauses while the pointer or focus is on the toast.
-  const remaining = useRef(timeout);
-  const startedAt = useRef(0);
+  // The timer pauses while the pointer or focus is on the toast and while
+  // the page is hidden.
   const [paused, setPaused] = useState({ hover: false, focus: false });
-  const isPaused = paused.hover || paused.focus;
+  const isPaused = paused.hover || paused.focus || hidden;
 
   useEffect(() => {
     if (timeout <= 0 || isPaused) return;
-    startedAt.current = Date.now();
-    const timer = window.setTimeout(
-      () => onDismiss(toast.id),
-      remaining.current,
-    );
+    const remaining = remainingTimes.get(toast.id) ?? timeout;
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => onDismiss(toast.id), remaining);
     return () => {
       window.clearTimeout(timer);
-      remaining.current = Math.max(
-        0,
-        remaining.current - (Date.now() - startedAt.current),
+      remainingTimes.set(
+        toast.id,
+        Math.max(0, remaining - (Date.now() - startedAt)),
       );
     };
-  }, [isPaused, onDismiss, timeout, toast.id]);
+  }, [isPaused, onDismiss, remainingTimes, timeout, toast.id]);
 
   return (
     <div
       className={`toast ${toneClass[tone]}`}
       data-testid="toast"
+      data-toast-id={toast.id}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setPaused((state) => ({ ...state, focus: false }));
@@ -134,8 +147,55 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [toasts, setToasts] = useState<readonly ToastEntry[]>([]);
   const nextId = useRef(0);
 
-  const dismiss = useCallback((id: string) => {
-    setToasts((list) => list.filter((toast) => toast.id !== id));
+  const remainingTimes = useRef(new Map<string, number>()).current;
+  const toastsRef = useRef(toasts);
+  toastsRef.current = toasts;
+  const toasterRef = useRef<HTMLDivElement>(null);
+  // Outside the topmost modal dialog the toaster would sit behind it and be
+  // inert, so it renders into that dialog while one is open.
+  const modalSlot = useSyncExternalStore(
+    subscribeModalStack,
+    topModalSlot,
+    () => null,
+  );
+  const hidden = useSyncExternalStore(
+    subscribeVisibility,
+    () => document.hidden,
+    () => false,
+  );
+
+  const dismiss = useCallback(
+    (id: string) => {
+      remainingTimes.delete(id);
+      setToasts((list) => list.filter((toast) => toast.id !== id));
+    },
+    [remainingTimes],
+  );
+
+  // F6 jumps to the newest toast (its action, else its close button).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.key !== "F6" ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+      const newest = toastsRef.current.at(-1);
+      const target = newest
+        ? toasterRef.current?.querySelector<HTMLElement>(
+            `[data-toast-id="${newest.id}"] button`,
+          )
+        : null;
+      if (!target) return;
+      event.preventDefault();
+      target.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const show = useCallback((toast: LeonAidToast) => {
@@ -147,29 +207,34 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
 
   const api = useMemo(() => ({ dismiss, show }), [dismiss, show]);
 
+  const item = (toast: ToastEntry) => (
+    <ToastItem
+      hidden={hidden}
+      key={toast.id}
+      onDismiss={dismiss}
+      remainingTimes={remainingTimes}
+      toast={toast}
+    />
+  );
+  // Errors go to an assertive region, everything else to a polite one. Both
+  // regions always exist, so screen readers pick up insertions. No
+  // role="alert" on the empty region: it would count as an alert on every
+  // page.
+  const toaster = (
+    <div className="toaster" ref={toasterRef}>
+      <div aria-live="polite" className="toaster-region" role="status">
+        {toasts.filter((toast) => toast.tone !== "error").map(item)}
+      </div>
+      <div aria-live="assertive" className="toaster-region">
+        {toasts.filter((toast) => toast.tone === "error").map(item)}
+      </div>
+    </div>
+  );
+
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {/* Errors go to an assertive region, everything else to a polite one.
-          Both regions always exist, so screen readers pick up insertions.
-          No role="alert" on the empty region: it would count as an alert
-          on every page. */}
-      <div className="toaster">
-        <div aria-live="polite" className="toaster-region" role="status">
-          {toasts
-            .filter((toast) => toast.tone !== "error")
-            .map((toast) => (
-              <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
-            ))}
-        </div>
-        <div aria-live="assertive" className="toaster-region">
-          {toasts
-            .filter((toast) => toast.tone === "error")
-            .map((toast) => (
-              <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
-            ))}
-        </div>
-      </div>
+      {modalSlot ? createPortal(toaster, modalSlot) : toaster}
     </ToastContext.Provider>
   );
 }
