@@ -104,7 +104,7 @@
 }
 
 .dashboard-goal__intro p {
-  color: color-mix(in oklch, var(--primary-foreground) 70%, var(--primary));
+  color: color-mix(in oklab, var(--primary-foreground) 80%, var(--primary));
 }
 
 .dashboard-goal__intro h2 {
@@ -142,7 +142,7 @@
 
 .dashboard-goal__value span,
 .dashboard-goal__configuration {
-  color: color-mix(in oklch, var(--primary-foreground) 78%, var(--primary));
+  color: color-mix(in oklab, var(--primary-foreground) 78%, var(--primary));
   font-size: 0.82rem;
 }
 
@@ -186,7 +186,7 @@
 }
 
 .dashboard-goal__beneficiaries > span {
-  color: color-mix(in oklch, var(--primary-foreground) 82%, var(--primary));
+  color: color-mix(in oklab, var(--primary-foreground) 82%, var(--primary));
 }
 
 .dashboard-goal__beneficiaries ul,
