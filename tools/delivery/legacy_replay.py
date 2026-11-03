@@ -2,9 +2,12 @@
 
 import json
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
+import asyncpg
 import httpx
+import psycopg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.legal_configuration import (
@@ -28,11 +31,13 @@ from leonaid.entrypoints.fastapi.schemas import (
 from tools.delivery.http_configuration import http_app
 
 
-def fixture():
-    return json.loads(Path("tools/delivery/legacy-replay.json").read_text())
+def fixture() -> dict[str, Any]:
+    data = json.loads(Path("tools/delivery/legacy-replay.json").read_text())
+    assert isinstance(data, dict)
+    return data
 
 
-def seed_receipts(db):
+def seed_receipts(db: psycopg.Connection[Any]) -> None:
     data = fixture()
     old = data["internal"]
     public = data["public"]
@@ -81,11 +86,11 @@ def seed_receipts(db):
 
 
 class NoCrm:
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"Legacy replay accessed CRM: {name}")
 
 
-async def prove_legacy_replay(pool, admin_id):
+async def prove_legacy_replay(pool: asyncpg.Pool, admin_id: UUID) -> None:
     data = fixture()
     action_id = UUID(data["actionId"])
     old = data["internal"]

@@ -65,8 +65,6 @@ def upgrade() -> None:
     """)
 
 
-
-
 def downgrade() -> None:
     op.execute("""
         DROP TABLE material_member;
