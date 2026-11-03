@@ -245,6 +245,14 @@ for (const [index, [name, engine]] of Object.entries({
         ),
     );
     await page.keyboard.press("Control+End");
+    // EmDash 1.x keeps no trailing empty paragraph; start one natively. A new
+    // paragraph keeps the bold mark of the text before it, so clear it.
+    await page.keyboard.press("Enter");
+    const bold = page
+      .getByRole("toolbar", { name: "Text formatting" })
+      .getByRole("button", { name: "Bold", exact: true });
+    if ((await bold.getAttribute("aria-pressed")) === "true")
+      await page.keyboard.press("Control+b");
     await expect
       .poll(() =>
         story.evaluate((element) => {

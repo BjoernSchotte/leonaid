@@ -180,11 +180,13 @@ export async function mutateCampaignAtomically(
               result,
             );
             if (effect === "unpublish") {
+              // EmDash 1.x keeps the first publication date (published_at)
+              // on unpublish; status and the live pointer withdraw the page.
               const withdrawn = await sql<{
                 draft_revision_id: string | null;
               }>`SELECT draft_revision_id
                 FROM public.ec_campaign_pages WHERE id=${id} AND status='draft'
-                AND live_revision_id IS NULL AND published_at IS NULL AND deleted_at IS NULL`.execute(
+                AND live_revision_id IS NULL AND scheduled_at IS NULL AND deleted_at IS NULL`.execute(
                 transaction,
               );
               if (withdrawn.rows.length !== 1)

@@ -159,10 +159,25 @@ async function compare(beforeName, afterName) {
   );
 }
 
+async function compareUnchanged(name) {
+  const expected = await readFile(proof(name), "utf8");
+  await capture(`${name}-recheck`);
+  const actual = await readFile(proof(`${name}-recheck`), "utf8");
+  assert.ok(
+    isDeepStrictEqual(JSON.parse(actual), JSON.parse(expected)),
+    `CMS state changed since snapshot ${name}`,
+  );
+  console.log(`emdash-upgrade-snapshot: OK: state unchanged since ${name}`);
+}
+
 if (mode === "capture" && names.length === 1) await capture(names[0]);
 else if (mode === "compare" && names.length === 2)
   await compare(names[0], names[1]);
+else if (mode === "compare-unchanged" && names.length === 1)
+  await compareUnchanged(names[0]);
 else {
-  console.error("usage: emdash-upgrade-snapshot.mjs capture NAME | compare A B");
+  console.error(
+    "usage: emdash-upgrade-snapshot.mjs capture NAME | compare A B | compare-unchanged NAME",
+  );
   process.exitCode = 2;
 }

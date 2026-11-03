@@ -380,5 +380,27 @@
       "file": "src/leonaid/domain/actions.py",
       "contains": ["DELIVERY = \"delivery\""]
     }
+  ],
+  "DOC-P041": [
+    {
+      "file": "packages/features/src/action-admin/manage-action.tsx",
+      "contains": ["Microsite bearbeiten"]
+    },
+    {
+      "file": "apps/campaign-site/emdash-editor-patch.mjs",
+      "contains": ["Zurück zu LeonAid", "isEditorDirtyRef.current"]
+    },
+    {
+      "file": "apps/campaign-site/emdash-media-editor-patch.mjs",
+      "contains": ["image/png", "image/jpeg", "image/webp"]
+    },
+    {
+      "file": "tools/emdash_spike/editor-actions.mjs",
+      "contains": ["Publish (now|changes)"]
+    },
+    {
+      "file": "apps/campaign-site/src/auth/campaign-update.mjs",
+      "contains": ["body.slug !== existing.data.item.slug"]
+    }
   ]
 }

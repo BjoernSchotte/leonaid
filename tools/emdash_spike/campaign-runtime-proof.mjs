@@ -250,7 +250,8 @@ if (
     assert.equal(after.data.item.authorId, before.data.item.authorId);
     assert.equal(after.data.item.status, "draft");
     assert.equal(after.data.item.liveRevisionId, null);
-    assert.equal(after.data.item.publishedAt, null);
+    // EmDash 1.x keeps the first publication date when it unpublishes.
+    assert.equal(after.data.item.publishedAt, before.data.item.publishedAt);
     assert.equal((await call(`${path}/compare`, 200)).data.live, null);
     const afterHistory = await call(`${path}/revisions`, 200);
     assert.equal(
