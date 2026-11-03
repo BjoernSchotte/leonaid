@@ -233,7 +233,7 @@ test("insert task/material and preserve viewer permissions", async ({
     page.getByRole("heading", { name: listTitle, exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /^Aufgabe anlegen/ }),
+    page.getByRole("button", { name: /^Aufgabe anlegen/ }).first(),
   ).toBeVisible();
   await page.goto(`${baseURL}/admin/materials`);
   await page.getByText("Neues Material", { exact: true }).click();
