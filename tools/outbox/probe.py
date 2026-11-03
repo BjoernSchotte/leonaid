@@ -1057,6 +1057,45 @@ async def verify_retention_cli() -> None:
     print("poc022: worker retention CLI removed the expired completed jobs")
 
 
+async def verify_parked_jobs() -> None:
+    """Jobs of a switched-off module stay pending and untouched."""
+    pool = await create_pool(database_url(), maximum_size=2)
+    try:
+        event = progress_command(
+            uuid5(COMMAND_NAMESPACE, "parked"), Decimal("1300")
+        ).outbox_event()
+        async with pool.acquire() as connection, connection.transaction():
+            # Older due jobs would be claimed first; park all of them.
+            await connection.execute(
+                "UPDATE outbox_event SET status='completed', completed_at=now() "
+                "WHERE status IN ('pending','processing')"
+            )
+            await AsyncpgTransactionalOutboxRepository(connection).append(event)
+        parked = AsyncpgOutboxQueue(
+            pool, excluded_event_types=frozenset({event.event_type})
+        )
+        now = datetime.now(timezone.utc) + timedelta(seconds=1)
+        if await parked.claim_next(worker_id="switched-off", now=now) is not None:
+            raise RuntimeError("A switched-off module's job was claimed.")
+        state = await parked.state(event.id)
+        if state is None or state.status != "pending" or state.attempts != 0:
+            raise RuntimeError("A parked job changed state.")
+        enabled = AsyncpgOutboxQueue(pool)
+        claimed = await enabled.claim_next(worker_id="switched-on", now=now)
+        if claimed is None or claimed.id != event.id:
+            raise RuntimeError("The job was not claimable after switching on.")
+        await ActionProgressActivityHandler(pool).handle(claimed)
+        await enabled.complete(
+            event_id=claimed.id, claim_token=claimed.claim_token, completed_at=now
+        )
+    finally:
+        await pool.close()
+    print(
+        "poc022: switched-off module job stayed pending with 0 attempts and "
+        "completed once the module was on"
+    )
+
+
 async def verify_handler_timeout() -> None:
     """Cancel a real handler blocked in PostgreSQL and retry it once."""
     pool = await create_pool(database_url(), maximum_size=3)
@@ -1113,7 +1152,9 @@ async def verify_handler_timeout() -> None:
 
 
 async def run(arguments: argparse.Namespace) -> None:
-    if arguments.command == "handler-timeout":
+    if arguments.command == "parked-jobs":
+        await verify_parked_jobs()
+    elif arguments.command == "handler-timeout":
         await verify_handler_timeout()
     elif arguments.command == "prepare":
         await prepare()
@@ -1151,6 +1192,7 @@ def parser() -> argparse.ArgumentParser:
     for name in (
         "prepare",
         "handler-timeout",
+        "parked-jobs",
         "produce-crash",
         "verify-crash",
         "verify-recovery",

@@ -42,6 +42,34 @@ class ModuleRegistration:
     handler_timeouts: Mapping[str, float] = field(default_factory=dict)
     background_loops: Sequence[BackgroundLoop] = ()
     requires: tuple[str, ...] = ()
+    # Business modules can be switched off per installation; core areas such
+    # as mail or invoicing cannot.
+    switchable: bool = False
+
+
+def split_enabled(
+    modules: Sequence[ModuleRegistration], disabled: frozenset[str]
+) -> tuple[tuple[ModuleRegistration, ...], tuple[ModuleRegistration, ...]]:
+    """Return (enabled, switched off) after checking the switch list.
+
+    Unknown or non-switchable IDs fail, so a typo cannot silently leave a
+    module on. An enabled module must not require a switched-off one.
+    """
+    validate_modules(modules)
+    known = {module.id: module for module in modules}
+    for name in sorted(disabled):
+        if name not in known:
+            raise RegistrationError(f"Unknown module in switch list: {name}")
+        if not known[name].switchable:
+            raise RegistrationError(f"Module cannot be switched off: {name}")
+    enabled = tuple(module for module in modules if module.id not in disabled)
+    for module in enabled:
+        blocked = sorted(set(module.requires) & disabled)
+        if blocked:
+            raise RegistrationError(
+                f"Module {module.id} requires switched-off module {blocked[0]}"
+            )
+    return enabled, tuple(module for module in modules if module.id in disabled)
 
 
 def validate_modules(modules: Sequence[ModuleRegistration]) -> None:

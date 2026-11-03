@@ -22,23 +22,38 @@ from leonaid.bootstrap.registry import (
     NavigationContribution,
     collect_navigation,
     register_routes,
+    split_enabled,
 )
 from leonaid.configuration import Settings
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 
 API_MODULES: tuple[ModuleRegistration, ...] = (
-    ModuleRegistration("surveys", router=surveys_router, navigation=survey_navigation),
+    ModuleRegistration(
+        "surveys",
+        router=surveys_router,
+        navigation=survey_navigation,
+        switchable=True,
+    ),
 )
 
 
-def register_api_modules(app: FastAPI, *, core: tuple[APIRouter, ...]) -> None:
-    """Include the core router and every module router, checked together."""
-    register_routes(app, API_MODULES, core=core)
+def enabled_api_modules(disabled: frozenset[str]) -> tuple[ModuleRegistration, ...]:
+    return split_enabled(API_MODULES, disabled)[0]
 
 
-def module_navigation() -> NavigationContribution:
-    return collect_navigation(API_MODULES)
+def register_api_modules(
+    app: FastAPI, *, core: tuple[APIRouter, ...], disabled: frozenset[str]
+) -> None:
+    """Include the core router and every enabled module router, checked together.
+
+    Routes of switched-off modules are not registered, so they answer 404.
+    """
+    register_routes(app, enabled_api_modules(disabled), core=core)
+
+
+def module_navigation(disabled: frozenset[str]) -> NavigationContribution:
+    return collect_navigation(enabled_api_modules(disabled))
 
 
 def build_survey_services(

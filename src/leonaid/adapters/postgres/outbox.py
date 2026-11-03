@@ -63,11 +63,14 @@ class AsyncpgOutboxQueue:
         pool: asyncpg.Pool[Any],
         *,
         claim_lease: timedelta = timedelta(minutes=5),
+        excluded_event_types: frozenset[str] = frozenset(),
     ) -> None:
         if claim_lease <= timedelta(0):
-            raise ValueError("claim_lease muss positiv sein.")
+            raise ValueError("claim_lease must be positive.")
         self._pool = pool
         self._claim_lease = claim_lease
+        # Event types of switched-off modules; their jobs are never claimed.
+        self._excluded_event_types = sorted(excluded_event_types)
 
     async def claim_next(
         self,
@@ -85,11 +88,14 @@ class AsyncpgOutboxQueue:
                         SELECT id
                         FROM outbox_event
                         WHERE
-                            (status = 'pending' AND available_at <= $1)
-                            OR (
-                                status = 'processing'
-                                AND claimed_at <= $2
+                            (
+                                (status = 'pending' AND available_at <= $1)
+                                OR (
+                                    status = 'processing'
+                                    AND claimed_at <= $2
+                                )
                             )
+                            AND NOT (event_type = ANY($5::text[]))
                         ORDER BY available_at, created_at, id
                         FOR UPDATE SKIP LOCKED
                         LIMIT 1
@@ -120,6 +126,7 @@ class AsyncpgOutboxQueue:
                     stale_before,
                     worker_id,
                     claim_token,
+                    self._excluded_event_types,
                 )
         if row is None:
             return None

@@ -16,12 +16,19 @@ from leonaid.bootstrap.registry import (
     collect_handlers,
     collect_navigation,
     register_routes,
+    split_enabled,
     validate_modules,
 )
 from leonaid.bootstrap.worker import (
     HandlerDependencies,
     background_loops,
+    module_switch_problems,
     worker_modules,
+)
+from leonaid.configuration import (
+    ConfigurationError,
+    load_module_settings,
+    parse_module_ids,
 )
 from leonaid.domain.identity import (
     AccountStatus,
@@ -204,7 +211,7 @@ def test_navigation_contributions_keep_module_order() -> None:
 
 def test_surveys_are_registered_with_routes_and_navigation() -> None:
     assert [module.id for module in API_MODULES] == ["surveys"]
-    items = navigation_for(principal(), module_navigation()(principal()))
+    items = navigation_for(principal(), module_navigation(frozenset())(principal()))
 
     assert [(item.key, item.href, item.surface) for item in items] == [
         ("overview-pwa", "/app/", "pwa"),
@@ -233,9 +240,9 @@ def test_worker_registers_every_existing_handler_once() -> None:
         "mail",
     ]
     assert collect_handlers(modules) == {}
-    assert [loop.name for loop in background_loops("postgresql://unused")] == [
-        "survey_sweep"
-    ]
+    assert [
+        loop.name for loop in background_loops("postgresql://unused", frozenset())
+    ] == ["survey_sweep"]
 
 
 def test_worker_handler_set_is_unchanged() -> None:
@@ -261,3 +268,88 @@ def test_worker_handler_set_is_unchanged() -> None:
         "survey.export.render.v1",
         "survey.invitation.send.v1",
     ]
+
+
+def test_switch_list_splits_enabled_and_switched_off_modules() -> None:
+    modules = (
+        ModuleRegistration("tasks", switchable=True),
+        ModuleRegistration("knowledge", switchable=True, requires=("tasks",)),
+        ModuleRegistration("mail"),
+    )
+
+    enabled, off = split_enabled(modules, frozenset({"knowledge"}))
+
+    assert [module.id for module in enabled] == ["tasks", "mail"]
+    assert [module.id for module in off] == ["knowledge"]
+
+
+@pytest.mark.parametrize(
+    ("disabled", "message"),
+    [
+        ({"taks"}, "Unknown module in switch list: taks"),
+        ({"mail"}, "Module cannot be switched off: mail"),
+        ({"tasks"}, "knowledge requires switched-off module tasks"),
+    ],
+)
+def test_invalid_switch_lists_fail_loudly(disabled: set[str], message: str) -> None:
+    modules = (
+        ModuleRegistration("tasks", switchable=True),
+        ModuleRegistration("knowledge", switchable=True, requires=("tasks",)),
+        ModuleRegistration("mail"),
+    )
+    with pytest.raises(RegistrationError, match=message):
+        split_enabled(modules, frozenset(disabled))
+
+
+def test_api_and_worker_offer_the_same_switchable_modules() -> None:
+    api = {module.id for module in API_MODULES if module.switchable}
+    worker = {
+        module.id
+        for module in worker_modules("postgresql://unused", None)
+        if module.switchable
+    }
+    assert api == worker == {"surveys"}
+
+
+def test_switched_off_module_has_no_routes_navigation_or_loops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LEONAID_DISABLED_MODULES", "surveys")
+    off = frozenset({"surveys"})
+
+    paths = create_app().openapi()["paths"]
+
+    assert paths
+    assert not any("/surveys" in path for path in paths)
+    assert module_navigation(off)(principal()) == ()
+    assert background_loops("postgresql://unused", off) == ()
+    assert module_switch_problems(off) == []
+    assert module_switch_problems(frozenset({"mail"})) == [
+        "LEONAID_DISABLED_MODULES:Module cannot be switched off: mail"
+    ]
+
+
+def test_unknown_switch_stops_the_api_at_build_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LEONAID_DISABLED_MODULES", "surveyz")
+    with pytest.raises(RegistrationError, match="Unknown module"):
+        create_app()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("", frozenset()), (" surveys , ,tasks", frozenset({"surveys", "tasks"}))],
+)
+def test_module_switch_list_is_parsed(raw: str, expected: frozenset[str]) -> None:
+    assert parse_module_ids(raw) == expected
+
+
+def test_malformed_module_switch_list_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="invalid module ID"):
+        parse_module_ids("Surveys")
+    monkeypatch.setenv("LEONAID_DISABLED_MODULES", "Surveys")
+    with pytest.raises(ConfigurationError, match="LEONAID_DISABLED_MODULES"):
+        load_module_settings()
