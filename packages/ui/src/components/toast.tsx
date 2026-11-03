@@ -151,7 +151,9 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       {/* Errors go to an assertive region, everything else to a polite one.
-          Both regions always exist, so screen readers pick up insertions. */}
+          Both regions always exist, so screen readers pick up insertions.
+          No role="alert" on the empty region: it would count as an alert
+          on every page. */}
       <div className="toaster">
         <div aria-live="polite" className="toaster-region" role="status">
           {toasts
@@ -160,7 +162,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
               <ToastItem key={toast.id} onDismiss={dismiss} toast={toast} />
             ))}
         </div>
-        <div aria-live="assertive" className="toaster-region" role="alert">
+        <div aria-live="assertive" className="toaster-region">
           {toasts
             .filter((toast) => toast.tone === "error")
             .map((toast) => (

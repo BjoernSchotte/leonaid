@@ -48,9 +48,11 @@ describe("Toast", () => {
     );
   });
 
-  it("announces error toasts in the assertive live region", () => {
-    const alert = screen.getByRole("alert");
-    expect(alert.getAttribute("aria-live")).toBe("assertive");
+  it("announces error toasts in an assertive live region without an empty alert role", () => {
+    expect(screen.queryByRole("alert")).toBeNull();
+    const alert = document.querySelector<HTMLElement>(
+      '.toaster-region[aria-live="assertive"]',
+    )!;
     act(() => {
       show({ title: "Nicht gespeichert", tone: "error" });
       show({ title: "Hinweis", tone: "info" });
