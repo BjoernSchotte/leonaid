@@ -182,6 +182,18 @@ class MemberDirectoryResponse(TransportModel):
     partial: bool
 
 
+class SearchResultResponse(TransportModel):
+    id: UUID
+    type: Literal["action", "order", "invoice", "sponsor", "member"]
+    title: str
+    context: str
+    href: str = Field(examples=["/admin/actions/00000000-0000-4000-8000-000000000001"])
+
+
+class SearchResponse(TransportModel):
+    results: list[SearchResultResponse]
+
+
 FeatureFlagKeyValue = Literal[
     "admin.system_status_panel",
     "admin.preview_notice",
