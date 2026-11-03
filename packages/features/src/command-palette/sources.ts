@@ -3,6 +3,8 @@ import type {
   SearchResultResponse,
 } from "@leonaid/api-client";
 
+import { Flag, UserPlus, type LucideIcon } from "lucide-react";
+
 import type {
   ModulePageContext,
   ModuleSearchResult,
@@ -78,6 +80,68 @@ export function surfaceNavigation(
     seen.add(item.key);
     return true;
   });
+}
+
+export interface PaletteCreateEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: LucideIcon;
+  readonly href: string;
+}
+
+function listed(
+  navigation: readonly NavigationItemResponse[],
+  key: string,
+  surface: ModuleSurface,
+): NavigationItemResponse | undefined {
+  return navigation.find(
+    (item) => item.key === key && item.surface === surface,
+  );
+}
+
+/**
+ * The "Anlegen" group: create pages the account can already reach. Core
+ * entries need their area in the server navigation (the target page shows
+ * the same create control); module entries need the module to be enabled
+ * for the account and surface. The server authorizes the create itself.
+ */
+export function createEntries(
+  modules: readonly UiModule[],
+  navigation: readonly NavigationItemResponse[],
+  surface: ModuleSurface,
+): PaletteCreateEntry[] {
+  const entries: PaletteCreateEntry[] = [];
+  const actions = surface === "web" && listed(navigation, "actions", surface);
+  if (actions) {
+    entries.push({
+      id: "create:action",
+      label: "Aktion anlegen",
+      icon: Flag,
+      href: "/admin/actions/new",
+    });
+  }
+  for (const module of modules) {
+    if (!module.creates?.length || !module.surfaces.includes(surface)) continue;
+    if (!listed(navigation, module.id, surface)) continue;
+    for (const entry of module.creates) {
+      entries.push({
+        id: entry.id,
+        label: entry.label,
+        icon: entry.icon,
+        href: entry.href(surface),
+      });
+    }
+  }
+  const members = surface === "web" && listed(navigation, "members", surface);
+  if (members) {
+    entries.push({
+      id: "create:member-invitation",
+      label: "Mitglied einladen",
+      icon: UserPlus,
+      href: `${members.href.replace(/\/+$/, "")}?view=invite`,
+    });
+  }
+  return entries;
 }
 
 /**

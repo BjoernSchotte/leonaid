@@ -181,3 +181,22 @@
   align-items: center;
   gap: 4px;
 }
+/* One footer line from tablet width on, as in the prototype at 1440. */
+@media (min-width: 640px) {
+  .palette-footer {
+    flex-wrap: nowrap;
+  }
+  .palette-footer .palette-coverage {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+/* Hits of the previous query while the next one is on its way. */
+.palette-group[data-stale="true"] .palette-item {
+  opacity: 0.55;
+  cursor: progress;
+}

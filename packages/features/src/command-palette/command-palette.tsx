@@ -34,6 +34,7 @@ import {
 import type { ModulePageContext, ModuleSurface, UiModule } from "../modules";
 import { navigationZones, zoneForNavKey } from "../navigation/zones";
 import {
+  createEntries,
   enabledSearchModules,
   isSearchQuery,
   normaliseQuery,
@@ -303,11 +304,26 @@ export function CommandPalette({
     () => groupCommands(rank(pageCommands, text, commandText, commandKeywords)),
     [pageCommands, text],
   );
+  // The server decides which areas exist; names, icons, hints and keys come
+  // from the approved zone map, as in the rail.
   const visibleNavigation = rank(
-    byZoneOrder(items).map((item) => ({ item, zone: zoneForNavKey(item.key) })),
+    byZoneOrder(items).map((item) => {
+      const zone = zoneForNavKey(item.key);
+      return { item, zone, label: zone?.label ?? item.label };
+    }),
     text,
-    ({ item }) => `Gehe zu ${item.label}`,
-    ({ zone }) => (zone ? [zone.label, zone.hint] : undefined),
+    ({ label }) => `Gehe zu ${label}`,
+    ({ item, zone }) => (zone ? [item.label, zone.hint] : undefined),
+  );
+  const pageCommandIds = new Set(pageCommands.map((command) => command.id));
+  // A page that offers the same create in place wins over the link.
+  const visibleCreates = rank(
+    createEntries(modules, context.identity.navigation, surface).filter(
+      (entry) => !pageCommandIds.has(entry.id),
+    ),
+    text,
+    (entry) => `${entry.label} Anlegen`,
+    () => ["neu", "erstellen"],
   );
   const settingsCommands: PaletteCommand[] = [
     ...commands,
@@ -325,12 +341,18 @@ export function CommandPalette({
     rank(settingsCommands, text, commandText, commandKeywords),
   );
   const searching = isSearchQuery(text);
-  const hitGroups =
-    searching && state.status === "done" && state.query === text
-      ? state.outcome.groups
+  // While the next request runs, the previous query's hits stay visible but
+  // dimmed and disabled; the new response replaces them entirely.
+  const current = searching && state.status === "done" && state.query === text;
+  const stale = searching && state.status === "loading" && state.stale;
+  const hitGroups = current
+    ? state.outcome.groups
+    : stale
+      ? state.stale!.groups
       : [];
   const localCount =
     visiblePageGroups.length +
+    visibleCreates.length +
     visibleNavigation.length +
     visibleShellGroups.length;
   const showEmpty =
@@ -338,21 +360,33 @@ export function CommandPalette({
     hitGroups.length === 0 &&
     (!searching || state.status === "done");
 
-  // Results arrive after cmdk picked its selection. Re-select the first
-  // visible item whenever the list changes, so Enter never runs a hidden one.
+  // A new query selects its first item. Arriving hits never move the
+  // selection; only when the selected item disappears does it fall back to
+  // the first one, so Enter never runs a hidden item.
   const listSignature = [
-    text,
     visiblePageGroups.map(([group, list]) => `${group}:${list.length}`).join(),
+    visibleCreates.length,
     visibleNavigation.length,
     hitGroups.map((group) => `${group.id}:${group.hits.length}`).join(),
+    stale ? "stale" : "",
     visibleShellGroups.length,
   ].join("|");
+  const firstItem = () =>
+    listRef.current
+      ?.querySelector<HTMLElement>("[cmdk-item]:not([aria-disabled='true'])")
+      ?.getAttribute("data-value") ?? "";
+  useLayoutEffect(() => {
+    if (open) setSelected(firstItem());
+  }, [open, text]);
   useLayoutEffect(() => {
     if (!open) return;
-    const first = listRef.current?.querySelector<HTMLElement>(
-      "[cmdk-item]:not([aria-disabled='true'])",
-    );
-    setSelected(first?.getAttribute("data-value") ?? "");
+    const present = [
+      ...(listRef.current?.querySelectorAll<HTMLElement>(
+        "[cmdk-item]:not([aria-disabled='true'])",
+      ) ?? []),
+    ].some((item) => item.getAttribute("data-value") === selected);
+    if (!present) setSelected(firstItem());
+    // `selected` is read, not tracked: user moves must not re-run this.
   }, [open, listSignature]);
 
   const run = (action: () => void) => {
@@ -363,7 +397,9 @@ export function CommandPalette({
 
   const coverage = [
     "Aktionen, Bestellungen, Rechnungen, Mitglieder",
-    ...searchModules.map((module) => module.search!.label),
+    ...searchModules.map(
+      (module) => zoneForNavKey(module.id)?.label ?? module.search!.label,
+    ),
   ].join(", ");
 
   return (
@@ -426,9 +462,25 @@ export function CommandPalette({
               </Command.Group>
             ))}
 
+            {visibleCreates.length ? (
+              <Command.Group className="palette-group" heading="Anlegen">
+                {visibleCreates.map((entry) => (
+                  <Command.Item
+                    className="palette-item"
+                    key={entry.id}
+                    onSelect={() => go(entry.href)}
+                    value={entry.id}
+                  >
+                    <entry.icon aria-hidden="true" size={16} />
+                    <span className="palette-label">{entry.label}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
             {visibleNavigation.length ? (
               <Command.Group className="palette-group" heading="Gehe zu">
-                {visibleNavigation.map(({ item, zone }) => {
+                {visibleNavigation.map(({ item, zone, label }) => {
                   const Icon = zone?.icon ?? ArrowRight;
                   return (
                     <Command.Item
@@ -441,7 +493,7 @@ export function CommandPalette({
                       <span aria-hidden="true" className="palette-zone">
                         <Icon size={14} />
                       </span>
-                      <span className="palette-label">{item.label}</span>
+                      <span className="palette-label">{label}</span>
                       {zone?.hint ? (
                         <span className="palette-hint">{zone.hint}</span>
                       ) : null}
@@ -455,6 +507,7 @@ export function CommandPalette({
             {hitGroups.map((group) => (
               <Command.Group
                 className="palette-group"
+                data-stale={stale ? "true" : undefined}
                 heading={group.label}
                 key={group.id}
               >
@@ -464,6 +517,7 @@ export function CommandPalette({
                     <Command.Item
                       className="palette-item"
                       data-hit-type={hit.type}
+                      disabled={Boolean(stale)}
                       key={`${hit.type}:${hit.id}`}
                       onSelect={() => go(hit.href)}
                       value={`hit:${group.id}:${hit.id}`}
@@ -500,7 +554,7 @@ export function CommandPalette({
             <span>
               <CornerDownLeft size={12} /> ausführen
             </span>
-            <span>Ab 2 Zeichen: {coverage}</span>
+            <span className="palette-coverage">Ab 2 Zeichen: {coverage}</span>
           </footer>
         </Command>
       ) : null}

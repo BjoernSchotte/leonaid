@@ -11,7 +11,12 @@ import {
 
 export type PaletteSearchState =
   | { readonly status: "idle" }
-  | { readonly status: "loading"; readonly query: string }
+  | {
+      readonly status: "loading";
+      readonly query: string;
+      /** The last answered query's hits, shown dimmed until this one answers. */
+      readonly stale?: PaletteSearchOutcome;
+    }
   | {
       readonly status: "done";
       readonly query: string;
@@ -42,7 +47,16 @@ export function usePaletteSearch(
       setState({ status: "idle" });
       return;
     }
-    setState({ status: "loading", query: text });
+    setState((previous) => ({
+      status: "loading",
+      query: text,
+      stale:
+        previous.status === "done"
+          ? previous.outcome
+          : previous.status === "loading"
+            ? previous.stale
+            : undefined,
+    }));
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const { context, modules, surface } = latest.current;

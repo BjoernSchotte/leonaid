@@ -188,6 +188,106 @@ test.describe("enabled modules", () => {
     }
   });
 
+  test("Anlegen opens the create form; the page offers it in place", async ({
+    browser,
+  }) => {
+    const context = await signedIn(browser, klaraSession);
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}/admin/?action=${actionId}`);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await openPalette(page);
+      const creates = palette(page).getByRole("group", { name: "Anlegen" });
+      for (const label of [
+        "Aktion anlegen",
+        "Aufgabe anlegen",
+        "Material hochladen",
+        "Wissensseite anlegen",
+        "Mitglied einladen",
+      ]) {
+        await expect(
+          creates.getByRole("option", { name: label }),
+        ).toBeVisible();
+      }
+      await creates.getByRole("option", { name: "Aufgabe anlegen" }).click();
+      await expect(page).toHaveURL(/\/admin\/tasks/);
+      const title = page
+        .getByRole("form", { name: "Aufgabe schnell erfassen" })
+        .getByLabel("Titel", { exact: true });
+      await expect(title).toBeFocused();
+      // The request is used once; a reload does not reopen it.
+      expect(new URL(page.url()).searchParams.has("create")).toBe(false);
+
+      // On the tasks page the same create is a page command.
+      await page.locator("body").click({ position: { x: 5, y: 400 } });
+      await openPalette(page);
+      const onPage = palette(page).getByRole("group", {
+        name: "Auf dieser Seite · Aufgaben",
+      });
+      await expect(
+        onPage.getByRole("option", { name: "Aufgabe anlegen" }),
+      ).toBeVisible();
+      await expect(
+        palette(page)
+          .getByRole("group", { name: "Anlegen" })
+          .getByRole("option", {
+            name: "Aufgabe anlegen",
+          }),
+      ).toHaveCount(0);
+      await onPage.getByRole("option", { name: "Aufgabe anlegen" }).click();
+      await expect(palette(page)).toBeHidden();
+      await expect(title).toBeFocused();
+
+      await openPalette(page);
+      await palette(page)
+        .getByRole("group", { name: "Anlegen" })
+        .getByRole("option", { name: "Mitglied einladen" })
+        .click();
+      await expect(page).toHaveURL(/\/admin\/members\?view=invite/);
+      await expect(page.locator("#member-invite-tab")).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("opens on top of an open modal; Esc closes only the palette", async ({
+    browser,
+  }) => {
+    const context = await signedIn(browser, klaraSession);
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}/admin/?action=${actionId}`);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await page.keyboard.press("?");
+      const help = page.getByRole("dialog", { name: "Tastenkürzel" });
+      await expect(help).toBeVisible();
+      const close = help.getByRole("button", { name: "Schließen" });
+      await close.focus();
+      await openPalette(page);
+      // The palette is the topmost modal: the help behind it is inert.
+      expect(
+        await page.evaluate(() => {
+          const point = document
+            .querySelector("dialog.palette")
+            .getBoundingClientRect();
+          const hit = document.elementFromPoint(point.x + 40, point.y + 28);
+          return Boolean(hit?.closest("dialog.palette"));
+        }),
+      ).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(palette(page)).toBeHidden();
+      await expect(help).toBeVisible();
+      await expect(close).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(help).toBeHidden();
+    } finally {
+      await context.close();
+    }
+  });
+
   test("a charity admin of another action sees no invoice hit", async ({
     browser,
   }) => {
@@ -307,10 +407,20 @@ test.describe("switched-off modules", () => {
 
       await openPalette(page);
       const goTo = palette(page).getByRole("group", { name: "Gehe zu" });
-      await expect(navLabel(goTo, "Materialien")).toBeVisible();
+      await expect(navLabel(goTo, "Material")).toBeVisible();
       await expect(navLabel(goTo, "Wissen")).toHaveCount(0);
       await expect(navLabel(goTo, "Aufgaben")).toHaveCount(0);
-      await expect(navLabel(goTo, "Eingänge")).toHaveCount(0);
+      await expect(navLabel(goTo, "Eingang")).toHaveCount(0);
+      const creates = palette(page).getByRole("group", { name: "Anlegen" });
+      await expect(
+        creates.getByRole("option", { name: "Material hochladen" }),
+      ).toBeVisible();
+      await expect(
+        creates.getByRole("option", { name: /Aufgabe anlegen/ }),
+      ).toHaveCount(0);
+      await expect(
+        creates.getByRole("option", { name: /Wissensseite/ }),
+      ).toHaveCount(0);
 
       const response = searchResponse(page, "Aufgabe");
       await paletteInput(page).fill("Aufgabe");

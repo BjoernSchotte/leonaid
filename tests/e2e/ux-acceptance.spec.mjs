@@ -134,7 +134,7 @@ test("charity admin completes the desktop review path without losing context", a
     await page.keyboard.press("Control+k");
     const palette = page.getByRole("dialog", { name: "Befehlspalette" });
     await expect(palette.getByRole("combobox")).toBeFocused();
-    await page.keyboard.type("Aufgaben");
+    await page.keyboard.type("Gehe zu Aufg");
     await expect(
       palette.locator("[cmdk-item][data-selected='true'] .palette-label"),
     ).toHaveText("Aufgaben");

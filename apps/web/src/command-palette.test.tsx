@@ -123,6 +123,18 @@ function OpenButton() {
   );
 }
 
+function MaterialCreateInPlace() {
+  useContextCommands([
+    {
+      id: "create:material",
+      label: "Material hier hochladen",
+      group: "Material",
+      run: () => {},
+    },
+  ]);
+  return null;
+}
+
 function PageCommands() {
   useContextCommands([
     {
@@ -303,7 +315,7 @@ describe("CommandPalette", () => {
       "Übersicht",
       "Bestellungen",
       "Rechnungen",
-      "Materialien",
+      "Material",
       "Wissen",
     ]);
     expect(
@@ -363,6 +375,112 @@ describe("CommandPalette", () => {
         selector: "[cmdk-group-heading]",
       }),
     ).toBeNull();
+  });
+
+  it("offers only creates the account can reach, page creates first", () => {
+    const { client } = fakeClient();
+    const full = [
+      ...navigationWithoutTasksAndInbox,
+      nav("actions", "Charity-Aktionen"),
+      nav("members", "Mitglieder"),
+      nav("tasks", "Aufgaben"),
+    ];
+    const { unmount } = renderPalette(client, full);
+    act(() => {
+      fireEvent.click(screen.getByText("Suche öffnen"));
+    });
+    const creates = () =>
+      [
+        ...(screen
+          .getByRole("group", { name: "Anlegen" })
+          .querySelectorAll(".palette-label") ?? []),
+      ].map((label) => label.textContent);
+    expect(creates()).toEqual([
+      "Aktion anlegen",
+      "Aufgabe anlegen",
+      "Material hochladen",
+      "Wissensseite anlegen",
+      "Mitglied einladen",
+    ]);
+    act(() => {
+      fireEvent(dialog(), new Event("cancel", { cancelable: true }));
+    });
+    unmount();
+    resetCommandPaletteState();
+
+    // Switched-off tasks, no core areas, and a page that creates in place.
+    render(
+      <HotkeyProvider>
+        <OpenButton />
+        <MaterialCreateInPlace />
+        <CommandPalette
+          context={{
+            client,
+            identity: identity(navigationWithoutTasksAndInbox),
+          }}
+          modules={webModules}
+          surface="web"
+        />
+      </HotkeyProvider>,
+    );
+    act(() => {
+      fireEvent.click(screen.getByText("Suche öffnen"));
+    });
+    expect(creates()).toEqual(["Wissensseite anlegen"]);
+    expect(
+      screen.getByRole("group", { name: "Auf dieser Seite · Material" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the user's selection when hits arrive and dims stale hits", async () => {
+    vi.useFakeTimers();
+    const { client, pending } = fakeClient();
+    renderPalette(client, navigationWithoutTasksAndInbox, []);
+    act(() => {
+      fireEvent.click(screen.getByText("Suche öffnen"));
+    });
+    act(() => type("re"));
+    const selectedLabel = () =>
+      document.querySelector("[cmdk-item][data-selected='true'] .palette-label")
+        ?.textContent;
+    const firstSelected = selectedLabel();
+    act(() => {
+      fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    });
+    const moved = selectedLabel();
+    expect(moved).not.toBe(firstSelected);
+    act(() => vi.advanceTimersByTime(150));
+    await act(async () => {
+      pending[0]!.resolve({
+        results: [
+          {
+            id: "a1",
+            type: "action",
+            title: "Rettung 2026",
+            context: "Aktiv",
+            href: "/admin/actions/a1",
+          },
+        ],
+      });
+      await vi.runAllTimersAsync();
+    });
+    expect(screen.getByText("Rettung 2026")).toBeTruthy();
+    expect(selectedLabel()).toBe(moved);
+
+    // The next query keeps the old hits dimmed and unselectable …
+    act(() => type("ret"));
+    const staleHit = screen
+      .getByText("Rettung 2026")
+      .closest<HTMLElement>("[cmdk-item]")!;
+    expect(staleHit.getAttribute("aria-disabled")).toBe("true");
+    expect(staleHit.closest("[data-stale='true']")).not.toBeNull();
+    // … until its own answer replaces them.
+    act(() => vi.advanceTimersByTime(150));
+    await act(async () => {
+      pending[1]!.resolve({ results: [] });
+      await vi.runAllTimersAsync();
+    });
+    expect(screen.queryByText("Rettung 2026")).toBeNull();
   });
 
   it("shows the empty state when nothing matches", async () => {
