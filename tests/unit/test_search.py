@@ -332,7 +332,7 @@ async def test_results_are_ranked_merged_limited_and_point_to_admin_routes() -> 
             SearchResultType.INVOICE,
             "KT26-0001",
             "Krapfenhaus GmbH · Krapfentaxi",
-            f"/admin/invoices?action={ACTION_A}",
+            f"/admin/invoices?action={ACTION_A}&view=all&open={invoice.id}",
         ),
         (
             SearchResultType.MEMBER,

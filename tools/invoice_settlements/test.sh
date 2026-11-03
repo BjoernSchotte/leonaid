@@ -161,6 +161,7 @@ docker run --rm \
   node_modules/.bin/playwright test \
   --config=tests/e2e/pwa.config.mjs \
   invoice-settlements.spec.mjs \
+  invoices-keyboard.spec.mjs \
   --project=chromium-1440 \
   --output=/tmp/leonaid-invoice-settlement-results \
   --trace=retain-on-failure \
@@ -170,7 +171,8 @@ for screenshot in \
   invoice-open-and-paid.png \
   invoice-payment-recorded.png \
   invoice-cancellation.png \
-  invoice-finance-readonly-mobile.png; do
+  invoice-finance-readonly-mobile.png \
+  invoice-keyboard-filter.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invoice-settlement-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1

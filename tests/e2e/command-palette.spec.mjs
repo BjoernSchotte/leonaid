@@ -345,11 +345,17 @@ test.describe("enabled modules", () => {
       await expect(page).toHaveURL(
         new RegExp(`/admin/invoices\\?action=${actionId}`),
       );
-      await expect(page.getByTestId("invoice-action")).toHaveValue(actionId);
+      await expect(page).toHaveURL(/[?&]view=all(&|$)/);
+      await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
+      // The unlisted action stays the selected one and the hit opens.
       await expect(
-        page.getByTestId("invoice-action").locator("option:checked"),
+        page.locator(
+          '[data-testid="invoice-action"] option:checked, [data-testid="invoice-action-name"]',
+        ),
       ).toHaveText("Krapfentaxi 2026");
-      await expect(page.getByTestId("invoice-row").first()).toBeVisible();
+      await expect(page.getByTestId("invoice-detail")).toContainText(
+        "KT26-0001",
+      );
 
       await openPalette(page);
       const orderSearch = searchResponse(page, "Musterwerk");

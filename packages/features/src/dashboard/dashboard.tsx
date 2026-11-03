@@ -566,7 +566,14 @@ export function RoleDashboardPage({
       ) : dashboard.isError ? (
         <StatusMessage tone="error">
           <strong>Aktionsstand nicht erreichbar</strong>
-          <p>{actionErrorMessage(dashboard.error).message}</p>
+          <p>
+            {
+              actionErrorMessage(dashboard.error, {
+                // The acquirer dashboard is the PWA (du); admins get Sie.
+                address: mode === "acquirer" ? "du" : "Sie",
+              }).message
+            }
+          </p>
           <Button onClick={() => void dashboard.refetch()} variant="secondary">
             Erneut laden
           </Button>

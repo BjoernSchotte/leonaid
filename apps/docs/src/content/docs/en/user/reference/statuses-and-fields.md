@@ -4,9 +4,9 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 1c054b0fb55c59b9f884aee956b431a519ce521d
 reviewer: Björn Schotte
 ---
 
@@ -41,8 +41,10 @@ window is retained as a snapshot.
 ## Invoice and delivery
 
 Invoices are `issued` (**Ausgestellt**), `sent` (**Versendet**), `paid`
-(**Bezahlt**), or `cancelled` (**Storniert**). In the journal, **Offen** groups
-issued or sent documents with a remaining amount.
+(**Bezahlt**), or `cancelled` (**Storniert**). The invoice list shows issued
+or sent invoices with a remaining amount as **Offen**, and as **Überfällig**
+after their due date. The status cannot be edited in the list; payment and
+cancellation are explicit commands in the detail pane.
 
 Email delivery has separate statuses: `queued`, `sending`, `retrying`,
 `failed`, and `sent`. A delivery failure does not change the invoice. The PDF

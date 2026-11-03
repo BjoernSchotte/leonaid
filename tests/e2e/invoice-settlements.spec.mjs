@@ -1,5 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import {
+  closeInvoice,
+  invoiceRow,
+  invoiceRows,
+  openInvoice,
+  showInvoiceView,
+} from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -42,10 +49,6 @@ function sessionCookie(value) {
   };
 }
 
-function invoiceRow(page, invoiceId) {
-  return page.locator(`[data-invoice-id="${invoiceId}"]`);
-}
-
 async function expectNoSeriousAccessibilityViolations(page) {
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(
@@ -73,44 +76,45 @@ test("charity admin books payments exactly and reverses them traceably", async (
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(page.getByTestId("invoice-row")).toHaveCount(4);
-    await expect(page.getByTestId("invoice-profile")).toContainText(
-      "Freigabe über Bestellungen",
+    await expect(page.getByTestId("invoice-read-only")).toHaveCount(0);
+    await expect(page.getByTestId("invoice-open-total")).toContainText(
+      "468,00",
     );
-    await expect(page.getByTestId("invoice-totals")).toContainText("468,00");
-    await expect(page.getByTestId("invoice-totals")).toContainText("648,00");
+    await showInvoiceView(page, "Alle");
+    await expect(invoiceRows(page)).toHaveCount(4);
 
-    const open = invoiceRow(page, openInvoiceId);
-    const goldenPaid = page
-      .getByTestId("invoice-row")
-      .filter({ hasText: "KT26-0002" });
-    const goldenCancelled = page
-      .getByTestId("invoice-row")
-      .filter({ hasText: "KT26-0003" });
-    await expect(open).toContainText("360,00");
-    await expect(goldenPaid).toContainText("Bezahlt");
-    await expect(goldenCancelled).toContainText("Storniert");
-    await open.locator("summary").click();
-    await goldenPaid.locator("summary").click();
-    await expect(open.getByTestId("invoice-settlement")).toHaveAttribute(
-      "data-state",
-      "outstanding",
+    const openRow = invoiceRow(page, openInvoiceId);
+    await expect(openRow).toContainText("360,00");
+    await expect(
+      page.locator(".listview .row").filter({ hasText: "KT26-0002" }),
+    ).toContainText("Bezahlt");
+    await expect(
+      page.locator(".listview .row").filter({ hasText: "KT26-0003" }),
+    ).toContainText("Storniert");
+
+    const goldenPaid = await openInvoice(page, { number: "KT26-0002" });
+    await expect(goldenPaid).toHaveAttribute("data-settlement", "paid");
+    await expect(goldenPaid.getByTestId("invoice-stamp")).toContainText(
+      "Bezahlt",
     );
-    await expect(goldenPaid.getByTestId("invoice-settlement")).toHaveAttribute(
-      "data-state",
-      "paid",
-    );
+    const open = await openInvoice(page, { id: openInvoiceId });
+    await expect(open).toHaveAttribute("data-settlement", "outstanding");
     await page.screenshot({
       path: `${artifactDirectory}/invoice-open-and-paid.png`,
       fullPage: true,
     });
 
     await open.getByTestId("open-payment-form").click();
-    await open.getByTestId("payment-amount").fill("359.99");
-    await expect(open.getByRole("alert")).toContainText(
-      "exakt dem vollständigen offenen Rechnungsbetrag",
+    const paymentDialog = page.getByRole("dialog", {
+      name: /Zahlung für .* erfassen/,
+    });
+    await expect(paymentDialog).toBeVisible();
+    await paymentDialog.getByTestId("payment-amount").fill("359,99");
+    await paymentDialog.getByTestId("record-payment").click();
+    await expect(paymentDialog).toContainText(
+      "Nur die exakte Vollzahlung von 360,00",
     );
-    await expect(open.getByTestId("record-payment")).toBeDisabled();
+    await expect(open).toHaveAttribute("data-settlement", "outstanding");
 
     await page.evaluate(
       ([invoiceId, key]) => {
@@ -121,25 +125,27 @@ test("charity admin books payments exactly and reverses them traceably", async (
       },
       [openInvoiceId, paymentKey],
     );
-    await open.getByTestId("payment-amount").fill("360.00");
-    await open.getByTestId("payment-date").fill(paymentDate);
-    await open.getByTestId("payment-reference").fill(paymentReference);
-    await open.getByTestId("record-payment").click();
-    await expect(open.getByTestId("invoice-settlement")).toHaveAttribute(
-      "data-state",
-      "paid",
-    );
+    await paymentDialog.getByTestId("payment-amount").fill("360.00");
+    await paymentDialog.getByTestId("payment-date").fill(paymentDate);
+    await paymentDialog.getByTestId("payment-reference").fill(paymentReference);
+    await paymentDialog.getByTestId("record-payment").click();
+    await expect(paymentDialog).toBeHidden();
+    await expect(open).toHaveAttribute("data-settlement", "paid");
+    await expect(open.getByTestId("invoice-stamp")).toContainText("Bezahlt");
     await expect(open.getByTestId("payment-record")).toContainText(
       paymentReference,
     );
-    await expect(page.getByTestId("invoice-totals")).toContainText("108,00");
+    await expect(page.getByTestId("invoice-open-total")).toContainText(
+      "108,00",
+    );
     await page.screenshot({
       path: `${artifactDirectory}/invoice-payment-recorded.png`,
       fullPage: true,
     });
 
-    const cancellation = invoiceRow(page, cancellationInvoiceId);
-    await cancellation.locator("summary").click();
+    const cancellation = await openInvoice(page, {
+      id: cancellationInvoiceId,
+    });
     await expect(cancellation.getByTestId("invoice-document")).toHaveAttribute(
       "data-state",
       "available",
@@ -154,14 +160,19 @@ test("charity admin books payments exactly and reverses them traceably", async (
       },
       [cancellationInvoiceId, cancellationKey],
     );
-    await cancellation
+    const cancelDialog = page.getByRole("alertdialog", {
+      name: /stornieren\?/,
+    });
+    await expect(cancelDialog).toBeVisible();
+    await cancelDialog
       .getByTestId("cancellation-reason")
       .fill(cancellationReason);
-    await cancellation.getByTestId("confirm-cancellation").check();
-    await cancellation.getByTestId("cancel-invoice").click();
-    await expect(
-      cancellation.getByTestId("invoice-settlement"),
-    ).toHaveAttribute("data-state", "cancelled");
+    await cancelDialog.getByTestId("cancel-invoice").click();
+    await expect(cancelDialog).toBeHidden();
+    await expect(cancellation).toHaveAttribute("data-settlement", "cancelled");
+    await expect(cancellation.getByTestId("invoice-stamp")).toContainText(
+      "Storniert",
+    );
     await expect(
       cancellation.getByTestId("invoice-cancellation"),
     ).toContainText(cancellationReason);
@@ -169,7 +180,7 @@ test("charity admin books payments exactly and reverses them traceably", async (
       "data-state",
       "available",
     );
-    await expect(page.getByTestId("invoice-totals")).toContainText("0,00");
+    await expect(page.getByTestId("invoice-open-total")).toContainText("0,00");
     await page.screenshot({
       path: `${artifactDirectory}/invoice-cancellation.png`,
       fullPage: true,
@@ -199,23 +210,19 @@ test("finance reader understands the status on mobile without booking rights", a
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(page.getByTestId("invoice-profile")).toContainText(
-      "Nur Lesezugriff",
+    await expect(page.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
     );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(4);
-    await expect(page.getByTestId("invoice-totals")).toContainText("0,00");
-    await expect(page.getByTestId("open-payment-form")).toHaveCount(0);
-    await expect(page.getByTestId("open-cancellation-form")).toHaveCount(0);
+    await expect(page.getByTestId("invoice-open-total")).toContainText("0,00");
+    await showInvoiceView(page, "Alle");
+    await expect(invoiceRows(page)).toHaveCount(4);
     await expect(page.getByTestId("mobile-menu")).toBeVisible();
     await expect(page.getByTestId("desktop-sidebar")).toBeHidden();
 
-    const paid = invoiceRow(page, openInvoiceId);
-    const cancelled = invoiceRow(page, cancellationInvoiceId);
-    await paid.locator("summary").click();
-    await expect(paid.getByTestId("invoice-settlement")).toHaveAttribute(
-      "data-state",
-      "paid",
-    );
+    const paid = await openInvoice(page, { id: openInvoiceId });
+    await expect(paid).toHaveAttribute("data-settlement", "paid");
+    await expect(paid.getByTestId("open-payment-form")).toHaveCount(0);
+    await expect(paid.getByTestId("open-cancellation-form")).toHaveCount(0);
     await expect(paid.getByTestId("payment-record")).toContainText(
       paymentReference,
     );
@@ -224,10 +231,14 @@ test("finance reader understands the status on mobile without booking rights", a
       fullPage: true,
     });
 
-    await cancelled.locator("summary").click();
-    await expect(cancelled.getByTestId("invoice-settlement")).toHaveAttribute(
-      "data-state",
-      "cancelled",
+    await closeInvoice(page);
+    const cancelled = await openInvoice(page, { id: cancellationInvoiceId });
+    await expect(cancelled).toHaveAttribute("data-settlement", "cancelled");
+    await expect(cancelled.getByTestId("invoice-stamp")).toContainText(
+      "Storniert",
+    );
+    await expect(cancelled.getByTestId("open-cancellation-form")).toHaveCount(
+      0,
     );
     await expectNoSeriousAccessibilityViolations(page);
     expect(pageErrors).toEqual([]);

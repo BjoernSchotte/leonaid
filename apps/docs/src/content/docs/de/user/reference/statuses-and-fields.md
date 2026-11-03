@@ -4,9 +4,9 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 1c054b0fb55c59b9f884aee956b431a519ce521d
 reviewer: Björn Schotte
 ---
 
@@ -41,8 +41,10 @@ Lieferfenster bleibt als Snapshot erhalten.
 ## Rechnung und Versand
 
 Rechnungen sind `issued` (**Ausgestellt**), `sent` (**Versendet**), `paid`
-(**Bezahlt**) oder `cancelled` (**Storniert**). Im Journal fasst **Offen** die
-ausgestellten oder versendeten Belege mit Restbetrag zusammen.
+(**Bezahlt**) oder `cancelled` (**Storniert**). Die Rechnungsliste zeigt
+ausgestellte oder versendete Rechnungen mit Restbetrag als **Offen**, nach dem
+Fälligkeitstag als **Überfällig**. Der Status lässt sich in der Liste nicht
+direkt ändern; Zahlung und Storno sind eigene Befehle im Detailbereich.
 
 Der E-Mail-Versand besitzt eigene Status: `queued`, `sending`, `retrying`,
 `failed` und `sent`. Ein Versandfehler verändert den Beleg nicht. Das PDF ist
