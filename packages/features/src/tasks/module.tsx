@@ -29,7 +29,8 @@ export const tasksModule: UiModule = {
         type: "task" as const,
         title: task.title,
         context: task.status === "done" ? "Erledigt" : "Offen",
-        href: `${shellBase(surface)}/tasks/${task.listId}?task=${task.id}`,
+        // "Alle" also holds done tasks, so every hit opens in the pane.
+        href: `${shellBase(surface)}/tasks/${task.listId}?view=all&open=${task.id}`,
       }));
     },
   },
@@ -50,6 +51,7 @@ export const tasksModule: UiModule = {
             {...context}
             basePath={`${shellBase(surface)}/tasks`}
             listId={match[1]}
+            surface={surface}
           />
         </Suspense>
       ),

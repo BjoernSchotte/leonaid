@@ -54,7 +54,7 @@ function taskReference(client: LeonAidApiClient, basePath: string) {
           "Aufgabe nicht verfügbar"
         ) : task.data ? (
           <a
-            href={`${basePath.replace(/knowledge$/, "tasks")}/${task.data.listId}`}
+            href={`${basePath.replace(/knowledge$/, "tasks")}/${task.data.listId}?view=all&open=${task.data.id}`}
           >
             {task.data.title} ·{" "}
             {task.data.status === "done" ? "Erledigt" : "Offen"}

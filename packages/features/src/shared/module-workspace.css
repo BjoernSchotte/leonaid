@@ -1,11 +1,5 @@
 /* Compact module buttons: 40 px rows on desktop, 44 px touch targets. */
-:is(
-    .tasks-workspace,
-    .materials-workspace,
-    .knowledge-workspace,
-    .inbox-workspace
-  )
-  .btn {
+:is(.materials-workspace, .knowledge-workspace, .inbox-workspace) .btn {
   height: auto;
   min-height: 2.5rem;
   max-width: 100%;
@@ -16,37 +10,19 @@
   white-space: normal;
 }
 
-:is(
-    .tasks-workspace,
-    .materials-workspace,
-    .knowledge-workspace,
-    .inbox-workspace
-  )
+:is(.materials-workspace, .knowledge-workspace, .inbox-workspace)
   .btn
   > .btn-label {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-:is(
-    .tasks-workspace,
-    .materials-workspace,
-    .knowledge-workspace,
-    .inbox-workspace
-  )
-  .btn
-  > svg {
+:is(.materials-workspace, .knowledge-workspace, .inbox-workspace) .btn > svg {
   flex-shrink: 0;
 }
 
 @media (pointer: coarse), (max-width: 760px) {
-  :is(
-      .tasks-workspace,
-      .materials-workspace,
-      .knowledge-workspace,
-      .inbox-workspace
-    )
-    .btn {
+  :is(.materials-workspace, .knowledge-workspace, .inbox-workspace) .btn {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }

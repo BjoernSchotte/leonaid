@@ -1,6 +1,7 @@
 import { expect, test } from "./csp-guard.mjs";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { openTask, rowTitles, taskPane, taskRow } from "./task-list.mjs";
 
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
@@ -116,10 +117,6 @@ async function createFixture(owner, reader) {
   return { list, epics, tasks, plannedOn };
 }
 
-async function rowTitles(page) {
-  return page.locator(".task-row .task-title-text").allTextContents();
-}
-
 async function mouseDrag(page, source, target) {
   await source.scrollIntoViewIfNeeded();
   await target.scrollIntoViewIfNeeded();
@@ -167,7 +164,7 @@ async function touchDrag(context, page, source, target) {
   await session.detach();
 }
 
-test("S6 manual ordering persists across pointer, keyboard, menu and touch", async ({
+test("S6 manual ordering persists across pointer, keyboard, pane and touch", async ({
   browser,
 }, testInfo) => {
   const owner = await signedInContext(browser, 0, { width: 1440 });
@@ -175,11 +172,10 @@ test("S6 manual ordering persists across pointer, keyboard, menu and touch", asy
   const { list, epics, tasks, plannedOn } = await createFixture(owner, reader);
 
   const desktop = await owner.newPage();
-  await desktop.goto(
-    `${baseURL}/admin/tasks/${list.id}?scope=all&view=open&sort=created`,
-  );
+  await desktop.goto(`${baseURL}/admin/tasks/${list.id}?sort=created`);
   await expect(desktop.locator(".task-order-handle")).toHaveCount(0);
-  await desktop.getByLabel("Sortierung").selectOption("manual");
+  await desktop.getByLabel("Sortieren").selectOption("manual");
+  await expect(desktop).not.toHaveURL(/sort=/);
   await expect(desktop.locator(".task-order-handle")).toHaveCount(12);
 
   const pointerResponse = desktop.waitForResponse(
@@ -231,19 +227,14 @@ test("S6 manual ordering persists across pointer, keyboard, menu and touch", asy
       ...tasks.slice(3).map((task) => task.title),
     ]);
 
-  const fourthRow = desktop.locator(`[data-task-id="${tasks[3].id}"]`);
-  const fourthMenu = fourthRow.locator("summary");
-  await expect(fourthMenu).toHaveAttribute(
-    "aria-label",
-    `Aktionen für ${tasks[3].title}`,
-  );
-  await fourthMenu.click();
+  // The pane offers the same moves without a pointer.
+  let pane = await openTask(desktop, { id: tasks[3].id });
   const menuResponse = desktop.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
       response.url().endsWith(`/api/v1/tasks/${tasks[3].id}/position`),
   );
-  await fourthRow.getByRole("button", { name: "Nach oben" }).click();
+  await pane.getByRole("button", { name: "Nach oben" }).click();
   expect((await menuResponse).ok()).toBe(true);
   await expect
     .poll(() => rowTitles(desktop))
@@ -255,46 +246,37 @@ test("S6 manual ordering persists across pointer, keyboard, menu and touch", asy
       ...tasks.slice(4).map((task) => task.title),
     ]);
 
-  const secondRow = desktop.locator(`[data-task-id="${tasks[1].id}"]`);
-  const secondMenu = secondRow.locator("summary");
-  await expect(secondMenu).toHaveAttribute(
-    "aria-label",
-    `Aktionen für ${tasks[1].title}`,
-  );
-  await secondMenu.click();
-  await secondRow.getByLabel("In Abschnitt").selectOption(epics[1].id);
+  await desktop.keyboard.press("Escape");
+  pane = await openTask(desktop, { id: tasks[1].id });
+  await pane.getByLabel("In Abschnitt").selectOption(epics[1].id);
   const sectionResponse = desktop.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
       response.url().endsWith(`/api/v1/tasks/${tasks[1].id}/position`),
   );
-  await secondRow
-    .getByRole("button", { name: "Verschieben", exact: true })
-    .click();
+  await pane.getByRole("button", { name: "Verschieben", exact: true }).click();
   expect((await sectionResponse).ok()).toBe(true);
   await expect(
-    desktop.getByRole("heading", { name: epics[1].title, exact: true }),
+    desktop.locator(".group-header", { hasText: epics[1].title }),
   ).toBeVisible();
   await desktop.reload();
-  await expect(
-    desktop.locator(`[data-task-id="${tasks[1].id}"]`),
-  ).toContainText(epics[1].title);
+  await expect(taskRow(desktop, tasks[1].id)).toContainText(epics[1].title);
   await desktop.screenshot({
     path: testInfo.outputPath("s6-desktop-manual-order.png"),
     fullPage: false,
   });
 
   const mobile = await reader.newPage();
-  await mobile.goto(
-    `${baseURL}/app/tasks/${list.id}?scope=all&view=open&sort=manual`,
-  );
+  // A reader may not reorder the shared list.
+  await mobile.goto(`${baseURL}/app/tasks/${list.id}`);
+  await expect(mobile.locator(".row")).toHaveCount(12);
   await expect(mobile.locator(".task-order-handle")).toHaveCount(0);
+  // Their own plan they may reorder (old "Meine Planung" link).
   await mobile.goto(`${baseURL}/app/tasks?scope=mine&view=plan-planned`);
   await expect(mobile.locator(".task-order-handle")).toHaveCount(12);
-  await expect(mobile.locator(".task-complete")).toHaveCount(0);
   expect(
     await mobile
-      .locator(".task-title")
+      .locator(".row-link")
       .first()
       .evaluate((element) => getComputedStyle(element).touchAction),
   ).not.toBe("none");
@@ -331,26 +313,27 @@ test("S6 manual ordering persists across pointer, keyboard, menu and touch", asy
       ...tasks.slice(3).map((task) => task.title),
     ]);
 
-  const planRow = mobile.locator(`[data-task-id="${tasks[2].id}"]`);
-  const planMenu = planRow.locator("summary");
-  await expect(planMenu).toHaveAttribute(
-    "aria-label",
-    `Aktionen für ${tasks[2].title}`,
-  );
-  await planMenu.click();
+  const sheet = await openTask(mobile, { id: tasks[2].id });
   const nextDate = new Date(`${plannedOn}T12:00:00Z`);
   nextDate.setUTCDate(nextDate.getUTCDate() + 1);
   const nextDateValue = nextDate.toISOString().slice(0, 10);
-  await planRow.getByLabel("Für Tag planen").fill(nextDateValue);
+  await sheet.getByLabel("Für Tag planen").fill(nextDateValue);
   const dateResponse = mobile.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
       response.url().endsWith(`/api/v1/tasks/${tasks[2].id}/position`),
   );
-  await planRow.getByRole("button", { name: "Planen" }).click();
+  await sheet.getByRole("button", { name: "Planen" }).click();
   expect((await dateResponse).ok()).toBe(true);
-  await expect(planRow).toContainText(
-    new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" }).format(nextDate),
+  await mobile.keyboard.press("Escape");
+  await expect(taskPane(mobile)).toHaveCount(0);
+  await expect(taskRow(mobile, tasks[2].id).locator(".task-plan")).toHaveText(
+    new Intl.DateTimeFormat("de-DE", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    }).format(nextDate),
   );
   expect(
     await mobile.evaluate(

@@ -1,6 +1,7 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { openTask, taskRowLink } from "./task-list.mjs";
 
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
@@ -92,49 +93,51 @@ test("S5 personal planning stays private and usable for owners and readers", asy
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   });
-  await today.goto(`${baseURL}/admin/tasks/${list.id}?scope=all&view=open`);
-  await today
-    .getByRole("button", { name: tasks[0].title, exact: true })
-    .click();
-  const ownerPlan = today.locator(".task-plan");
+  await today.goto(`${baseURL}/admin/tasks/${list.id}`);
+  const ownerPane = await openTask(today, { id: tasks[0].id });
+  const ownerPlan = ownerPane.locator(".task-plan");
   await expect(ownerPlan.getByRole("heading")).toHaveText(
     "Persönliche Planung",
   );
+  await expect(ownerPlan).toContainText("Nur Sie sehen diese Einordnung.");
   await ownerPlan.getByLabel("Einordnung").selectOption("scheduled");
   await ownerPlan.getByLabel("Geplant für").fill(plannedOn);
   await ownerPlan.getByRole("button", { name: "Planung speichern" }).click();
   await expect(ownerPlan.getByRole("status")).toHaveText(
     "Planung gespeichert.",
   );
+  // The row shows the plan right away.
+  await expect(
+    today.locator(`.row:has([data-task-row="${tasks[0].id}"]) .task-plan`),
+  ).toHaveText("Heute");
 
+  // The old "Mein Heute" link opens "Mein Plan" with today's buckets.
   await today.goto(`${baseURL}/admin/tasks?scope=mine&view=plan-today`);
-  await expect(today.locator(".tasks-filter-status select")).toHaveValue(
-    "plan-today",
-  );
+  await expect(today).toHaveURL(/f\.plan=today&f\.plan=due/);
   await expect(
-    today.getByRole("heading", { name: "Persönlich geplant", exact: true }),
+    today
+      .getByRole("navigation", { name: "Gespeicherte Ansichten" })
+      .getByRole("button", { name: /^Mein Plan/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    today.locator(".group-header", { hasText: /^Heute\d/ }),
   ).toBeVisible();
   await expect(
-    today.getByRole("heading", { name: "Heute fällig / Überfällig" }),
+    today.locator(".group-header", { hasText: "Heute fällig" }),
   ).toBeVisible();
-  await expect(
-    today.getByRole("button", { name: tasks[0].title, exact: true }),
-  ).toHaveCount(1);
-  await expect(
-    today.getByRole("button", { name: tasks[1].title, exact: true }),
-  ).toHaveCount(1);
+  await expect(taskRowLink(today, { id: tasks[0].id })).toHaveCount(1);
+  await expect(taskRowLink(today, { id: tasks[1].id })).toHaveCount(1);
   await today.screenshot({
     path: testInfo.outputPath("s5-desktop-personal-today.png"),
     fullPage: false,
   });
 
   const readerPage = await reader.newPage();
-  await readerPage.goto(`${baseURL}/app/tasks/${list.id}?scope=all&view=open`);
-  await readerPage
-    .getByRole("button", { name: tasks[0].title, exact: true })
-    .click();
-  await expect(readerPage.locator(".task-complete")).toHaveCount(0);
-  const readerPlan = readerPage.locator(".task-plan");
+  await readerPage.goto(`${baseURL}/app/tasks/${list.id}`);
+  const readerPane = await openTask(readerPage, { id: tasks[0].id });
+  await expect(readerPane.locator("form.task-editor")).toHaveCount(0);
+  const readerPlan = readerPane.locator(".task-plan");
+  await expect(readerPlan).toContainText("Nur du siehst diese Einordnung.");
   await readerPlan.getByLabel("Einordnung").selectOption("someday");
   await readerPlan.getByRole("button", { name: "Planung speichern" }).click();
   await expect(readerPlan.getByRole("status")).toHaveText(
@@ -150,10 +153,11 @@ test("S5 personal planning stays private and usable for owners and readers", asy
     fullPage: false,
   });
 
-  await readerPage.goto(`${baseURL}/app/tasks?scope=mine&view=plan-someday`);
+  await readerPage.goto(`${baseURL}/app/tasks`);
   await expect(
-    readerPage.getByRole("button", { name: tasks[0].title, exact: true }),
+    readerPage.locator(".group-header", { hasText: "Irgendwann" }),
   ).toBeVisible();
+  await expect(taskRowLink(readerPage, { id: tasks[0].id })).toBeVisible();
   const ownerPlanRead = await owner.request.get(
     `${baseURL}/api/v1/tasks/${tasks[0].id}/plan`,
   );
@@ -182,9 +186,7 @@ test("S5 personal planning stays private and usable for owners and readers", asy
     ).status(),
   ).toBe(404);
   await readerPage.reload();
-  await expect(
-    readerPage.getByRole("button", { name: tasks[0].title, exact: true }),
-  ).toHaveCount(0);
+  await expect(taskRowLink(readerPage, { id: tasks[0].id })).toHaveCount(0);
   await reader.close();
   await owner.close();
 });
