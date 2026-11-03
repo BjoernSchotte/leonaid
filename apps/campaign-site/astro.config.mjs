@@ -7,7 +7,7 @@ import routeContract from "./route-contract.mjs";
 import stableIdentityPatch from "./emdash-auth-patch.mjs";
 import editorRevisionPatch from "./emdash-editor-patch.mjs";
 import contentLogPatch from "./emdash-content-log-patch.mjs";
-import postgresPatch from "./emdash-postgres-patch.mjs";
+import postgresPatch, { cmsPoolConfig } from "./emdash-postgres-patch.mjs";
 import { emdashAdminScriptHashes } from "./emdash-admin-csp.mjs";
 import zodJitlessPatch from "./zod-jitless-patch.mjs";
 import runtimeAllowedDomains, {
@@ -63,7 +63,14 @@ export default defineConfig({
     emdash({
       // A fixed public favicon avoids the native shell resolving global CMS
       // media/settings merely to render a campaign editor's HTML document.
-      admin: { siteName: "LeonAid", favicon: "/favicon.svg" },
+      admin: {
+        siteName: "LeonAid",
+        footerLabel: "LeonAid",
+        favicon: "/favicon.svg",
+      },
+      // No daily request to registry.npmjs.org from the CMS server. LeonAid
+      // pins EmDash in bun.lock and upgrades it through a reviewed release.
+      updateCheck: false,
       // The editor toolbar injects inline scripts and styles into public
       // pages, which the strict CSP blocks. Campaigns are edited in /_emdash.
       toolbar: false,
@@ -78,7 +85,7 @@ export default defineConfig({
       },
       // pg reads PGHOST/PGDATABASE/PGUSER/PGPASSWORD at runtime. Never bake
       // deployment secrets into Astro's serialized integration configuration.
-      database: postgres({ pool: { min: 0, max: 5 } }),
+      database: postgres({ pool: { ...cmsPoolConfig } }),
       storage: s3(),
       migrations: { runtime: "check", dev: "check" },
       plugins: [],

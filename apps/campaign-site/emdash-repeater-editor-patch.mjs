@@ -51,12 +51,12 @@ export function patchRepeaterEditor(source) {
   );
   replace(
     `jsx("span", {
-\t\t\t\t\tclassName: "text-sm font-medium flex-1 truncate",
+\t\t\t\t\tclassName: "flex-1 truncate text-base font-medium",
 \t\t\t\t\tchildren: summaryLabel
 \t\t\t\t})`,
     `jsx("button", {
 \t\t\t\t\ttype: "button",
-\t\t\t\t\tclassName: "min-h-11 min-w-0 text-start text-sm font-medium flex-1 truncate rounded focus-visible:outline-2 focus-visible:outline-offset-2",
+\t\t\t\t\tclassName: "min-h-11 min-w-0 text-start text-base font-medium flex-1 truncate rounded focus-visible:outline-2 focus-visible:outline-offset-2",
 \t\t\t\t\t"aria-expanded": !isCollapsed,
 \t\t\t\t\tonClick: onToggleCollapse,
 \t\t\t\t\tchildren: summaryLabel

@@ -15,7 +15,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const source = await readFile(
-  require.resolve("emdash/middleware/auth"),
+  require.resolve("emdash/internal/middleware/auth"),
   "utf8",
 );
 const patched = patchAuthSource(source);
@@ -46,78 +46,28 @@ assert.ok(!header.includes('message: "View Site"'));
 // The editor mounts only after the entry's draft revision has been merged.
 assert.ok(
   revisioned.includes(
-    "if (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {",
+    "if (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\tif (itemError && !rawItem) {",
   ),
 );
-const guard = revisioned.match(
-  /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !leonaidUnsaved\)[\s\S]+?\}, \[collection, leonaidUnsaved\]\);/,
-);
-assert.ok(guard);
+// EmDash 1.x guards unsaved edits itself (TanStack useBlocker, which also
+// prompts on beforeunload). New forms count as unsaved only after an edit;
+// the LeonAid campaign prefill is part of their initial state.
 assert.ok(
   revisioned.includes(
-    "const leonaidInitialData = React$1.useRef(currentData);",
+    "jsx(UnsavedChangesGuard, {\n\t\t\t\twhen: isNew ? hasUnsavedNewEntry : isDirty,",
   ),
 );
-// New forms remain saveable, but only actual edits warrant a leave warning.
-const unsavedExpression = revisioned.match(/const leonaidUnsaved = ([^\n]+);/);
-assert.ok(unsavedExpression);
-const hasUnsaved = new Function(
-  "isNew",
-  "currentData",
-  "leonaidInitialData",
-  "isDirty",
-  `return ${unsavedExpression[1]};`,
+assert.ok(
+  revisioned.includes(
+    "const hasUnsavedNewEntry = Boolean(isNew) && (referencesDirty || currentData !== newEntryInitialState);",
+  ),
 );
-for (const [isNew, current, initial, dirty, expected] of [
-  [true, "prefilled", "prefilled", true, false],
-  [true, "edited", "prefilled", true, true],
-  [true, "prefilled", "prefilled", true, false],
-  [false, "saved", "loaded", false, false],
-  [false, "edited", "loaded", true, true],
-])
-  assert.equal(
-    hasUnsaved(isNew, current, { current: initial }, dirty),
-    expected,
-  );
-for (const [collection, dirty, expected] of [
-  ["campaign_pages", true, 1],
-  ["campaign_pages", false, 0],
-  ["posts", true, 0],
-]) {
-  const listeners = new Map();
-  let cleanup;
-  new Function("React$1", "window", "collection", "leonaidUnsaved", guard[0])(
-    {
-      useEffect: (effect) => {
-        cleanup = effect();
-      },
-    },
-    {
-      addEventListener: (name, listener) => listeners.set(name, listener),
-      removeEventListener: (name, listener) => {
-        assert.equal(listeners.get(name), listener);
-        listeners.delete(name);
-      },
-    },
-    collection,
-    dirty,
-  );
-  assert.equal(listeners.size, expected);
-  if (expected) {
-    let prevented = false;
-    const event = {
-      preventDefault: () => {
-        prevented = true;
-      },
-      returnValue: null,
-    };
-    listeners.get("beforeunload")(event);
-    assert.ok(prevented);
-    assert.equal(event.returnValue, "");
-    cleanup();
-    assert.equal(listeners.size, 0);
-  }
-}
+assert.ok(
+  revisioned.includes(
+    "React$1.useState(() => item?.data ?? (isNew ? { ...defaultFieldValues(fields), ...(leonaidInitialAction ? { action_id: leonaidInitialAction } : {}) } : {}));",
+  ),
+);
+assert.ok(!revisioned.includes('addEventListener("beforeunload"'));
 const logout = revisioned.slice(
   revisioned.indexOf("async function handleLogout()"),
   revisioned.indexOf("function Header()"),
@@ -128,7 +78,9 @@ assert.ok(logout.includes('if (!res.ok) throw new Error("logout_failed")'));
 assert.ok(logout.includes('window.location.href = "/admin/"'));
 assert.ok(logout.includes("window.alert("));
 assert.ok(!logout.includes("/_emdash/api/auth/logout"));
-const liveViewExpression = revisioned.match(/const liveViewUrl = ([^\n]+);/);
+const liveViewExpression = revisioned.match(
+  /const liveViewUrl = (isLive \? leonaidContentUrl\([^]*?\) : null);/,
+);
 assert.ok(liveViewExpression);
 const urlFunction = revisioned.match(/function leonaidContentUrl\([^]*?\n\}/);
 assert.ok(urlFunction);
@@ -138,7 +90,9 @@ assert.ok(
   ),
 );
 assert.ok(
-  revisioned.includes("href: leonaidContentUrl(collection, item, urlPattern)"),
+  revisioned.includes(
+    "href: leonaidContentUrl(collection, item, urlPattern, {",
+  ),
 );
 const liveView = new Function(
   "collection",
@@ -146,6 +100,7 @@ const liveView = new Function(
   "item",
   "contentUrl",
   "urlPattern",
+  "i18n",
   `${urlFunction[0]}\nreturn ${liveViewExpression[1]};`,
 );
 const canonical = "/campaigns/krapfentaxi-2026/";
@@ -201,7 +156,7 @@ assert.ok(
   revisioned.includes("TextSelection.create(view.state.doc, position)"),
 );
 assert.ok(revisioned.includes("React$1.useContext(LeonAidMediaCampaign)"));
-assert.ok(revisioned.includes('"media",\n\t\tcampaign,'));
+assert.ok(revisioned.includes('"media",\n\t\t"picker",\n\t\tcampaign,'));
 assert.ok(
   revisioned.includes(
     "required: subField.required,\n\t\t\tallowedMimeTypes: subField.validation?.allowedMimeTypes",
@@ -245,10 +200,16 @@ console.log(
 const handlers = await readFile(contentHandlerEntry(), "utf8");
 const sanitized = patchContentLogs(handlers);
 assert.notEqual(sanitized, handlers);
-assert.equal([...sanitized.matchAll(/console\.error\(/g)].length, 21);
+// The bundle also holds plugin/registry handlers that LeonAid never enables
+// (plugins: [], sandboxed: []). Their logs stay upstream; every content and
+// revision signal is fixed and carries no exception object.
 assert.equal(
   [...sanitized.matchAll(/console\.error\("[^"\n]+"\);/g)].length,
-  21,
+  22,
+);
+assert.doesNotMatch(
+  sanitized,
+  /console\.error\("(?:Content [^"]+|Scheduled policy rejection) error:", |\[revisions\] Failed to prune revisions for /,
 );
 for (const changed of [
   handlers + "\n",
@@ -261,5 +222,5 @@ for (const changed of [
   );
 }
 console.log(
-  "emdash-content-log-patch: OK: all 21 fixed signals retained without exception objects or item identifiers; source drift and double application denied",
+  "emdash-content-log-patch: OK: all 22 fixed signals retained without exception objects or item identifiers; source drift and double application denied",
 );

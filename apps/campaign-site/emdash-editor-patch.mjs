@@ -6,17 +6,19 @@ import { patchCampaignMediaEditor } from "./emdash-media-editor-patch.mjs";
 import { patchRepeaterEditor } from "./emdash-repeater-editor-patch.mjs";
 
 export const upstreamEditorSha256 =
-  "b7c64e5f4ba4cb760d1694332d920194a107db6d42258fd5358a1201776ce299";
+  "f4a2397269b973e35e6deecb16fa8591a38798c734b6ac4d9546b3cc8c8171b3";
 
-// The released 0.36 client drops the server's _rev envelope and does not send
-// revision preconditions. Backport only token transport into its existing UI.
-// Authentication and concurrency enforcement remain server-side. No fetch
-// interception, request fabrication or substitute editor is introduced.
+// LeonAid seams in the published EmDash 1.4 admin client. EmDash 1.x itself
+// transports the `_rev` revision token on every save, publish, unpublish and
+// discard, keeps a dirty form when the entry refetches, and guards unsaved
+// edits with its own leave prompt. Authentication and concurrency enforcement
+// remain server-side. No fetch interception, request fabrication or
+// substitute editor is introduced.
 export function patchEditorSource(source) {
   assert.equal(
     createHash("sha256").update(source).digest("hex"),
     upstreamEditorSha256,
-    "EmDash editor source changed; re-review revision transport patch",
+    "EmDash editor source changed; re-review the LeonAid editor patch",
   );
   const replace = (before, after) => {
     assert.equal(source.split(before).length, 2);
@@ -28,46 +30,31 @@ export function patchEditorSource(source) {
     '\t\t\t\t/* @__PURE__ */ jsxs(LinkButton, {\n\t\t\t\t\tvariant: "ghost",\n\t\t\t\t\tsize: "sm",\n\t\t\t\t\thref: "/",\n\t\t\t\t\texternal: true,\n\t\t\t\t\tchildren: [/* @__PURE__ */ jsx(ArrowSquareOut, { className: "h-4 w-4 me-1" }), _t({\n\t\t\t\t\t\tid: "4/SFQS",\n\t\t\t\t\t\tmessage: "View Site"\n\t\t\t\t\t})]\n\t\t\t\t}),',
     '\t\t\t\t/* @__PURE__ */ jsx("a", { href: "/admin/", className: "flex items-center rounded-md px-3 py-2 text-sm hover:bg-kumo-tint", style: { minHeight: 44 }, children: "Zurück zu LeonAid" }),',
   );
-  replace(
-    "\tconst isDirty = isNew || currentData !== lastSavedData;",
-    `\tconst isDirty = isNew || currentData !== lastSavedData;
-\tconst leonaidInitialData = React$1.useRef(currentData);
-\tconst leonaidUnsaved = isNew ? currentData !== leonaidInitialData.current : isDirty;
-\tReact$1.useEffect(() => {
-\t\tif (collection !== "campaign_pages" || !leonaidUnsaved) return;
-\t\tconst warnBeforeLeaving = (event) => {
-\t\t\tevent.preventDefault();
-\t\t\tevent.returnValue = "";
-\t\t};
-\t\twindow.addEventListener("beforeunload", warnBeforeLeaving);
-\t\treturn () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-\t}, [collection, leonaidUnsaved]);`,
-  );
   // A CMS logout must revoke the same Core session used by both surfaces.
   // Never open native EmDash auth routes or pretend a failed logout succeeded.
   replace(
     '\tconst res = await apiFetch("/_emdash/api/auth/logout?redirect=/_emdash/admin/login", {\n\t\tmethod: "POST",\n\t\tcredentials: "same-origin"\n\t});\n\tif (res.redirected) window.location.href = res.url;\n\telse window.location.href = "/_emdash/admin/login";',
     '\ttry {\n\t\tconst res = await apiFetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin", redirect: "error" });\n\t\tif (!res.ok) throw new Error("logout_failed");\n\t\twindow.location.href = "/admin/";\n\t} catch {\n\t\twindow.alert("Sign out failed. Please try again; your session may still be active.");\n\t}',
   );
-  // Core owns campaign URLs. Keep the native Live View control, but never use
+  // Core owns campaign URLs. Keep the native Live View controls, but never use
   // the CMS binding UUID as a public slug. Missing metadata hides the link.
   replace(
     "function Header() {",
-    'function leonaidContentUrl(collection, item, urlPattern) {\n\treturn collection === "campaign_pages" ? (/^\\/campaigns\\/[a-z0-9]+(?:-[a-z0-9]+)*\\/$/.test(item?.leonaidLivePath ?? "") ? item.leonaidLivePath : null) : (item?.slug ? contentUrl(collection, item.slug, urlPattern) : null);\n}\nfunction Header() {',
+    'function leonaidContentUrl(collection, item, urlPattern, options) {\n\treturn collection === "campaign_pages" ? (/^\\/campaigns\\/[a-z0-9]+(?:-[a-z0-9]+)*\\/$/.test(item?.leonaidLivePath ?? "") ? item.leonaidLivePath : null) : (item?.slug ? contentUrl(collection, item.slug, urlPattern, options) : null);\n}\nfunction Header() {',
   );
   replace(
-    "\tconst liveViewUrl = isLive && item?.slug ? contentUrl(collection, item.slug, urlPattern) : null;",
-    "\tconst liveViewUrl = isLive ? leonaidContentUrl(collection, item, urlPattern) : null;",
+    "\tconst liveViewUrl = isLive && item?.slug ? contentUrl(collection, item.slug, urlPattern, {\n\t\tlocale: item.locale,\n\t\ti18n,\n\t\tid: item.id,\n\t\tdate: item.publishedAt\n\t}) : null;",
+    "\tconst liveViewUrl = isLive ? leonaidContentUrl(collection, item, urlPattern, {\n\t\tlocale: item.locale,\n\t\ti18n,\n\t\tid: item.id,\n\t\tdate: item.publishedAt\n\t}) : null;",
   );
   replace(
-    'item.status === "published" && item.slug && /* @__PURE__ */ jsx(LinkButton, {\n\t\t\t\t\t\t\thref: contentUrl(collection, item.slug, urlPattern),',
-    'item.status === "published" && leonaidContentUrl(collection, item, urlPattern) && /* @__PURE__ */ jsx(LinkButton, {\n\t\t\t\t\t\t\thref: leonaidContentUrl(collection, item, urlPattern),',
+    '\t\t\t\t\t\titem.status === "published" && item.slug && /* @__PURE__ */ jsx(DropdownMenu.LinkItem, {\n\t\t\t\t\t\t\tcloseOnClick: true,\n\t\t\t\t\t\t\ticon: /* @__PURE__ */ jsx(ArrowSquareOut, {\n\t\t\t\t\t\t\t\tclassName: "me-2 size-4",\n\t\t\t\t\t\t\t\t"aria-hidden": "true"\n\t\t\t\t\t\t\t}),\n\t\t\t\t\t\t\thref: contentUrl(collection, item.slug, urlPattern, {',
+    '\t\t\t\t\t\titem.status === "published" && leonaidContentUrl(collection, item, urlPattern) && /* @__PURE__ */ jsx(DropdownMenu.LinkItem, {\n\t\t\t\t\t\t\tcloseOnClick: true,\n\t\t\t\t\t\t\ticon: /* @__PURE__ */ jsx(ArrowSquareOut, {\n\t\t\t\t\t\t\t\tclassName: "me-2 size-4",\n\t\t\t\t\t\t\t\t"aria-hidden": "true"\n\t\t\t\t\t\t\t}),\n\t\t\t\t\t\t\thref: leonaidContentUrl(collection, item, urlPattern, {',
   );
   // Firefox can retain the old selection when an unfocused editor receives a
   // click in an empty paragraph. Use the supported ProseMirror click seam;
   // preserve modifier/drag/keyboard behavior and never modify document content.
   replace(
-    "\tconst editorProps = React$1.useMemo(() => ({ attributes: {",
+    "\tconst editorProps = React$1.useMemo(() => ({\n\t\tscrollThreshold: isDocument ? {",
     `\tconst editorProps = React$1.useMemo(() => ({
 \t\thandleClick(view, _position, event) {
 \t\t\tif (!view.editable || view.composing || event.button !== 0 ||
@@ -80,7 +67,8 @@ export function patchEditorSource(source) {
 \t\t\tview.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)));
 \t\t\tview.focus();
 \t\t\treturn true;
-\t\t}, attributes: {`,
+\t\t},
+\t\tscrollThreshold: isDocument ? {`,
   );
   // Preserve a typed campaign handoff in the native router. It is form input,
   // never an authorization grant; Core is checked on navigation and creation.
@@ -101,86 +89,28 @@ export function patchEditorSource(source) {
     "function ContentEditor({ leonaidActionId, collection, collectionLabel, item, fields, isNew,",
   );
   replace(
-    '\tconst [formData, setFormData] = React$1.useState(item?.data || {});\n\tconst [slug, setSlug] = React$1.useState(item?.slug || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug);',
-    '\tconst leonaidInitialAction = isNew && collection === "campaign_pages" ? leonaidActionId : void 0;\n\tconst [formData, setFormData] = React$1.useState(item?.data || (leonaidInitialAction ? { action_id: leonaidInitialAction } : {}));\n\tconst [slug, setSlug] = React$1.useState(item?.slug || leonaidInitialAction || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug || !!leonaidInitialAction);',
-  );
-  for (const [name, message] of [
-    ["fetchContent", "Failed to fetch content"],
-    ["updateContent", "Failed to update content"],
-  ]) {
-    const start = source.indexOf(`async function ${name}(`);
-    const end = source.indexOf("\n}\n", start) + 3;
-    const original = source.slice(start, end);
-    assert.ok(start > 0 && end > start);
-    replace(
-      original,
-      original
-        .replace(
-          "return (await parseApiResponse(",
-          "const payload = await parseApiResponse(",
-        )
-        .replace(
-          `"${message}")).item;`,
-          `"${message}");\n\treturn { ...payload.item, _rev: payload._rev };`,
-        ),
-    );
-  }
-  replace(
-    "\t\tenabled: !i18n || !!activeLocale\n\t});",
-    `\t\tenabled: !i18n || !!activeLocale
-\t});
-\t// Keep the revision this editor loaded, not a background query refresh.
-\tconst leonaidRevisions = React$1.useRef(new Map());
-\tconst leonaidEntry = React$1.useRef("");
-\tif (leonaidEntry.current !== id) {
-\t\tleonaidEntry.current = id;
-\t\tleonaidRevisions.current.delete(id);
-\t}
-\tif (rawItem && !leonaidRevisions.current.has(rawItem.id))
-\t\tleonaidRevisions.current.set(rawItem.id, rawItem._rev);
-\tconst leonaidSave = async (targetId, targetLocale, changes) => {
-\t\tconst saved = await updateContent(collection, targetId,
-\t\t\t{ ...changes, _rev: leonaidRevisions.current.get(targetId) },
-\t\t\t{ locale: targetLocale });
-\t\tleonaidRevisions.current.set(targetId, saved._rev);
-\t\treturn saved;
-\t};`,
+    "\tconst [formData, setFormData] = React$1.useState(() => item?.data ?? (isNew ? defaultFieldValues(fields) : {}));",
+    '\tconst leonaidInitialAction = isNew && collection === "campaign_pages" ? leonaidActionId : void 0;\n\tconst [formData, setFormData] = React$1.useState(() => item?.data ?? (isNew ? { ...defaultFieldValues(fields), ...(leonaidInitialAction ? { action_id: leonaidInitialAction } : {}) } : {}));',
   );
   replace(
-    "mutationFn: ({ targetId, targetLocale, changes }) => updateContent(collection, targetId, changes, { locale: targetLocale }),",
-    "mutationFn: ({ targetId, targetLocale, changes }) => leonaidSave(targetId, targetLocale, changes),",
-  );
-  replace(
-    `mutationFn: ({ targetId, targetLocale, changes }) => updateContent(collection, targetId, {
-\t\t\t...changes,
-\t\t\tskipRevision: true
-\t\t}, { locale: targetLocale }),`,
-    `mutationFn: ({ targetId, targetLocale, changes }) => leonaidSave(targetId, targetLocale, {
-\t\t\t...changes,
-\t\t\tskipRevision: true
-\t\t}),`,
-  );
-  replace(
-    `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
-\t\tonSuccess: () => {`,
-    `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
-\t\tonSuccess: async () => {
-\t\t\tconst refreshed = await fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale });
-\t\t\tleonaidRevisions.current.set(id, refreshed._rev);`,
+    '\tconst [slug, setSlug] = React$1.useState(item?.slug || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug);',
+    '\tconst [slug, setSlug] = React$1.useState(item?.slug || leonaidInitialAction || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug || !!leonaidInitialAction);',
   );
   // Upstream mounts the editor as soon as the live item arrives and merges the
-  // draft revision one request later. The merge resets the form to the draft,
-  // silently discarding anything typed in between. Mount the editor once per
-  // entry only after its draft has loaded (or failed), so the first editable
-  // form already shows the draft. Later draft revisions keep the editor
-  // mounted; a failed draft fetch keeps upstream's live-data fallback.
+  // draft revision one request later. 1.x no longer resets a dirty form when
+  // the draft arrives, so input typed in between survives, but the form then
+  // never takes the draft's other values and the next save writes live data
+  // plus the new input over the draft. Mount the editor once per entry only
+  // after its draft has loaded (or failed), so the first editable form already
+  // shows the draft. Later draft revisions keep the editor mounted; a failed
+  // draft fetch keeps upstream's live-data fallback.
   replace(
     "\tconst { data: draftRevision } = useQuery({",
     "\tconst { data: draftRevision, isLoading: leonaidDraftLoading } = useQuery({",
   );
   replace(
-    "\tif (isLoading) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {\n\t\tcollection,\n\t\tcollectionLabel:",
-    "\tif (rawItem && (!rawItem.draftRevisionId || !leonaidDraftLoading)) leonaidDraftEntry.current = id;\n\tif (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\treturn /* @__PURE__ */ jsx(ContentEditor, {\n\t\tcollection,\n\t\tcollectionLabel:",
+    "\tif (isLoading) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\tif (itemError && !rawItem) {",
+    "\tif (rawItem && (!rawItem.draftRevisionId || !leonaidDraftLoading)) leonaidDraftEntry.current = id;\n\tif (isLoading || (rawItem && leonaidDraftEntry.current !== id)) return /* @__PURE__ */ jsx(LoadingScreen, {});\n\tif (itemError && !rawItem) {",
   );
   replace(
     "\tconst item = React$1.useMemo(() => {\n\t\tif (!rawItem) return void 0;\n\t\tif (!draftRevision?.data) return rawItem;",

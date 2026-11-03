@@ -7,23 +7,35 @@ export function postgresAdapterEntry() {
   return createRequire(import.meta.url).resolve("emdash/db/postgres");
 }
 
-// Upstream only forwards min/max. Bound actual pg acquisition rather than
-// racing a timer against an operation that would remain queued indefinitely.
-// Preserve upstream's fail-fast migration adapter and runtime credential reads.
-// A server-side statement timeout also covers native queries outside our
-// explicit transactions; those transactions retain their stricter local limits.
+// The CMS request pool. EmDash 1.x forwards connectionTimeoutMillis to pg.
+// This bounds actual pg acquisition instead of racing a timer against an
+// operation that stays queued. astro.config.mjs and the postgres-pool proof
+// use this exact object.
+export const cmsPoolConfig = Object.freeze({
+  min: 0,
+  max: 5,
+  connectionTimeoutMillis: 2000,
+});
+
+// Upstream does not forward a statement timeout. A server-side statement
+// timeout also covers native queries outside our explicit transactions; those
+// transactions keep their stricter local limits. Upstream's fail-fast
+// migration adapter, pool error redaction and runtime credential reads stay.
 export function patchPostgresSource(source) {
   assert.equal(
     createHash("sha256").update(source).digest("hex"),
-    "5fef8beca87d9875671f92d1907d13ea0e2b3b93862054dbc767ce43face56f5",
+    "fe956a3c0d307e98f9830a7c7a27e6cd8afb448b6963c3f85fa1e61b386e7ad4",
     "EmDash PostgreSQL source changed; re-review connection budgets",
   );
-  const needle = "max: config.pool?.max ?? 10";
-  assert.equal(source.split(needle).length, 2);
-  return source.replace(
-    needle,
-    `${needle},\n\t\tconnectionTimeoutMillis: 2000,\n\t\tstatement_timeout: 5000`,
+  assert.equal(
+    source.split(
+      "connectionTimeoutMillis: config.pool?.connectionTimeoutMillis",
+    ).length,
+    2,
   );
+  const needle = "idleTimeoutMillis: config.pool?.idleTimeoutMillis";
+  assert.equal(source.split(needle).length, 2);
+  return source.replace(needle, `${needle},\n\t\tstatement_timeout: 5000`);
 }
 
 export default function postgresPatch() {

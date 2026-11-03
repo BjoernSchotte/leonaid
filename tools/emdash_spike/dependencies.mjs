@@ -14,10 +14,10 @@ for (const name of ["astro", "@astrojs/node"]) {
 const require = createRequire(app);
 const lock = await readFile(new URL("bun.lock", root), "utf8");
 const integrity =
-  "sha512-a/lldbDMig8z3WycPliHwZ2VwFQl9ewT9OMvK9/2gvbzoJOXXUF73KTK7AThSss5SbT1oj0h9exGa/GyIr3vAw==";
+  "sha512-dp56A8E5KCVSFVY6NSWbzgmgsUNWp7U1RX3f4qQKsY8WdB211pI3adAkLoG4R07KZ7zihxYz24DH9z5k4gLmhQ==";
 
 assert.equal(manifest.private, true);
-assert.equal(manifest.dependencies.emdash, "0.36.0");
+assert.equal(manifest.dependencies.emdash, "1.4.0");
 assert.equal(manifest.dependencies.pg, "8.16.3");
 assert.equal(manifest.dependencies.sharp, "0.35.5");
 const sharpEntry = require.resolve("sharp");
@@ -27,7 +27,7 @@ const sharpManifest = JSON.parse(
 assert.equal(sharpManifest.version, "0.35.5");
 assert.equal(sharpManifest.license, "Apache-2.0");
 assert.match(lock, /"sharp@0\.35\.5"/);
-assert.match(lock, /"emdash@0\.36\.0"/);
+assert.match(lock, /"emdash@1\.4\.0"/);
 assert.ok(
   lock.includes(integrity),
   "reviewed npm integrity must remain pinned",
@@ -37,7 +37,7 @@ const entry = require.resolve("emdash");
 const installed = JSON.parse(
   await readFile(new URL("../package.json", `file://${entry}`), "utf8"),
 );
-assert.equal(installed.version, "0.36.0");
+assert.equal(installed.version, "1.4.0");
 assert.equal(installed.license, "MIT");
 assert.equal(require("pg/package.json").version, "8.16.3");
 

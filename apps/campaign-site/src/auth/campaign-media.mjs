@@ -300,19 +300,31 @@ export async function listCampaignMedia(
 ) {
   requireAction(profile, actionId);
   await requireCampaignMedia(database);
-  const { limit = 30, cursor, q = "", mimeType } = parameters;
+  const { limit = 30, cursor, page: pageNumber, q = "", mimeType } = parameters;
   const rasterTypes = ["image/png", "image/jpeg", "image/webp"];
+  // The EmDash 1.x picker asks for the "image/" family. Campaign media only
+  // ever holds the three raster types, so the family means exactly those.
   const selectedTypes =
-    typeof mimeType === "string" ? mimeType.split(",") : undefined;
+    mimeType === "image/"
+      ? rasterTypes
+      : typeof mimeType === "string"
+        ? mimeType.split(",")
+        : undefined;
   if (
     Object.keys(parameters).some(
-      (key) => !["limit", "cursor", "q", "mimeType"].includes(key),
+      (key) => !["limit", "cursor", "page", "q", "mimeType"].includes(key),
     ) ||
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
     limit > 100 ||
     (cursor !== undefined &&
       (typeof cursor !== "string" || !ulid.test(cursor))) ||
+    // Numbered pages (EmDash 1.x picker) or a cursor, never both.
+    (pageNumber !== undefined &&
+      (cursor !== undefined ||
+        !Number.isSafeInteger(pageNumber) ||
+        pageNumber < 1 ||
+        pageNumber > 10_000)) ||
     typeof q !== "string" ||
     q.length > 200 ||
     (mimeType !== undefined &&
@@ -340,6 +352,7 @@ export async function listCampaignMedia(
         .orderBy("media.id", "desc")
         .limit(limit + 1);
       if (cursor !== undefined) page = page.where("media.id", "<", cursor);
+      if (pageNumber !== undefined) page = page.offset((pageNumber - 1) * limit);
       const rows = await page.forShare().execute();
       const ids = rows.slice(0, limit);
       const repository = new MediaRepository(transaction);
