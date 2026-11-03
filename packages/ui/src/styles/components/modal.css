@@ -78,3 +78,12 @@ dialog {
 :root.modal-open {
   overflow: hidden;
 }
+
+/*
+ * During the rise, `transform` makes the dialog the containing block of the
+ * fixed toaster inside it, and the UA `overflow: auto` would clip a toast.
+ * With a toast in the dialog the modal skips straight to its final box.
+ */
+.modal[open]:has(.modal-toast-slot .toast) {
+  animation: none;
+}
