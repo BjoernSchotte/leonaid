@@ -68,5 +68,10 @@
     "path": "tests/e2e/public-inbox-retry.spec.mjs",
     "sha256": "22c98ea9574802b48a95fbe71b38df3e541e3bf6bfe6a48c5598eeb177ef0196",
     "reason": "Drop only the real committed Inbox response; exhaust the real server rate limit and verify the browser retains and repeats the identical command after HTTP 429."
+  },
+  {
+    "path": "tests/e2e/command-palette.spec.mjs",
+    "sha256": "02a9d871b69805555766ff7f8ffb6f7f48343b3a634d71ec1278f6a8825d51a8",
+    "reason": "Hold one real search request for 3 s, then forward it unchanged, so the next keystroke must abort it in flight; every response comes from the real API."
   }
 ]

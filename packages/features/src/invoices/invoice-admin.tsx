@@ -29,7 +29,10 @@ import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
-import { useActionInUrl } from "../action-admin/action-location";
+import {
+  requestedUnlistedAction,
+  useActionInUrl,
+} from "../action-admin/action-location";
 
 interface InvoiceAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -1080,21 +1083,47 @@ function InvoiceLedgerRow({
 }
 
 export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
-  const actions = useMemo(() => {
-    const globalFinance =
-      identity.globalRoles.includes("finance_reader") ||
-      identity.globalRoles.includes("finance_manager");
+  // Mirrors may_read_all_invoices: system admins and global finance roles
+  // read the invoices of every action, not only of their memberships.
+  const readsEveryAction =
+    identity.globalRoles.includes("system_admin") ||
+    identity.globalRoles.includes("finance_reader") ||
+    identity.globalRoles.includes("finance_manager");
+  const memberActions = useMemo(() => {
     const seen = new Set<string>();
     return identity.actionMemberships.filter((membership) => {
       const eligible =
-        globalFinance ||
+        readsEveryAction ||
         membership.role === "charity_admin" ||
         membership.role === "finance_reader";
       if (!eligible || seen.has(membership.actionId)) return false;
       seen.add(membership.actionId);
       return true;
     });
-  }, [identity.actionMemberships, identity.globalRoles]);
+  }, [identity.actionMemberships, readsEveryAction]);
+  // A search hit links to ?action=<id>; keep that action selectable for the
+  // whole visit, even after the selector moves to another action.
+  const [unlistedActionId] = useState(() =>
+    requestedUnlistedAction(memberActions, readsEveryAction),
+  );
+  const unlistedContext = useQuery({
+    enabled: Boolean(unlistedActionId),
+    queryFn: () => client.getInvoiceContext(unlistedActionId!),
+    queryKey: ["invoice-context", unlistedActionId],
+  });
+  const actions = useMemo(
+    () =>
+      unlistedActionId
+        ? [
+            {
+              actionId: unlistedActionId,
+              actionName: unlistedContext.data?.actionName ?? "Charity-Aktion",
+            },
+            ...memberActions,
+          ]
+        : memberActions,
+    [memberActions, unlistedActionId, unlistedContext.data?.actionName],
+  );
   const query = new URLSearchParams(window.location.search);
   const requestedAction = query.get("action");
   const requestedStatus = query.get("status");

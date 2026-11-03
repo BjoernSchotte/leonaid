@@ -61,6 +61,13 @@ export function resolvedTheme(): "light" | "dark" {
   return isDarkSystemTheme() ? "dark" : "light";
 }
 
+/** Switches between light and dark and stores the choice. */
+export function toggleTheme(): "light" | "dark" {
+  const next = resolvedTheme() === "dark" ? "light" : "dark";
+  setThemePreference(next);
+  return next;
+}
+
 export function ThemeSwitcher() {
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
   const [open, setOpen] = useState(false);

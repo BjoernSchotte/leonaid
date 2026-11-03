@@ -31,6 +31,7 @@ import {
   resolvedTheme,
   setThemePreference,
   storedTheme,
+  toggleTheme,
 } from "./theme-switcher";
 import { ToastProvider } from "./toast";
 
@@ -277,20 +278,35 @@ function RailUser({
 function ThemeButton() {
   const [dark, setDark] = useState(() => resolvedTheme() === "dark");
 
+  // Any switch (this button, shift+t, the palette) changes <html data-theme>.
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setDark(resolvedTheme() === "dark");
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributeFilter: ["data-theme"] });
+    sync();
+    return () => observer.disconnect();
+  }, []);
+
   // Follow the system while no explicit choice is stored.
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => {
-      if (storedTheme() !== "system") return;
-      setThemePreference("system");
-      setDark(resolvedTheme() === "dark");
+      if (storedTheme() === "system") setThemePreference("system");
     };
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
 
-  useThemeHotkey(setDark);
+  useHotkeys([
+    {
+      keys: "shift+t",
+      label: "Hell/Dunkel wechseln",
+      group: "Allgemein",
+      run: () => void toggleTheme(),
+    },
+  ]);
 
   return (
     <IconButton
@@ -301,26 +317,9 @@ function ThemeButton() {
           ? "Helle Darstellung (Umschalt+T)"
           : "Dunkle Darstellung (Umschalt+T)"
       }
-      onClick={() => setDark(toggleTheme() === "dark")}
+      onClick={() => void toggleTheme()}
     />
   );
-}
-
-function toggleTheme(): "light" | "dark" {
-  const next = resolvedTheme() === "dark" ? "light" : "dark";
-  setThemePreference(next);
-  return next;
-}
-
-function useThemeHotkey(setDark: (dark: boolean) => void) {
-  useHotkeys([
-    {
-      keys: "shift+t",
-      label: "Hell/Dunkel wechseln",
-      group: "Allgemein",
-      run: () => setDark(toggleTheme() === "dark"),
-    },
-  ]);
 }
 
 function MoreSheet({
@@ -458,15 +457,6 @@ function ShellFrame({
       zone: item.key,
       run: () => navigate(item.href),
     }));
-  if (onOpenPalette) {
-    bindings.unshift({
-      keys: "mod+k",
-      label: "Suchen und Befehle",
-      group: "Allgemein",
-      allowInInput: true,
-      run: onOpenPalette,
-    });
-  }
   useHotkeys(bindings);
 
   return (
@@ -478,6 +468,10 @@ function ShellFrame({
       <a className="skip-link" href="#main-content">
         Zum Inhalt springen
       </a>
+      {/* Overlays render before the page so page bindings ("/", "?") win. */}
+      {palette}
+      <ShortcutHelp />
+      <PrefixHint />
       <aside
         aria-label="Seitenleiste"
         className="shell-rail"
@@ -594,9 +588,6 @@ function ShellFrame({
         open={moreOpen}
         user={user}
       />
-      {palette}
-      <ShortcutHelp />
-      <PrefixHint />
     </div>
   );
 }

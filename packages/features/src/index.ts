@@ -37,3 +37,19 @@ export * from "./system-admin/privacy-admin";
 export * from "./system-admin/support-diagnostics";
 export * from "./ui-system/ui-system-catalog";
 export { ModuleSearch } from "./shared/module-search";
+export { CommandPalette } from "./command-palette/command-palette";
+export type { CommandPaletteProps } from "./command-palette/command-palette";
+export {
+  enabledSearchModules,
+  searchPalette,
+  type PaletteSearchGroup,
+  type PaletteSearchHit,
+  type PaletteSearchOutcome,
+} from "./command-palette/sources";
+export {
+  resetCommandPaletteState,
+  useCommandPalette,
+  useContextCommands,
+  type CommandPaletteControls,
+  type PaletteCommand,
+} from "./command-palette/store";

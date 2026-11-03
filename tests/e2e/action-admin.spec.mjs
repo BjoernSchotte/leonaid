@@ -17,7 +17,7 @@ async function confirmTransition(page, trigger, confirm) {
   await page.getByTestId(trigger).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".ui-dialog__description")).toHaveText(/.{20,}/);
+  await expect(dialog.locator(".modal-description")).toHaveText(/.{20,}/);
   await dialog.getByRole("button", { name: confirm }).click();
 }
 

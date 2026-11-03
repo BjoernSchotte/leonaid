@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+import { consumeCreateRequest } from "../command-palette/create-request";
+import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import {
   ActionContextSearch,
@@ -24,6 +27,27 @@ export function KnowledgePage({
   const { knownActions, managedActions } = contexts;
   const [notice, setNotice] = useState("");
   const operation = useRef(crypto.randomUUID());
+  const createPanel = useRef<HTMLDetailsElement>(null);
+  const openCreate = () => {
+    const panel = createPanel.current;
+    if (!panel) return;
+    panel.open = true;
+    panel.querySelector<HTMLInputElement>("input")?.focus();
+  };
+  // "Wissensseite anlegen" from the palette, here or on another page.
+  useEffect(() => {
+    if (consumeCreateRequest("knowledge-page")) openCreate();
+  }, []);
+  useContextCommands([
+    {
+      id: "create:knowledge-page",
+      label: "Wissensseite anlegen",
+      group: "Wissen",
+      icon: Plus,
+      keywords: ["neu", "Seite"],
+      run: openCreate,
+    },
+  ]);
   const pages = useQuery({
     queryKey: ["knowledge-pages", search, offset, actionFilter],
     queryFn: () =>
@@ -84,7 +108,7 @@ export function KnowledgePage({
           ))}
         </select>
       </label>
-      <details className="knowledge-create">
+      <details className="knowledge-create" ref={createPanel}>
         <summary>Neue Seite</summary>
         <form
           onSubmit={(event) => {

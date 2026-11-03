@@ -313,9 +313,8 @@
   justify-self: end;
   white-space: nowrap;
 }
-.task-quick-create .ui-status-message {
+.task-quick-create .callout {
   grid-column: 1 / -1;
-  grid-area: error;
 }
 .task-editor-property {
   border-top: 1px solid var(--border);

@@ -112,7 +112,7 @@ test("UI catalog proves all base states with real identity", async ({
     const toast = page.getByTestId("toast");
     await expect(toast).toContainText("Änderung gespeichert");
     await toast.hover();
-    await page.getByRole("button", { name: "Hinweis schließen" }).click();
+    await page.getByRole("button", { name: "Meldung schließen" }).click();
     await expect(toast).toHaveCount(0);
 
     await page.getByRole("button", { name: "Toast anzeigen" }).click();
@@ -126,9 +126,17 @@ test("UI catalog proves all base states with real identity", async ({
     await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Kritische Aktion bestätigen?");
+    // axe measures contrast through opacity; wait until the rise ends.
+    await dialog.evaluate((element) =>
+      Promise.all(
+        element.getAnimations().map((animation) => animation.finished),
+      ),
+    );
     await expectNoSeriousAccessibilityViolations(page, "Bestätigungsdialog");
+    await expect(page.locator("html")).toHaveCSS("overflow-y", "hidden");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
+    await expect(page.locator("html")).not.toHaveCSS("overflow-y", "hidden");
     await expect(
       page.getByRole("button", { name: "Bestätigung öffnen" }),
     ).toBeFocused();
@@ -210,6 +218,57 @@ test("UI catalog proves all base states with real identity", async ({
     ).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(editDialog).toBeHidden();
+
+    // Toasts stay visible above an open modal: the toaster moves into it.
+    await expect(page.locator(".toaster-region").first()).toBeAttached();
+    await page.evaluate(() => {
+      window.__toastRegions = [...document.querySelectorAll(".toaster-region")];
+    });
+    await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
+    await expect(dialog.getByTestId("toast").first()).toBeVisible();
+    // Dismissing a toast inside the open modal must not replay its rise.
+    await dialog.evaluate((element) =>
+      Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished),
+      ),
+    );
+    await dialog
+      .getByTestId("toast")
+      .first()
+      .getByRole("button", { name: "Meldung schließen" })
+      .click();
+    await expect(dialog.getByTestId("toast")).toHaveCount(0);
+    expect(
+      await dialog.evaluate((element) => ({
+        animations: element.getAnimations({ subtree: true }).length,
+        dialogAnimation: getComputedStyle(element).animationName,
+        opacity: getComputedStyle(element.querySelector(".modal-body")).opacity,
+      })),
+    ).toEqual({ animations: 0, dialogAnimation: "none", opacity: "1" });
+    await expect(dialog).toBeVisible();
+    // Confirm closes the dialog and shows the result in the same update;
+    // the result lands in the same, already connected live regions.
+    await dialog.getByRole("button", { name: "Aktion bestätigen" }).click();
+    await expect(dialog).toHaveCount(0);
+    const result = page
+      .getByTestId("toast")
+      .filter({ hasText: "Bestätigung abgeschlossen" });
+    await expect(result).toBeVisible();
+    expect(
+      await page.evaluate(() => {
+        const regions = [...document.querySelectorAll(".toaster-region")];
+        return (
+          regions.length === 2 &&
+          regions.every(
+            (region, index) => region === window.__toastRegions[index],
+          ) &&
+          regions.every((region) => !region.closest("dialog")) &&
+          regions[0].textContent.includes("Bestätigung abgeschlossen")
+        );
+      }),
+    ).toBe(true);
 
     // ≤ 1024 px: the rail collapses to its icon column.
     await page.setViewportSize({ width: 1024, height: 1000 });

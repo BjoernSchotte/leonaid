@@ -237,15 +237,40 @@ describe("RailShell", () => {
     expect(document.getElementById("main-content")?.tagName).toBe("MAIN");
   });
 
-  it("opens the palette from the search entries and with mod+k", () => {
+  it("mounts the palette slot and opens it from every search entry", () => {
     const onOpenPalette = vi.fn();
     shell({ onOpenPalette, palette: <div data-testid="palette" /> });
     expect(screen.getByTestId("palette")).toBeTruthy();
     const entries = screen.getAllByRole("button", { name: /^Suchen/ });
     expect(entries).toHaveLength(2);
     for (const entry of entries) fireEvent.click(entry);
-    press("k", { ctrlKey: true });
+    fireEvent.click(screen.getByTestId("mobile-menu"));
+    fireEvent.click(
+      within(screen.getByTestId("mobile-sheet")).getByRole("button", {
+        name: "Suchen und Befehle",
+      }),
+    );
     expect(onOpenPalette).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("mobile-sheet").hasAttribute("open")).toBe(false);
+  });
+
+  it("lets a page binding beat the palette slot's binding", () => {
+    const paletteRun = vi.fn();
+    const pageRun = vi.fn();
+    function Palette() {
+      useHotkeys([
+        { keys: "/", label: "Suchen", group: "Allgemein", run: paletteRun },
+      ]);
+      return null;
+    }
+    function Page() {
+      useHotkeys([{ keys: "/", label: "Liste", group: "Liste", run: pageRun }]);
+      return null;
+    }
+    shell({ palette: <Palette />, children: <Page /> });
+    press("/");
+    expect(pageRun).toHaveBeenCalledTimes(1);
+    expect(paletteRun).not.toHaveBeenCalled();
   });
 
   it("hides the search entries without a palette", () => {

@@ -819,7 +819,7 @@
   line-height: 1.45;
 }
 
-.commitment-invoice-review__approval > .ui-status,
+.commitment-invoice-review__approval > .callout,
 .commitment-invoice-review__actions {
   grid-column: 1 / -1;
 }
@@ -929,7 +929,7 @@
     grid-template-columns: 1fr;
   }
 
-  .commitment-invoice-review__approval > .ui-status,
+  .commitment-invoice-review__approval > .callout,
   .commitment-invoice-review__actions {
     grid-column: auto;
   }

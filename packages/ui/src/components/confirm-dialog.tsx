@@ -1,6 +1,5 @@
-import { AlertDialog } from "@base-ui/react/alert-dialog";
-
-import { Button, buttonClassName } from "./button";
+import { Button } from "./button";
+import { Modal } from "./modal";
 
 export interface ConfirmDialogProps {
   readonly confirmLabel: string;
@@ -13,6 +12,7 @@ export interface ConfirmDialogProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
+/** A small alert dialog that names the consequence before a critical change. */
 export function ConfirmDialog({
   confirmLabel,
   description,
@@ -24,31 +24,27 @@ export function ConfirmDialog({
   tone = "primary",
 }: ConfirmDialogProps) {
   return (
-    <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
-      <AlertDialog.Portal>
-        <AlertDialog.Backdrop className="ui-dialog-backdrop" />
-        <AlertDialog.Viewport className="ui-dialog-viewport">
-          <AlertDialog.Popup className="ui-dialog">
-            <AlertDialog.Title className="ui-dialog__title">
-              {title}
-            </AlertDialog.Title>
-            <AlertDialog.Description className="ui-dialog__description">
-              {description}
-            </AlertDialog.Description>
-            <div className="ui-dialog__actions">
-              <AlertDialog.Close
-                className={buttonClassName({ variant: "secondary" })}
-                disabled={pending}
-              >
-                Abbrechen
-              </AlertDialog.Close>
-              <Button disabled={pending} onClick={onConfirm} variant={tone}>
-                {pending ? "Wird gespeichert …" : confirmLabel}
-              </Button>
-            </div>
-          </AlertDialog.Popup>
-        </AlertDialog.Viewport>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
+    <Modal
+      description={description}
+      footer={
+        <>
+          <Button
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+            variant="ghost"
+          >
+            Abbrechen
+          </Button>
+          <Button loading={pending} onClick={onConfirm} variant={tone}>
+            {pending ? "Wird gespeichert …" : confirmLabel}
+          </Button>
+        </>
+      }
+      onClose={() => onOpenChange(false)}
+      open={open}
+      role="alertdialog"
+      size="sm"
+      title={title}
+    />
   );
 }

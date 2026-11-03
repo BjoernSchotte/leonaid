@@ -1,5 +1,8 @@
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
-import { useActionInUrl } from "../action-admin/action-location";
+import {
+  requestedUnlistedAction,
+  useActionInUrl,
+} from "../action-admin/action-location";
 import { DeliverySummary } from "./delivery-fields";
 import {
   DeliveryCompletion,
@@ -424,12 +427,40 @@ export function CommitmentAdminPage({
   client,
   identity,
 }: CommitmentAdminPageProps) {
+  // Mirrors may_manage_action: a system admin manages every action, a
+  // charity admin only their own.
+  const systemAdmin = identity.globalRoles.includes("system_admin");
+  const memberActions = useMemo(() => {
+    const seen = new Set<string>();
+    return identity.actionMemberships.filter((membership) => {
+      const eligible = systemAdmin || membership.role === "charity_admin";
+      if (!eligible || seen.has(membership.actionId)) return false;
+      seen.add(membership.actionId);
+      return true;
+    });
+  }, [identity.actionMemberships, systemAdmin]);
+  // A search hit links to ?action=<id>; keep that action selectable for the
+  // whole visit, even after the selector moves to another action.
+  const [unlistedActionId] = useState(() =>
+    requestedUnlistedAction(memberActions, systemAdmin),
+  );
+  const unlistedAction = useQuery({
+    enabled: Boolean(unlistedActionId),
+    queryFn: () => client.getCharityAction(unlistedActionId!),
+    queryKey: ["charity-action", unlistedActionId],
+  });
   const memberships = useMemo(
     () =>
-      identity.actionMemberships.filter(
-        (membership) => membership.role === "charity_admin",
-      ),
-    [identity.actionMemberships],
+      unlistedActionId
+        ? [
+            {
+              actionId: unlistedActionId,
+              actionName: unlistedAction.data?.name ?? "Charity-Aktion",
+            },
+            ...memberActions,
+          ]
+        : memberActions,
+    [memberActions, unlistedActionId, unlistedAction.data?.name],
   );
   const query = new URLSearchParams(window.location.search);
   const requestedAction = query.get("action");

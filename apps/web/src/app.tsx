@@ -6,6 +6,7 @@ import {
   ActionListPage,
   AcquisitionAdminPage,
   ActivityFeedPage,
+  CommandPalette,
   CommitmentAdminPage,
   CreateActionPage,
   FeatureFlagAdminPage,
@@ -24,17 +25,44 @@ import {
   railCampaigns,
   railNavigation,
   resolveModuleRoute,
+  useCommandPalette,
+  type PaletteCommand,
   type UiModule,
 } from "@leonaid/features";
+import { Moon, Sun } from "lucide-react";
+
 import {
   activeNavigationKey,
   Button,
   buttonClassName,
   RailShell,
+  setThemePreference,
   StatusMessage,
+  toggleTheme,
 } from "@leonaid/ui";
 
 import { webModules } from "./modules";
+
+/** Shell commands of the palette's "Einstellungen" section (prototype). */
+const themeCommands: readonly PaletteCommand[] = [
+  {
+    id: "theme-toggle",
+    label: "Hell/Dunkel wechseln",
+    group: "Einstellungen",
+    icon: Moon,
+    keys: "shift+t",
+    keywords: ["Theme", "Darstellung", "dunkel", "hell"],
+    run: () => void toggleTheme(),
+  },
+  {
+    id: "theme-system",
+    label: "Darstellung wie System",
+    group: "Einstellungen",
+    icon: Sun,
+    keywords: ["Theme", "Systemeinstellung", "folgen"],
+    run: () => setThemePreference("system"),
+  },
+];
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
@@ -96,6 +124,7 @@ function route(available: readonly UiModule[]) {
 
 export function App({ client }: AppProps) {
   const selectedActionId = useCurrentActionId();
+  const palette = useCommandPalette();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -176,12 +205,13 @@ export function App({ client }: AppProps) {
         ? selectedActionId
         : "";
   const editorHref = campaignEditorHref(identity.data, actionId);
+  const serverNavigation = identity.data.navigation.map((item) =>
+    item.key === "microsite" && editorHref
+      ? { ...item, href: editorHref }
+      : item,
+  );
   const navigation = railNavigation(
-    identity.data.navigation.map((item) =>
-      item.key === "microsite" && editorHref
-        ? { ...item, href: editorHref }
-        : item,
-    ),
+    serverNavigation,
     webModules.map((module) => module.id),
   );
   const campaigns = railCampaigns(identity.data);
@@ -208,6 +238,16 @@ export function App({ client }: AppProps) {
             : undefined
         }
         navigation={navigation}
+        onOpenPalette={() => palette.setOpen(true)}
+        palette={
+          <CommandPalette
+            commands={themeCommands}
+            context={{ client, identity: identity.data }}
+            modules={webModules}
+            navigation={serverNavigation}
+            surface="web"
+          />
+        }
         onLogout={() => {
           void client.logout().finally(() => {
             window.location.assign("/login");

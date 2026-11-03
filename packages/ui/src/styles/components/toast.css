@@ -1,0 +1,81 @@
+/* Toasts: ported from the Leitsystem prototype (components.css). */
+.toaster {
+  position: fixed;
+  right: var(--s-4);
+  bottom: var(--s-4);
+  z-index: 1000;
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+}
+/* Polite and assertive live regions inside the toaster (product a11y). */
+.toaster-region {
+  display: grid;
+  gap: var(--s-2);
+}
+.toaster-region:not(:empty) + .toaster-region:not(:empty) {
+  margin-top: var(--s-2);
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm);
+  animation: rise var(--dur-2) var(--ease-out);
+}
+.toast.tone-ok > svg {
+  color: var(--ok);
+}
+.toast.tone-danger > svg {
+  color: var(--danger);
+}
+.toast.tone-info > svg {
+  color: var(--info);
+}
+.toast > svg {
+  flex: none;
+}
+.toast-text {
+  flex: 1;
+}
+/* Product toasts carry a title and an optional description. */
+.toast-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.toast-title {
+  font-weight: inherit;
+}
+.toast-title:has(+ .toast-description) {
+  font-weight: var(--fw-semibold);
+}
+.toast-description {
+  color: var(--text-2);
+}
+.toast-action,
+.toast-close {
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  padding: var(--s-1);
+  border-radius: var(--r-xs);
+}
+.toast-close {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+}
+
+@media (max-width: 800px) {
+  .toast-action,
+  .toast-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
