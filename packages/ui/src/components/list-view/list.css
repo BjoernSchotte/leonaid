@@ -5,6 +5,23 @@
  * (globals.css); nothing here brings them back.
  */
 
+/* Base type of the prototype's body and headings (base.css), scoped so the
+   list looks the same under any shell. */
+.listview {
+  font-size: var(--fs-md);
+  line-height: var(--lh-ui);
+}
+.listview :is(h1, h2, h3) {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.listview svg.lucide {
+  flex: none;
+}
+
 /* Page header (scoped to the list until the shell ports it globally). */
 .listview .page-header {
   display: flex;
