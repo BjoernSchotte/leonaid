@@ -7,7 +7,26 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+    # GitHub cache downloads fail transiently (429, 5xx). The first attempt
+    # may fail; the retry below then decides the job. A truly missing key
+    # fails both attempts.
+    - id: restore
+      continue-on-error: true
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ runner.temp }}/leonaid-synthetic-fixture
+        key: ${{ inputs.key }}
+        fail-on-cache-miss: true
+    - name: Back off before retrying the fixture download
+      if: steps.restore.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning title=Infrastructure retry::Fixture cache restore failed; retrying once in 30s"
+        rm -rf "$RUNNER_TEMP/leonaid-synthetic-fixture"
+        sleep 30
+    - name: Retry fixture download
+      if: steps.restore.outcome == 'failure'
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ runner.temp }}/leonaid-synthetic-fixture
         key: ${{ inputs.key }}
