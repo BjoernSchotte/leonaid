@@ -47,6 +47,11 @@ export function useHotkeyRegistry(): HotkeyRegistry {
   return registry;
 }
 
+/** The surrounding registry, or null outside a HotkeyProvider. */
+export function useOptionalHotkeyRegistry(): HotkeyRegistry | null {
+  return useContext(HotkeyContext);
+}
+
 /**
  * Registers bindings while the component is mounted; unmounting removes
  * them. `run` and `when` always call the latest render's functions. The set

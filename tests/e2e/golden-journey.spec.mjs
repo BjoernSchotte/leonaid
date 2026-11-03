@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { openInvoice } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -396,13 +397,15 @@ test("complete Krapfentaxi journey without database intervention", async ({
   expect(invoiceNumber).toMatch(/^KT[0-9]{2}-[0-9]{4}$/);
 
   await adminPage.goto(`${baseUrl}/admin/invoices`);
-  const invoiceRow = adminPage
-    .getByTestId("invoice-row")
+  const invoiceLink = adminPage
+    .locator(".listview .row-link")
     .filter({ hasText: identity.company });
-  await expect(invoiceRow).toBeVisible();
-  const invoiceId = await invoiceRow.getAttribute("data-invoice-id");
+  await expect(invoiceLink).toBeVisible();
+  const invoiceId = await invoiceLink
+    .locator("[data-invoice-row]")
+    .getAttribute("data-invoice-row");
   expect(invoiceId).toMatch(/^[0-9a-f-]{36}$/);
-  await invoiceRow.locator("summary").click();
+  const invoiceRow = await openInvoice(adminPage, { id: invoiceId });
   await expect
     .poll(
       async () =>
@@ -430,18 +433,19 @@ test("complete Krapfentaxi journey without database intervention", async ({
     .toBe("sent");
 
   await invoiceRow.getByTestId("open-payment-form").click();
-  await invoiceRow.getByTestId("payment-amount").fill("72.00");
-  await invoiceRow
+  const paymentDialog = adminPage.getByRole("dialog", {
+    name: /Zahlung für .* erfassen/,
+  });
+  await paymentDialog.getByTestId("payment-amount").fill("72.00");
+  await paymentDialog
     .getByTestId("payment-date")
     .fill(new Date().toISOString().slice(0, 10));
-  await invoiceRow
+  await paymentDialog
     .getByTestId("payment-reference")
     .fill(`GOLDEN-${slug.toUpperCase()}`);
-  await invoiceRow.getByTestId("record-payment").click();
-  await expect(invoiceRow.getByTestId("invoice-settlement")).toHaveAttribute(
-    "data-state",
-    "paid",
-  );
+  await paymentDialog.getByTestId("record-payment").click();
+  await expect(paymentDialog).toBeHidden();
+  await expect(invoiceRow).toHaveAttribute("data-settlement", "paid");
 
   await adminPage.goto(
     `${baseUrl}/admin/?action=20000000-0000-4000-8000-000000000001`,

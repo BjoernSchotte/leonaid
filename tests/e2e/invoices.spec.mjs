@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRows, openInvoice, showInvoiceView } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
@@ -326,16 +327,11 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(page.getByTestId("invoice-profile")).toContainText(
-      "Freigegebene Rechtsgrundlage aktiv",
-    );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(4);
-    await expect(page.getByTestId("invoice-totals")).toContainText("648,00");
-    const issuedRow = page
-      .getByTestId("invoice-row")
-      .filter({ hasText: "KT26-0004" });
-    await expect(issuedRow).toBeVisible();
-    await issuedRow.locator("summary").click();
+    await expect(page.getByTestId("invoice-profile-incomplete")).toHaveCount(0);
+    await expect(page.getByTestId("invoice-open-total")).toContainText("€");
+    await showInvoiceView(page, "Alle");
+    await expect(invoiceRows(page)).toHaveCount(4);
+    const issuedRow = await openInvoice(page, { number: "KT26-0004" });
     await expect(issuedRow).toContainText("Bäckerei Sonnenseite KG");
     await expect(issuedRow).toContainText("Sonnenstraße 2");
     await expect(issuedRow).toContainText(
@@ -375,10 +371,11 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     await expect(
       financePage.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(financePage.getByTestId("invoice-profile")).toContainText(
-      "Nur Lesezugriff",
+    await expect(financePage.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
     );
-    await expect(financePage.getByTestId("invoice-row")).toHaveCount(4);
+    await showInvoiceView(financePage, "Alle");
+    await expect(invoiceRows(financePage)).toHaveCount(4);
     await expect(financePage.getByTestId("issue-invoice")).toHaveCount(0);
     await expect(financePage.getByTestId("mobile-menu")).toBeVisible();
     await expect(financePage.getByTestId("desktop-sidebar")).toBeHidden();

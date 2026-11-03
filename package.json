@@ -28,7 +28,8 @@
     "typecheck:pwa": "tsc --noEmit -p apps/pwa/tsconfig.json",
     "typecheck:public": "bun run --filter @leonaid/public typecheck",
     "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json && tsc --noEmit -p packages/ui/tsconfig.test.json",
-    "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json"
+    "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json",
+    "test:pwa": "bun run --filter @leonaid/pwa test"
   },
   "overrides": {
     "zod": "4.6.7"
@@ -44,6 +45,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
     "jsdom": "29.1.1",
+    "postcss": "8.5.32",
     "prettier": "3.6.2",
     "prettier-plugin-astro": "0.14.1",
     "tailwindcss": "4.3.3",

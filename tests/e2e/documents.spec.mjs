@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { openInvoice } from "./invoice-list.mjs";
 import { readFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -43,12 +44,13 @@ function sessionCookie(value) {
 }
 
 async function openDocumentRow(page) {
-  await page.goto(`${baseUrl}/admin/invoices`);
+  await page.goto(`${baseUrl}/admin/invoices?view=all`);
   await expect(page.getByRole("heading", { name: "Rechnungen" })).toBeVisible();
-  const row = page.getByTestId("invoice-row").filter({ hasText: "KT26-0001" });
-  await expect(row).toBeVisible();
-  await row.locator("summary").click();
-  await expect(row.getByTestId("invoice-document")).toBeVisible();
+  const row = await openInvoice(page, { number: "KT26-0001" });
+  await expect(row.getByTestId("invoice-document")).toHaveAttribute(
+    "data-state",
+    "available",
+  );
   await expect(row.getByText("Rechnung-KT26-0001.pdf")).toBeVisible();
   await expect(row.getByTestId("invoice-document-metadata")).toContainText(
     /PDF · .+ · Version 2 · erzeugt/,
@@ -126,8 +128,6 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
 
   try {
     const row = await openDocumentRow(page);
-    await expect(row.getByText("Unveränderliches Rechnungs-PDF")).toBeVisible();
-    await expect(row.getByText("Bereit")).toBeVisible();
     await expectByteIdenticalDownload(row);
 
     const preview = await expectStableTopLevelPreview(context, row);
@@ -137,6 +137,18 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
       path: `${artifactDirectory}/document-admin-desktop.png`,
       fullPage: true,
     });
+
+    // "Dokumente" lists the same immutable PDF with its own download.
+    await page.getByTestId("invoice-section-documents").click();
+    await expect(page).toHaveURL(/\/admin\/invoices\/documents\?action=/);
+    await expect(
+      page.getByRole("heading", { name: "Dokumente" }),
+    ).toBeVisible();
+    const documentRow = page
+      .getByTestId("document-row")
+      .filter({ hasText: "KT26-0001" });
+    await expect(documentRow).toBeVisible();
+    await expectByteIdenticalDownload(documentRow);
     const accessibility = await new AxeBuilder({ page }).analyze();
     expect(
       accessibility.violations.filter(
@@ -160,8 +172,8 @@ test("finance role sees the invoice on mobile; acquisition and foreign actions g
   const financePage = await financeContext.newPage();
   try {
     const row = await openDocumentRow(financePage);
-    await expect(financePage.getByTestId("invoice-profile")).toContainText(
-      "Nur Lesezugriff",
+    await expect(financePage.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
     );
     await expect(row.getByTestId("preview-document")).toBeVisible();
     await expect(row.getByTestId("download-document")).toBeVisible();

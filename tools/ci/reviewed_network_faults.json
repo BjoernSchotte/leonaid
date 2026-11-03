@@ -71,7 +71,7 @@
   },
   {
     "path": "tests/e2e/command-palette.spec.mjs",
-    "sha256": "c42ec38adc533541541ce8e9c8b2d00a5d870c3ce93ba54067803f7b6dbb4b32",
+    "sha256": "37432d8039bcb745e206c4eb93e46ef973601acd5b686887c33c7bb38d710894",
     "reason": "Hold one real search request for 3 s, then forward it unchanged, so the next keystroke must abort it in flight; every response comes from the real API."
   }
 ]

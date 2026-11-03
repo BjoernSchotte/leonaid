@@ -306,6 +306,176 @@ test("UI catalog proves all base states with real identity", async ({
   }
 });
 
+async function createListDemoPage(browser, viewport) {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport,
+  });
+  await context.addCookies([sessionCookie(simoneSession)]);
+  await context.addInitScript(() => {
+    window.localStorage.setItem("leonaid.theme", "light");
+    window.localStorage.setItem("leonaid.sidebar-collapsed", "false");
+  });
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.goto(`${baseUrl}/admin/system/ui?listview`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bestellungen" }),
+  ).toBeVisible();
+  return { context, page, pageErrors };
+}
+
+test("list view: keys, URL state, detail pane and bulk bar", async ({
+  browser,
+}) => {
+  const { context, page, pageErrors } = await createListDemoPage(browser, {
+    width: 1440,
+    height: 1000,
+  });
+
+  try {
+    const rows = page.locator(".row-link");
+    await expect(page.getByText("7 von 24")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Zu prüfen", pressed: true }),
+    ).toBeVisible();
+    await expectNoSeriousAccessibilityViolations(page, "Liste");
+
+    // j/k move the focus, Enter opens the pane, Esc closes it again.
+    await page.keyboard.press("j");
+    await page.keyboard.press("j");
+    await page.keyboard.press("k");
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press("Enter");
+    const pane = page.getByRole("complementary", { name: /^Details: B-26-/ });
+    await expect(pane).toBeVisible();
+    await expect(page).toHaveURL(/[?&]open=b\d+/);
+    await pane.evaluate((element) =>
+      Promise.all(element.getAnimations().map((a) => a.finished)),
+    );
+    await expect(page).toHaveScreenshot("ui-system-list-pane.png", {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.001,
+    });
+    await expectNoSeriousAccessibilityViolations(page, "Liste mit Detail");
+    await page.keyboard.press("j");
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(pane).toHaveCount(0);
+    await expect(rows.nth(1)).toBeFocused();
+    await expect(page).not.toHaveURL(/[?&]open=/);
+
+    // x checks rows; the bulk bar edits all of them; Esc clears.
+    await page.keyboard.press("x");
+    await page.keyboard.press("k");
+    await page.keyboard.press("x");
+    const bulk = page.getByRole("region", { name: "Auswahl" });
+    await expect(bulk).toContainText("2 ausgewählt");
+    await expectNoSeriousAccessibilityViolations(page, "Bulk-Leiste");
+    await page.keyboard.press("Escape");
+    await expect(bulk).toHaveCount(0);
+
+    // f opens the filter menu; keys are inert while typing in it.
+    await page.keyboard.press("f");
+    const filterMenu = page.getByRole("dialog", { name: "Filter wählen" });
+    await expect(filterMenu.getByRole("combobox")).toBeFocused();
+    await page.keyboard.type("Herk");
+    await page.keyboard.press("Enter");
+    const sourceMenu = page.getByRole("dialog", { name: "Filter Herkunft" });
+    await expect(sourceMenu.getByRole("combobox")).toBeFocused();
+    await page.keyboard.press("2");
+    await expectNoSeriousAccessibilityViolations(page, "Filtermenü");
+    await page.keyboard.press("Escape");
+    await expect(sourceMenu).toHaveCount(0);
+    await expect(page).toHaveURL(/f\.source=%C3%96ffentlich/);
+
+    // / focuses the search; j types instead of moving.
+    await page.keyboard.press("/");
+    const search = page.getByRole("searchbox");
+    await expect(search).toBeFocused();
+    await page.keyboard.type("j");
+    await expect(search).toHaveValue("j");
+    await search.fill("");
+    await page.keyboard.press("Escape");
+
+    // The URL carries view, filters and grouping across a reload.
+    await page.getByRole("button", { name: "Alle", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Gruppieren nach" })
+      .selectOption("status");
+    const url = page.url();
+    expect(url).toContain("view=all");
+    expect(url).toContain("group=status");
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: /^Alle/, pressed: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Gruppieren nach" }),
+    ).toHaveValue("status");
+    await expect(page.getByText("24 Bestellungen")).toBeVisible();
+
+    // The palette offers the list's commands.
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+    await expect(palette).toBeVisible();
+    await page.keyboard.type("Alle Bestellungen auswählen");
+    await expect(
+      palette.getByRole("option", { name: /Alle Bestellungen auswählen/ }),
+    ).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
+    await expect(page.getByRole("region", { name: "Auswahl" })).toContainText(
+      "24 ausgewählt",
+    );
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("region", { name: "Auswahl" })).toHaveCount(0);
+
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+test("list view: detail is a full-screen sheet at 390 px", async ({
+  browser,
+}) => {
+  const { context, page, pageErrors } = await createListDemoPage(browser, {
+    width: 390,
+    height: 844,
+  });
+
+  try {
+    await page.locator(".row-link").first().click();
+    const sheet = page.getByRole("dialog", { name: /^Details: B-26-/ });
+    await expect(sheet).toBeVisible();
+    await sheet.evaluate((element) =>
+      Promise.all(element.getAnimations().map((a) => a.finished)),
+    );
+    const box = await sheet.boundingBox();
+    expect(
+      box &&
+        Object.fromEntries(
+          Object.entries(box).map(([key, value]) => [key, Math.round(value)]),
+        ),
+    ).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+    await expect(page).toHaveScreenshot("ui-system-list-sheet.png", {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.001,
+    });
+    await expectNoSeriousAccessibilityViolations(page, "Detail mobil");
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]open=/);
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
 test("uses self-hosted Leitsystem fonts", async ({ browser }) => {
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,

@@ -136,7 +136,9 @@ function route(available: readonly UiModule[]) {
   if (pathname === "/legal") return { kind: "legal" } as const;
   if (pathname === "/system/ui") return { kind: "system-ui" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
-  if (pathname === "/invoices") return { kind: "invoices" } as const;
+  if (/^\/invoices(\/(payments|documents))?$/.test(pathname)) {
+    return { kind: "invoices" } as const;
+  }
   if (pathname === "/activities") return { kind: "activities" } as const;
   if (pathname === "/acquisition") return { kind: "acquisition" } as const;
   if (pathname === "/actions/new") return { kind: "new" } as const;

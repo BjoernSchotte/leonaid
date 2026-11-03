@@ -136,7 +136,10 @@
   cursor: pointer;
 }
 /* Product touch-target contract: every interactive target on the mobile
-   layout (≤ 800 px, the shell breakpoint) is at least 44 px. */
+   layout (≤ 800 px, the shell breakpoint) is at least 44 px.
+   In the PWA build, width-only @media rules also apply to the 480 px column
+   as @container queries (apps/pwa/column-queries.ts). A rule that must stay
+   on the viewport only names a media type: `@media screen and (…)`. */
 @media (max-width: 800px) {
   .btn {
     min-height: var(--control-h-lg);

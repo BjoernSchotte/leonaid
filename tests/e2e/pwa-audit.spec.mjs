@@ -131,6 +131,12 @@ test("POC-062 manifest, installation, update and offline notice are real", async
   await expect(page.locator('[data-testid="offline-banner"]')).toContainText(
     "LeonAid speichert keine Änderungen im Hintergrund",
   );
+  // The shell keeps the open page, its tabs and the gold network state.
+  await expect(page.getByRole("img", { name: "Offline" })).toBeVisible();
+  await expect(page.locator("main h1")).toContainText("Guten Tag, Anna.");
+  await expect(
+    page.getByRole("navigation", { name: "App-Navigation" }),
+  ).toBeVisible();
   const offlineNavigation = await page.goto(
     `${baseUrl}/app/nicht-im-cache-${Date.now()}`,
   );
@@ -149,4 +155,87 @@ test("POC-062 manifest, installation, update and offline notice are real", async
     path: `${artifactDirectory}/pwa-offline-chromium.png`,
     fullPage: true,
   });
+});
+
+test("Leitsystem shell keeps an open capture visible while offline", async ({
+  context,
+  page,
+}) => {
+  await context.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: annaSession,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    },
+  ]);
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await page
+    .getByTestId("sponsor-row")
+    .filter({ hasText: "Musterwerk GmbH" })
+    .getByRole("link", { name: "Bestellung" })
+    .click();
+  await expect(page.getByTestId("commitment-party")).toContainText(
+    "Musterwerk GmbH",
+  );
+  // Orders have no tab of their own ("Neu" creates a sponsor).
+  await expect(
+    page
+      .getByRole("navigation", { name: "App-Navigation" })
+      .locator('[aria-current="page"]'),
+  ).toHaveCount(0);
+  const street = page.getByTestId("commitment-street");
+  await street.fill("Offlineweg 7");
+  await page.getByTestId("commitment-quantity").fill("3");
+
+  await context.setOffline(true);
+  const banner = page.getByTestId("offline-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner.locator("..")).toHaveAttribute("role", "status");
+  await expect(banner).toContainText("Du bist offline.");
+  // What the acquirer already entered stays on screen and editable.
+  await expect(street).toHaveValue("Offlineweg 7");
+  await expect(street).toBeEditable();
+  await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
+  await expect(page.getByTestId("commitment-party")).toContainText(
+    "Musterwerk GmbH",
+  );
+  // The gold glyph stays in the sticky bar; the banner sits under the bar.
+  await expect(page.getByRole("img", { name: "Offline" })).toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const bannerBox = await banner.boundingBox();
+  const barBox = await page.locator(".pwa-bar").boundingBox();
+  expect(bannerBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(
+    results.violations.filter(({ impact }) =>
+      ["critical", "serious"].includes(impact),
+    ),
+  ).toEqual([]);
+  await page.screenshot({
+    path: `${artifactDirectory}/pwa-offline-capture-chromium-390.png`,
+    fullPage: true,
+  });
+
+  // Saving offline fails in Du wording and keeps every entry.
+  await page.getByTestId("commitment-save-draft").click();
+  await expect(page.locator("main")).toContainText(
+    "Die Bestellung konnte nicht gespeichert werden. Prüfe deine Verbindung; deine Eingaben bleiben erhalten.",
+  );
+  await expect(street).toHaveValue("Offlineweg 7");
+  await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
+  await expect(page.getByTestId("commitment-party")).toContainText(
+    "Musterwerk GmbH",
+  );
+
+  await context.setOffline(false);
+  await expect(banner).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Online" })).toBeVisible();
+  await expect(street).toHaveValue("Offlineweg 7");
 });

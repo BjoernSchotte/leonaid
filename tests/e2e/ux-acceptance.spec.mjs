@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRows } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -148,12 +149,15 @@ test("charity admin completes the desktop review path without losing context", a
 
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
-    await expect(page).toHaveURL(/\/admin\/invoices\?.*status=open/);
-    await expect(page.getByTestId("invoice-filter-open")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(1);
+    // The dashboard's ?status=open link lands in the "Offen" list view.
+    await expect(page).toHaveURL(/\/admin\/invoices\?action=/);
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Gespeicherte Ansichten" })
+        .getByRole("button", { name: "Offen", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(invoiceRows(page)).toHaveCount(1);
     await expect(
       page.getByRole("heading", { level: 1, name: "Rechnungen" }),
     ).toBeVisible();

@@ -50,7 +50,9 @@ for (const [surface, route, width] of [
     // Touch targets are 44 px on phones; desktop shell controls are 32 px.
     const iconTarget = width <= 760 ? 44 : 32;
     const iconButtonBox = await page
-      .locator(".ui-icon-button:visible, .topbar .btn-icon:visible")
+      .locator(
+        ".ui-icon-button:visible, .topbar .btn-icon:visible, .pwa-bar button:visible",
+      )
       .first()
       .boundingBox();
     expect(iconButtonBox.width).toBeGreaterThanOrEqual(iconTarget);

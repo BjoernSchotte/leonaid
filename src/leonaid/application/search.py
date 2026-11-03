@@ -261,7 +261,9 @@ def _result(hit: SearchHit) -> SearchResult:
             href = f"/admin/orders?action={hit.action_id}"
         case SearchResultType.INVOICE:
             context = _context(hit.detail, hit.action_name)
-            href = f"/admin/invoices?action={hit.action_id}"
+            # The invoice list opens the hit in its pane, in the view that
+            # shows every status.
+            href = f"/admin/invoices?action={hit.action_id}&view=all&open={hit.id}"
         case SearchResultType.MEMBER:
             status = AccountStatus(str(hit.status))
             context = _context(
