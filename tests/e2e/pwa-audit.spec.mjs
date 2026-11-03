@@ -200,6 +200,9 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   await expect(page.getByTestId("commitment-party")).toContainText(
     "Musterwerk GmbH",
   );
+  // The gold glyph stays in the sticky bar; the banner sits under the bar.
+  await expect(page.getByRole("img", { name: "Offline" })).toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 0));
   const bannerBox = await banner.boundingBox();
   const barBox = await page.locator(".pwa-bar").boundingBox();
   expect(bannerBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
