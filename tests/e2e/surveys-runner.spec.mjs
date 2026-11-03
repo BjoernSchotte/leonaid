@@ -258,7 +258,18 @@ test("offline edits stay pending and retry successfully after reconnect", async 
   ).toHaveValue("Unterwegs ohne Netz ergänzt");
   const resumeUrl = page.url();
   const session = await context.storageState();
-  await context.setOffline(true);
+  // Fail the save at the request instead of with context.setOffline(true).
+  // Closing a context detaches the DevTools session first, which lifts the
+  // offline emulation while the page still runs. The page then receives an
+  // "online" event and its retry can store the unsent text before the
+  // renderer exits. A real closed tab never sends it.
+  await page.route(
+    (url) => url.pathname.startsWith(`/api/v1/public/surveys/${surveyId}/`),
+    (route) =>
+      route.request().method() === "PUT"
+        ? route.abort("internetdisconnected")
+        : route.continue(),
+  );
   await page
     .locator("[data-name=delivery_feedback] textarea")
     .fill("Unsent text must not be restored");
