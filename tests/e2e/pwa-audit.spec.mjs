@@ -182,7 +182,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   );
   const neu = page
     .getByRole("navigation", { name: "App-Navigation" })
-    .getByRole("link", { name: "Neu" });
+    .getByRole("link", { name: "Neu", exact: true });
   await expect(neu).toHaveAttribute("aria-current", "page");
   const street = page.getByTestId("commitment-street");
   await street.fill("Offlineweg 7");
