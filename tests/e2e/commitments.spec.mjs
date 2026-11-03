@@ -207,39 +207,36 @@ test("charity admin sees the same inbox and the same golden totals", async ({
     "The admin cross-check runs once in the lead desktop browser.",
   );
   await authenticate(context, klaraSession);
-  await page.goto(`${baseUrl}/admin/orders`);
+  await page.goto(`${baseUrl}/admin/orders?view=all`);
   await expect(
-    page.getByRole("heading", { name: "Bestellungen prüfen" }),
+    page.getByRole("heading", { name: "Bestellungen", exact: true }),
   ).toBeVisible();
 
   const proof = JSON.parse(await readFile(proofPath, "utf8"));
   const commitmentId = proof.browserCapture.commitmentId;
-  const createdRow = page.locator(
-    `[data-testid="commitment-row"][data-commitment-id="${commitmentId}"]`,
-  );
+  const rows = page.locator(".listview li.row");
+  const createdRow = rows.filter({
+    has: page.locator(`[data-order-id="${commitmentId}"]`),
+  });
   await expect(createdRow).toContainText("Musterwerk GmbH");
   await expect(createdRow).toContainText("2 × Krapfenbox");
   await expect(createdRow).toContainText("Prüfbereit");
-  await expect(createdRow).toContainText("Erfasst von Anna Akquise");
-  await expect(createdRow).toContainText("72,00 €");
+  await expect(
+    createdRow.getByRole("img", { name: "Erfasst von Anna Akquise" }),
+  ).toBeVisible();
+  await expect(createdRow).toContainText("72,00 €");
 
-  const draftStatus = page.locator('.commitment-status[data-status="draft"]');
-  const readyStatus = page.locator(
-    '.commitment-status[data-status="review_ready"]',
-  );
+  // Draft and review-ready differ by shape and colour.
+  const draftStatus = rows.locator(".status-label.is-draft");
+  const readyStatus = rows.locator(".status-label.is-review");
   await expect(draftStatus.first()).toBeVisible();
   await expect(readyStatus.first()).toBeVisible();
-  expect(
-    await draftStatus.first().evaluate((element) => {
-      const style = getComputedStyle(element);
-      return `${style.borderStyle}|${style.color}|${style.backgroundColor}`;
-    }),
-  ).not.toBe(
-    await readyStatus.first().evaluate((element) => {
-      const style = getComputedStyle(element);
-      return `${style.borderStyle}|${style.color}|${style.backgroundColor}`;
-    }),
-  );
+  const look = (status) =>
+    status.first().evaluate((element) => {
+      const icon = element.querySelector("svg");
+      return `${icon.innerHTML}|${getComputedStyle(icon).color}`;
+    });
+  expect(await look(draftStatus)).not.toBe(await look(readyStatus));
 
   const apiTotals = await page.evaluate(async () => {
     const response = await fetch(
@@ -264,17 +261,22 @@ test("charity admin sees the same inbox and the same golden totals", async ({
     "data-total-pieces",
     String(apiTotals.totalPieces),
   );
-  expect(await page.locator('[data-testid="commitment-row"]').count()).toBe(
-    apiTotals.items.length,
-  );
+  await expect(rows).toHaveCount(apiTotals.items.length);
 
-  await page.getByRole("tab", { name: "Entwürfe" }).click();
-  await expect(
-    page.locator('[data-testid="commitment-row"] .commitment-status'),
-  ).toHaveText(await draftStatus.allTextContents());
-  await page.getByRole("tab", { name: "Prüfbereit" }).click();
+  // The old status links still land on a filtered list.
+  await page.goto(`${baseUrl}/admin/orders?status=draft`);
+  await expect(rows.first()).toBeVisible();
+  const draftCount = apiTotals.items.filter(
+    (item) => item.commitment.status === "draft",
+  ).length;
+  await expect(rows).toHaveCount(draftCount);
+  await expect(rows.locator(".status-label")).toHaveText(
+    Array(draftCount).fill("Entwurf"),
+  );
+  await page.getByRole("button", { name: "Zu prüfen" }).click();
   await expect(createdRow).toBeVisible();
-  await page.getByRole("tab", { name: "Alle" }).click();
+  await page.getByRole("button", { name: "Alle", exact: true }).click();
+  await expect(rows).toHaveCount(apiTotals.items.length);
 
   await assertNoSeriousAxeFindings(page);
   await page.screenshot({
@@ -304,4 +306,64 @@ test("charity admin sees the same inbox and the same golden totals", async ({
     )}\n`,
     "utf8",
   );
+});
+
+test("charity admin works the orders list by keyboard", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-1440",
+    "The keyboard walk runs once in the lead desktop browser.",
+  );
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await authenticate(context, klaraSession);
+  await page.goto(`${baseUrl}/admin/orders?view=all`);
+  await expect(
+    page.getByRole("heading", { name: "Bestellungen", exact: true }),
+  ).toBeVisible();
+  const links = page.locator(".listview .row-link");
+  await expect(links.first()).toBeVisible();
+  expect(await links.count()).toBeGreaterThan(1);
+
+  // j/k move, Enter opens the pane, Esc closes it and returns to the row.
+  await page.keyboard.press("j");
+  await expect(links.first()).toBeFocused();
+  await page.keyboard.press("j");
+  await expect(links.nth(1)).toBeFocused();
+  await page.keyboard.press("k");
+  await expect(links.first()).toBeFocused();
+  await page.keyboard.press("Enter");
+  const pane = page.getByRole("complementary", { name: /^Details: / });
+  await expect(pane).toBeVisible();
+  await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
+  await expect(pane.locator("[data-commitment-id]")).toBeVisible();
+  // Status is read-only: no property row to edit in the pane.
+  await expect(pane.getByRole("group", { name: "Eigenschaften" })).toHaveCount(
+    0,
+  );
+  await assertNoSeriousAxeFindings(page);
+  await page.keyboard.press("j");
+  await expect(links.nth(1)).toBeFocused();
+  await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
+  await page.keyboard.press("Escape");
+  await expect(pane).toHaveCount(0);
+  await expect(links.nth(1)).toBeFocused();
+  await expect(page).not.toHaveURL(/[?&]open=/);
+
+  // x checks rows into the bulk bar; Esc clears the selection.
+  await page.keyboard.press("x");
+  await page.keyboard.press("k");
+  await page.keyboard.press("x");
+  const bulk = page.getByRole("region", { name: "Auswahl" });
+  await expect(bulk).toContainText("2 ausgewählt");
+  await assertNoSeriousAxeFindings(page);
+  await page.screenshot({
+    path: `${artifactDirectory}/commitment-admin-keyboard.png`,
+    fullPage: false,
+  });
+  await page.keyboard.press("Escape");
+  await expect(bulk).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });

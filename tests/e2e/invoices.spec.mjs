@@ -113,9 +113,10 @@ async function openCompletion(page) {
   await page.goto(
     `${baseUrl}/admin/orders?status=review_ready&invoice=${commitmentId}`,
   );
+  // The order opens in the list's detail pane (a sheet at 390 px).
   const row = page.locator(`[data-commitment-id="${commitmentId}"]`);
   await expect(row).toBeVisible();
-  await row.getByTestId("commitment-order-details").locator("summary").click();
+  await row.getByTestId("commitment-edit-details").click();
   const form = row.getByTestId("delivery-completion");
   await expect(form).toBeVisible();
   return { form, row };
@@ -207,7 +208,7 @@ test("manager records past delivery details historically and recovers from a com
 
     await mobile.form.getByTestId("delivery-completion-submit").click();
     await expect(mobile.form).toContainText("inzwischen geändert");
-    await expect(mobile.form).toContainText("Deine Eingaben bleiben erhalten");
+    await expect(mobile.form).toContainText("Ihre Eingaben bleiben erhalten");
     await expect(
       mobile.form.getByLabel("Ansprechpartner bei der Lieferung (optional)"),
     ).toHaveValue("Lager Süd");
@@ -283,7 +284,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
   try {
     await page.goto(`${baseUrl}/admin/orders?invoice=${commitmentId}`);
     await expect(
-      page.getByRole("heading", { name: "Bestellungen prüfen" }),
+      page.getByRole("heading", { name: "Bestellungen", exact: true }),
     ).toBeVisible();
     await expect(page.getByTestId("invoice-review")).toBeVisible();
     await expect(page.getByTestId("invoice-review")).toContainText("KT26-0004");
