@@ -10,7 +10,8 @@
  *   HOTKEY_PASSTHROUGH_ATTRIBUTE (the command palette), only bindings marked
  *   `inDialog` run.
  * - IME composition never triggers anything.
- * - Later registrations win, so a page binding beats the shell binding.
+ * - Inner and later-mounted components win, so a page binding beats the
+ *   shell binding.
  */
 
 import { isMacPlatform } from "../components/kbd";
@@ -144,9 +145,25 @@ export class HotkeyRegistry {
   private helpOpen = false;
   private readonly helpListeners = new Set<Listener>();
 
-  /** Registers a set of bindings; the handle updates or removes it. */
-  register(bindings: readonly HotkeyBinding[]): HotkeyHandle {
-    const order = this.nextOrder++;
+  /**
+   * A priority slot. useHotkeys reserves it during the first render, which
+   * runs parent before child and earlier before later mounts; effects run
+   * child first, so registering in effect order would let the shell beat
+   * the page on the first load.
+   */
+  reserve(): number {
+    return this.nextOrder++;
+  }
+
+  /**
+   * Registers a set of bindings at `order` (higher wins); the handle
+   * updates or removes it.
+   */
+  register(
+    bindings: readonly HotkeyBinding[],
+    order: number = this.reserve(),
+  ): HotkeyHandle {
+    if (this.sets.has(order)) order = this.reserve();
     this.sets.set(order, { bindings });
     this.changed();
     return {
@@ -294,8 +311,8 @@ export class HotkeyRegistry {
   private changed(): void {
     let id = 0;
     const next: RegisteredHotkey[] = [];
-    // Map keeps insertion order, which is registration order.
-    for (const set of this.sets.values()) {
+    const ordered = [...this.sets.entries()].sort(([a], [b]) => a - b);
+    for (const [, set] of ordered) {
       for (const binding of set.bindings) next.push({ ...binding, id: id++ });
     }
     this.snapshot = next;

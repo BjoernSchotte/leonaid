@@ -5,6 +5,8 @@
  * generic Modal styles.
  */
 .help-dialog {
+  /* Preflight zeroes the UA margin that centres a modal dialog. */
+  margin: auto;
   width: min(860px, calc(100vw - 32px));
   max-height: min(720px, calc(100dvh - 48px));
   padding: 0;
@@ -30,18 +32,18 @@
     transform: none;
   }
 }
-.help-body {
+.help-dialog .help-body {
   display: grid;
   max-height: inherit;
   grid-template-rows: auto 1fr auto;
 }
-.help-header {
+.help-dialog .help-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--s-5) var(--s-6) var(--s-3);
 }
-.help-header h2 {
+.help-dialog .help-header h2 {
   margin: 0;
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
@@ -49,14 +51,14 @@
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
-.help-grid {
+.help-dialog .help-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--s-6);
   padding: var(--s-2) var(--s-6) var(--s-4);
   overflow: auto;
 }
-.help-section h3 {
+.help-dialog .help-section h3 {
   margin: 0 0 var(--s-2);
   color: var(--text-3);
   font-size: var(--fs-xs);
@@ -65,12 +67,12 @@
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
-.help-section ul {
+.help-dialog .help-section ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.help-section li {
+.help-dialog .help-section li {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -79,18 +81,18 @@
   font-size: var(--fs-sm);
   border-bottom: var(--hair) solid var(--border);
 }
-.help-zone {
+.help-dialog .help-zone {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
 }
-.help-zone .zone-dot {
+.help-dialog .help-zone .zone-dot {
   width: 8px;
   height: 8px;
   border-radius: 2px;
   background: var(--zone);
 }
-.help-foot {
+.help-dialog .help-foot {
   margin: 0;
   padding: var(--s-3) var(--s-6) var(--s-5);
   color: var(--text-3);

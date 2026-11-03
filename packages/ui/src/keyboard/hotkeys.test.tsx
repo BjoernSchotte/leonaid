@@ -323,6 +323,29 @@ describe("registry", () => {
     expect(registry.getAll()).toEqual([]);
   });
 
+  it("lets a child page beat its shell on the first mount", () => {
+    const shell = vi.fn();
+    const page = vi.fn();
+    function Page() {
+      useHotkeys([
+        { keys: "c", label: "Neue Aufgabe", group: "Liste", run: page },
+      ]);
+      return null;
+    }
+    function Shell() {
+      useHotkeys([{ keys: "c", label: "Neu", group: "Allgemein", run: shell }]);
+      return <Page />;
+    }
+    render(
+      <HotkeyProvider>
+        <Shell />
+      </HotkeyProvider>,
+    );
+    press("c", {}, document.body);
+    expect(page).toHaveBeenCalledTimes(1);
+    expect(shell).not.toHaveBeenCalled();
+  });
+
   it("respects when()", () => {
     const run = vi.fn();
     let enabled = false;

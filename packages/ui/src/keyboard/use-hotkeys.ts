@@ -89,16 +89,18 @@ export function useHotkeys(
     [signature, ...deps],
   );
 
+  // Reserved during render: parents render before children (see reserve()).
+  const [order] = useState(() => registry.reserve());
   const handle = useRef<ReturnType<HotkeyRegistry["register"]> | null>(null);
   useEffect(() => {
-    const registration = registry.register(published);
+    const registration = registry.register(published, order);
     handle.current = registration;
     return () => {
       registration.dispose();
       if (handle.current === registration) handle.current = null;
     };
     // Register once per registry; updates keep the set's priority position.
-  }, [registry]);
+  }, [registry, order]);
 
   const first = useRef(true);
   useEffect(() => {
