@@ -95,6 +95,11 @@ test("member manages lifecycle and timeout through the real module", async ({
   await page
     .getByRole("button", { name: "Geplantes Ende speichern", exact: true })
     .click();
+  // The notice appears only after the UI refresh. That refresh resets the
+  // timeout input from the server, so do not edit that input before it.
+  await expect(
+    page.getByText("Geplantes Ende wurde gespeichert.", { exact: true }),
+  ).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
