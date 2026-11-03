@@ -36,7 +36,9 @@ fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
 compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
 compose up --no-deps --build --detach --wait public mailpit worker
 # The importer creates a draft; publish it with the legacy release so the
-# upgrade starts from live content with draft and live revisions.
+# upgrade starts from live content with draft and live revisions. The
+# importer logged its operator session out, so use fresh Core sessions.
+fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/emdash-upgrade-sessions.json
 compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
   node tools/emdash_spike/emdash-upgrade-publish.mjs
 fixture /repo/tools/emdash_spike/redirect_http_proof.py --published

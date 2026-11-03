@@ -5,7 +5,10 @@ import { request } from "node:https";
 // Legacy phase of the EmDash upgrade proof: publish the imported Krapfentaxi
 // draft through the real CMS HTTP API of the legacy release, as the System
 // Admin, so the upgrade starts from published content with a live revision.
-const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
+// The importer logs its operator session out; use fresh sessions.
+const tokens = JSON.parse(
+  await readFile("/proof/emdash-upgrade-sessions.json", "utf8"),
+);
 const ca = await readFile("/proof/root.crt");
 const origin = "https://proxy:8443";
 const root = "/_emdash/api/content/campaign_pages";
