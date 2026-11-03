@@ -30,7 +30,8 @@ describe("navigation zones", () => {
       k: "microsite",
       j: "legal",
       s: "system",
-      p: "acquisition-web",
+      p: "acquisition-app",
+      q: "acquisition-web",
       o: "public",
     });
   });

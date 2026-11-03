@@ -347,6 +347,7 @@
 } /* system */
 /* Acquisition app surface and its entries (akquise = bestellungen hue). */
 [data-zone="pwa"],
+[data-zone="acquisition-app"],
 [data-zone="acquisition-web"],
 [data-zone="acquisition-pwa"],
 [data-zone="sponsors"],
