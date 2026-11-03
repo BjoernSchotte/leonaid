@@ -8,9 +8,33 @@ import {
   DeliveryCompletion,
   deliveryDetailsMissing,
 } from "./delivery-completion";
+import { BulkReleaseDialog } from "./bulk-release-dialog";
+import {
+  releaseSelection,
+  takePendingRelease,
+  type ReleaseRun,
+  type ReleaseSelection,
+} from "./bulk-release";
 import { normalizeOrdersUrl, setInvoiceSelection } from "./orders-url";
 
 export { legacyOrdersSearch } from "./orders-url";
+export { releaseSelection, runRelease } from "./bulk-release";
+import {
+  berlinDate,
+  berlinDateTime,
+  configuredWindowLabel,
+  detailsMissing,
+  euro,
+  lineLabel,
+  NO_CAPTURER,
+  NO_WINDOW,
+  shortDay,
+  snapshotWindowLabel,
+  sourceLabels,
+  statusLabels,
+  type OrderRow,
+  type OrderStatus,
+} from "./order-format";
 import { formatQuantities } from "./quantities";
 
 import {
@@ -64,9 +88,6 @@ interface CommitmentAdminPageProps {
   readonly identity: CurrentIdentityResponse;
 }
 
-type OrderStatus = CommitmentResponse["status"];
-type OrderRow = CommitmentRecordResponse;
-
 /** In group order: what needs work first. */
 const statusOrder: readonly OrderStatus[] = [
   "review_ready",
@@ -75,105 +96,6 @@ const statusOrder: readonly OrderStatus[] = [
   "invoiced",
   "cancelled",
 ];
-
-const statusLabels: Readonly<Record<OrderStatus, string>> = {
-  cancelled: "Storniert",
-  confirmed: "Bestätigt",
-  draft: "Entwurf",
-  invoiced: "Fakturiert",
-  review_ready: "Prüfbereit",
-};
-
-const sourceLabels = {
-  acquisition: "Akquise",
-  admin: "Verwaltung",
-  public_form: "Öffentliches Formular",
-} as const;
-
-const NO_WINDOW = "none";
-const NO_CAPTURER = "none";
-
-const euro = (amountMinor: number, currency: string) =>
-  new Intl.NumberFormat("de-DE", { currency, style: "currency" }).format(
-    amountMinor / 100,
-  );
-
-const berlinDate = new Intl.DateTimeFormat("de-DE", {
-  dateStyle: "medium",
-  timeZone: "Europe/Berlin",
-});
-const berlinDateTime = new Intl.DateTimeFormat("de-DE", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Europe/Berlin",
-});
-const shortDay = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  timeZone: "Europe/Berlin",
-});
-
-function lineLabel(commitment: CommitmentResponse) {
-  return commitment.lines
-    .map((line) => `${line.quantity} × ${line.description}`)
-    .join(", ");
-}
-
-/** Draft or review-ready orders that still lack invoice or delivery data. */
-function detailsMissing(commitment: CommitmentResponse, deliveryOn: boolean) {
-  const editable =
-    commitment.status === "draft" || commitment.status === "review_ready";
-  return (
-    editable &&
-    (!commitment.invoiceRecipient ||
-      deliveryDetailsMissing(commitment, deliveryOn))
-  );
-}
-
-/* ---------- delivery windows ---------- */
-
-/** "08" for a full hour, "08:30" otherwise (prototype: "07–09 Uhr"). */
-function clock(value: string) {
-  const time = value.slice(0, 5);
-  return time.endsWith(":00") ? time.slice(0, 2) : time;
-}
-
-function weekdayDay(isoDay: string) {
-  const date = new Date(`${isoDay}T12:00:00Z`);
-  const weekday = new Intl.DateTimeFormat("de-DE", {
-    weekday: "short",
-    timeZone: "UTC",
-  })
-    .format(date)
-    .replace(".", "");
-  return `${weekday} ${isoDay.slice(8, 10)}.${isoDay.slice(5, 7)}.`;
-}
-
-function configuredWindowLabel(
-  window: DeliveryConfigurationResponse["windows"][number],
-) {
-  return `${weekdayDay(window.deliveryOn)} · ${clock(window.startsAt)}–${clock(window.endsAt)} Uhr`;
-}
-
-/** Label from an order's stored window snapshot (the window may be gone). */
-function snapshotWindowLabel(snapshot: Record<string, string>) {
-  const zone = snapshot.timezone ?? "Europe/Berlin";
-  const start = new Date(snapshot.startsAt ?? "");
-  const end = new Date(snapshot.endsAt ?? "");
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
-    return "Lieferfenster";
-  const part = (date: Date, options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat("de-DE", { ...options, timeZone: zone }).format(
-      date,
-    );
-  const day = part(start, { year: "numeric", month: "2-digit", day: "2-digit" })
-    .split(".")
-    .reverse()
-    .join("-");
-  const time = (date: Date) =>
-    clock(part(date, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }));
-  return `${weekdayDay(day)} · ${time(start)}–${time(end)} Uhr`;
-}
 
 interface WindowOption {
   readonly value: string;
@@ -686,6 +608,59 @@ function OrderDetail({
   );
 }
 
+/* ---------- bulk release ---------- */
+
+/**
+ * The bulk bar's "Rechnungen freigeben" button and its palette command. It
+ * mounts with the selection, so the command exists only while rows are
+ * checked.
+ */
+function BulkReleaseAction({
+  onOpen,
+  selection,
+}: {
+  readonly onOpen: () => void;
+  readonly selection: ReleaseSelection;
+}) {
+  const eligible = selection.eligible.length;
+  const checked = eligible + selection.skipped.length;
+  const label = `Rechnungen freigeben (${eligible} von ${checked} freigebbar)`;
+  useContextCommands(
+    eligible
+      ? [
+          {
+            id: "orders:bulk-release",
+            label,
+            group: "Bestellungen",
+            icon: Receipt,
+            keywords: ["Rechnung", "ausstellen", "Sammelfreigabe"],
+            run: onOpen,
+          },
+        ]
+      : [],
+  );
+  return (
+    <Button
+      data-testid="bulk-release-open"
+      disabled={eligible === 0}
+      icon={Receipt}
+      onClick={onOpen}
+      size="sm"
+      title={
+        eligible === 0
+          ? "Keine der ausgewählten Bestellungen ist freigebbar."
+          : undefined
+      }
+      variant="secondary"
+    >
+      Rechnungen freigeben{" "}
+      <span className="num">
+        ({eligible} von {checked} freigebbar)
+      </span>
+    </Button>
+  );
+}
+
 /* ---------- page ---------- */
 
 const sorts: readonly ListSort<OrderRow>[] = [
@@ -814,6 +789,11 @@ export function CommitmentAdminPage({
   );
   const [issueError, setIssueError] = useState<string>();
   const [issued, setIssued] = useState<InvoiceResponse>();
+  const [release, setRelease] = useState<{
+    readonly selection: ReleaseSelection;
+    readonly clear?: () => void;
+    readonly serviceOn?: string;
+  } | null>(null);
   const commitments = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.listCommitments(actionId),
@@ -876,6 +856,69 @@ export function CommitmentAdminPage({
     [commitments.data?.items],
   );
   const deliveryEnabled = Boolean(deliveryConfiguration.data?.enabled);
+  // Bulk release: only where the server lets this account issue invoices.
+  const mayRelease = invoiceContext.data?.mayIssue === true;
+  const rowsById = useMemo(
+    () => new Map(rows.map((row) => [row.commitment.id, row])),
+    [rows],
+  );
+  // A bulk release that stopped for the fresh sign-in resumes here.
+  const pendingChecked = useRef(false);
+  useEffect(() => {
+    if (
+      pendingChecked.current ||
+      !actionId ||
+      !commitments.data ||
+      !deliveryConfiguration.data ||
+      !invoiceContext.data
+    )
+      return;
+    pendingChecked.current = true;
+    const pending = takePendingRelease(actionId);
+    if (!pending || !invoiceContext.data.mayIssue) return;
+    const pendingRows = pending.ids.flatMap((id) => {
+      const row = rowsById.get(id);
+      return row ? [row] : [];
+    });
+    const selection = releaseSelection(pendingRows, deliveryEnabled);
+    if (selection.eligible.length)
+      setRelease({ selection, serviceOn: pending.serviceOn });
+  }, [
+    actionId,
+    commitments.data,
+    deliveryConfiguration.data,
+    deliveryEnabled,
+    invoiceContext.data,
+    rowsById,
+  ]);
+  const issueOne = async (commitmentId: string, serviceOn: string) => {
+    const invoice = await client.issueInvoice(
+      actionId,
+      commitmentId,
+      { serviceOn },
+      { headers: { "Idempotency-Key": invoiceCommandKey(commitmentId) } },
+    );
+    window.sessionStorage.removeItem(`leonaid.invoice-command.${commitmentId}`);
+    return invoice;
+  };
+  const releaseFinished = (run: ReleaseRun) => {
+    const counts = { issued: 0, failed: 0, open: 0 };
+    for (const outcome of run.outcomes.values()) {
+      if (outcome.kind === "issued") counts.issued += 1;
+      else if (outcome.kind === "failed") counts.failed += 1;
+      else counts.open += 1;
+    }
+    void Promise.all([commitments.refetch(), invoiceContext.refetch()]);
+    if (run.stop?.kind === "fresh-login") return;
+    toast?.show({
+      title: `${counts.issued === 1 ? "1 Rechnung" : `${counts.issued} Rechnungen`} ausgestellt.`,
+      description:
+        counts.failed || counts.open
+          ? `${counts.failed} fehlgeschlagen, ${counts.open} nicht abgeschlossen.`
+          : undefined,
+      tone: counts.failed || counts.open ? "error" : "success",
+    });
+  };
   const showWindows =
     deliveryEnabled ||
     rows.some((row) => Boolean(row.commitment.deliveryWindowId));
@@ -1047,6 +1090,25 @@ export function CommitmentAdminPage({
   return (
     <div className="commitment-list" data-zone="orders">
       <ListView<OrderRow>
+        bulkActions={
+          mayRelease
+            ? (ids, clear) => {
+                const selection = releaseSelection(
+                  ids.flatMap((id) => {
+                    const row = rowsById.get(id);
+                    return row ? [row] : [];
+                  }),
+                  deliveryEnabled,
+                );
+                return (
+                  <BulkReleaseAction
+                    onOpen={() => setRelease({ selection, clear })}
+                    selection={selection}
+                  />
+                );
+              }
+            : undefined
+        }
         beforeList={
           issued ? (
             <StatusMessage className="commitment-issued" tone="success">
@@ -1102,6 +1164,7 @@ export function CommitmentAdminPage({
                       `${url.pathname}${url.search}${url.hash}`,
                     );
                     setActionId(event.target.value);
+                    setRelease(null);
                     setReviewId("");
                     setIssued(undefined);
                     setIssueError(undefined);
@@ -1165,6 +1228,20 @@ export function CommitmentAdminPage({
         useCommands={useContextCommands}
         views={views}
       />
+      {release && invoiceContext.data ? (
+        <BulkReleaseDialog
+          actionId={actionId}
+          context={invoiceContext.data}
+          initialServiceOn={release.serviceOn}
+          issue={issueOne}
+          onClose={() => {
+            release.clear?.();
+            setRelease(null);
+          }}
+          onFinished={releaseFinished}
+          selection={release.selection}
+        />
+      ) : null}
     </div>
   );
 }

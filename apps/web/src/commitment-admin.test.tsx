@@ -10,10 +10,13 @@ import type {
   InvoiceContextResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
+import { ApiError } from "@leonaid/api-client";
 import {
   CommitmentAdminPage,
   legacyOrdersSearch,
+  releaseSelection,
   resetCommandPaletteState,
+  runRelease,
 } from "@leonaid/features";
 import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
@@ -26,6 +29,15 @@ beforeAll(() => {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
   Element.prototype.scrollIntoView ??= () => {};
+  // jsdom has no showModal(); enough for the Modal's open/close.
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    if (!this.open) return;
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
 });
 
 beforeEach(() => {
@@ -158,8 +170,11 @@ function fakeClient() {
       windows: [],
     })),
     getInvoiceContext: vi.fn(async () => invoiceContext),
-    issueInvoice: vi.fn(async () => ({
-      commitmentId: "c1",
+    issueInvoice: vi.fn(async (_action: string, commitmentId: string) => ({
+      commitmentId,
+      currency: "EUR",
+      grossMinor: 7200,
+      id: `inv-${commitmentId}`,
       number: "KT26-0004",
     })),
   } as unknown as LeonAidApiClient & {
@@ -300,5 +315,152 @@ describe("orders list", () => {
     await renderPage("?open=c1", client);
     expect(await screen.findByText(/Nur lesen\./)).toBeTruthy();
     expect(screen.queryByTestId("review-invoice")).toBeNull();
+  });
+});
+
+const apiError = (status: number, code: string, message = code) =>
+  new ApiError(status, { code, message, requestId: "" });
+
+describe("bulk invoice release", () => {
+  it("lets through what the single review would, and says why not", () => {
+    const delivered = {
+      deliveryRecipient: {
+        city: "Augsburg",
+        postalCode: "86150",
+        recipientName: "Lager",
+        streetLine1: "Lagerweg 1",
+      },
+      deliveryWindowId: "w1",
+    };
+    const ready = order("c5", "Lieferbar GmbH", "review_ready", delivered);
+    const noWindow = order("c6", "Ohne Fenster", "review_ready");
+    const selection = releaseSelection(
+      [ready, rows[1]!, rows[2]!, noWindow],
+      true,
+    );
+    expect(selection.eligible.map((row) => row.commitment.id)).toEqual(["c5"]);
+    expect(
+      selection.skipped.map(({ row, reason }) => [row.commitment.id, reason]),
+    ).toEqual([
+      ["c2", "status"],
+      ["c3", "status"],
+      ["c6", "delivery"],
+    ]);
+    // Without delivery planning the window is not required.
+    expect(releaseSelection([noWindow], false).eligible).toHaveLength(1);
+    expect(
+      releaseSelection(
+        [
+          order("c7", "Ohne Adresse", "review_ready", {
+            invoiceRecipient: null,
+          }),
+        ],
+        false,
+      ).skipped[0]?.reason,
+    ).toBe("recipient");
+  });
+
+  it("goes on after a refused order and stops on missing rights", async () => {
+    const invoice = (id: string) =>
+      ({ commitmentId: id, number: `KT-${id}` }) as never;
+    const mixed = await runRelease(["a", "b", "c"], async (id) => {
+      if (id === "b")
+        throw apiError(409, "invoice_commitment_not_review_ready");
+      return invoice(id);
+    });
+    expect([...mixed.outcomes.values()].map((item) => item.kind)).toEqual([
+      "issued",
+      "failed",
+      "issued",
+    ]);
+    expect(mixed.stop).toBeNull();
+
+    const forbidden = await runRelease(["a", "b"], async () => {
+      throw apiError(403, "invoice_issue_required", "Nur Charity-Admins");
+    });
+    expect(forbidden.stop).toEqual({
+      kind: "forbidden",
+      message: "Nur Charity-Admins",
+    });
+    expect(forbidden.outcomes.get("b")).toEqual({ kind: "not-run" });
+
+    const fresh = await runRelease(["a", "b"], async () => {
+      throw apiError(403, "fresh_login_required");
+    });
+    expect(fresh.stop).toEqual({ kind: "fresh-login" });
+    expect([...fresh.outcomes.values()].map((item) => item.kind)).toEqual([
+      "not-run",
+      "not-run",
+    ]);
+
+    const issue = vi.fn(async (id: string) => {
+      if (id === "b") throw new TypeError("Failed to fetch");
+      return invoice(id);
+    });
+    const lost = await runRelease(["a", "b", "c"], issue);
+    expect([...lost.outcomes.values()].map((item) => item.kind)).toEqual([
+      "issued",
+      "unconfirmed",
+      "not-run",
+    ]);
+    expect(lost.stop).toEqual({ kind: "network" });
+    expect(issue).toHaveBeenCalledTimes(2);
+  });
+
+  it("reviews the checked orders and issues each once with its own key", async () => {
+    const client = await renderPage("?view=all");
+    const check = (name: string) =>
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: new RegExp(`^${name} ·`) }),
+      );
+    check("Musterwerk GmbH");
+    check("Bäckerei Kern");
+    const open = await screen.findByTestId("bulk-release-open");
+    expect(open.textContent).toContain("1 von 2 freigebbar");
+    fireEvent.click(open);
+    const dialog = await screen.findByTestId("bulk-release");
+    expect(
+      [...dialog.querySelectorAll("[data-release-id]")].map((row) =>
+        row.getAttribute("data-release-id"),
+      ),
+    ).toEqual(["c1"]);
+    expect(dialog.textContent).toContain("Bäckerei Kern (nicht prüfbereit)");
+    expect(within(dialog).getByTestId("bulk-release-total").textContent).toBe(
+      "72,00\u00a0€",
+    );
+    fireEvent.change(within(dialog).getByLabelText("Leistungsdatum"), {
+      target: { value: "2026-11-20" },
+    });
+    const submit = screen.getByTestId("bulk-release-submit");
+    expect(submit.textContent).toContain("1 Rechnung verbindlich ausstellen");
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(
+      await screen.findByRole("heading", { name: "Ergebnis der Freigabe" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("bulk-release-issued").textContent).toContain(
+      "KT26-0004",
+    );
+    expect(client.issueInvoice).toHaveBeenCalledTimes(1);
+    expect(client.issueInvoice).toHaveBeenCalledWith(
+      actionId,
+      "c1",
+      { serviceOn: "2026-11-20" },
+      { headers: { "Idempotency-Key": expect.stringMatching(/^poc090:/) } },
+    );
+  });
+
+  it("offers no bulk release where the server refuses issuing", async () => {
+    const client = fakeClient();
+    (client.getInvoiceContext as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...invoiceContext,
+      mayIssue: false,
+    });
+    await renderPage("?view=all", client);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /^Musterwerk GmbH ·/ }),
+    );
+    expect(await screen.findByText("1 ausgewählt")).toBeTruthy();
+    expect(screen.queryByTestId("bulk-release-open")).toBeNull();
   });
 });

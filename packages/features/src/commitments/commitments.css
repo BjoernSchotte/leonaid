@@ -847,3 +847,95 @@
   border-radius: var(--r-md);
   background: var(--surface);
 }
+
+/* Bulk invoice release dialog. */
+.bulk-release__form,
+.bulk-release__result {
+  display: grid;
+  gap: var(--s-4);
+  font-size: var(--fs-sm);
+}
+.bulk-release__table-wrap {
+  max-height: 18rem;
+  overflow: auto;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+}
+.bulk-release__table-wrap:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.bulk-release__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.bulk-release__table th,
+.bulk-release__table td {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: var(--hair) solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+.bulk-release__table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.bulk-release__table tbody th {
+  font-weight: var(--fw-medium);
+}
+.bulk-release__table .num {
+  text-align: end;
+}
+.bulk-release__table tfoot th,
+.bulk-release__table tfoot td {
+  border-bottom: 0;
+  font-weight: var(--fw-semibold);
+}
+.bulk-release__skipped,
+.bulk-release__progress {
+  margin: 0;
+  color: var(--text-2);
+}
+.bulk-release__result h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.bulk-release__result ul {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding-inline-start: var(--s-4);
+}
+.bulk-release .subtle {
+  color: var(--text-3);
+}
+@media (max-width: 720px) {
+  .bulk-release__table thead {
+    display: none;
+  }
+  .bulk-release__table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--s-2) var(--s-3);
+    border-bottom: var(--hair) solid var(--border);
+  }
+  .bulk-release__table th,
+  .bulk-release__table td {
+    padding: 0;
+    border: 0;
+  }
+  .bulk-release__table tbody td:not(.num) {
+    grid-column: 1 / -1;
+    color: var(--text-2);
+  }
+}

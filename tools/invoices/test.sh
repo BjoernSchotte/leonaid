@@ -177,7 +177,9 @@ for screenshot in \
   invoice-delivery-completion-mobile.png \
   invoice-ledger-desktop.png \
   invoice-ledger-dark.png \
-  invoice-finance-mobile.png; do
+  invoice-finance-mobile.png \
+  invoice-bulk-release-desktop.png \
+  invoice-bulk-release-result.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invoice-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
