@@ -31,11 +31,14 @@
   --accent-foreground: var(--accent-ink);
   --danger-text: var(--danger);
   --danger-foreground: var(--on-accent);
+  --destructive: var(--danger);
   --success: var(--ok);
   --success-text: var(--ok);
   --warning: var(--warn);
   --warning-text: var(--warn);
   --warning-foreground: var(--on-accent);
+  --info-text: var(--info);
+  --ring: var(--focus);
   --sidebar: var(--rail-bg);
   --sidebar-foreground: var(--rail-text);
   --sidebar-muted: var(--rail-text-2);

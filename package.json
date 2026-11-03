@@ -27,7 +27,7 @@
     "typecheck:features": "tsc --noEmit -p packages/features/tsconfig.json",
     "typecheck:pwa": "tsc --noEmit -p apps/pwa/tsconfig.json",
     "typecheck:public": "bun run --filter @leonaid/public typecheck",
-    "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json",
+    "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json && tsc --noEmit -p packages/ui/tsconfig.test.json",
     "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json"
   },
   "overrides": {

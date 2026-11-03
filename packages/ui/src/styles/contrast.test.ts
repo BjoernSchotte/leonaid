@@ -366,6 +366,9 @@ describe("aliases for existing token names", () => {
     "--accent-foreground": "--accent-ink",
     "--danger-text": "--danger",
     "--danger-foreground": "--on-accent",
+    "--destructive": "--danger",
+    "--info-text": "--info",
+    "--ring": "--focus",
     "--success": "--ok",
     "--success-text": "--ok",
     "--warning": "--warn",
@@ -409,6 +412,10 @@ describe("aliases for existing token names", () => {
     ["--sidebar-foreground", "--sidebar", TEXT],
     ["--sidebar-muted", "--sidebar", TEXT],
     ["--input", "--surface", UI],
+    ["--ring", "--bg", UI],
+    ["--ring", "--surface", UI],
+    ["--destructive", "--surface", TEXT],
+    ["--info-text", "--surface", TEXT],
   ];
 
   describe.each(Object.entries(themes))("%s theme", (_, theme) => {
