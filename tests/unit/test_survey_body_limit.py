@@ -107,3 +107,21 @@ def test_paths_without_a_limit_are_not_counted() -> None:
 
     run_middleware("/api/v1/identity/me", [b"x" * (SURVEY_REQUEST_BYTES * 2)], app)
     assert reached == [SURVEY_REQUEST_BYTES * 2]
+
+
+def test_parser_error_after_the_limit_still_answers_413() -> None:
+    """FastAPI turns a failed form read into its own 400; the limit wins."""
+
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        try:
+            while (await receive())["more_body"]:
+                pass
+        except Exception:
+            await send({"type": "http.response.start", "status": 400, "headers": []})
+            await send({"type": "http.response.body", "body": b"parse error"})
+
+    output, _ = run_middleware(
+        "/api/v1/materials", [b"x" * (26 * 1024 * 1024), b"x"], app
+    )
+    assert output[0]["status"] == 413
+    assert all(b"parse error" not in message.get("body", b"") for message in output)

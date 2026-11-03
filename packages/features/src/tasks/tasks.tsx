@@ -49,6 +49,7 @@ import {
   ActionContextSearch,
   useActionContexts,
 } from "../shared/action-contexts";
+import "../shared/module-workspace.css";
 import "./tasks.css";
 
 function date(value: string) {

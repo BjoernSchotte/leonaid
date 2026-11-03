@@ -55,28 +55,43 @@ class RequestBodyLimitMiddleware:
                 return
 
         received = 0
+        exceeded = False
+        # Once the app started its own response, a late overrun cannot turn
+        # into a 413; the remaining body is simply never read.
+        rejected = False
         started = False
 
         async def counted_receive() -> Message:
-            nonlocal received
+            nonlocal received, exceeded
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > limit:
+                    exceeded = True
                     raise BodyLimitExceeded
             return message
 
-        async def tracked_send(message: Message) -> None:
-            nonlocal started
-            if message["type"] == "http.response.start":
-                started = True
-            await send(message)
+        async def guarded_send(message: Message) -> None:
+            # Body parsers may turn the failed read into their own error
+            # response; once the limit was crossed, the client gets 413.
+            nonlocal rejected, started
+            if not exceeded or started:
+                started = started or message["type"] == "http.response.start"
+                await send(message)
+            elif message["type"] == "http.response.start" and not rejected:
+                rejected = True
+                await self.reject(scope, receive, send)
 
         try:
-            await self.app(scope, counted_receive, tracked_send)
+            await self.app(scope, counted_receive, guarded_send)
         except BodyLimitExceeded:
             if started:
                 raise
+            if not rejected:
+                rejected = True
+                await self.reject(scope, receive, send)
+            return
+        if exceeded and not rejected and not started:
             await self.reject(scope, receive, send)
 
     @staticmethod

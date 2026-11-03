@@ -11,6 +11,7 @@ import {
   ActionContextSearch,
   useActionContexts,
 } from "../shared/action-contexts";
+import "../shared/module-workspace.css";
 import "./materials.css";
 import { downloadMaterial } from "./download";
 
