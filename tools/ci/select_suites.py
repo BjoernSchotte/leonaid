@@ -62,6 +62,7 @@ E2E_SHARDS = (
     "identity",
     "matching",
     "tasks",
+    "materials",
 )
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
@@ -189,6 +190,22 @@ RULES: tuple[Rule, ...] = (
     # tools/schema/test.sh also runs the tasks schema contract.
     Rule(
         ("tools/tasks/**",), e2e("tasks") | integration("schema-outbox"), "tasks proofs"
+    ),
+    # Materials module.
+    Rule(
+        (
+            "src/leonaid/modules/materials/**",
+            "packages/features/src/materials/**",
+            "tests/e2e/modules-materials.spec.mjs",
+        ),
+        e2e("materials"),
+        "materials module",
+    ),
+    # tools/schema/test.sh also runs the materials schema contracts.
+    Rule(
+        ("tools/materials/**",),
+        e2e("materials") | integration("schema-outbox"),
+        "materials proofs",
     ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),

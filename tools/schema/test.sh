@@ -65,6 +65,8 @@ compose build api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --no-deps --entrypoint alembic api upgrade head
+# Material contracts store real file versions in object storage.
+compose up --detach --wait --wait-timeout 120 rustfs
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
@@ -76,7 +78,13 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tools/tasks/ordering_contract.py \
     /repo/tools/tasks/structure_contract.py \
     /repo/tools/tasks/http_contract.py \
-    /repo/tools/tasks/action_contract.py
+    /repo/tools/tasks/action_contract.py \
+    /repo/tools/materials/schema_contract.py \
+    /repo/tools/materials/service_contract.py \
+    /repo/tools/materials/member_contract.py \
+    /repo/tools/materials/action_contract.py \
+    /repo/tools/materials/cleanup_contract.py \
+    /repo/tools/materials/http_contract.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans

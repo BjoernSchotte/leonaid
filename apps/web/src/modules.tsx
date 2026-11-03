@@ -1,7 +1,12 @@
 import { validateUiModules, type UiModule } from "@leonaid/features";
 import { surveysModule } from "@leonaid/features/surveys";
+import { materialsModule } from "@leonaid/features/materials";
 import { tasksModule } from "@leonaid/features/tasks";
 
 // The web shell composes these contributions; Core authorizes navigation.
-export const webModules: readonly UiModule[] = [surveysModule, tasksModule];
+export const webModules: readonly UiModule[] = [
+  surveysModule,
+  tasksModule,
+  materialsModule,
+];
 validateUiModules(webModules);

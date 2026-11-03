@@ -72,7 +72,11 @@ describe("UI module registration", () => {
   });
 
   it("keeps the existing survey URLs", () => {
-    expect(webModules.map((module) => module.id)).toEqual(["surveys", "tasks"]);
+    expect(webModules.map((module) => module.id)).toEqual([
+      "surveys",
+      "tasks",
+      "materials",
+    ]);
     const surveyId = "0b8a3c1e-2f4d-4e5a-9b6c-7d8e9f0a1b2c";
     const cases = [
       ["/surveys", { createNew: false, surveyId: undefined }],

@@ -810,30 +810,3 @@
 .task-tag {
   overflow-wrap: anywhere;
 }
-
-/* Compact module buttons: 40 px rows on desktop, 44 px touch targets. */
-.tasks-workspace .ui-button {
-  min-height: 2.5rem;
-  max-width: 100%;
-  padding: 0.5rem 0.75rem;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: normal;
-}
-
-.tasks-workspace .ui-button > span:last-child {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.tasks-workspace .ui-button__icon {
-  flex-shrink: 0;
-}
-
-@media (pointer: coarse), (max-width: 760px) {
-  .tasks-workspace .ui-button {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-  }
-}

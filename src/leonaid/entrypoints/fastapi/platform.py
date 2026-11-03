@@ -52,13 +52,14 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
+    build_material_service,
     build_survey_services,
     build_task_service,
     module_navigation,
     parked_event_types,
     register_api_modules,
 )
-from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
+from leonaid.platform.http_body import RequestBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
@@ -126,6 +127,16 @@ from leonaid.entrypoints.fastapi.security import (
     rate_limit_violation,
 )
 
+# Request bodies are bounded before parsing; uploads get headroom for the
+# multipart envelope around the 25 MiB file.
+SURVEY_REQUEST_BYTES = 1_048_576
+MATERIAL_UPLOAD_BYTES = 25 * 1024 * 1024 + 65_536
+BODY_LIMITS: tuple[tuple[str, int], ...] = (
+    ("/api/v1/surveys", SURVEY_REQUEST_BYTES),
+    ("/api/v1/public/surveys", SURVEY_REQUEST_BYTES),
+    ("/api/v1/survey-settings", SURVEY_REQUEST_BYTES),
+    ("/api/v1/materials", MATERIAL_UPLOAD_BYTES),
+)
 REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 PATH_UUID = re.compile(
     r"/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$)"
@@ -319,6 +330,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             checkpoint_publisher,
         ) = build_survey_services(pool, settings, object_storage)
         application.state.task_service = build_task_service(pool)
+        application.state.material_service = build_material_service(
+            pool, object_storage
+        )
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )
@@ -405,7 +419,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         version="0.0.0",
         lifespan=lifespan,
     )
-    application.add_middleware(SurveyBodyLimitMiddleware)
+    application.add_middleware(RequestBodyLimitMiddleware, limits=BODY_LIMITS)
 
     @application.middleware("http")
     async def correlate_request(

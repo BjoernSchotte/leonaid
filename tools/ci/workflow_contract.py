@@ -45,7 +45,7 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
 # Module browser proofs; each module's journeys run only in its own leaf.
-E2E_SHARDS = ("tasks",)
+E2E_SHARDS = ("tasks", "materials")
 
 # Workflows whose gate is a required check. Each must run on pull_request
 # and merge_group, must not use path filters and must end in its gate.

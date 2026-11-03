@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 12
-reviewedRevision: 12
-verifiedAgainst: 6eb1011fa36d657ac5648ed0edf60c56caaadcb5
+contentRevision: 13
+reviewedRevision: 13
+verifiedAgainst: 583524f992adb500d686dfe91f72e7fa5b7327cc
 reviewer: Björn Schotte
 ---
 
@@ -76,7 +76,7 @@ Hand.
 
 Fachmodule sind standardmäßig eingeschaltet. `LEONAID_DISABLED_MODULES` in der
 Env-Datei der Installation schaltet Module kommagetrennt ab, zum Beispiel
-`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys` und `tasks`; Kernbereiche wie Mail und Rechnungen lassen sich nicht
+`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys`, `tasks` und `materials`; Kernbereiche wie Mail und Rechnungen lassen sich nicht
 abschalten. API und Worker lesen denselben Wert; nach einer Änderung beide neu
 starten.
 
@@ -88,6 +88,15 @@ Dead Letter abgelegt und laufen, sobald das Modul wieder eingeschaltet ist.
 Eine unbekannte oder nicht schaltbare ID oder das Abschalten eines Moduls, das
 ein eingeschaltetes Modul benötigt, stoppt die API beim Start und den Worker
 mit `worker.configuration.invalid`.
+
+## Material-Uploads bereinigen
+
+Ein abgebrochener Material-Upload kann eine private Speicherversion
+hinterlassen, auf die kein Material verweist. Ein wiederholter Upload
+übernimmt sie. Um genau eine solche Version endgültig zu entfernen, führe
+`docker compose exec api python -m leonaid.entrypoints.material_cleanup` mit
+exaktem Material, Upload und Speicherversion aus; es prüft zuerst und löscht
+nur mit `--apply`. Das Vorgehen steht in `tools/materials/README.md`.
 
 ## Joblaufzeit und Fehlerangaben
 
