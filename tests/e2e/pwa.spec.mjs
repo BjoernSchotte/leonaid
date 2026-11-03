@@ -186,6 +186,28 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
     expect(box.x).toBeGreaterThanOrEqual(column.x - 1);
     expect(box.x + box.width).toBeLessThanOrEqual(column.x + column.width + 1);
   }
+  // Shared pages get their phone layout in the column at every width.
+  const pageControls = await page
+    .locator(".pwa-main .btn:visible, .pwa-main a[href^='tel:']:visible")
+    .evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          height: box.height,
+          left: box.left,
+          right: box.right,
+          text: (element.textContent ?? "").trim().slice(0, 40),
+        };
+      }),
+    );
+  expect(pageControls.length).toBeGreaterThan(0);
+  for (const control of pageControls) {
+    expect(control.left, control.text).toBeGreaterThanOrEqual(column.x - 1);
+    expect(control.right, control.text).toBeLessThanOrEqual(
+      column.x + column.width + 1,
+    );
+    expect(control.height, control.text).toBeGreaterThanOrEqual(44);
+  }
   const menuButton = page.getByRole("button", { name: "Mehr" });
   const menuBox = await menuButton.boundingBox();
   expect(menuBox.width).toBeGreaterThanOrEqual(44);

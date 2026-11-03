@@ -17,7 +17,8 @@
   background: var(--bg);
   font-size: 1rem;
 }
-@media (min-width: 560px) {
+/* Viewport query on purpose (media type keeps it out of the column rewrite). */
+@media screen and (min-width: 560px) {
   .pwa {
     box-shadow: var(--shadow-2);
   }
@@ -138,7 +139,10 @@
   min-height: 44px;
 }
 
+/* Container of the shared pages; the PWA build turns width @media into
+ * @container queries on it (apps/pwa/column-queries.ts). */
 .pwa-main {
+  container: pwa-column / inline-size;
   flex: 1;
   min-width: 0;
   padding-bottom: calc(80px + env(safe-area-inset-bottom));
