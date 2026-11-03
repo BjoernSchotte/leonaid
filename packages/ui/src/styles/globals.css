@@ -8,6 +8,7 @@
 @import "./components/status-icon.css";
 @import "./components/avatar.css";
 @import "./components/meter.css";
+@import "./components/shortcut-help.css";
 
 @source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
