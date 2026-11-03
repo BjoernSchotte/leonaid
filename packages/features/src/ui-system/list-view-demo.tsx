@@ -24,6 +24,7 @@ import {
   StatusIcon,
   StatusLabel,
   statusShape,
+  useOptionalHotkeyRegistry,
   useToast,
   type ListProperty,
   type ListSort,
@@ -462,15 +463,23 @@ function DemoList() {
   );
 }
 
-/** Full-page list demo (`/admin/system/ui?listview`) in the orders zone. */
+/**
+ * Full-page list demo (`/admin/system/ui?listview`) in the orders zone. Uses
+ * the shell's hotkey registry when there is one, its own otherwise.
+ */
 export function ListViewDemo() {
+  const shellRegistry = useOptionalHotkeyRegistry();
   return (
     <div className="ui-list-demo" data-testid="ui-list-demo" data-zone="orders">
-      <HotkeyProvider>
+      {shellRegistry ? (
         <DemoList />
-        <ShortcutHelp />
-        <PrefixHint />
-      </HotkeyProvider>
+      ) : (
+        <HotkeyProvider>
+          <DemoList />
+          <ShortcutHelp />
+          <PrefixHint />
+        </HotkeyProvider>
+      )}
     </div>
   );
 }
