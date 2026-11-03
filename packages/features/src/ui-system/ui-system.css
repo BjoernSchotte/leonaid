@@ -215,9 +215,18 @@
   border-bottom: var(--hair) solid var(--border);
 }
 
-.ui-catalog-component h3 {
+.ui-catalog-component h3,
+.ui-catalog-keys-block h3 {
   margin: 0;
   font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+.ui-catalog-keys-block {
+  display: grid;
+  gap: var(--s-3);
 }
 
 .ui-catalog-cluster {
@@ -279,14 +288,15 @@
 
 .ui-catalog-keys td:first-child {
   width: 180px;
-  padding-inline-start: 0;
 }
 
 .ui-catalog-keys tr:last-child td {
   border-bottom: 0;
 }
 
+/* Tailwind preflight makes svg a block; keep the note icon inline. */
 .ui-catalog-note svg {
+  display: inline;
   vertical-align: -2px;
 }
 

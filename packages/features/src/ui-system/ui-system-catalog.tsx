@@ -260,22 +260,26 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
               <span className="ui-catalog-small">{identity.displayName}</span>
             </div>
           </div>
-          <div className="ui-catalog-component">
-            <h3>Tastatur</h3>
-            <table className="ui-catalog-keys">
-              <caption>Tastenkürzel</caption>
-              <tbody>
-                {shortcutRows.map(([keys, label]) => (
-                  <tr key={keys}>
-                    <td>
-                      <Kbd keys={keys} />
-                    </td>
-                    <td>{label}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        </div>
+        <div className="ui-catalog-keys-block">
+          <h3>Tastatur</h3>
+          <p className="ui-catalog-note">
+            Kürzel wirken nicht, während Sie in ein Feld schreiben. Auf
+            Touch-Geräten werden die Hinweise ausgeblendet.
+          </p>
+          <table className="ui-catalog-keys">
+            <caption>Tastenkürzel</caption>
+            <tbody>
+              {shortcutRows.map(([keys, label]) => (
+                <tr key={keys}>
+                  <td>
+                    <Kbd keys={keys} />
+                  </td>
+                  <td>{label}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <p className="ui-catalog-note">
           <Icon icon={CircleAlert} size={14} /> Icons stammen aus Lucide
