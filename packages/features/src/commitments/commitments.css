@@ -556,6 +556,16 @@
 .commitment-address strong {
   font-weight: var(--fw-medium);
 }
+.commitment-inline-icon {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.commitment-inline-icon > svg {
+  flex: none;
+  transform: translateY(1px);
+}
 .commitment-link {
   color: var(--accent-ink);
   font-weight: var(--fw-medium);

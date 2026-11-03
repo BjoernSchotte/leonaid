@@ -486,7 +486,7 @@ function OrderDetail({
               <Button
                 data-testid="review-invoice"
                 onClick={onToggleReview}
-                variant="ghost"
+                variant="secondary"
               >
                 Rechnung prüfen
               </Button>
@@ -514,7 +514,7 @@ function OrderDetail({
               aria-expanded={editing}
               data-testid="commitment-edit-details"
               onClick={() => setEditing((open) => !open)}
-              variant="ghost"
+              variant="secondary"
             >
               {editing ? "Eingabe schließen" : "Angaben bearbeiten"}
             </Button>
@@ -634,7 +634,7 @@ function OrderDetail({
             {
               label: "Lieferadresse",
               value: address ? (
-                <span className="cluster">
+                <span className="commitment-inline-icon">
                   <Icon icon={MapPin} size={12} />
                   <span>
                     {address.recipientName}, {address.streetLine1},{" "}
