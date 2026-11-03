@@ -17,7 +17,12 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.security import AsyncpgSecurityRateLimitRepository
 from leonaid.bootstrap.worker import background_loops, build_worker
 from leonaid.entrypoints.worker.health import LoopHealth, error_location
-from leonaid.configuration import ConfigurationError, load_retention_settings
+from leonaid.bootstrap.registry import RegistrationError
+from leonaid.configuration import (
+    ConfigurationError,
+    load_module_settings,
+    load_retention_settings,
+)
 from leonaid.entrypoints.worker.outbox import configuration_problems
 from leonaid.entrypoints.worker.retention import (
     RetentionResult,
@@ -48,11 +53,20 @@ retention_health = LoopHealth(
     "retention",
     stall_after_seconds=_retention_interval_seconds() + 300,
 )
-# Module loops need only the database URL; a missing URL fails at startup in
-# configuration_problems, so the module stays importable for that check.
-MODULE_LOOPS: tuple[BackgroundLoop, ...] = background_loops(
-    os.environ.get("CORE_DATABASE_URL", "")
-)
+
+
+def _module_loops() -> tuple[BackgroundLoop, ...]:
+    # Module loops need only the database URL and the module switches. Invalid
+    # values stop the worker at startup in configuration_problems; until then
+    # this module stays importable.
+    try:
+        disabled = load_module_settings().disabled_modules
+        return background_loops(os.environ.get("CORE_DATABASE_URL", ""), disabled)
+    except (ConfigurationError, RegistrationError):
+        return ()
+
+
+MODULE_LOOPS: tuple[BackgroundLoop, ...] = _module_loops()
 MODULE_LOOP_HEALTH = tuple(
     LoopHealth(loop.name, stall_after_seconds=loop.stall_after_seconds)
     for loop in MODULE_LOOPS

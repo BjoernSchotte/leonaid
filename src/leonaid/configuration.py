@@ -45,6 +45,18 @@ def _is_forbidden_public_host(host: str | None) -> bool:
     return not address.is_global
 
 
+MODULE_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]*\Z")
+
+
+def parse_module_ids(raw: str) -> frozenset[str]:
+    """Comma-separated module IDs; blanks are ignored, malformed IDs fail."""
+    names = frozenset(part.strip() for part in raw.split(",") if part.strip())
+    for name in names:
+        if not MODULE_ID_PATTERN.fullmatch(name):
+            raise ValueError("LEONAID_DISABLED_MODULES contains an invalid module ID")
+    return names
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=True,
@@ -57,6 +69,7 @@ class Settings(BaseSettings):
     service_version: str = Field(default="0.0.0", alias="LEONAID_SERVICE_VERSION")
     release_commit: str | None = Field(default=None, alias="LEONAID_RELEASE_COMMIT")
     api_version: str = Field(default="v1", alias="LEONAID_API_VERSION")
+    disabled_modules_raw: str = Field(default="", alias="LEONAID_DISABLED_MODULES")
     core_database_url: SecretStr = Field(alias="CORE_DATABASE_URL")
     invitation_hmac_secret: SecretStr = Field(
         min_length=32,
@@ -218,6 +231,16 @@ class Settings(BaseSettings):
         ):
             raise ValueError("Production HMAC and payload secrets must differ.")
         return self
+
+    @field_validator("disabled_modules_raw")
+    @classmethod
+    def disabled_modules_are_well_formed(cls, value: str) -> str:
+        parse_module_ids(value)
+        return value
+
+    @property
+    def disabled_modules(self) -> frozenset[str]:
+        return parse_module_ids(self.disabled_modules_raw)
 
     def safe_summary(self) -> dict[str, str]:
         return {
@@ -425,6 +448,42 @@ class RetentionSettings(BaseSettings):
         le=1000,
         alias="OUTBOX_RETENTION_MAX_BATCHES",
     )
+
+
+class ModuleSettings(BaseSettings):
+    """Per-installation module switches, shared by the API and the worker.
+
+    ``LEONAID_DISABLED_MODULES`` lists module IDs separated by commas. A
+    switched-off module keeps its data: it contributes no navigation and no
+    routes, and the worker leaves its jobs pending and runs none of its loops.
+    """
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    disabled_modules_raw: str = Field(default="", alias="LEONAID_DISABLED_MODULES")
+
+    @field_validator("disabled_modules_raw")
+    @classmethod
+    def disabled_modules_are_well_formed(cls, value: str) -> str:
+        parse_module_ids(value)
+        return value
+
+    @property
+    def disabled_modules(self) -> frozenset[str]:
+        return parse_module_ids(self.disabled_modules_raw)
+
+
+def load_module_settings() -> ModuleSettings:
+    try:
+        return ModuleSettings()
+    except ValidationError:
+        raise ConfigurationError(
+            "LeonAid module configuration is invalid: LEONAID_DISABLED_MODULES"
+        ) from None
 
 
 def load_settings() -> Settings:
