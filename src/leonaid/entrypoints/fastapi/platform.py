@@ -66,6 +66,7 @@ from leonaid.platform.http_body import RequestBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
+from leonaid.adapters.postgres.search import AsyncpgSearchRepository
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
 from leonaid.adapters.postgres.security import (
     AsyncpgSecurityRateLimitRepository,
@@ -117,6 +118,7 @@ from leonaid.application.public_orders import (
     PublicOrderService,
     PublicOrderTokenCodec,
 )
+from leonaid.application.search import SearchService
 from leonaid.application.sessions import SessionService
 from leonaid.application.sponsor_matching import SponsorMatchingService
 from leonaid.configuration import Settings, load_module_settings, load_settings
@@ -287,6 +289,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
         )
+        application.state.search_service = SearchService(AsyncpgSearchRepository(pool))
         application.state.delivery_completion_service = DeliveryCompletionService(
             AsyncpgDeliveryCompletionRepository(pool)
         )

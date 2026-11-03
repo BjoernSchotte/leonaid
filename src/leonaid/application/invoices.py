@@ -89,13 +89,22 @@ class InvoiceRepository(Protocol):
     ) -> Invoice: ...
 
 
+def may_read_all_invoices(actor: IdentityPrincipal) -> bool:
+    """Whether the actor reads the invoices of every action, not only some."""
+
+    return actor.account.can_authenticate and (
+        actor.is_system_admin
+        or GlobalRole.FINANCE_READER in actor.global_roles
+        or GlobalRole.FINANCE_MANAGER in actor.global_roles
+    )
+
+
 def may_read_invoices(actor: IdentityPrincipal, action_id: UUID) -> bool:
     if not actor.account.can_authenticate:
         return False
     return (
-        may_manage_action(actor, action_id)
-        or GlobalRole.FINANCE_READER in actor.global_roles
-        or GlobalRole.FINANCE_MANAGER in actor.global_roles
+        may_read_all_invoices(actor)
+        or may_manage_action(actor, action_id)
         or ActionRole.FINANCE_READER in actor.roles_for(action_id)
     )
 

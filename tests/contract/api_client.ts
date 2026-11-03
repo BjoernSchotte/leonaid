@@ -73,6 +73,37 @@ try {
   }
 }
 
+// Query parameters travel through the generated client: the bounded core
+// search rejects a too-short query before it checks the session.
+try {
+  await client.searchCore(
+    { q: "a", limit: 8 },
+    { headers: { "X-Request-ID": requestId } },
+  );
+  throw new Error("Invalid search query was treated as success.");
+} catch (error: unknown) {
+  if (!(error instanceof ApiError)) {
+    throw error;
+  }
+  if (error.status !== 422 || error.detail.code !== "request_invalid") {
+    throw new Error(`Search validation is not typed: ${JSON.stringify(error)}`);
+  }
+}
+
+try {
+  await client.searchCore({ q: "Krapfen" });
+  throw new Error("Search without a session was treated as success.");
+} catch (error: unknown) {
+  if (!(error instanceof ApiError)) {
+    throw error;
+  }
+  if (error.status !== 401) {
+    throw new Error(
+      `Search did not require a session: ${JSON.stringify(error)}`,
+    );
+  }
+}
+
 console.log(
   "poc023-contract: OK: generierter Client, Golden-Antwort und typisierter Fehler",
 );

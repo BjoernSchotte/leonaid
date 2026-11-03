@@ -257,6 +257,8 @@ export type ResponseQuestion = { readonly choices: Array<ResponseChoice>; readon
 export type ResponseSelection = { readonly createdAt: string; readonly filter: ResolvedAnalysisFilter; readonly id: string; readonly questions: Array<ResponseQuestion>; readonly surveyId: string; readonly total: number; readonly versionNumber: number; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly issuer: LegalIssuerRequest; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
+export type SearchResponse = { readonly results: Array<SearchResultResponse>; };
+export type SearchResultResponse = { readonly context: string; readonly href: string; readonly id: string; readonly title: string; readonly type: "action" | "order" | "invoice" | "sponsor" | "member"; };
 export type SelectCampaignRendererRequest = { readonly commandId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
@@ -2495,6 +2497,26 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async searchCore(
+    queryParameters: { readonly q: string; readonly limit?: number; },
+    options: RequestOptions = {},
+  ): Promise<SearchResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.q !== undefined && queryParameters.q !== null) {
+      searchParameters.set("q", String(queryParameters.q));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/search" + (queryString ? `?${queryString}` : "");
+    return this.request<SearchResponse>(
+      requestPath,
+      { method: "GET" },
       options,
     );
   }
