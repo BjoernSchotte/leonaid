@@ -390,7 +390,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .dashboard-admin-metrics small,

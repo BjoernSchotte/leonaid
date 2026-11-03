@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import secrets
 import sys
 from datetime import datetime, timedelta, timezone
@@ -87,6 +88,87 @@ async def insert_login_challenge(
     )
 
 
+async def prove_static_asset_compression(
+    client: httpx.AsyncClient, session: str
+) -> None:
+    """Only build assets under fixed prefixes are compressed (BREACH).
+
+    HTML, API JSON (core and EmDash), source maps and JavaScript outside the
+    build-asset prefixes stay plain.
+    """
+    gzip_only = {"Accept-Encoding": "gzip"}
+    admin = await client.get("/admin/", headers=gzip_only)
+    if admin.status_code != 200 or "content-encoding" in admin.headers:
+        raise ContractFailure("admin HTML is not served plain")
+    assets = re.findall(r'(?:src|href)="(/admin/assets/[^"]+\.(?:js|css))"', admin.text)
+    if not any(path.endswith(".js") for path in assets) or not any(
+        path.endswith(".css") for path in assets
+    ):
+        raise ContractFailure("admin HTML references no script and stylesheet")
+    for path in assets:
+        asset = await client.get(path, headers=gzip_only)
+        if (
+            asset.status_code != 200
+            or asset.headers.get("content-encoding") != "gzip"
+            or "accept-encoding" not in asset.headers.get("vary", "").lower()
+            or "content-security-policy" not in asset.headers
+            or "x-content-type-options" not in asset.headers
+        ):
+            raise ContractFailure(
+                f"static asset is not served gzip with headers: {path}"
+            )
+    zstd = await client.get(assets[0], headers={"Accept-Encoding": "zstd, gzip"})
+    if zstd.headers.get("content-encoding") != "zstd":
+        raise ContractFailure("static assets do not prefer zstd")
+    plain = await client.get(assets[0], headers={"Accept-Encoding": "identity"})
+    if plain.status_code != 200 or "content-encoding" in plain.headers:
+        raise ContractFailure("static asset is compressed without Accept-Encoding")
+
+    manifest = await client.get("/app/manifest.webmanifest", headers=gzip_only)
+    if (
+        manifest.status_code != 200
+        or manifest.headers.get("content-encoding") != "gzip"
+    ):
+        raise ContractFailure("PWA manifest is not served gzip")
+
+    source_map = await client.get(f"{assets[0]}.map", headers=gzip_only)
+    if source_map.status_code != 200 or "content-encoding" in source_map.headers:
+        raise ContractFailure("source map is compressed")
+    # A script outside the build-asset prefix: right type and size, wrong path.
+    loose_script = await client.get("/admin/theme-init.js", headers=gzip_only)
+    if (
+        loose_script.status_code != 200
+        or "javascript" not in loose_script.headers.get("content-type", "")
+        or len(loose_script.content) < 512
+        or "content-encoding" in loose_script.headers
+    ):
+        raise ContractFailure("script outside the build-asset prefix is compressed")
+    for dynamic in ("/api/v1/does-not-exist.js", "/krapfentaxi.js"):
+        response = await client.get(dynamic, headers=gzip_only)
+        if "content-encoding" in response.headers:
+            raise ContractFailure(f".js-suffixed dynamic path is compressed: {dynamic}")
+    emdash = await client.get("/_emdash/api/auth/me", headers=gzip_only)
+    if "content-encoding" in emdash.headers:
+        raise ContractFailure(
+            f"EmDash API response is compressed (status {emdash.status_code})"
+        )
+
+    public = await client.get("/krapfentaxi", headers=gzip_only)
+    if public.status_code != 200 or "content-encoding" in public.headers:
+        raise ContractFailure("public HTML page is compressed")
+    api = await client.get(
+        "/api/v1/identity/me",
+        headers={**gzip_only, "Cookie": f"{SESSION_COOKIE_NAME}={session}"},
+    )
+    if (
+        api.status_code != 200
+        or not api.headers.get("content-type", "").startswith("application/json")
+        or len(api.content) < 512
+        or "content-encoding" in api.headers
+    ):
+        raise ContractFailure("session-bound API JSON is compressed")
+
+
 async def prove() -> None:
     database_url = require_env("CORE_DATABASE_URL")
     secret = require_env("LEONAID_SECRET_KEY")
@@ -159,6 +241,7 @@ async def prove() -> None:
         )
         if identity.status_code != 200:
             raise ContractFailure("newly rotated session is not usable")
+        await prove_static_asset_compression(client, session)
 
         cross_site = await client.post(
             "/api/v1/auth/logout",
@@ -269,7 +352,8 @@ async def prove() -> None:
 
     await connection.close()
     print(
-        "security-contract: TLS/headers, CORS, CSRF, rotation, RBAC and rate limits OK"
+        "security-contract: TLS/headers, asset compression, CORS, CSRF, rotation, RBAC "
+        "and rate limits OK"
     )
 
 

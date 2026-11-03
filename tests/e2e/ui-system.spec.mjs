@@ -116,6 +116,8 @@ test("UI catalog proves all base states with real identity", async ({
     await expect(page.getByTestId("toast")).toContainText(
       "Änderung gespeichert",
     );
+    // axe measures contrast through opacity; wait until the fade-in ends.
+    await expect(page.getByTestId("toast")).toHaveCSS("opacity", "1");
     await expectNoSeriousAccessibilityViolations(page, "Toast");
 
     await page.getByRole("button", { name: "Bestätigung öffnen" }).click();
@@ -158,6 +160,75 @@ test("UI catalog proves all base states with real identity", async ({
     });
 
     expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+test("uses self-hosted Leitsystem fonts", async ({ browser }) => {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 1440, height: 1000 },
+  });
+  await context.addCookies([sessionCookie(simoneSession)]);
+  const page = await context.newPage();
+  const appOrigin = new URL(baseUrl).origin;
+  const foreignRequests = [];
+  const fontResponses = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (/^https?:/.test(url) && new URL(url).origin !== appOrigin) {
+      foreignRequests.push(url);
+    }
+  });
+  page.on("response", (response) => {
+    if (response.request().resourceType() === "font") {
+      fontResponses.push({ url: response.url(), status: response.status() });
+    }
+  });
+
+  try {
+    await page.goto(`${baseUrl}/admin/system/ui`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "LeonAid Komponenten" }),
+    ).toBeVisible();
+    const fonts = await page.evaluate(async () => {
+      await document.fonts.ready;
+      // Faces load lazily; request them so the check proves they are served.
+      await document.fonts.load("700 16px Barlow");
+      await document.fonts.load('16px "JetBrains Mono Variable"');
+      // check() is also true for families without any @font-face, so the
+      // loaded faces are listed as well.
+      const loaded = [...document.fonts]
+        .filter((face) => face.status === "loaded")
+        .map((face) => `${face.family.replaceAll('"', "")} ${face.weight}`);
+      return {
+        loaded,
+        barlow: document.fonts.check("16px Barlow"),
+        barlowBold: document.fonts.check("700 16px Barlow"),
+        mono: document.fonts.check('16px "JetBrains Mono Variable"'),
+        body: getComputedStyle(document.body).fontFamily,
+      };
+    });
+    expect(fonts.loaded).toEqual(
+      expect.arrayContaining(["Barlow 400", "Barlow 700"]),
+    );
+    expect(
+      fonts.loaded.some((face) => face.startsWith("JetBrains Mono Variable")),
+    ).toBe(true);
+    expect(fonts.barlow).toBe(true);
+    expect(fonts.barlowBold).toBe(true);
+    expect(fonts.mono).toBe(true);
+    expect(fonts.body).toMatch(/^"?Barlow"?,/);
+    expect(fontResponses.length).toBeGreaterThan(0);
+    for (const font of fontResponses) {
+      expect(new URL(font.url).origin, font.url).toBe(appOrigin);
+      expect(new URL(font.url).pathname, font.url).toMatch(
+        /^\/admin\/assets\/.+\.woff2$/,
+      );
+      expect(font.status, font.url).toBe(200);
+    }
+    expect(foreignRequests).toEqual([]);
   } finally {
     await context.close();
   }

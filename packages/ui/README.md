@@ -3,14 +3,24 @@
 Shared, host-neutral open-code components for web and PWA. The shadcn/ui
 configuration is fixed to Base UI and only the free Hugeicons packages.
 
-`src/styles/tokens.css` separates two layers:
+The tokens have three layers:
 
 - unchanged Lions International brand primitives from the official
   [Brand Guidelines](https://www.lionsclubs.org/en/resources-for-members/brand-guidelines),
-  including Blue `#00338D`, Yellow `#EBB700`, Purple `#7A2582` and Navy
-  `#0D2240`;
-- semantic LeonAid tokens such as `--background`, `--surface`, `--primary`,
-  `--focus`, `--success` and `--sidebar`.
+  including Yellow `#EBB700`, Purple `#7A2582` and Navy `#0D2240`, in
+  `src/styles/tokens.css`;
+- the "Leitsystem" semantic tokens in `src/styles/leitsystem.css`: surfaces
+  (`--bg`, `--surface`, `--surface-2`), text (`--text`, `--text-2`,
+  `--text-3`), `--accent`, status (`--ok`, `--warn`, `--danger`, `--info`),
+  the rail (`--rail-*`), type, space, shape and motion scales, and the zone
+  hues. `[data-zone="<navigation key>"]` on an area root sets `--zone-h`;
+  `--zone`, `--zone-soft`, `--zone-line` and `--zone-ink` derive from it;
+- aliases in `tokens.css` that keep the older names (`--background`,
+  `--primary`, `--muted`, `--sidebar`, ...) pointing at Leitsystem tokens until
+  each component moves to the new names.
+
+`src/styles/contrast.test.ts` (`bun run test:ui`) checks every text and control
+pair, in light and dark and for every zone, against its WCAG target.
 
 Components use only the semantic layer. This lets light and dark mode evolve
 without rewriting business components or brand primitives. The switcher

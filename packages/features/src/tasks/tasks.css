@@ -64,7 +64,7 @@
   overflow-wrap: anywhere;
 }
 .tasks-list-links a[aria-current="page"] {
-  background: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-foreground);
   font-weight: 600;
   border-radius: var(--radius-sm);
@@ -491,7 +491,7 @@
 }
 .task-order-handle:hover {
   color: var(--foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-order-handle:active {
   cursor: grabbing;
@@ -574,7 +574,7 @@
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.5rem 0.75rem;
-  background: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-foreground);
   border-radius: var(--radius-sm);
 }
@@ -634,7 +634,7 @@
   display: none;
 }
 .task-row-menu summary:hover {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-row-menu summary:focus-visible {
   outline: 2px solid var(--focus);
@@ -678,7 +678,7 @@
   cursor: pointer;
 }
 .task-menu-action:hover:not(:disabled) {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-menu-action:disabled {
   cursor: not-allowed;

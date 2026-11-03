@@ -8,10 +8,17 @@
     ".": "./src/index.ts",
     "./components": "./src/components/index.ts",
     "./lib/utils": "./src/lib/utils.ts",
-    "./styles.css": "./src/styles/globals.css"
+    "./styles.css": "./src/styles/globals.css",
+    "./fonts.css": "./src/styles/fonts.css",
+    "./leitsystem.css": "./src/styles/leitsystem.css"
+  },
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.6.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource/barlow": "5.3.0",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/react": "1.1.9",
     "clsx": "2.1.1",

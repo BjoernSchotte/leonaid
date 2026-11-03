@@ -95,7 +95,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .invoice-profile-bar > div {
@@ -221,7 +221,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .invoice-ledger-row__identity,
@@ -341,7 +341,7 @@
     color-mix(in oklch, var(--accent-foreground) 18%, var(--border));
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 35%, var(--surface));
 }
 
 .invoice-document__identity {
@@ -445,7 +445,7 @@
     color-mix(in oklch, var(--accent-foreground) 18%, var(--border));
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 35%, var(--surface));
 }
 
 .invoice-delivery__header > div {
@@ -617,7 +617,7 @@
   padding: 0.8rem;
   border-left: 3px solid var(--warning, var(--accent-foreground));
   border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 35%, var(--surface));
 }
 
 .invoice-delivery__confirm p,
@@ -685,7 +685,7 @@
     color-mix(in oklch, var(--accent-foreground) 18%, var(--border));
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+  background: color-mix(in oklch, var(--accent-soft) 35%, var(--surface));
 }
 
 .invoice-settlement[data-state="paid"] .invoice-settlement__mark {
@@ -740,7 +740,7 @@
   color: var(--warning-text, var(--foreground));
   background: color-mix(
     in oklch,
-    var(--warning, var(--accent)) 10%,
+    var(--warning, var(--accent-soft)) 10%,
     var(--surface)
   );
   font-size: 0.68rem;

@@ -157,7 +157,7 @@
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .acq-section-heading h2,
@@ -728,7 +728,7 @@
 
 .candidate:has(input:checked) {
   border-color: var(--focus);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .candidate input {
@@ -1018,7 +1018,7 @@
   padding: 0.25rem 0.55rem;
   border-radius: 999px;
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
   font-size: var(--text-xs);
   font-weight: 720;
 }
