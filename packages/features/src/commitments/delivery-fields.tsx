@@ -78,6 +78,63 @@ function dayLabel(day: string) {
   }).format(new Date(`${day}T12:00:00Z`));
 }
 
+type DeliveryWindowOption = DeliveryConfigurationResponse["windows"][number];
+
+function zoneOffset(instant: number, zone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(instant));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((item) => item.type === type)?.value);
+  return (
+    Date.UTC(
+      part("year"),
+      part("month") - 1,
+      part("day"),
+      part("hour"),
+      part("minute"),
+      part("second"),
+    ) - instant
+  );
+}
+
+/** Start instant (ms) of a window whose wall time is local to `zone`. */
+export function windowStart(window: DeliveryWindowOption, zone: string) {
+  const [year, month, day] = window.deliveryOn.split("-").map(Number);
+  const [hour, minute] = window.startsAt.split(":").map(Number);
+  const wall = Date.UTC(year!, month! - 1, day!, hour!, minute!);
+  // Two passes settle the offset across a DST change; Core rejects
+  // ambiguous or nonexistent wall times when windows are created.
+  const first = wall - zoneOffset(wall, zone);
+  return wall - zoneOffset(first, zone);
+}
+
+/**
+ * Windows an order may select. Capture only offers active windows that have
+ * not started. A manager completing an existing order may also record a
+ * window that has already started (retired or not) as historical delivery.
+ */
+export function selectableWindows(
+  configuration: DeliveryConfigurationResponse,
+  { historical = false, now = Date.now() } = {},
+) {
+  const upcoming: DeliveryWindowOption[] = [];
+  const past: DeliveryWindowOption[] = [];
+  for (const item of configuration.windows) {
+    if (windowStart(item, configuration.timezone) > now) {
+      if (!item.retired) upcoming.push(item);
+    } else if (historical) past.push(item);
+  }
+  return { upcoming, past };
+}
+
 export function DeliveryFields({
   configuration,
   value,
@@ -87,6 +144,7 @@ export function DeliveryFields({
   refresh,
   refreshing = false,
   lockedWindow = false,
+  historical = false,
 }: {
   readonly configuration: DeliveryConfigurationResponse;
   readonly value: DeliveryDraft;
@@ -97,11 +155,44 @@ export function DeliveryFields({
   readonly refreshing?: boolean;
   /** A booked window is immutable: hide the choice and keep the stored ID. */
   readonly lockedWindow?: boolean;
+  /** Manager completion only: also offer windows that have already started. */
+  readonly historical?: boolean;
 }) {
   const prefix = useId();
-  const windows = configuration.windows.filter((item) => !item.retired);
-  const days = [...new Set(windows.map((item) => item.deliveryOn))].sort();
-  const selectedAvailable = windows.some((item) => item.id === value.windowId);
+  const { upcoming, past } = selectableWindows(configuration, { historical });
+  const selectedAvailable = [...upcoming, ...past].some(
+    (item) => item.id === value.windowId,
+  );
+  const renderDays = (windows: DeliveryWindowOption[], headingLevel: 3 | 4) =>
+    [...new Set(windows.map((item) => item.deliveryOn))].sort().map((day) => {
+      const Heading = headingLevel === 3 ? "h3" : "h4";
+      return (
+        <div className="commitment-delivery-day" key={day}>
+          <Heading>{dayLabel(day)}</Heading>
+          <div className="commitment-delivery-options">
+            {windows
+              .filter((item) => item.deliveryOn === day)
+              .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+              .map((item) => (
+                <label key={item.id}>
+                  <input
+                    type="radio"
+                    name="delivery-window"
+                    value={item.id}
+                    checked={value.windowId === item.id}
+                    onChange={() => onChange({ ...value, windowId: item.id })}
+                  />
+                  <span>
+                    {item.startsAt.slice(0, 5)}–{item.endsAt.slice(0, 5)} Uhr
+                    {item.retired ? " (stillgelegt)" : ""}
+                    <span className="sr-only"> am {dayLabel(day)}</span>
+                  </span>
+                </label>
+              ))}
+          </div>
+        </div>
+      );
+    });
   useEffect(() => {
     if (!lockedWindow && value.windowId && !selectedAvailable)
       onChange({ ...value, windowId: "" });
@@ -214,41 +305,38 @@ export function DeliveryFields({
             Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
             auswählen.
           </p>
-          {days.length ? (
-            days.map((day) => (
-              <div className="commitment-delivery-day" key={day}>
-                <h3>{dayLabel(day)}</h3>
-                <div className="commitment-delivery-options">
-                  {windows
-                    .filter((item) => item.deliveryOn === day)
-                    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-                    .map((item) => (
-                      <label key={item.id}>
-                        <input
-                          type="radio"
-                          name="delivery-window"
-                          value={item.id}
-                          checked={value.windowId === item.id}
-                          onChange={() =>
-                            onChange({ ...value, windowId: item.id })
-                          }
-                        />
-                        <span>
-                          {item.startsAt.slice(0, 5)}–{item.endsAt.slice(0, 5)}{" "}
-                          Uhr
-                          <span className="sr-only"> am {dayLabel(day)}</span>
-                        </span>
-                      </label>
-                    ))}
-                </div>
-              </div>
-            ))
+          {upcoming.length ? (
+            renderDays(upcoming, 3)
+          ) : past.length ? (
+            <StatusMessage tone="info">
+              Zurzeit ist kein künftiges Lieferfenster verfügbar. Eine bereits
+              erfolgte Lieferung kannst du unten nachträglich erfassen.
+            </StatusMessage>
           ) : (
             <StatusMessage tone="info">
               Zurzeit ist kein Lieferfenster verfügbar. Ein Entwurf ist möglich.
               Bitte den Charity-Admin, neue Termine freizugeben.
             </StatusMessage>
           )}
+          {past.length ? (
+            <div
+              aria-describedby={`${prefix}-past-hint`}
+              aria-labelledby={`${prefix}-past-title`}
+              className="commitment-delivery-past"
+              data-testid="delivery-window-past"
+              role="group"
+            >
+              <h3 id={`${prefix}-past-title`}>
+                Vergangene Lieferzeiten (nachträglich erfassen)
+              </h3>
+              <p id={`${prefix}-past-hint`}>
+                Nur wählen, wenn die Bestellung in diesem Zeitfenster bereits
+                geliefert wurde. Die Angabe wird als nachträglich erfasst
+                protokolliert.
+              </p>
+              {renderDays(past, 4)}
+            </div>
+          ) : null}
           <Button variant="ghost" disabled={refreshing} onClick={refresh}>
             {refreshing
               ? "Lieferfenster werden geladen …"

@@ -8,6 +8,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import asyncpg
+from leonaid.adapters.postgres.retry import (
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.adapters.postgres.delivery import (
     read_configuration,
     lock_configuration,
@@ -87,7 +91,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         occurred_at: datetime,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._complete_once(
@@ -103,11 +107,12 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
         raise RuntimeError("Der Entwurfsabschluss wurde nicht ausgeführt.")
 
     @staticmethod
@@ -417,7 +422,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         occurred_at: datetime,
     ) -> Commitment:
         async with self._pool.acquire() as connection:
-            for attempt in range(3):
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
                     async with connection.transaction(isolation="serializable"):
                         return await self._create_once(
@@ -433,12 +438,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             occurred_at=occurred_at,
                         )
                 except asyncpg.SerializationError:
-                    if attempt == 2:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
                             "Bitte versuche denselben Vorgang erneut.",
                         ) from None
+                    await serialization_pause(attempt)
             raise RuntimeError("Die Commitment-Transaktion wurde nicht ausgeführt.")
 
     async def _create_once(
