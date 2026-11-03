@@ -108,6 +108,8 @@ test("inbox list: j/k, Enter, Esc, x and closing with a note by keyboard", async
     await page.keyboard.press("x");
     const bulk = page.getByRole("region", { name: "Auswahl" });
     await expect(bulk).toContainText("2 ausgewählt");
+    // Page-wide, with checked rows and the bulk bar, before any edit runs.
+    await expectNoSeriousAccessibilityViolations(page, "Auswahl");
     await page.keyboard.press("s");
     await page.getByRole("option", { name: /Abgeschlossen/ }).click();
     const dialog = page.getByRole("dialog", { name: "2 Anfragen abschließen" });
@@ -116,8 +118,9 @@ test("inbox list: j/k, Enter, Esc, x and closing with a note by keyboard", async
     // List keys are inert while typing in the dialog.
     await page.keyboard.type("jk");
     await expect(dialog.getByLabel(/Abschlussnotiz/)).toHaveValue("jk");
-    // The rows behind the dialog are dimmed while their edit is pending
-    // (ListView busy state), so axe checks the dialog itself.
+    // While the dialog is open the target rows are busy (60 % opacity) and
+    // inert behind the backdrop, which axe does not model. The same page
+    // passed page-wide right before ("Auswahl"), so check the dialog only.
     await expectNoSeriousAccessibilityViolations(
       page,
       "Abschlussdialog",

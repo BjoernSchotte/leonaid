@@ -165,7 +165,7 @@ export const CASES_KEY = ["inbox-cases"] as const;
 
 /**
  * Puts server answers into the list and the single-case cache at once, so
- * the row and the pane show them before the list is fetched again.
+ * the row and the pane show them without loading every page again.
  */
 export function acceptCases(cache: QueryClient, cases: readonly Case[]) {
   if (cases.length === 0) return;
@@ -182,7 +182,8 @@ export function acceptCases(cache: QueryClient, cases: readonly Case[]) {
     cache.setQueryData(["inbox-case", item.id], item);
     void cache.invalidateQueries({ queryKey: ["inbox-permissions", item.id] });
   }
-  void cache.invalidateQueries({ queryKey: CASES_KEY });
+  // No refetch of every page here: the rows are already patched. Failures
+  // refetch (useCaseUpdates), and the list refreshes on window focus.
 }
 
 /**

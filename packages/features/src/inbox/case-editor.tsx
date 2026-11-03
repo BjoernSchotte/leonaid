@@ -111,7 +111,11 @@ export interface CloseCaseDialogProps {
   /** The cases to close, read fresh on every render; null keeps it shut. */
   readonly cases: readonly Case[] | null;
   readonly onDone: (closed: readonly Case[]) => void;
-  readonly onCancel: () => void;
+  /**
+   * Backed out. `closed` of `total` cases were closed by an earlier, partly
+   * failed attempt of this dialog (0 when nothing was saved).
+   */
+  readonly onCancel: (closed: number, total: number) => void;
 }
 
 /** "Anfrage abschließen": closing always records an internal note. */
@@ -138,7 +142,18 @@ function CloseCaseForm({
   const [error, setError] = useState<string>();
   const [serverError, setServerError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const [initiallyOpen] = useState(() =>
+    cases.filter((item) => item.status !== "closed").map((item) => item.id),
+  );
   useLeaveGuard(note.trim().length > 0);
+  const cancel = () => {
+    const open = new Set(initiallyOpen);
+    onCancel(
+      cases.filter((item) => open.has(item.id) && item.status === "closed")
+        .length,
+      initiallyOpen.length,
+    );
+  };
   const first = cases[0]!;
   const fieldId = `close-note-${first.id}`;
 
@@ -176,7 +191,7 @@ function CloseCaseForm({
       }
       footer={
         <>
-          <Button disabled={pending} onClick={onCancel} variant="ghost">
+          <Button disabled={pending} onClick={cancel} variant="ghost">
             Abbrechen
           </Button>
           <Button
@@ -191,7 +206,7 @@ function CloseCaseForm({
         </>
       }
       onClose={() => {
-        if (!pending) onCancel();
+        if (!pending) cancel();
       }}
       open
       title={

@@ -34,7 +34,12 @@ import {
 import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext, ModuleSurface } from "../modules";
 import { CaseDetail } from "./case-detail";
-import { CloseCaseDialog, useCaseUpdates } from "./case-editor";
+import {
+  CaseUpdateError,
+  CloseCaseDialog,
+  useCaseUpdates,
+  type CaseChange,
+} from "./case-editor";
 import { ContactStateLabel } from "./contact";
 import "./inbox.css";
 import {
@@ -68,16 +73,24 @@ export interface InboxPageProps extends ModulePageContext {
  * own only when rendered without them (tests, embedding).
  */
 export function InboxPage(props: InboxPageProps) {
-  useState(() => {
-    if (props.caseId) migrateCasePath(props.basePath, props.caseId);
-    return null;
-  });
+  useLegacyCasePath(props.basePath, props.caseId);
   const registry = useOptionalHotkeyRegistry();
   const toast = useOptionalToast();
   let page: ReactNode = <InboxList {...props} />;
   if (!toast) page = <ToastProvider>{page}</ToastProvider>;
   if (!registry) page = <HotkeyProvider>{page}</HotkeyProvider>;
   return page;
+}
+
+/**
+ * Old case links `<base>/<id>` (bookmarks, search hits) become the list URL
+ * with the pane open, once, before the list reads the URL. Idempotent.
+ */
+function useLegacyCasePath(basePath: string, caseId: string | undefined) {
+  useState(() => {
+    if (caseId) migrateCasePath(basePath, caseId);
+    return null;
+  });
 }
 
 const PAGE_SIZE = 100;
@@ -140,6 +153,32 @@ function InboxList({
   const address: Address = surface === "pwa" ? "du" : "Sie";
   const toast = useOptionalToast();
   const update = useCaseUpdates(client);
+  // A list edit on several cases where only some were saved: say how many
+  // and resolve "cancelled", so the list does not claim all or none.
+  const savePartly = useCallback(
+    async (
+      targets: readonly Case[],
+      change: CaseChange,
+      label: string,
+    ): Promise<ListEditOutcome> => {
+      try {
+        await update(targets, change);
+      } catch (error) {
+        if (!(error instanceof CaseUpdateError) || error.failed === error.total)
+          throw error;
+        toast?.show({
+          title: `${label} bei ${error.total - error.failed} von ${error.total} Anfragen geändert.`,
+          description:
+            address === "Sie"
+              ? "Die übrigen wurden inzwischen geändert oder sind nicht freigegeben. Prüfen Sie sie und versuchen Sie es erneut."
+              : "Die übrigen wurden inzwischen geändert oder sind nicht freigegeben. Prüfe sie und versuche es erneut.",
+          tone: "error",
+        });
+        return "cancelled";
+      }
+    },
+    [address, toast, update],
+  );
   const me = identity.userId;
 
   const cases = useQuery({
@@ -313,7 +352,7 @@ function InboxList({
             if (targets.length === 0) return;
             if (status === "closed")
               return requestClose(targets.map((item) => item.id));
-            await update(targets, { status });
+            return savePartly(targets, { status }, "Status");
           },
         },
         chip: (row) => <StatusLabel status={caseStatusLabels[row.status]} />,
@@ -370,7 +409,12 @@ function InboxList({
                 const targets = casesFor(ids).filter(
                   (item) => item.assigneeUserId !== assigneeUserId,
                 );
-                if (targets.length) await update(targets, { assigneeUserId });
+                if (targets.length)
+                  return savePartly(
+                    targets,
+                    { assigneeUserId },
+                    "Zuständigkeit",
+                  );
               },
             }
           : undefined,
@@ -415,7 +459,7 @@ function InboxList({
     names,
     requestClose,
     rows,
-    update,
+    savePartly,
   ]);
 
   const sorts = useMemo<ListSort<Case>[]>(
@@ -547,7 +591,10 @@ function InboxList({
             {cases.data?.truncated ? (
               <StatusMessage className="inbox-callout" tone="info">
                 Es werden die neuesten {cases.data.items.length} Anfragen
-                gezeigt. Ältere Anfragen öffnen Sie über die Suche.
+                gezeigt.{" "}
+                {address === "Sie"
+                  ? "Ältere Anfragen öffnen Sie über die Suche."
+                  : "Ältere Anfragen öffnest du über die Suche."}
               </StatusMessage>
             ) : null}
           </>
@@ -555,6 +602,7 @@ function InboxList({
         className="inbox-list"
         columns={columns}
         detailTitle={detailTitle}
+        address={address}
         emptyIcon={InboxIcon}
         entityLabel={{ one: "Anfrage", many: "Anfragen" }}
         getId={getId}
@@ -594,7 +642,15 @@ function InboxList({
         address={address}
         cases={closingCases}
         client={client}
-        onCancel={() => finishClosing("cancelled")}
+        onCancel={(closed, total) => {
+          if (closed > 0)
+            toast?.show({
+              title: `${closed} von ${total} Anfragen abgeschlossen.`,
+              description: "Die übrigen sind unverändert.",
+              tone: "info",
+            });
+          finishClosing("cancelled");
+        }}
         onDone={() => finishClosing(undefined)}
       />
     </div>

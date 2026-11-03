@@ -480,3 +480,106 @@ describe("assignment", () => {
     expect(await screen.findByText("Anfrage übernommen.")).toBeTruthy();
   });
 });
+
+function press(key: string) {
+  act(() => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    );
+  });
+}
+
+describe("partial saves on several cases", () => {
+  const other = "10000000-0000-4000-8000-000000000002";
+
+  function failingSecond(api: LeonAidApiClient, id: string) {
+    const update = vi.mocked(api.updateInboxCase);
+    const original = update.getMockImplementation()!;
+    update.mockImplementation(async (caseId, body) => {
+      if (caseId === id)
+        throw new ApiError(409, {
+          code: "revision_conflict",
+          message: "Der Fall wurde inzwischen geändert.",
+        } as never);
+      return original(caseId, body);
+    });
+  }
+
+  async function selectTwo() {
+    await screen.findByText("Anfrage 0011", { exact: false });
+    press("j");
+    press("x");
+    press("j");
+    press("x");
+    expect(
+      (await screen.findByRole("region", { name: "Auswahl" })).textContent,
+    ).toContain("2 ausgewählt");
+  }
+
+  it("says how many assignments were saved", async () => {
+    const api = client([inboxCase(caseId(11)), inboxCase(caseId(12))]);
+    failingSecond(api, caseId(12));
+    window.history.replaceState(null, "", "/admin/inbox?view=all");
+    renderPage(api);
+    await waitFor(() => expect(api.listInboxAssignees).toHaveBeenCalled());
+    await selectTwo();
+    press("a");
+    await act(async () => {
+      fireEvent.click(
+        await screen.findByRole("option", { name: /Jonas Weber/ }),
+      );
+    });
+    expect(
+      await screen.findByText("Zuständigkeit bei 1 von 2 Anfragen geändert."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Zuständigkeit bei 2 Einträgen/)).toBeNull();
+    expect(
+      screen.queryByText("Zuständigkeit wurde nicht geändert."),
+    ).toBeNull();
+    expect(api.updateInboxCase).toHaveBeenCalledWith(
+      caseId(11),
+      expect.objectContaining({ assigneeUserId: other }),
+    );
+  });
+
+  it("reports closed cases when the dialog is left after a partial failure", async () => {
+    const api = client([inboxCase(caseId(11)), inboxCase(caseId(12))]);
+    failingSecond(api, caseId(12));
+    window.history.replaceState(null, "", "/admin/inbox?view=all");
+    renderPage(api);
+    await selectTwo();
+    press("s");
+    fireEvent.click(
+      await screen.findByRole("option", { name: /Abgeschlossen/ }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "2 Anfragen abschließen",
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Abschlussnotiz/), {
+      target: { value: "Beide telefonisch geklärt." },
+    });
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Abschließen" }),
+      );
+    });
+    expect(
+      await within(dialog).findByText(/1 von 2 Anfragen wurden nicht/),
+    ).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    expect(
+      await screen.findByText("1 von 2 Anfragen abgeschlossen."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Status bei 2 Einträgen/)).toBeNull();
+  });
+
+  it("uses du for the list's own copy in the PWA", async () => {
+    window.history.replaceState(null, "", "/app/inbox?view=mine");
+    renderPage(client([inboxCase(caseId(13))]), { surface: "pwa" });
+    expect(
+      await screen.findByText(
+        "Entferne einen Filter oder ändere den Suchbegriff.",
+      ),
+    ).toBeTruthy();
+  });
+});
