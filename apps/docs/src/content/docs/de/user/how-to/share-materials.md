@@ -1,7 +1,7 @@
 ---
 title: Dateien als Materialien teilen
 description: Eine Datei einmal hochladen, frühere Versionen behalten und gezielt freigeben.
-docId: DOC-P042
+docId: DOC-P043
 audience: [user]
 diataxis: how-to
 contentRevision: 1

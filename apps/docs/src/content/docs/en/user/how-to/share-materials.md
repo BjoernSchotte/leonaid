@@ -1,7 +1,7 @@
 ---
 title: Share files as materials
 description: Upload a file once, keep earlier versions and share it with selected people.
-docId: DOC-P042
+docId: DOC-P043
 audience: [user]
 diataxis: how-to
 contentRevision: 1

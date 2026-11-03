@@ -47,11 +47,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await page.goto(`${origin}${editor}/${entry.id}`);
     await page
       .locator("#field-hero_image")
-      .getByRole("button", { name: "Change", exact: true })
+      .getByRole("button", { name: "Replace", exact: true })
       .click();
     const dialog = page.getByRole("dialog");
     const search = dialog.getByRole("searchbox", { name: "Search media" });
-    const responseFor = (query, cursor) =>
+    // EmDash 1.x pages the picker by number (12 per page). Each page is a
+    // real scoped request; the last page holds the 101st item.
+    const responseFor = (query, pageNumber) =>
       page.waitForResponse((response) => {
         const url = new URL(response.url());
         return (
@@ -59,39 +61,60 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           response.request().method() === "GET" &&
           url.searchParams.get("campaign") === action &&
           url.searchParams.get("q") === query &&
-          url.searchParams.get("cursor") === cursor
+          url.searchParams.get("page") === String(pageNumber) &&
+          !url.searchParams.has("cursor") &&
+          !url.searchParams.has("folderId")
         );
       });
-    const firstResponse = responseFor("page-proof-", null);
+    const pageSize = 12;
+    const lastPage = Math.ceil(101 / pageSize);
+    const firstResponse = responseFor("page-proof-", 1);
     await search.fill("page-proof-");
     const first = await firstResponse;
     assert.equal(first.status(), 200);
+    assert.equal(
+      new URL(first.url()).searchParams.get("limit"),
+      String(pageSize),
+    );
     const firstData = (await first.json()).data;
     assert.equal(firstData.totalCount, 101);
     assert.deepEqual(
       firstData.items.map((item) => item.id),
-      expectedIds.slice(0, 100),
+      expectedIds.slice(0, pageSize),
     );
-    assert.ok(firstData.nextCursor);
-    const list = dialog.getByRole("listbox", { name: "Available media" });
-    await expect(list.getByRole("button")).toHaveCount(100);
-    const secondResponse = responseFor("page-proof-", firstData.nextCursor);
+    const list = dialog
+      .getByRole("region", { name: "Media results" })
+      .getByRole("button");
+    await expect(list).toHaveCount(pageSize);
+    await expect(dialog.getByRole("status").first()).toHaveText(
+      `Showing 1-${pageSize} of 101`,
+    );
+    const secondResponse = responseFor("page-proof-", 2);
     await dialog
-      .getByRole("button", { name: "Load More", exact: true })
+      .getByRole("button", { name: "Next page", exact: true })
       .click();
     const second = await secondResponse;
     assert.equal(second.status(), 200);
-    const secondData = (await second.json()).data;
-    assert.equal(secondData.totalCount, 101);
     assert.deepEqual(
-      secondData.items.map((item) => item.id),
-      expectedIds.slice(100),
+      (await second.json()).data.items.map((item) => item.id),
+      expectedIds.slice(pageSize, 2 * pageSize),
     );
-    assert.ok(!secondData.nextCursor);
-    await expect(list.getByRole("button")).toHaveCount(101);
+    const lastResponse = responseFor("page-proof-", lastPage);
+    await dialog
+      .getByRole("button", { name: "Last page", exact: true })
+      .click();
+    const last = await lastResponse;
+    assert.equal(last.status(), 200);
+    const lastData = (await last.json()).data;
+    assert.equal(lastData.totalCount, 101);
+    assert.deepEqual(
+      lastData.items.map((item) => item.id),
+      expectedIds.slice((lastPage - 1) * pageSize),
+    );
+    await expect(list).toHaveCount(101 - (lastPage - 1) * pageSize);
     await expect(
-      dialog.getByRole("button", { name: "Load More", exact: true }),
-    ).toHaveCount(0);
+      dialog.getByRole("button", { name: "Next page", exact: true }),
+    ).toBeDisabled();
     await expect(
       dialog.getByRole("button", {
         name: fixture.foreign.filename,
@@ -101,7 +124,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.deepEqual((await json(path)).item.data, before);
     // Changing the search after loading a later page must restart at page one.
     const target = fixture.items.find((item) => item.id === expectedIds.at(-1));
-    const narrowedResponse = responseFor(target.filename, null);
+    const narrowedResponse = responseFor(target.filename, 1);
     await search.fill(target.filename);
     const narrowed = await narrowedResponse;
     assert.equal(narrowed.status(), 200);
@@ -111,7 +134,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       narrowedData.items.map((item) => item.id),
       [target.id],
     );
-    await expect(list.getByRole("button")).toHaveCount(1);
+    await expect(list).toHaveCount(1);
     await dialog
       .getByRole("button", { name: target.filename, exact: true })
       .click();
@@ -120,7 +143,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         new URL(response.url()).pathname === path &&
         response.request().method() === "PUT",
     );
-    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await dialog.getByRole("button", { name: "Replace", exact: true }).click();
     assert.equal((await saved).status(), 200);
     await expect(
       page.getByRole("button", { name: "Saved", exact: true }),
@@ -139,7 +162,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await coreLogout(context, page, editor, root);
     await context.close();
     console.log(
-      `campaign-media-pagination-browser: ${name}: real 100+1 native pages, exact order/counts, foreign exclusion, search cursor reset, selection/save/reload passed`,
+      `campaign-media-pagination-browser: ${name}: real 101 items over numbered native pages, exact order/counts, foreign exclusion, search restarts at page one, selection/save/reload passed`,
     );
   } finally {
     await browser.close();

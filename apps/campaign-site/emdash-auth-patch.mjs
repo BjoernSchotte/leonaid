@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 
 export const upstreamAuthSha256 =
-  "37ca9a59ddebdce5cf597e7115dd2684e74ed131b4a9151a5b6ab37c5f822094";
+  "39fdfe3d292db06ddf8996707fa230626bd09b933e4643267bab78c35aef45e7";
 const anchor = "\t\tlet user = await adapter.getUserByEmail(authResult.email);";
 const errorAnchor = '\t\tconsole.error("[external-auth] Auth error:", error);';
 const branch = `		// LeonAid spike seam: resolve the verified mapped ID, never link by email.
@@ -47,7 +47,7 @@ export function patchAuthSource(source) {
 export default function stableIdentityPatch() {
   let transformed = false;
   const require = createRequire(import.meta.url);
-  const entry = require.resolve("emdash/middleware/auth");
+  const entry = require.resolve("emdash/internal/middleware/auth");
   return {
     name: "leonaid-pinned-identity-seam",
     hooks: {

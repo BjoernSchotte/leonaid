@@ -9,7 +9,7 @@ mode=$4
 shift 4
 fail() { echo "cms-migration-controller: refused; do not reopen CMS traffic" >&2; exit 1; }
 case "$project" in ''|*[!a-z0-9_-]*) fail ;; esac
-case "$mode" in verify|upgrade-v1|upgrade-v2) ;; *) fail ;; esac
+case "$mode" in verify|upgrade-v1|upgrade-v2|upgrade-emdash) ;; *) fail ;; esac
 [ "$#" -gt 0 ] || fail
 # Explicit ordered Compose files, confined to this checkout. Never infer a
 # project from the working directory or mutate another project's deployment.
