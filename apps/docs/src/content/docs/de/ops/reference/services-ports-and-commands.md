@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 13
-reviewedRevision: 13
-verifiedAgainst: 583524f992adb500d686dfe91f72e7fa5b7327cc
+contentRevision: 14
+reviewedRevision: 14
+verifiedAgainst: e16f01e1b86aab7869fc2937806dbbc15fb04e47
 reviewer: Björn Schotte
 ---
 
@@ -76,7 +76,8 @@ Hand.
 
 Fachmodule sind standardmäßig eingeschaltet. `LEONAID_DISABLED_MODULES` in der
 Env-Datei der Installation schaltet Module kommagetrennt ab, zum Beispiel
-`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys`, `tasks` und `materials`; Kernbereiche wie Mail und Rechnungen lassen sich nicht
+`LEONAID_DISABLED_MODULES=surveys`. Schaltbare Module sind `surveys`, `tasks`, `materials` und `knowledge`
+(knowledge benötigt tasks und materials); Kernbereiche wie Mail und Rechnungen lassen sich nicht
 abschalten. API und Worker lesen denselben Wert; nach einer Änderung beide neu
 starten.
 

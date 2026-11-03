@@ -63,6 +63,7 @@ E2E_SHARDS = (
     "matching",
     "tasks",
     "materials",
+    "knowledge",
 )
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
@@ -206,6 +207,23 @@ RULES: tuple[Rule, ...] = (
         ("tools/materials/**",),
         e2e("materials") | integration("schema-outbox"),
         "materials proofs",
+    ),
+    # Knowledge module.
+    Rule(
+        (
+            "src/leonaid/modules/knowledge/**",
+            "packages/features/src/knowledge/**",
+            "tests/e2e/modules-knowledge.spec.mjs",
+            "tests/e2e/knowledge-editor.spec.mjs",
+        ),
+        e2e("knowledge"),
+        "knowledge module",
+    ),
+    # tools/schema/test.sh also runs the knowledge schema contracts.
+    Rule(
+        ("tools/knowledge/**",),
+        e2e("knowledge") | integration("schema-outbox"),
+        "knowledge proofs",
     ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),

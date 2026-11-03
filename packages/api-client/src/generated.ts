@@ -87,9 +87,11 @@ export type CreateEmailChangeRequest = { readonly newEmail: string; };
 export type CreateEpic = { readonly idempotencyKey: string; readonly title: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CreateList = { readonly actionId?: string | null; readonly idempotencyKey: string; readonly title: string; };
+export type CreatePage = { readonly actionId?: string | null; readonly content?: Record<string, unknown>; readonly idempotencyKey: string; readonly title: string; };
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: string; readonly website?: string | null; };
 export type CreateSurveyExport = { readonly operationId: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly snapshotId: string; };
 export type CreateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly idempotencyKey: string; readonly title: string; };
+export type CreateTaskFromPage = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly listId: string; readonly title: string; };
 export type CreateTaskTag = { readonly idempotencyKey: string; readonly title: string; };
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly email: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
@@ -191,6 +193,13 @@ export type OperationalMonitoringResponse = { readonly activeAlerts: Array<Opera
 export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
 export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly nextPendingAttemptAt?: string | null; readonly oldestDuePendingAgeSeconds?: number | null; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; };
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
+export type Page = { readonly actionId: string | null; readonly content: Record<string, unknown>; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type PageAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
+export type PageMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
+export type PageMembers = { readonly accessRevision: number; readonly items: Array<PageMember>; readonly nextOffset: number | null; readonly ownerUserId: string; };
+export type PagePermissions = { readonly canEdit: boolean; readonly canManage: boolean; };
+export type PageSummary = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type Pages = { readonly items: Array<PageSummary>; readonly nextOffset: number | null; };
 export type ParticipationCounts = { readonly completed: number; readonly in_progress: number; readonly partial: number; };
 export type PersonalPlan = { readonly plannedOn: string | null; readonly revision: number; readonly state: "scheduled" | "someday" | "unplanned"; readonly taskId: string; };
 export type PilotDailyDependenciesResponse = { readonly ready: number; readonly total: number; readonly unavailable: Array<"twenty" | "rustfs" | "mail" | "worker">; };
@@ -248,6 +257,8 @@ export type SetListMember = { readonly access: "viewer" | "editor" | null; reado
 export type SetListMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedRevision: number; readonly idempotencyKey: string; };
 export type SetMaterialMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetMaterialMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
+export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
+export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
 export type SetTaskPlan = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly plannedOn?: string | null; readonly state: "scheduled" | "someday" | "unplanned"; };
 export type SetTaskStructure = { readonly checklist: Array<ChecklistItem>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly priority: "none" | "high"; readonly tagIds: Array<string>; };
@@ -276,6 +287,7 @@ export type SurveySummaryResponse = { readonly accessMode: "anonymous" | "invita
 export type SurveyTimeoutSettings = { readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number | null; readonly operationId: string; };
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
 export type Task = { readonly assigneeUserId?: string | null; readonly checklist: Array<ChecklistItem>; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly id: string; readonly listId: string; readonly priority: "none" | "high"; readonly revision: number; readonly status: "open" | "done"; readonly tags: Array<TaskTag>; readonly title: string; readonly updatedAt: string; };
+export type TaskFromPage = { readonly page: Page; readonly task: Task; };
 export type TaskList = { readonly actionId: string | null; readonly canEdit: boolean; readonly id: string; readonly orderRevision: number; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type TaskLists = { readonly items: Array<TaskList>; readonly nextOffset: number | null; };
 export type TaskMove = { readonly context: "list" | "personal"; readonly orderRevision: number; readonly planRevision: number | null; readonly taskId: string; readonly taskRevision: number | null; };
@@ -295,6 +307,7 @@ export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
 export type UpdateCampaignAliasRequest = { readonly alias: string; readonly commandId: string; readonly enabled: boolean; readonly revision: number; readonly targetActionId: string; };
 export type UpdateEpic = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
+export type UpdatePage = { readonly content: Record<string, unknown>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "open" | "done"; readonly title: string; };
 
 export type FetchLike = (
@@ -1765,6 +1778,157 @@ export class LeonAidApiClient {
     return this.request<InvitationDispatchResponse>(
       `/api/v1/invitations/${encodeURIComponent(String(invitationId))}/resend`,
       { method: "POST" },
+      options,
+    );
+  }
+
+  async listKnowledgePages(
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly actionId?: string | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<Pages> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("actionId", String(queryParameters.actionId));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/knowledge-pages" + (queryString ? `?${queryString}` : "");
+    return this.request<Pages>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async createKnowledgePage(
+    body: CreatePage,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      "/api/v1/knowledge-pages",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getKnowledgePage(
+    pageId: string,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateKnowledgePage(
+    pageId: string,
+    body: UpdatePage,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listKnowledgePageMembers(
+    pageId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<PageMembers> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/members` + (queryString ? `?${queryString}` : "");
+    return this.request<PageMembers>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setKnowledgePageMember(
+    pageId: string,
+    body: SetPageMember,
+    options: RequestOptions = {},
+  ): Promise<PageAccess> {
+    return this.request<PageAccess>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/members`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setKnowledgePageMemberByEmail(
+    pageId: string,
+    body: SetPageMemberByEmail,
+    options: RequestOptions = {},
+  ): Promise<PageAccess> {
+    return this.request<PageAccess>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/members/by-email`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getKnowledgePagePermissions(
+    pageId: string,
+    options: RequestOptions = {},
+  ): Promise<PagePermissions> {
+    return this.request<PagePermissions>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/permissions`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async createTaskFromKnowledgePage(
+    pageId: string,
+    body: CreateTaskFromPage,
+    options: RequestOptions = {},
+  ): Promise<TaskFromPage> {
+    return this.request<TaskFromPage>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/tasks`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

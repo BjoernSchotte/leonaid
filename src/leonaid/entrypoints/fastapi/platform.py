@@ -52,6 +52,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
+    build_knowledge_service,
     build_material_service,
     build_survey_services,
     build_task_service,
@@ -331,6 +332,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         ) = build_survey_services(pool, settings, object_storage)
         application.state.task_service = build_task_service(pool)
         application.state.material_service = build_material_service(
+            pool, object_storage
+        )
+        application.state.knowledge_service = build_knowledge_service(
             pool, object_storage
         )
         public_order_tokens = PublicOrderTokenCodec(

@@ -1,5 +1,5 @@
 /* Compact module buttons: 40 px rows on desktop, 44 px touch targets. */
-:is(.tasks-workspace, .materials-workspace) .ui-button {
+:is(.tasks-workspace, .materials-workspace, .knowledge-workspace) .ui-button {
   min-height: 2.5rem;
   max-width: 100%;
   padding: 0.5rem 0.75rem;
@@ -9,17 +9,20 @@
   white-space: normal;
 }
 
-:is(.tasks-workspace, .materials-workspace) .ui-button > span:last-child {
+:is(.tasks-workspace, .materials-workspace, .knowledge-workspace)
+  .ui-button
+  > span:last-child {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-:is(.tasks-workspace, .materials-workspace) .ui-button__icon {
+:is(.tasks-workspace, .materials-workspace, .knowledge-workspace)
+  .ui-button__icon {
   flex-shrink: 0;
 }
 
 @media (pointer: coarse), (max-width: 760px) {
-  :is(.tasks-workspace, .materials-workspace) .ui-button {
+  :is(.tasks-workspace, .materials-workspace, .knowledge-workspace) .ui-button {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }

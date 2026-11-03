@@ -295,6 +295,7 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         "surveys",
         "tasks",
         "materials",
+        "knowledge",
     }
     assert {(item.surface, item.key) for item in navigation} >= {
         ("pwa", "overview-pwa"),

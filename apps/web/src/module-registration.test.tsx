@@ -76,6 +76,7 @@ describe("UI module registration", () => {
       "surveys",
       "tasks",
       "materials",
+      "knowledge",
     ]);
     const surveyId = "0b8a3c1e-2f4d-4e5a-9b6c-7d8e9f0a1b2c";
     const cases = [

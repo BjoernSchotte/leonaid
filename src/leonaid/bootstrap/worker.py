@@ -103,6 +103,9 @@ def worker_modules(
         ModuleRegistration("tasks", switchable=True),
         ModuleRegistration("materials", switchable=True),
         ModuleRegistration(
+            "knowledge", switchable=True, requires=("tasks", "materials")
+        ),
+        ModuleRegistration(
             "actions",
             handlers=_action_handlers(dependencies) if dependencies else {},
         ),
