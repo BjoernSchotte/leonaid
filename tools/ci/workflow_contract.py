@@ -63,6 +63,15 @@ RETRYABLE = re.compile(
     r"tools/ci/retry-infra\.sh (?:\./leonaid bootstrap|sh tools/ci/bootstrap-prefetch\.sh"
     r" (?:toolchains|seed|browser|\"\$1\")|docker pull \"\$[A-Z_]+\")"
 )
+# Small AWS-hosted runners start with about 14 GB free disk; every job that
+# builds or loads LeonAid images must free about 18 GB first. Jobs using the
+# build cache need it unless listed as light (one or two small images);
+# the cold rehearsal and nightly recovery proofs build without the cache.
+FREE_DISK_LIGHT = {("api-contract.yml", "contract"), ("pins.yml", "sbom")}
+FREE_DISK_EXTRA = {
+    ("ci.yml", "pilot-cold-rehearsal"),
+    ("surveys.yml", "backup-recovery"),
+}
 # Composite-action steps whose failure is retried once by the next steps.
 FIRST_ATTEMPTS = {
     ".github/actions/build-cache/action.yml": "bake",
@@ -150,14 +159,6 @@ def check(path: Path) -> list[str]:
     for shard in INTEGRATION_SHARDS:
         if shard not in select_suites.INTEGRATION_SHARDS:
             problems.append(f"Integration shard missing: {shard}")
-    security = job_block(text, "security")
-    # All own images plus every pinned third-party image exceed the free disk
-    # of a stock runner; the Security gate must not fail on space.
-    start = security.find("tools/ci/free-runner-disk.sh start")
-    finish = security.find("tools/ci/free-runner-disk.sh wait")
-    gate = security.find("tools/ci/security.sh")
-    if not 0 <= start < finish < gate:
-        problems.append("Security job does not free runner disk before the gates.")
     leaves = job_block(text, "e2e")
     if "shard: ${{ fromJSON(needs.select.outputs.e2e) }}" not in leaves:
         problems.append("E2E leaves must come from the suite selector.")
@@ -183,7 +184,42 @@ def check(path: Path) -> list[str]:
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))
     problems.extend(check_retries(text, "ci.yml"))
+    problems.extend(check_free_disk(text, "ci.yml"))
     problems.extend(check_nightly(text))
+    return problems
+
+
+def check_free_disk(text: str, name: str) -> list[str]:
+    """Image jobs start freeing disk before preparing images, wait before use."""
+    problems: list[str] = []
+    for job in jobs_of(text):
+        block = job_block(text, job)
+        cache = block.find("uses: ./.github/actions/build-cache")
+        if (name, job) in FREE_DISK_LIGHT:
+            continue
+        if cache < 0 and (name, job) not in FREE_DISK_EXTRA:
+            continue
+        start = block.find("run: sh tools/ci/free-runner-disk.sh start")
+        finish = block.find("run: sh tools/ci/free-runner-disk.sh wait")
+        prepared = max(cache, block.find("uses: ./.github/actions/test-fixture"))
+        suites = [
+            index
+            for index in (
+                block.find("tools/ci/run-job.sh"),
+                block.find("./leonaid test-"),
+            )
+            if index >= 0
+        ]
+        if not (
+            0 <= start
+            and (cache < 0 or start < cache)
+            and prepared < finish
+            and (not suites or finish < min(suites))
+        ):
+            problems.append(
+                f"{name}: job {job} must free runner disk: free-runner-disk.sh "
+                "start before image preparation, wait before its suite."
+            )
     return problems
 
 
@@ -318,6 +354,7 @@ def check_repository(root: Path) -> list[str]:
         problems.extend(check_tiers(text, name))
         problems.extend(check_gate(text, name))
         problems.extend(check_retries(text, name))
+        problems.extend(check_free_disk(text, name))
     for name, job in UNGATED_REQUIRED.items():
         text = (workflows / name).read_text(encoding="utf-8")
         problems.extend(check_tiers(text, name))

@@ -18,12 +18,19 @@ CI_MUTATIONS = (
     (
         "run: sh tools/ci/free-runner-disk.sh wait",
         "run: true",
-        "free runner disk",
+        "job integration-shards must free runner disk",
     ),
     (
         "run: sh tools/ci/free-runner-disk.sh start",
         "run: true",
-        "free runner disk",
+        "job integration-shards must free runner disk",
+    ),
+    (
+        "      - name: Finish freeing runner disk\n"
+        "        run: sh tools/ci/free-runner-disk.sh wait\n"
+        "      - name: Report runner disk after preparation\n",
+        "      - name: Report runner disk after preparation\n",
+        "job security must free runner disk",
     ),
     (
         "actions/upload-artifact@",
@@ -164,6 +171,20 @@ CI_MUTATIONS = (
 )
 
 OTHER_MUTATIONS = (
+    (
+        "surveys.yml",
+        "run: sh tools/ci/free-runner-disk.sh wait",
+        "run: true",
+        "job surveys must free runner disk",
+    ),
+    (
+        "surveys.yml",
+        "      - name: Finish freeing runner disk\n"
+        "        run: sh tools/ci/free-runner-disk.sh wait\n"
+        "      - name: Run isolated backup and recovery proof\n",
+        "      - name: Run isolated backup and recovery proof\n",
+        "job backup-recovery must free runner disk",
+    ),
     ("surveys.yml", "  merge_group:\n", "", "must run on merge_group"),
     (
         "surveys.yml",

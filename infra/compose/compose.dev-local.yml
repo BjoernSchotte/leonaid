@@ -1,0 +1,11 @@
+# Local development extensions for the `./leonaid dev` stack only.
+#
+# The CLI adds this file for the default dev project when .local/dev exists
+# (see infra/compose/README.md). It mounts uncommitted, git-ignored Caddy
+# snippets and static files into the proxy, read-only. Test stacks and the
+# pilot never load it.
+services:
+  proxy:
+    volumes:
+      - ../../.local/dev/caddy.d:/etc/caddy/local.d:ro
+      - ../../.local/dev/static:/srv/local-static:ro
