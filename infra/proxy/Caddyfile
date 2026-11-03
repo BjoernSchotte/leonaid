@@ -160,6 +160,11 @@
 		reverse_proxy listmonk:9000
 	}
 
+	# Local development extensions (docs: infra/compose/README.md). The dev-local
+	# overlay mounts .local/dev/caddy.d here read-only; every other stack has no
+	# such directory, and a glob without matches imports nothing.
+	import /etc/caddy/local.d/*.caddy
+
 	handle {
 		import astro_headers
 		import order_declared_body_limit

@@ -54,6 +54,13 @@ PHONE_PATTERN = re.compile(
     rb"(?<![\w.])(?:\+49|0049|0)[ \t()/.-]*[1-9][0-9]{1,4}"
     rb"(?:[ \t()/.-]*[0-9]){6,12}(?!\w)"
 )
+# Random UUIDs (request IDs, primary keys) are hex groups joined by hyphens. A
+# run of decimal groups such as "566bbb6b-0855-4240-8756-..." would otherwise
+# look like a German phone number. The phone check skips complete UUIDs only.
+UUID_PATTERN = re.compile(
+    rb"(?<![0-9A-Za-z-])[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}"
+    rb"(?![0-9A-Za-z-])"
+)
 # BuildKit's 12-character hexadecimal layer ID can happen to be all digits.
 # Redact only that token in the exact progress format, preserving the rest of
 # the line for the unchanged private-signature checks.
@@ -130,7 +137,7 @@ def reject_private_signatures(data: bytes, label: str) -> None:
             raise SanitizationFailure(
                 f"personal email signature in public artifact: {label}"
             )
-    if PHONE_PATTERN.search(data):
+    if PHONE_PATTERN.search(UUID_PATTERN.sub(b"[UUID]", data)):
         raise SanitizationFailure(f"phone signature in public artifact: {label}")
     if PRIVATE_CANARY_PATTERN.search(data):
         raise SanitizationFailure(
