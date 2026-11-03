@@ -1,5 +1,8 @@
 import { lazy, Suspense } from "react";
 
+import { Upload } from "lucide-react";
+
+import { createHref } from "../command-palette/create-request";
 import type { UiModule } from "../modules";
 
 const MaterialsPage = lazy(() =>
@@ -36,6 +39,15 @@ export const materialsModule: UiModule = {
       }));
     },
   },
+  creates: [
+    {
+      id: "create:material",
+      label: "Material hochladen",
+      icon: Upload,
+      href: (surface) =>
+        createHref(`${shellBase(surface)}/materials`, "material"),
+    },
+  ],
   routes: [
     {
       pattern: /^\/materials(?:\/([0-9a-f-]{36}))?$/,

@@ -1,5 +1,8 @@
 import { lazy, Suspense } from "react";
 
+import { Plus } from "lucide-react";
+
+import { createHref } from "../command-palette/create-request";
 import type { UiModule } from "../modules";
 
 const KnowledgePage = lazy(() =>
@@ -42,6 +45,15 @@ export const knowledgeModule: UiModule = {
       }));
     },
   },
+  creates: [
+    {
+      id: "create:knowledge-page",
+      label: "Wissensseite anlegen",
+      icon: Plus,
+      href: (surface) =>
+        createHref(`${shellBase(surface)}/knowledge`, "knowledge-page"),
+    },
+  ],
   routes: [
     {
       pattern: /^\/knowledge\/([0-9a-f-]{36})$/,

@@ -1,5 +1,8 @@
 import { lazy, Suspense } from "react";
 
+import { Plus } from "lucide-react";
+
+import { createHref } from "../command-palette/create-request";
 import type { UiModule } from "../modules";
 
 const TasksPage = lazy(() =>
@@ -30,6 +33,14 @@ export const tasksModule: UiModule = {
       }));
     },
   },
+  creates: [
+    {
+      id: "create:task",
+      label: "Aufgabe anlegen",
+      icon: Plus,
+      href: (surface) => createHref(`${shellBase(surface)}/tasks`, "task"),
+    },
+  ],
   routes: [
     {
       pattern: /^\/tasks(?:\/([0-9a-f-]{36}))?$/,

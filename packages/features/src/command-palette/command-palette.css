@@ -1,0 +1,202 @@
+/*
+ * Command palette, ported from the Leitsystem prototype
+ * (components.css: "Command palette", .palette::backdrop, rise).
+ * Preflight zeroes the UA margin that centres a modal dialog, so the frame
+ * restores it with the prototype's top offset.
+ */
+.palette {
+  width: min(680px, calc(100vw - 24px));
+  margin: min(12vh, 120px) auto auto;
+  padding: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+.palette::backdrop {
+  background: var(--overlay);
+}
+.palette[open] {
+  animation: palette-rise var(--dur-2) var(--ease-out);
+}
+@keyframes palette-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+  color: var(--text-3);
+}
+.palette-crumb {
+  padding: 2px var(--s-2);
+  border-radius: var(--r-xs);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  outline: none;
+}
+.palette-input::placeholder {
+  color: var(--text-3);
+}
+.palette-list {
+  max-height: min(440px, 56dvh);
+  overflow: auto;
+  padding: var(--s-2);
+  scroll-padding: var(--s-2);
+}
+.palette-group [cmdk-group-heading] {
+  padding: var(--s-3) var(--s-2) var(--s-1);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 40px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.palette-item > svg {
+  flex: none;
+  color: var(--text-2);
+}
+.palette-item[data-selected="true"] {
+  background: var(--row-active);
+}
+.palette-zone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-xs);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+.palette-entity-icon {
+  display: inline-grid;
+  flex: none;
+  width: 22px;
+  place-items: center;
+  color: var(--text-2);
+}
+.palette-label {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-item > .kbd-group {
+  margin-left: auto;
+}
+.palette-empty {
+  padding: var(--s-8) var(--s-4);
+  color: var(--text-2);
+  text-align: center;
+  font-size: var(--fs-sm);
+}
+/* Loading, error and partial-failure line between the list and the footer. */
+.palette-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-top: var(--hair) solid var(--border);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.palette-status[hidden] {
+  display: none;
+}
+.palette-status-text.is-danger {
+  color: var(--danger);
+}
+.palette-retry {
+  min-height: 28px;
+  padding: 0 var(--s-3);
+  border: var(--hair) solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.palette-retry:hover {
+  background: var(--row-hover);
+}
+.palette-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4);
+  border-top: var(--hair) solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.palette-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* One footer line from tablet width on, as in the prototype at 1440. */
+@media (min-width: 640px) {
+  .palette-footer {
+    flex-wrap: nowrap;
+  }
+  .palette-footer .palette-coverage {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+/* Hits of the previous query while the next one is on its way. */
+.palette-group[data-stale="true"] .palette-item {
+  opacity: 0.55;
+  cursor: progress;
+}

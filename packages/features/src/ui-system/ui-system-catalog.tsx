@@ -35,16 +35,11 @@ import {
   ErrorState,
   Field,
   FormField,
-  GO_TO_GROUP,
-  HotkeyProvider,
-  type HotkeyBinding,
   Icon,
   IconButton,
   Input,
   Kbd,
   Meter,
-  PrefixHint,
-  ShortcutHelp,
   OptionMenu,
   type OptionMenuOption,
   Popover,
@@ -55,7 +50,6 @@ import {
   StatusMessage,
   statusShape,
   type StatusShape,
-  useHotkeys,
   useShortcutHelp,
   Switch,
   TabPanel,
@@ -63,6 +57,8 @@ import {
   Textarea,
   useToast,
 } from "@leonaid/ui";
+
+import { navigationZones } from "../navigation/zones";
 
 export interface UiSystemCatalogPageProps {
   readonly identity: CurrentIdentityResponse;
@@ -106,62 +102,13 @@ const shortcutRows: readonly (readonly [string, string])[] = [
   ["shift+t", "Hell/Dunkel wechseln"],
 ];
 
-/** Zones of the "g" map, keyed by server navigation key (preview only). */
-const goToZones: readonly (readonly [string, string, string])[] = [
-  ["d", "overview-web", "Übersicht"],
-  ["a", "actions", "Aktionen"],
-  ["b", "orders", "Bestellungen"],
-  ["l", "delivery", "Auslieferung"],
-  ["r", "invoices", "Rechnungen"],
-  ["t", "tasks", "Aufgaben"],
-  ["u", "surveys", "Umfragen"],
-  ["e", "inbox", "Eingang"],
-  ["x", "materials", "Material"],
-  ["w", "knowledge", "Wissen"],
-  ["f", "activities", "Aktivität"],
-  ["m", "members", "Mitglieder"],
-  ["k", "microsite", "Kampagnenseiten"],
-  ["j", "legal", "Rechtliches"],
-  ["s", "system", "System"],
-  ["p", "acquisition-web", "Akquise-App"],
-  ["o", "public", "Bestellseite"],
-];
-
 /**
- * Live preview of the hotkey registry: "?" opens the shortcut help, "g"
- * shows the prefix hint. The bindings only announce what they would do.
+ * The shell owns the live bindings ("?", "g …", "shift+t"); this button
+ * opens its shortcut help. The legend lists the approved "g" map; the shell
+ * binds only the zones the server navigation returns.
  */
 function HotkeyPreview() {
-  const toast = useToast();
   const help = useShortcutHelp();
-  const preview = (text: string) => () =>
-    toast.show({ title: `${text} (Vorschau)`, tone: "info" });
-  const bindings: HotkeyBinding[] = [
-    {
-      keys: "mod+k",
-      label: "Befehlspalette öffnen",
-      group: "Allgemein",
-      inDialog: true,
-      allowInInput: true,
-      run: preview("Befehlspalette öffnen"),
-    },
-    {
-      keys: "shift+t",
-      label: "Hell/Dunkel wechseln",
-      group: "Allgemein",
-      run: preview("Hell/Dunkel wechseln"),
-    },
-    ...goToZones.map(
-      ([key, zone, label]): HotkeyBinding => ({
-        keys: `g ${key}`,
-        label,
-        group: GO_TO_GROUP,
-        zone,
-        run: preview(`Gehe zu ${label}`),
-      }),
-    ),
-  ];
-  useHotkeys(bindings);
   return (
     <>
       <Button
@@ -171,8 +118,15 @@ function HotkeyPreview() {
       >
         Alle Tastenkürzel anzeigen
       </Button>
-      <ShortcutHelp />
-      <PrefixHint />
+      <ul aria-label="Gehe zu" className="ui-catalog-zones">
+        {navigationZones.map((zone) => (
+          <li data-zone={zone.navKey} key={zone.navKey}>
+            <span aria-hidden="true" className="ui-catalog-zone-dot" />
+            <span>{zone.label}</span>
+            <Kbd keys={`g ${zone.key}`} subtle />
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
@@ -666,9 +620,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
             </tbody>
           </table>
           <div className="ui-catalog-cluster" id="hotkeys">
-            <HotkeyProvider>
-              <HotkeyPreview />
-            </HotkeyProvider>
+            <HotkeyPreview />
           </div>
         </div>
         <p className="ui-catalog-note">
