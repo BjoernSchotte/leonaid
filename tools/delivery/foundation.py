@@ -12,6 +12,7 @@ import asyncpg
 import psycopg
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.delivery import (
@@ -352,8 +353,10 @@ def main() -> None:
             "SELECT enabled FROM action_delivery_configuration WHERE action_id=%s",
             (historical_action,),
         ).fetchone() == (False,)
+        # Later modules add revisions; the proof needs the current single head.
+        head = ScriptDirectory.from_config(config).get_current_head()
         assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [
-            ("0040_mail_delivery_set_null",)
+            (head,)
         ]
     asyncio.run(prove())
 

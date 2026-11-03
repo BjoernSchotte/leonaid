@@ -16,11 +16,15 @@ import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
+  ModuleSearch,
+  resolveModuleRoute,
   RoleDashboardPage,
   SponsorWorkspace,
   useCurrentActionId,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+
+import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 
 interface AppProps {
   readonly client: LeonAidApiClient;
@@ -339,6 +343,15 @@ export function App({ client }: AppProps) {
     );
   }
 
+  // Core lists a module only while it is switched on and allowed.
+  const availableModules = pwaModules.filter((module) =>
+    identity.data.navigation.some((item) => item.key === module.id),
+  );
+  const moduleRoute = resolveModuleRoute(
+    availableModules,
+    "pwa",
+    pwaPath(window.location.pathname),
+  );
   const route = currentRoute();
   const memberships = identity.data.actionMemberships.filter(
     (membership) => membership.role === "acquirer",
@@ -352,7 +365,8 @@ export function App({ client }: AppProps) {
   return (
     <>
       <AppShell
-        currentActionName={currentAction}
+        moduleNavigationKeys={pwaModuleNavigationKeys}
+        currentActionName={moduleRoute ? moduleRoute.label : currentAction}
         identity={identity.data}
         onLogout={() => {
           void client.logout().finally(() => {
@@ -362,7 +376,15 @@ export function App({ client }: AppProps) {
         surface="pwa"
         systemBanner={<PwaLifecycle />}
       >
-        {route === "sponsors" ? (
+        <ModuleSearch
+          modules={availableModules}
+          surface="pwa"
+          client={client}
+          identity={identity.data}
+        />
+        {moduleRoute ? (
+          moduleRoute.render({ client, identity: identity.data })
+        ) : route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
         ) : route === "commitment" ? (
           <CommitmentCapturePage client={client} identity={identity.data} />

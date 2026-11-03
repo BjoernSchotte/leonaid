@@ -20,6 +20,7 @@ import {
   UiSystemCatalogPage,
   useCurrentActionId,
   campaignEditorHref,
+  ModuleSearch,
   resolveModuleRoute,
   type UiModule,
 } from "@leonaid/features";
@@ -198,6 +199,7 @@ export function App({ client }: AppProps) {
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
       <AppShell
+        moduleNavigationKeys={webModules.map((module) => module.id)}
         currentActionName={selectedMembership?.actionName ?? currentAction}
         identity={{
           ...identity.data,
@@ -213,6 +215,12 @@ export function App({ client }: AppProps) {
           });
         }}
       >
+        <ModuleSearch
+          modules={availableModules}
+          surface="web"
+          client={client}
+          identity={identity.data}
+        />
         <PreviewNotice />
         {currentRoute.kind === "module" ? (
           currentRoute.render({ client, identity: identity.data })

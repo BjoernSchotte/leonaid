@@ -28,6 +28,8 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
+# Module browser proofs; each module's journeys run only in its own leaf.
+E2E_SHARDS = ("tasks",)
 
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 
@@ -93,6 +95,10 @@ def check(path: Path) -> list[str]:
     gate = security.find("tools/ci/security.sh")
     if not 0 <= start < finish < gate:
         problems.append("Security job does not free runner disk before the gates.")
+    leaves = job_block(text, "e2e")
+    for shard in E2E_SHARDS:
+        if not re.search(rf"^\s+- {re.escape(shard)}$", leaves, re.MULTILINE):
+            problems.append(f"E2E shard missing: {shard}")
     problems.extend(check_emdash(text))
     return problems
 

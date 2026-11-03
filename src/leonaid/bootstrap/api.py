@@ -28,6 +28,10 @@ from leonaid.configuration import Settings
 from leonaid.modules.surveys.jobs import SURVEY_EVENT_TYPES
 from leonaid.modules.surveys.navigation import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
+from leonaid.modules.tasks.api import TaskService
+from leonaid.modules.tasks.api import navigation as task_navigation
+from leonaid.modules.tasks.repository import AsyncpgTaskRepository
+from leonaid.modules.tasks.routes import router as tasks_router
 
 API_MODULES: tuple[ModuleRegistration, ...] = (
     ModuleRegistration(
@@ -36,12 +40,21 @@ API_MODULES: tuple[ModuleRegistration, ...] = (
         navigation=survey_navigation,
         switchable=True,
     ),
+    ModuleRegistration(
+        "tasks",
+        router=tasks_router,
+        navigation=task_navigation,
+        switchable=True,
+    ),
 )
 
 
 # Outbox event types per switchable module. Operations leave the jobs of
 # switched-off modules out of queue timing, because they wait on purpose.
-MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {"surveys": SURVEY_EVENT_TYPES}
+MODULE_EVENT_TYPES: dict[str, frozenset[str]] = {
+    "surveys": SURVEY_EVENT_TYPES,
+    "tasks": frozenset(),
+}
 
 
 def parked_event_types(disabled: frozenset[str]) -> frozenset[str]:
@@ -88,3 +101,7 @@ def build_survey_services(
         )
     )
     return surveys, SurveyExportService(AsyncpgSurveyExports(pool, storage)), publisher
+
+
+def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
+    return TaskService(AsyncpgTaskRepository(pool))
