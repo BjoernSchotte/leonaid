@@ -210,7 +210,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                         raise Conflict(
                             "idempotency_incomplete",
                             "Die Bestellung wird bereits verarbeitet. "
-                            "Bitte versuche es gleich erneut.",
+                            "Bitte versuchen Sie es gleich erneut.",
                         )
                     existing = await self._replayed_result(connection, row["result"])
                 yield AsyncpgPublicOrderCommand(
@@ -250,7 +250,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 if int(count) >= RATE_LIMIT:
                     raise RateLimited(
                         "public_order_rate_limited",
-                        "Zu viele Bestellversuche. Bitte warte zehn Minuten.",
+                        "Zu viele Bestellversuche. Bitte warten Sie zehn Minuten.",
                     )
                 await connection.execute(
                     """
@@ -412,7 +412,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             if line_draft.quoted_unit_price_minor != offering.unit_price.amount_minor:
                 raise Conflict(
                     "public_order_price_changed",
-                    "Der Preis hat sich geändert. Lade die Seite neu und prüfe die Bestellung.",
+                    "Der Preis hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Bestellung.",
                 )
             priced_lines.append(
                 CommitmentLine.price_from(

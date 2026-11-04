@@ -8,6 +8,8 @@ import asyncpg
 from fastapi import APIRouter, FastAPI
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
+from leonaid.application.delivery_board import DeliveryBoardService
 from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
 )
@@ -45,6 +47,7 @@ from leonaid.modules.materials.repository import AsyncpgMaterialRepository
 from leonaid.modules.materials.routes import router as materials_router
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.modules.tasks.api import TaskService
+from leonaid.modules.tasks.delivery_follow_up import TaskDeliveryFollowUp
 from leonaid.modules.tasks.api import navigation as task_navigation
 from leonaid.modules.tasks.repository import AsyncpgTaskRepository
 from leonaid.modules.tasks.routes import router as tasks_router
@@ -140,6 +143,23 @@ def build_survey_services(
         )
     )
     return surveys, SurveyExportService(AsyncpgSurveyExports(pool, storage)), publisher
+
+
+def build_delivery_board_service(
+    pool: asyncpg.Pool[Any], disabled: frozenset[str]
+) -> DeliveryBoardService:
+    """Closing a window creates "Nachliefern" tasks only while tasks is on."""
+    tasks_enabled = any(
+        module.id == "tasks" for module in enabled_api_modules(disabled)
+    )
+    follow_up = TaskDeliveryFollowUp() if tasks_enabled else None
+    return DeliveryBoardService(
+        AsyncpgDeliveryBoardRepository(
+            pool,
+            (lambda _connection: follow_up) if follow_up is not None else None,
+        ),
+        follow_up_tasks=tasks_enabled,
+    )
 
 
 def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:

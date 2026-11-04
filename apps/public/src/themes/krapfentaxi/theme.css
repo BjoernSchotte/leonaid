@@ -4,7 +4,6 @@
   --taxi-paper: #fffaf3;
   --taxi-accent: #cb0046;
   --taxi-accent-hover: #a70039;
-  --font-display: var(--font-body);
 }
 
 .taxi-site section[id] {
@@ -50,7 +49,7 @@
 }
 
 .taxi-nav a:hover {
-  color: var(--lions-gold-300);
+  color: var(--lions-gold);
   text-decoration: underline;
   text-underline-offset: 0.35em;
 }
@@ -179,12 +178,12 @@
 .taxi-story__copy p:not(.eyebrow) {
   max-width: 60ch;
   margin: 1.25rem 0 0;
-  color: var(--ink-muted);
+  color: var(--text-2);
   line-height: 1.8;
 }
 
 .taxi-story__copy .taxi-story__lead {
-  color: var(--ink);
+  color: var(--text);
   font-size: 1.15rem;
 }
 
@@ -198,12 +197,12 @@
   gap: 1.5rem;
   margin-top: clamp(2.5rem, 6vw, 4.5rem);
   padding-block: 1.75rem;
-  border-block: 1px solid var(--rule);
+  border-block: 1px solid var(--border);
 }
 
 .taxi-facts dt {
   margin-bottom: 0.5rem;
-  color: var(--ink-muted);
+  color: var(--text-2);
   font-size: 0.75rem;
   font-weight: 650;
 }
@@ -264,12 +263,12 @@
 }
 
 .taxi-site .order-section {
-  background: var(--canvas-deep);
+  background: var(--surface-2);
 }
 
-.taxi-site .order-guide {
-  top: 6rem;
-  background: var(--taxi-night);
+/* On the tinted order section the privacy box needs the lighter surface. */
+.taxi-site .public-privacy {
+  background: var(--surface);
 }
 
 .taxi-site .order-surface {
@@ -278,21 +277,19 @@
   box-shadow: none;
 }
 
-.taxi-site .form-field input,
-.taxi-site .form-field textarea,
-.taxi-site .quantity-control input {
+.taxi-site .order-form .input {
   border-radius: 0.3rem;
   font-size: 1rem;
 }
 
 .taxi-site .impact-section {
-  color: var(--ink);
+  color: var(--text);
   background: var(--surface);
 }
 
 .taxi-site .impact-section .eyebrow,
 .taxi-site .beneficiary-list li > span {
-  color: var(--ink-muted);
+  color: var(--text-2);
 }
 
 .taxi-site .beneficiary-list {
@@ -304,9 +301,9 @@
 .taxi-site .beneficiary-list li {
   display: block;
   padding: 2rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  background: var(--canvas);
+  background: var(--bg);
 }
 
 .taxi-site .beneficiary-list h3 {
@@ -317,7 +314,7 @@
 }
 
 .taxi-site .beneficiary-list p {
-  color: var(--ink-muted);
+  color: var(--text-2);
   margin-top: 0.75rem;
 }
 
@@ -355,6 +352,6 @@
 @media (prefers-color-scheme: dark) {
   .taxi-site .eyebrow,
   .taxi-site .privacy-section__label {
-    color: var(--lions-gold-300);
+    color: var(--lions-gold);
   }
 }

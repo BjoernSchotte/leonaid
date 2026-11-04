@@ -8,6 +8,7 @@ import {
   ActivityFeedPage,
   CommandPalette,
   CommitmentAdminPage,
+  DeliveryBoardPage,
   CreateActionPage,
   FeatureFlagProvider,
   InvoiceAdminPage,
@@ -107,6 +108,7 @@ const CAMPAIGN_SCOPED_ROUTES: ReadonlySet<string> = new Set([
   "acquisition",
   "orders",
   "invoices",
+  "delivery",
 ]);
 
 function urlCampaign(): string {
@@ -153,6 +155,7 @@ function route(available: readonly UiModule[]) {
   }
   if (pathname === "/system/ui") return { kind: "system-ui" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
+  if (pathname === "/delivery") return { kind: "delivery" } as const;
   if (/^\/invoices(\/(payments|documents))?$/.test(pathname)) {
     return { kind: "invoices" } as const;
   }
@@ -364,6 +367,12 @@ export function App({ client }: AppProps) {
               />
             ) : currentRoute.kind === "orders" ? (
               <CommitmentAdminPage client={client} identity={identity.data} />
+            ) : currentRoute.kind === "delivery" ? (
+              <DeliveryBoardPage
+                actionId={selectedActionId}
+                client={client}
+                surface="web"
+              />
             ) : currentRoute.kind === "invoices" ? (
               <InvoiceAdminPage client={client} identity={identity.data} />
             ) : currentRoute.kind === "activities" ? (

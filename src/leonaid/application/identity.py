@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -321,6 +321,8 @@ def paginate_member_directory(
 def navigation_for(
     principal: IdentityPrincipal,
     module_items: tuple[NavigationItem, ...] = (),
+    *,
+    delivery: bool = False,
 ) -> tuple[NavigationItem, ...]:
     """Core navigation plus registered module items, filtered by the server.
 
@@ -372,6 +374,14 @@ def navigation_for(
                 NavigationItem("activities", "Neues", "/admin/activities", "web"),
                 NavigationItem("acquisition-pwa", "Akquise", "/app/acquisition", "pwa"),
             )
+        )
+    # Only where a managed action actually delivers (``delivery``: the
+    # capability is on and delivery planning is enabled).
+    if delivery and (
+        principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles
+    ):
+        items.append(
+            NavigationItem("delivery", "Auslieferung", "/admin/delivery", "web")
         )
     if (
         GlobalRole.FINANCE_READER in principal.global_roles
@@ -433,12 +443,15 @@ class IdentityQueryService:
         fresh_login_window: timedelta = timedelta(minutes=15),
         module_navigation: Callable[[IdentityPrincipal], tuple[NavigationItem, ...]]
         | None = None,
+        delivery_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
+        | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if fresh_login_window <= timedelta(0):
             raise ValueError("Das Fresh-Login-Fenster muss positiv sein.")
         self._repository = repository
         self._module_navigation = module_navigation
+        self._delivery_navigation = delivery_navigation
         self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -515,6 +528,11 @@ class IdentityQueryService:
                 self._module_navigation(principal)
                 if self._module_navigation is not None
                 else (),
+                delivery=(
+                    await self._delivery_navigation(principal)
+                    if self._delivery_navigation is not None
+                    else False
+                ),
             ),
             session_expires_at=identity.session.expires_at,
             session_last_seen_at=identity.session.last_seen_at,

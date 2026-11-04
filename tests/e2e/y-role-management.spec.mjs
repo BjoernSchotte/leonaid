@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { changeRole, memberPane, openMember } from "./member-list.mjs";
 
@@ -164,7 +164,7 @@ test("charity admin manages only action roles in their own scope", async ({
     await changeRole(page, { ...finance, enabled: false });
     await expect(pane.getByTestId("member-membership")).toHaveCount(1);
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),
@@ -242,9 +242,10 @@ test("system admin performs a role change and full offboarding through the UI", 
     ).toBeTruthy();
     await annaPage.getByTestId("pwa-menu").click();
     const annaPwaSheet = annaPage.getByRole("dialog", { name: "Mehr" });
-    await expect(
-      annaPwaSheet.locator('[data-nav-key="delivery"]'),
-    ).toHaveAttribute("aria-disabled", "true");
+    // The driver role opens the delivery board in the app (Task 6.2).
+    const deliveryTile = annaPwaSheet.locator('[data-nav-key="delivery"]');
+    await expect(deliveryTile).toHaveAttribute("href", "/app/delivery");
+    await expect(deliveryTile).not.toHaveAttribute("aria-disabled", "true");
     await annaPwaSheet.getByRole("button", { name: "Schließen" }).click();
     await annaWebPage.goto(`${baseUrl}/admin/`);
     await annaWebPage.getByTestId("mobile-menu").click();
@@ -288,9 +289,7 @@ test("system admin performs a role change and full offboarding through the UI", 
       0,
     );
 
-    const accessibility = await new AxeBuilder({
-      page: systemPage,
-    }).analyze();
+    const accessibility = await analyzeAccessibility(systemPage);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),
