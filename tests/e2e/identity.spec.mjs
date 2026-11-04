@@ -73,12 +73,19 @@ test("charity admin sees only own actions and no system navigation", async ({
       page.locator('[data-nav-key="invoices"]').first(),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
-    const actionSelector = page.getByRole("combobox", {
-      name: "Charity-Aktion",
-    });
-    await expect(actionSelector).toContainText("Krapfentaxi 2026");
-    await expect(actionSelector).toContainText("Krapfentaxi 2025");
-    await expect(actionSelector).not.toContainText("Krapfentaxi Nord 2026");
+    // The rail switcher lists only Klara's own campaigns.
+    await page.getByTestId("campaign-switcher").click();
+    const switcher = page.getByRole("dialog", { name: "Aktion wechseln" });
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2026/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2025/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi Nord/ }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await page.screenshot({
       path: `${artifactDirectory}/charity-admin-desktop.png`,
       fullPage: true,
