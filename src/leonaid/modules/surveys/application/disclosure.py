@@ -22,7 +22,7 @@ appear in a response.
 """
 
 from datetime import datetime, timedelta
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import Field, FiniteFloat, model_validator
 
@@ -174,7 +174,7 @@ def protect(counts: list[int], total: int | None) -> list[bool]:
     return hidden
 
 
-def _counts(buckets: list[dict], total: int | None) -> list[AggregateCount]:
+def _counts(buckets: list[dict[str, Any]], total: int | None) -> list[AggregateCount]:
     hidden = protect([bucket["count"] for bucket in buckets], total)
     return [
         AggregateCount(
@@ -188,7 +188,7 @@ def _counts(buckets: list[dict], total: int | None) -> list[AggregateCount]:
     ]
 
 
-def _question(question: dict, everything_hidden: bool) -> QuestionAggregate:
+def _question(question: dict[str, Any], everything_hidden: bool) -> QuestionAggregate:
     base = {
         key: question[key]
         for key in (
@@ -242,7 +242,7 @@ def _question(question: dict, everything_hidden: bool) -> QuestionAggregate:
     )
 
 
-def _nps_segments(question: dict) -> NpsSegments | None:
+def _nps_segments(question: dict[str, Any]) -> NpsSegments | None:
     if question["kind"] != "rating" or question["nps"] is None:
         return None
     groups = [0, 0, 0]
@@ -256,7 +256,7 @@ def _nps_segments(question: dict) -> NpsSegments | None:
     return NpsSegments(detractors=detractors, passives=passives, promoters=promoters)
 
 
-def disclose(snapshot: StoredSnapshot | dict) -> AnalysisSnapshot:
+def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
     """The shown form of a stored snapshot (pure; the stored one is unchanged)."""
     stored = (
         snapshot
