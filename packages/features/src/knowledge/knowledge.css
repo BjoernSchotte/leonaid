@@ -1,130 +1,236 @@
-.knowledge-workspace {
+/*
+ * Wissen: ported from the prototype's pages/Knowledge.css (list, page,
+ * format bar, document) and pages/modules/refs.css. The rich text editor
+ * (Tiptap) keeps its toolbar, selection menu and class-based formatting
+ * rules below. Helpers are scoped to the knowledge pages. New tokens only.
+ */
+
+/* ---------- prototype pages/Knowledge.css: list ---------- */
+.kb-list {
   display: grid;
-  gap: 1.5rem;
-  min-width: 0;
-}
-.knowledge-workspace h1 {
+  max-width: 860px;
   margin: 0;
-}
-.knowledge-workspace p {
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-  max-width: 70ch;
-}
-.knowledge-create summary {
-  cursor: pointer;
-  padding-block: 0.75rem;
-  color: var(--primary);
-}
-.knowledge-create form {
-  display: grid;
-  gap: 0.75rem;
-  max-width: 40rem;
-  padding-block: 1rem;
-}
-.knowledge-workspace label {
-  display: grid;
-  gap: 0.5rem;
-}
-.knowledge-workspace :is(input, select) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--control-height);
-  padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
-}
-.knowledge-workspace :is(input, select, summary):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
-.knowledge-results {
-  list-style: none;
   padding: 0;
-  margin: 0;
+  list-style: none;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
 }
-.knowledge-results li {
-  padding-block: 1.25rem;
-  border-bottom: 1px solid var(--border);
+.kb-list li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.kb-row {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  color: var(--text);
+  text-decoration: none;
+}
+.kb-row:hover {
+  background: var(--row-hover);
+}
+.kb-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.kb-title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
   overflow-wrap: anywhere;
 }
-.knowledge-results h2 {
-  font-size: var(--text-lg);
-  margin: 0;
-}
-.knowledge-results p {
-  margin-bottom: 0;
-}
-.knowledge-paging {
+.kb-meta {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
 }
 
-.knowledge-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+/* ---------- prototype pages/Knowledge.css: page ---------- */
+.knowledge-page {
+  max-width: 920px;
+}
+.knowledge-page-editor {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.knowledge-page-editor > .page-header,
+.knowledge-page-editor > .crumbs {
+  margin-bottom: 0;
+}
+.conflict {
+  margin-bottom: 0;
+}
+.format-bar {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s-2));
+  z-index: 10;
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.knowledge-title-field .input {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+.doc {
+  max-width: 70ch;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-prose);
 }
 .knowledge-document {
-  min-height: max(32rem, 65dvh);
-  padding: clamp(1.25rem, 4vw, 3rem);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  line-height: 1.6;
   overflow-wrap: anywhere;
+  caret-color: var(--zone-ink);
+  outline: none;
 }
-.knowledge-document[contenteditable="false"] {
-  min-height: 4rem;
-}
-.knowledge-document:focus-visible,
-.knowledge-workspace a:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
-.knowledge-document p {
-  margin-block: 0.75rem;
+.knowledge-document > * + * {
+  margin-top: var(--s-3);
 }
 .knowledge-document :is(h1, h2, h3, h4, h5, h6) {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-block: 1.5rem 0.5rem;
+  margin-top: var(--s-6);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+.knowledge-document h1 {
+  font-size: var(--fs-2xl);
+}
+.knowledge-document h2 {
+  font-size: var(--fs-xl);
+}
+.knowledge-document :is(h3, h4, h5, h6) {
+  font-size: var(--fs-lg);
+}
+.knowledge-document :is(ul, ol) {
+  padding-inline-start: var(--s-5);
 }
 .knowledge-document ul {
   list-style: disc;
-  padding-left: 1.5rem;
 }
 .knowledge-document ol {
   list-style: decimal;
-  padding-left: 1.5rem;
+}
+.knowledge-document li::marker {
+  color: var(--zone);
 }
 .knowledge-document pre {
   overflow-x: auto;
   white-space: pre-wrap;
 }
-.knowledge-workspace a {
-  color: var(--primary);
+.knowledge-document a {
+  color: var(--accent-ink);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-.knowledge-task-reference {
-  margin-block: 0.75rem;
-  padding-block: 0.75rem;
-  border-block: 1px solid var(--border);
+.knowledge-document ::selection {
+  background: var(--selection);
+}
+/* Writing: the document becomes a framed surface (the prototype frames each
+   paragraph; Tiptap edits one document). */
+.doc.is-editing .knowledge-document {
+  min-height: 16rem;
+  padding: var(--s-3) var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.doc.is-editing .knowledge-document:focus-visible,
+.doc.is-editing .knowledge-document.ProseMirror-focused {
+  border-color: var(--focus);
+}
+.doc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: var(--hair) solid var(--border);
+}
+@media (max-width: 720px) {
+  .doc {
+    font-size: var(--fs-md);
+  }
 }
 
+/* References to tasks and materials (prototype refs.css .ref-chip look). */
+.knowledge-task-reference {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--s-1) var(--s-2);
+  border: var(--hair) solid var(--border-strong);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+.knowledge-task-reference p {
+  margin: 0;
+}
+
+/* ---------- product parts: tools, insert, create ---------- */
+.knowledge-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+.knowledge-more {
+  margin-top: var(--s-4);
+}
+.knowledge-create {
+  display: grid;
+  gap: var(--s-4);
+}
+.knowledge-insert > summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.knowledge-insert-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding-top: var(--s-2);
+}
+:is(.knowledge-page, .knowledge-list-page) .small {
+  font-size: var(--fs-sm);
+}
+:is(.knowledge-page, .knowledge-list-page) .subtle {
+  color: var(--text-3);
+}
+:is(.knowledge-page, .knowledge-list-page) .cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+:is(.knowledge-page, .knowledge-list-page) .stack {
+  display: grid;
+  gap: var(--s-3);
+}
+
+/* ---------- rich text toolbar ---------- */
 .knowledge-formatting {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  position: relative;
   padding: 0.5rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
+}
+/* In the format bar the bar is the frame. */
+.format-bar .knowledge-formatting {
+  padding: 0;
+  border: 0;
 }
 .knowledge-formatting-row,
 .knowledge-tool-group {
@@ -162,20 +268,20 @@
   min-height: 2.25rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   background: transparent;
-  color: var(--foreground);
+  color: var(--text);
   font: inherit;
   font-size: 0.875rem;
   cursor: pointer;
 }
 .knowledge-tool:hover:not(:disabled),
 .knowledge-tool[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  background: var(--zone-soft);
   border-color: var(--border);
 }
 .knowledge-tool[aria-pressed="true"] {
-  color: var(--primary);
+  color: var(--zone-ink);
 }
 .knowledge-tool:disabled {
   opacity: 0.45;
@@ -195,128 +301,14 @@
 .knowledge-link-form label {
   flex: 1 1 15rem;
 }
-.knowledge-document {
-  caret-color: var(--primary);
-}
-.knowledge-document p {
-  max-width: none;
-}
-.knowledge-document h1 {
-  font-size: 2rem;
-}
-.knowledge-document h2 {
-  font-size: 1.65rem;
-}
-.knowledge-document h3 {
-  font-size: 1.4rem;
-}
-.knowledge-document h4 {
-  font-size: 1.2rem;
-}
-.knowledge-document h5 {
-  font-size: 1.05rem;
-}
-.knowledge-document h6 {
-  font-size: 1rem;
-}
-.knowledge-access summary {
-  cursor: pointer;
-  padding-block: 0.5rem;
-}
-@media (pointer: coarse) {
-  .knowledge-tool,
-  .knowledge-formatting select {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
-  }
-}
-@media (max-width: 600px) {
-  .knowledge-formatting {
-    position: relative;
-  }
-  .knowledge-document {
-    padding: 1rem;
-  }
-}
-
-.knowledge-page-editor {
-  min-width: 0;
-  display: grid;
-  gap: 0.75rem;
-  padding-bottom: 6rem;
-}
-.knowledge-editor-header {
-  display: grid;
-  gap: 0.75rem;
-}
-.knowledge-editor-header label {
-  font-size: 0.875rem;
-}
-.knowledge-workspace .knowledge-editor-header input {
-  font-size: clamp(1.25rem, 2.5vw, 2rem);
-  font-weight: 600;
-  padding: 0.5rem 0;
-  border-color: transparent;
-  border-bottom-color: var(--border);
-  border-radius: 0;
-  background: transparent;
-}
-.knowledge-editor-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-}
-.knowledge-editor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: start;
-}
-.knowledge-editor-actions summary {
-  cursor: pointer;
-  padding-block: 0.5rem;
-  font-size: 0.875rem;
-}
-.knowledge-insert-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-block: 0.5rem;
-}
-.knowledge-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-.knowledge-page-editor .knowledge-document {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  scroll-margin-block: 12rem 8rem;
-}
-.knowledge-document > * {
-  max-width: 75ch;
-  margin-inline: auto;
-}
-.knowledge-document ::selection {
-  color: var(--foreground);
-  background: color-mix(in srgb, var(--primary) 20%, var(--surface));
-}
 .knowledge-selection-menu {
   z-index: 50;
   width: max-content;
   max-width: calc(100vw - 24px);
   max-height: min(24rem, 55dvh);
   overflow-y: auto;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 5px 20px rgb(0 0 0 / 0.16);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
 }
 .knowledge-formatting--compact {
   position: static;
@@ -349,8 +341,8 @@
   padding: 0.75rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 5px 20px rgb(0 0 0 / 0.16);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
 }
 @media (max-width: 1360px) {
   .knowledge-primary-controls {
@@ -365,24 +357,14 @@
   width: 100%;
   min-width: 0;
   padding: 0.5rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-sm);
   font: inherit;
 }
 .knowledge-selection-menu .knowledge-link-form label {
   min-width: 0;
 }
 @media (max-width: 600px) {
-  .knowledge-page-editor {
-    gap: 0.5rem;
-  }
-  .knowledge-editor-meta .knowledge-toolbar {
-    gap: 0.375rem;
-  }
-  .knowledge-editor-meta .knowledge-toolbar button {
-    padding-inline: 0.65rem;
-    font-size: 0.875rem;
-  }
   .knowledge-formatting-row {
     gap: 0.125rem;
   }

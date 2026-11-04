@@ -21,6 +21,7 @@ export * from "./popover";
 export * from "./leave-guard";
 export * from "./mobile-shell";
 export * from "./modal";
+export * from "./next-step";
 export * from "./skeleton-rows";
 export * from "./switch";
 export * from "./tabs";

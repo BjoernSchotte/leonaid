@@ -1,0 +1,16 @@
+/* "Nächster Schritt" (prototype styles/pages.css .next-step, DESIGN.md
+   Patterns): a zone-soft box with one primary action. */
+.next-step {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  font-size: var(--fs-sm);
+}
+.next-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}

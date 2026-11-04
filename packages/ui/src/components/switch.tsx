@@ -2,10 +2,8 @@ import type { ComponentPropsWithRef, ReactNode } from "react";
 
 import { cn } from "../lib/utils";
 
-export interface SwitchProps extends Omit<
-  ComponentPropsWithRef<"input">,
-  "type" | "role"
-> {
+export interface SwitchProps
+  extends Omit<ComponentPropsWithRef<"input">, "type" | "role"> {
   /** Visible label; without it, name the switch with `aria-label`. */
   readonly label?: ReactNode;
 }

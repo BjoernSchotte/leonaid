@@ -63,6 +63,7 @@ export const knowledgeModule: UiModule = {
             {...context}
             basePath={`${shellBase(surface)}/knowledge`}
             pageId={match[1]}
+            surface={surface}
           />
         </Suspense>
       ),
@@ -74,6 +75,7 @@ export const knowledgeModule: UiModule = {
           <KnowledgePage
             {...context}
             basePath={`${shellBase(surface)}/knowledge`}
+            surface={surface}
           />
         </Suspense>
       ),
