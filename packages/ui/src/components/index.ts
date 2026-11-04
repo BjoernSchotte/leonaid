@@ -24,3 +24,4 @@ export * from "./skeleton-rows";
 export * from "./switch";
 export * from "./tabs";
 export * from "./list-view";
+export * from "./next-step";

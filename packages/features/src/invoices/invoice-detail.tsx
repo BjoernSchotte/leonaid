@@ -22,6 +22,7 @@ import {
   DetailProps,
   DetailSection,
   Icon,
+  NextStep,
   StatusLabel,
 } from "@leonaid/ui";
 
@@ -131,16 +132,8 @@ export function InvoiceDetail({
       ) : null}
 
       {canManageSettlement && settlement === "outstanding" ? (
-        <div className="next-step">
-          <p>
-            <strong>
-              {row.status === "overdue"
-                ? `Seit ${shortDate(invoice.dueOn, today)} überfällig.`
-                : `Fällig ${relativeDay(invoice.dueOn, today)}.`}
-            </strong>{" "}
-            Erfassen Sie den Zahlungseingang, sobald der volle Betrag da ist.
-          </p>
-          <div className="cluster">
+        <NextStep
+          action={
             <Button
               data-testid="open-payment-form"
               icon={Wallet}
@@ -149,6 +142,8 @@ export function InvoiceDetail({
             >
               Zahlung erfassen
             </Button>
+          }
+          alternatives={
             <Button
               data-testid="open-cancellation-form"
               icon={Ban}
@@ -157,8 +152,14 @@ export function InvoiceDetail({
             >
               Stornieren
             </Button>
-          </div>
-        </div>
+          }
+          consequence="Erfassen Sie den Zahlungseingang, sobald der volle Betrag da ist."
+          lead={
+            row.status === "overdue"
+              ? `Seit ${shortDate(invoice.dueOn, today)} überfällig.`
+              : `Fällig ${relativeDay(invoice.dueOn, today)}.`
+          }
+        />
       ) : null}
 
       {canManageSettlement && settlement === "paid" ? (
