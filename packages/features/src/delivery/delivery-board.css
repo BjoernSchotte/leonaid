@@ -46,6 +46,8 @@
 }
 .delivery .window-title h2 {
   font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
 }
 .delivery .window-progress {
   grid-column: 1 / -1;
@@ -251,7 +253,16 @@
   .delivery .window-head .btn {
     height: var(--control-h-lg);
   }
-  .delivery .window-actions,
+  /* Prototype 390: the close button spans the card under the meter;
+     "Fahrer für alle" sits on its own row above it. */
+  .delivery .window-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-row: 3;
+  }
+  .delivery .window-actions .btn {
+    width: 100%;
+  }
   .delivery .window-closed {
     justify-content: flex-start;
   }

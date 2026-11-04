@@ -1,5 +1,6 @@
 import {
   CheckCheck,
+  MailPlus,
   MapPin,
   PackageCheck,
   Phone,
@@ -9,7 +10,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -21,6 +22,7 @@ import {
 import {
   Avatar,
   Button,
+  buttonClassName,
   EmptyState,
   ErrorState,
   Icon,
@@ -39,6 +41,8 @@ import {
   useOptionalToast,
 } from "@leonaid/ui";
 
+import { replaceActionInUrl } from "../action-admin/action-location";
+import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
 
 /*
@@ -92,6 +96,21 @@ function longDay(day: string) {
   }).format(new Date(`${day}T12:00:00Z`));
 }
 
+/** Cancelled orders stay struck through but take no commands. */
+const deliverable = (drop: DeliveryDropResponse) =>
+  drop.orderStatus !== "cancelled";
+
+/**
+ * Whether the check is frozen. Open window: never. Closed window: drivers
+ * always; managers may still tick open or missed drops (a later delivery)
+ * and take back a later delivery of a drop missed at closure.
+ */
+function locked(drop: DeliveryDropResponse, closed: boolean, manager: boolean) {
+  if (!closed) return false;
+  if (!manager) return true;
+  return drop.state === "delivered" && !drop.missedAtClosure;
+}
+
 const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
 
 function dropAddress(drop: DeliveryDropResponse) {
@@ -110,6 +129,16 @@ const copy = {
     nothingAssigned: "Noch keine Lieferungen",
     notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
     error: "Die Auslieferung konnte nicht geladen werden.",
+    codes: {
+      delivery_window_closed:
+        "Dieses Lieferfenster ist abgeschlossen. Zum Zurücknehmen öffnen Sie es wieder.",
+      delivery_state_conflict:
+        "Diese Lieferung wurde inzwischen geändert. Die Tafel zeigt jetzt den aktuellen Stand.",
+      delivery_not_assigned: "Diese Lieferung ist Ihnen nicht zugewiesen.",
+      delivery_order_not_deliverable:
+        "Diese Bestellung wird nicht (mehr) ausgeliefert.",
+      delivery_management_required: "Das darf nur, wer die Aktion verwaltet.",
+    },
   },
   pwa: {
     intro: "Hake ab, was angekommen ist. Du siehst nur deine Lieferungen.",
@@ -119,21 +148,46 @@ const copy = {
     nothingAssigned: "Dir ist noch keine Lieferung zugewiesen",
     notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
     error: "Deine Lieferungen konnten nicht geladen werden.",
+    codes: {
+      delivery_window_closed:
+        "Dieses Lieferfenster ist abgeschlossen. Wende dich an die Aktionsleitung.",
+      delivery_state_conflict:
+        "Diese Lieferung wurde inzwischen geändert. Du siehst jetzt den aktuellen Stand.",
+      delivery_not_assigned: "Diese Lieferung ist dir nicht zugewiesen.",
+      delivery_order_not_deliverable:
+        "Diese Bestellung wird nicht (mehr) ausgeliefert.",
+      delivery_management_required: "Das darf nur, wer die Aktion verwaltet.",
+    },
   },
 } as const;
+
+type BoardErrorCode = keyof (typeof copy)["web"]["codes"];
 
 export interface DeliveryBoardPageProps {
   readonly client: LeonAidApiClient;
   readonly actionId: string;
   readonly surface: DeliverySurface;
+  /**
+   * PWA: the device is offline. The board then shows no drops and drops
+   * its cached copy (addresses and phones stay off a lost phone).
+   */
+  readonly offline?: boolean;
+  /** PWA: the actions this driver drives for; a switch shows for several. */
+  readonly actions?: readonly {
+    readonly actionId: string;
+    readonly actionName: string;
+  }[];
 }
 
 export function DeliveryBoardPage({
   actionId,
+  actions = [],
   client,
+  offline = false,
   surface,
 }: DeliveryBoardPageProps) {
   const text = copy[surface];
+  const hideOffline = surface === "pwa" && offline;
   const queries = useQueryClient();
   const toast = useOptionalToast();
   // The chosen day lives in the URL (?day=), so a reload keeps it.
@@ -168,14 +222,29 @@ export function DeliveryBoardPage({
 
   const queryKey = ["delivery-board", actionId, day] as const;
   const board = useQuery({
-    enabled: Boolean(actionId),
+    enabled: Boolean(actionId) && !hideOffline,
+    // PWA: nothing stays in memory once the board is left.
+    gcTime: surface === "pwa" ? 0 : undefined,
     queryFn: () => client.getDeliveryBoard(actionId, { day }),
     queryKey,
     // Addresses and phones: no refetch on focus surprises, no retries.
     retry: false,
   });
+  useEffect(() => {
+    if (hideOffline) queries.removeQueries({ queryKey: ["delivery-board"] });
+  }, [hideOffline, queries]);
   const refresh = () =>
     queries.invalidateQueries({ queryKey: ["delivery-board", actionId] });
+  /** Shared error handling (fresh login, support code), board copy per code. */
+  const errorText = (error: unknown) => {
+    const shared = actionErrorMessage(error, {
+      address: surface === "pwa" ? "du" : "Sie",
+    });
+    const code = shared.code as BoardErrorCode | null;
+    return code && code in text.codes ? text.codes[code] : shared.message;
+  };
+  const showError = (error: unknown) =>
+    toast?.show({ title: errorText(error), tone: "error" });
 
   const data = board.data;
   const zone = data?.timezone ?? "Europe/Berlin";
@@ -230,14 +299,7 @@ export function DeliveryBoardPage({
         expectedRevision: drop.revision,
       }),
     onSettled: () => void refresh(),
-    onError: (error) =>
-      toast?.show({
-        title:
-          error instanceof ApiError
-            ? error.detail.message
-            : "Die Änderung wurde nicht gespeichert.",
-        tone: "error",
-      }),
+    onError: showError,
   });
 
   const latest = useRef<DeliveryBoardResponse | undefined>(undefined);
@@ -252,7 +314,7 @@ export function DeliveryBoardPage({
 
   const toggle = (drop: DeliveryDropResponse, closed: boolean) => {
     const delivered = drop.state !== "delivered";
-    if (closed && !manager) return;
+    if (locked(drop, closed, manager)) return;
     setState.mutate(
       { drop, delivered },
       {
@@ -260,17 +322,24 @@ export function DeliveryBoardPage({
           toast?.show({
             title: delivered
               ? `${drop.buyerName}: geliefert.`
-              : `${drop.buyerName}: wieder offen.`,
+              : closed
+                ? `${drop.buyerName}: wieder unter „Nachliefern“.`
+                : `${drop.buyerName}: wieder offen.`,
             tone: delivered ? "success" : "info",
-            action: {
-              label: "Rückgängig",
-              // The freshest revision: the board may have reloaded since.
-              run: () =>
-                setState.mutate({
-                  drop: freshest(updated),
-                  delivered: !delivered,
-                }),
-            },
+            // In a closed window only a later delivery of a missed drop
+            // can be taken back; anything else needs the window reopened.
+            action:
+              closed && !updated.missedAtClosure
+                ? undefined
+                : {
+                    label: "Rückgängig",
+                    // The freshest revision: the board may have reloaded.
+                    run: () =>
+                      setState.mutate({
+                        drop: freshest(updated),
+                        delivered: !delivered,
+                      }),
+                  },
           }),
       },
     );
@@ -290,14 +359,7 @@ export function DeliveryBoardPage({
         tone: "success",
       });
     },
-    onError: (error) =>
-      toast?.show({
-        title:
-          error instanceof ApiError
-            ? error.detail.message
-            : "Das Fenster wurde nicht abgeschlossen.",
-        tone: "error",
-      }),
+    onError: showError,
     onSettled: () => void refresh(),
   });
 
@@ -306,6 +368,7 @@ export function DeliveryBoardPage({
       client.reopenDeliveryWindow(actionId, windowId),
     onSuccess: () =>
       toast?.show({ title: "Fenster wieder geöffnet.", tone: "info" }),
+    onError: showError,
     onSettled: () => void refresh(),
   });
 
@@ -330,21 +393,17 @@ export function DeliveryBoardPage({
         tone: "success",
       });
     },
-    onError: (error) =>
-      toast?.show({
-        title:
-          error instanceof ApiError
-            ? error.detail.message
-            : "Die Zuweisung wurde nicht gespeichert.",
-        tone: "error",
-      }),
+    onError: showError,
     onSettled: () => void refresh(),
   });
 
   useContextCommands(
     manager
       ? windows
-          .filter((group) => !group.window.closure && group.window.drops.length)
+          .filter(
+            (group) =>
+              !group.window.closure && group.window.drops.some(deliverable),
+          )
           .map((group) => ({
             id: `delivery:close:${group.window.id}`,
             label: `Fenster abschließen: ${group.label}`,
@@ -357,15 +416,33 @@ export function DeliveryBoardPage({
 
   const closingGroup = windows.find((group) => group.window.id === closing);
   const openInClosing =
-    closingGroup?.window.drops.filter((drop) => drop.state === "open") ?? [];
+    closingGroup?.window.drops.filter(
+      (drop) => drop.state === "open" && deliverable(drop),
+    ) ?? [];
 
   const unassigned = manager
     ? windows.flatMap((group) =>
         group.window.closure
           ? []
-          : group.window.drops.filter((drop) => drop.driverUserId === null),
+          : group.window.drops.filter(
+              (drop) => drop.driverUserId === null && deliverable(drop),
+            ),
       )
     : [];
+  // A past, still open window with nothing left to tick: only closing it
+  // remains (design §7).
+  const now = Date.now();
+  const readyToClose = manager
+    ? windows.find(
+        (group) =>
+          !group.window.closure &&
+          new Date(group.window.endsAt).getTime() < now &&
+          group.window.drops.some(deliverable) &&
+          group.window.drops.every(
+            (drop) => !deliverable(drop) || drop.state === "delivered",
+          ),
+      )
+    : undefined;
 
   const driverOptions = [
     ...(data?.drivers ?? []).map((item) => ({
@@ -375,6 +452,24 @@ export function DeliveryBoardPage({
     })),
     { value: NO_DRIVER, label: "Kein Fahrer" },
   ];
+
+  if (hideOffline) {
+    return (
+      <div className="delivery">
+        <header className="page-header">
+          <div className="page-heading">
+            <h1>Auslieferung</h1>
+          </div>
+        </header>
+        <EmptyState
+          headingLevel={2}
+          icon={Truck}
+          title="Keine Verbindung"
+          description="Ohne Verbindung zeigen wir keine Lieferungen. Sobald du wieder online bist, lädt die Tafel neu."
+        />
+      </div>
+    );
+  }
 
   if (!actionId) {
     return (
@@ -409,8 +504,32 @@ export function DeliveryBoardPage({
           </div>
           <p className="page-sub">{text.intro}</p>
         </div>
-        {data && (data.days.length > 1 || manager) ? (
+        {data && (data.days.length > 1 || manager || actions.length > 1) ? (
           <div className="delivery-filters">
+            {actions.length > 1 ? (
+              <label className="driver-filter">
+                <span>Aktion</span>
+                <select
+                  className="input select"
+                  data-testid="delivery-action"
+                  onChange={(event) => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete("day");
+                    window.history.replaceState(window.history.state, "", url);
+                    setDayState(null);
+                    setActiveWindow(null);
+                    replaceActionInUrl(event.target.value);
+                  }}
+                  value={actionId}
+                >
+                  {actions.map((item) => (
+                    <option key={item.actionId} value={item.actionId}>
+                      {item.actionName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {data.days.length > 1 ? (
               <label className="driver-filter">
                 <span>Liefertag</span>
@@ -482,6 +601,35 @@ export function DeliveryBoardPage({
         />
       ) : (
         <>
+          {manager && unassigned.length && !data?.drivers.length ? (
+            <NextStep
+              action={
+                <a
+                  className={buttonClassName({ variant: "primary" })}
+                  data-testid="delivery-next-invite"
+                  href={`/admin/members/invitations?action=${encodeURIComponent(actionId)}`}
+                >
+                  <Icon icon={MailPlus} size={16} />
+                  <span>Ausfahrer einladen</span>
+                </a>
+              }
+              consequence={`${unassigned.length} ${unassigned.length === 1 ? "Lieferung hat" : "Lieferungen haben"} noch keinen Fahrer, und die Aktion hat noch keine Ausfahrer. Laden Sie jemanden mit der Rolle „Ausfahrer“ ein.`}
+            />
+          ) : manager && readyToClose && !unassigned.length ? (
+            <NextStep
+              action={
+                <Button
+                  data-testid="delivery-next-close"
+                  icon={CheckCheck}
+                  onClick={() => setClosing(readyToClose.window.id)}
+                  variant="primary"
+                >
+                  Fenster abschließen
+                </Button>
+              }
+              consequence={`${readyToClose.label}: alles geliefert. Schließen Sie das Fenster ab, damit es als erledigt gilt.`}
+            />
+          ) : null}
           {manager && unassigned.length && data?.drivers.length ? (
             <NextStep
               action={
@@ -532,10 +680,12 @@ export function DeliveryBoardPage({
 
           <div className="windows-board">
             {visible.map(({ window, label, rows }) => {
-              const delivered = rows.filter(
+              // Cancelled orders stay listed but do not count.
+              const active = rows.filter(deliverable);
+              const delivered = active.filter(
                 (drop) => drop.state === "delivered",
               ).length;
-              const boxCount = rows.reduce(
+              const boxCount = active.reduce(
                 (sum, drop) => sum + drop.totalBoxes,
                 0,
               );
@@ -558,17 +708,17 @@ export function DeliveryBoardPage({
                     <div className="window-title">
                       <h2 id={`win-${window.id}`}>{label}</h2>
                       <span className="small muted num">
-                        {delivered} von {rows.length} geliefert ·{" "}
+                        {delivered} von {active.length} geliefert ·{" "}
                         {boxes(boxCount)}
                         {drivers.length ? ` · ${drivers.join(", ")}` : ""}
                       </span>
                     </div>
                     <div className="window-progress">
                       <Meter
-                        label={`${label}: ${delivered} von ${rows.length} geliefert`}
-                        max={Math.max(1, rows.length)}
+                        label={`${label}: ${delivered} von ${active.length} geliefert`}
+                        max={Math.max(1, active.length)}
                         tone={
-                          delivered === rows.length && rows.length > 0
+                          delivered === active.length && active.length > 0
                             ? "ok"
                             : "zone"
                         }
@@ -591,12 +741,15 @@ export function DeliveryBoardPage({
                       </div>
                     ) : manager ? (
                       <div className="window-actions">
-                        {data?.drivers.length && window.drops.length ? (
+                        {data?.drivers.length &&
+                        window.drops.some(deliverable) ? (
                           <Button
                             icon={UserRound}
                             onClick={(event) =>
                               openAssign(
-                                window.drops.map((drop) => drop.commitmentId),
+                                window.drops
+                                  .filter(deliverable)
+                                  .map((drop) => drop.commitmentId),
                                 null,
                                 event.currentTarget,
                               )
@@ -609,7 +762,7 @@ export function DeliveryBoardPage({
                         ) : null}
                         <Button
                           data-testid="delivery-close-window"
-                          disabled={window.drops.length === 0}
+                          disabled={!window.drops.some(deliverable)}
                           icon={CheckCheck}
                           onClick={() => setClosing(window.id)}
                           size="sm"
@@ -635,8 +788,9 @@ export function DeliveryBoardPage({
                       {rows.map((drop) => {
                         const done = drop.state === "delivered";
                         const missed = drop.state === "missed";
-                        const cancelled = drop.orderStatus === "cancelled";
-                        const disabled = (closed && !manager) || cancelled;
+                        const cancelled = !deliverable(drop);
+                        const frozen = locked(drop, closed, manager);
+                        const disabled = frozen || cancelled;
                         const address = dropAddress(drop);
                         return (
                           <li
@@ -654,7 +808,9 @@ export function DeliveryBoardPage({
                             <button
                               aria-label={`${drop.buyerName}, ${boxes(drop.totalBoxes)}: ${
                                 done
-                                  ? "geliefert, zurücknehmen"
+                                  ? frozen
+                                    ? "geliefert, Fenster abgeschlossen"
+                                    : "geliefert, zurücknehmen"
                                   : missed
                                     ? "nicht geliefert, jetzt als geliefert markieren"
                                     : "als geliefert markieren"
@@ -710,7 +866,8 @@ export function DeliveryBoardPage({
                               {address ? (
                                 <p className="drop-meta">
                                   <Icon icon={MapPin} size={12} />{" "}
-                                  {drop.address?.recipientName
+                                  {drop.address?.recipientName &&
+                                  drop.address.recipientName !== drop.buyerName
                                     ? `${drop.address.recipientName}, `
                                     : ""}
                                   {address}
@@ -814,7 +971,7 @@ export function DeliveryBoardPage({
       </Popover>
 
       <Modal
-        description="Danach lassen sich die Lieferungen dieses Fensters nicht mehr abhaken."
+        description="Danach lassen sich Lieferungen dieses Fensters nur noch nachliefern. Zum Zurücknehmen öffnen Sie das Fenster wieder."
         footer={
           <>
             <Button onClick={() => setClosing(null)} variant="ghost">
@@ -849,7 +1006,7 @@ export function DeliveryBoardPage({
               </strong>{" "}
               {data?.followUpTasks
                 ? "Sie werden als Aufgabe „Nachliefern“ für Sie angelegt, damit nichts verloren geht."
-                : "Sie bleiben auf dieser Tafel unter „Nachliefern“ sichtbar."}
+                : "Sie bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel."}
             </p>
             <ul className="open-list">
               {openInClosing.map((drop) => (

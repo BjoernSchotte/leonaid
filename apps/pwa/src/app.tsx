@@ -379,7 +379,9 @@ export function App({ client }: AppProps) {
       ) : route === "delivery" ? (
         <DeliveryBoardPage
           actionId={driverActionId}
+          actions={driverActions}
           client={client}
+          offline={!lifecycle.online}
           surface="pwa"
         />
       ) : (

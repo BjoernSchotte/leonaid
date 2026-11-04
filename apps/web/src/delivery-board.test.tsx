@@ -8,10 +8,11 @@ import {
 } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  DeliveryBoardResponse,
-  DeliveryDropResponse,
-  LeonAidApiClient,
+import {
+  ApiError,
+  type DeliveryBoardResponse,
+  type DeliveryDropResponse,
+  type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
   DeliveryBoardPage,
@@ -59,6 +60,7 @@ function drop(
     contact: { name: "Empfang", phone: "+49 30 123" },
     driverName: null,
     driverUserId: null,
+    missedAtClosure: false,
     orderStatus: "review_ready",
     quantities: [{ quantity: 3, unit: "box" }],
     revision: 0,
@@ -137,28 +139,55 @@ function fakeClient(initial: DeliveryBoardResponse) {
   } as unknown as LeonAidApiClient & Record<string, ReturnType<typeof vi.fn>>;
 }
 
-async function renderBoard(
+interface RenderOptions {
+  readonly offline?: boolean;
+  readonly actions?: readonly { actionId: string; actionName: string }[];
+  readonly queries?: QueryClient;
+}
+
+function boardTree(
   client: LeonAidApiClient,
-  surface: "web" | "pwa" = "web",
+  surface: "web" | "pwa",
+  {
+    offline = false,
+    actions,
+    queries,
+  }: RenderOptions & {
+    queries: QueryClient;
+  },
 ) {
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
+  return (
+    <QueryClientProvider client={queries}>
       <ToastProvider>
         <HotkeyProvider>
           <DeliveryBoardPage
             actionId={actionId}
+            actions={actions}
             client={client}
+            offline={offline}
             surface={surface}
           />
         </HotkeyProvider>
       </ToastProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+async function renderBoard(
+  client: LeonAidApiClient,
+  surface: "web" | "pwa" = "web",
+  options: RenderOptions = {},
+) {
+  const queries =
+    options.queries ??
+    new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(boardTree(client, surface, { ...options, queries }));
   await screen.findAllByTestId("delivery-drop");
+  return {
+    queries,
+    rerender: (next: RenderOptions) =>
+      view.rerender(boardTree(client, surface, { ...next, queries })),
+  };
 }
 
 describe("delivery board", () => {
@@ -242,7 +271,7 @@ describe("delivery board", () => {
     await renderBoard(fakeClient(board({ followUpTasks: false })));
     fireEvent.click(screen.getByTestId("delivery-close-window"));
     expect((await screen.findByRole("dialog")).textContent).toContain(
-      "bleiben auf dieser Tafel unter „Nachliefern“",
+      "bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel",
     );
   });
 
@@ -289,5 +318,188 @@ describe("delivery board", () => {
       delivered: true,
       expectedRevision: 3,
     });
+  });
+
+  it("in a closed window takes back only a later delivery of a missed drop", async () => {
+    const closed = {
+      ...board().windows[0]!,
+      closure: {
+        closedAt: "2026-11-11T09:00:00Z",
+        closedByName: "Klara Kern",
+        missedCount: 1,
+      },
+      drops: [
+        drop("c1", "Bäckerei Kern", { state: "delivered", revision: 1 }),
+        drop("c2", "Autohaus Nord", {
+          missedAtClosure: true,
+          revision: 5,
+          state: "delivered",
+        }),
+        drop("c3", "Neu Gebucht GmbH", { revision: 0 }),
+      ],
+    };
+    const client = fakeClient(board({ windows: [closed] }));
+    await renderBoard(client);
+    // A regular delivery stays: undo needs the window reopened.
+    const regular = screen.getByRole("button", {
+      name: /Bäckerei Kern, 3 Boxen: geliefert, Fenster abgeschlossen/,
+    }) as HTMLButtonElement;
+    expect(regular.disabled).toBe(true);
+    // The later delivery of a drop missed at closure can be taken back.
+    const later = screen.getByRole("button", {
+      name: /Autohaus Nord, 3 Boxen: geliefert, zurücknehmen/,
+    }) as HTMLButtonElement;
+    expect(later.disabled).toBe(false);
+    // An open drop booked after the closure can still be ticked, once.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Neu Gebucht GmbH, 3 Boxen: als geliefert/,
+      }),
+    );
+    await screen.findByText("Neu Gebucht GmbH: geliefert.");
+    expect(screen.queryByRole("button", { name: "Rückgängig" })).toBeNull();
+  });
+
+  it("shows no drops offline in the PWA and drops the cached board", async () => {
+    const client = fakeClient(board({ manager: false, drivers: [] }));
+    const view = await renderBoard(client, "pwa");
+    expect(view.queries.getQueryCache().findAll()).not.toHaveLength(0);
+    view.rerender({ offline: true });
+    await screen.findByText(/Ohne Verbindung zeigen wir keine Lieferungen/);
+    expect(screen.queryAllByTestId("delivery-drop")).toHaveLength(0);
+    expect(
+      view.queries.getQueryCache().findAll({ queryKey: ["delivery-board"] }),
+    ).toHaveLength(0);
+  });
+
+  it("answers drivers in Du when the server refuses", async () => {
+    const client = fakeClient(board({ manager: false, drivers: [] }));
+    client.setDeliveryState.mockRejectedValueOnce(
+      new ApiError(403, {
+        code: "delivery_not_assigned",
+        message: "Diese Lieferung ist Ihnen nicht zugewiesen.",
+        requestId: "req-1",
+      }),
+    );
+    await renderBoard(client, "pwa");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Autohaus Nord, 3 Boxen: als geliefert/,
+      }),
+    );
+    await screen.findByText("Diese Lieferung ist dir nicht zugewiesen.");
+    expect(screen.queryByText(/Ihnen/)).toBeNull();
+  });
+
+  it("names a failed reopen", async () => {
+    const client = fakeClient(
+      board({
+        windows: [
+          {
+            ...board().windows[0]!,
+            closure: {
+              closedAt: "2026-11-11T09:00:00Z",
+              closedByName: "Klara Kern",
+              missedCount: 0,
+            },
+          },
+        ],
+      }),
+    );
+    client.reopenDeliveryWindow.mockRejectedValueOnce(new Error("offline"));
+    await renderBoard(client);
+    fireEvent.click(screen.getByRole("button", { name: "Wieder öffnen" }));
+    await screen.findByText(/Bitte versuchen Sie es erneut/);
+  });
+
+  it("points to inviting drivers when the action has none", async () => {
+    await renderBoard(fakeClient(board({ drivers: [] })));
+    const invite = screen.getByTestId("delivery-next-invite");
+    expect(invite.getAttribute("href")).toBe(
+      `/admin/members/invitations?action=${actionId}`,
+    );
+    expect(screen.getByText(/noch keine Ausfahrer/)).toBeTruthy();
+  });
+
+  it("offers closing a past window once everything is delivered", async () => {
+    const client = fakeClient(
+      board({
+        windows: [
+          {
+            ...board().windows[0]!,
+            endsAt: "2020-01-01T08:00:00Z",
+            startsAt: "2020-01-01T06:00:00Z",
+            drops: [
+              drop("c1", "Bäckerei Kern", {
+                driverUserId: "anna",
+                driverName: "Fahrerin Anna",
+                state: "delivered",
+              }),
+              drop("c9", "Storno AG", { orderStatus: "cancelled" }),
+            ],
+          },
+        ],
+      }),
+    );
+    await renderBoard(client);
+    // The cancelled drop neither needs a driver nor blocks the close.
+    expect(screen.queryByTestId("delivery-next-assign")).toBeNull();
+    fireEvent.click(screen.getByTestId("delivery-next-close"));
+    expect((await screen.findByRole("dialog")).textContent).toContain(
+      "Alle Lieferungen dieses Fensters sind abgehakt.",
+    );
+  });
+
+  it("repeats the recipient only when it differs from the buyer", async () => {
+    await renderBoard(
+      fakeClient(
+        board({
+          windows: [
+            {
+              ...board().windows[0]!,
+              drops: [
+                drop("c1", "Bäckerei Kern"),
+                drop("c2", "Autohaus Nord", {
+                  address: {
+                    city: "Augsburg",
+                    postalCode: "86150",
+                    recipientName: "Werkstatt Süd",
+                    streetLine1: "Hofweg 1",
+                  },
+                }),
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    const [first, second] = screen.getAllByTestId("delivery-drop");
+    expect(first!.textContent).toContain("Lieferweg 2, 86150 Augsburg");
+    expect(first!.textContent).not.toContain("Bäckerei Kern, Lieferweg");
+    expect(second!.textContent).toContain("Werkstatt Süd, Hofweg 1");
+  });
+
+  it("lets a driver with several actions switch between them", async () => {
+    const other = "20000000-0000-4000-8000-000000000002";
+    await renderBoard(
+      fakeClient(board({ manager: false, drivers: [] })),
+      "pwa",
+      {
+        actions: [
+          { actionId, actionName: "Krapfentaxi" },
+          { actionId: other, actionName: "Martinsgans" },
+        ],
+      },
+    );
+    const changed = vi.fn();
+    window.addEventListener("leonaid:action-changed", changed);
+    fireEvent.change(screen.getByTestId("delivery-action"), {
+      target: { value: other },
+    });
+    expect(new URLSearchParams(window.location.search).get("action")).toBe(
+      other,
+    );
+    expect(changed).toHaveBeenCalled();
+    window.removeEventListener("leonaid:action-changed", changed);
   });
 });

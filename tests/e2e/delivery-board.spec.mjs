@@ -137,6 +137,16 @@ test("managers assign, tick and close; drivers tick only their drops", async ({
       fullPage: true,
     });
 
+    // Offline (P4): the shell banner and no drops; back online, they reload.
+    await driver.setOffline(true);
+    await expect(mobile.getByText(/Du bist offline\./)).toBeVisible();
+    await expect(
+      mobile.getByText(/Ohne Verbindung zeigen wir keine Lieferungen/),
+    ).toBeVisible();
+    await expect(driverDrops).toHaveCount(0);
+    await driver.setOffline(false);
+    await expect(driverDrops).toHaveCount(dropCount);
+
     // Klara closes the window with the remaining open drops.
     await page.reload();
     await expect(page.locator(".drop.is-done")).toHaveCount(2);
