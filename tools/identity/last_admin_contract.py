@@ -798,8 +798,9 @@ def main() -> int:
     print(
         "last-admin-contract: OK: last system admin and last lead refused on "
         "suspend, archive and revoke; suspended leads do not count; one lock "
-        f"serializes status, role and responsible changes; {RACE_ROUNDS}+"
-        f"{RACE_ROUNDS} races keep an admin"
+        "serializes status, role, membership, responsible and creation "
+        "commands; stale actors refused; "
+        f"{RACE_ROUNDS}+{RACE_ROUNDS} races keep an admin"
     )
     return 0
 
