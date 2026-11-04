@@ -34,6 +34,7 @@ import {
   Modal,
   ReadOnlyNotice,
   StatusMessage,
+  useDiscardDialog,
   useHotkeys,
   useLeaveGuard,
   useOptionalToast,
@@ -59,7 +60,7 @@ const says = (address: Address, du: string, sie: string) =>
 
 const LIMIT = 25 * 1024 * 1024;
 const PAGE = 50;
-/** Versions shown before "Ältere Versionen anzeigen". */
+/** Versions shown at once; "Ältere Versionen anzeigen" adds as many. */
 const RECENT_VERSIONS = 5;
 
 export function formatSize(bytes: number): string {
@@ -206,158 +207,171 @@ function UploadDialog({
   };
   useLeaveGuard(!!target && (!!file || !!title.trim()));
   const readOnly = !!material && rights.data?.canEdit === false;
-  const close = () => {
+  const { confirmDiscard, dialog: discardDialog } = useDiscardDialog(address);
+  const close = async () => {
+    // A chosen file or a typed title is a draft: ask before dropping it.
+    if (
+      (file || title.trim()) &&
+      !upload.isPending &&
+      !(await confirmDiscard())
+    )
+      return;
     reset();
     onClose();
   };
   return (
-    <Modal
-      description={
-        material
-          ? `${material.title} – die bisherigen Versionen bleiben herunterladbar.`
-          : "Flyer, Vorlagen und Logos – jede neue Version behält die früheren."
-      }
-      footer={
-        <>
-          <Button onClick={close} variant="ghost">
-            Abbrechen
-          </Button>
-          {readOnly ? null : (
-            <Button
-              disabled={
-                !file ||
-                !!fileError ||
-                (!material && !title.trim()) ||
-                (!!material && rights.isPending)
-              }
-              form="material-upload-form"
-              icon={UploadIcon}
-              loading={upload.isPending}
-              type="submit"
-              variant="primary"
-            >
-              {upload.isPending ? "Wird hochgeladen …" : "Hochladen"}
-            </Button>
-          )}
-        </>
-      }
-      onClose={close}
-      open={!!target}
-      title={material ? "Neue Version hochladen" : "Material hochladen"}
-    >
-      <form
-        className="material-upload"
-        id="material-upload-form"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          setTouched(true);
-          if (!file || fileError || (!material && !title.trim())) return;
-          upload.mutate();
-        }}
-      >
-        {readOnly ? (
-          <ReadOnlyNotice>
-            {says(
-              address,
-              "Du kannst dieses Material herunterladen, aber keine neue Version hochladen.",
-              "Sie können dieses Material herunterladen, aber keine neue Version hochladen.",
-            )}
-          </ReadOnlyNotice>
-        ) : null}
-        {upload.error ? (
-          <StatusMessage tone="error">
-            {upload.error instanceof ApiError && upload.error.status === 409
-              ? says(
-                  address,
-                  "Das Material wurde inzwischen geändert. Die Dateiauswahl bleibt erhalten; versuche es erneut.",
-                  "Das Material wurde inzwischen geändert. Die Dateiauswahl bleibt erhalten; versuchen Sie es erneut.",
-                )
-              : says(
-                  address,
-                  "Upload fehlgeschlagen. Die Dateiauswahl bleibt erhalten. Prüfe deinen Zugriff und versuche es erneut.",
-                  "Upload fehlgeschlagen. Die Dateiauswahl bleibt erhalten. Prüfen Sie Ihren Zugriff und versuchen Sie es erneut.",
-                )}
-          </StatusMessage>
-        ) : null}
-        {material ? null : (
+    <>
+      <Modal
+        description={
+          material
+            ? `${material.title} – die bisherigen Versionen bleiben herunterladbar.`
+            : "Flyer, Vorlagen und Logos – jede neue Version behält die früheren."
+        }
+        footer={
           <>
+            <Button onClick={() => void close()} variant="ghost">
+              Abbrechen
+            </Button>
+            {readOnly ? null : (
+              <Button
+                disabled={
+                  !file ||
+                  !!fileError ||
+                  (!material && !title.trim()) ||
+                  (!!material && rights.isPending)
+                }
+                form="material-upload-form"
+                icon={UploadIcon}
+                loading={upload.isPending}
+                type="submit"
+                variant="primary"
+              >
+                {upload.isPending ? "Wird hochgeladen …" : "Hochladen"}
+              </Button>
+            )}
+          </>
+        }
+        onClose={() => void close()}
+        open={!!target}
+        title={material ? "Neue Version hochladen" : "Material hochladen"}
+      >
+        <form
+          className="material-upload"
+          id="material-upload-form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            setTouched(true);
+            if (!file || fileError || (!material && !title.trim())) return;
+            upload.mutate();
+          }}
+        >
+          {readOnly ? (
+            <ReadOnlyNotice>
+              {says(
+                address,
+                "Du kannst dieses Material herunterladen, aber keine neue Version hochladen.",
+                "Sie können dieses Material herunterladen, aber keine neue Version hochladen.",
+              )}
+            </ReadOnlyNotice>
+          ) : null}
+          {upload.error ? (
+            <StatusMessage tone="error">
+              {upload.error instanceof ApiError && upload.error.status === 409
+                ? says(
+                    address,
+                    "Das Material wurde inzwischen geändert. Die Dateiauswahl bleibt erhalten; versuche es erneut.",
+                    "Das Material wurde inzwischen geändert. Die Dateiauswahl bleibt erhalten; versuchen Sie es erneut.",
+                  )
+                : says(
+                    address,
+                    "Upload fehlgeschlagen. Die Dateiauswahl bleibt erhalten. Prüfe deinen Zugriff und versuche es erneut.",
+                    "Upload fehlgeschlagen. Die Dateiauswahl bleibt erhalten. Prüfen Sie Ihren Zugriff und versuchen Sie es erneut.",
+                  )}
+            </StatusMessage>
+          ) : null}
+          {material ? null : (
+            <>
+              <Field
+                error={
+                  touched && !title.trim()
+                    ? "Bitte einen Titel angeben."
+                    : undefined
+                }
+                label="Materialtitel"
+                required
+              >
+                <input
+                  maxLength={240}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    changed();
+                  }}
+                  value={title}
+                />
+              </Field>
+              <Field
+                hint={
+                  actionId
+                    ? "Aktuelle Mitglieder dieser Aktion können das Material lesen. Zusätzliche Bearbeitungsrechte verwaltet die Aktionsverwaltung."
+                    : says(
+                        address,
+                        "Das neue Material ist zunächst nur für dich sichtbar.",
+                        "Das neue Material ist zunächst nur für Sie sichtbar.",
+                      )
+                }
+                label="Kontext des Materials"
+              >
+                <select
+                  onChange={(event) => {
+                    setActionId(event.target.value);
+                    changed();
+                  }}
+                  value={actionId}
+                >
+                  <option value="">Eigenständig</option>
+                  {actionId &&
+                    !contexts.managedActions.some(
+                      ([id]) => id === actionId,
+                    ) && (
+                      <option value={actionId}>
+                        Ausgewählte Aktion beibehalten
+                      </option>
+                    )}
+                  {contexts.managedActions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <ActionContextSearch contexts={contexts} />
+            </>
+          )}
+          {readOnly ? null : (
             <Field
               error={
-                touched && !title.trim()
-                  ? "Bitte einen Titel angeben."
-                  : undefined
+                fileError ??
+                (touched && !file ? "Bitte eine Datei auswählen." : undefined)
               }
-              label="Materialtitel"
+              hint="Höchstens 25 MiB. PDF, Office-Dateien, Bilder oder ZIP."
+              label="Datei"
               required
             >
               <input
-                maxLength={240}
+                className="file-input"
                 onChange={(event) => {
-                  setTitle(event.target.value);
+                  setFile(event.target.files?.[0] ?? null);
                   changed();
                 }}
-                value={title}
+                type="file"
               />
             </Field>
-            <Field
-              hint={
-                actionId
-                  ? "Aktuelle Mitglieder dieser Aktion können das Material lesen. Zusätzliche Bearbeitungsrechte verwaltet die Aktionsverwaltung."
-                  : says(
-                      address,
-                      "Das neue Material ist zunächst nur für dich sichtbar.",
-                      "Das neue Material ist zunächst nur für Sie sichtbar.",
-                    )
-              }
-              label="Kontext des Materials"
-            >
-              <select
-                onChange={(event) => {
-                  setActionId(event.target.value);
-                  changed();
-                }}
-                value={actionId}
-              >
-                <option value="">Eigenständig</option>
-                {actionId &&
-                  !contexts.managedActions.some(([id]) => id === actionId) && (
-                    <option value={actionId}>
-                      Ausgewählte Aktion beibehalten
-                    </option>
-                  )}
-                {contexts.managedActions.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <ActionContextSearch contexts={contexts} />
-          </>
-        )}
-        {readOnly ? null : (
-          <Field
-            error={
-              fileError ??
-              (touched && !file ? "Bitte eine Datei auswählen." : undefined)
-            }
-            hint="Höchstens 25 MiB. PDF, Office-Dateien, Bilder oder ZIP."
-            label="Datei"
-            required
-          >
-            <input
-              className="file-input"
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null);
-                changed();
-              }}
-              type="file"
-            />
-          </Field>
-        )}
-      </form>
-    </Modal>
+          )}
+        </form>
+      </Modal>
+      {discardDialog}
+    </>
   );
 }
 
@@ -389,16 +403,15 @@ function MaterialRow({
   readonly userId: string;
 }) {
   const toast = useOptionalToast();
-  const [allVersions, setAllVersions] = useState(false);
+  // Versions load in steps of five: one request each (no list endpoint).
+  const [shown, setShown] = useState(RECENT_VERSIONS);
   const numbers = useMemo(() => {
-    const count = allVersions
-      ? material.currentVersion
-      : Math.min(material.currentVersion, RECENT_VERSIONS);
+    const count = Math.min(material.currentVersion, shown);
     return Array.from(
       { length: count },
       (_, index) => material.currentVersion - index,
     );
-  }, [allVersions, material.currentVersion]);
+  }, [shown, material.currentVersion]);
   const versions = useQueries({
     queries: numbers.map((number) => ({
       ...versionQuery(client, material.id, number),
@@ -481,7 +494,11 @@ function MaterialRow({
         <span className="material-meta">
           {canManage && members.data ? (
             <Badge icon={Users}>
-              {active.length + 1} {active.length === 0 ? "Person" : "Personen"}
+              {active.length + 1}
+              {members.data.nextOffset !== null ? "+" : ""}{" "}
+              {active.length === 0 && members.data.nextOffset === null
+                ? "Person"
+                : "Personen"}
             </Badge>
           ) : null}
           <Button
@@ -561,13 +578,13 @@ function MaterialRow({
               </tbody>
             </table>
           </div>
-          {!allVersions && count > RECENT_VERSIONS ? (
+          {count > shown ? (
             <Button
-              onClick={() => setAllVersions(true)}
+              onClick={() => setShown((current) => current + RECENT_VERSIONS)}
               size="sm"
               variant="ghost"
             >
-              Ältere Versionen anzeigen ({count - RECENT_VERSIONS})
+              Ältere Versionen anzeigen ({count - shown} weitere)
             </Button>
           ) : null}
           <p className="small subtle versions-access">

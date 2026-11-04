@@ -91,14 +91,12 @@ Tests live in `tools/surveys/saves.test.ts` and
 `tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys-runner` builds a fresh
 isolated stack and exercises actual services before the browser scenarios.
 
-
 The runner model maps the profile's minimum text length to a native SurveyJS
 TextValidator. Text limits use UTF-16 code units, consistent with JavaScript and
 browser inputs (an emoji outside the BMP counts as two units). The backend uses
 the same measure. Guided string conditions follow SurveyJS's case-insensitive
 default; answer data itself keeps its original case. `./leonaid test-surveys-core`
 compares these semantics in the actual pinned runtimes.
-
 
 ## Initial visual editor
 
@@ -270,7 +268,6 @@ Import this entrypoint only in an authorized result/export view to keep it out
 of the respondent bundle. The independent demo demonstrates this separation
 with an actual packed installation and its own persisted CSV export adapter.
 
-
 ### Editor host translation
 
 `SurveyEditor` accepts optional `translate: EditorTranslator` and `locale`
@@ -282,14 +279,23 @@ condition expressions are preserved. Adapter messages pass through the callback
 at display time; hosts should supply localized adapter diagnostics or a fallback.
 
 ```tsx
-import { SurveyEditor, formatEditorMessage, type EditorTranslator } from "@leonaid/surveys/editor";
+import {
+  SurveyEditor,
+  formatEditorMessage,
+  type EditorTranslator,
+} from "@leonaid/surveys/editor";
 const catalogue: Record<string, string> = {
   "Frage hinzufügen": "Add question",
   "Regel {number} entfernen": "Remove rule {number}",
 };
 const translate: EditorTranslator = (message, values) =>
   formatEditorMessage(catalogue[message] ?? message, values);
-<SurveyEditor draft={draft} adapter={adapter} translate={translate} locale="en" />;
+<SurveyEditor
+  draft={draft}
+  adapter={adapter}
+  translate={translate}
+  locale="en"
+/>;
 ```
 
 Return plain strings; React renders them as text. `formatEditorMessage` substitutes

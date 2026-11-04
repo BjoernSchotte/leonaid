@@ -32,7 +32,8 @@ fehlt der Eintrag.
 Jedes Speichern legt eine neue Fassung an. Hat inzwischen jemand anderes die
 Seite gespeichert, bleibt dein Entwurf erhalten und du wählst: **Meine Fassung
 behalten** speichert deinen Entwurf als neue Fassung, **Andere übernehmen**
-zeigt die gespeicherte Fassung der anderen Person.
+zeigt die gespeicherte Fassung der anderen Person und verwirft deinen Entwurf,
+nachdem du **Entwurf verwerfen?** bestätigt hast.
 
 ## Aufgaben und Dateiversionen verknüpfen
 

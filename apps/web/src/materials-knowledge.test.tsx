@@ -225,6 +225,18 @@ describe("materials page", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    // A chosen file is a draft: Abbrechen asks first.
+    fireEvent.click(within(own).getByRole("button", { name: "Abbrechen" }));
+    const question = await screen.findByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    fireEvent.click(
+      within(question).getByRole("button", { name: "Weiter bearbeiten" }),
+    );
+    await act(async () => {});
+    expect(
+      screen.getByRole("dialog", { name: "Neue Version hochladen" }),
+    ).toBeTruthy();
   });
 
   it("speaks with du in the app", async () => {
@@ -410,6 +422,112 @@ describe("knowledge", () => {
       expect.objectContaining({ expectedRevision: 8, title: "Liefertag neu" }),
     );
     expect(await screen.findByText("Gespeichert.")).toBeTruthy();
+  });
+
+  it("keeps the editor and its draft when a background check fails", async () => {
+    const client = knowledgeClient();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    window.history.replaceState(null, "", "/admin/knowledge/p1?edit");
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <HotkeyProvider>
+            <KnowledgeEditorPage
+              basePath="/admin/knowledge"
+              client={client as unknown as LeonAidApiClient}
+              identity={identity}
+              pageId="p1"
+            />
+          </HotkeyProvider>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    fireEvent.change(screen.getByLabelText("Seitentitel"), {
+      target: { value: "Liefertag Entwurf" },
+    });
+    client.getKnowledgePagePermissions.mockRejectedValueOnce(
+      new Error("network"),
+    );
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["knowledge-permissions", "p1"],
+      });
+    });
+    expect(
+      await screen.findByText(/ließ sich gerade nicht prüfen/),
+    ).toBeTruthy();
+    // Still mounted with the typed draft; saving waits for the checks.
+    expect(
+      (screen.getByLabelText("Seitentitel") as HTMLInputElement).value,
+    ).toBe("Liefertag Entwurf");
+    expect(
+      (screen.getByRole("button", { name: /Speichern/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(screen.queryByText(/Sie können diese Seite lesen/)).toBeNull();
+  });
+
+  it("asks before taking the other fassung over a draft", async () => {
+    const client = knowledgeClient();
+    client.updateKnowledgePage.mockRejectedValueOnce(
+      new ApiError(409, { message: "conflict" } as never),
+    );
+    wrap(
+      <KnowledgeEditorPage
+        basePath="/admin/knowledge"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        pageId="p1"
+      />,
+      "/admin/knowledge/p1?edit",
+    );
+    await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    fireEvent.change(screen.getByLabelText("Seitentitel"), {
+      target: { value: "Liefertag neu" },
+    });
+    client.getKnowledgePage.mockResolvedValueOnce({
+      id: "p1",
+      title: "Liefertag anders",
+      actionId: null,
+      ownerUserId: me,
+      revision: 8,
+      content: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Andere" }] },
+        ],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+    const alert = await screen.findByRole("alert");
+    fireEvent.click(
+      within(alert).getByRole("button", { name: "Andere übernehmen" }),
+    );
+    const question = await screen.findByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    fireEvent.click(
+      within(question).getByRole("button", { name: "Weiter bearbeiten" }),
+    );
+    await act(async () => {});
+    expect(
+      (screen.getByLabelText("Seitentitel") as HTMLInputElement).value,
+    ).toBe("Liefertag neu");
+    fireEvent.click(
+      within(alert).getByRole("button", { name: "Andere übernehmen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await act(async () => {});
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Liefertag anders",
+    );
   });
 
   it("shows readers a read-only note and no edit", async () => {

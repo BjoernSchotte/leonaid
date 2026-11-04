@@ -228,11 +228,11 @@ sends address verification and password reset mail through the same
 relay. Both senders reach the relay only through the dedicated
 `mail-egress` network; all other internal networks have no route out.
 
-| `MAIL_SMTP_MODE` | `MAIL_SMTP_PORT` | Core worker | Twenty |
-| ---------------- | ---------------- | ----------- | ------ |
-| `tls` (template default) | 465 | implicit TLS | implicit TLS |
-| `starttls` | not 465, usually 587 | requires STARTTLS | sends no mail |
-| `plain` | – | refused in production | refused in production |
+| `MAIL_SMTP_MODE`         | `MAIL_SMTP_PORT`     | Core worker           | Twenty                |
+| ------------------------ | -------------------- | --------------------- | --------------------- |
+| `tls` (template default) | 465                  | implicit TLS          | implicit TLS          |
+| `starttls`               | not 465, usually 587 | requires STARTTLS     | sends no mail         |
+| `plain`                  | –                    | refused in production | refused in production |
 
 Both verify the relay certificate against the public CA store, so
 `MAIL_SMTP_CA_FILE` is refused in the pilot. Pilot Doctor refuses a port

@@ -174,43 +174,54 @@ export function KnowledgeEditorPage({
     : null;
   return (
     <div className="knowledge-page" data-zone="knowledge">
-      {(page.error || rights.error) && (
+      {(page.error || rights.error) && !(page.data && rights.data) ? (
         <>
           <nav aria-label="Brotkrumen" className="crumbs">
             <a href={basePath}>Wissen</a>
           </nav>
           <h1 id="page-heading">Seite nicht verfügbar</h1>
-          <StatusMessage tone="error">
-            <p>
-              {says(
-                address,
-                "Die Seite ist nicht verfügbar oder dein Zugriff wurde geändert.",
-                "Die Seite ist nicht verfügbar oder Ihr Zugriff wurde geändert.",
-              )}
-            </p>
-            <Button
-              onClick={() => {
-                void page.refetch();
-                void rights.refetch();
-              }}
-              size="sm"
-              variant="secondary"
-            >
-              Erneut laden
-            </Button>
-          </StatusMessage>
         </>
-      )}
-      {page.data && rights.data && !page.error && !rights.error ? (
+      ) : null}
+      {page.error || rights.error ? (
+        <StatusMessage tone="error">
+          <p>
+            {page.data && rights.data
+              ? says(
+                  address,
+                  "Die Seite oder dein Zugriff ließ sich gerade nicht prüfen. Dein Entwurf bleibt sichtbar; Speichern ist gesperrt, bis die Seite wieder geladen ist.",
+                  "Die Seite oder Ihr Zugriff ließ sich gerade nicht prüfen. Ihr Entwurf bleibt sichtbar; Speichern ist gesperrt, bis die Seite wieder geladen ist.",
+                )
+              : says(
+                  address,
+                  "Die Seite ist nicht verfügbar oder dein Zugriff wurde geändert.",
+                  "Die Seite ist nicht verfügbar oder Ihr Zugriff wurde geändert.",
+                )}
+          </p>
+          <Button
+            onClick={() => {
+              void page.refetch();
+              void rights.refetch();
+            }}
+            size="sm"
+            variant="secondary"
+          >
+            Erneut laden
+          </Button>
+        </StatusMessage>
+      ) : null}
+      {/* A failed refetch keeps the last data: the editor stays mounted, so a
+          draft survives; it is read-only until the checks succeed again. */}
+      {page.data && rights.data ? (
         <PageEditor
           action={action}
           address={address}
           basePath={basePath}
-          canEdit={rights.data.canEdit}
-          canManage={rights.data.canManage}
+          canEdit={rights.data.canEdit && !page.error && !rights.error}
+          canManage={rights.data.canManage && !page.error && !rights.error}
           client={client}
           key={pageId}
           page={page.data}
+          readOnlyRole={!rights.data.canEdit}
           userId={identity.userId}
         />
       ) : !page.error && !rights.error ? (
@@ -250,6 +261,7 @@ function PageEditor({
   canManage,
   client,
   page,
+  readOnlyRole,
   userId,
 }: {
   action: string | null;
@@ -259,6 +271,8 @@ function PageEditor({
   canManage: boolean;
   client: LeonAidApiClient;
   page: Page;
+  /** The role may only read (as opposed to a check that just failed). */
+  readOnlyRole: boolean;
   userId: string;
 }) {
   const cache = useQueryClient();
@@ -412,8 +426,10 @@ function PageEditor({
     if (dirty && !(await confirmDiscard())) return;
     resetDraft();
   };
-  const takeOther = () => {
+  const takeOther = async () => {
     if (!conflict) return;
+    // The draft is dropped: ask, as "Abbrechen" does.
+    if (dirty && !(await confirmDiscard())) return;
     editor?.commands.setContent(conflict.content, { emitUpdate: false });
     savedContent.current = conflict.content;
     setRevision(conflict.revision);
@@ -430,6 +446,7 @@ function PageEditor({
     });
   };
   const canSave =
+    canEdit &&
     !!editor &&
     dirty &&
     !!title.trim() &&
@@ -552,7 +569,7 @@ function PageEditor({
         </div>
       </header>
 
-      {!canEdit ? (
+      {readOnlyRole ? (
         <ReadOnlyNotice>
           {says(
             address,
@@ -560,7 +577,7 @@ function PageEditor({
             "Sie können diese Seite lesen; bearbeiten dürfen die Personen mit Bearbeitungsrecht.",
           )}
         </ReadOnlyNotice>
-      ) : empty && !editing ? (
+      ) : canEdit && empty && !editing ? (
         <NextStep
           action={
             <Button icon={PenLine} onClick={startEditing} variant="primary">
@@ -599,7 +616,11 @@ function PageEditor({
               >
                 Meine Fassung behalten
               </Button>
-              <Button disabled={save.isPending} onClick={takeOther} size="sm">
+              <Button
+                disabled={save.isPending}
+                onClick={() => void takeOther()}
+                size="sm"
+              >
                 Andere übernehmen
               </Button>
             </div>

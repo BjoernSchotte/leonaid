@@ -32,7 +32,8 @@ entry is missing.
 Each save stores a new revision. If someone else saved the page in the
 meantime, your draft stays and you choose: **Meine Fassung behalten** (keep my
 version) saves your draft as a new revision, **Andere übernehmen** (take the
-other) shows the other person's saved revision.
+other) shows the other person's saved revision and drops your draft after you
+confirm **Entwurf verwerfen?**.
 
 ## Link tasks and file versions
 
