@@ -113,6 +113,7 @@ Dieser Bericht enthält keine einzelnen Antworten und keine Freitexte.
   v(6mm)
 }
 
+#if data.lastPages.len() > 0 [
 == Zuletzt gespeicherte Seite
 Diese Angaben beschreiben den letzten gespeicherten Stand der ausgewählten
 Teilnahmen. Sie sind kein Nachweis dafür, auf welcher Seite jemand abgebrochen hat.
@@ -120,3 +121,4 @@ Teilnahmen. Sie sind kein Nachweis dafür, auf welcher Seite jemand abgebrochen 
   header([Seite], [Teilnahmen]),
   ..data.lastPages.map(page => ([#page.label], [#page.count])).flatten(),
 )
+]

@@ -375,8 +375,10 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         assert disclosed_render(product, current)
     assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
     # Older, unknown or foreign versions are refused (fails closed). The
-    # previous versions predate review round 2 (N1, N2, N3).
+    # previous versions predate review round 3 (N7 to N10).
     for product, version in [
+        ("analysis_pdf", "survey-analysis-v4+typst-0.13.1"),
+        ("analysis_xlsx", "survey-tabular-v5"),
         ("analysis_pdf", "survey-analysis-v3+typst-0.14.2"),
         ("analysis_xlsx", "survey-tabular-v4"),
         ("analysis_pdf", "survey-analysis-v2+typst-0.14.2"),
@@ -440,3 +442,50 @@ def test_conditions_are_recorded_by_structure():
     }
     assert recorded["pageLeaves"] == {"p2": [["g2", "=", "'no'"]]}
     assert recorded["questions"]["y"] == ["g1", "g2"]
+
+
+def test_settled_snapshots_release_no_last_pages_and_no_number_conditions():
+    """Review round 3 (Björn): without raw access, last pages are never
+    released, and a question selected by a number answer is withheld with
+    its reason."""
+    hours = question("h", "number", [], answered=20, stats={"mean": 9.0})
+    follow = question("f", "radiogroup", [6, 6])
+    follow["hidden"] = 8
+    stored = snapshot(20, [hours, follow])
+    stored["lastPageCounts"] = [
+        {"pageId": "main", "title": "main", "count": 8},
+        {"pageId": "p2", "title": "p2", "count": 12},
+    ]
+    stored["dependencies"] = {
+        "questions": {"f": ["h"]},
+        "pages": {},
+        "questionLeaves": {"f": [["h", ">=", "10"]]},
+        "pageLeaves": {},
+    }
+    reader = disclose(stored)
+    assert [p.count for p in reader.lastPageCounts] == [8, 12]
+    assert reader.questions[1].relevant == 12
+    stored["disclosurePolicy"] = "settled"
+    settled = disclose(stored)
+    assert settled.lastPageCounts == []
+    q = settled.questions[1]
+    assert q.suppressed and q.withheldReason == "unreleasedCondition"
+    assert (q.relevant, q.hidden, q.counts) == (None, None, [])
+
+
+def test_options_equal_under_surveyjs_comparison_make_a_condition_opaque():
+    """N10: {c} contains 'a' also selects "A"; the union is not released."""
+    multi = question("c", "checkbox", [20, 10, 12], answered=30)
+    multi["counts"][0]["value"], multi["counts"][1]["value"] = "a", "A"
+    follow = question("f", "radiogroup", [14, 14])
+    follow["hidden"] = 2
+    stored = snapshot(30, [multi, follow])
+    stored["dependencies"] = {
+        "questions": {"f": ["c"]},
+        "pages": {},
+        "questionLeaves": {"f": [["c", "contains", "'a'"]]},
+        "pageLeaves": {},
+    }
+    assert disclose(stored).questions[1].relevant is None
+    multi["counts"][1]["value"] = "B"
+    assert disclose(stored).questions[1].relevant == 28

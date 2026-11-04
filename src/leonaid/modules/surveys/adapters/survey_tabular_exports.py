@@ -31,9 +31,9 @@ from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
 )
 
-# v5: report workbooks under the disclosure rules of review round 2 (Task
+# v6: report workbooks under the disclosure rules of review round 3 (Task
 # 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
-RENDER_VERSION = "survey-tabular-v5"
+RENDER_VERSION = "survey-tabular-v6"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [
@@ -391,11 +391,14 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
     if anchor == 3:
         append(charts, ["No response distributions for this selection."])
     charts.print_area = f"A1:D{max(2, anchor - 3)}"
+    # Accounts without raw access get no last pages (an empty list).
     pages = workbook.create_sheet("Last page")
     append(
         pages,
         ["page_id", "page_title", "count", "selected_participations", "percentage"],
     )
+    if not source.snapshot.lastPageCounts:
+        append(pages, ["Not shown without raw access."])
     for page in source.snapshot.lastPageCounts:
         append(
             pages,

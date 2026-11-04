@@ -195,6 +195,8 @@ export interface QuestionAggregate {
   }[];
   /** Fewer than `minimumGroupSize` valid answers: no distribution, no statistics. */
   suppressed?: boolean;
+  /** Why the question is withheld as a whole, when the screen says it. */
+  withheldReason?: "unreleasedCondition" | null;
 }
 /** Engine output before disclosure: every count is present. */
 export type ComputedBucket = Omit<

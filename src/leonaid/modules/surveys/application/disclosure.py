@@ -26,10 +26,14 @@ R4  A conditional question (hidden for some people) has denominators that
     condition's structure (its comparisons, its page's included), and
     the decision depends on that structure only, never on values (N1):
     - one comparison on a released choice source with an operator whose
-      count follows from that source's cells: released, unless the
-      source has anything withheld (then withheld as a whole);
+      count follows from that source's cells, and whose options stay
+      distinct under SurveyJS's comparison (case, trimming, numbers and
+      numeric strings alike; N10): released, unless the source has
+      anything withheld (then withheld as a whole);
     - one comparison on an answer without a released distribution
-      (number, date, text): a new count, protected like a distribution
+      (number, date, text): for accounts without raw access (settled
+      snapshots) withheld as a whole, with ``withheldReason`` (Björn,
+      review round 3, N8). For readers a new count, protected like a distribution
       (R1, and R4b: that number's mean is withheld with it). Only one
       comparison per such answer may select (identical repeats aside);
       every later question reading it is withheld, so two thresholds
@@ -37,7 +41,11 @@ R4  A conditional question (hidden for some people) has denominators that
     - anything else (and/or, the same source twice, a matrix, an
       unknown name): a cross-tab or co-occurrence the marginals do not
       give, so the question is withheld as a whole.
-R5  Last-page counts say where people stopped; for completed ones they
+R5  Accounts without raw access (settled snapshots) never get last-page
+    counts: SurveyJS hides empty pages, so they follow question conditions
+    too, and pages on one checkbox give co-occurrences (Björn, review
+    round 3, N7 and N9). For readers: last-page counts say where people
+    stopped; for completed ones they
     follow the page conditions. They are withheld entirely when a page
     condition is not a single comparison, when page conditions read more
     than one answer (a cross-tab), when their answer is withheld, or when
@@ -63,6 +71,7 @@ schema; the stored models in ``analysis`` and ``analysis_snapshot`` never
 appear in a response.
 """
 
+import math
 from datetime import datetime
 from typing import Any, Literal, Self
 
@@ -178,6 +187,9 @@ class QuestionAggregate(AggregateModel):
     """No distribution and no statistics (R2–R4)."""
     npsSegments: NpsSegments | None = None
     """Only for a 0–10 NPS rating with every score shown (R3)."""
+    withheldReason: Literal["unreleasedCondition"] | None = None
+    """Why a question is withheld as a whole, when the screen should say it:
+    its condition reads a number, date or text answer (R4, settled)."""
 
 
 class ParticipationCounts(AggregateModel):
@@ -417,6 +429,28 @@ UNRELEASED_KINDS = {"number", "date", "text", "comment"}
 Leaf = tuple[str, str, str]
 
 
+def _surveyjs_key(value: Any) -> Any:
+    """How SurveyJS compares a value in a condition: case-insensitive,
+    trimmed, numbers and numeric strings alike (settings.comparator)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().lower()
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+    return number if math.isfinite(number) else text
+
+
+def _distinct_options(source: dict[str, Any]) -> bool:
+    """N10: options that SurveyJS treats as equal turn one comparison into a
+    union of cells, which is not a released number."""
+    keys = [_surveyjs_key(bucket["value"]) for bucket in source["counts"]]
+    return len(set(keys)) == len(keys)
+
+
 def _classify(
     leaves: list[Leaf], questions: dict[str, dict[str, Any]]
 ) -> tuple[Literal["none", "derived", "new", "opaque"], str | None]:
@@ -439,7 +473,11 @@ def _classify(
         return "opaque", None
     if source["kind"] in DERIVED_OPERATORS:
         # An invalid answer could match a literal outside the options.
-        if op in DERIVED_OPERATORS[source["kind"]] and source["invalid"] == 0:
+        if (
+            op in DERIVED_OPERATORS[source["kind"]]
+            and source["invalid"] == 0
+            and _distinct_options(source)
+        ):
             return "derived", name
         return "opaque", None
     if source["kind"] in UNRELEASED_KINDS:
@@ -464,6 +502,7 @@ def _with_dependencies(
     question condition already uses.
     """
     deps = stored["dependencies"]
+    settled = stored.get("disclosurePolicy") == "settled"
     by_id = {q["questionId"]: q for q in stored["questions"]}
     shown: dict[str, QuestionAggregate] = {}
     withheld: set[str] = set()
@@ -493,6 +532,14 @@ def _with_dependencies(
         shape, source = _classify(leaves, by_id)
         if shape == "opaque" or (source is not None and blocked(source)):
             withhold(q)
+            continue
+        if shape == "new" and settled:
+            # Without raw access (Björn, review round 3): never a count
+            # selected by a number, date or text answer.
+            withhold(q)
+            shown[qid] = shown[qid].model_copy(
+                update={"withheldReason": "unreleasedCondition"}
+            )
             continue
         if shape == "new":
             assert source is not None
@@ -629,7 +676,11 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
                 for key in status_keys
             }
         ),
-        lastPageCounts=[
+        # Without raw access last pages are never released (Björn, review
+        # round 3): they follow every condition, empty pages included.
+        lastPageCounts=[]
+        if stored.get("disclosurePolicy") == "settled"
+        else [
             LastPageCount(
                 pageId=page["pageId"],
                 title=page["title"],

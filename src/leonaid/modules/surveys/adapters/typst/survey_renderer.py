@@ -24,15 +24,16 @@ from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    UNRELEASED_CONDITION_NOTE,
     shown_count,
     withheld_legend,
     withheld_note,
 )
 
 TYPST_VERSION = "0.13.1"
-# v4: report PDFs under the disclosure rules of review round 2 (Task
+# v5: report PDFs under the disclosure rules of review round 3 (Task
 # 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
-RENDER_VERSION = f"survey-analysis-v4+typst-{TYPST_VERSION}"
+RENDER_VERSION = f"survey-analysis-v5+typst-{TYPST_VERSION}"
 DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "survey-analysis-v1.typ"
 STATUSES = {
     "in_progress": "In Bearbeitung",
@@ -98,7 +99,9 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             )
             if getattr(question, key, None) is not None
         ]
-        if k is not None and getattr(question, "suppressed", False):
+        if getattr(question, "withheldReason", None) == "unreleasedCondition":
+            metrics.append({"label": "Hinweis", "value": UNRELEASED_CONDITION_NOTE})
+        elif k is not None and getattr(question, "suppressed", False):
             metrics.append({"label": "Hinweis", "value": withheld_note(k)})
         hidden_rows = [
             row.label

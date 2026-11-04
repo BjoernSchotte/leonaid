@@ -31,6 +31,8 @@ export interface AnalyticsMessages {
   /** "{k}" is replaced by the minimum group size. */
   tooFewParticipants: string;
   tooFewAnswers: string;
+  /** A question selected by a number, date or text answer (settled). */
+  unreleasedCondition: string;
 }
 
 export const englishAnalytics: AnalyticsMessages = {
@@ -68,6 +70,8 @@ export const englishAnalytics: AnalyticsMessages = {
     "Fewer than {k} participants: results are not shown, so no one can be identified.",
   tooFewAnswers:
     "Fewer than {k} valid answers: this question is not evaluated, so no one can be identified.",
+  unreleasedCondition:
+    "Hidden: this question depends on a free-text or number answer.",
 };
 
 function Distribution({
@@ -220,7 +224,9 @@ export function SurveyAnalytics({
             </dl>
             {q.suppressed && (
               <p className="survey-analytics-withheld">
-                {fill(m.tooFewAnswers)}
+                {q.withheldReason === "unreleasedCondition"
+                  ? m.unreleasedCondition
+                  : fill(m.tooFewAnswers)}
               </p>
             )}
             {!q.suppressed && (q.kind === "number" || q.kind === "rating") && (
@@ -290,25 +296,27 @@ export function SurveyAnalytics({
             ))}
           </section>
         ))}
-      <section className="survey-analytics-question" aria-label={m.lastPage}>
-        <h3>{m.lastPage}</h3>
-        <p>{m.lastPageHint}</p>
-        <Distribution
-          counts={snapshot.lastPageCounts.map((page) => ({
-            value: page.pageId,
-            label: page.title,
-            count: page.count,
-            percentage:
-              page.count !== null && snapshot.participationCount
-                ? (page.count / snapshot.participationCount) * 100
-                : null,
-          }))}
-          messages={m}
-          formatNumber={n}
-          formatCount={c}
-          label={m.lastPage}
-        />
-      </section>
+      {snapshot.lastPageCounts.length > 0 && (
+        <section className="survey-analytics-question" aria-label={m.lastPage}>
+          <h3>{m.lastPage}</h3>
+          <p>{m.lastPageHint}</p>
+          <Distribution
+            counts={snapshot.lastPageCounts.map((page) => ({
+              value: page.pageId,
+              label: page.title,
+              count: page.count,
+              percentage:
+                page.count !== null && snapshot.participationCount
+                  ? (page.count / snapshot.participationCount) * 100
+                  : null,
+            }))}
+            messages={m}
+            formatNumber={n}
+            formatCount={c}
+            label={m.lastPage}
+          />
+        </section>
+      )}
     </section>
   );
 }

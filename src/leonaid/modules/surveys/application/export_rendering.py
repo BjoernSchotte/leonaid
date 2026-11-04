@@ -37,8 +37,8 @@ and in future, renders from the disclosed snapshot (fails closed, M3)."""
 
 
 DISCLOSED_SINCE: dict[str, tuple[str, int]] = {
-    "analysis_pdf": ("survey-analysis-v", 4),
-    "analysis_xlsx": ("survey-tabular-v", 5),
+    "analysis_pdf": ("survey-analysis-v", 5),
+    "analysis_xlsx": ("survey-tabular-v", 6),
 }
 """First render version of each report product under the current disclosure
 rules (review 5.6b, M4). Whenever ``disclose()`` changes, bump both
@@ -74,6 +74,12 @@ def shown_count(value: int | None) -> int | str:
 def withheld_legend(k: int) -> str:
     """The marker's legend, worded by Björn (2026-11-04); the UI uses it too."""
     return f"„{WITHHELD}“ verborgen: unter {k} Personen oder daraus ableitbar."
+
+
+UNRELEASED_CONDITION_NOTE = (
+    "Ausgeblendet: Frage hängt von einer Freitext- oder Zahlenantwort ab."
+)
+"""A question withheld because its condition reads such an answer (settled)."""
 
 
 def withheld_note(k: int) -> str:

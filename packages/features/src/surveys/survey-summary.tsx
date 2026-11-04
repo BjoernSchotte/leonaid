@@ -382,7 +382,13 @@ function QuestionPanel({
   quotes: ReactNode;
 }) {
   let body: ReactNode;
-  if (question.suppressed) {
+  if (question.withheldReason === "unreleasedCondition") {
+    body = (
+      <p className="svs-note">
+        Ausgeblendet: Frage hängt von einer Freitext- oder Zahlenantwort ab.
+      </p>
+    );
+  } else if (question.suppressed) {
     body = (
       <p className="svs-note">
         Weniger als {k} gültige Antworten: Diese Frage wird nicht ausgewertet,

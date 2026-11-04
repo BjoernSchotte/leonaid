@@ -12199,6 +12199,18 @@
               }
             ],
             "title": "Unanswered"
+          },
+          "withheldReason": {
+            "anyOf": [
+              {
+                "const": "unreleasedCondition",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withheldreason"
           }
         },
         "required": [
