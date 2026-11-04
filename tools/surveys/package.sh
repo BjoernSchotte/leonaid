@@ -19,7 +19,7 @@ cleanup() {
   mkdir -p "$artifact"
   cp "$proof"/*.png "$proof"/package-proof.json "$proof"/consumer.lock "$artifact/" 2>/dev/null || true
   if [ "$status" -ne 0 ]; then
-    cp -R "$proof"/first "$proof"/second "$artifact/" 2>/dev/null || true
+    cp -R "$proof"/first "$proof"/first-faults "$proof"/second "$artifact/" 2>/dev/null || true
   fi
   standalone_cleanup || status=1
   rm -rf "$proof"
