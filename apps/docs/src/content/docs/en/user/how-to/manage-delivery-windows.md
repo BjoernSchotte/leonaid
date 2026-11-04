@@ -10,32 +10,34 @@ verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
 
-**Role:** charity administrator for the affected campaign. The editor is
-available for campaigns with the **Auslieferung** (delivery) capability. Templates
-such as **Krapfentaxi** enable it; for other campaigns, enable it under
-**Funktionen & Team** while the campaign is a draft or scheduled. Delivery
-requires **Bestellungen**. In the back office, open the campaign and the
-**Lieferung planen** section.
+**Role:** charity administrator for the affected campaign. The
+**Lieferfenster** (delivery windows) tab appears for campaigns with the
+**Auslieferung** (delivery) capability. Templates such as **Krapfentaxi**
+enable it; for other campaigns, enable it with **Bearbeiten** under
+**Funktionen** while the campaign is a draft or scheduled. Delivery requires
+**Bestellungen**. In the back office, open the campaign and the
+**Lieferfenster** tab.
 
-1. For a new setup, enable **Lieferplanung für diese Aktion aktivieren**.
-2. Choose the **Zeitzone** before saving the first window. It becomes fixed as
-   soon as stored windows exist.
-3. Select **Weiteren Tag hinzufügen**, enter a date within the campaign period,
-   and set **Beginn** and **Ende**.
-4. Use **Zeitfenster hinzufügen** to add more periods on the same day.
-5. Select **Lieferplanung speichern**.
+1. Select **Lieferfenster hinzufügen**.
+2. Enter a **Tag** (day) within the campaign period and **Von** and **Bis**
+   (from, to). For the first window you also choose the **Zeitzone**; it is
+   fixed afterwards.
+3. Select **Speichern**. The message **Lieferfenster … angelegt.** confirms the
+   window. Repeat for more periods.
+4. If delivery planning is not active yet, the **Nächster Schritt** block offers
+   **Lieferplanung aktivieren**. Confirm the dialog. From then on, new binding
+   orders require a delivery address and an available window.
 
-The confirmation says **Lieferplanung gespeichert. Die Fenster gelten für
-Akquise und öffentliche Bestellungen.** New binding orders now require a
-delivery address and an available window.
+The table lists each window with its status (**Buchbar** or **Stillgelegt**)
+and, for campaigns that take orders, the booked boxes without cancelled orders.
 
-Stored times are not edited. Mark the old window with **… Uhr stilllegen**, add
-the replacement, and save. Existing orders retain their booked snapshot. If
-all windows are retired, no new binding order can be completed.
+Stored windows are not edited. Select **Stilllegen** on the old window,
+confirm **Fenster stilllegen**, and add the new time. Existing orders retain
+their booked snapshot. If all windows are retired, no new binding order can be
+completed.
 
-On an edit conflict, select **Aktuellen Stand laden und Eingaben behalten**,
-compare the merged plan, and save again. Use the offered new-tab link if you
-need to inspect the current state separately.
+If someone else changed the windows in the meantime, the dialog loads the
+current state and keeps your input. Check it and select **Speichern** again.
 
 ## Complete missing delivery details
 

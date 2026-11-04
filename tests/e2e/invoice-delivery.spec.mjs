@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { invoiceRow, openInvoice } from "./invoice-list.mjs";
 
@@ -95,7 +95,7 @@ test("charity admin sees an SMTP outage and restarts exactly that delivery", asy
       fullPage: true,
     });
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) =>

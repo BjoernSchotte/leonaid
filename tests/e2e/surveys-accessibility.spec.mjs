@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { test, expect } from "./csp-guard.mjs";
 import { writeFile } from "node:fs/promises";
 
@@ -62,10 +62,10 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
       "saved",
     );
   async function scan(label) {
-    const result = await new AxeBuilder({ page })
-      .include(".survey-editor")
-      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-      .analyze();
+    const result = await analyzeAccessibility(page, {
+      include: ".survey-editor",
+      tags: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+    });
     // axe analyzes results in a temporary page; restore the tested browser window,
     // without changing which control the keyboard journey has focused.
     await page.bringToFront();

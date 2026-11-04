@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { invoiceRows } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
@@ -40,9 +40,7 @@ async function contextFor(browser, session, viewport) {
 }
 
 async function expectNoSeriousAxeFindings(page, label) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );
@@ -437,11 +435,16 @@ test("public customer understands form, validation and next step", async ({
     const company = form.locator('input[name="companyName"]');
     await company.fill("UX Prüfatelier GmbH");
     await form.locator('button[type="submit"]').click();
-    await expect(form.locator('input[name="givenName"]')).toBeFocused();
+    // The error summary takes the focus and links each field.
+    const summary = form.locator("[data-form-message]");
+    await expect(summary).toBeFocused();
     await expect(company).toHaveValue("UX Prüfatelier GmbH");
-    await expect(form.locator("[data-form-message]")).toContainText(
-      "Bestellung noch nicht gesendet. Bitte prüfe die markierten Felder",
+    await expect(summary).toContainText("Bitte prüfen Sie");
+    await expect(summary).toContainText(
+      "Die Bestellung wurde noch nicht gesendet. Ihre Eingaben bleiben erhalten.",
     );
+    await summary.getByRole("link", { name: /^Vorname:/ }).click();
+    await expect(form.locator('input[name="givenName"]')).toBeFocused();
     await expectTouchTarget(
       form.locator('button[type="submit"]'),
       "Öffentliche Bestellung absenden",

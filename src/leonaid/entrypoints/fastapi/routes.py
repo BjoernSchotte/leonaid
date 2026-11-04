@@ -2108,7 +2108,7 @@ async def create_public_order(
         # saved: keep the same command identity for deterministic recovery.
         raise DependencyUnavailable(
             "public_order_processing_timeout",
-            "Die Verarbeitung dauert gerade zu lange. Bitte versuche dieselbe "
+            "Die Verarbeitung dauert gerade zu lange. Bitte senden Sie dieselbe "
             "Bestellung erneut, ohne die Seite neu zu laden.",
         ) from None
     response.headers["Cache-Control"] = "no-store"

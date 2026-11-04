@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 /*
@@ -31,7 +31,8 @@ function cookie(value) {
 }
 
 async function expectAccessible(page) {
-  const result = await new AxeBuilder({ page }).analyze();
+  // The helper waits for running animations (toasts) before scanning.
+  const result = await analyzeAccessibility(page);
   expect(
     result.violations.filter((violation) =>
       ["critical", "serious"].includes(violation.impact),

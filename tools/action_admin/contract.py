@@ -26,6 +26,8 @@ ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 GESA_ID = UUID("10000000-0000-4000-8000-000000000008")
 KLARA_ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 FELIX_ACTION_ID = UUID("20000000-0000-4000-8000-000000000003")
+# Golden "Krapfentaxi 2025": archived, Klara is its charity admin.
+ARCHIVED_ACTION_ID = UUID("20000000-0000-4000-8000-000000000002")
 UNKNOWN_ACTION_ID = UUID("20000000-0000-4000-8000-ffffffffffff")
 SESSION_NAMESPACE = UUID("3345e584-98be-4017-a4d5-b6cd91e48908")
 
@@ -280,6 +282,41 @@ async def exercise(
         )
         if alias_target != action_id or old_revision != 2:
             raise ContractFailure("alias switch was not traceable")
+
+        archived_state = await client.get(
+            f"/api/v1/actions/{ARCHIVED_ACTION_ID}/management",
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("archived-management"),
+        )
+        archived_state.raise_for_status()
+        archived_body = archived_state.json()
+        archived_leads = await client.put(
+            f"/api/v1/actions/{ARCHIVED_ACTION_ID}/responsible-administrators",
+            cookies=cookies(tokens[KLARA_ID]),
+            headers=request_headers("archived-responsibles"),
+            json={
+                "revision": archived_body["action"]["revision"],
+                "userIds": [str(KLARA_ID), str(FELIX_ID)],
+            },
+        )
+        if error_signature(archived_leads)[:2] != (422, "action_archived_immutable"):
+            raise ContractFailure(
+                "the leads of an archived action changed: "
+                f"{error_signature(archived_leads)}"
+            )
+        if await connection.fetchval(
+            """
+            SELECT count(*) FROM action_membership
+            WHERE action_id = $1 AND role = 'charity_admin'
+              AND active_until IS NULL
+            """,
+            ARCHIVED_ACTION_ID,
+        ) != sum(
+            1
+            for option in archived_body["administratorOptions"]
+            if option["isResponsible"]
+        ):
+            raise ContractFailure("a refused lead change touched the archived action")
 
         unavailable_admin = await client.put(
             f"/api/v1/actions/{action_id}/responsible-administrators",

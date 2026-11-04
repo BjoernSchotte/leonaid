@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { LeonAidApiClient, type FetchLike } from "@leonaid/api-client";
 import { ManageActionPage } from "@leonaid/features";
+import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -31,7 +32,11 @@ function renderManagement(client: LeonAidApiClient) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ManageActionPage actionId={actionId} client={client} />
+      <ToastProvider>
+        <HotkeyProvider>
+          <ManageActionPage actionId={actionId} client={client} />
+        </HotkeyProvider>
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }
@@ -42,6 +47,8 @@ describe("Charity-Admin-Aktionsverwaltung mit echtem Core", () => {
     expect("mock" in globalThis.fetch).toBe(false);
     const client = new LeonAidApiClient(apiBaseUrl, authenticatedFetch);
     const initial = await client.getCharityActionManagement(actionId);
+    // "Bearbeiten" on the overview: the edit forms.
+    window.history.replaceState(null, "", "/admin/actions/x#overview/edit");
     const view = renderManagement(client);
     const user = userEvent.setup();
 
@@ -53,13 +60,12 @@ describe("Charity-Admin-Aktionsverwaltung mit echtem Core", () => {
     );
     expect(
       screen
-        .getByRole("tab", { name: /Grundlagen/ })
+        .getByRole("tab", { name: /Überblick/ })
         .getAttribute("aria-selected"),
     ).toBe("true");
-    expect(screen.getByRole("tab", { name: /Begünstigte/ })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /Funktionen & Team/ })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /Öffentliche Seite/ })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /Status/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Aliase/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Vorlagen/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Angebote/ })).toBeTruthy();
 
     const actual = screen.getByTestId("manage-actual");
     await user.clear(actual);

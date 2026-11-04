@@ -56,11 +56,15 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     proof = json.loads(proof_path.read_text(encoding="utf-8"))
     validation = proof.get("validation")
     orders = proof.get("orders")
+    # The error summary takes the focus; its link leads to the first field.
     if validation != {
-        "firstFocusedField": "givenName",
+        "focusedSummary": True,
+        "summaryLinkFocusesField": "givenName",
         "retainedCompanyName": "POC072 Browseratelier GmbH",
     }:
-        raise VerificationFailure("Browser did not prove input retention and focus")
+        raise VerificationFailure(
+            "Browser did not prove the error summary, input retention and focus"
+        )
     if not isinstance(orders, list) or {
         item.get("scenario") for item in orders if isinstance(item, dict)
     } != {"new-company", "existing-company", "person-without-company"}:
