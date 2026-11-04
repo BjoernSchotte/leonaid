@@ -35,7 +35,11 @@ import {
 
 import { formatDateTime, relativeDay } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
-import { isRevisionConflict, useActionErrorMessage } from "./use-action-error";
+import {
+  isRevisionConflict,
+  isScopeChange,
+  useActionErrorMessage,
+} from "./use-action-error";
 import {
   GLOBAL_ROLES,
   actionRoleLabels,
@@ -90,13 +94,23 @@ function CommandError({
   readonly title: string;
 }) {
   const conflict = isRevisionConflict(error);
+  const scope = isScopeChange(error);
+  const code = error.code ?? "";
+  // The server's admin invariants (409): its message explains the refusal.
+  const heading = conflict
+    ? "Stand wurde zwischenzeitlich geändert"
+    : scope
+      ? "Ihre Berechtigung wurde zwischenzeitlich geändert"
+      : code.startsWith("last_system_admin_")
+        ? "Der letzte aktive System-Admin bleibt"
+        : code.startsWith("last_charity_admin_")
+          ? "Der letzte aktive Charity-Admin bleibt"
+          : title;
   return (
     <StatusMessage tone="error">
-      <strong>
-        {conflict ? "Stand wurde zwischenzeitlich geändert" : title}
-      </strong>
+      <strong>{heading}</strong>
       <p>{error.message}</p>
-      {conflict ? (
+      {conflict || scope ? (
         <Button onClick={onReload} size="sm" variant="secondary">
           Aktuellen Stand laden
         </Button>
@@ -328,11 +342,13 @@ export function MemberDetail({
     member.status === "active" &&
     member.globalRoles.includes("system_admin") &&
     activeHolders((other) => other.globalRoles.includes("system_admin")) === 0;
-  // Mirrors the server's rule (409 last_charity_admin_role_forbidden): only
-  // draft, scheduled and active actions (`leadRequired`) keep their last
-  // charity admin. Counting only active accounts is stricter than the
-  // server, which also counts suspended ones; the server still decides.
+  // Mirrors the server's admin invariant: open actions (`leadRequired`:
+  // draft, scheduled, active) keep at least one active charity admin, and
+  // only active accounts count, as on the server. A partial directory does
+  // not show every lead, so the hint is left to the full scope; the server
+  // decides either way (409 last_charity_admin_*).
   const isLastLead = (actionId: string) =>
+    !partial &&
     Boolean(manageable.get(actionId)?.leadRequired) &&
     member.status === "active" &&
     activeHolders((other) =>
@@ -340,6 +356,13 @@ export function MemberDetail({
         (item) => item.actionId === actionId && item.role === "charity_admin",
       ),
     ) === 0;
+
+  // Suspending or archiving this account would leave these open actions
+  // without an active lead (409 last_charity_admin_suspension/archival_*).
+  const soleLeadActions = member.actionMemberships.filter(
+    (item) => item.role === "charity_admin" && isLastLead(item.actionId),
+  );
+  const accessLocked = lastSystemAdmin || soleLeadActions.length > 0;
 
   function askRole(command: RoleCommand) {
     setRoleError(undefined);
@@ -797,11 +820,26 @@ export function MemberDetail({
                 Kritische Änderungen brauchen eine frisch bestätigte Anmeldung
                 und werden vollständig protokolliert.
               </p>
+              {accessLocked ? (
+                <p
+                  className="member-guard small"
+                  data-testid="member-access-guard"
+                >
+                  <Icon icon={ShieldAlert} size={14} />
+                  {lastSystemAdmin
+                    ? "Einziger aktiver System-Admin. Sperren und Archivieren sind erst möglich, wenn eine zweite aktive Person die Rolle hat."
+                    : `Letzter aktiver Charity-Admin von ${soleLeadActions
+                        .map((item) => item.actionName)
+                        .join(
+                          ", ",
+                        )}. Sperren und Archivieren sind erst möglich, wenn eine weitere aktive Person Charity-Admin ist.`}
+                </p>
+              ) : null}
               <div className="cluster">
                 {member.status === "active" ? (
                   <Button
                     data-testid="member-status-suspend"
-                    disabled={busy}
+                    disabled={busy || accessLocked}
                     icon={Lock}
                     onClick={() => askStatus("suspended")}
                     size="sm"
@@ -822,7 +860,7 @@ export function MemberDetail({
                 )}
                 <Button
                   data-testid="member-status-archive"
-                  disabled={busy}
+                  disabled={busy || accessLocked}
                   icon={Trash2}
                   onClick={() => askStatus("archived")}
                   size="sm"

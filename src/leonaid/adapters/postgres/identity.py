@@ -1044,8 +1044,8 @@ class AsyncpgIdentityRepository:
                 ):
                     raise Conflict(
                         "role_action_scope_changed",
-                        "Deine Verwaltungsrolle wurde zwischenzeitlich "
-                        "geändert. Bitte lade den aktuellen Stand.",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
                     )
                 if role is ActionRole.DRIVER and not bool(
                     await connection.fetchval(

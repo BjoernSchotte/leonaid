@@ -30,3 +30,12 @@ export function useActionErrorMessage(
 export function isRevisionConflict(message: ActionErrorMessage): boolean {
   return message.code?.endsWith("_revision_conflict") ?? false;
 }
+
+/**
+ * The actor's own rights changed while the command ran
+ * (`admin_scope_changed`, `role_action_scope_changed`): reloading shows
+ * what the account may still do.
+ */
+export function isScopeChange(message: ActionErrorMessage): boolean {
+  return message.code?.endsWith("_scope_changed") ?? false;
+}

@@ -621,9 +621,49 @@ describe("member pane", () => {
     );
     // A 409 refusal is no revision conflict: no "Aktuellen Stand laden".
     expect(
-      await pane.findByText("Rolle konnte nicht geändert werden"),
+      await pane.findByText("Der letzte aktive Charity-Admin bleibt"),
     ).toBeTruthy();
     expect(pane.queryByText("Aktuellen Stand laden")).toBeNull();
+  });
+
+  it("warns before suspending or archiving the last active lead", async () => {
+    await renderPage();
+    const pane = await openMember("Klara Kern");
+    expect(pane.getByTestId("member-access-guard").textContent).toContain(
+      "Letzter aktiver Charity-Admin von Krapfentaxi 2026.",
+    );
+    expect(
+      (pane.getByTestId("member-status-suspend") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (pane.getByTestId("member-status-archive") as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it("offers a reload when the actor's own rights changed mid-command", async () => {
+    const client = await renderPage();
+    client.changeMemberActionRole.mockRejectedValue(
+      new ApiError(409, {
+        code: "role_action_scope_changed",
+        message: "Ihre Verwaltungsrolle wurde zwischenzeitlich geändert.",
+        requestId: "req-5",
+      }),
+    );
+    const pane = await openMember("Anna Akquise");
+    fireEvent.click(
+      pane.getByTestId(`member-revoke-action-${ownAction}-acquirer`),
+    );
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Rolle entziehen" }),
+    );
+    expect(
+      await pane.findByText(
+        "Ihre Berechtigung wurde zwischenzeitlich geändert",
+      ),
+    ).toBeTruthy();
+    expect(
+      pane.getByRole("button", { name: "Aktuellen Stand laden" }),
+    ).toBeTruthy();
   });
 
   it("suspends through the confirmation and reports the ended sessions", async () => {
@@ -688,6 +728,12 @@ describe("member pane", () => {
     expect(pane.queryByText("Zugang")).toBeNull();
     expect(pane.queryByTestId("member-email-change-open")).toBeNull();
     expect(pane.getByTestId("member-scope-pane-note")).toBeTruthy();
+    // A partial directory leaves the last-lead hint to the server.
+    await openMember("Klara Kern");
+    await screen.findByRole("heading", { level: 2, name: "Klara Kern" });
+    const klara = within(screen.getByTestId("member-detail"));
+    expect(klara.getAllByTestId("member-membership").length).toBeGreaterThan(0);
+    expect(klara.queryByText("Letzter Charity-Admin")).toBeNull();
   });
 
   it("reopens the pane from ?open= after the fresh sign-in", async () => {

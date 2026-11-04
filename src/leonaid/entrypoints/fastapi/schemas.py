@@ -2179,6 +2179,13 @@ MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
     "idempotency_incomplete",
 )
 
+# Action creation: the creator becomes the action's only lead, so it must
+# still be an active account when the action is written.
+ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
+    "action_responsible_administrator_unavailable",
+    "action_archive_slug_conflict",
+)
+
 RequestIdHeader = Annotated[
     str | None,
     Field(

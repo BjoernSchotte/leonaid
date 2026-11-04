@@ -521,8 +521,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 ):
                     raise Conflict(
                         "role_action_scope_changed",
-                        "Deine Verwaltungsrolle wurde zwischenzeitlich "
-                        "geändert. Bitte lade den aktuellen Stand.",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
                     )
                 available_rows = await connection.fetch(
                     """

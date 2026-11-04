@@ -15750,7 +15750,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `action_responsible_administrator_unavailable`, `action_archive_slug_conflict`."
           },
           "422": {
             "content": {
@@ -15851,7 +15851,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `action_responsible_administrator_unavailable`, `action_archive_slug_conflict`."
           },
           "422": {
             "content": {
