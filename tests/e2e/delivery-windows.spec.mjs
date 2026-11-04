@@ -194,7 +194,9 @@ test("Lieferfenster: add in the modal, keep input on a conflict, retire", async 
     const full = page.getByRole("switch", {
       name: /04\.12\. · 10:00–12:00 Uhr ausgebucht$/,
     });
-    await full.check();
+    // The switch follows the saved state, so click and wait for it.
+    await full.click();
+    await expect(full).toBeChecked();
     await expect(page.locator(".toast").last()).toContainText(
       "als ausgebucht markiert",
     );
@@ -207,14 +209,17 @@ test("Lieferfenster: add in the modal, keep input on a conflict, retire", async 
         .fullyBooked,
     ).toBe(true);
     await expectNoSeriousAccessibilityViolations(page, "Ausgebucht");
-    await full.uncheck();
+    await full.click();
+    await expect(full).not.toBeChecked();
     await expect(page.locator(".toast").last()).toContainText("wieder buchbar");
     await expect(fullRow).toContainText("Buchbar");
 
     // Retiring a full window clears "Ausgebucht".
-    await page
-      .getByRole("switch", { name: /06\.12\. · 14:00–16:00 Uhr ausgebucht$/ })
-      .check();
+    const second = page.getByRole("switch", {
+      name: /06\.12\. · 14:00–16:00 Uhr ausgebucht$/,
+    });
+    await second.click();
+    await expect(second).toBeChecked();
     await expect(
       rows.filter({ hasText: "06.12. · 14:00–16:00" }),
     ).toContainText("Ausgebucht");
