@@ -2,8 +2,9 @@
 
 Status: 2026-11-04. Specification for review. Nothing in this document is
 implemented. Björn decided on 2026-11-03 that the PWA gets an offline capture
-queue; this document says how. The open questions are in [§17](#17-open-questions-for-björn);
-implementation needs a separate go per stage (§16).
+queue; this document says how. Björn answered the open questions on 2026-11-04
+([§17](#17-decisions-björn-2026-11-04)); this version includes those decisions.
+Implementation needs a separate go per stage (§16).
 
 Code references are to `feat/leitsystem` at f58fbb08 (the Leitsystem PWA shell,
 6.2 delivery board, 6.5 "ausgebucht"), which is ahead of `main` for every file
@@ -136,7 +137,7 @@ the draft was resolved (§9.2).
 | Payments, invoices, cancellations                                                                                                              | Back office only; money must not move on stale data.                                                                    |
 | Delivery board (driver ticks, closing windows)                                                                                                 | No-store rule for addresses and phones (§14.3); the board hides itself offline (`hideOffline` in `delivery-board.tsx`). |
 | Sponsor match decision (`resolveSponsorMatch`)                                                                                                 | It reads the CRM (Twenty) live and may create a CRM record; the acquirer must see the candidates.                       |
-| Tasks, materials, knowledge, inbox modules                                                                                                     | Shared editing with revisions; out of scope for the first version (Q7).                                                 |
+| Tasks, materials, knowledge, inbox modules                                                                                                     | Shared editing with revisions; out of scope for the first version (D7).                                                 |
 | Assignment changes (status, priority without a contact)                                                                                        | Not a PWA function today.                                                                                               |
 
 ## 7. What exists today
@@ -192,21 +193,24 @@ session and membership again at every send.
 
 ### 8.2 Read cache (minimal)
 
-| Data                             | Fields kept                                                                                                                                                                                                  | Source                        | Why                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| Sponsor list per action          | `assignmentId`, `partyKind`, `partyId`, `partyDisplayName`, `city`, `status`, `nextAction`, `dueAt`, `revision`, `suppressedChannels`; **plus** `phone` and `contactName` if Q2 says yes                     | `getAcquisitionActivityBoard` | pick the sponsor, show the follow-up, base revision, refuse suppressed channels already offline |
-| Order capture context per action | offerings (`id`, `name`, `unit`, `unitPriceMinor`, `currency`, `allowedQuantityUnits`, `piecesPerUnit`, availability), delivery configuration (`enabled`, `timezone`, windows with `fullyBooked`, `retired`) | `getCommitmentCaptureContext` | price preview, unit choice, window choice                                                       |
-| Identity summary                 | user id, display name, action ids and names with the acquirer role                                                                                                                                           | `getCurrentIdentity`          | shell and queue binding                                                                         |
+| Data                             | Fields kept                                                                                                                                                                                                  | Source                        | Why                                                                                                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sponsor list per action          | `assignmentId`, `partyKind`, `partyId`, `partyDisplayName`, `city`, `status`, `nextAction`, `dueAt`, `revision`, `suppressedChannels`, `contactName`, `phone`, `email` (D2)                                  | `getAcquisitionActivityBoard` | pick the sponsor, show the follow-up, base revision, refuse suppressed channels already offline; call or write to the sponsor without data (`tel:`/`mailto:` links) |
+| Order capture context per action | offerings (`id`, `name`, `unit`, `unitPriceMinor`, `currency`, `allowedQuantityUnits`, `piecesPerUnit`, availability), delivery configuration (`enabled`, `timezone`, windows with `fullyBooked`, `retired`) | `getCommitmentCaptureContext` | price preview, unit choice, window choice                                                                                                                           |
+| Identity summary                 | user id, display name, action ids and names with the acquirer role                                                                                                                                           | `getCurrentIdentity`          | shell and queue binding                                                                                                                                             |
 
-Not cached: email addresses, postal addresses of sponsors, invoice recipients
-of earlier orders, other acquirers' names, the activity feed, the dashboard,
-delivery board data, documents.
+Not cached: postal addresses of sponsors (street; the city is kept), invoice
+recipients and earlier orders, other acquirers' names, the activity feed, the
+dashboard, delivery board data, documents. The contact fields (contact name,
+phone, email) are kept only for sponsors assigned to the acquirer and only
+while the assignment is in the list; a refresh that drops a sponsor drops its
+contact data.
 
 The read cache is refreshed whenever the PWA is online and the page is visible
 (on open, focus and after each successful send), and replaced as a whole per
 action. Entries older than 7 days are not shown; the app then says
 "Deine Sponsorenliste ist älter als 7 Tage. Geh online, um sie zu
-aktualisieren." and offline capture is blocked until it is refreshed (Q3).
+aktualisieren." and offline capture is blocked until it is refreshed (D3).
 
 ### 8.3 IndexedDB layout
 
@@ -241,9 +245,8 @@ person using the unlocked phone with the PWA open.
   copy): the copy is useless without the browser's key store. It does **not**
   protect against code running in the page; that is what CSP and the absence
   of third-party scripts do.
-- A user-entered PIN for the queue (key derived with PBKDF2) is rejected: it
-  adds a second login for little gain, and a forgotten PIN loses captures
-  (Q4).
+- A user-entered PIN for the queue (key derived with PBKDF2) is rejected (D4):
+  it adds a second login for little gain, and a forgotten PIN loses captures.
 - A server-wrapped key (fetched at sign-in, kept only in memory) is rejected:
   after an app restart offline the queue could not be read, which defeats the
   purpose.
@@ -254,11 +257,11 @@ person using the unlocked phone with the PWA open.
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Entry accepted by Core                                     | removed from `queue` at once; the shell shows "Gesendet" for this session only (memory)                                                                               |
 | Entry discarded by the acquirer                            | removed at once                                                                                                                                                       |
-| Entry older than 14 days (by `capturedAt`)                 | state "Abgelaufen"; kept 2 more days with a visible warning, then deleted (Q5)                                                                                        |
+| Entry older than 14 days (by `capturedAt`)                 | state "Abgelaufen"; kept 2 more days with a visible warning, then deleted (D5)                                                                                        |
 | Read cache older than 7 days                               | not shown; deleted after 14 days                                                                                                                                      |
 | Sign-out (`/logout` from the PWA)                          | if the queue is not empty: warning dialog with the count (§12.5); then the user's database is deleted (`indexedDB.deleteDatabase`) and the active-user record removed |
 | Session expired (401)                                      | queue is **kept** and paused; banner "Melde dich wieder an, damit LeonAid … senden kann"; after sign-in as the **same** user it resumes                               |
-| Sign-in as another user on the device                      | the other user's database is deleted before the new user's shell renders; nothing of it is shown or sent (Q6)                                                         |
+| Sign-in as another user on the device                      | the other user's database is deleted before the new user's shell renders; nothing of it is shown or sent (D6)                                                         |
 | Membership ended or acquisition switched off (403 on send) | entries for that action go to "Nicht mehr möglich"; the acquirer can read and discard them; deleted after 2 days                                                      |
 | App uninstall / site data cleared                          | everything is gone; Core has only what was sent                                                                                                                       |
 
@@ -456,7 +459,7 @@ Today a revision mismatch refuses the whole activity. Offline, a colleague's
 entry on a shared sponsor is likely, and losing the acquirer's contact is
 wrong: the contact happened.
 
-Proposal (Q1): with `capturedAt` present and a revision mismatch, Core records
+Decision (D1): with `capturedAt` present and a revision mismatch, Core records
 the activity (the fact) and the history entry, but **does not** change the
 assignment's status, next action or due date. The answer is 201 with
 `assignmentUpdated: false` and the current assignment. The PWA then shows the
@@ -568,22 +571,34 @@ shows once: "Auf dem iPhone sendet LeonAid nur, solange die App geöffnet ist.
 - Queue entries: sponsor id and display name (via the read cache), the
   acquirer's note (free text, may contain personal data), channel, outcome,
   follow-up, order lines, delivery address and contact for an order.
-- Read cache: sponsor display names, city, status, follow-up text, and (Q2)
-  phone and contact name.
-- Not on the device: email addresses, invoice recipients, other people's
-  orders, delivery board data, documents.
+- Read cache: sponsor display names, city, status, follow-up text, and the
+  contact fields contact name, phone and email (D2). The email address is the
+  most widely usable of these (it identifies a person and can be used for
+  unsolicited mail), so it gets the same protection as the queue, not less.
+- Not on the device: sponsors' street addresses, invoice recipients, other
+  people's orders, delivery board data, documents.
 
 ### 14.2 Measures
 
 - Purpose: acquisition of the acquirer's own sponsors (existing purpose
   `PrivacyPurpose.ACQUISITION`); no new processing purpose.
-- Minimisation (§8.2), encryption at rest (§8.4), retention 14 days / 7 days
-  (§8.5), deletion on sign-out, account switch, membership end.
+- Minimisation (§8.2): contact fields only for the acquirer's own assigned
+  sponsors; a sponsor that leaves the list loses its cached contact data on the
+  next refresh; no street addresses, no invoice data.
+- Encryption at rest (§8.4), retention 14 days / 7 days (§8.5), deletion on
+  sign-out, account switch, membership end.
+- The email address is never written to a queue entry's clear-text indexes or
+  to `localStorage`, never logged, and never sent anywhere but Core. The PWA
+  opens it only as a `mailto:` link in the device's mail app; that mail is
+  outside LeonAid, and the acquirer records it as a contact attempt (channel
+  email), which the suppression check covers.
 - Suppressed channels are in the read cache so that an email/phone contact to a
-  suppressed sponsor is refused already offline.
+  suppressed sponsor is refused already offline, and the `mailto:`/`tel:`
+  links are hidden for a suppressed channel.
 - The privacy notice for members gets one paragraph: what the PWA keeps on the
   device, for how long, and how to delete it (sign out). Legal configuration
-  texts are Björn's call (Q8).
+  texts go through the legal configuration's four-eyes flow (D8). The
+  paragraph names the contact fields, including the email address.
 - No analytics, no third-party scripts; CSP unchanged.
 
 ### 14.3 Driver view
@@ -647,38 +662,20 @@ activity/order record.
 Each stage ships behind a feature flag (`pwa_offline_queue`) so that the
 truthful "nothing is saved offline" copy stays until stage 3 is live.
 
-## 17. Open questions for Björn
+## 17. Decisions (Björn, 2026-11-04)
 
-1. **Q1 Contact kept when the assignment moved (§11.4).** Record the contact
-   and report only the follow-up as a conflict, or refuse the whole entry as
-   today? _Recommendation: keep the contact; it happened, and losing it is
-   worse than a duplicate follow-up decision._
-2. **Q2 Phone numbers offline.** Cache sponsor phone and contact name so that
-   the acquirer can call from the list without data? _Recommendation: yes, phone
-   and contact name only, no email; voice works where data does not._
-3. **Q3 Stale read cache.** Block offline capture when the sponsor list is
-   older than 7 days? _Recommendation: yes; older lists make conflicts the
-   rule._
-4. **Q4 Extra PIN for the queue.** _Recommendation: no; rely on device lock and
-   the non-extractable key (§8.4)._
-5. **Q5 Retention of unsent entries.** 14 days, then 2 days of warning?
-   _Recommendation: yes; a Krapfentaxi campaign runs a few weeks, and the
-   server bound for `capturedAt` uses the same 14 days._
-6. **Q6 Shared phones.** Delete another user's queue on sign-in without asking
-   (it is their data, the new user must not see it)? _Recommendation: yes, with
-   the sign-out warning as the safeguard._
-7. **Q7 Modules.** Keep tasks, materials, knowledge and inbox online-only in
-   the first version? _Recommendation: yes; revisit after real use._
-8. **Q8 Privacy notice.** Add the device-storage paragraph to the members'
-   privacy notice in the legal configuration (four-eyes flow)? _Recommendation:
-   yes, before stage 3 goes live._
-9. **Q9 Offline orders as drafts.** Send offline orders as captured (review-ready
-   when complete), or always as drafts that the acquirer confirms online?
-   _Recommendation: as captured; conflicts are handled per entry, and drafts
-   would double the acquirer's work._
-10. **Q10 Sponsor drafts.** Allow drafting a new sponsor offline at all (§10.4)?
-    _Recommendation: yes, draft only, resolved online with the existing match
-    step; fairs are the main offline case._
+| No. | Question                                                         | Decision                                                                                                                                                |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Contact kept when the assignment moved meanwhile (§11.4)         | **Yes.** Core records the contact; only the follow-up is reported as a conflict.                                                                        |
+| D2  | Contact data offline (§8.2)                                      | **Yes, phone, contact name and email address** are cached, so the acquirer can call or write a mail without data. Street addresses stay off the device. |
+| D3  | Block offline capture when the sponsor list is older than 7 days | **Yes.**                                                                                                                                                |
+| D4  | Extra PIN for the queue                                          | **No PIN.** Device lock plus the non-extractable key (§8.4).                                                                                            |
+| D5  | Retention of unsent entries                                      | **14 days, then 2 days of warning**, then deleted; the server bound for `capturedAt` uses the same 14 days.                                             |
+| D6  | Shared phones                                                    | **Delete another user's queue on sign-in without asking**; the sign-out warning (§12.5) is the safeguard.                                               |
+| D7  | Modules (tasks, materials, knowledge, inbox)                     | **Online-only** in the first version; revisit after real use.                                                                                           |
+| D8  | Privacy notice                                                   | **Add the device-storage paragraph** to the members' privacy notice through the legal configuration's four-eyes flow, before stage 3 goes live.         |
+| D9  | Offline orders                                                   | **Sent as captured** (review-ready when complete), not forced into drafts.                                                                              |
+| D10 | Sponsor drafts                                                   | **Allowed offline as drafts**, resolved online with the existing match step (§10.4).                                                                    |
 
 ## 18. Risks
 
@@ -693,5 +690,6 @@ truthful "nothing is saved offline" copy stays until stage 3 is live.
   fields keeps working because the fields are optional for one release (§11.1).
 - **R4 Clock manipulation.** Bounded to −14 days / +5 minutes; authorisation
   at send time (§11.2).
-- **R5 More data on devices.** Minimisation and retention as above; reviewed in
-  Q2, Q8.
+- **R5 More data on devices.** Contact name, phone and email of the
+  acquirer's sponsors are on the phone (D2). Mitigation: own sponsors only,
+  encryption at rest, retention, deletion rules (§8.5), privacy notice (D8).
