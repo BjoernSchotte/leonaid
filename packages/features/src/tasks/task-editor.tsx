@@ -10,13 +10,18 @@ import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 
 import { AssigneePicker } from "./assignee-picker";
 import { EpicPicker } from "./epic-picker";
+import { says, type Address } from "./task-copy";
 
 export type Task = Awaited<ReturnType<LeonAidApiClient["getTask"]>>;
 
+type PlanState = "scheduled" | "someday" | "unplanned";
+
 export function TaskPlanPanel({
+  address = "du",
   client,
   taskId,
 }: {
+  address?: Address;
   client: LeonAidApiClient;
   taskId: string;
 }) {
@@ -27,9 +32,7 @@ export function TaskPlanPanel({
     queryFn: () => client.getTaskPlan(taskId),
     retry: false,
   });
-  const [state, setState] = useState<"scheduled" | "someday" | "unplanned">(
-    "unplanned",
-  );
+  const [state, setState] = useState<PlanState>("unplanned");
   const [plannedOn, setPlannedOn] = useState("");
   useEffect(() => {
     if (!plan.data) return;
@@ -56,30 +59,37 @@ export function TaskPlanPanel({
   };
   return (
     <form
-      className="task-plan"
+      className="task-form task-plan-form"
       onSubmit={(event) => {
         event.preventDefault();
         save.mutate();
       }}
     >
-      <h2>Persönliche Planung</h2>
-      <p>Nur du siehst diese Einordnung. Teamtermine bleiben unverändert.</p>
+      <h3 className="task-form-title">Persönliche Planung</h3>
+      <p className="field-hint">
+        {says(
+          address,
+          "Nur du siehst diese Einordnung. Teamtermine bleiben unverändert.",
+          "Nur Sie sehen diese Einordnung. Teamtermine bleiben unverändert.",
+        )}
+      </p>
       {plan.isPending ? (
-        <p role="status">Planung wird geladen …</p>
+        <p className="field-hint" role="status">
+          Planung wird geladen …
+        </p>
       ) : plan.isError ? (
         <StatusMessage tone="error">
           <p>Die persönliche Planung konnte nicht geladen werden.</p>
         </StatusMessage>
       ) : (
-        <fieldset disabled={save.isPending}>
-          <label>
-            Einordnung
+        <fieldset className="task-fields" disabled={save.isPending}>
+          <label className="field">
+            <span className="field-label">Einordnung</span>
             <select
+              className="input select"
               value={state}
               onChange={(event) => {
-                setState(
-                  event.target.value as "scheduled" | "someday" | "unplanned",
-                );
+                setState(event.target.value as PlanState);
                 changed();
               }}
             >
@@ -89,9 +99,10 @@ export function TaskPlanPanel({
             </select>
           </label>
           {state === "scheduled" && (
-            <label>
-              Geplant für
+            <label className="field">
+              <span className="field-label">Geplant für</span>
               <input
+                className="input"
                 type="date"
                 required
                 value={plannedOn}
@@ -106,15 +117,30 @@ export function TaskPlanPanel({
             <StatusMessage tone="error">
               <p>
                 {save.error instanceof ApiError && save.error.status === 409
-                  ? "Die Planung wurde inzwischen geändert. Schließe die Aufgabe und öffne sie erneut."
+                  ? says(
+                      address,
+                      "Die Planung wurde inzwischen geändert. Schließe die Aufgabe und öffne sie erneut.",
+                      "Die Planung wurde inzwischen geändert. Schließen Sie die Aufgabe und öffnen Sie sie erneut.",
+                    )
                   : "Die persönliche Planung konnte nicht gespeichert werden."}
               </p>
             </StatusMessage>
           )}
-          {save.isSuccess && <p role="status">Planung gespeichert.</p>}
-          <Button type="submit" disabled={state === "scheduled" && !plannedOn}>
-            {save.isPending ? "Wird gespeichert …" : "Planung speichern"}
-          </Button>
+          {save.isSuccess && (
+            <p className="field-hint" role="status">
+              Planung gespeichert.
+            </p>
+          )}
+          <div className="task-form-actions">
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={state === "scheduled" && !plannedOn}
+              loading={save.isPending}
+            >
+              {save.isPending ? "Wird gespeichert …" : "Planung speichern"}
+            </Button>
+          </div>
         </fieldset>
       )}
     </form>
@@ -128,25 +154,36 @@ function localTime(value: string | null | undefined) {
 }
 
 export function TaskEditor({
+  address = "du",
   client,
   listId,
   task,
   userId,
   onClose,
+  onSaved,
   createTask,
   conflictMessage,
   onDirtyChange,
+  closeOnEscape = true,
+  headingLevel = 2,
 }: {
+  address?: Address;
   client: LeonAidApiClient;
   listId: string;
   task?: Task;
   userId: string;
+  /** "Abbrechen", Escape and, without `onSaved`, a successful save. */
   onClose: () => void;
+  /** A successful save; defaults to `onClose`. */
+  onSaved?: () => void;
   conflictMessage?: string;
   onDirtyChange?: (dirty: boolean) => void;
   createTask?: (
     command: Parameters<LeonAidApiClient["createTask"]>[1],
   ) => Promise<Task>;
+  /** In the list pane Escape belongs to the list (leave field, close pane). */
+  closeOnEscape?: boolean;
+  headingLevel?: 2 | 3;
 }) {
   const id = useId();
   const cache = useQueryClient();
@@ -172,6 +209,8 @@ export function TaskEditor({
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
   useLeaveGuard(dirty);
+  // Unmounting with a draft (pane closed, row gone) leaves no stale flag.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const save = useMutation({
     mutationFn: () => {
       const body = {
@@ -204,17 +243,18 @@ export function TaskEditor({
           : client.createTask(listId, body);
     },
     onSuccess: async () => {
-      await cache.invalidateQueries({ queryKey: ["tasks"] });
       onDirtyChange?.(false);
-      onClose();
+      await cache.invalidateQueries({ queryKey: ["tasks"] });
+      (onSaved ?? onClose)();
     },
   });
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   return (
     <form
-      className="task-editor"
+      className="task-form task-editor"
       aria-labelledby={`${id}-heading`}
       onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
+        if (!closeOnEscape || event.key !== "Escape") return;
         event.preventDefault();
         onClose();
       }}
@@ -227,36 +267,53 @@ export function TaskEditor({
         save.reset();
       }}
     >
-      <h2 id={`${id}-heading`}>
+      <Heading className="task-form-title" id={`${id}-heading`}>
         {task ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
-      </h2>
+      </Heading>
       {save.error && (
         <StatusMessage tone="error">
           <p>
             {save.error instanceof ApiError && save.error.status === 409
               ? (conflictMessage ??
-                "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Dein Entwurf bleibt erhalten. Schließe die Bearbeitung und lade die Aufgaben neu, bevor du deine Änderungen erneut übernimmst.")
+                says(
+                  address,
+                  "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Dein Entwurf bleibt erhalten. Schließe die Bearbeitung und lade die Aufgaben neu, bevor du deine Änderungen erneut übernimmst.",
+                  "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Ihr Entwurf bleibt erhalten. Schließen Sie die Bearbeitung und laden Sie die Aufgaben neu, bevor Sie Ihre Änderungen erneut übernehmen.",
+                ))
               : save.error instanceof ApiError &&
                   [403, 404].includes(save.error.status)
-                ? "Du darfst diese Aufgabe nicht bearbeiten oder hast keinen Zugriff mehr auf die Liste."
-                : "Speichern fehlgeschlagen. Dein Entwurf bleibt erhalten; du kannst erneut speichern."}
+                ? says(
+                    address,
+                    "Du darfst diese Aufgabe nicht bearbeiten oder hast keinen Zugriff mehr auf die Liste.",
+                    "Sie dürfen diese Aufgabe nicht bearbeiten oder haben keinen Zugriff mehr auf die Liste.",
+                  )
+                : says(
+                    address,
+                    "Speichern fehlgeschlagen. Dein Entwurf bleibt erhalten; du kannst erneut speichern.",
+                    "Speichern fehlgeschlagen. Ihr Entwurf bleibt erhalten; Sie können erneut speichern.",
+                  )}
           </p>
         </StatusMessage>
       )}
-      <fieldset disabled={save.isPending || epicPending}>
-        <label>
-          Titel
+      <fieldset
+        className="task-fields"
+        disabled={save.isPending || epicPending}
+      >
+        <label className="field">
+          <span className="field-label">Titel</span>
           <input
-            autoFocus
+            className="input"
+            autoFocus={!task}
             required
             maxLength={240}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
-        <label>
-          Beschreibung
+        <label className="field">
+          <span className="field-label">Beschreibung</span>
           <textarea
+            className="input textarea"
             rows={4}
             maxLength={10000}
             value={description}
@@ -264,9 +321,10 @@ export function TaskEditor({
           />
         </label>
         {task && (
-          <label>
-            Status
+          <label className="field">
+            <span className="field-label">Status</span>
             <select
+              className="input select"
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as "open" | "done")
@@ -280,6 +338,7 @@ export function TaskEditor({
         <details className="task-editor-property">
           <summary>Zuständigkeit auswählen</summary>
           <AssigneePicker
+            address={address}
             client={client}
             listId={listId}
             value={assignee}
@@ -294,6 +353,7 @@ export function TaskEditor({
         <details className="task-editor-property">
           <summary>Abschnitt auswählen</summary>
           <EpicPicker
+            address={address}
             client={client}
             listId={listId}
             value={epic}
@@ -307,30 +367,39 @@ export function TaskEditor({
         <details className="task-editor-property">
           <summary>Termine und Wiedervorlage</summary>
           <div className="task-editor-dates">
-            <label>
-              Fällig am
+            <label className="field">
+              <span className="field-label">Fällig am</span>
               <input
+                className="input"
                 type="datetime-local"
                 value={due}
                 onChange={(event) => setDue(event.target.value)}
               />
             </label>
-            <label>
-              Zurückgestellt bis
+            <label className="field">
+              <span className="field-label">Zurückgestellt bis</span>
               <input
+                className="input"
                 type="datetime-local"
                 value={deferred}
                 onChange={(event) => setDeferred(event.target.value)}
               />
             </label>
           </div>
-          <p>
-            Zeiten gelten in deiner lokalen Zeitzone. Zurückstellen blendet die
-            Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.
+          <p className="field-hint">
+            {says(
+              address,
+              "Zeiten gelten in deiner lokalen Zeitzone. Zurückstellen blendet die Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.",
+              "Zeiten gelten in Ihrer lokalen Zeitzone. Zurückstellen blendet die Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.",
+            )}
           </p>
         </details>
-        <div className="tasks-paging">
-          <Button type="submit" disabled={!title.trim()}>
+        <div className="task-form-actions">
+          <Button
+            type="submit"
+            disabled={!title.trim()}
+            loading={save.isPending}
+          >
             {save.isPending ? "Wird gespeichert …" : "Speichern"}
           </Button>
           <Button variant="secondary" type="button" onClick={onClose}>

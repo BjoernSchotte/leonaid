@@ -241,6 +241,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     AssignedAcquirerResponse,
     ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
+    MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
+    MEMBER_STATUS_CONFLICT_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
@@ -2135,7 +2138,7 @@ async def get_member(
     "/api/v1/admin/members/{user_id}/status",
     operation_id="changeMemberStatus",
     response_model=MemberStatusChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_STATUS_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_status(
@@ -2203,7 +2206,7 @@ def member_role_change_response(
     "/api/v1/admin/members/{user_id}/global-roles/{role}",
     operation_id="changeMemberGlobalRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_global_role(
@@ -2231,7 +2234,7 @@ async def change_member_global_role(
     "/api/v1/admin/members/{user_id}/actions/{action_id}/roles/{role}",
     operation_id="changeMemberActionRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_action_role(

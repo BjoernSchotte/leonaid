@@ -111,13 +111,16 @@ async def read_responses(
                 ],
             }
         ).model_dump()
+    # Summaries only: answers are removed in SQL. With a large limit one
+    # request expands the frozen array once instead of once per 50 rows.
     rows = await conn.fetch(
         "SELECT r.value - 'answers' AS summary "
         + source
-        + " ORDER BY r.position OFFSET $3 LIMIT 50",
+        + " ORDER BY r.position OFFSET $3 LIMIT $4",
         survey_id,
         snapshot_id,
         offset,
+        body.get("limit", 50),
     )
     return ResponseItems(
         snapshotId=str(snapshot_id),

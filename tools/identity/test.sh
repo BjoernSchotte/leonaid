@@ -133,6 +133,9 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
+# Last system admin / last lead on every path, with races; own data, cleaned up.
+run_python tools/identity/last_admin_contract.py
+
 for screenshot in \
   charity-admin-desktop.png \
   acquirer-mobile.png \
@@ -166,4 +169,4 @@ for screenshot in \
   chmod 600 "$artifact_directory/$screenshot"
 done
 
-echo "identity-test: OK: member overview, role offboarding, status workflow, concurrency, session revocation and persona navigation proven against real services"
+echo "identity-test: OK: member overview, role offboarding, status workflow, last-admin invariants under concurrency, session revocation and persona navigation proven against real services"

@@ -236,15 +236,22 @@ class SnapshotReference(SurveyInput):
     snapshotId: UUID
 
 
+# A frozen selection holds at most 5000 participations (create_snapshot), so
+# one page of 5000 summaries is the whole selection.
+RESPONSE_PAGE_MAX = 5000
+
+
 class ResponsePage(SnapshotReference):
     offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=RESPONSE_PAGE_MAX)
 
 
 class IndividualResponseQuery(SnapshotReference):
     participationId: UUID
 
 
-class FreeTextQuery(ResponsePage):
+class FreeTextQuery(SnapshotReference):
+    offset: int = Field(default=0, ge=0, le=5000)
     questionId: str
 
 

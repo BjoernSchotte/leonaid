@@ -22818,7 +22818,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `account_revision_conflict`, `role_assignment_unchanged`, `role_action_scope_changed`, `driver_role_capability_missing`, `last_charity_admin_role_forbidden`, `idempotency_conflict`, `idempotency_incomplete`."
           },
           "422": {
             "content": {
@@ -22945,7 +22945,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `account_revision_conflict`, `role_assignment_unchanged`, `admin_scope_changed`, `last_system_admin_role_forbidden`, `idempotency_conflict`, `idempotency_incomplete`."
           },
           "422": {
             "content": {
@@ -23058,7 +23058,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `account_revision_conflict`, `account_status_unchanged`, `account_invitation_activation_forbidden`, `account_self_status_change_forbidden`, `admin_scope_changed`, `last_system_admin_suspension_forbidden`, `last_system_admin_archival_forbidden`, `last_charity_admin_suspension_forbidden`, `last_charity_admin_archival_forbidden`, `idempotency_conflict`, `idempotency_incomplete`."
           },
           "422": {
             "content": {
@@ -34234,6 +34234,20 @@
               "maximum": 5000,
               "minimum": 0,
               "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Summaries per page; 5000 returns a whole selection in one request.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Summaries per page; 5000 returns a whole selection in one request.",
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
               "type": "integer"
             }
           }

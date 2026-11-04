@@ -1584,7 +1584,9 @@ async def run(arguments: argparse.Namespace) -> None:
             await repository.transition_account_status(
                 SYSTEM_ID,
                 AccountStatus.ARCHIVED,
-                actor_user_id=KLARA_ID,
+                # The repository re-checks the actor under the lock; only a
+                # current system admin may archive (the API forbids self).
+                actor_user_id=SYSTEM_ID,
                 expected_revision=system_revision,
                 idempotency_key="pilot011:last-system-admin:archive",
                 request_hash=hashlib.sha256(

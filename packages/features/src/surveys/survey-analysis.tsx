@@ -302,14 +302,11 @@ export function SurveyAnalysis({
             <p>
               Zeitraum:{" "}
               {snapshot.filter.createdFrom
-                ? new Date(snapshot.filter.createdFrom).toLocaleString("de-DE")
+                ? `ab ${new Date(snapshot.filter.createdFrom).toLocaleString("de-DE")}`
                 : "Offener Beginn"}{" "}
-              bis vor{" "}
               {snapshot.filter.createdBefore
-                ? new Date(snapshot.filter.createdBefore).toLocaleString(
-                    "de-DE",
-                  )
-                : "offenes Ende"}
+                ? `bis vor ${new Date(snapshot.filter.createdBefore).toLocaleString("de-DE")}`
+                : "bis offenes Ende"}
               . Stand vom {new Date(snapshot.createdAt).toLocaleString("de-DE")}{" "}
               ({zone}).
             </p>

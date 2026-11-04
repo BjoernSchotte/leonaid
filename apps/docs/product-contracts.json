@@ -408,18 +408,41 @@
     {
       "file": "packages/features/src/tasks/tasks.tsx",
       "contains": [
-        "Neue Liste",
-        "Name der Liste",
-        "Liste anlegen",
+        "Liste wechseln",
         "Zugriff verwalten",
-        "Aufgabe schnell erfassen",
-        "Aufgabe abschließen",
-        "Aufgabe wieder öffnen",
-        "Reihenfolge ändern",
+        "Aufgabe anlegen",
+        "Mein Plan",
         "Für mich",
-        "Meine Planung",
-        "Mein Heute"
+        "Alle offenen",
+        "Nach Liste",
+        "Erledigt",
+        "Rückgängig",
+        "Wiedervorlage",
+        "Zurückgestellt"
       ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-tools.tsx",
+      "contains": ["Neue Liste", "Name der Liste", "Liste anlegen"]
+    },
+    {
+      "file": "packages/features/src/tasks/task-quick-add.tsx",
+      "contains": ["Aufgabe schnell erfassen", "im Plan unter Heute"]
+    },
+    {
+      "file": "packages/features/src/tasks/task-detail.tsx",
+      "contains": [
+        "Reihenfolge ändern",
+        "Nach oben",
+        "Nach unten",
+        "In Abschnitt",
+        "Für Tag planen",
+        "Schritte"
+      ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-model.ts",
+      "contains": ["Bis heute fällig", "Diese Woche", "Später", "Irgendwann"]
     },
     {
       "file": "packages/features/src/tasks/task-editor.tsx",
@@ -538,33 +561,50 @@
     {
       "file": "packages/features/src/inbox/inbox.tsx",
       "contains": [
-        "Alle Eingänge",
+        "title=\"Eingang\"",
+        "Mir zugewiesen",
+        "Kontakt klären",
+        "Zuständigkeit",
+        "key: \"s\"",
+        "key: \"a\""
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/inbox-model.ts",
+      "contains": [
         "Kontakt zugeordnet",
         "Kontaktzuordnung benötigt Klärung",
-        "Abschlussnotiz"
+        "Kontaktzuordnung fehlgeschlagen",
+        "Neu",
+        "In Bearbeitung",
+        "Abgeschlossen",
+        "MIN_CLOSURE_NOTE = 10"
       ]
     },
     {
       "file": "packages/features/src/inbox/case-editor.tsx",
+      "contains": ["Anfrage abschließen", "Abschlussnotiz", "Abbrechen"]
+    },
+    {
+      "file": "packages/features/src/inbox/case-detail.tsx",
       "contains": [
-        "Bearbeitung speichern",
-        "Zuständigkeit",
-        "Neu",
-        "In Bearbeitung",
-        "Abgeschlossen"
+        "Abschließen …",
+        "Übernehmen",
+        "Kontakt in Twenty",
+        "Interne Notizen",
+        "Verknüpft"
       ]
     },
     {
       "file": "packages/features/src/inbox/comments.tsx",
-      "contains": ["Interne Notizen", "Notiz speichern"]
+      "contains": ["Interne Notiz", "Hinzufügen"]
     },
     {
       "file": "packages/features/src/inbox/contact.tsx",
       "contains": [
-        "Bestehenden Kontakt suchen",
         "In Twenty suchen",
-        "Kontakt auswählen",
-        "Kontaktzuordnung bestätigen"
+        "Begründung der Zuordnung",
+        "Zuordnung bestätigen"
       ]
     },
     {

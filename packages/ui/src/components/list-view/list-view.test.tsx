@@ -25,10 +25,12 @@ import { ToastProvider } from "../toast";
 import { ListView } from "./list-view";
 import { STORAGE_PREFIX, type ListViewDefinition } from "./saved-views";
 import type {
+  ListAddress,
   ListCommand,
   ListEditOutcome,
   ListProperty,
   ListSort,
+  ListViewBaseProps,
 } from "./types";
 
 class TestResizeObserver {
@@ -123,20 +125,31 @@ function runCommand(label: string) {
 }
 
 function Harness({
+  address,
   apply,
   createCommandId,
   editOptions,
   onCreate,
   onOpen,
+  hooks,
+  status,
+  renderLimit,
 }: {
   createCommandId?: string;
   onCreate?: () => void;
+  address?: ListAddress;
+  status?: "ready" | "loading" | "error";
+  renderLimit?: number;
   apply?: (
     ids: readonly string[],
     value: string,
   ) => ListEditOutcome | Promise<ListEditOutcome>;
   editOptions?: (rows: readonly Order[]) => { value: string; label: string }[];
   onOpen?: (row: Order | null) => void;
+  hooks?: Pick<
+    ListViewBaseProps<Order>,
+    "address" | "createCommandId" | "onCreate" | "onStateChange" | "paneGuard"
+  >;
 }) {
   const [rows, setRows] = useState(fixture);
   const properties: ListProperty<Order>[] = [
@@ -176,6 +189,7 @@ function Harness({
     <ToastProvider>
       <HotkeyProvider>
         <ListView<Order>
+          address={address}
           columns={{
             primary: (row) => `${row.number} ${row.sponsor}`,
             trailing: (row) => `${row.cents / 100} €`,
@@ -190,12 +204,15 @@ function Harness({
           onOpen={onOpen}
           properties={properties}
           renderDetail={(row) => <p>Detail {row.number}</p>}
+          renderLimit={renderLimit}
           rows={rows}
           searchText={(row) => `${row.number} ${row.sponsor}`}
           sorts={sorts}
+          status={status}
           title="Bestellungen"
           useCommands={useCaptureCommands}
           views={views}
+          {...hooks}
         />
       </HotkeyProvider>
     </ToastProvider>
@@ -237,6 +254,49 @@ afterEach(() => {
   Reflect.deleteProperty(window, "matchMedia");
   vi.restoreAllMocks();
   document.body.focus();
+});
+
+describe("ListView renderLimit", () => {
+  it("renders the first rows, names the rest and still searches all", () => {
+    render(<Harness renderLimit={2} />);
+    expect(rowLinks()).toHaveLength(2);
+    expect(document.querySelector(".page-count")?.textContent).toBe(
+      "4 Bestellungen",
+    );
+    expect(document.querySelector(".list-cap")?.textContent).toBe(
+      "Angezeigt werden die ersten 2 von 4 Bestellungen. Suche, Filter oder Sortierung zeigen die übrigen.",
+    );
+    // j stops at the last rendered row.
+    press("j", document.body);
+    press("j");
+    press("j");
+    expect(focusedRowText()).toContain("B-002");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "B-004" },
+    });
+    expect(rowLinks()).toHaveLength(1);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
+
+  it("counts whole groups and gives collapsed groups no budget", () => {
+    setUrl("?view=new");
+    render(<Harness renderLimit={1} />);
+    expect(document.querySelector(".group-count")?.textContent).toBe("2");
+    expect(rowLinks()).toHaveLength(1);
+    expect(document.querySelector(".list-cap")?.textContent).toContain(
+      "die ersten 1 von 2",
+    );
+    // A collapsed group renders nothing, so nothing is cut off.
+    fireEvent.click(document.querySelector(".group-header button")!);
+    expect(rowLinks()).toHaveLength(0);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
+
+  it("renders everything without a limit", () => {
+    render(<Harness />);
+    expect(rowLinks()).toHaveLength(4);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
 });
 
 describe("ListView rendering", () => {
@@ -985,5 +1045,201 @@ describe("hidden checked rows", () => {
       (screen.getByRole("checkbox", { name: /B-002/ }) as HTMLInputElement)
         .checked,
     ).toBe(false);
+  });
+});
+
+describe("page hooks", () => {
+  it("reports the state on mount and after every change", () => {
+    const onStateChange = vi.fn();
+    setUrl("?view=new");
+    render(<Harness hooks={{ onStateChange }} />);
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ viewId: "new", groupBy: "status" }),
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "kern" },
+    });
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ viewId: "new", query: "kern" }),
+    );
+  });
+
+  it("keeps the pane while the guard refuses, on Esc, j and Back", async () => {
+    let allow = false;
+    const paneGuard = vi.fn(() => allow);
+    render(<Harness hooks={{ paneGuard }} />);
+    fireEvent.click(rowLinks()[0]!);
+    expect(window.location.search).toBe("?open=o1");
+    expect(paneGuard).not.toHaveBeenCalled();
+
+    press("Escape");
+    expect(screen.getByRole("complementary", { name: /B-001/ })).toBeTruthy();
+    press("j");
+    expect(window.location.search).toBe("?open=o1");
+    fireEvent.click(rowLinks()[1]!);
+    expect(window.location.search).toBe("?open=o1");
+
+    // Back to the list: refused, so the entry comes back and the pane stays.
+    act(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(window.location.search).toBe("?open=o1");
+    expect(screen.getByRole("complementary", { name: /B-001/ })).toBeTruthy();
+
+    allow = true;
+    press("j");
+    expect(window.location.search).toBe("?open=o2");
+    vi.useFakeTimers();
+    press("Escape");
+    act(() => vi.runAllTimers());
+    vi.useRealTimers();
+    expect(screen.queryByRole("complementary")).toBeNull();
+  });
+
+  it("lets the pane body close the pane, through the guard", () => {
+    let allow = false;
+    render(
+      <ToastProvider>
+        <HotkeyProvider>
+          <ListView<Order>
+            columns={{ primary: (row) => row.number }}
+            detailTitle={(row) => row.number}
+            emptyIcon={ShoppingBasket}
+            entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
+            getId={(row) => row.id}
+            id="orders"
+            paneGuard={() => allow}
+            properties={[]}
+            renderDetail={(row, pane) => (
+              <button onClick={pane.close} type="button">
+                Schließen {row.number}
+              </button>
+            )}
+            rows={fixture()}
+            searchText={(row) => row.number}
+            sorts={sorts}
+            title="Bestellungen"
+            views={views}
+          />
+        </HotkeyProvider>
+      </ToastProvider>,
+    );
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Schließen B-001" }));
+    expect(window.location.search).toBe("?open=o1");
+    allow = true;
+    fireEvent.click(screen.getByRole("button", { name: "Schließen B-001" }));
+    expect(window.location.search).toBe("");
+  });
+
+  it("offers Rückgängig after an edit that returns an undo", async () => {
+    const undo = vi.fn();
+    render(<Harness apply={() => ({ undo })} />);
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    await act(async () => {});
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }));
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failed undo", async () => {
+    render(
+      <Harness
+        apply={() => ({ undo: () => Promise.reject(new Error("409")) })}
+      />,
+    );
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    await act(async () => {});
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }));
+    expect(
+      await screen.findByText("Status wurde nicht zurückgesetzt."),
+    ).toBeTruthy();
+  });
+
+  it("speaks with Du in the app", async () => {
+    render(
+      <Harness
+        apply={() => Promise.reject(new Error("403"))}
+        hooks={{ address: "du" }}
+      />,
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "zzz" },
+    });
+    expect(
+      screen.getByText("Entferne einen Filter oder ändere den Suchbegriff."),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "" },
+    });
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    expect(await screen.findByText("Bitte versuche es erneut.")).toBeTruthy();
+  });
+
+  it("publishes the create command under the page's id", () => {
+    render(
+      <Harness
+        hooks={{ onCreate: () => {}, createCommandId: "create:task" }}
+      />,
+    );
+    expect(published.map((command) => command.id)).toContain("create:task");
+    expect(published.map((command) => command.id)).not.toContain(
+      "list:orders:create",
+    );
+  });
+});
+
+describe("form of address", () => {
+  function noMatch() {
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "zzz" },
+    });
+  }
+
+  it("addresses back-office users with Sie by default", () => {
+    const { unmount } = render(<Harness />);
+    noMatch();
+    expect(
+      screen.getByText(
+        "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff.",
+      ),
+    ).toBeTruthy();
+    unmount();
+    render(<Harness status="error" />);
+    expect(
+      screen.getByText(/Ihre Filter bleiben erhalten\. Prüfen Sie/),
+    ).toBeTruthy();
+  });
+
+  it("addresses PWA users with du: empty state, load error, edit error", async () => {
+    const { unmount } = render(<Harness address="du" />);
+    noMatch();
+    expect(
+      screen.getByText("Entferne einen Filter oder ändere den Suchbegriff."),
+    ).toBeTruthy();
+    unmount();
+    const errored = render(<Harness address="du" status="error" />);
+    expect(
+      screen.getByText(
+        "Der Server hat nicht geantwortet. Deine Filter bleiben erhalten. Prüfe die Verbindung und versuche es erneut.",
+      ),
+    ).toBeTruthy();
+    errored.unmount();
+    // The no-match search above is still in the URL.
+    setUrl("");
+    render(
+      <Harness address="du" apply={() => Promise.reject(new Error("403"))} />,
+    );
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    expect(await screen.findByText("Bitte versuche es erneut.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/\bSie\b|\bIhre\b/);
   });
 });

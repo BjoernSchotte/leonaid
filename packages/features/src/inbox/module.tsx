@@ -14,11 +14,12 @@ export const inboxModule: UiModule = {
     {
       pattern: /^\/inbox(?:\/([0-9a-f-]{36}))?$/,
       render: (context, match, surface) => (
-        <Suspense fallback={<p role="status">Eingänge werden geladen …</p>}>
+        <Suspense fallback={<p role="status">Anfragen werden geladen …</p>}>
           <InboxPage
             {...context}
             basePath={`${surface === "web" ? "/admin" : "/app"}/inbox`}
             caseId={match[1]}
+            surface={surface}
           />
         </Suspense>
       ),

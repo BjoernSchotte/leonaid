@@ -1,318 +1,661 @@
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  RefreshIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { ApiError, type Case } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
-import type { ModulePageContext } from "../modules";
-import "../shared/module-workspace.css";
+  CircleDot,
+  Contact,
+  Flag,
+  Inbox as InboxIcon,
+  UserRound,
+} from "lucide-react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+
+import {
+  ApiError,
+  type Case,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
+} from "@leonaid/api-client";
+import {
+  Avatar,
+  fullBleedPage,
+  HotkeyProvider,
+  ListView,
+  StatusIcon,
+  StatusLabel,
+  StatusMessage,
+  ToastProvider,
+  useOptionalHotkeyRegistry,
+  useOptionalToast,
+  type ListColumns,
+  type ListEditOutcome,
+  type ListProperty,
+  type ListSort,
+  type ListViewDefinition,
+} from "@leonaid/ui";
+
+import { useContextCommands } from "../command-palette/store";
+import type { ModulePageContext, ModuleSurface } from "../modules";
+import { CaseDetail } from "./case-detail";
+import {
+  CaseUpdateError,
+  CloseCaseDialog,
+  useCaseUpdates,
+  type CaseChange,
+} from "./case-editor";
+import { ContactStateLabel } from "./contact";
 import "./inbox.css";
 import {
-  ActionContextSearch,
-  useActionContexts,
-} from "../shared/action-contexts";
-import { CaseEditor } from "./case-editor";
-import { InboxComments } from "./comments";
-import { InboxContact } from "./contact";
-import { InboxMaterials } from "./materials";
-import { InboxTasks } from "./tasks";
+  actionKey,
+  CASE_STATUSES,
+  caseStatusLabels,
+  CASES_KEY,
+  CONTACT_STATES,
+  contactStateLabels,
+  fullName,
+  loadAllCases,
+  managesCase,
+  migrateCasePath,
+  NONE,
+  requestedCaseId,
+  shortDay,
+  shortReference,
+  type Address,
+} from "./inbox-model";
 
-export const caseStatus: Record<Case["status"], string> = {
-  new: "Neu",
-  in_progress: "In Bearbeitung",
-  closed: "Abgeschlossen",
-};
-export const contactStatus: Record<Case["contactStatus"], string> = {
-  pending: "Kontaktzuordnung ausstehend",
-  linked: "Kontakt zugeordnet",
-  needs_review: "Kontaktzuordnung benötigt Klärung",
-  failed: "Kontaktzuordnung fehlgeschlagen",
-};
-const date = (value: string) => new Date(value).toLocaleString("de-DE");
-
-function LoadError({ error, retry }: { error: unknown; retry: () => void }) {
-  return (
-    <StatusMessage tone="error">
-      <p>
-        {error instanceof ApiError && error.status === 401
-          ? "Bitte melde dich erneut an."
-          : error instanceof ApiError && error.status === 404
-            ? "Dieser Eingang ist nicht mehr verfügbar oder du hast keinen Zugriff."
-            : "Die Eingänge konnten nicht geladen werden. Bitte versuche es erneut."}
-      </p>
-      <Button
-        icon={
-          <HugeiconsIcon
-            icon={RefreshIcon}
-            size={16}
-            strokeWidth={1.7}
-            aria-hidden="true"
-          />
-        }
-        variant="secondary"
-        onClick={retry}
-      >
-        Erneut laden
-      </Button>
-    </StatusMessage>
-  );
+export interface InboxPageProps extends ModulePageContext {
+  readonly basePath: string;
+  /** Old case path `<base>/<id>`: opens that case in the pane. */
+  readonly caseId?: string;
+  readonly surface?: ModuleSurface;
 }
 
-export function InboxPage({
-  client,
-  basePath,
-  caseId,
-}: ModulePageContext & { basePath: string; caseId?: string }) {
-  if (caseId)
-    return <InboxCase client={client} basePath={basePath} caseId={caseId} />;
-  return <InboxList client={client} basePath={basePath} />;
+/**
+ * The inbox ("Eingang") on the list view, in the admin web and the PWA.
+ * Both shells provide the hotkey and toast providers; the page brings its
+ * own only when rendered without them (tests, embedding).
+ */
+export function InboxPage(props: InboxPageProps) {
+  useLegacyCasePath(props.basePath, props.caseId);
+  const registry = useOptionalHotkeyRegistry();
+  const toast = useOptionalToast();
+  let page: ReactNode = <InboxList {...props} />;
+  if (!toast) page = <ToastProvider>{page}</ToastProvider>;
+  if (!registry) page = <HotkeyProvider>{page}</HotkeyProvider>;
+  return page;
+}
+
+/**
+ * Old case links `<base>/<id>` (bookmarks, search hits) become the list URL
+ * with the pane open, once, before the list reads the URL. Idempotent.
+ */
+function useLegacyCasePath(basePath: string, caseId: string | undefined) {
+  useState(() => {
+    if (caseId) migrateCasePath(basePath, caseId);
+    return null;
+  });
+}
+
+const PAGE_SIZE = 100;
+
+/** Every person eligible for cases of one action (server paging). */
+async function loadAssignees(client: LeonAidApiClient, caseId: string) {
+  const people: { userId: string; displayName: string }[] = [];
+  let offset = 0;
+  for (;;) {
+    const page = await client.listInboxAssignees(caseId, {
+      offset,
+      limit: PAGE_SIZE,
+    });
+    people.push(...page.items);
+    if (page.nextOffset == null) return people;
+    offset = page.nextOffset;
+  }
+}
+
+/** Names of the actions the account can see (for the "Aktion" property). */
+async function loadActionNames(client: LeonAidApiClient) {
+  const names = new Map<string, string>();
+  let offset = 0;
+  for (;;) {
+    const page = await client.listTaskActionContexts({
+      offset,
+      limit: PAGE_SIZE,
+    });
+    for (const action of page.items) names.set(action.actionId, action.name);
+    if (page.nextOffset == null) return names;
+    offset = page.nextOffset;
+  }
+}
+
+function useActionNames(
+  client: LeonAidApiClient,
+  identity: CurrentIdentityResponse,
+) {
+  const contexts = useQuery({
+    queryKey: ["inbox-action-names"],
+    queryFn: () => loadActionNames(client),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  return useMemo(() => {
+    const names = new Map<string, string>();
+    for (const membership of identity.actionMemberships)
+      names.set(membership.actionId, membership.actionName);
+    for (const [id, name] of contexts.data ?? []) names.set(id, name);
+    return names;
+  }, [contexts.data, identity.actionMemberships]);
 }
 
 function InboxList({
-  client,
   basePath,
-}: Pick<ModulePageContext, "client"> & { basePath: string }) {
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<Case["status"] | "">("");
-  const [forMe, setForMe] = useState(false);
-  const [actionFilter, setActionFilter] = useState("");
-  const contexts = useActionContexts(client);
-  const [offset, setOffset] = useState(0);
-  const cases = useQuery({
-    queryKey: ["inbox-cases", search, status, forMe, offset, actionFilter],
-    queryFn: () =>
-      client.listInboxCases({
-        search,
-        actionId: actionFilter || undefined,
-        status: status || undefined,
-        forMe,
-        offset,
-        limit: 25,
-      }),
-    retry: false,
-  });
-  return (
-    <section className="inbox-workspace" aria-labelledby="inbox-heading">
-      <header>
-        <h1 id="inbox-heading">Eingänge</h1>
-        <p>
-          Kontakt- und Hilfsanfragen im Blick behalten und gemeinsam bearbeiten.
-        </p>
-      </header>
-      <div className="inbox-form">
-        <ActionContextSearch contexts={contexts} />
-      </div>
-      <div className="inbox-filters">
-        <label>
-          Betreff suchen
-          <input
-            type="search"
-            maxLength={200}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOffset(0);
-            }}
-          />
-        </label>
-        <label>
-          Bearbeitungsstatus
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as Case["status"] | "");
-              setOffset(0);
-            }}
-          >
-            <option value="">Alle Status</option>
-            {Object.entries(caseStatus).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Aktion
-          <select
-            value={actionFilter}
-            onChange={(event) => {
-              setActionFilter(event.target.value);
-              setOffset(0);
-            }}
-          >
-            <option value="">Alle zugänglichen Eingänge</option>
-            {actionFilter &&
-              !contexts.knownActions.some(([id]) => id === actionFilter) && (
-                <option value={actionFilter}>
-                  Ausgewählte Aktion beibehalten
-                </option>
-              )}
-            {contexts.knownActions.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inbox-check">
-          <input
-            type="checkbox"
-            checked={forMe}
-            onChange={(e) => {
-              setForMe(e.target.checked);
-              setOffset(0);
-            }}
-          />
-          Mir zugewiesen
-        </label>
-      </div>
-      {cases.isPending && <p role="status">Eingänge werden geladen …</p>}
-      {cases.error && (
-        <LoadError error={cases.error} retry={() => void cases.refetch()} />
-      )}
-      {!cases.error && cases.data && (
-        <>
-          {cases.data.items.length === 0 ? (
-            <p>
-              Keine zugänglichen Eingänge für diese Auswahl. Ändere die Suche
-              oder den Filter.
-            </p>
-          ) : (
-            <ul className="inbox-results">
-              {cases.data.items.map((item) => (
-                <li key={item.id}>
-                  <h2>
-                    <a href={`${basePath}/${item.id}`}>{item.subject}</a>
-                  </h2>
-                  <p>
-                    {caseStatus[item.status]} · {date(item.receivedAt)}
-                  </p>
-                  <p>
-                    {item.givenName} {item.familyName} ·{" "}
-                    {contactStatus[item.contactStatus]}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <nav className="inbox-paging" aria-label="Ergebnisseiten">
-            <Button
-              icon={
-                <HugeiconsIcon
-                  icon={ArrowLeft01Icon}
-                  size={16}
-                  strokeWidth={1.7}
-                  aria-hidden="true"
-                />
-              }
-              variant="secondary"
-              disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - 25))}
-            >
-              Zurück
-            </Button>
-            <Button
-              icon={
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={16}
-                  strokeWidth={1.7}
-                  aria-hidden="true"
-                />
-              }
-              variant="secondary"
-              disabled={cases.data.nextOffset == null}
-              onClick={() => setOffset(cases.data.nextOffset ?? offset)}
-            >
-              Weitere Eingänge
-            </Button>
-          </nav>
-        </>
-      )}
-    </section>
+  client,
+  identity,
+  surface = "web",
+}: InboxPageProps) {
+  const address: Address = surface === "pwa" ? "du" : "Sie";
+  const toast = useOptionalToast();
+  const update = useCaseUpdates(client);
+  // A list edit on several cases where only some were saved: say how many
+  // and resolve "cancelled", so the list does not claim all or none.
+  const savePartly = useCallback(
+    async (
+      targets: readonly Case[],
+      change: CaseChange,
+      label: string,
+    ): Promise<ListEditOutcome> => {
+      try {
+        await update(targets, change);
+      } catch (error) {
+        if (!(error instanceof CaseUpdateError) || error.failed === error.total)
+          throw error;
+        toast?.show({
+          title: `${label} bei ${error.total - error.failed} von ${error.total} Anfragen geändert.`,
+          description:
+            address === "Sie"
+              ? "Die übrigen wurden inzwischen geändert oder sind nicht freigegeben. Prüfen Sie sie und versuchen Sie es erneut."
+              : "Die übrigen wurden inzwischen geändert oder sind nicht freigegeben. Prüfe sie und versuche es erneut.",
+          tone: "error",
+        });
+        return "cancelled";
+      }
+    },
+    [address, toast, update],
   );
-}
+  const me = identity.userId;
 
-function InboxCase({
-  client,
-  basePath,
-  caseId,
-}: Pick<ModulePageContext, "client"> & { basePath: string; caseId: string }) {
-  const current = useQuery({
-    queryKey: ["inbox-case", caseId],
-    queryFn: () => client.getInboxCase(caseId),
+  const cases = useQuery({
+    queryKey: CASES_KEY,
+    queryFn: ({ signal }) => loadAllCases(client, signal),
     retry: false,
   });
-  const item = current.data;
-  return (
-    <section className="inbox-workspace" aria-label="Eingang">
-      <a href={basePath}>Alle Eingänge</a>
-      {current.isPending && <p role="status">Eingang wird geladen …</p>}
-      {current.error && (
-        <LoadError error={current.error} retry={() => void current.refetch()} />
-      )}
-      {!current.error && item && (
-        <>
-          <header>
-            <h1 id="inbox-case-heading">{item.subject}</h1>
-            <p>
-              {caseStatus[item.status]} · Eingegangen am {date(item.receivedAt)}
-            </p>
-          </header>
-          <section aria-labelledby="inbox-message-heading">
-            <h2 id="inbox-message-heading">Nachricht</h2>
-            <p>
-              {item.givenName} {item.familyName}
-            </p>
-            <p>{[item.email, item.phone].filter(Boolean).join(" · ")}</p>
-            <p className="inbox-message">{item.message}</p>
-            <p>Referenz: {item.publicReference}</p>
-          </section>
-          <section aria-labelledby="inbox-contact-heading">
-            <h2 id="inbox-contact-heading">Kontaktzuordnung</h2>
-            <p role="status">{contactStatus[item.contactStatus]}</p>
-            {item.contactStatus !== "linked" && (
-              <p>
-                Der Eingang bleibt unabhängig von der Kontaktzuordnung
-                bearbeitbar.
-              </p>
-            )}
-            <InboxContact
-              key={`contact-${item.id}`}
-              client={client}
-              item={item}
+  // A deep link to a case the list does not hold (beyond the server's paging
+  // limit, or not accessible): ask for that case alone.
+  const [requested] = useState(requestedCaseId);
+  const listed = cases.data?.items;
+  const missing =
+    requested !== null &&
+    listed !== undefined &&
+    !listed.some((item) => item.id === requested);
+  const single = useQuery({
+    queryKey: ["inbox-case", requested],
+    queryFn: () => client.getInboxCase(requested!),
+    enabled: missing,
+    retry: false,
+  });
+  const rows = useMemo(() => {
+    const items = listed ?? [];
+    return missing && single.data ? [...items, single.data] : items;
+  }, [listed, missing, single.data]);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const casesFor = useCallback((ids: readonly string[]) => {
+    const byId = new Map(rowsRef.current.map((item) => [item.id, item]));
+    return ids.flatMap((id) => {
+      const item = byId.get(id);
+      return item ? [item] : [];
+    });
+  }, []);
+
+  const actionNames = useActionNames(client, identity);
+  const actionName = useCallback(
+    (item: Pick<Case, "actionId">) =>
+      item.actionId === null
+        ? "Allgemeine Anfrage"
+        : (actionNames.get(item.actionId) ?? "Charity-Aktion"),
+    [actionNames],
+  );
+
+  /* ----- assignees: eligible people per action, loaded for managed cases ----- */
+  const managedActions = useMemo(() => {
+    const first = new Map<string, string>();
+    for (const item of rows) {
+      const key = actionKey(item);
+      if (!first.has(key) && managesCase(identity, item))
+        first.set(key, item.id);
+    }
+    return [...first.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [identity, rows]);
+  const assigneeQueries = useQueries({
+    queries: managedActions.map(([key, caseId]) => ({
+      queryKey: ["inbox-assignees", "all", key],
+      queryFn: () => loadAssignees(client, caseId),
+      retry: false,
+      staleTime: 60_000,
+    })),
+  });
+  const assigneesPending = assigneeQueries.some((query) => query.isPending);
+  const assigneeData = assigneeQueries.map((query) => query.data);
+  const assigneeSignature = JSON.stringify([
+    managedActions.map(([key]) => key),
+    assigneeData.map(
+      (people) => people?.map((person) => person.userId) ?? null,
+    ),
+  ]);
+  const { eligible, names } = useMemo(() => {
+    const eligibleByAction = new Map<string, Set<string>>();
+    const nameById = new Map<string, string>([[me, identity.displayName]]);
+    managedActions.forEach(([key], index) => {
+      const people = assigneeData[index];
+      if (!people) return;
+      eligibleByAction.set(key, new Set(people.map((person) => person.userId)));
+      for (const person of people)
+        nameById.set(person.userId, person.displayName);
+    });
+    return { eligible: eligibleByAction, names: nameById };
+    // assigneeData is a new array each render; the signature tracks content.
+  }, [assigneeSignature, identity.displayName, me]);
+  const nameOf = useCallback(
+    (userId: string) => names.get(userId) ?? "Unbekannte Person",
+    [names],
+  );
+
+  /* ----- closing with a note ----- */
+  const [closing, setClosing] = useState<{
+    readonly ids: readonly string[];
+    readonly resolve: (outcome: ListEditOutcome) => void;
+  } | null>(null);
+  const closingOpen = useRef(false);
+  const requestClose = useCallback((ids: readonly string[]) => {
+    // One closing dialog at a time; a second request backs out at once.
+    if (closingOpen.current)
+      return Promise.resolve<ListEditOutcome>("cancelled");
+    closingOpen.current = true;
+    return new Promise<ListEditOutcome>((resolve) =>
+      setClosing({ ids, resolve }),
+    );
+  }, []);
+  const finishClosing = (outcome: ListEditOutcome) => {
+    closingOpen.current = false;
+    closing?.resolve(outcome);
+    setClosing(null);
+  };
+  const [takingOver, setTakingOver] = useState<string | null>(null);
+
+  const anyManaged = managedActions.length > 0;
+  const properties = useMemo<ListProperty<Case>[]>(() => {
+    const assignedIds = [
+      ...new Set(
+        rows.flatMap((item) =>
+          item.assigneeUserId && item.assigneeUserId !== me
+            ? [item.assigneeUserId]
+            : [],
+        ),
+      ),
+    ];
+    const others = [...new Set([...names.keys(), ...assignedIds])]
+      .filter((id) => id !== me)
+      .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "de"));
+    const assigneeOptions = [me, ...others].map((id) => ({
+      value: id,
+      label: nameOf(id),
+      icon: <Avatar name={nameOf(id)} size="xs" />,
+    }));
+    const actionKeys = [...new Set(rows.map(actionKey))].sort((a, b) =>
+      a === NONE
+        ? 1
+        : b === NONE
+          ? -1
+          : actionName({ actionId: a }).localeCompare(
+              actionName({ actionId: b }),
+              "de",
+            ),
+    );
+    return [
+      {
+        id: "status",
+        label: "Status",
+        icon: CircleDot,
+        get: (row) => row.status,
+        options: CASE_STATUSES.map((value) => ({
+          value,
+          label: caseStatusLabels[value],
+          icon: (
+            <StatusIcon
+              label={caseStatusLabels[value]}
+              status={
+                value === "new"
+                  ? "open"
+                  : value === "in_progress"
+                    ? "progress"
+                    : "done"
+              }
             />
-          </section>
-          <CaseEditor key={item.id} client={client} initialCase={item} />
-          <InboxTasks
-            key={`tasks-${item.id}`}
+          ),
+        })),
+        // Everyone who reads a case may change its status; closing asks for
+        // the note first. The server checks again.
+        edit: {
+          key: "s",
+          apply: async (ids, value) => {
+            const status = value as Case["status"];
+            const targets = casesFor(ids).filter(
+              (item) => item.status !== status,
+            );
+            if (targets.length === 0) return;
+            if (status === "closed")
+              return requestClose(targets.map((item) => item.id));
+            return savePartly(targets, { status }, "Status");
+          },
+        },
+        chip: (row) => <StatusLabel status={caseStatusLabels[row.status]} />,
+      },
+      {
+        id: "contact",
+        label: "Kontakt",
+        icon: Contact,
+        get: (row) => row.contactStatus,
+        // Read-only: the contact changes only through the Twenty matching.
+        options: CONTACT_STATES.map((value) => ({
+          value,
+          label: contactStateLabels[value].short,
+          icon: (
+            <StatusIcon
+              label={contactStateLabels[value].short}
+              status={contactStateLabels[value].shape}
+            />
+          ),
+        })),
+        chip: (row) => <ContactStateLabel short state={row.contactStatus} />,
+      },
+      {
+        id: "assignee",
+        label: "Zuständigkeit",
+        icon: UserRound,
+        get: (row) => row.assigneeUserId ?? NONE,
+        options: [...assigneeOptions, { value: NONE, label: "Niemand" }],
+        optionsPending: assigneesPending,
+        // Only the case management assigns; offered only where this account
+        // manages every target case. The server checks again.
+        edit: anyManaged
+          ? {
+              key: "a",
+              options: (targets) => {
+                const sets: Set<string>[] = [];
+                for (const item of targets) {
+                  if (!managesCase(identity, item)) return [];
+                  const people = eligible.get(actionKey(item));
+                  if (!people) return [];
+                  sets.push(people);
+                }
+                if (sets.length === 0) return [];
+                // Only people eligible for every target case.
+                return [
+                  ...assigneeOptions.filter((option) =>
+                    sets.every((people) => people.has(option.value)),
+                  ),
+                  { value: NONE, label: "Niemand" },
+                ];
+              },
+              apply: async (ids, value) => {
+                const assigneeUserId = value === NONE ? null : value;
+                const targets = casesFor(ids).filter(
+                  (item) => item.assigneeUserId !== assigneeUserId,
+                );
+                if (targets.length)
+                  return savePartly(
+                    targets,
+                    { assigneeUserId },
+                    "Zuständigkeit",
+                  );
+              },
+            }
+          : undefined,
+        chip: (row) =>
+          row.assigneeUserId ? (
+            <>
+              <Avatar
+                label={`Zuständig: ${nameOf(row.assigneeUserId)}`}
+                name={nameOf(row.assigneeUserId)}
+                size="xs"
+              />
+              <span className="chip-name">{nameOf(row.assigneeUserId)}</span>
+            </>
+          ) : (
+            <span
+              aria-label="Niemand zuständig"
+              className="avatar-empty"
+              role="img"
+            />
+          ),
+      },
+      {
+        id: "campaign",
+        label: "Aktion",
+        icon: Flag,
+        get: actionKey,
+        options: actionKeys.map((key) => ({
+          value: key,
+          label: key === NONE ? "Allgemein" : actionName({ actionId: key }),
+        })),
+      },
+    ];
+  }, [
+    actionName,
+    anyManaged,
+    assigneesPending,
+    casesFor,
+    eligible,
+    identity,
+    me,
+    nameOf,
+    names,
+    requestClose,
+    rows,
+    savePartly,
+  ]);
+
+  const sorts = useMemo<ListSort<Case>[]>(
+    () => [
+      {
+        id: "new",
+        label: "Neueste zuerst",
+        compare: (a, b) => b.receivedAt.localeCompare(a.receivedAt),
+      },
+      {
+        id: "old",
+        label: "Älteste zuerst",
+        compare: (a, b) => a.receivedAt.localeCompare(b.receivedAt),
+      },
+    ],
+    [],
+  );
+
+  const views = useMemo<ListViewDefinition[]>(
+    () => [
+      {
+        id: "open",
+        label: "Offen",
+        filters: [{ prop: "status", values: ["new", "in_progress"] }],
+        groupBy: "status",
+        sort: "new",
+      },
+      {
+        id: "mine",
+        label: "Mir zugewiesen",
+        filters: [{ prop: "assignee", values: [me] }],
+        groupBy: null,
+        sort: "new",
+      },
+      {
+        id: "contact",
+        label: "Kontakt klären",
+        filters: [{ prop: "contact", values: ["needs_review", "failed"] }],
+        groupBy: null,
+        sort: "old",
+      },
+      { id: "all", label: "Alle", filters: [], groupBy: null, sort: "new" },
+    ],
+    [me],
+  );
+
+  const columns = useMemo<ListColumns<Case>>(
+    () => ({
+      primary: (row) => (
+        <span data-inbox-row={row.id}>
+          <span className="mono order-no">
+            {shortReference(row.publicReference)}
+          </span>{" "}
+          {row.subject}
+        </span>
+      ),
+      secondary: (row) =>
+        row.actionId === null
+          ? fullName(row)
+          : `${fullName(row)} · ${actionName(row)}`,
+      trailing: (row) => (
+        <time dateTime={row.receivedAt}>{shortDay(row.receivedAt)}</time>
+      ),
+    }),
+    [actionName],
+  );
+
+  const getId = useCallback((row: Case) => row.id, []);
+  const searchText = useCallback(
+    (row: Case) =>
+      `${row.publicReference} ${row.subject} ${row.message} ${fullName(row)} ${row.email ?? ""} ${row.phone ?? ""}`,
+    [],
+  );
+  const detailTitle = useCallback((row: Case) => row.subject, []);
+
+  const takeOver = async (item: Case) => {
+    setTakingOver(item.id);
+    try {
+      await update([item], {
+        status: "in_progress",
+        assigneeUserId:
+          item.assigneeUserId ?? (managesCase(identity, item) ? me : null),
+      });
+      toast?.show({ title: "Anfrage übernommen.", tone: "success" });
+    } catch {
+      toast?.show({
+        title: "Die Anfrage wurde nicht übernommen.",
+        description:
+          address === "Sie"
+            ? "Bitte versuchen Sie es erneut."
+            : "Bitte versuche es erneut.",
+        tone: "error",
+      });
+    } finally {
+      setTakingOver(null);
+    }
+  };
+
+  const status = cases.isPending
+    ? "loading"
+    : cases.isError
+      ? "error"
+      : "ready";
+  const closingCases = closing ? casesFor(closing.ids) : null;
+
+  return (
+    // The page root is this wrapper (list plus close dialog), so it carries
+    // the full-bleed marker that ListView would otherwise set on its root.
+    <div className="inbox-page" data-zone="inbox" {...fullBleedPage}>
+      <ListView<Case>
+        beforeList={
+          <>
+            {cases.error instanceof ApiError && cases.error.status === 401 ? (
+              <StatusMessage className="inbox-callout" tone="error">
+                {address === "Sie"
+                  ? "Bitte melden Sie sich erneut an."
+                  : "Bitte melde dich erneut an."}
+              </StatusMessage>
+            ) : null}
+            {missing && single.isError ? (
+              <StatusMessage
+                className="inbox-callout"
+                id="inbox-case-unavailable"
+                tone="error"
+              >
+                {address === "Sie"
+                  ? "Dieser Eingang ist nicht mehr verfügbar oder Sie haben keinen Zugriff."
+                  : "Dieser Eingang ist nicht mehr verfügbar oder du hast keinen Zugriff."}
+              </StatusMessage>
+            ) : null}
+            {cases.data?.truncated ? (
+              <StatusMessage className="inbox-callout" tone="info">
+                Es werden die neuesten {cases.data.items.length} Anfragen
+                gezeigt.{" "}
+                {address === "Sie"
+                  ? "Ältere Anfragen öffnen Sie über die Suche."
+                  : "Ältere Anfragen öffnest du über die Suche."}
+              </StatusMessage>
+            ) : null}
+          </>
+        }
+        className="inbox-list"
+        columns={columns}
+        detailTitle={detailTitle}
+        address={address}
+        emptyIcon={InboxIcon}
+        entityLabel={{ one: "Anfrage", many: "Anfragen" }}
+        getId={getId}
+        id="inbox"
+        onRetry={() => void cases.refetch()}
+        properties={properties}
+        renderDetail={(row) => (
+          <CaseDetail
+            actionName={actionName(row)}
+            address={address}
             client={client}
-            item={item}
+            item={row}
+            key={row.id}
+            onClose={(item) => {
+              void requestClose([item.id]).then((outcome) => {
+                if (outcome !== "cancelled")
+                  toast?.show({
+                    title: `${shortReference(item.publicReference)} abgeschlossen.`,
+                    tone: "success",
+                  });
+              });
+            }}
+            onTakeOver={(item) => void takeOver(item)}
+            takingOver={takingOver === row.id}
             taskBasePath={basePath.replace(/\/inbox$/, "/tasks")}
           />
-          <InboxMaterials
-            key={`materials-${item.id}`}
-            client={client}
-            item={item}
-          />
-          <InboxComments
-            key={`comments-${item.id}`}
-            client={client}
-            caseId={item.id}
-          />
-          {item.closureNote && (
-            <section>
-              <h2>Abschlussnotiz</h2>
-              <p className="inbox-message">{item.closureNote}</p>
-            </section>
-          )}
-        </>
-      )}
-    </section>
+        )}
+        rows={rows}
+        searchText={searchText}
+        sorts={sorts}
+        status={status}
+        title="Eingang"
+        useCommands={useContextCommands}
+        views={views}
+      />
+      <CloseCaseDialog
+        address={address}
+        cases={closingCases}
+        client={client}
+        onCancel={(closed, total) => {
+          if (closed > 0)
+            toast?.show({
+              title: `${closed} von ${total} Anfragen abgeschlossen.`,
+              description: "Die übrigen sind unverändert.",
+              tone: "info",
+            });
+          finishClosing("cancelled");
+        }}
+        onDone={() => finishClosing(undefined)}
+      />
+    </div>
   );
 }

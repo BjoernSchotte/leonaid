@@ -998,12 +998,33 @@ class TwentyCrmGateway:
         raise AssertionError("Rate-Limit-Schleife muss terminieren.")
 
     def _retry_after(self, response: httpx.Response) -> float:
-        raw = response.headers.get("Retry-After", "1")
+        return rate_limit_wait_seconds(
+            response.headers,
+            now=time.time(),
+            cap=self._settings.max_retry_after_seconds,
+        )
+
+
+def rate_limit_wait_seconds(
+    headers: Mapping[str, str], *, now: float, cap: float
+) -> float:
+    """Seconds to wait after a Twenty 429.
+
+    Twenty sends ``Retry-After: 1`` for both of its buckets, also when the
+    per-minute bucket (100 requests per key) is spent. Then only
+    ``X-RateLimit-Reset`` (epoch seconds) tells when requests pass again, so
+    an exhausted bucket waits until that reset, capped at ``cap``.
+    """
+    try:
+        seconds = float(headers.get("Retry-After", "1"))
+    except ValueError:
+        seconds = 1.0
+    if headers.get("X-RateLimit-Remaining", "").strip() == "0":
         try:
-            seconds = float(raw)
+            seconds = max(seconds, float(headers.get("X-RateLimit-Reset", "")) - now)
         except ValueError:
-            seconds = 1.0
-        return min(max(seconds, 0.1), self._settings.max_retry_after_seconds)
+            pass
+    return min(max(seconds, 0.1), cap)
 
 
 def _correlation_id(value: str) -> str:

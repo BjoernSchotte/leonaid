@@ -29,15 +29,16 @@ export function TaskFromPage({
   });
   return (
     <section
-      className="tasks-workspace"
+      className="task-from-page"
       aria-label="Aufgabe aus Seite erstellen"
     >
       {!listId ? (
         <>
           <h2>Aufgabenliste wählen</h2>
-          <label>
-            Aufgabenlisten suchen
+          <label className="field">
+            <span className="field-label">Aufgabenlisten suchen</span>
             <input
+              className="input"
               autoFocus
               type="search"
               value={search}
@@ -48,7 +49,11 @@ export function TaskFromPage({
               }}
             />
           </label>
-          {lists.isPending && <p role="status">Listen werden geladen …</p>}
+          {lists.isPending && (
+            <p className="field-hint" role="status">
+              Listen werden geladen …
+            </p>
+          )}
           {lists.error && (
             <StatusMessage tone="error">
               <p>Die Listen konnten nicht geladen werden.</p>
@@ -60,7 +65,7 @@ export function TaskFromPage({
           {lists.data && !lists.error && (
             <>
               <p>Wähle eine Liste, in der du Aufgaben anlegen darfst.</p>
-              <ul className="tasks-list-links">
+              <ul className="task-list-links">
                 {lists.data.items.map((list) => (
                   <li key={list.id}>
                     <Button
@@ -78,7 +83,7 @@ export function TaskFromPage({
                   Bereich Aufgaben an.
                 </p>
               )}
-              <div className="tasks-paging">
+              <div className="task-form-actions">
                 <Button
                   variant="secondary"
                   disabled={offset === 0}

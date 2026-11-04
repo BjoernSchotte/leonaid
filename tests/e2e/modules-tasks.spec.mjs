@@ -1,6 +1,17 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import {
+  horizontalOverflow,
+  openTask,
+  pickOption,
+  showTaskView,
+  taskPane,
+  taskRow,
+  taskRowLink,
+  taskRows,
+  taskSearch,
+} from "./task-list.mjs";
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
 );
@@ -45,23 +56,30 @@ for (const [surface, width] of [
     await expect(
       page.getByRole("heading", { name: `Liste ${title}`, exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: /^Aufgabe anlegen/ })
+      .first()
+      .click();
     const quick = page.getByRole("form", {
       name: "Aufgabe schnell erfassen",
       exact: true,
     });
-    await quick.getByLabel("Titel", { exact: true }).fill(title);
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).fill(title);
     const createdResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         /\/task-lists\/[^/]+\/tasks$/.test(response.url()) &&
         response.ok(),
     );
-    await quick.getByLabel("Titel", { exact: true }).press("Enter");
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).press("Enter");
     const createdTask = await (await createdResponse).json();
-    const taskHeading = page.getByRole("heading", { name: title, exact: true });
-    await expect(taskHeading).toBeVisible();
-    await taskHeading.getByRole("button", { name: title, exact: true }).click();
-    const editor = page.locator("form.task-editor");
+    await expect(taskRow(page, createdTask.id)).toBeVisible();
+    // Esc leaves the quick add; the list keys work again.
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).press("Escape");
+    await expect(quick).toHaveCount(0);
+
+    let pane = await openTask(page, { id: createdTask.id });
+    const editor = pane.locator("form.task-editor");
     await expect(editor).toBeVisible();
     await editor.getByText("Zuständigkeit auswählen", { exact: true }).click();
     const assignee = editor.getByRole("combobox", {
@@ -90,8 +108,9 @@ for (const [surface, width] of [
       .getByRole("button", { name: "Epic anlegen", exact: true })
       .click();
     const createdEpic = await (await createdEpicResponse).json();
-    const epic = page.locator("form.task-editor .task-epic-picker select");
-    await expect(epic).toHaveValue(createdEpic.id);
+    await expect(editor.locator(".task-epic-picker select")).toHaveValue(
+      createdEpic.id,
+    );
     await editor
       .getByText("Termine und Wiedervorlage", { exact: true })
       .click();
@@ -102,25 +121,23 @@ for (const [surface, width] of [
     await editor
       .getByRole("button", { name: "Speichern", exact: true })
       .click();
-    await expect(editor).toHaveCount(0);
-    await page
-      .getByRole("combobox", { name: "Bereich", exact: true })
-      .selectOption("mine");
     await expect(
-      page.getByRole("heading", { name: title, exact: true }),
-    ).toHaveCount(0);
-    await page
-      .getByRole("combobox", { name: "Ansicht", exact: true })
-      .selectOption("deferred");
-    await page.getByLabel("Aufgaben suchen", { exact: true }).fill(title);
-    const row = page
-      .locator(".tasks-results li")
-      .filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+      page.getByText("Aufgabe gespeichert.", { exact: true }),
+    ).toBeVisible();
+    // Deferred now: "Offen" hides it, the pane keeps the record.
+    await page.keyboard.press("Escape");
+    await expect(taskPane(page)).toHaveCount(0);
+    await expect(taskRow(page, createdTask.id)).toHaveCount(0);
+
+    await page.goto(
+      `${baseURL}/${surface}/tasks/${createdTask.listId}?f.status=open&f.deferral=deferred&f.assignee=${createdTask.createdBy}`,
+    );
+    await taskSearch(page).fill(title);
+    const row = taskRow(page, createdTask.id);
     await expect(row).toBeVisible();
     await expect(row).toContainText(epicTitle);
-    await row.getByRole("button", { name: title, exact: true }).click();
-    const edit = page.locator("form.task-editor");
-    await expect(edit).toBeVisible();
+    pane = await openTask(page, { id: createdTask.id });
+    const edit = pane.locator("form.task-editor");
     await edit.getByText("Termine und Wiedervorlage", { exact: true }).click();
     await expect(edit.getByLabel("Fällig am", { exact: true })).toHaveValue(
       due,
@@ -133,34 +150,41 @@ for (const [surface, width] of [
       .getByRole("combobox", { name: "Status", exact: true })
       .selectOption("done");
     await edit.getByRole("button", { name: "Speichern", exact: true }).click();
-    await expect(edit).toHaveCount(0);
-    const view = page.getByRole("combobox", {
-      name: "Ansicht",
-      exact: true,
-    });
-    await view.selectOption("done");
-    await expect(view).toHaveValue("done");
-    await expect(row).toContainText("Erledigt");
-    await row.getByRole("button", { name: title, exact: true }).click();
-    await expect(edit.getByLabel("Fällig am", { exact: true })).toHaveValue(
+    await expect(
+      page.getByText("Aufgabe gespeichert.", { exact: true }),
+    ).toBeVisible();
+
+    await page.goto(`${baseURL}/${surface}/tasks/${createdTask.listId}`);
+    await showTaskView(page, "Erledigt");
+    await expect(row).toContainText(title);
+    await expect(row.locator(".is-struck")).toHaveText(title);
+    pane = await openTask(page, { id: createdTask.id });
+    const reopen = pane.locator("form.task-editor");
+    await reopen
+      .getByText("Termine und Wiedervorlage", { exact: true })
+      .click();
+    await expect(reopen.getByLabel("Fällig am", { exact: true })).toHaveValue(
       due,
     );
     await expect(
-      edit.getByLabel("Zurückgestellt bis", { exact: true }),
+      reopen.getByLabel("Zurückgestellt bis", { exact: true }),
     ).toHaveValue("");
-    await edit
+    await reopen
       .getByRole("combobox", { name: "Status", exact: true })
       .selectOption("open");
-    await edit.getByRole("button", { name: "Speichern", exact: true }).click();
-    await expect(edit).toHaveCount(0);
-    await view.selectOption("open");
-    await expect(view).toHaveValue("open");
-    await page
-      .getByRole("combobox", { name: "Sortierung", exact: true })
-      .selectOption("section");
-    await expect(row).toBeVisible();
+    await reopen
+      .getByRole("button", { name: "Speichern", exact: true })
+      .click();
     await expect(
-      page.locator(".task-section-heading h2", { hasText: epicTitle }),
+      page.getByText("Aufgabe gespeichert.", { exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(taskPane(page)).toHaveCount(0);
+    await showTaskView(page, "Offen");
+    await expect(row).toBeVisible();
+    // "Offen" groups by section.
+    await expect(
+      page.locator(".group-header", { hasText: epicTitle }),
     ).toHaveCount(1);
     const finalResponse = await context.request.get(
       `${baseURL}/api/v1/tasks/${createdTask.id}`,
@@ -168,9 +192,10 @@ for (const [surface, width] of [
     expect(finalResponse.ok()).toBe(true);
     const finalTask = await finalResponse.json();
     expect(finalTask.status).toBe("open");
-    expect(finalTask.epicId).not.toBeNull();
+    expect(finalTask.epicId).toBe(createdEpic.id);
     expect(new Date(finalTask.dueAt).getTime()).toBe(new Date(due).getTime());
     expect(finalTask.deferredUntil).toBeNull();
+    expect(await horizontalOverflow(page)).toEqual([]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -252,51 +277,24 @@ for (const [surface, width] of [
     });
     await page.goto(`${baseURL}/${surface}/tasks/${list.id}`);
     const first = originals[0];
-    const checkbox = page.getByRole("checkbox", {
-      name: `Aufgabe abschließen: ${first.title}`,
-      exact: true,
-    });
-    await expect(checkbox).toBeVisible();
-    const newTaskButton = page.getByRole("button", {
-      name: "Neue Aufgabe",
-      exact: true,
-    });
-    const newTaskBox = await newTaskButton.boundingBox();
-    expect(newTaskBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
-    expect(newTaskBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
-    const iconBox = await newTaskButton.locator("svg").boundingBox();
-    const textBox = await newTaskButton
-      .locator("span")
-      .filter({ hasText: /^Neue Aufgabe$/ })
-      .boundingBox();
-    expect(iconBox.x + iconBox.width).toBeLessThanOrEqual(textBox.x);
+    await expect(taskRows(page)).toHaveCount(12);
+    const create = page.getByRole("button", { name: /^Aufgabe anlegen/ });
+    const createBox = await create.boundingBox();
+    expect(createBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 32);
+    expect(createBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 40);
     expect(
-      Math.abs(iconBox.y + iconBox.height / 2 - textBox.y - textBox.height / 2),
-    ).toBeLessThanOrEqual(2);
-    expect(
-      await page.getByLabel("Name der Liste", { exact: true }).isVisible(),
-    ).toBe(false);
-    const box = await checkbox.boundingBox();
-    expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.y + box.height).toBeLessThan(844);
-    await expect(page.locator(".tasks-results > li")).toHaveCount(12);
-    const minimalTitle = page.getByRole("button", {
-      name: originals[2].title,
-      exact: true,
-    });
-    const minimalRow = page
-      .locator(".tasks-results > li")
-      .filter({ has: minimalTitle });
+      await page.getByLabel("Name der Liste", { exact: true }).count(),
+    ).toBe(0);
+    // Compact rows: 40 px on desktop, two lines on the phone.
+    const minimalRow = taskRow(page, originals[2].id);
     const minimalRowBox = await minimalRow.boundingBox();
-    expect(minimalRowBox.height).toBeGreaterThanOrEqual(width <= 760 ? 56 : 44);
-    expect(minimalRowBox.height).toBeLessThanOrEqual(width <= 760 ? 64 : 56);
-    expect((await minimalTitle.boundingBox()).height).toBeGreaterThanOrEqual(
-      44,
-    );
-    await expect(minimalTitle).toHaveAccessibleDescription("Nicht zugewiesen");
-    await expect(minimalRow.getByText("Offen", { exact: true })).toHaveCount(0);
-
+    expect(minimalRowBox.height).toBeGreaterThanOrEqual(width <= 760 ? 56 : 40);
+    // Phone: grip (44 px target), title and the chip line.
+    expect(minimalRowBox.height).toBeLessThanOrEqual(width <= 760 ? 96 : 44);
+    await expect(
+      minimalRow.locator('.avatar-empty[aria-label="Niemand zuständig"]'),
+    ).toBeVisible();
+    // The list is read from list endpoints only: no task or epic detail reads.
     expect(
       readRequests.filter((url) => /\/tasks\/[^?]+|\/epics/.test(url)),
     ).toHaveLength(0);
@@ -309,14 +307,13 @@ for (const [surface, width] of [
       ),
     });
     await page.setViewportSize({ width: 320, height: 844 });
+    expect(await horizontalOverflow(page)).toEqual([]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    await expect(
-      page.getByRole("heading", { name: originals[1].title, exact: true }),
-    ).toBeVisible();
+    await expect(taskRowLink(page, { id: originals[1].id })).toBeVisible();
     await page.setViewportSize({ width, height: 844 });
     // Real requests stay slow at the browser transport; no intercepted/fake
     // responses. A connection-restored signal triggers the query refetch.
@@ -338,16 +335,14 @@ for (const [surface, width] of [
         response.request().method() === "GET" &&
         new URL(response.url()).pathname === "/api/v1/tasks",
     );
-    const searchField = page.getByLabel("Aufgaben suchen", { exact: true });
+    const searchField = taskSearch(page);
     await searchField.focus();
     await page.evaluate(() => window.dispatchEvent(new Event("offline")));
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await refreshStarted;
-    await expect(page.locator(".tasks-results > li")).toHaveCount(12);
-    await expect(checkbox).toBeVisible();
-    await expect(
-      page.getByText("Aufgaben werden geladen …", { exact: true }),
-    ).toHaveCount(0);
+    // The rows stay while the list refreshes; no skeleton, focus kept.
+    await expect(taskRows(page)).toHaveCount(12);
+    await expect(page.locator(".skeleton-list")).toHaveCount(0);
     expect((await refreshFinished).ok()).toBe(true);
     await expect(searchField).toBeFocused();
     await cdp.send("Network.emulateNetworkConditions", {
@@ -365,23 +360,6 @@ for (const [surface, width] of [
       )
         writes.push(request.postDataJSON());
     });
-    await expect(checkbox).toBeEnabled();
-    await checkbox.focus();
-    await expect(checkbox).toBeFocused();
-    await checkbox.dblclick();
-    await expect(
-      page.getByRole("button", { name: "Rückgängig", exact: true }),
-    ).toBeVisible();
-    expect(writes).toHaveLength(1);
-    await expect(
-      page.getByRole("button", { name: "Rückgängig", exact: true }),
-    ).not.toBeFocused();
-    await expect(
-      page.getByRole("form", { name: "Aufgabe bearbeiten", exact: true }),
-    ).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`s1-${surface}-undo.png`),
-    });
     const read = async () =>
       (await context.request.get(`${baseURL}/api/v1/tasks/${first.id}`)).json();
     const preserved = (task) =>
@@ -390,65 +368,62 @@ for (const [surface, width] of [
           ([key]) => !["status", "revision", "updatedAt"].includes(key),
         ),
       );
+    // Keyboard: Esc leaves the search for the first row, s edits it.
+    await page.keyboard.press("Escape");
+    await expect(taskRowLink(page, { id: first.id })).toBeFocused();
+    await page.keyboard.press("s");
+    await pickOption(page, "Erledigt");
+    const undo = page
+      .locator(".toast", { hasText: "Status: Erledigt" })
+      .getByRole("button", { name: "Rückgängig", exact: true });
+    await expect(undo).toBeVisible();
+    await expect(taskRow(page, first.id)).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].status).toBe("done");
     expect(preserved(await read())).toEqual(preserved(first));
-    await page
-      .getByRole("button", { name: "Rückgängig", exact: true })
-      .dblclick();
-    await expect(checkbox).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`s1-${surface}-undo.png`),
+    });
+    await undo.click();
+    await expect(taskRow(page, first.id)).toBeVisible();
     expect(writes).toHaveLength(2);
     expect((await read()).revision).toBe(first.revision + 2);
     expect(preserved(await read())).toEqual(preserved(first));
-    // Actual keyboard activation, then deterministic continuation after both
-    // controls disappear. Pointer double-click coverage above remains separate.
-    await expect(checkbox).toBeEnabled();
-    await checkbox.focus();
-    await page.keyboard.press("Space");
-    const undoAction = page.getByRole("button", {
-      name: "Rückgängig",
-      exact: true,
-    });
-    await expect(undoAction).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(checkbox).toBeFocused();
-    expect(writes).toHaveLength(4);
-    expect((await read()).revision).toBe(first.revision + 4);
-    expect(preserved(await read())).toEqual(preserved(first));
-    // Moving elsewhere during a slow keyboard-triggered save cancels its
-    // focus destination; the eventual response must not pull focus back.
-    const slowSave = await context.newCDPSession(page);
-    await slowSave.send("Network.enable");
-    await slowSave.send("Network.emulateNetworkConditions", {
-      offline: false,
-      latency: 750,
-      downloadThroughput: 1024 * 1024,
-      uploadThroughput: 1024 * 1024,
-    });
-    await page.keyboard.press("Space");
-    await searchField.click();
-    await expect(undoAction).toBeEnabled();
-    await expect(searchField).toBeFocused();
-    await slowSave.send("Network.emulateNetworkConditions", {
-      offline: false,
-      latency: 0,
-      downloadThroughput: -1,
-      uploadThroughput: -1,
-    });
-    await slowSave.detach();
-    await undoAction.click();
-    await expect(checkbox).toBeEnabled();
-    await page.reload();
-    await expect(checkbox).toBeEnabled();
-    // This server-controlled checkbox disappears from the open view on success;
-    // check() would require an immediate client-side checked state instead.
-    await checkbox.click();
+
+    // Bulk: x checks two rows, "Erledigt" completes both, undo reopens both.
+    await page.keyboard.press("k");
+    await page.keyboard.press("x");
+    await page.keyboard.press("j");
+    await page.keyboard.press("x");
+    const bulk = page.getByRole("region", { name: "Auswahl" });
+    await expect(bulk).toContainText("2 ausgewählt");
+    await bulk.getByRole("button", { name: "Erledigt", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "Rückgängig", exact: true }),
+      page.getByText("2 Aufgaben erledigt.", { exact: true }),
     ).toBeVisible();
-    await expect(checkbox).toHaveCount(0);
+    await expect(taskRows(page)).toHaveCount(10);
+    await page
+      .locator(".toast", { hasText: "2 Aufgaben erledigt." })
+      .getByRole("button", { name: "Rückgängig", exact: true })
+      .click();
+    await expect(taskRows(page)).toHaveCount(12);
+    expect(writes).toHaveLength(4);
+    expect((await read()).status).toBe("open");
+
+    // Complete once more for the conflict below.
+    await page.keyboard.press("Escape");
+    await taskRowLink(page, { id: first.id }).focus();
+    await page.keyboard.press("s");
+    await pickOption(page, "Erledigt");
+    await expect(taskRow(page, first.id)).toHaveCount(0);
     const completed = await read();
     expect(completed.status).toBe("done");
-    expect(completed.revision).toBe(first.revision + 7);
-    expect(writes).toHaveLength(7);
+    expect(completed.revision).toBe(first.revision + 5);
+    expect(writes).toHaveLength(5);
+    // The owner's list now holds this revision of the done task.
+    await showTaskView(page, "Erledigt");
+    const stale = taskRowLink(page, { id: first.id });
+    await expect(stale).toContainText(completed.title);
     const {
       title,
       description,
@@ -491,51 +466,39 @@ for (const [surface, width] of [
     await expect(
       readerPage.getByRole("heading", { name: list.title, exact: true }),
     ).toBeVisible();
+    await expect(taskRows(readerPage)).toHaveCount(11);
     await expect(
-      readerPage.getByRole("button", { name: "Neue Aufgabe", exact: true }),
+      readerPage.getByRole("button", { name: /^Aufgabe anlegen/ }),
     ).toHaveCount(0);
     await expect(
       readerPage.getByRole("form", { name: "Aufgabe schnell erfassen" }),
     ).toHaveCount(0);
+    // A reader gets no edit menus: the server would refuse anyway.
+    await readerPage.keyboard.press("j");
+    await readerPage.keyboard.press("s");
     await expect(
-      readerPage.getByRole("button", { name: "Bearbeiten", exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      readerPage.getByRole("checkbox", { name: /^Aufgabe abschließen:/ }),
-    ).toHaveCount(0);
-    const lowerTitle = readerPage.getByRole("button", {
-      name: originals[11].title,
-      exact: true,
-    });
-    await lowerTitle.focus();
-    await readerPage.keyboard.press("Enter");
-    const readerDetail = readerPage.locator(".task-read-only");
-    const detailHeading = readerDetail.getByRole("heading", {
-      name: originals[11].title,
-      exact: true,
-    });
-    await expect(detailHeading).toBeFocused();
-    expect((await detailHeading.boundingBox()).y).toBeGreaterThanOrEqual(0);
-    expect((await detailHeading.boundingBox()).y).toBeLessThan(844);
-    await readerPage.keyboard.press("Tab");
-    await expect(
-      readerPage.getByRole("button", { name: "Schließen", exact: true }),
-    ).toBeFocused();
-    await readerPage.keyboard.press("Enter");
-    await expect(readerDetail).toHaveCount(0);
-    await expect(lowerTitle).toBeFocused();
-    await readerPage.goto(
-      `${baseURL}/${surface}/tasks/${list.id}?task=${first.id}`,
-    );
-    await expect(
-      readerPage.getByRole("heading", { name: first.title, exact: true }),
+      readerPage.getByText("Status lässt sich hier nicht ändern.", {
+        exact: true,
+      }),
     ).toBeVisible();
+    const lowerLink = taskRowLink(readerPage, { id: originals[11].id });
+    await lowerLink.focus();
+    await readerPage.keyboard.press("Enter");
+    const readerDetail = taskPane(readerPage, originals[11].id);
+    await expect(readerDetail).toBeVisible();
+    await expect(readerDetail.getByText("Nur lesen.")).toBeVisible();
+    await expect(readerDetail.locator("form.task-editor")).toHaveCount(0);
+    await expect(readerDetail.locator(".task-structure")).toHaveCount(0);
+    await readerPage.keyboard.press("Escape");
+    await expect(readerDetail).toHaveCount(0);
+    await expect(lowerLink).toBeFocused();
+    await readerPage.goto(
+      `${baseURL}/${surface}/tasks/${list.id}?view=all&open=${first.id}`,
+    );
+    await expect(taskPane(readerPage, first.id)).toBeVisible();
     await expect(
       readerPage.getByRole("button", { name: "Speichern", exact: true }),
     ).toHaveCount(0);
-    await expect(readerPage.getByLabel("Titel", { exact: true })).toHaveCount(
-      0,
-    );
     const promotion = await context.request.put(membershipPath, {
       headers,
       data: {
@@ -565,24 +528,28 @@ for (const [surface, width] of [
     );
     expect(changedResponse.ok()).toBe(true);
     const changed = await changedResponse.json();
+    // The owner's list still holds the old revision: the edit is refused,
+    // reported, and the list reloads the current state.
+    await expect(stale).not.toContainText("inzwischen geändert");
     const conflict = page.waitForResponse(
       (response) =>
         response.url().endsWith(`/tasks/${first.id}`) &&
         response.status() === 409,
     );
-    await page.getByRole("button", { name: "Rückgängig", exact: true }).click();
+    await stale.focus();
+    await page.keyboard.press("s");
+    await pickOption(page, "Offen");
     await conflict;
-    await expect(page.getByText(/inzwischen geändert/)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Neu laden", exact: true }),
+      page.getByText("Status wurde nicht geändert.", { exact: true }),
     ).toBeVisible();
+    await expect(stale).toContainText("inzwischen geändert");
     expect(await read()).toEqual(changed);
-    await page.getByRole("button", { name: "Neu laden", exact: true }).click();
-    await page
-      .getByLabel("Aufgaben suchen", { exact: true })
-      .fill("kein passender Titel");
+    await taskSearch(page).fill("kein passender Titel");
     await expect(
-      page.getByText("Keine Aufgaben für diese Suche.", { exact: true }),
+      page.getByText("Keine Aufgaben passen zu dieser Ansicht", {
+        exact: true,
+      }),
     ).toBeVisible();
     const revocation = await context.request.put(membershipPath, {
       headers,
@@ -599,13 +566,13 @@ for (const [surface, width] of [
     );
     await expect(
       readerPage.getByText(
-        "Diese Liste ist nicht verfügbar oder du hast keinen Zugriff mehr.",
+        surface === "app"
+          ? "Diese Liste ist nicht verfügbar oder du hast keinen Zugriff mehr."
+          : "Diese Liste ist nicht verfügbar oder Sie haben keinen Zugriff mehr.",
         { exact: true },
       ),
     ).toBeVisible();
-    await expect(
-      readerPage.getByRole("heading", { name: first.title, exact: true }),
-    ).toHaveCount(0);
+    await expect(taskPane(readerPage)).toHaveCount(0);
     const deniedDirectRead = await second.request.get(
       `${baseURL}/api/v1/tasks/${first.id}`,
     );

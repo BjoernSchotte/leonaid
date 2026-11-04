@@ -176,7 +176,7 @@ test.describe("enabled modules", () => {
       await expect(page).toHaveURL(/\/admin\/tasks/);
       const title = page
         .getByRole("form", { name: "Aufgabe schnell erfassen" })
-        .getByLabel("Titel", { exact: true });
+        .getByLabel("Neue Aufgabe", { exact: true });
       await expect(title).toBeFocused();
       // The request is used once; a reload does not reopen it.
       expect(new URL(page.url()).searchParams.has("create")).toBe(false);
