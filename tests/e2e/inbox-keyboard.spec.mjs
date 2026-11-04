@@ -56,6 +56,21 @@ test("inbox list: j/k, Enter, Esc, x and closing with a note by keyboard", async
       page.getByRole("heading", { level: 1, name: "Eingang" }),
     ).toBeVisible();
     // The default view "Offen" is grouped by status.
+    // List pages are full-bleed: the list starts at the rail and runs to the
+    // right edge, without the page padding or the 1320 px cap.
+    const frame = await page.evaluate(() => {
+      const main = document
+        .querySelector("#main-content")
+        .getBoundingClientRect();
+      const list = document.querySelector(".listview").getBoundingClientRect();
+      const pageStyle = getComputedStyle(document.querySelector(".page"));
+      return {
+        left: list.left - main.left,
+        right: main.right - list.right,
+        padding: pageStyle.paddingLeft,
+      };
+    });
+    expect(frame).toEqual({ left: 0, right: 0, padding: "0px" });
     const views = page.getByRole("navigation", {
       name: "Gespeicherte Ansichten",
     });

@@ -16,6 +16,7 @@ import {
 } from "@leonaid/api-client";
 import {
   Avatar,
+  fullBleedPage,
   HotkeyProvider,
   ListView,
   StatusIcon,
@@ -566,7 +567,9 @@ function InboxList({
   const closingCases = closing ? casesFor(closing.ids) : null;
 
   return (
-    <div className="inbox-page" data-zone="inbox">
+    // The page root is this wrapper (list plus close dialog), so it carries
+    // the full-bleed marker that ListView would otherwise set on its root.
+    <div className="inbox-page" data-zone="inbox" {...fullBleedPage}>
       <ListView<Case>
         beforeList={
           <>
