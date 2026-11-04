@@ -65,9 +65,39 @@ const strings = [
   "A",
   "1,5",
   "-0x10",
+  // Review 5.6b round 5, T2.
+  "\t16",
+  "16\n",
+  "\r\n16\t",
+  "\tx",
+  "x\n",
+  "5.",
+  "5",
+  ".5",
+  "0.5",
+  "1e+1",
+  "1E1",
+  "+Infinity",
+  "0xA",
+  "0Xa",
+  "0xa",
+  "1234567890123456",
+  "1234567890123457",
+  "12345678901234567",
+  "12345678901234568",
+  "9007199254740993",
+  "9007199254740992",
 ];
+const t2Numbers = [0.5, 5, 9007199254740992, 1234567890123456];
 const numbers = [0, -0, 1, 16, 1.5, 10, 7, -16];
-const corpus: unknown[] = [...strings, ...numbers, true, false, null];
+const corpus: unknown[] = [
+  ...strings,
+  ...numbers,
+  ...t2Numbers,
+  true,
+  false,
+  null,
+];
 
 function encode(value: unknown): Encoded {
   if (value === null) return { type: "null", value: "null" };
