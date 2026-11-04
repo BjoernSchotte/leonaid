@@ -24,8 +24,7 @@
 
 .dashboard-header p,
 .dashboard-goal__intro p,
-.dashboard-pipeline header p,
-.dashboard-next p {
+.dashboard-pipeline header p {
   color: var(--accent-ink);
   font-size: 0.72rem;
   font-weight: 820;
@@ -196,45 +195,6 @@
 
 .dashboard-goal__beneficiaries li + li {
   margin-top: 0.2rem;
-}
-
-.dashboard-next {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--border);
-}
-
-.dashboard-next > span {
-  display: grid;
-  width: 3.1rem;
-  height: 3.1rem;
-  place-items: center;
-  border-radius: 999px;
-  color: var(--on-accent);
-  background: var(--warn);
-}
-
-.dashboard-next > div {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.dashboard-next h2,
-.dashboard-next p,
-.dashboard-next span {
-  margin: 0;
-}
-
-.dashboard-next h2 {
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-}
-
-.dashboard-next > div > span {
-  color: var(--text-2);
-  font-size: var(--fs-sm);
 }
 
 .dashboard-personal-metrics {
@@ -473,15 +433,6 @@
   .dashboard-goal__spoken,
   .dashboard-goal__configuration {
     grid-column: 1;
-  }
-
-  .dashboard-next {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .dashboard-next .btn {
-    grid-column: 1 / -1;
-    width: 100%;
   }
 
   .dashboard-personal-metrics {

@@ -34,6 +34,7 @@ import {
   EmptyState,
   Icon,
   Meter,
+  NextStep,
   StatusIcon,
   type StatusShape,
   StatusMessage,
@@ -313,23 +314,25 @@ function AcquirerDashboard({
 
   return (
     <>
-      <section className="dashboard-next" data-testid="dashboard-next-step">
-        <span aria-hidden="true">
-          <Icon icon={Clock} size={20} />
-        </span>
-        <div>
-          <p>Dein nächster sinnvoller Schritt</p>
-          <h2>{nextLabel}</h2>
-          <span>
-            {data.reminders.upcoming} weitere geplant ·{" "}
-            {data.reminders.unscheduled} ohne Termin
-          </span>
-        </div>
-        <a className={buttonClassName({ variant: "primary" })} href={nextHref}>
-          Jetzt öffnen
-          <Icon icon={ArrowRight} size={18} />
-        </a>
-      </section>
+      <NextStep
+        action={
+          <a
+            className={buttonClassName({ variant: "primary" })}
+            href={nextHref}
+          >
+            <span className="btn-label">Jetzt öffnen</span>
+            <Icon icon={ArrowRight} size={16} />
+          </a>
+        }
+        consequence={
+          <>
+            {nextLabel}. {data.reminders.upcoming} weitere geplant ·{" "}
+            {data.reminders.unscheduled} ohne Termin.
+          </>
+        }
+        data-testid="dashboard-next-step"
+        lead="Dein nächster Schritt:"
+      />
 
       <div className="dashboard-personal-metrics">
         <a href={`${reminderHref}&urgency=overdue`}>
