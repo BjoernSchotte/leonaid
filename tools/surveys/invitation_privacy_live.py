@@ -48,7 +48,9 @@ async def main():
                     },
                 )
             ).json()
-            assert snapshot["participationCount"] == 1
+            # One participation: the API withholds counts below k = 5.
+            assert snapshot["participationCount"] is None
+            assert snapshot["suppressed"] is True
             for product in products:
                 job = (
                     await call(
