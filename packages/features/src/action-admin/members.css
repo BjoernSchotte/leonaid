@@ -5,17 +5,6 @@
  * so they do not leak into other screens.
  */
 
-/*
- * The prototype renders its lists full-bleed under the topbar; the shell's
- * .page padding (for ordinary pages) would inset the list and its pane.
- * The Einladungen table brings its own .page padding below. Temporary:
- * leitsystem/4c ships this rule in packages/ui; drop it after that merge.
- */
-.page:has(> [data-page-layout="full-bleed"]) {
-  max-width: none;
-  padding: 0;
-}
-
 /* ---------- subnav (prototype pages/Invoices.css) ---------- */
 .members-top {
   padding: var(--s-4) var(--s-6) 0;
@@ -129,11 +118,16 @@
 }
 
 /* ---------- Einladungen (the prototype's .page padding) ---------- */
-/* Aligned with the subnav above (the list's own inset). */
-.members-ledger,
+/*
+ * The list page is full-bleed (fullBleedPage): its subnav and error state
+ * inset themselves as the list does. Einladungen keeps the shell's .page
+ * frame, so its parts need no padding of their own.
+ */
 .members-state {
-  max-width: 1320px;
   padding: var(--s-4) var(--s-6) var(--s-12);
+}
+.members-ledger-page .members-top {
+  padding: 0 0 var(--s-4);
 }
 .members-ledger .page-header,
 .members-state .page-header {
@@ -277,9 +271,11 @@
     justify-content: center;
     height: 40px;
   }
-  .members-ledger,
   .members-state {
     padding: var(--s-4) var(--s-4) var(--s-10);
+  }
+  .members-ledger-page .members-top {
+    padding: 0 0 var(--s-3);
   }
   .members-page .table-wrap {
     font-size: var(--fs-xs);

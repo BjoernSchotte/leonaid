@@ -11,6 +11,7 @@ import {
   Avatar,
   Badge,
   ErrorState,
+  fullBleedPage,
   Icon,
   ListView,
   StatusIcon,
@@ -131,10 +132,10 @@ export function MemberAdministrationPage({
       className={
         section === "list" ? "members-page" : "members-page members-ledger-page"
       }
-      // Same contract as fullBleedPage (@leonaid/ui, leitsystem/4c); swap to
-      // the spread once that lands on feat/leitsystem.
-      data-page-layout="full-bleed"
       data-zone="members"
+      // The list is full-bleed as in the prototype; Einladungen keeps the
+      // shell's page frame.
+      {...(section === "list" ? fullBleedPage : {})}
     >
       <div className="members-top">
         <SubNav current={section} />
