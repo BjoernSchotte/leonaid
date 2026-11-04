@@ -386,7 +386,10 @@ function PageEditor({
     if (!canEdit) return;
     setEditing(true);
     setSaved(false);
-    requestAnimationFrame(() => editor?.commands.focus("end"));
+    // Into the text, unless the person already put the cursor there.
+    requestAnimationFrame(() => {
+      if (editor && !editor.isFocused) editor.commands.focus("end");
+    });
   };
   const resetDraft = () => {
     editor?.commands.setContent(savedContent.current, { emitUpdate: false });
