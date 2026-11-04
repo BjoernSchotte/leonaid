@@ -1,7 +1,7 @@
 [
   {
     "path": "tests/e2e/surveys-analytics.spec.mjs",
-    "sha256": "8152a497b8a8aa78c5c98999df5322534919a5840acb290a38de521d74089a32",
+    "sha256": "40305e4b277011753db1520c2e99cdd490a818c1fb815b263d97ab74ed5c7e63",
     "reason": "Drop one acknowledgement after a real analysis snapshot is committed; retry and verify the stored snapshot."
   },
   {
