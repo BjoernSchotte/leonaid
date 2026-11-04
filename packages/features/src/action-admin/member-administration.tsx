@@ -24,9 +24,9 @@ import {
 
 import { consumeCreateRequest } from "../command-palette/create-request";
 import { useContextCommands } from "../command-palette/store";
-import { relativeDay } from "../invoices/invoice-format";
-import { actionErrorMessage } from "./errors";
+import { relativeDay } from "../shared/dates";
 import { MemberDetail } from "./member-detail";
+import { useActionErrorMessage } from "./use-action-error";
 import { InvitationLedger, InviteMemberDialog } from "./member-invitation";
 import {
   INVITE_KIND,
@@ -67,7 +67,7 @@ function SubNav({ current }: { readonly current: MemberSection }) {
     ["invitations", "Einladungen"],
   ];
   return (
-    <nav aria-label="Mitgliederbereiche" className="members-links">
+    <nav aria-label="Mitgliederbereiche" className="section-links">
       {links.map(([section, label]) => (
         <a
           aria-current={current === section ? "page" : undefined}
@@ -206,6 +206,7 @@ function MemberList({
       !(error instanceof ApiError) && failureCount < 2,
     staleTime: 10_000,
   });
+  const directoryError = useActionErrorMessage(directory.error);
   const rows = directory.data?.items ?? [];
   const actions = useMemo(
     () => directory.data?.actions ?? [],
@@ -342,7 +343,7 @@ function MemberList({
           onRetry={() => void directory.refetch()}
           title="Mitglieder konnten nicht geladen werden"
         >
-          {actionErrorMessage(directory.error).message}
+          {directoryError?.message}
         </ErrorState>
       </div>
     );

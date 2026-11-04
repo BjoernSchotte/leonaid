@@ -1,42 +1,16 @@
 /*
  * Members (Mitglieder, Einladungen). Ported from the prototype's
- * pages/Members.css, the subnav of pages/Invoices.css and the helpers and
- * data table of styles/components.css. Helpers are scoped to .members-page
- * so they do not leak into other screens.
+ * pages/Members.css and the helpers of styles/components.css, scoped to
+ * .members-page. The subnav (.section-links) and the data table come from
+ * packages/ui styles/components/page-sections.css.
  */
 
-/* ---------- subnav (prototype pages/Invoices.css) ---------- */
+/* ---------- page top (subnav inset as the list) ---------- */
 .members-top {
   padding: var(--s-4) var(--s-6) 0;
 }
 .members-top + .listview .listview-main {
   padding-top: var(--s-3);
-}
-.members-links {
-  display: inline-flex;
-  gap: var(--s-1);
-  padding: 2px;
-  border-radius: var(--r-md);
-  background: var(--surface-3);
-}
-.members-links a {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  text-decoration: none;
-}
-.members-links a:hover {
-  color: var(--text);
-}
-.members-links a[aria-current="page"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-1);
 }
 .members-notes {
   display: grid;
@@ -81,6 +55,10 @@
   min-height: 32px;
   font-size: var(--fs-sm);
 }
+/* Prototype layout: Aktion on its own row, then Rolle and the button. */
+.members-page .role-add .role-add-action {
+  flex-basis: 100%;
+}
 .members-page .member-guard {
   display: flex;
   align-items: flex-start;
@@ -105,15 +83,13 @@
 .member-detail .pane-section > .callout {
   margin-bottom: var(--s-3);
 }
-.members-page .member-link,
-.members-page .table a {
+.members-page .member-link {
   color: var(--accent-ink);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.members-page .member-link:hover,
-.members-page .table a:hover {
+.members-page .member-link:hover {
   text-decoration-thickness: 2px;
 }
 
@@ -213,7 +189,8 @@
   align-items: center;
   gap: var(--s-2);
 }
-.members-page p {
+.members-page .member-detail p,
+.members-ledger p {
   margin: 0;
 }
 .members-page fieldset {
@@ -223,61 +200,14 @@
   border: 0;
 }
 
-/* Data table (for dense non-list data) */
-.members-page .table-wrap {
-  overflow-x: auto;
-  border: var(--hair) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-.members-page .table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
-}
-.members-page .table th {
-  position: sticky;
-  top: 0;
-  padding: var(--s-2) var(--s-4);
-  border-bottom: var(--hair) solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-weight: var(--fw-semibold);
-  text-align: left;
-  white-space: nowrap;
-}
-.members-page .table td {
-  padding: var(--s-2) var(--s-4);
-  border-bottom: var(--hair) solid var(--border);
-  vertical-align: middle;
-}
-.members-page .table tr:last-child td {
-  border-bottom: 0;
-}
-.members-page .table tbody tr:hover {
-  background: var(--row-hover);
-}
-
 @media (max-width: 720px) {
   .members-top {
     padding: var(--s-3) var(--s-4) 0;
-  }
-  .members-links {
-    display: flex;
-    width: 100%;
-  }
-  .members-links a {
-    flex: 1;
-    justify-content: center;
-    height: 40px;
   }
   .members-state {
     padding: var(--s-4) var(--s-4) var(--s-10);
   }
   .members-ledger-page .members-top {
     padding: 0 0 var(--s-3);
-  }
-  .members-page .table-wrap {
-    font-size: var(--fs-xs);
   }
 }
