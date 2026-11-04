@@ -121,6 +121,11 @@
   min-height: 4.5rem;
   resize: vertical;
 }
+/* Questionnaire texts start as one line and grow with their content. */
+.se-meta textarea {
+  min-height: var(--se-control-h) !important;
+  field-sizing: content;
+}
 .survey-editor:not(.survey-preview) input[type="file"] {
   padding-block: 0.6rem;
 }
@@ -362,14 +367,18 @@
   gap: 0.75rem;
   min-width: 0;
 }
-.se-canvas > label,
-.se-canvas > fieldset {
+.se-page-settings {
+  display: grid;
+  gap: 0.75rem;
+}
+.se-page-settings > label,
+.se-page-settings > fieldset {
   padding: 1rem;
   border: 1px solid var(--se-border);
   border-radius: var(--se-radius);
   background: var(--se-surface);
 }
-.se-canvas > .se-actions {
+.se-page-settings > .se-actions {
   justify-content: flex-end;
 }
 .se-question {

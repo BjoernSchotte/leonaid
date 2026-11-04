@@ -108,7 +108,6 @@
 }
 .login-lead {
   color: var(--text-2);
-  line-height: var(--lh-prose);
 }
 .login-note {
   color: var(--text-3);

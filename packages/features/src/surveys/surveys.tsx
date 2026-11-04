@@ -589,11 +589,6 @@ export function SurveysPage({
               Starten Sie mit einer Frage oder einer Vorlage. Weitere Fragen und
               Seiten ergänzen Sie im nächsten Schritt.
             </p>
-          ) : onList ? (
-            <p className="page-sub">
-              Rückmeldungen zu Ihren Aktionen sammeln und Fragebögen gemeinsam
-              betreuen.
-            </p>
           ) : null}
         </div>
         {onList && (

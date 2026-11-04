@@ -723,54 +723,6 @@ export function SurveyEditor({
           <div className="se-canvas">
             {page ? (
               <>
-                <label className="se-page-title">
-                  {t("Seitentitel")}
-                  <input
-                    value={String(page.title ?? "")}
-                    onChange={(event) =>
-                      edit(() =>
-                        history.change((next) => {
-                          next.pages.find((p) => p.name === page.name)!.title =
-                            event.target.value;
-                        }),
-                      )
-                    }
-                  />
-                </label>
-                <ConditionBuilder
-                  translate={t}
-                  expression={String(page.visibleIf ?? "")}
-                  questions={precedingPages}
-                  onChange={(value) =>
-                    edit(() =>
-                      history.change((next) => {
-                        const current = next.pages.find(
-                          (p) => p.name === page.name,
-                        )!;
-                        if (value === undefined) delete current.visibleIf;
-                        else current.visibleIf = value;
-                      }),
-                    )
-                  }
-                />
-                <div className="se-actions">
-                  <button
-                    className="se-button se-button-ghost"
-                    type="button"
-                    onClick={() =>
-                      edit(() => selectPage(history.duplicatePage(page.name)))
-                    }
-                  >
-                    {t("Seite duplizieren")}
-                  </button>
-                  <button
-                    className="se-button se-button-ghost"
-                    type="button"
-                    onClick={() => edit(() => history.removePage(page.name))}
-                  >
-                    {t("Seite entfernen")}
-                  </button>
-                </div>
                 <ol
                   className="se-questions"
                   aria-label={t("Fragen auf dieser Seite")}
@@ -878,6 +830,57 @@ export function SurveyEditor({
                   >
                     {t("Frage hinzufügen")}
                   </button>
+                </div>
+                <div className="se-page-settings">
+                  <label className="se-page-title">
+                    {t("Seitentitel")}
+                    <input
+                      value={String(page.title ?? "")}
+                      onChange={(event) =>
+                        edit(() =>
+                          history.change((next) => {
+                            next.pages.find(
+                              (p) => p.name === page.name,
+                            )!.title = event.target.value;
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                  <ConditionBuilder
+                    translate={t}
+                    expression={String(page.visibleIf ?? "")}
+                    questions={precedingPages}
+                    onChange={(value) =>
+                      edit(() =>
+                        history.change((next) => {
+                          const current = next.pages.find(
+                            (p) => p.name === page.name,
+                          )!;
+                          if (value === undefined) delete current.visibleIf;
+                          else current.visibleIf = value;
+                        }),
+                      )
+                    }
+                  />
+                  <div className="se-actions">
+                    <button
+                      className="se-button se-button-ghost"
+                      type="button"
+                      onClick={() =>
+                        edit(() => selectPage(history.duplicatePage(page.name)))
+                      }
+                    >
+                      {t("Seite duplizieren")}
+                    </button>
+                    <button
+                      className="se-button se-button-ghost"
+                      type="button"
+                      onClick={() => edit(() => history.removePage(page.name))}
+                    >
+                      {t("Seite entfernen")}
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
