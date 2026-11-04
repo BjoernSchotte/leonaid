@@ -26,30 +26,30 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       false,
       "klara.kern@leonaid.invalid",
     );
-    await page.getByRole("tab", { name: /Öffentliche Seite/ }).click();
+    await page.getByRole("tab", { name: /Aliase/ }).click();
     const section = page.getByRole("region", {
       name: "Adressen und Weiterleitungen",
     });
     await expect(
-      section.getByText("Dauerhafte Kampagnenadresse:", { exact: false }),
+      section.getByText("Dauerhafte Adresse", { exact: true }),
     ).toBeVisible();
-    const submit = async (form, method, button, status = 200) => {
+    const aliasDialog = () =>
+      page.getByRole("dialog", { name: /Alias hinzufügen|bearbeiten$/ });
+    const submit = async (dialog, method, button, status = 200) => {
       const result = page.waitForResponse(
         (r) =>
           new URL(r.url()).pathname.includes("/redirect-aliases") &&
           r.request().method() === method,
       );
-      await form.getByRole("button", { name: button, exact: true }).click();
+      await dialog.getByRole("button", { name: button, exact: true }).click();
       assert.equal((await result).status(), status);
     };
-    const create = section
-      .locator("form")
-      .filter({ has: page.getByLabel("Neue Kurzadresse", { exact: false }) });
     for (const suffix of ["one", "two"]) {
-      await create
-        .getByLabel("Neue Kurzadresse", { exact: false })
-        .fill(`browser-${name}-${suffix}`);
-      await submit(create, "POST", "Adresse hinzufügen");
+      await section.getByTestId("alias-add").click();
+      const dialog = aliasDialog();
+      await dialog.getByTestId("alias-input").fill(`browser-${name}-${suffix}`);
+      await submit(dialog, "POST", "Speichern");
+      await expect(dialog).toBeHidden();
       await expect(section.locator(".campaign-alias-row")).toHaveCount(
         suffix === "one" ? 1 : 2,
       );
@@ -60,34 +60,31 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         exact: true,
       }),
     });
-    const form = row.locator("form");
-    await expect(form.getByLabel("Zielkampagne").locator("option")).toHaveCount(
-      1,
-    );
-    await form
-      .getByLabel("Weiterleitung", { exact: false })
-      .selectOption("disabled");
-    await submit(form, "PUT", "Änderungen speichern");
+    const edit = async (target) => {
+      await target.getByRole("button", { name: /bearbeiten$/ }).click();
+      return aliasDialog();
+    };
+    let form = await edit(row);
+    await expect(
+      form.getByTestId("alias-target").locator("option"),
+    ).toHaveCount(1);
+    await form.getByTestId("alias-enabled").selectOption("disabled");
+    await submit(form, "PUT", "Speichern");
+    await expect(form).toBeHidden();
     await expect(row.getByRole("status").first()).toHaveText("Deaktiviert");
     const inactive = await context.request.get(`${origin}/browser-${name}-one`);
     assert.equal(inactive.headers()["x-leonaid-public-state"], "inactive");
-    await form
-      .getByLabel("Kurzadresse bearbeiten", { exact: false })
-      .fill("krapfentaxi");
-    await submit(form, "PUT", "Änderungen speichern", 409);
+    form = await edit(row);
+    await form.getByTestId("alias-input").fill("krapfentaxi");
+    await submit(form, "PUT", "Speichern", 409);
     await expect(
-      form.getByText("Deine Eingaben bleiben erhalten.", { exact: false }),
+      form.getByText("Ihre Eingaben bleiben erhalten.", { exact: false }),
     ).toBeVisible();
-    await expect(
-      form.getByLabel("Kurzadresse bearbeiten", { exact: false }),
-    ).toHaveValue("krapfentaxi");
-    await form
-      .getByLabel("Kurzadresse bearbeiten", { exact: false })
-      .fill(`browser-${name}-one`);
-    await form
-      .getByLabel("Weiterleitung", { exact: false })
-      .selectOption("enabled");
-    await submit(form, "PUT", "Änderungen speichern");
+    await expect(form.getByTestId("alias-input")).toHaveValue("krapfentaxi");
+    await form.getByTestId("alias-input").fill(`browser-${name}-one`);
+    await form.getByTestId("alias-enabled").selectOption("enabled");
+    await submit(form, "PUT", "Speichern");
+    await expect(form).toBeHidden();
     const redirect = await context.request.get(
       `${origin}/browser-${name}-one`,
       { maxRedirects: 0 },
@@ -104,10 +101,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       ),
       true,
     );
-    await form
-      .getByRole("button", { name: "Adresse entfernen", exact: true })
-      .click();
-    await submit(form, "DELETE", "Entfernen bestätigen");
+    await row.getByRole("button", { name: /entfernen$/ }).click();
+    await submit(
+      page.getByRole("alertdialog"),
+      "DELETE",
+      "Entfernen bestätigen",
+    );
     await expect(section.locator(".campaign-alias-row")).toHaveCount(1);
     await context.close();
 
@@ -120,39 +119,40 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       `${origin}/login?returnTo=${encodeURIComponent(admin(action))}`,
     );
     await browserLogin(system, systemPage, admin(action));
-    await systemPage.getByRole("tab", { name: /Öffentliche Seite/ }).click();
+    await systemPage.getByRole("tab", { name: /Aliase/ }).click();
     const systemSection = systemPage.getByRole("region", {
       name: "Adressen und Weiterleitungen",
     });
     const remaining = systemSection
       .locator(".campaign-alias-row")
       .filter({ hasText: `browser-${name}-two` });
-    await remaining.getByLabel("Zielkampagne").selectOption(other);
+    await remaining.getByRole("button", { name: /bearbeiten$/ }).click();
+    const move = systemPage.getByRole("dialog", { name: /bearbeiten$/ });
+    await move.getByTestId("alias-target").selectOption(other);
     const moved = systemPage.waitForResponse(
       (r) =>
         new URL(r.url()).pathname.includes("/redirect-aliases/") &&
         r.request().method() === "PUT",
     );
-    await remaining
-      .getByRole("button", { name: "Änderungen speichern", exact: true })
+    await move
+      .getByRole("button", { name: "Alias umstellen", exact: true })
       .click();
     assert.equal((await moved).status(), 200);
     await expect(systemSection.locator(".campaign-alias-row")).toHaveCount(0);
     await systemPage.goto(origin + admin(other));
-    await systemPage.getByRole("tab", { name: /Öffentliche Seite/ }).click();
+    await systemPage.getByRole("tab", { name: /Aliase/ }).click();
     const movedRow = systemPage
       .locator(".campaign-alias-row")
       .filter({ hasText: `browser-${name}-two` });
     await expect(movedRow).toBeVisible();
-    await movedRow
-      .getByRole("button", { name: "Adresse entfernen", exact: true })
-      .click();
+    await movedRow.getByRole("button", { name: /entfernen$/ }).click();
     const removed = systemPage.waitForResponse(
       (r) =>
         new URL(r.url()).pathname.includes("/redirect-aliases/") &&
         r.request().method() === "DELETE",
     );
-    await movedRow
+    await systemPage
+      .getByRole("alertdialog")
       .getByRole("button", { name: "Entfernen bestätigen", exact: true })
       .click();
     assert.equal((await removed).status(), 200);

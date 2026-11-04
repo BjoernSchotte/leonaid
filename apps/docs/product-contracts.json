@@ -18,11 +18,11 @@
     {
       "file": "packages/features/src/action-admin/delivery-section.tsx",
       "contains": [
-        "Lieferplanung für diese Aktion aktivieren",
-        "Weiteren Tag hinzufügen",
-        "Zeitfenster hinzufügen",
-        "Lieferplanung speichern",
-        "Aktuellen Stand laden und Eingaben behalten"
+        "Lieferfenster hinzufügen",
+        "Lieferplanung aktivieren",
+        "Fenster stilllegen",
+        "Stillgelegt",
+        "inzwischen geändert"
       ]
     },
     {
