@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid5
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -21,6 +24,19 @@ DELIVERY_WINDOW_ID = UUID("98000000-0000-4000-8000-000000000002")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 SESSION_NAMESPACE = UUID("ab77cb61-0df1-4df7-a3fb-fbf8bddf58b4")
+# Review-ready golden order the bulk-release orders are copied from.
+SOURCE_ORDER_ID = UUID("80000000-0000-4000-8000-000000000002")
+# Complete, review-ready orders for the bulk invoice release proof.
+BULK_ORDERS = (
+    (UUID("80000000-0000-4000-8000-0000000000b1"), "Sammel Eins KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b2"), "Sammel Zwei KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b3"), "Sammel Drei KG"),
+    # For tests/e2e/invoices-bulk-faults.spec.mjs.
+    (UUID("80000000-0000-4000-8000-0000000000b4"), "Sammel Vier KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b5"), "Sammel Fünf KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b6"), "Sammel Sechs KG"),
+    (UUID("80000000-0000-4000-8000-0000000000b7"), "Sammel Sieben KG"),
+)
 
 
 def require_env(name: str) -> str:
@@ -28,6 +44,93 @@ def require_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing environment variable: {name}")
     return value
+
+
+async def seed_bulk_orders(connection: asyncpg.Connection[Any]) -> None:
+    """Copies the golden review-ready order into complete bulk-release orders.
+
+    Same customer, lines and invoice recipient, plus a delivery address and
+    the past window, so the single and the bulk review let them through.
+    """
+    window = await connection.fetchrow(
+        "SELECT starts_at, ends_at FROM action_delivery_window WHERE id = $1",
+        DELIVERY_WINDOW_ID,
+    )
+    if window is None:
+        raise RuntimeError("The browser delivery window is missing.")
+    zone = ZoneInfo("Europe/Berlin")
+    snapshot = json.dumps(
+        {
+            "windowId": str(DELIVERY_WINDOW_ID),
+            "startsAt": window["starts_at"].astimezone(zone).isoformat(),
+            "endsAt": window["ends_at"].astimezone(zone).isoformat(),
+            "timezone": "Europe/Berlin",
+        }
+    )
+    for index, (order_id, name) in enumerate(BULK_ORDERS):
+        if await connection.fetchval(
+            "SELECT true FROM commitment WHERE id = $1", order_id
+        ):
+            continue
+        async with connection.transaction():
+            # CREATE TABLE AS takes no bind parameters; the id is a constant.
+            await connection.execute(
+                "CREATE TEMP TABLE bulk_order_copy ON COMMIT DROP AS "
+                f"SELECT * FROM commitment WHERE id = '{SOURCE_ORDER_ID}'::uuid"
+            )
+            await connection.execute(
+                """
+                UPDATE bulk_order_copy SET
+                    id = $1,
+                    status = 'review_ready',
+                    customer_snapshot = jsonb_set(
+                        customer_snapshot::jsonb, '{displayName}', to_jsonb($2::text)
+                    )::json,
+                    invoice_recipient_snapshot = jsonb_set(
+                        invoice_recipient_snapshot::jsonb,
+                        '{recipientName}',
+                        to_jsonb($2::text)
+                    )::json,
+                    delivery_recipient_snapshot = jsonb_build_object(
+                        'recipientName', $2::text,
+                        'streetLine1', 'Lagerweg 4',
+                        'postalCode', '10243',
+                        'city', 'Beispielstadt',
+                        'countryCode', 'DE'
+                    ),
+                    delivery_window_id = $3,
+                    delivery_window_snapshot = $4::jsonb,
+                    delivery_contact_snapshot = NULL,
+                    public_reference = NULL,
+                    created_at = now() + make_interval(secs => $5),
+                    updated_at = now() + make_interval(secs => $5)
+                """,
+                order_id,
+                name,
+                DELIVERY_WINDOW_ID,
+                snapshot,
+                index,
+            )
+            await connection.execute(
+                "INSERT INTO commitment SELECT * FROM bulk_order_copy"
+            )
+            await connection.execute(
+                """
+                INSERT INTO commitment_line (
+                    id, commitment_id, offering_id, description_snapshot,
+                    quantity, unit_snapshot, pieces_per_unit_snapshot,
+                    unit_price_minor, line_total_minor
+                )
+                SELECT
+                    gen_random_uuid(), $1, offering_id, description_snapshot,
+                    quantity, unit_snapshot, pieces_per_unit_snapshot,
+                    unit_price_minor, line_total_minor
+                FROM commitment_line
+                WHERE commitment_id = $2
+                """,
+                order_id,
+                SOURCE_ORDER_ID,
+            )
 
 
 async def main() -> None:
@@ -39,6 +142,23 @@ async def main() -> None:
             "KLARA_STALE_SESSION",
             KLARA_ID,
             "poc090-browser-klara-stale-session-token-value",
+            stale_at,
+            stale_at,
+        ),
+        (
+            # A separate stale session: the bulk release proves its own
+            # fresh sign-in round trip, whatever the single proof did.
+            "KLARA_BULK_SESSION",
+            KLARA_ID,
+            "poc090-browser-klara-bulk-stale-session-token-value",
+            stale_at,
+            stale_at,
+        ),
+        (
+            # The bulk fault proof signs in freshly on its own.
+            "KLARA_FAULT_SESSION",
+            KLARA_ID,
+            "poc090-browser-klara-fault-stale-session-token-value",
             stale_at,
             stale_at,
         ),
@@ -111,6 +231,7 @@ async def main() -> None:
             DELIVERY_WINDOW_ID,
             ACTION_ID,
         )
+        await seed_bulk_orders(connection)
     finally:
         await connection.close()
 
@@ -123,7 +244,8 @@ async def main() -> None:
     output.chmod(0o600)
     print(
         "invoice-browser-setup: OK: stale admin and finance reader sessions, "
-        "delivery planning enabled after capture, its window already past"
+        "delivery planning enabled after capture, its window already past, "
+        "complete review-ready orders for the bulk release"
     )
 
 

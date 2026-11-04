@@ -180,6 +180,7 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   Eingegangen: "open",
   Bestätigt: "progress",
   Berechnet: "progress",
+  Fakturiert: "progress",
   Geliefert: "done",
   Storniert: "cancelled",
   // invoices

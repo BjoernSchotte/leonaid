@@ -73,5 +73,10 @@
     "path": "tests/e2e/surveys-responses-faults.spec.mjs",
     "sha256": "7c00460807f6685e1bbc0e87a05cd241dc4fd17df0799d621ac45d656c16e919",
     "reason": "Abort one response read and one committed response-selection acknowledgement; retry the read and the identical selection request against the real API and verify the stored selection."
+  },
+  {
+    "path": "tests/e2e/invoices-bulk-faults.spec.mjs",
+    "sha256": "171b014710bacec49a3cbb0c435d83c7869b77181b67d90e207f3e94dc938510",
+    "reason": "Let one real invoice-issue request reach the API and commit, then abort its first successful answer once (connectionreset), so the bulk release must stop and the retry must replay the same idempotency key; every other request and response passes unchanged from the real API."
   }
 ]
