@@ -24,6 +24,7 @@ from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    UNRELEASED_CONDITION_NOTE,
     shown_count,
     withheld_legend,
 )
@@ -31,9 +32,9 @@ from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
 )
 
-# v6: report workbooks under the disclosure rules of review round 3 (Task
+# v7: report workbooks under the disclosure rules of review round 4 (Task
 # 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
-RENDER_VERSION = "survey-tabular-v6"
+RENDER_VERSION = "survey-tabular-v7"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [
@@ -256,6 +257,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             "minimum",
             "maximum",
             "nps",
+            "note",
         ],
     )
     distributions = workbook.create_sheet("Distributions")
@@ -305,6 +307,9 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 q.minimum,
                 q.maximum,
                 q.nps,
+                UNRELEASED_CONDITION_NOTE
+                if getattr(q, "withheldReason", None) == "unreleasedCondition"
+                else None,
             ],
         )
         # Stored (raw exports) or disclosed (report exports) buckets.

@@ -2,6 +2,8 @@
 
 from uuid import uuid4
 
+import pytest
+
 from leonaid.modules.surveys.application.disclosure import K, disclose, protect
 
 
@@ -375,8 +377,10 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         assert disclosed_render(product, current)
     assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
     # Older, unknown or foreign versions are refused (fails closed). The
-    # previous versions predate review round 3 (N7 to N10).
+    # previous versions predate review round 4 (N11).
     for product, version in [
+        ("analysis_pdf", "survey-analysis-v5+typst-0.13.1"),
+        ("analysis_xlsx", "survey-tabular-v6"),
         ("analysis_pdf", "survey-analysis-v4+typst-0.13.1"),
         ("analysis_xlsx", "survey-tabular-v5"),
         ("analysis_pdf", "survey-analysis-v3+typst-0.14.2"),
@@ -489,3 +493,38 @@ def test_options_equal_under_surveyjs_comparison_make_a_condition_opaque():
     assert disclose(stored).questions[1].relevant is None
     multi["counts"][1]["value"] = "B"
     assert disclose(stored).questions[1].relevant == 28
+
+
+@pytest.mark.parametrize(
+    ("options", "distinct"),
+    [
+        # Plain decimals compare as numbers, as in SurveyJS.
+        (["16", 16], False),
+        (["16.0", "16"], False),
+        (["007", "7"], False),
+        (["16", "17", "x"], True),
+        # Case and trimming (text).
+        (["a", "A"], False),
+        (["x", "x "], False),
+        (["Ja", "Nein"], True),
+        # JavaScript ToNumber reads these as numbers: fail closed (N11).
+        (["0x10", "16"], False),
+        (["0x10", "x"], False),
+        (["0b1", "1"], False),
+        (["0o7", "7"], False),
+        (["1e1", "10"], False),
+        ([" ", "0"], False),
+        ([" 10", "10"], False),
+        (["10﻿", "x"], False),
+        (["Infinity", "x"], False),
+        (["5.", "x"], False),
+        # Not numbers for JavaScript either: text.
+        (["-0x10", "16"], True),
+        (["1,5", "15"], True),
+    ],
+)
+def test_options_are_compared_as_surveyjs_does_or_fail_closed(options, distinct):
+    from leonaid.modules.surveys.application.disclosure import _distinct_options
+
+    source = {"counts": [{"value": value} for value in options]}
+    assert _distinct_options(source) is distinct

@@ -351,6 +351,18 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "sizes": [1, 11],
         "secrets": ["co", "c", ["a", "A", "b"]],
     },
+    "probe N11: options equal under JavaScript number conversion": {
+        "definition": survey(
+            page(
+                "main",
+                checkbox("c", ["0x10", "16", "x"]),
+                radio("f", ["y"], "{c} contains 16"),
+            )
+        ),
+        "profiles": profiles(c=subsets(["0x10", "16", "x"], 1, 3), f=["y"]),
+        "sizes": [1, 11],
+        "secrets": ["co", "c", ["0x10", "16", "x"]],
+    },
 }
 
 

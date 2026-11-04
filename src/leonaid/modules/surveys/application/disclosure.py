@@ -71,7 +71,7 @@ schema; the stored models in ``analysis`` and ``analysis_snapshot`` never
 appear in a response.
 """
 
-import math
+import re
 from datetime import datetime
 from typing import Any, Literal, Self
 
@@ -429,25 +429,55 @@ UNRELEASED_KINDS = {"number", "date", "text", "comment"}
 Leaf = tuple[str, str, str]
 
 
-def _surveyjs_key(value: Any) -> Any:
-    """How SurveyJS compares a value in a condition: case-insensitive,
-    trimmed, numbers and numeric strings alike (settings.comparator)."""
+# JavaScript's whitespace and line terminators (String.prototype.trim and
+# ToNumber strip these, Python's str.strip differs).
+JS_WHITESPACE = (
+    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
+    "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+CANONICAL_DECIMAL = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
+JS_NUMBER = re.compile(
+    r"[+-]?(?:Infinity|(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)"
+    r"|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+"
+)
+
+
+class AmbiguousOption(ValueError):
+    """An option SurveyJS may compare as a number although it is not a
+    plain decimal (hex, exponent, blank, padded): disclose fails closed."""
+
+
+def _surveyjs_key(value: Any) -> tuple[str, Any]:
+    """How SurveyJS compares a value in a condition (N10, N11).
+
+    SurveyJS compares case-insensitively and trimmed, and numbers with
+    strings by JavaScript's loose equality (ToNumber). Only plain decimals
+    (optional sign, digits, optional fraction) count as numbers here. Any
+    other string ToNumber would read as a number (0x10, 0b1, 0o7, 1e1,
+    Infinity, blank or whitespace only, padded decimals) raises
+    ``AmbiguousOption``; everything else is text.
+    """
     if isinstance(value, bool):
-        return value
+        return ("bool", value)
     if isinstance(value, (int, float)):
-        return float(value)
-    text = str(value).strip().lower()
-    try:
-        number = float(text)
-    except ValueError:
-        return text
-    return number if math.isfinite(number) else text
+        return ("number", float(value))
+    text = str(value)
+    if CANONICAL_DECIMAL.fullmatch(text):
+        return ("number", float(text))
+    stripped = text.strip(JS_WHITESPACE)
+    if not stripped or JS_NUMBER.fullmatch(stripped):
+        raise AmbiguousOption(text)
+    return ("text", stripped.lower())
 
 
 def _distinct_options(source: dict[str, Any]) -> bool:
     """N10: options that SurveyJS treats as equal turn one comparison into a
-    union of cells, which is not a released number."""
-    keys = [_surveyjs_key(bucket["value"]) for bucket in source["counts"]]
+    union of cells, which is not a released number. An option whose
+    comparison cannot be modelled exactly counts as a collision (N11)."""
+    try:
+        keys = [_surveyjs_key(bucket["value"]) for bucket in source["counts"]]
+    except AmbiguousOption:
+        return False
     return len(set(keys)) == len(keys)
 
 
@@ -489,6 +519,10 @@ def _with_dependencies(
     stored: dict[str, Any], total: int
 ) -> tuple[list[QuestionAggregate], list[bool]]:
     """R4/R5 from the recorded conditions (definition order).
+
+    Settled snapshots (no raw access): a "new" question is withheld as a
+    whole with ``withheldReason``, and ``disclose`` drops every last page;
+    the page rules below apply to readers only (review round 3).
 
     A question is withheld as a whole (denominators included) when its
     condition, its own and its page's together, is opaque; when it is
