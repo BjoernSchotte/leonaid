@@ -1305,6 +1305,21 @@
         "title": "ActivityFeedItemResponse",
         "type": "object"
       },
+      "ActivityFeedReadAllResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "updated": {
+            "minimum": 0.0,
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "ActivityFeedReadAllResponse",
+        "type": "object"
+      },
       "ActivityFeedResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2572,8 +2587,18 @@
           "commitments": {
             "$ref": "#/components/schemas/DashboardCommitmentResponse"
           },
+          "delivery": {
+            "$ref": "#/components/schemas/DashboardDeliveryResponse"
+          },
           "invoices": {
             "$ref": "#/components/schemas/DashboardInvoiceResponse"
+          },
+          "orderValueWeeks": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardOrderValueWeekResponse"
+            },
+            "title": "Ordervalueweeks",
+            "type": "array"
           },
           "pipeline": {
             "$ref": "#/components/schemas/DashboardPipelineResponse"
@@ -2582,7 +2607,9 @@
         "required": [
           "pipeline",
           "commitments",
-          "invoices"
+          "invoices",
+          "orderValueWeeks",
+          "delivery"
         ],
         "title": "CharityAdminDashboardResponse",
         "type": "object"
@@ -4828,6 +4855,69 @@
         "title": "DashboardCommitmentResponse",
         "type": "object"
       },
+      "DashboardDeliveryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardDeliveryWindowResponse"
+            },
+            "title": "Windows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "windows"
+        ],
+        "title": "DashboardDeliveryResponse",
+        "type": "object"
+      },
+      "DashboardDeliveryWindowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commitments": {
+            "minimum": 0.0,
+            "title": "Commitments",
+            "type": "integer"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "title": "Endsat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "title": "Startsat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt",
+          "commitments",
+          "quantities"
+        ],
+        "title": "DashboardDeliveryWindowResponse",
+        "type": "object"
+      },
       "DashboardGoalResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4900,6 +4990,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "deliveryFailed": {
+            "minimum": 0.0,
+            "title": "Deliveryfailed",
+            "type": "integer"
+          },
           "invoicedAmountMinor": {
             "minimum": 0.0,
             "title": "Invoicedamountminor",
@@ -4918,6 +5013,16 @@
           "openAmountMinor": {
             "minimum": 0.0,
             "title": "Openamountminor",
+            "type": "integer"
+          },
+          "overdue": {
+            "minimum": 0.0,
+            "title": "Overdue",
+            "type": "integer"
+          },
+          "overdueAmountMinor": {
+            "minimum": 0.0,
+            "title": "Overdueamountminor",
             "type": "integer"
           },
           "paid": {
@@ -4945,6 +5050,9 @@
           "total",
           "invoicedAmountMinor",
           "openAmountMinor",
+          "overdue",
+          "overdueAmountMinor",
+          "deliveryFailed",
           "currency"
         ],
         "title": "DashboardInvoiceResponse",
@@ -4977,6 +5085,34 @@
           "href"
         ],
         "title": "DashboardMetricDefinitionResponse",
+        "type": "object"
+      },
+      "DashboardOrderValueWeekResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "isoWeek": {
+            "maximum": 53.0,
+            "minimum": 1.0,
+            "title": "Isoweek",
+            "type": "integer"
+          },
+          "totalMinor": {
+            "minimum": 0.0,
+            "title": "Totalminor",
+            "type": "integer"
+          },
+          "weekStart": {
+            "format": "date",
+            "title": "Weekstart",
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "isoWeek",
+          "totalMinor"
+        ],
+        "title": "DashboardOrderValueWeekResponse",
         "type": "object"
       },
       "DashboardPipelineResponse": {
@@ -21755,6 +21891,87 @@
           }
         },
         "summary": "Get Activity Feed",
+        "tags": [
+          "activity-feed"
+        ]
+      }
+    },
+    "/api/v1/activity-feed/read": {
+      "post": {
+        "operationId": "markActivityFeedRead",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedReadAllResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Mark Activity Feed Read",
         "tags": [
           "activity-feed"
         ]
