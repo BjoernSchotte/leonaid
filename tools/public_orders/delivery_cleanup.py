@@ -28,7 +28,9 @@ async def main(action_id: UUID) -> None:
             retired = await connection.execute(
                 """
                 UPDATE action_delivery_window AS window_row
-                SET retired = true
+                -- Retiring clears "ausgebucht" (a retired window is never
+                -- full), as AsyncpgDeliveryRepository.save does.
+                SET retired = true, fully_booked = false
                 WHERE window_row.action_id = $1
                   AND NOT window_row.retired
                   AND (window_row.starts_at AT TIME ZONE 'Europe/Berlin')::date
