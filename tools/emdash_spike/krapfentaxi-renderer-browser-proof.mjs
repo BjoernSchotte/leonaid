@@ -131,7 +131,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.equal(legacy.status(), 200);
       await expect(page.locator("h1")).toHaveText(core.action.name);
       await expect(page.locator(".taxi-hero__tagline")).toHaveText(
-        "Eine kleine Geste für dein Team. Eine große Hilfe vor Ort.",
+        "Eine kleine Geste für Ihr Team. Eine große Hilfe vor Ort.",
       );
       await expect(page.locator("[data-order-form]")).toHaveCount(1);
       assert.ok(!(await page.content()).includes(marker));

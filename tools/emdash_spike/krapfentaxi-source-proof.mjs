@@ -23,7 +23,7 @@ const root = new URL("../../", import.meta.url);
 const source = await loadKrapfentaxiSource();
 assert.deepEqual(await loadKrapfentaxiSource(), source);
 assert.equal(source.assets.length, 3);
-assert.equal(source.manifest.version, 1);
+assert.equal(source.manifest.version, 2);
 assert.equal(source.manifest.productionRightsCleared, false);
 assert.match(source.manifest.rightsNotice, /Rechte verbleiben/);
 assert.match(source.manifest.rightsNotice, /vor einem produktiven/);

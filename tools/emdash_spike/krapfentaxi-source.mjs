@@ -4,14 +4,15 @@ import { open } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { campaignEditorial } from "../../apps/campaign-site/src/auth/campaign-editorial.mjs";
 
-export const krapfentaxiImportVersion = 1;
+// 2: the copy addresses visitors with "Sie" (public pages use Sie).
+export const krapfentaxiImportVersion = 2;
 const root = new URL("../../", import.meta.url);
 const assetDirectory = "apps/public/src/assets/krapfentaxi/";
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const textSources = [
   {
     path: "apps/public/src/components/KrapfentaxiIntro.astro",
-    sha256: "02de70e6836a63b0d970bee7db7e6b3092747e39200a850a1d43429898d58e91",
+    sha256: "757f10dd40a2837e2f0fdf52edd8148dde147413039bc13b8b580d9c77d02c56",
   },
   {
     path: `${assetDirectory}SOURCES.md`,
@@ -61,17 +62,17 @@ function editorialCopy() {
     title: "Krapfentaxi-Microsite",
     theme: "krapfentaxi",
     hero_title: null,
-    hero_summary: "Eine kleine Geste für dein Team. Eine große Hilfe vor Ort.",
+    hero_summary: "Eine kleine Geste für Ihr Team. Eine große Hilfe vor Ort.",
     story_eyebrow: "Das Lions Krapfentaxi",
     story_title: "Freude teilen.\nGutes möglich machen.",
     body: [
       paragraph(
         "attention",
-        "Für die Kolleginnen und Kollegen, Geschäftspartner oder einfach für Menschen, denen du eine Freude machen möchtest: Mit Krapfen wird aus einer kleinen Aufmerksamkeit gemeinsame Unterstützung.",
+        "Für die Kolleginnen und Kollegen, Geschäftspartner oder einfach für Menschen, denen Sie eine Freude machen möchten: Mit Krapfen wird aus einer kleinen Aufmerksamkeit gemeinsame Unterstützung.",
       ),
       paragraph(
         "together",
-        "Die Lions bringen Menschen zusammen. Welche Einrichtungen diese Aktion unterstützt, erfährst du weiter unten.",
+        "Die Lions bringen Menschen zusammen. Welche Einrichtungen diese Aktion unterstützt, erfahren Sie weiter unten.",
       ),
     ],
     partners: [
