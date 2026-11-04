@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 
@@ -12,7 +12,7 @@ const fixture = JSON.parse(
 );
 
 async function expectNoSeriousAccessibilityViolations(page, label) {
-  const result = await new AxeBuilder({ page }).analyze();
+  const result = await analyzeAccessibility(page);
   expect(
     result.violations
       .filter((v) => v.impact === "critical" || v.impact === "serious")

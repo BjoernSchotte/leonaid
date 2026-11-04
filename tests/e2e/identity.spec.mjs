@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import {
   memberPane,
@@ -250,7 +250,7 @@ test("system admin searches, filters and opens the full member list", async ({
       page.getByRole("heading", { level: 2, name: "Klara Kern", exact: true }),
     ).toBeVisible();
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),

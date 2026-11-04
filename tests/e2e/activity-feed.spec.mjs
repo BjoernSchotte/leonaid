@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -38,7 +38,7 @@ async function pageFor(browser, session, viewport) {
 }
 
 async function expectNoSeriousA11yIssues(page) {
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),

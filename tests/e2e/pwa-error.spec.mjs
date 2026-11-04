@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -35,7 +35,7 @@ test("POC-062 explains a real Twenty outage", async ({ context, page }) => {
   await expect(
     page.getByRole("button", { name: "Sponsoren neu laden" }),
   ).toBeVisible();
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),

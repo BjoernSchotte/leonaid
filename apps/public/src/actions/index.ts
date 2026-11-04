@@ -19,6 +19,14 @@ const optionalText = (maximum: number) =>
   z.string().trim().max(maximum).optional();
 const requiredText = (maximum: number) => z.string().trim().min(1).max(maximum);
 
+// Shared Core messages that also reach "du" surfaces (PWA, admin) are
+// worded for the public order by their stable code; the codes stay as they are.
+const publicMessages: Readonly<Record<string, string>> = {
+  privacy_email_invalid: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+  csrf_rejected:
+    "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
+};
+
 function publicOrderActionError(error: unknown): ActionError {
   if (error instanceof ApiError) {
     const code =
@@ -33,12 +41,15 @@ function publicOrderActionError(error: unknown): ActionError {
               : error.status === 503
                 ? "SERVICE_UNAVAILABLE"
                 : "INTERNAL_SERVER_ERROR";
-    return new ActionError({ code, message: error.detail.message });
+    return new ActionError({
+      code,
+      message: publicMessages[error.detail.code] ?? error.detail.message,
+    });
   }
   return new ActionError({
     code: "SERVICE_UNAVAILABLE",
     message:
-      "Die Bestellung konnte gerade nicht übermittelt werden. Deine Eingaben bleiben erhalten.",
+      "Die Bestellung konnte gerade nicht übermittelt werden. Ihre Eingaben bleiben erhalten.",
   });
 }
 
@@ -99,10 +110,10 @@ export const server = {
       quotedUnitPriceMinor: z.array(z.number().int().min(0)).min(1).max(20),
       message: optionalText(1_000),
       privacyAcknowledged: z.boolean().refine(Boolean, {
-        message: "Bitte bestätige die Hinweise zur Datenverarbeitung.",
+        message: "Bitte bestätigen Sie den Datenschutzhinweis.",
       }),
       bindingOrderConfirmed: z.boolean().refine(Boolean, {
-        message: "Bitte bestätige die verbindliche Bestellung.",
+        message: "Bitte bestätigen Sie die verbindliche Bestellung.",
       }),
       privacyNoticeVersion: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
       website: optionalText(300),
@@ -116,7 +127,7 @@ export const server = {
         throw new ActionError({
           code: "BAD_REQUEST",
           message:
-            "Die Bestellpositionen sind unvollständig. Lade die Seite neu.",
+            "Die Bestellpositionen sind unvollständig. Bitte laden Sie die Seite neu.",
         });
       }
       const lines = input.offeringId
@@ -130,7 +141,8 @@ export const server = {
       if (lines.length === 0) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
-          message: "Wähle mindestens ein Angebot und eine Menge aus.",
+          message:
+            "Bitte wählen Sie mindestens ein Angebot und eine Menge aus.",
         });
       }
       const deliveryFields = [
@@ -151,14 +163,14 @@ export const server = {
       if (!deliveryRecipient && deliveryFields.some(Boolean)) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
-          message: "Bitte vervollständige die Lieferadresse.",
+          message: "Bitte vervollständigen Sie die Lieferadresse.",
         });
       }
       if (input.billingSameAsDelivery && !deliveryRecipient) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
           message:
-            "Bitte gib eine Lieferadresse oder eine Rechnungsadresse an.",
+            "Bitte geben Sie eine Lieferadresse oder eine Rechnungsadresse an.",
         });
       }
       const invoiceRecipient =

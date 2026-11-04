@@ -122,12 +122,33 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 compose up --detach --wait --wait-timeout 420 public proxy
 
+# A Charity-Admin session for the delivery-window case of the browser spec.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/admin_session.py /proof/admin-session.env
+
+# The browser step may switch on delivery windows; undo a leftover from an
+# interrupted run first, and always undo it again afterwards.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/delivery_cleanup.py
+set +e
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env-file "$proof/admin-session.env" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
@@ -140,6 +161,16 @@ docker run --rm \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
+browser_status=$?
+set -e
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/delivery_cleanup.py
+[ "$browser_status" -eq 0 ]
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
