@@ -29,8 +29,10 @@ import { useHotkeys } from "../../keyboard/use-hotkeys";
 import { isTypingTarget, type HotkeyBinding } from "../../keyboard/hotkeys";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
+import { useDiscardDialog } from "../discard-dialog";
 import { EmptyState } from "../empty-state";
 import { Kbd } from "../kbd";
+import { LeaveGuardContext, useLeaveGuardScope } from "../leave-guard";
 import { OptionMenu } from "../option-menu";
 import { fullBleedPage } from "../page-layout";
 import { Popover } from "../popover";
@@ -440,24 +442,81 @@ export function ListView<T>(props: ListViewProps<T>) {
     onStateChangeRef.current?.(state);
   }, [state]);
 
+  /*
+   * Leaving the pane's record (close, j/k, another row, Back): the page's
+   * own guard first, then the shared discard question when a form in the
+   * pane holds a draft (`useLeaveGuard` inside the pane registers here).
+   * True when nothing needs asking, so the common path stays synchronous.
+   */
+  const draftScope = useLeaveGuardScope();
+  const discard = useDiscardDialog(props.address ?? "Sie");
+  const confirmDiscardRef = useRef(discard.confirmDiscard);
+  confirmDiscardRef.current = discard.confirmDiscard;
   const paneGuardRef = useRef(props.paneGuard);
   paneGuardRef.current = props.paneGuard;
-  const paneMayChange = useCallback(() => paneGuardRef.current?.() ?? true, []);
+  const paneDecision = useCallback((): boolean | Promise<boolean> => {
+    const custom = paneGuardRef.current?.() ?? true;
+    const withDrafts = (allowed: boolean): boolean | Promise<boolean> =>
+      !allowed
+        ? false
+        : draftScope.hasDirtyPages()
+          ? confirmDiscardRef.current()
+          : true;
+    return typeof custom === "boolean"
+      ? withDrafts(custom)
+      : custom.then(withDrafts);
+  }, [draftScope]);
+  const whenPaneMayChange = (action: () => void) => {
+    const decision = paneDecision();
+    if (decision === true) action();
+    else if (decision !== false)
+      // A guard that fails keeps the pane, like a "no".
+      void decision.then(
+        (allowed) => {
+          if (allowed) action();
+        },
+        () => {},
+      );
+  };
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
   const openIdRef = useRef(state.openId);
   openIdRef.current = state.openId;
+  /* Set when an answered Back goes on: the next popstate is not asked again. */
+  const backConfirmed = useRef(false);
+  /* An asked Back is still open: further Backs only restore the entry. */
+  const backPending = useRef(false);
   useEffect(() => {
     const onPopState = () => {
       const next = parseListState(window.location.search, schemaRef.current);
-      if (
-        openIdRef.current !== null &&
-        next.openId !== openIdRef.current &&
-        !paneMayChange()
-      ) {
-        // Keep the pane: put the entry the person tried to leave back.
+      const leavesPane =
+        openIdRef.current !== null && next.openId !== openIdRef.current;
+      if (leavesPane && backPending.current && !backConfirmed.current) {
         window.history.pushState(window.history.state, "", lastUrl.current);
+        return;
+      }
+      const decision =
+        leavesPane && !backConfirmed.current ? paneDecision() : true;
+      backConfirmed.current = false;
+      if (decision !== true) {
+        // Keep the pane for now: put the entry the person tried to leave
+        // back, and go back once they agree.
+        window.history.pushState(window.history.state, "", lastUrl.current);
+        if (decision !== false) {
+          backPending.current = true;
+          void decision.then(
+            (allowed) => {
+              backPending.current = false;
+              if (!allowed) return;
+              backConfirmed.current = true;
+              window.history.back();
+            },
+            () => {
+              backPending.current = false;
+            },
+          );
+        }
         return;
       }
       lastUrl.current = window.location.href;
@@ -465,7 +524,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [paneMayChange]);
+  }, [paneDecision]);
 
   const baseView =
     allViews.find((view) => view.id === state.viewId) ?? allViews[0]!;
@@ -631,7 +690,11 @@ export function ListView<T>(props: ListViewProps<T>) {
   }, []);
 
   const openById = (id: string) => {
-    if (renderDetail && openRow && state.openId !== id && !paneMayChange()) {
+    if (renderDetail && openRow && state.openId !== id) {
+      whenPaneMayChange(() => {
+        setFocusedId(id);
+        update({ openId: id });
+      });
       return;
     }
     setFocusedId(id);
@@ -643,8 +706,8 @@ export function ListView<T>(props: ListViewProps<T>) {
     update({ openId: id }, state.openId === null);
   };
 
-  const closePane = () => {
-    if (!paneMayChange()) return;
+  const closePane = () => whenPaneMayChange(closePaneNow);
+  const closePaneNow = () => {
     const previous = state.openId;
     // Replace, not push: opening pushed the entry, so Back after a close
     // leaves the list instead of reopening the pane.
@@ -672,9 +735,14 @@ export function ListView<T>(props: ListViewProps<T>) {
           ? 0
           : Math.max(0, Math.min(flatIds.length - 1, index + delta))
       ]!;
-    if (openRow && next !== state.openId && !paneMayChange()) return;
+    if (openRow && next !== state.openId) {
+      whenPaneMayChange(() => {
+        focusRow(next);
+        update({ openId: next });
+      });
+      return;
+    }
     focusRow(next);
-    if (openRow) update({ openId: next });
   };
 
   const toggleChecked = useCallback((id: string) => {
@@ -1469,7 +1537,9 @@ export function ListView<T>(props: ListViewProps<T>) {
               })}
             </div>
           ) : null}
-          {renderDetail(openRow, { close: closePane })}
+          <LeaveGuardContext.Provider value={draftScope}>
+            {renderDetail(openRow, { close: closePane })}
+          </LeaveGuardContext.Provider>
         </DetailPane>
       ) : null}
 
@@ -1573,6 +1643,7 @@ export function ListView<T>(props: ListViewProps<T>) {
           </Button>
         </form>
       </Popover>
+      {discard.dialog}
     </div>
   );
 }

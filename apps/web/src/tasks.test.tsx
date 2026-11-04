@@ -491,8 +491,8 @@ describe("tasks page", () => {
     expect(window.location.search).not.toContain("create");
   });
 
-  it("asks before a draft in the pane is dropped", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("asks in the app before a draft in the pane is dropped", async () => {
+    const confirm = vi.spyOn(window, "confirm");
     const client = harness({ open: [task("a", "Stände aufbauen")] });
     renderPage(client, { path: `/admin/tasks/${listA}`, listId: listA });
     fireEvent.click(
@@ -504,18 +504,38 @@ describe("tasks page", () => {
     fireEvent.change(within(editor).getByLabelText("Beschreibung"), {
       target: { value: "Entwurf" },
     });
+    // "Abbrechen" closes through the list, which asks first.
+    fireEvent.click(within(editor).getByRole("button", { name: "Abbrechen" }));
+    let question = await screen.findByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    expect(
+      within(question).getByText(
+        "Ihre Änderungen sind noch nicht gespeichert. Wenn Sie fortfahren, gehen sie verloren.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(
+      within(question).getByRole("button", { name: "Weiter bearbeiten" }),
+    );
+    await act(async () => {});
+    expect(screen.getByRole("complementary", { name: /Stände/ })).toBeTruthy();
+    expect(
+      (within(editor).getByLabelText("Beschreibung") as HTMLTextAreaElement)
+        .value,
+    ).toBe("Entwurf");
     act(() => {
       document.body.focus();
     });
     press("Escape");
-    expect(confirm).toHaveBeenCalledWith(
-      "Ihre Änderungen wurden noch nicht gespeichert. Entwurf verwerfen?",
+    question = await screen.findByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    fireEvent.click(
+      within(question).getByRole("button", { name: "Verwerfen" }),
     );
-    expect(screen.getByRole("complementary", { name: /Stände/ })).toBeTruthy();
-    confirm.mockReturnValue(true);
-    press("Escape");
     await act(async () => {});
     expect(screen.queryByRole("complementary", { name: /Stände/ })).toBeNull();
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it("speaks with Du in the app and maps old links", async () => {

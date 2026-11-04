@@ -231,11 +231,11 @@ Twenty versendet über dasselbe Relay Adressbestätigung und Passwort-Reset.
 Beide Absender erreichen das Relay nur über das eigene Netz `mail-egress`;
 alle anderen internen Netze haben keinen Weg nach draußen.
 
-| `MAIL_SMTP_MODE` | `MAIL_SMTP_PORT` | Core-Worker | Twenty |
-| ---------------- | ---------------- | ----------- | ------ |
-| `tls` (Vorlagenstandard) | 465 | implizites TLS | implizites TLS |
-| `starttls` | nicht 465, meist 587 | verlangt STARTTLS | versendet nichts |
-| `plain` | – | in Produktion abgelehnt | in Produktion abgelehnt |
+| `MAIL_SMTP_MODE`         | `MAIL_SMTP_PORT`     | Core-Worker             | Twenty                  |
+| ------------------------ | -------------------- | ----------------------- | ----------------------- |
+| `tls` (Vorlagenstandard) | 465                  | implizites TLS          | implizites TLS          |
+| `starttls`               | nicht 465, meist 587 | verlangt STARTTLS       | versendet nichts        |
+| `plain`                  | –                    | in Produktion abgelehnt | in Produktion abgelehnt |
 
 Beide prüfen das Relay-Zertifikat gegen die öffentlichen CAs, deshalb
 lehnt der Pilot `MAIL_SMTP_CA_FILE` ab. Pilot Doctor lehnt einen Port ab,
