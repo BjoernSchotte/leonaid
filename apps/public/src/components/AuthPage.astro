@@ -1,93 +1,170 @@
 ---
-import PublicMark from "./PublicMark.astro";
-
 interface Props {
   fresh?: boolean;
 }
 
 const { fresh = false } = Astro.props;
+// Members sign in here as well, so /login says "du"; the fresh sign-in is a
+// back-office step-up and says "Sie".
 const title = fresh ? "Anmeldung bestätigen" : "Bei LeonAid anmelden";
 const introduction = fresh
-  ? "Bestätige deine Anmeldung erneut, bevor du eine sensible Änderung ausführst."
-  : "Fordere einen einmaligen Magic Link oder sechsstelligen Code für deine Login-E-Mail an.";
+  ? "Für Rechnungen, Rollen und andere Vorgänge, die sich nicht einfach zurücknehmen lassen, bestätigen Sie Ihre Anmeldung erneut."
+  : "Wir schicken dir einen Code per E-Mail. Ein Passwort brauchst du dafür nicht.";
 const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
+const mail =
+  "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z m18 2-10 7L2 6";
+const signIn =
+  "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3";
 ---
 
-<section class="auth-page" data-auth-fresh={String(fresh)}>
-  <main class="auth-panel">
-    <PublicMark />
-    <p class="eyebrow">Sicherer Zugang</p>
-    <h1>{title}</h1>
-    <p class="auth-panel__lead" id="auth-intro">{introduction}</p>
-    <form id="request-login-form">
+<div class="login-card" data-auth-fresh={String(fresh)}>
+  {
+    fresh && (
+      <span class="stepup-icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      </span>
+    )
+  }
+  <h1>{title}</h1>
+  <p class="login-lead" id="auth-intro">{introduction}</p>
+  <form id="request-login-form">
+    {
+      !fresh && (
+        <div class="login-field">
+          <label for="login-email">Login-E-Mail</label>
+          <small id="login-email-help">
+            Die Adresse, mit der du zu LeonAid eingeladen wurdest.
+          </small>
+          <input
+            id="login-email"
+            aria-describedby="login-email-help"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          />
+        </div>
+      )
+    }
+    <button class="login-submit" data-testid="request-login" type="submit">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"><path d={mail}></path></svg
+      >
+      {requestLabel}
+    </button>
+    <p class="login-note">
       {
-        !fresh && (
-          <div class="auth-field">
-            <label for="login-email">Login-E-Mail</label>
-            <small id="login-email-help">
-              Verwende die Adresse, mit der du zu LeonAid eingeladen wurdest.
-            </small>
-            <input
-              id="login-email"
-              aria-describedby="login-email-help"
-              name="email"
-              type="email"
-              autocomplete="email"
-              required
-            />
-          </div>
-        )
+        fresh
+          ? "Nach der Bestätigung kommen Sie direkt zu Ihrem Vorgang zurück."
+          : "Aus Sicherheitsgründen ist die Antwort immer gleich – auch wenn die Adresse nicht registriert ist."
       }
-      <button data-testid="request-login" type="submit">{requestLabel}</button>
-      <p class="auth-panel__help">
-        Aus Sicherheitsgründen ist die Antwort immer gleich – auch wenn die
-        Adresse nicht registriert ist.
-      </p>
-    </form>
-    <form id="complete-login-form" hidden>
-      {
-        !fresh && (
-          <div class="auth-field code-email">
-            <label for="complete-email">Login-E-Mail</label>
-            <input
-              id="complete-email"
-              name="email"
-              type="email"
-              autocomplete="email"
-              required
-            />
-          </div>
-        )
-      }
-      <div class="auth-field code-field">
-        <label for="login-code">Sechsstelliger Code</label>
-        <small id="login-code-help">
-          Der Code aus der zuletzt versendeten LeonAid-E-Mail.
-        </small>
-        <input
-          id="login-code"
-          aria-describedby="login-code-help"
-          name="code"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          pattern="[0-9]{6}"
-          maxlength="6"
-          required
-        />
-      </div>
-      <button data-testid="complete-login" type="submit">
-        {fresh ? "Anmeldung bestätigen" : "Anmelden"}
-      </button>
-    </form>
-    <p
-      id="auth-status"
-      class="auth-panel__status"
-      role="status"
-      aria-live="polite"
-    >
     </p>
-  </main>
-</section>
+  </form>
+  <form id="complete-login-form" hidden>
+    <button class="login-back" id="login-back" type="button">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg
+      >
+      {fresh ? "Zurück" : "Andere E-Mail-Adresse"}
+    </button>
+    {
+      !fresh && (
+        <div class="login-field code-email">
+          <label for="complete-email">Login-E-Mail</label>
+          <input
+            id="complete-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          />
+        </div>
+      )
+    }
+    <div class="login-field code-field">
+      <label for="login-code">Sechsstelliger Code</label>
+      <small id="login-code-help">
+        {
+          fresh
+            ? "Der Code aus der zuletzt versendeten LeonAid-E-Mail. Sie können ihn auch einfügen."
+            : "Der Code aus der zuletzt versendeten LeonAid-E-Mail. Du kannst ihn auch einfügen."
+        }
+      </small>
+      <input
+        class="login-code"
+        id="login-code"
+        aria-describedby="login-code-help"
+        name="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        required
+      />
+    </div>
+    <button class="login-submit" data-testid="complete-login" type="submit">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"><path d={signIn}></path></svg
+      >
+      {fresh ? "Anmeldung bestätigen" : "Anmelden"}
+    </button>
+    <p class="login-alt code-field">
+      <button class="login-link" id="resend-code" type="button" disabled>
+        Neuen Code senden
+      </button>
+    </p>
+  </form>
+  <p id="auth-status" class="login-status" role="status" aria-live="polite"></p>
+  {
+    fresh ? (
+      <p class="login-alt">
+        <a id="auth-cancel" href="/admin/">
+          Abbrechen und zurück
+        </a>
+      </p>
+    ) : (
+      <p class="login-note">
+        Keine Einladung erhalten? Wende dich an die Aktionsleitung deines Clubs.
+      </p>
+    )
+  }
+</div>
 
 <script>
   import { safeLocalReturnTo } from "../lib/return-to";
@@ -105,11 +182,15 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     return element;
   }
 
-  const page = requiredElement<HTMLElement>(".auth-page");
+  const page = requiredElement<HTMLElement>(".login-card");
   const requestForm = requiredElement<HTMLFormElement>("#request-login-form");
   const completeForm = requiredElement<HTMLFormElement>("#complete-login-form");
   const status = requiredElement<HTMLElement>("#auth-status");
+  const introduction = requiredElement<HTMLElement>("#auth-intro");
+  const back = requiredElement<HTMLButtonElement>("#login-back");
+  const resend = requiredElement<HTMLButtonElement>("#resend-code");
   const api = new LeonAidApiClient(window.location.origin);
+  const initialIntroduction = introduction.textContent ?? "";
 
   const fresh = page.dataset.authFresh === "true";
   const parameters = new URLSearchParams(window.location.search);
@@ -121,6 +202,8 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     requestedReturnTo,
     fresh ? "/admin/" : "/app/",
   );
+  const cancel = document.querySelector<HTMLAnchorElement>("#auth-cancel");
+  if (cancel) cancel.href = returnTo;
 
   function defaultDestination(identity: CurrentIdentityResponse): string {
     const actionRoles = new Set(
@@ -166,19 +249,102 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     return control instanceof HTMLInputElement ? control : null;
   }
 
+  // A new code may be requested after 30 s; the server limits the rate.
+  const RESEND_SECONDS = 30;
+  let resendTimer: ReturnType<typeof setInterval> | undefined;
+  function startResendCooldown(): void {
+    let remaining = RESEND_SECONDS;
+    resend.disabled = true;
+    resend.textContent = `Neuen Code anfordern in ${remaining} s`;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        resend.textContent = `Neuen Code anfordern in ${remaining} s`;
+        return;
+      }
+      clearInterval(resendTimer);
+      resend.disabled = false;
+      resend.textContent = "Neuen Code senden";
+    }, 1000);
+  }
+
   function showCode(email: string | null): void {
     requestForm.hidden = true;
     completeForm.hidden = false;
     const completeEmail = formControl(completeForm, "email");
     if (!fresh && email && completeEmail) completeEmail.value = email;
+    // The address is known: name it instead of asking again.
+    const emailField = completeForm.querySelector<HTMLElement>(".code-email");
+    if (emailField && email) emailField.hidden = true;
+    if (email) {
+      introduction.textContent = "Wir haben dir einen Code geschickt an ";
+      const strong = document.createElement("strong");
+      strong.textContent = email;
+      introduction.append(strong, ".");
+    } else if (fresh) {
+      introduction.textContent =
+        "Wir haben Ihnen einen Code an Ihre Login-E-Mail geschickt.";
+    }
+    startResendCooldown();
     formControl(completeForm, "code")?.focus();
+  }
+
+  formControl(completeForm, "code")?.addEventListener("input", (event) => {
+    (event.target as HTMLInputElement).removeAttribute("aria-invalid");
+  });
+
+  back.addEventListener("click", () => {
+    clearInterval(resendTimer);
+    completeForm.hidden = true;
+    requestForm.hidden = false;
+    introduction.textContent = initialIntroduction;
+    status.textContent = "";
+    status.dataset.state = "";
+    const button = requestForm.querySelector<HTMLButtonElement>("button");
+    if (button) button.disabled = false;
+    (formControl(requestForm, "email") ?? button)?.focus();
+  });
+
+  resend.addEventListener("click", async () => {
+    resend.disabled = true;
+    status.setAttribute("role", "status");
+    status.dataset.state = "";
+    try {
+      if (fresh) await api.requestFreshLogin();
+      else
+        await api.requestLogin({
+          email: formControl(completeForm, "email")?.value ?? "",
+        });
+      status.dataset.state = "success";
+      status.textContent = fresh
+        ? "Neuer Code gesendet. Der vorherige Code gilt nicht mehr."
+        : "Neuer Code gesendet, wenn der Zugang berechtigt ist.";
+      startResendCooldown();
+    } catch (error) {
+      status.setAttribute("role", "alert");
+      status.dataset.state = "error";
+      status.textContent = tooMany(error)
+        ? rateLimited
+        : fresh
+          ? "Der Code konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+          : "Der Code konnte nicht gesendet werden. Versuche es erneut.";
+      resend.disabled = false;
+    }
+  });
+
+  const rateLimited = fresh
+    ? "Zu viele Versuche in kurzer Zeit. Bitte warten Sie zehn Minuten und fordern Sie dann einen neuen Code an."
+    : "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten und fordere den Zugang dann erneut an.";
+  function tooMany(error: unknown): boolean {
+    return error instanceof ApiError && error.status === 429;
   }
 
   if (token) {
     requestForm.hidden = true;
     completeForm.hidden = false;
     document
-      .querySelectorAll<HTMLElement>(".code-field, .code-email")
+      .querySelectorAll<HTMLElement>(".code-field, .code-email, #login-back")
       .forEach((field) => {
         field.hidden = true;
       });
@@ -186,11 +352,9 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     const email = formControl(completeForm, "email");
     if (code) code.required = false;
     if (email) email.required = false;
-    const introduction = document.querySelector("#auth-intro");
-    if (introduction) {
-      introduction.textContent =
-        "Der Magic Link ist bereit. Bestätige die einmalige Anmeldung.";
-    }
+    introduction.textContent = fresh
+      ? "Der Link ist bereit. Bestätigen Sie die Anmeldung."
+      : "Der Magic Link ist bereit. Bestätige die einmalige Anmeldung.";
     window.history.replaceState(
       {},
       "",
@@ -216,18 +380,18 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
         await api.requestLogin({ email: email ?? "" });
       }
       status.dataset.state = "success";
-      status.textContent =
-        "Wenn der Zugang berechtigt ist, wurde eine E-Mail versendet. Gib den Code hier ein.";
+      status.textContent = fresh
+        ? "Geben Sie den Code aus der E-Mail hier ein."
+        : "Wenn der Zugang berechtigt ist, wurde eine E-Mail versendet. Gib den Code hier ein.";
       showCode(email);
     } catch (error) {
       status.setAttribute("role", "alert");
       status.dataset.state = "error";
-      status.textContent =
-        error instanceof ApiError && error.status === 429
-          ? "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten und fordere den Zugang dann erneut an."
-          : fresh
-            ? "Deine Sitzung ist nicht mehr gültig. Bitte melde dich vollständig neu an."
-            : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
+      status.textContent = tooMany(error)
+        ? rateLimited
+        : fresh
+          ? "Ihre Sitzung ist nicht mehr gültig. Bitte melden Sie sich vollständig neu an."
+          : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
       button.disabled = false;
     }
   });
@@ -256,14 +420,16 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
       }
       status.dataset.state = "success";
       status.textContent = fresh
-        ? "Bestätigt. Du kannst fortfahren."
+        ? "Bestätigt. Sie können fortfahren."
         : "Erfolgreich angemeldet.";
       window.location.replace(await destinationAfterLogin());
     } catch {
       status.setAttribute("role", "alert");
       status.dataset.state = "error";
-      status.textContent =
-        "Link oder Code ist ungültig oder abgelaufen. Fordere einen neuen Zugang an.";
+      status.textContent = fresh
+        ? "Link oder Code ist ungültig oder abgelaufen. Fordern Sie einen neuen Code an."
+        : "Link oder Code ist ungültig oder abgelaufen. Fordere einen neuen Code an.";
+      formControl(completeForm, "code")?.setAttribute("aria-invalid", "true");
       button.disabled = false;
     }
   });
