@@ -513,7 +513,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 code="csrf_rejected",
                 message=(
                     "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt. "
-                    "Lade die Seite neu und versuche es erneut."
+                    "Bitte die Seite neu laden und erneut versuchen."
                 ),
             )
         rate_policy = await rate_limit_violation(
@@ -527,7 +527,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 request,
                 status_code=429,
                 code="request_rate_limited",
-                message="Zu viele Versuche. Bitte warte kurz und versuche es erneut.",
+                message="Zu viele Versuche. Bitte kurz warten und erneut versuchen.",
             )
             limited_response.headers["Retry-After"] = str(
                 max(1, int(rate_policy.window.total_seconds()))

@@ -356,8 +356,7 @@ class SponsorMatchingService:
                 if preview.status is not expected_status:
                     raise Conflict(
                         "sponsor_match_changed",
-                        "Der CRM-Bestand hat sich geändert. Bitte prüfe die "
-                        "Treffer erneut.",
+                        "Der CRM-Bestand hat sich geändert. Bitte die Treffer erneut prüfen.",
                     )
                 if preview.status is SponsorMatchStatus.NO_MATCH:
                     if selected_twenty_id is not None:
@@ -388,7 +387,7 @@ class SponsorMatchingService:
                         raise Conflict(
                             "sponsor_match_confirmation_required",
                             f"Der Sponsor ist bereits {names} zugeordnet. "
-                            "Bestätige die zusätzliche Zuordnung ausdrücklich.",
+                            "Die zusätzliche Zuordnung muss ausdrücklich bestätigt werden.",
                         )
                     outcome = SponsorResolutionOutcome.REUSED
 
@@ -524,7 +523,7 @@ class SponsorMatchingService:
                 return candidate
         raise Conflict(
             "sponsor_match_selection_required",
-            "Wähle einen der angezeigten CRM-Treffer aus.",
+            "Bitte einen der angezeigten CRM-Treffer auswählen.",
         )
 
     async def _create_candidate(

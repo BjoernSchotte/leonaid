@@ -119,7 +119,7 @@ class InvoiceService:
             return
         raise PermissionDenied(
             "invoice_read_required",
-            "Du darfst die Rechnungen dieser Charity-Aktion nicht einsehen.",
+            "Für die Rechnungen dieser Charity-Aktion fehlt die Leseberechtigung.",
         )
 
     async def context(

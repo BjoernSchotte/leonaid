@@ -237,7 +237,7 @@ class AsyncpgSurveyExports:
             if recent >= EXPORT_JOBS_PER_WINDOW:
                 raise RateLimited(
                     "limit_exceeded",
-                    "Zu viele Exportaufträge. Bitte warte zehn Minuten und versuche es erneut.",
+                    "Zu viele Exportaufträge. Bitte zehn Minuten warten und erneut versuchen.",
                 )
             job_id, event_id = uuid4(), uuid4()
             await conn.execute(

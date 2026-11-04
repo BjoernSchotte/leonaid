@@ -235,14 +235,14 @@ class InvitationService:
             action_id,
             PolicySurface.WRITE,
             code="invitation_action_forbidden",
-            message="Du darfst für diese Charity-Aktion keine Mitglieder einladen.",
+            message="Für diese Charity-Aktion fehlt die Berechtigung, Mitglieder einzuladen.",
         )
         normalized_email = normalize_email(email)
         normalized_name = " ".join(display_name.split())
         if not normalized_name:
             raise ApplicationError(
                 "invitation_display_name_invalid",
-                "Bitte gib den Namen des eingeladenen Mitglieds an.",
+                "Bitte den Namen des eingeladenen Mitglieds angeben.",
             )
         context = await self._repository.invitation_context(
             actor.account.id,

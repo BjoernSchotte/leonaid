@@ -111,7 +111,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
-                            "Die Bestellung wurde gleichzeitig verarbeitet. Bitte versuche denselben Vorgang erneut.",
+                            "Die Bestellung wurde gleichzeitig verarbeitet. Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Der Entwurfsabschluss wurde nicht ausgeführt.")
@@ -152,7 +152,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             ):
                 raise PermissionDenied(
                     "commitment_owner_required",
-                    "Du kannst nur deine eigenen Akquise-Bestellungen aufrufen.",
+                    "Nur eigene Akquise-Bestellungen können aufgerufen werden.",
                 )
             buyer = BuyerSnapshot.from_payload(
                 _json_object(row["customer_snapshot"], label="Besteller-Snapshot")
@@ -456,7 +456,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
             raise RuntimeError("Die Commitment-Transaktion wurde nicht ausgeführt.")
@@ -675,7 +675,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         if not assigned:
             raise PermissionDenied(
                 "commitment_party_not_assigned",
-                "Der Sponsor ist dir für diese Charity-Aktion nicht zugeordnet.",
+                "Der Sponsor ist diesem Konto für diese Charity-Aktion nicht zugeordnet.",
             )
 
     @staticmethod

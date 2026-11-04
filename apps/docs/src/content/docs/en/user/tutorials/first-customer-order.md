@@ -4,8 +4,8 @@ description: A learning path for acquirers from an assigned sponsor to an order 
 docId: DOC-P011
 audience: [user]
 diataxis: tutorial
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---

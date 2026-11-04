@@ -268,7 +268,7 @@ class CommitmentService:
         ):
             raise PermissionDenied(
                 "commitment_capture_required",
-                "Für diese Aktion darfst du keine Bestellung erfassen.",
+                "Für diese Aktion fehlt die Berechtigung, Bestellungen zu erfassen.",
             )
 
     async def get_internal(

@@ -17,7 +17,7 @@ spricht Bestellende mit „Sie“ an.
 
 1. Öffne die Aktionsseite und wähle **Jetzt bestellen**.
 2. Stelle unter **Ihre Auswahl** die Menge mit **−** und **+** ein oder tippe
-   sie ein, und prüfe den **Aktuellen Bestellwert**.
+   sie ein, und prüfe den Betrag unter **Aktueller Bestellwert**.
 3. Wähle unter **Wer bestellt?** zwischen **Firma oder Verein** und
    **Privatperson**. Bei einer Privatperson entfällt das Feld Firma, sofern das
    konkrete Formular die Firma nicht verlangt. Ergänze Vorname, Nachname und
