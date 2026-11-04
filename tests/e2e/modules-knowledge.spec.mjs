@@ -140,14 +140,17 @@ for (const [surface, width] of [
         );
       })
       .toBeLessThan(24);
-    const mainPositions = await mainToolbar
-      .getByRole("button")
-      .evaluateAll((buttons) =>
-        buttons
-          .filter((button) => button.getClientRects().length)
-          .map((button) => Math.round(button.getBoundingClientRect().y)),
-      );
-    expect(new Set(mainPositions).size).toBe(1);
+    // No tool is cut off: whole groups wrap inside the 856 px format bar.
+    const mainOverflow = await mainToolbar.evaluate((bar) => {
+      const frame = bar.getBoundingClientRect();
+      return [...bar.querySelectorAll("button, select")]
+        .filter((tool) => tool.getClientRects().length)
+        .filter((tool) => {
+          const box = tool.getBoundingClientRect();
+          return box.right > frame.right + 1 || box.left < frame.left - 1;
+        }).length;
+    });
+    expect(mainOverflow).toBe(0);
     const menuBounds = await bubbleRoot.boundingBox();
     const iconBounds = await bubble.getByRole("button").evaluateAll((buttons) =>
       buttons.map((button) => ({
