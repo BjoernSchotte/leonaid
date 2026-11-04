@@ -35,8 +35,8 @@ def upgrade() -> None:
             state text CHECK (state IN ('delivered', 'missed')),
             state_changed_at timestamptz,
             state_changed_by_user_id uuid REFERENCES user_account(id),
-            -- Set when a closure marked the drop missed; only such a drop may
-            -- go back to missed after a later delivery in a closed window.
+            -- Set when a closure marked the order missed; only such an order
+            -- may go back to missed after a later delivery in a closed window.
             missed_at_closure boolean NOT NULL DEFAULT false,
             revision integer NOT NULL DEFAULT 1 CHECK (revision > 0),
             FOREIGN KEY (action_id, commitment_id)
