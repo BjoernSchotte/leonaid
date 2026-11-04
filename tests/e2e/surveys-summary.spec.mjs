@@ -171,15 +171,19 @@ test("aggregate-only: charts without quotes, no list, at least one day", async (
       page.getByRole("navigation", { name: "Antworten" }),
     ).toHaveCount(0);
     const form = page.locator(".svr-form");
-    await expect(form).toContainText("mindestens einen Tag");
-    const start = new Date(Date.now() - 3 * 3600 * 1000);
-    const local = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+    await expect(form).toContainText("ganze Tage");
+    await expect(
+      form.getByLabel("Begonnen ab", { exact: true }),
+    ).toHaveAttribute("type", "date");
+    // A start today selects nothing: whole days up to yesterday only.
+    const today = new Date();
+    const day = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
       .toISOString()
-      .slice(0, 16);
-    await form.getByLabel("Begonnen ab", { exact: true }).fill(local);
+      .slice(0, 10);
+    await form.getByLabel("Begonnen ab", { exact: true }).fill(day);
     await form.getByRole("button", { name: "Antworten auswählen" }).click();
     await expect(form.getByRole("alert")).toContainText(
-      "Zeitraum von mindestens einem Tag",
+      "nur ganze Tage bis gestern",
     );
     await form.getByLabel("Begonnen ab", { exact: true }).fill("");
     await form.getByRole("button", { name: "Antworten auswählen" }).click();

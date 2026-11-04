@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
+from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 
@@ -254,8 +255,10 @@ async def main():
         filters = {"versionId": str(version)}
         body = {"operationId": "golden", "filter": filters}
 
-        shown = await call("POST", path, body, analyst)
-        assert shown == await call("POST", path, body, analyst)
+        # Created by the owner (raw reader): the selection is not snapped
+        # to whole days. The aggregate-only member reads it below.
+        shown = await call("POST", path, body)
+        assert shown == await call("POST", path, body)
         assert shown == await call("GET", path + "/" + shown["id"], auth=analyst)
         # The API discloses with k = 5 (application/disclosure.py): the five
         # participations are shown, every count of 1-4 people is withheld.
@@ -331,7 +334,7 @@ async def main():
             "POST",
             path,
             {**body, "filter": {**filters, "statuses": ["completed"]}},
-            analyst,
+            admin,
             409,
         )
         completed = await call(
@@ -341,7 +344,6 @@ async def main():
                 "operationId": "completed",
                 "filter": {**filters, "statuses": ["completed"]},
             },
-            analyst,
         )
         # One participation: no results through the API at all.
         assert completed["suppressed"] and all(
@@ -358,7 +360,6 @@ async def main():
                 "POST",
                 path,
                 {"operationId": "v2", "filter": {"versionId": str(second_version)}},
-                analyst,
             )
         )
         assert v2["participationCount"] == 1 and v2["versionNumber"] == 2
@@ -415,7 +416,6 @@ async def main():
                 "operationId": "future",
                 "filter": {**filters, "createdFrom": "2099-01-01T00:00:00Z"},
             },
-            analyst,
         )
         assert empty["participationCount"] == 0 and all(
             q["nps"] is None and q["answered"] == 0 for q in empty["questions"]
@@ -431,14 +431,14 @@ async def main():
                         "createdBefore": (now - timedelta(seconds=90)).isoformat(),
                     },
                 },
-                analyst,
             )
         )
         assert (
             before["participationCount"] == 1 and before["statusCounts"]["partial"] == 1
         )
         boundary = now - timedelta(minutes=1)
-        # Aggregate-only accounts may not select less than one day.
+        # Aggregate-only (no read_responses, no export_raw): whole Berlin
+        # days, never into today (disclosure.whole_days).
         narrow = await call(
             "POST",
             path,
@@ -449,7 +449,38 @@ async def main():
             analyst,
             422,
         )
-        assert narrow["error"]["code"] == "range_too_narrow"
+        assert narrow["error"]["code"] == "range_whole_days"
+        snapped = await call(
+            "POST",
+            path,
+            {
+                "operationId": "snapped",
+                "filter": {
+                    **filters,
+                    "createdFrom": "2026-01-01T13:00:00Z",
+                    "createdBefore": "2026-02-01T05:00:00Z",
+                },
+            },
+            analyst,
+        )
+        assert (
+            snapped["filter"]["createdFrom"],
+            snapped["filter"]["createdBefore"],
+        ) == ("2025-12-31T23:00:00+00:00", "2026-02-01T23:00:00+00:00")
+        today_start = local_day_bounds(local_day(datetime.now(timezone.utc)))[0]
+        open_end = await call(
+            "POST", path, {"operationId": "open-end", "filter": filters}, analyst
+        )
+        assert open_end["filter"]["createdBefore"] == today_start.isoformat()
+        before_today = await conn.fetchval(
+            "SELECT count(*) FROM survey_participation WHERE survey_id=$1 AND version_id=$2 AND NOT is_test AND created_at < $3",
+            sid,
+            version,
+            today_start,
+        )
+        assert open_end["participationCount"] <= before_today
+        if before_today == 0:
+            assert open_end["participationCount"] == 0
         # The boundary semantics, checked as the survey owner (raw reader).
         inclusive = await call(
             "POST",
@@ -473,7 +504,6 @@ async def main():
                 "operationId": "exclusive",
                 "filter": {**filters, "createdBefore": boundary.isoformat()},
             },
-            analyst,
         )
         assert exclusive["participationCount"] == 1
         await conn.execute(

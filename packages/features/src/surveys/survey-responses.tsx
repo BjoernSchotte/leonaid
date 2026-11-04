@@ -181,6 +181,11 @@ const localInput = (value: string | null) =>
         .slice(0, 16)
     : "";
 
+/** A date or datetime-local value as an instant: a bare day means 00:00 local. */
+function localInstant(value: string): string {
+  return new Date(value.length === 10 ? `${value}T00:00` : value).toISOString();
+}
+
 /** ApiError text with support code; a read-specific fallback otherwise. */
 function readError(cause: unknown, fallback: string): string {
   return cause instanceof ApiError
@@ -707,12 +712,8 @@ function SurveyResponses({
   async function create(repeat = false) {
     if (running.current) return;
     if (!repeat) {
-      const createdFrom = filter.from
-        ? new Date(filter.from).toISOString()
-        : null;
-      const createdBefore = filter.before
-        ? new Date(filter.before).toISOString()
-        : null;
+      const createdFrom = filter.from ? localInstant(filter.from) : null;
+      const createdBefore = filter.before ? localInstant(filter.before) : null;
       if (createdFrom && createdBefore && createdFrom >= createdBefore) {
         setError("Das Ende des Zeitraums muss nach seinem Beginn liegen.");
         return;
@@ -797,9 +798,10 @@ function SurveyResponses({
       onRetry={() => void create(true)}
       onSubmit={() => void create()}
       progress={creating}
+      daysOnly={mode === "aggregates"}
       rangeHint={
         mode === "aggregates"
-          ? "Der Zeitraum umfasst mindestens einen Tag, damit niemand einzeln erkennbar wird."
+          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern, damit niemand einzeln erkennbar wird."
           : undefined
       }
       retry={retry}
@@ -942,6 +944,7 @@ function SelectionForm({
   onDiscardRetry,
   progress,
   rangeHint,
+  daysOnly = false,
 }: {
   versions: readonly { id: string; number: number }[];
   filter: SelectionFilter;
@@ -955,6 +958,8 @@ function SelectionForm({
   onDiscardRetry: () => void;
   progress: LoadProgress | null;
   rangeHint?: string;
+  /** Accounts without raw access pick whole days (the server snaps anyway). */
+  daysOnly?: boolean;
 }) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
@@ -1019,15 +1024,15 @@ function SelectionForm({
         </fieldset>
         <Field label="Begonnen ab">
           <input
-            type="datetime-local"
-            value={filter.from}
+            type={daysOnly ? "date" : "datetime-local"}
+            value={daysOnly ? filter.from.slice(0, 10) : filter.from}
             onChange={(e) => onChange({ ...filter, from: e.target.value })}
           />
         </Field>
         <Field label="Begonnen vor">
           <input
-            type="datetime-local"
-            value={filter.before}
+            type={daysOnly ? "date" : "datetime-local"}
+            value={daysOnly ? filter.before.slice(0, 10) : filter.before}
             onChange={(e) => onChange({ ...filter, before: e.target.value })}
           />
         </Field>

@@ -162,24 +162,40 @@ def test_large_counts_pass_unchanged():
     assert shown.lastPageCounts[0].count == 30
 
 
-def test_range_rule_bounds_the_width_from_the_start():
+def test_whole_days_snap_to_berlin_days_and_stop_before_today():
     from datetime import datetime, timezone
 
-    from leonaid.modules.surveys.application.disclosure import range_too_narrow
+    from leonaid.modules.surveys.application.disclosure import whole_days
 
+    # 12:00 UTC on 4 Nov 2026 is 13:00 in Berlin (CET, UTC+1).
     now = datetime(2026, 11, 4, 12, tzinfo=timezone.utc)
-    assert not range_too_narrow(None, None, now)
-    assert not range_too_narrow(None, "2026-11-04T11:00:00+00:00", now)
-    assert range_too_narrow("2026-11-04T00:00:00+00:00", None, now)
-    assert not range_too_narrow("2026-11-03T12:00:00+00:00", None, now)
-    assert range_too_narrow(
-        "2026-11-01T00:00:00+00:00", "2026-11-01T23:59:00+00:00", now
+    today = "2026-11-03T23:00:00+00:00"  # 4 Nov, 00:00 Berlin
+    assert whole_days(None, None, now) == (None, today)
+    # A start mid-day snaps to 00:00 Berlin of that day.
+    assert whole_days("2026-10-01T13:00:00+00:00", None, now) == (
+        "2026-09-30T22:00:00+00:00",  # 1 Oct 00:00 CEST
+        today,
     )
-    assert not range_too_narrow(
-        "2026-11-01T00:00:00+00:00", "2026-11-02T00:00:00+00:00", now
+    # An end mid-day snaps to 24:00 of that day; an aligned end stays.
+    assert whole_days(None, "2026-10-10T05:00:00+00:00", now)[1] == (
+        "2026-10-10T22:00:00+00:00"
     )
-    # A future start selects no one: nothing to isolate.
-    assert not range_too_narrow("2099-01-01T00:00:00+00:00", None, now)
+    assert whole_days(None, "2026-10-09T22:00:00+00:00", now)[1] == (
+        "2026-10-09T22:00:00+00:00"
+    )
+    # Never into the current day, even with a later end.
+    assert whole_days(None, "2026-11-04T11:00:00+00:00", now)[1] == today
+    assert whole_days(None, "2099-01-01T00:00:00+00:00", now)[1] == today
+    # A start today leaves nothing: start == end (the caller refuses it).
+    start, end = whole_days("2026-11-04T09:00:00+00:00", None, now)
+    assert start == end == today
+    # The clocks change on 25 Oct: that day has 25 hours.
+    assert whole_days(
+        "2026-10-25T12:00:00+00:00", "2026-10-25T12:00:00+00:00", now
+    ) == (
+        "2026-10-24T22:00:00+00:00",
+        "2026-10-25T23:00:00+00:00",
+    )
 
 
 def test_nps_segments_follow_the_same_rules():

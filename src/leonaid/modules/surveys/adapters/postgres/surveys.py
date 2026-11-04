@@ -23,7 +23,7 @@ from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
     request_deletion,
 )
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisFilter
-from leonaid.modules.surveys.application.disclosure import range_too_narrow
+from leonaid.modules.surveys.application.disclosure import whole_days
 from leonaid.modules.surveys.application.exports import SurveyExportSelection
 from leonaid.modules.surveys.application.recovery import ErasureCheckpointPublisher
 from leonaid.modules.surveys.adapters.postgres.survey_responses import (
@@ -537,19 +537,29 @@ class AsyncpgSurveyRepository:
                 filters = AnalysisFilter.model_validate(body["filter"])
                 if filters.isTest and not can_test:
                     raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
+                capabilities = self._capabilities(actor, survey, grants)
                 if (
-                    operation == "analysis-create"
-                    and "read_responses"
-                    not in self._capabilities(actor, survey, grants)
-                    and range_too_narrow(
+                    operation in {"analysis-create", "export-selection-create"}
+                    and "read_responses" not in capabilities
+                    and "export_raw" not in capabilities
+                ):
+                    # Aggregates only: whole past days (disclosure.whole_days).
+                    created_from, created_before = whole_days(
                         filters.createdFrom,
                         filters.createdBefore,
                         await conn.fetchval("SELECT clock_timestamp()"),
                     )
-                ):
-                    raise DomainInvariantError(
-                        "range_too_narrow",
-                        "Bitte wählen Sie einen Zeitraum von mindestens einem Tag.",
+                    if created_from is not None and created_from >= created_before:
+                        raise DomainInvariantError(
+                            "range_whole_days",
+                            "Ohne Leserecht umfasst eine Auswertung nur ganze Tage bis gestern. Wählen Sie einen Beginn vor heute.",
+                        )
+                    filters = AnalysisFilter.model_validate(
+                        {
+                            **filters.model_dump(),
+                            "createdFrom": created_from,
+                            "createdBefore": created_before,
+                        }
                     )
                 scope = f"author:{actor.account.id}:{operation}"
                 replay = await self._replay(conn, survey_id, scope, body)

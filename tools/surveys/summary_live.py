@@ -193,7 +193,16 @@ async def main():
             analyst,
             422,
         )
-        assert narrow["error"]["code"] == "range_too_narrow"
+        # Whole Berlin days only, never into today: a start 3 hours ago is empty.
+        assert narrow["error"]["code"] == "range_whole_days"
+        whole = await call(
+            "POST",
+            path + "/analysis",
+            {"operationId": "whole", "filter": {"versionId": version["id"]}},
+            analyst,
+        )
+        assert whole["participationCount"] == 30  # seeded two days ago
+        assert whole["filter"]["createdBefore"] is not None
         # fields=choice: option labels only, never free text.
         listing = await call(
             "GET",

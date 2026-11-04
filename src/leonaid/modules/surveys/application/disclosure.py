@@ -21,11 +21,12 @@ schema; the stored models in ``analysis`` and ``analysis_snapshot`` never
 appear in a response.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal, Self
 
 from pydantic import Field, FiniteFloat, model_validator
 
+from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.modules.surveys.application.analysis import AggregateModel
 from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisSnapshot as StoredSnapshot,
@@ -35,25 +36,31 @@ from leonaid.modules.surveys.application.analysis_snapshot import (
 K = 5
 """Minimum group size for any shown aggregate."""
 
-MIN_RANGE = timedelta(days=1)
-"""Narrowest date range an aggregate-only account may select."""
 
-
-def range_too_narrow(
+def whole_days(
     created_from: str | None, created_before: str | None, now: datetime
-) -> bool:
-    """A start-bounded range shorter than MIN_RANGE (the end defaults to now).
+) -> tuple[str | None, str]:
+    """The range an account without raw access may select (Björn, 2026-11-04).
 
-    Narrow ranges would let an aggregate-only account isolate one person.
-    This bounds the width only: two wide ranges that differ by a short span
-    still differ by the people in it (a known limit, see the task report).
+    Both ends snap to whole days in the installation's zone (Europe/Berlin):
+    the start to 00:00 of its day, the end to 24:00 of its day. The end is at
+    most today 00:00, so a selection never reaches into the current day.
+    Two selections can then differ only by whole past days, never by the
+    people who answered in the last minutes. An empty result (start today or
+    later) is the caller's to refuse.
     """
-    if created_from is None:
-        return False
-    start = datetime.fromisoformat(created_from)
-    end = datetime.fromisoformat(created_before) if created_before else now
-    # A range that starts after its end (e.g. a future start) selects no one.
-    return start < end and end - start < MIN_RANGE
+    start = (
+        None
+        if created_from is None
+        else local_day_bounds(local_day(datetime.fromisoformat(created_from)))[0]
+    )
+    today = local_day_bounds(local_day(now))[0]
+    end = today
+    if created_before is not None:
+        before = datetime.fromisoformat(created_before)
+        day_start, day_end = local_day_bounds(local_day(before))
+        end = min(before if before == day_start else day_end, today)
+    return (None if start is None else start.isoformat(), end.isoformat())
 
 
 # Kinds whose counts add up to the number of valid answers (one value each).
