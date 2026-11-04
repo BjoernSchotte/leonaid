@@ -1259,6 +1259,16 @@ export function SurveysPage({
                 />
               </details>
             )}
+          {summary.status !== "deleted" &&
+            (allowed("view_aggregates") || allowed("read_responses")) && (
+              <p className="surveys-settings surveys-settings-link">
+                <a
+                  href={`/admin/surveys/${encodeURIComponent(summary.id)}/responses/summary`}
+                >
+                  Auswertung ansehen
+                </a>
+              </p>
+            )}
           {summary.status !== "deleted" && allowed("read_responses") && (
             <p className="surveys-settings surveys-settings-link">
               <a href={surveyResponsesHref(summary.id, location.search)}>

@@ -1,0 +1,141 @@
+/*
+ * Survey evaluation (Auswertung). Ported from the prototype's
+ * pages/Surveys.css "Answers" and components.css .panel; scoped to
+ * .svs-page so nothing leaks to other screens.
+ */
+.svs-page {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.svs-page .page-header {
+  margin: 0;
+}
+.svs-page .answer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+  min-width: 0;
+}
+.svs-page .panel {
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.svs-page .panel-pad {
+  padding: var(--s-5);
+}
+/* Grid items must shrink so a chart canvas follows its column. */
+.svs-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.svs-page .answer-q {
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.svs-page .answer-avg {
+  margin: 0;
+}
+.svs-page .answer-avg .num {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+}
+.svs-page .bars {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.svs-page .bars li {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) 1fr auto;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-sm);
+}
+.svs-page .bars .meter {
+  height: 10px;
+}
+.svs-page .bars-value {
+  min-width: 72px;
+  text-align: right;
+}
+.svs-page .answer-texts {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.svs-page .answer-texts li {
+  padding-bottom: var(--s-2);
+  border-bottom: var(--hair) solid var(--border);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.svs-page .small {
+  font-size: var(--fs-sm);
+}
+.svs-page .muted,
+.svs-page .subtle {
+  color: var(--text-3);
+}
+.svs-page .muted {
+  margin: 0;
+}
+.svs-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.svs-more {
+  justify-self: start;
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.svs-figure {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+}
+.svs-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin: 0;
+}
+.svs-stats dt {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.svs-stats dd {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+}
+.svr-sections {
+  margin-top: var(--s-3);
+}
+
+@media (max-width: 720px) {
+  .svs-page .answer-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .svs-page .bars li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .svs-page .bars li .meter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

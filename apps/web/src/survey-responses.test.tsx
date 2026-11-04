@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   type FreeTextItems,
+  type AnalysisSnapshot,
   type IndividualResponse,
   type LeonAidApiClient,
   type ResponseItem,
@@ -15,6 +16,7 @@ import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 
 import {
   SurveyResponsesPage,
+  answerSummary,
   answerText,
   migrateLegacyResponseParam,
   receivedLabel,
@@ -112,9 +114,91 @@ function summary(capabilities: string[]): SurveySummaryResponse {
   };
 }
 
-function fakeClient(capabilities = ["read_responses"], pageCap = 5000) {
-  const all = Array.from({ length: 51 }, (_, index) => item(index + 1));
+function aggregates(suppressed = false): AnalysisSnapshot {
+  const choice = (value: string, label: string, count: number | null) => ({
+    value,
+    label,
+    count,
+    percentage: count === null ? null : (count / 51) * 100,
+    suppressed: count === null,
+  });
   return {
+    id: snapshotId,
+    surveyId,
+    createdAt: "2026-10-02T10:00:00Z",
+    filter: selection.filter,
+    versionNumber: 1,
+    rendererVersion: "3.0.3",
+    capabilityProfile: "initial-v1",
+    participationCount: suppressed ? 3 : 51,
+    statusCounts: { in_progress: 0, partial: null, completed: null },
+    lastPageCounts: [],
+    minimumGroupSize: 5,
+    suppressed,
+    questions: [
+      {
+        questionId: "choice",
+        title: "Auswahl",
+        kind: "checkbox",
+        relevant: 51,
+        answered: 51,
+        unanswered: 0,
+        hidden: 0,
+        invalid: 0,
+        counts: [choice("a", "Alpha", 47), choice("b", "Beta", null)],
+        sum: null,
+        mean: null,
+        minimum: null,
+        maximum: null,
+        nps: null,
+        matrixRows: [],
+        suppressed: false,
+      },
+      {
+        questionId: "text",
+        title: "Rückmeldung",
+        kind: "text",
+        relevant: 51,
+        answered: 2,
+        unanswered: 49,
+        hidden: 0,
+        invalid: 0,
+        counts: [],
+        sum: null,
+        mean: null,
+        minimum: null,
+        maximum: null,
+        nps: null,
+        matrixRows: [],
+        suppressed: true,
+      },
+    ],
+  };
+}
+
+function fakeClient(capabilities = ["read_responses"], pageCap = 5000) {
+  const all = Array.from({ length: 51 }, (_, index) => ({
+    ...item(index + 1),
+    choiceAnswers: { choice: index === 0 ? ["Alpha", "Beta"] : ["Alpha"] },
+  }));
+  return {
+    getSurveyResponseAggregates: vi.fn(
+      async (_s: string, _id: string, _o?: { signal?: AbortSignal }) =>
+        aggregates(),
+    ),
+    getSurveyAnalysis: vi.fn(
+      async (_s: string, _id: string, _o?: { signal?: AbortSignal }) =>
+        aggregates(),
+    ),
+    listSurveyAnalysisVersions: vi.fn(async () => ({
+      items: [
+        { id: versionId, number: 1, publishedAt: "2026-10-01T00:00:00Z" },
+      ],
+    })),
+    createSurveyAnalysis: vi.fn(
+      async (_s: string, _b: unknown, _o?: { signal?: AbortSignal }) =>
+        aggregates(),
+    ),
     getSurvey: vi.fn(async () => summary(capabilities)),
     listSurveyResponseVersions: vi.fn(async () => ({
       items: [
@@ -179,13 +263,18 @@ function fakeClient(capabilities = ["read_responses"], pageCap = 5000) {
   };
 }
 
-async function renderPage(url: string, client = fakeClient()) {
+async function renderPage(
+  url: string,
+  client = fakeClient(),
+  section: "list" | "summary" = "list",
+) {
   window.history.replaceState(null, "", url);
   render(
     <ToastProvider>
       <HotkeyProvider>
         <SurveyResponsesPage
           client={client as unknown as LeonAidApiClient}
+          section={section}
           surveyId={surveyId}
         />
       </HotkeyProvider>
@@ -274,7 +363,10 @@ describe("SurveyResponsesPage", () => {
     await screen.findByText("51 Antworten");
     expect(
       client.listSurveyResponses.mock.calls.map((call) => call[2]),
-    ).toEqual([{ limit: 5000 }, { offset: 50, limit: 5000 }]);
+    ).toEqual([
+      { limit: 5000, fields: "choice" },
+      { offset: 50, limit: 5000, fields: "choice" },
+    ]);
   });
 
   it("shows how many responses load", async () => {
@@ -351,7 +443,7 @@ describe("SurveyResponsesPage", () => {
     );
     expect(
       client.listSurveyResponses.mock.calls.map((call) => call[2]),
-    ).toEqual([{ limit: 5000 }]);
+    ).toEqual([{ limit: 5000, fields: "choice" }]);
     // Every list request can be aborted.
     expect(
       client.listSurveyResponses.mock.calls.every(
@@ -468,5 +560,86 @@ describe("SurveyResponsesPage", () => {
       screen.getByRole("heading", { level: 2, name: "Antwortstand wählen" }),
     ).toBeTruthy();
     expect(client.listSurveyResponses).not.toHaveBeenCalled();
+  });
+});
+
+describe("answer columns", () => {
+  it("shows the chosen options in the row and searches them", async () => {
+    await renderPage(`${base}?responseSelection=${snapshotId}`);
+    await screen.findByText("51 Antworten");
+    expect(row(1).textContent).toContain("Alpha, Beta");
+    expect(
+      answerSummary({ choiceAnswers: { a: ["X"], b: ["Y", "Z"] } }, [
+        { id: "b" },
+        { id: "a" },
+      ]),
+    ).toBe("Y, Z · X");
+    expect(answerSummary({ choiceAnswers: null }, [{ id: "a" }])).toBe("");
+  });
+});
+
+describe("evaluation (summary)", () => {
+  const summaryUrl = `${base}/summary?responseSelection=${snapshotId}`;
+
+  it("reader: disclosed aggregates with withheld counts, no list request", async () => {
+    const client = await renderPage(summaryUrl, fakeClient(), "summary");
+    await screen.findByRole("heading", { level: 1, name: "Auswertung" });
+    expect(client.getSurveyResponseAggregates).toHaveBeenCalledTimes(1);
+    expect(client.listSurveyResponses).not.toHaveBeenCalled();
+    const panel = screen.getByRole("region", { name: "1. Auswahl" });
+    expect(panel.textContent).toContain("Alpha");
+    expect(panel.textContent).toContain("< 5");
+    expect(
+      screen.getByRole("region", { name: "2. Rückmeldung" }).textContent,
+    ).toContain("Weniger als 5 gültige Antworten");
+    expect(
+      screen.getByRole("navigation", { name: "Antworten" }).textContent,
+    ).toBe("EinzelantwortenAuswertung");
+  });
+
+  it("aggregate-only: analysis endpoints, no raw requests, no quotes", async () => {
+    const client = fakeClient(["view_aggregates"]);
+    await renderPage(summaryUrl, client, "summary");
+    await screen.findByRole("heading", { level: 1, name: "Auswertung" });
+    expect(client.getSurveyAnalysis).toHaveBeenCalledTimes(1);
+    expect(client.getSurveyResponseSelection).not.toHaveBeenCalled();
+    expect(client.getSurveyResponseAggregates).not.toHaveBeenCalled();
+    expect(client.listSurveyFreeText).not.toHaveBeenCalled();
+    expect(screen.queryByRole("navigation", { name: "Antworten" })).toBeNull();
+  });
+
+  it("aggregate-only accounts may not open the list", async () => {
+    await renderPage(base, fakeClient(["view_aggregates"]));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Einzelantworten dieser Umfrage sind für Sie nicht zugänglich",
+    );
+  });
+
+  it("a selection under k shows no results", async () => {
+    const client = fakeClient(["view_aggregates"]);
+    client.getSurveyAnalysis.mockResolvedValueOnce(aggregates(true));
+    await renderPage(summaryUrl, client, "summary");
+    expect(
+      (await screen.findByText(/Weniger als 5 Teilnahmen/)).textContent,
+    ).toContain("damit niemand erkennbar wird");
+    expect(screen.queryByRole("region", { name: "1. Auswahl" })).toBeNull();
+  });
+
+  it("free-text quotes for readers link to the dialog", async () => {
+    const client = fakeClient();
+    const data = aggregates();
+    client.getSurveyResponseAggregates.mockResolvedValueOnce({
+      ...data,
+      questions: data.questions.map((q) =>
+        q.questionId === "text" ? { ...q, answered: 9, suppressed: false } : q,
+      ),
+    });
+    await renderPage(summaryUrl, client, "summary");
+    expect(await screen.findByText("„Mehr Kaffee“")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Alle 1 Freitexte ansehen" })
+        .getAttribute("href"),
+    ).toContain("freeText=text");
   });
 });
