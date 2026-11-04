@@ -247,7 +247,11 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(tab("Vorlagen")).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("template-snapshot")).toBeVisible();
     await page.keyboard.press("4");
-    await expect(page.getByTestId("offerings-table")).toBeVisible();
+    await expect(tab("Angebote")).toHaveAttribute("aria-selected", "true");
+    // An action without a template has no offerings yet.
+    await expect(
+      page.getByRole("heading", { name: "Keine Angebote" }),
+    ).toBeVisible();
     await page.keyboard.press("2");
     await page.getByTestId("publication-start").fill("2028-08-01T08:00");
     await page.getByTestId("publication-end").fill("2028-11-15T23:00");
