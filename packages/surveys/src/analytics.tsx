@@ -28,6 +28,9 @@ export interface AnalyticsMessages {
   denominator: string;
   matrixDenominator: string;
   lastPage: string;
+  /** "{k}" is replaced by the minimum group size. */
+  tooFewParticipants: string;
+  tooFewAnswers: string;
 }
 
 export const englishAnalytics: AnalyticsMessages = {
@@ -61,17 +64,23 @@ export const englishAnalytics: AnalyticsMessages = {
   denominator: "Percentages use valid answers to this question.",
   matrixDenominator: "Percentages use valid answers in this row.",
   lastPage: "Last saved page",
+  tooFewParticipants:
+    "Fewer than {k} participants: results are not shown, so no one can be identified.",
+  tooFewAnswers:
+    "Fewer than {k} valid answers: this question is not evaluated, so no one can be identified.",
 };
 
 function Distribution({
   counts,
   messages: m,
   formatNumber: n,
+  formatCount: c,
   label,
 }: {
   counts: QuestionAggregate["counts"];
   messages: AnalyticsMessages;
   formatNumber: (value: number) => string;
+  formatCount: (value: number | null) => string;
   label: string;
 }) {
   return (
@@ -88,7 +97,7 @@ function Distribution({
               />
             </span>
             <span>
-              {n(bucket.count)} ·{" "}
+              {c(bucket.count)} ·{" "}
               {bucket.percentage === null ? "—" : `${n(bucket.percentage)} %`}
             </span>
           </div>
@@ -117,11 +126,13 @@ function Distribution({
               {counts.map((bucket, index) => (
                 <tr key={index}>
                   <th scope="row">{bucket.label}</th>
-                  <td>{n(bucket.count)}</td>
+                  <td>{c(bucket.count)}</td>
                   <td>
-                    {bucket.percentage === null
-                      ? m.noValue
-                      : `${n(bucket.percentage)} %`}
+                    {bucket.count === null
+                      ? "—"
+                      : bucket.percentage === null
+                        ? m.noValue
+                        : `${n(bucket.percentage)} %`}
                   </td>
                 </tr>
               ))}
@@ -145,6 +156,10 @@ export function SurveyAnalytics({
 }) {
   const n = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
+  const k = snapshot.minimumGroupSize ?? 1;
+  /** A withheld count (null) stands for 1 to k − 1 people. */
+  const c = (value: number | null) => (value === null ? `< ${k}` : n(value));
+  const fill = (text: string) => text.replaceAll("{k}", String(k));
   return (
     <section
       className="survey-analytics"
@@ -163,7 +178,7 @@ export function SurveyAnalytics({
           ).map(([status, label]) => (
             <div key={status}>
               <dt>{label}</dt>
-              <dd>{n(snapshot.statusCounts[status])}</dd>
+              <dd>{c(snapshot.statusCounts[status])}</dd>
             </div>
           ))}
         </dl>
@@ -172,84 +187,103 @@ export function SurveyAnalytics({
         {m.participants}: <strong>{n(snapshot.participationCount)}</strong>
       </p>
       {snapshot.participationCount === 0 && <p role="status">{m.empty}</p>}
-      {snapshot.questions.map((q) => (
-        <section
-          className="survey-analytics-question"
-          key={q.questionId}
-          aria-label={q.title}
-          data-question-id={q.questionId}
-        >
-          <h3>{q.title}</h3>
-          <dl className="survey-analytics-counts">
-            {(
-              [
-                ["relevant", m.relevant],
-                ["answered", m.answered],
-                ["unanswered", m.unanswered],
-                ["hidden", m.hidden],
-                ["invalid", m.invalid],
-              ] as const
-            ).map(([key, label]) => (
-              <div key={key}>
-                <dt>{label}</dt>
-                <dd>{n(q[key])}</dd>
-              </div>
-            ))}
-          </dl>
-          {(q.kind === "number" || q.kind === "rating") && (
-            <dl className="survey-analytics-metrics">
+      {snapshot.suppressed && snapshot.participationCount > 0 && (
+        <p className="survey-analytics-withheld" role="status">
+          {fill(m.tooFewParticipants)}
+        </p>
+      )}
+      {!snapshot.suppressed &&
+        snapshot.questions.map((q) => (
+          <section
+            className="survey-analytics-question"
+            key={q.questionId}
+            aria-label={q.title}
+            data-question-id={q.questionId}
+          >
+            <h3>{q.title}</h3>
+            <dl className="survey-analytics-counts">
               {(
                 [
-                  ["mean", m.mean],
-                  ["minimum", m.minimum],
-                  ["maximum", m.maximum],
-                  ...(q.nps !== null ||
-                  (q.kind === "rating" &&
-                    q.counts.length === 11 &&
-                    q.counts[0]?.value === 0 &&
-                    q.counts[10]?.value === 10)
-                    ? [["nps", m.nps]]
-                    : []),
-                ] as ["mean" | "minimum" | "maximum" | "nps", string][]
+                  ["relevant", m.relevant],
+                  ["answered", m.answered],
+                  ["unanswered", m.unanswered],
+                  ["hidden", m.hidden],
+                  ["invalid", m.invalid],
+                ] as const
               ).map(([key, label]) => (
                 <div key={key}>
                   <dt>{label}</dt>
-                  <dd>{q[key] === null ? m.noValue : n(q[key])}</dd>
+                  <dd>{n(q[key])}</dd>
                 </div>
               ))}
             </dl>
-          )}
-          {q.counts.length > 0 && (
-            <>
-              <p>
-                {m.denominator} {q.kind === "checkbox" && m.multipleChoices}
+            {q.suppressed && (
+              <p className="survey-analytics-withheld">
+                {fill(m.tooFewAnswers)}
               </p>
-              <Distribution
-                counts={q.counts}
-                messages={m}
-                formatNumber={n}
-                label={q.title}
-              />
-            </>
-          )}
-          {q.matrixRows.map((row) => (
-            <section key={row.rowId} aria-label={row.label}>
-              <h4>{row.label}</h4>
-              <p>
-                {m.matrixDenominator} {m.answered}: {n(row.answered)} ·{" "}
-                {m.unanswered}: {n(row.unanswered)} · {m.invalid}:{" "}
-                {n(row.invalid)}
-              </p>
-              <Distribution
-                counts={row.counts}
-                messages={m}
-                formatNumber={n}
-                label={`${q.title} / ${row.label}`}
-              />
-            </section>
-          ))}
-        </section>
-      ))}
+            )}
+            {!q.suppressed && (q.kind === "number" || q.kind === "rating") && (
+              <dl className="survey-analytics-metrics">
+                {(
+                  [
+                    ["mean", m.mean],
+                    ["minimum", m.minimum],
+                    ["maximum", m.maximum],
+                    ...(q.nps !== null ||
+                    (q.kind === "rating" &&
+                      q.counts.length === 11 &&
+                      q.counts[0]?.value === 0 &&
+                      q.counts[10]?.value === 10)
+                      ? [["nps", m.nps]]
+                      : []),
+                  ] as ["mean" | "minimum" | "maximum" | "nps", string][]
+                ).map(([key, label]) => (
+                  <div key={key}>
+                    <dt>{label}</dt>
+                    <dd>{q[key] === null ? m.noValue : n(q[key])}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {q.counts.length > 0 && (
+              <>
+                <p>
+                  {m.denominator} {q.kind === "checkbox" && m.multipleChoices}
+                </p>
+                <Distribution
+                  counts={q.counts}
+                  messages={m}
+                  formatNumber={n}
+                  formatCount={c}
+                  label={q.title}
+                />
+              </>
+            )}
+            {q.matrixRows.map((row) => (
+              <section key={row.rowId} aria-label={row.label}>
+                <h4>{row.label}</h4>
+                <p>
+                  {m.matrixDenominator} {m.answered}: {n(row.answered)} ·{" "}
+                  {m.unanswered}: {n(row.unanswered)} · {m.invalid}:{" "}
+                  {n(row.invalid)}
+                </p>
+                {row.suppressed ? (
+                  <p className="survey-analytics-withheld">
+                    {fill(m.tooFewAnswers)}
+                  </p>
+                ) : (
+                  <Distribution
+                    counts={row.counts}
+                    messages={m}
+                    formatNumber={n}
+                    formatCount={c}
+                    label={`${q.title} / ${row.label}`}
+                  />
+                )}
+              </section>
+            ))}
+          </section>
+        ))}
       <section className="survey-analytics-question" aria-label={m.lastPage}>
         <h3>{m.lastPage}</h3>
         <p>{m.lastPageHint}</p>
@@ -258,12 +292,14 @@ export function SurveyAnalytics({
             value: page.pageId,
             label: page.title,
             count: page.count,
-            percentage: snapshot.participationCount
-              ? (page.count / snapshot.participationCount) * 100
-              : null,
+            percentage:
+              page.count !== null && snapshot.participationCount
+                ? (page.count / snapshot.participationCount) * 100
+                : null,
           }))}
           messages={m}
           formatNumber={n}
+          formatCount={c}
           label={m.lastPage}
         />
       </section>

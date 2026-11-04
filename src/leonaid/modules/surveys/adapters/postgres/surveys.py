@@ -23,6 +23,7 @@ from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
     request_deletion,
 )
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisFilter
+from leonaid.modules.surveys.application.disclosure import range_too_narrow
 from leonaid.modules.surveys.application.exports import SurveyExportSelection
 from leonaid.modules.surveys.application.recovery import ErasureCheckpointPublisher
 from leonaid.modules.surveys.adapters.postgres.survey_responses import (
@@ -536,6 +537,19 @@ class AsyncpgSurveyRepository:
                 filters = AnalysisFilter.model_validate(body["filter"])
                 if filters.isTest and not can_test:
                     raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
+                if (
+                    operation == "analysis-create"
+                    and "read_responses" not in self._capabilities(actor, survey, grants)
+                    and range_too_narrow(
+                        filters.createdFrom,
+                        filters.createdBefore,
+                        await conn.fetchval("SELECT clock_timestamp()"),
+                    )
+                ):
+                    raise DomainInvariantError(
+                        "range_too_narrow",
+                        "Bitte wählen Sie einen Zeitraum von mindestens einem Tag.",
+                    )
                 scope = f"author:{actor.account.id}:{operation}"
                 replay = await self._replay(conn, survey_id, scope, body)
                 if replay is not None:

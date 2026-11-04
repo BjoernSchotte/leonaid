@@ -48,10 +48,10 @@ from leonaid.modules.surveys.application.exports import (
     SurveyExportSelection,
 )
 from leonaid.modules.surveys.application.analysis_snapshot import (
-    AnalysisSnapshot,
     AnalysisVersions,
     CreateAnalysisSnapshot,
 )
+from leonaid.modules.surveys.application.disclosure import AnalysisSnapshot
 from leonaid.modules.surveys.application.response_selection import (
     ResponseSelection,
     ResponseItems,
@@ -272,6 +272,20 @@ async def response_selection_get(
 
 
 @router.get(
+    "/surveys/{survey_id}/response-selections/{snapshot_id}/aggregates",
+    operation_id="getSurveyResponseAggregates",
+    response_model=AnalysisSnapshot,
+)
+async def response_aggregates(
+    survey_id: UUID, snapshot_id: UUID, request: Request, response: Response
+) -> AnalysisSnapshot:
+    response.headers["Cache-Control"] = "no-store"
+    return await service(request).get_response_aggregates(
+        await principal(request), survey_id, SnapshotReference(snapshotId=snapshot_id)
+    )
+
+
+@router.get(
     "/surveys/{survey_id}/response-selections/{snapshot_id}/responses",
     operation_id="listSurveyResponses",
     response_model=ResponseItems,
@@ -288,12 +302,16 @@ async def response_list(
         le=5000,
         description="Summaries per page; 5000 returns a whole selection in one request.",
     ),
+    fields: Literal["choice"] | None = Query(
+        default=None,
+        description="choice: add the labels of choice, rating and matrix answers (never free text).",
+    ),
 ) -> ResponseItems:
     response.headers["Cache-Control"] = "no-store"
     return await service(request).list_responses(
         await principal(request),
         survey_id,
-        ResponsePage(snapshotId=snapshot_id, offset=offset, limit=limit),
+        ResponsePage(snapshotId=snapshot_id, offset=offset, limit=limit, fields=fields),
     )
 
 

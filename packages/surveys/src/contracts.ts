@@ -171,8 +171,10 @@ export interface QuestionAggregate {
   counts: {
     value: JsonValue;
     label: string;
-    count: number;
+    /** null: withheld, fewer than `minimumGroupSize` people ("< 5"). */
+    count: number | null;
     percentage: number | null;
+    suppressed?: boolean;
   }[];
   sum: number | null;
   mean: number | null;
@@ -186,8 +188,27 @@ export interface QuestionAggregate {
     unanswered: number;
     invalid: number;
     counts: QuestionAggregate["counts"];
+    /** Fewer than `minimumGroupSize` valid answers in this row. */
+    suppressed?: boolean;
   }[];
+  /** Fewer than `minimumGroupSize` valid answers: no distribution, no statistics. */
+  suppressed?: boolean;
 }
+/** Engine output before disclosure: every count is present. */
+export type ComputedBucket = Omit<
+  QuestionAggregate["counts"][number],
+  "count" | "suppressed"
+> & { count: number };
+export type ComputedQuestionAggregate = Omit<
+  QuestionAggregate,
+  "counts" | "matrixRows" | "suppressed"
+> & {
+  counts: ComputedBucket[];
+  matrixRows: (Omit<
+    QuestionAggregate["matrixRows"][number],
+    "counts" | "suppressed"
+  > & { counts: ComputedBucket[] })[];
+};
 /** Frozen snapshot IDs bind UI and all exports to the same result set. */
 export interface AnalysisSnapshot {
   id: string;
@@ -198,9 +219,18 @@ export interface AnalysisSnapshot {
   rendererVersion: string;
   capabilityProfile: string;
   participationCount: number;
-  statusCounts: Record<ResponseStatus, number>;
-  lastPageCounts: { pageId: string | null; title: string; count: number }[];
+  /** null: withheld, fewer than `minimumGroupSize` people. */
+  statusCounts: Record<ResponseStatus, number | null>;
+  lastPageCounts: {
+    pageId: string | null;
+    title: string;
+    count: number | null;
+  }[];
   questions: QuestionAggregate[];
+  /** Smallest group any shown count stands for (k, server-side). */
+  minimumGroupSize?: number;
+  /** Fewer than `minimumGroupSize` participations: no results. */
+  suppressed?: boolean;
 }
 export type ExportProduct =
   | "responses_csv"
