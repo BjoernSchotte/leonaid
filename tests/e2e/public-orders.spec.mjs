@@ -324,11 +324,14 @@ test("without JavaScript a refused order comes back focused with the entries kep
   try {
     // A stale price quote, as after a price change while the form was open:
     // Core refuses the order and the page renders the form again.
-    await page.route("**/krapfentaxi?_action=createPublicOrder*", (route) => {
-      const body = new URLSearchParams(route.request().postData() ?? "");
-      body.set("quotedUnitPriceMinor", "1");
-      return route.continue({ postData: body.toString() });
-    });
+    await page.route(
+      (url) => url.searchParams.get("_action") === "createPublicOrder",
+      (route) => {
+        const body = new URLSearchParams(route.request().postData() ?? "");
+        body.set("quotedUnitPriceMinor", "1");
+        return route.continue({ postData: body.toString() });
+      },
+    );
     await page.goto(`${baseUrl}/krapfentaxi`, { waitUntil: "networkidle" });
     const form = page.locator("[data-order-form]");
     await form.locator('input[name="quantity"]').first().fill("1");
