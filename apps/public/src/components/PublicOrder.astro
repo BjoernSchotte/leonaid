@@ -107,7 +107,10 @@ const checkIcon = "M20 6 9 17l-5-5";
           <div>
             <dt>Bestellwert</dt>
             <dd data-order-total>
-              {serverOrder && money(serverOrder.totalMinor, serverOrder.currency)}
+              {
+                serverOrder &&
+                  money(serverOrder.totalMinor, serverOrder.currency)
+              }
             </dd>
           </div>
           <div>
@@ -318,7 +321,9 @@ const checkIcon = "M20 6 9 17l-5-5";
                       type="radio"
                       name="customerKind"
                       value="company"
-                      checked={!redisplay || Boolean(redisplay.fields.companyName)}
+                      checked={
+                        !redisplay || Boolean(redisplay.fields.companyName)
+                      }
                     />
                     Firma oder Verein
                   </label>
@@ -327,7 +332,9 @@ const checkIcon = "M20 6 9 17l-5-5";
                       type="radio"
                       name="customerKind"
                       value="person"
-                      checked={Boolean(redisplay && !redisplay.fields.companyName)}
+                      checked={Boolean(
+                        redisplay && !redisplay.fields.companyName,
+                      )}
                     />
                     Privatperson
                   </label>
@@ -344,6 +351,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                   id="companyName"
                   class="input"
                   name="companyName"
+                  data-missing="Bitte geben Sie den Namen der Firma an."
                   value={redisplay?.fields.companyName ?? ""}
                   autocomplete="organization"
                   maxlength="300"
@@ -361,11 +369,14 @@ const checkIcon = "M20 6 9 17l-5-5";
               </div>
               <div class="public-grid-2">
                 <div class="field">
-                  <label class="field-label" for="givenName">Vorname</label>
+                  <label class="field-label" for="givenName">
+                    Vorname
+                  </label>
                   <input
                     id="givenName"
                     class="input"
                     name="givenName"
+                    data-missing="Bitte geben Sie Ihren Vornamen an."
                     value={redisplay?.fields.givenName ?? ""}
                     autocomplete="given-name"
                     maxlength="200"
@@ -379,11 +390,14 @@ const checkIcon = "M20 6 9 17l-5-5";
                   />
                 </div>
                 <div class="field">
-                  <label class="field-label" for="familyName">Nachname</label>
+                  <label class="field-label" for="familyName">
+                    Nachname
+                  </label>
                   <input
                     id="familyName"
                     class="input"
                     name="familyName"
+                    data-missing="Bitte geben Sie Ihren Nachnamen an."
                     value={redisplay?.fields.familyName ?? ""}
                     autocomplete="family-name"
                     maxlength="200"
@@ -399,11 +413,14 @@ const checkIcon = "M20 6 9 17l-5-5";
               </div>
               <div class="public-grid-2">
                 <div class="field">
-                  <label class="field-label" for="email">E-Mail</label>
+                  <label class="field-label" for="email">
+                    E-Mail
+                  </label>
                   <input
                     id="email"
                     class="input"
                     name="email"
+                    data-missing="Bitte geben Sie Ihre E-Mail-Adresse an. Dorthin senden wir die Rechnung."
                     value={redisplay?.fields.email ?? ""}
                     type="email"
                     autocomplete="email"
@@ -431,6 +448,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                     id="phone"
                     class="input"
                     name="phone"
+                    data-missing="Bitte geben Sie eine Telefonnummer für Rückfragen an."
                     value={redisplay?.fields.phone ?? ""}
                     type="tel"
                     autocomplete="tel"
@@ -461,6 +479,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                     id="deliveryRecipientName"
                     class="input"
                     name="deliveryRecipientName"
+                    data-missing="Bitte geben Sie an, wer die Lieferung annimmt."
                     value={redisplay?.fields.deliveryRecipientName ?? ""}
                     autocomplete="shipping name"
                     maxlength="300"
@@ -484,6 +503,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                     id="deliveryStreetLine1"
                     class="input"
                     name="deliveryStreetLine1"
+                    data-missing="Bitte geben Sie Straße und Hausnummer an."
                     value={redisplay?.fields.deliveryStreetLine1 ?? ""}
                     autocomplete="shipping street-address"
                     maxlength="300"
@@ -498,11 +518,14 @@ const checkIcon = "M20 6 9 17l-5-5";
                 </div>
                 <div class="public-grid-zip">
                   <div class="field">
-                    <label class="field-label" for="deliveryPostalCode">PLZ</label>
+                    <label class="field-label" for="deliveryPostalCode">
+                      PLZ
+                    </label>
                     <input
                       id="deliveryPostalCode"
                       class="input"
                       name="deliveryPostalCode"
+                      data-missing="Bitte geben Sie die Postleitzahl an."
                       value={redisplay?.fields.deliveryPostalCode ?? ""}
                       autocomplete="shipping postal-code"
                       inputmode="numeric"
@@ -517,11 +540,14 @@ const checkIcon = "M20 6 9 17l-5-5";
                     />
                   </div>
                   <div class="field">
-                    <label class="field-label" for="deliveryCity">Ort</label>
+                    <label class="field-label" for="deliveryCity">
+                      Ort
+                    </label>
                     <input
                       id="deliveryCity"
                       class="input"
                       name="deliveryCity"
+                      data-missing="Bitte geben Sie den Ort an."
                       value={redisplay?.fields.deliveryCity ?? ""}
                       autocomplete="shipping address-level2"
                       maxlength="200"
@@ -709,6 +735,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                     id="privacyAcknowledged"
                     type="checkbox"
                     name="privacyAcknowledged"
+                    data-missing="Bitte bestätigen Sie, dass Sie den Datenschutzhinweis gelesen haben."
                     value="true"
                     required
                     data-label="Datenschutzhinweis"
@@ -728,6 +755,7 @@ const checkIcon = "M20 6 9 17l-5-5";
                     id="bindingOrderConfirmed"
                     type="checkbox"
                     name="bindingOrderConfirmed"
+                    data-missing="Bitte bestätigen Sie die verbindliche Bestellung."
                     value="true"
                     required
                     data-label="Verbindliche Bestellung"
@@ -750,7 +778,12 @@ const checkIcon = "M20 6 9 17l-5-5";
 
             <div class="honeypot" aria-hidden="true">
               <label for="website">Website</label>
-              <input id="website" name="website" tabindex="-1" autocomplete="off" />
+              <input
+                id="website"
+                name="website"
+                tabindex="-1"
+                autocomplete="off"
+              />
             </div>
 
             <div class="public-submit">
@@ -758,7 +791,9 @@ const checkIcon = "M20 6 9 17l-5-5";
                 {`Mit „${orderForm.submitLabel}“ bestellen Sie `}
                 <span data-order-summary-quantity>{quantitySummary}</span>
                 {" für "}
-                <span data-order-summary-total>{money(totalMinor, currency)}</span>
+                <span data-order-summary-total>
+                  {money(totalMinor, currency)}
+                </span>
                 {". Kein Kundenkonto nötig; die Rechnung kommt per E-Mail."}
               </p>
               <button

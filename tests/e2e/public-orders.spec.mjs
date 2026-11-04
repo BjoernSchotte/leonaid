@@ -55,7 +55,13 @@ async function fillOrder(
   },
 ) {
   await form.locator('input[name="quantity"]').first().fill(String(quantity));
-  await form.locator('input[name="companyName"]').fill(companyName);
+  if (companyName) {
+    await form.locator('input[name="companyName"]').fill(companyName);
+  } else {
+    // A private order: the company field is hidden and sends nothing.
+    await form.getByText("Privatperson", { exact: true }).click();
+    await expect(form.locator('input[name="companyName"]')).toBeHidden();
+  }
   await form.locator('input[name="givenName"]').fill(givenName);
   await form.locator('input[name="familyName"]').fill(familyName);
   await form.locator('input[name="email"]').fill(email);
@@ -73,6 +79,10 @@ async function fillOrder(
 
 async function submitOrder(form) {
   await form.locator('button[type="submit"]').click();
+  return submitOrderResult(form);
+}
+
+async function submitOrderResult(form) {
   const success = form.locator("xpath=..").locator("[data-order-success]");
   const failure = form.locator("[data-form-message]");
   await expect
@@ -116,12 +126,27 @@ test("new company, existing company and private person order in the guided form"
     .locator('input[name="companyName"]')
     .fill("POC072 Browseratelier GmbH");
   await form.locator('button[type="submit"]').click();
+  // The error summary takes the focus and links every problem to its field.
+  const summary = form.locator("[data-form-message]");
+  await expect(summary).toBeFocused();
+  await expect(summary).toHaveAttribute("role", "alert");
+  await expect(summary).toContainText("Bitte prüfen Sie");
+  const givenNameLink = summary.getByRole("link", {
+    name: "Vorname: Bitte geben Sie Ihren Vornamen an.",
+  });
+  await expect(givenNameLink).toBeVisible();
+  await givenNameLink.click();
   await expect(form.locator('input[name="givenName"]')).toBeFocused();
+  await expect(form.locator('input[name="givenName"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   await expect(form.locator('input[name="companyName"]')).toHaveValue(
     "POC072 Browseratelier GmbH",
   );
   proof.validation = {
-    firstFocusedField: "givenName",
+    focusedSummary: true,
+    summaryLinkFocusesField: "givenName",
     retainedCompanyName: "POC072 Browseratelier GmbH",
   };
   await page.screenshot({
@@ -195,4 +220,43 @@ test("new company, existing company and private person order in the guided form"
     `${artifactDirectory}/public-orders-ui-proof.json`,
     `${JSON.stringify(proof, null, 2)}\n`,
   );
+});
+
+test("a double submit sends one order request and shows the confirmation", async ({
+  page,
+}) => {
+  const form = await openOrderForm(page);
+  await fillOrder(form, {
+    companyName: "POC072 Doppelklick GmbH",
+    email: "dora.doppelklick@leonaid.invalid",
+    familyName: "Doppelklick",
+    givenName: "Dora",
+    quantity: 1,
+    recipient: "POC072 Doppelklick GmbH",
+  });
+  let orderRequests = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().includes("createPublicOrder")
+    )
+      orderRequests += 1;
+  });
+  await form.locator('button[type="submit"]').dblclick();
+  const { success } = await submitOrderResult(form);
+  expect(orderRequests).toBe(1);
+  // Confirmation layout: check mark, heading, reference, facts, next steps.
+  await expect(success.locator(".public-thanks-icon")).toBeVisible();
+  await expect(
+    success.getByRole("heading", { name: "Danke für Ihre Bestellung!" }),
+  ).toBeVisible();
+  await expect(success.locator("[data-order-total]")).toHaveText(/36,00/);
+  await expect(success.locator(".public-next li")).toHaveCount(4);
+  await expect(
+    success.getByRole("link", { name: "Zur Aktionsseite" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `${artifactDirectory}/public-order-confirmation-mobile.png`,
+    fullPage: true,
+  });
 });

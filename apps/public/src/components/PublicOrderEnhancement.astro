@@ -153,8 +153,8 @@
     const syncCustomerKind = () => {
       if (!customerKind || !companyField || !companyInput) return;
       const person =
-        customerKind.querySelector<HTMLInputElement>("input:checked")
-          ?.value === "person";
+        customerKind.querySelector<HTMLInputElement>("input:checked")?.value ===
+        "person";
       companyField.hidden = person;
       companyInput.disabled = person;
     };
@@ -213,7 +213,8 @@
           maximum,
           Math.max(
             minimum,
-            Math.trunc(Number(input.value || "0")) + Number(button.dataset.step),
+            Math.trunc(Number(input.value || "0")) +
+              Number(button.dataset.step),
           ),
         );
         input.value = String(next);
@@ -229,7 +230,10 @@
           )
         : null;
       return (
-        label?.textContent?.replace("(optional)", "").replace(/\s+/g, " ").trim() ??
+        label?.textContent
+          ?.replace("(optional)", "")
+          .replace(/\s+/g, " ")
+          .trim() ??
         control.getAttribute("name") ??
         ""
       );
@@ -313,9 +317,15 @@
 
     const validityMessage = (control: HTMLInputElement): string => {
       const validity = control.validity;
-      if (control.type === "checkbox") return "Bitte bestätigen Sie diesen Punkt.";
-      if (control.type === "radio") return "Bitte wählen Sie ein Lieferfenster.";
-      if (validity.valueMissing) return "Bitte ausfüllen.";
+      if (control.type === "radio")
+        return "Bitte wählen Sie ein Lieferfenster.";
+      if (validity.valueMissing)
+        return (
+          control.dataset.missing ??
+          (control.type === "checkbox"
+            ? "Bitte bestätigen Sie diesen Punkt."
+            : "Bitte ausfüllen.")
+        );
       if (validity.typeMismatch && control.type === "email")
         return "Bitte geben Sie eine gültige E-Mail-Adresse an, z. B. name@firma.de.";
       if (validity.rangeUnderflow || validity.rangeOverflow)

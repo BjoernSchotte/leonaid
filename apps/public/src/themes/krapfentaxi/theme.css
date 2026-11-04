@@ -266,6 +266,11 @@
   background: var(--surface-2);
 }
 
+/* On the tinted order section the privacy box needs the lighter surface. */
+.taxi-site .public-privacy {
+  background: var(--surface);
+}
+
 .taxi-site .order-surface {
   border-radius: 0.65rem;
   overflow: clip;

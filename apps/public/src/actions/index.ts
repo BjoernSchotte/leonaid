@@ -130,7 +130,8 @@ export const server = {
       if (lines.length === 0) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
-          message: "Bitte wählen Sie mindestens ein Angebot und eine Menge aus.",
+          message:
+            "Bitte wählen Sie mindestens ein Angebot und eine Menge aus.",
         });
       }
       const deliveryFields = [

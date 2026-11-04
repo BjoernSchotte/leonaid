@@ -9,11 +9,14 @@ const value = (name: string) => fields[name] ?? "";
 ---
 
 <div class="field">
-  <label class="field-label" for="invoiceRecipientName">Rechnungsempfänger</label>
+  <label class="field-label" for="invoiceRecipientName"
+    >Rechnungsempfänger</label
+  >
   <input
     id="invoiceRecipientName"
     class="input"
     name="invoiceRecipientName"
+    data-missing="Bitte geben Sie den Rechnungsempfänger an."
     required={required}
     value={value("invoiceRecipientName")}
     autocomplete="billing name"
@@ -27,14 +30,18 @@ const value = (name: string) => fields[name] ?? "";
     id="invoiceRecipientName-error"
     class="field-error"
     data-error-for="invoiceRecipientName"
-  />
+  >
+  </p>
 </div>
 <div class="field">
-  <label class="field-label" for="invoiceStreetLine1">Straße und Hausnummer</label>
+  <label class="field-label" for="invoiceStreetLine1"
+    >Straße und Hausnummer</label
+  >
   <input
     id="invoiceStreetLine1"
     class="input"
     name="invoiceStreetLine1"
+    data-missing="Bitte geben Sie Straße und Hausnummer der Rechnungsadresse an."
     required={required}
     value={value("invoiceStreetLine1")}
     autocomplete="billing street-address"
@@ -45,7 +52,8 @@ const value = (name: string) => fields[name] ?? "";
     id="invoiceStreetLine1-error"
     class="field-error"
     data-error-for="invoiceStreetLine1"
-  />
+  >
+  </p>
 </div>
 <div class="public-grid-zip">
   <div class="field">
@@ -54,6 +62,7 @@ const value = (name: string) => fields[name] ?? "";
       id="invoicePostalCode"
       class="input"
       name="invoicePostalCode"
+      data-missing="Bitte geben Sie die Postleitzahl der Rechnungsadresse an."
       required={required}
       value={value("invoicePostalCode")}
       autocomplete="billing postal-code"
@@ -65,7 +74,8 @@ const value = (name: string) => fields[name] ?? "";
       id="invoicePostalCode-error"
       class="field-error"
       data-error-for="invoicePostalCode"
-    />
+    >
+    </p>
   </div>
   <div class="field">
     <label class="field-label" for="invoiceCity">Ort</label>
@@ -73,13 +83,15 @@ const value = (name: string) => fields[name] ?? "";
       id="invoiceCity"
       class="input"
       name="invoiceCity"
+      data-missing="Bitte geben Sie den Ort der Rechnungsadresse an."
       required={required}
       value={value("invoiceCity")}
       autocomplete="billing address-level2"
       maxlength="200"
       aria-describedby="invoiceCity-error"
     />
-    <p id="invoiceCity-error" class="field-error" data-error-for="invoiceCity" />
+    <p id="invoiceCity-error" class="field-error" data-error-for="invoiceCity">
+    </p>
   </div>
 </div>
 <div class="field">
@@ -88,6 +100,7 @@ const value = (name: string) => fields[name] ?? "";
     id="invoiceEmail"
     class="input"
     name="invoiceEmail"
+    data-missing="Bitte geben Sie die E-Mail-Adresse für die Rechnung an."
     required={required}
     value={value("invoiceEmail")}
     type="email"
@@ -98,5 +111,6 @@ const value = (name: string) => fields[name] ?? "";
   <p id="invoiceEmail-help" class="field-hint">
     An diese Adresse wird die Rechnung versendet.
   </p>
-  <p id="invoiceEmail-error" class="field-error" data-error-for="invoiceEmail" />
+  <p id="invoiceEmail-error" class="field-error" data-error-for="invoiceEmail">
+  </p>
 </div>
