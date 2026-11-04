@@ -75,6 +75,12 @@ const PAGE_SIZE = 50;
  * selection; the loop and the offset bound are guards for a changed cap.
  */
 const SUMMARY_PAGE = 5000;
+/*
+ * Rows rendered at once. Measured on 5000 rows: rendering all of them makes
+ * j, x and a view switch take 200–450 ms; search, filters and sorts still
+ * cover every row (task 5.6 fix 1).
+ */
+const RENDER_LIMIT = 500;
 const MAX_OFFSET = 5000;
 
 export interface ResponseRow extends ResponseItem {
@@ -125,11 +131,12 @@ export function answerText(value: unknown, question: ResponseQuestion): string {
   return choice(value);
 }
 
-const dateTime = (value: string) =>
-  new Date(value).toLocaleString("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+/* One formatter: toLocaleString builds a new one per call (slow for 5000 rows). */
+const dateTimeFormat = new Intl.DateTimeFormat("de-DE", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const dateTime = (value: string) => dateTimeFormat.format(new Date(value));
 /** Prototype table format "03.11. 14:20"; the year only when it differs. */
 export function receivedLabel(value: string, now = new Date()): string {
   const date = new Date(value);
@@ -947,10 +954,20 @@ function ResponseList({
     };
   }, []);
   const getId = useCallback((row: ResponseRow) => row.participationId, []);
+  // Built once per selection, not per keystroke and row.
+  const searchIndex = useMemo(
+    () =>
+      new Map(
+        rows.map((row) => [
+          row.participationId,
+          `Antwort ${row.number} ${responseStatusLabels[row.status]} ${dateTime(row.createdAt)}`,
+        ]),
+      ),
+    [rows],
+  );
   const searchText = useCallback(
-    (row: ResponseRow) =>
-      `Antwort ${row.number} ${responseStatusLabels[row.status]} ${dateTime(row.createdAt)}`,
-    [],
+    (row: ResponseRow) => searchIndex.get(row.participationId) ?? "",
+    [searchIndex],
   );
   const detailTitle = useCallback(
     (row: ResponseRow) => `Antwort ${row.number}`,
@@ -1035,6 +1052,7 @@ function ResponseList({
       id="survey-responses"
       properties={properties}
       renderDetail={renderDetail}
+      renderLimit={RENDER_LIMIT}
       rows={rows}
       searchText={searchText}
       sorts={sorts}

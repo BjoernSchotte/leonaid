@@ -126,7 +126,9 @@ function Harness({
   apply,
   editOptions,
   onOpen,
+  renderLimit,
 }: {
+  renderLimit?: number;
   apply?: (
     ids: readonly string[],
     value: string,
@@ -184,6 +186,7 @@ function Harness({
           onOpen={onOpen}
           properties={properties}
           renderDetail={(row) => <p>Detail {row.number}</p>}
+          renderLimit={renderLimit}
           rows={rows}
           searchText={(row) => `${row.number} ${row.sponsor}`}
           sorts={sorts}
@@ -231,6 +234,49 @@ afterEach(() => {
   Reflect.deleteProperty(window, "matchMedia");
   vi.restoreAllMocks();
   document.body.focus();
+});
+
+describe("ListView renderLimit", () => {
+  it("renders the first rows, names the rest and still searches all", () => {
+    render(<Harness renderLimit={2} />);
+    expect(rowLinks()).toHaveLength(2);
+    expect(document.querySelector(".page-count")?.textContent).toBe(
+      "4 Bestellungen",
+    );
+    expect(document.querySelector(".list-cap")?.textContent).toBe(
+      "Angezeigt werden die ersten 2 von 4 Bestellungen. Suche, Filter oder Sortierung zeigen die übrigen.",
+    );
+    // j stops at the last rendered row.
+    press("j", document.body);
+    press("j");
+    press("j");
+    expect(focusedRowText()).toContain("B-002");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "B-004" },
+    });
+    expect(rowLinks()).toHaveLength(1);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
+
+  it("counts whole groups and gives collapsed groups no budget", () => {
+    setUrl("?view=new");
+    render(<Harness renderLimit={1} />);
+    expect(document.querySelector(".group-count")?.textContent).toBe("2");
+    expect(rowLinks()).toHaveLength(1);
+    expect(document.querySelector(".list-cap")?.textContent).toContain(
+      "die ersten 1 von 2",
+    );
+    // A collapsed group renders nothing, so nothing is cut off.
+    fireEvent.click(document.querySelector(".group-header button")!);
+    expect(rowLinks()).toHaveLength(0);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
+
+  it("renders everything without a limit", () => {
+    render(<Harness />);
+    expect(rowLinks()).toHaveLength(4);
+    expect(document.querySelector(".list-cap")).toBeNull();
+  });
 });
 
 describe("ListView rendering", () => {

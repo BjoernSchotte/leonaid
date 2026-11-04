@@ -81,7 +81,10 @@ interface Group<T> {
   readonly key: string;
   readonly label: string;
   readonly icon: ReactNode;
+  /** Rendered rows (within `renderLimit`). */
   readonly rows: readonly T[];
+  /** All rows of the group, for the header count. */
+  readonly total: number;
 }
 
 const ALL_GROUP = "__all";
@@ -456,7 +459,15 @@ export function ListView<T>(props: ListViewProps<T>) {
   const groups = useMemo<Group<T>[]>(() => {
     const prop = state.groupBy ? propertyById.get(state.groupBy) : undefined;
     if (!prop)
-      return [{ key: ALL_GROUP, label: "", icon: null, rows: visible }];
+      return [
+        {
+          key: ALL_GROUP,
+          label: "",
+          icon: null,
+          rows: visible,
+          total: visible.length,
+        },
+      ];
     const byKey = new Map<string, T[]>();
     for (const row of visible) {
       const key = valuesOf(prop, row)[0] ?? "–";
@@ -480,20 +491,41 @@ export function ListView<T>(props: ListViewProps<T>) {
           label: option?.label ?? key,
           icon: option?.icon ?? null,
           rows: groupRows,
+          total: groupRows.length,
         };
       });
   }, [visible, state.groupBy, propertyById]);
 
   /* Collapsed state belongs to one grouping, not to equal option values. */
   const collapseKey = (key: string) => `${state.groupBy ?? ""}:${key}`;
+  /*
+   * `renderLimit`: open groups share the budget in display order; a
+   * collapsed group renders nothing and so uses none of it.
+   */
+  const { shownGroups, notRendered } = useMemo(() => {
+    const limit = props.renderLimit;
+    if (limit === undefined) return { shownGroups: groups, notRendered: 0 };
+    let budget = limit;
+    let hidden = 0;
+    const result = groups.map((group) => {
+      if (collapsed.has(`${state.groupBy ?? ""}:${group.key}`)) return group;
+      const take = Math.min(budget, group.rows.length);
+      budget -= take;
+      hidden += group.rows.length - take;
+      return take === group.rows.length
+        ? group
+        : { ...group, rows: group.rows.slice(0, take) };
+    });
+    return { shownGroups: result, notRendered: hidden };
+  }, [groups, collapsed, props.renderLimit, state.groupBy]);
   const flatIds = useMemo(
     () =>
-      groups
+      shownGroups
         .filter(
           (group) => !collapsed.has(`${state.groupBy ?? ""}:${group.key}`),
         )
         .flatMap((group) => group.rows.map(getId)),
-    [groups, collapsed, getId, state.groupBy],
+    [shownGroups, collapsed, getId, state.groupBy],
   );
   const rowById = useMemo(
     () => new Map(rows.map((row) => [getId(row), row])),
@@ -1076,7 +1108,7 @@ export function ListView<T>(props: ListViewProps<T>) {
       />
     );
   } else {
-    body = groups.map((group) => {
+    body = shownGroups.map((group) => {
       const groupKey = collapseKey(group.key);
       const isCollapsed = collapsed.has(groupKey);
       return (
@@ -1108,11 +1140,11 @@ export function ListView<T>(props: ListViewProps<T>) {
                   <span className="group-icon">{group.icon}</span>
                 ) : null}
                 <span>{group.label}</span>
-                <span className="group-count num">{group.rows.length}</span>
+                <span className="group-count num">{group.total}</span>
               </button>
             </h2>
           ) : null}
-          {!isCollapsed ? (
+          {!isCollapsed && group.rows.length > 0 ? (
             <ul className="rows">
               {group.rows.map((row) => {
                 const id = getId(row);
@@ -1293,6 +1325,13 @@ export function ListView<T>(props: ListViewProps<T>) {
         >
           {body}
         </div>
+        {notRendered > 0 && status === "ready" ? (
+          <p className="list-cap" role="status">
+            Angezeigt werden die ersten {count - notRendered} von {count}{" "}
+            {entityLabel.many}. Suche, Filter oder Sortierung zeigen die
+            übrigen.
+          </p>
+        ) : null}
         <p aria-hidden="true" className="list-hint">
           <Kbd announce={false} keys="j" /> <Kbd announce={false} keys="k" />{" "}
           bewegen · <Kbd announce={false} keys="enter" /> öffnen ·{" "}

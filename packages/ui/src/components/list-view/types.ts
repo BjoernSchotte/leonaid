@@ -130,6 +130,13 @@ export interface ListViewBaseProps<T> {
   readonly className?: string;
   /** "loading" shows skeleton rows, "error" the error state. */
   readonly status?: ListStatus;
+  /**
+   * Render at most this many rows (after filter, search and sort), for
+   * lists that can hold thousands of records. Filters and search still
+   * cover every row; a hint names the hidden count. Keys, selection and
+   * bulk actions act on the rendered rows. Default: no limit.
+   */
+  readonly renderLimit?: number;
   /** Shown with the error state as "Erneut versuchen". */
   readonly onRetry?: () => void;
   /**
