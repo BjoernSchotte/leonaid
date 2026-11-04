@@ -20,7 +20,6 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
-  Avatar,
   Button,
   cn,
   EmptyState,
@@ -267,7 +266,6 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
           icon={CheckCheck}
           loading={markAll.isPending}
           onClick={markAllRead}
-          shortcut="shift+u"
           variant="secondary"
         >
           Alle als gelesen markieren
@@ -361,6 +359,7 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
                       className="feed-link"
                       data-testid="activity-feed-next-action"
                       href={item.nextActionHref}
+                      title={`Bestellreferenz ${item.publicReference}`}
                       onClick={() => {
                         // Opening an entry reads it; the link still navigates.
                         if (!item.isRead) {
@@ -377,14 +376,13 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
                       tabIndex={item.id === (focusId ?? items[0]?.id) ? 0 : -1}
                     >
                       <span className="feed-text">
-                        <Avatar name={item.partyDisplayName} size="xs" />
                         <strong>{item.partyDisplayName}</strong> hat öffentlich
                         bestellt
                       </span>
                       <span className="feed-object">
                         {formatQuantities(item.quantities, item.totalPieces)} ·{" "}
                         {formatMoney(item.totalMinor, item.currency)} ·{" "}
-                        {item.actionName} · {item.publicReference}
+                        {item.actionName}
                       </span>
                       <span className="feed-next">
                         {item.nextActionLabel}
