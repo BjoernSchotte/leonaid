@@ -242,6 +242,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AssignedAcquirerResponse,
     ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    ACTION_CREATE_CONFLICT_RESPONSES,
     MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
     MEMBER_STATUS_CONFLICT_RESPONSES,
@@ -3060,7 +3061,7 @@ async def list_action_templates(
     "/api/v1/actions/from-template",
     operation_id="createCharityActionFromTemplate",
     response_model=CharityActionConfigurationResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )
@@ -3095,7 +3096,7 @@ async def create_charity_action_from_template(
     "/api/v1/actions",
     operation_id="createCharityAction",
     response_model=CharityActionResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )

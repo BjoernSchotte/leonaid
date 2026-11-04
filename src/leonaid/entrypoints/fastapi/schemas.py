@@ -179,6 +179,12 @@ class MemberDirectoryActionResponse(TransportModel):
     available_roles: list[
         Literal["charity_admin", "acquirer", "finance_reader", "driver"]
     ]
+    lead_required: bool = Field(
+        description=(
+            "Revoking the last charity admin of this action is refused "
+            "(draft, scheduled and active actions)."
+        )
+    )
 
 
 class MemberDirectoryResponse(TransportModel):
@@ -2171,6 +2177,13 @@ MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
     "last_charity_admin_role_forbidden",
     "idempotency_conflict",
     "idempotency_incomplete",
+)
+
+# Action creation: the creator becomes the action's only lead, so it must
+# still be an active account when the action is written.
+ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
+    "action_responsible_administrator_unavailable",
+    "action_archive_slug_conflict",
 )
 
 RequestIdHeader = Annotated[

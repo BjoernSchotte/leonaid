@@ -1,0 +1,96 @@
+/*
+ * Shared parts of list and ledger pages, ported from the prototype:
+ * - .section-links: the segmented subnav of a page with several sections
+ *   (prototype pages/Invoices.css .inv-links), e.g. Rechnungen/Zahlungen/
+ *   Dokumente or Mitglieder/Einladungen;
+ * - .table-wrap/.table: the data table for dense non-list data
+ *   (prototype styles/components.css).
+ */
+.section-links {
+  display: inline-flex;
+  gap: var(--s-1);
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+}
+.section-links a {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.section-links a:hover {
+  color: var(--text);
+}
+.section-links a[aria-current="page"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.table th {
+  position: sticky;
+  top: 0;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+.table td {
+  padding: var(--s-2) var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+  vertical-align: middle;
+}
+.table tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+.table .num,
+.table .right {
+  text-align: right;
+}
+.table a:not(.btn) {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.table a:not(.btn):hover {
+  text-decoration-thickness: 2px;
+}
+
+@media (max-width: 720px) {
+  .section-links {
+    display: flex;
+    width: 100%;
+  }
+  .section-links a {
+    flex: 1;
+    justify-content: center;
+    height: 40px;
+  }
+  .table-wrap {
+    font-size: var(--fs-xs);
+  }
+}

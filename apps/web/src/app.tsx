@@ -142,7 +142,9 @@ function route(available: readonly UiModule[]) {
   if (moduleRoute) return { kind: "module", ...moduleRoute } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
   if (pathname === "/actions") return { kind: "list" } as const;
-  if (pathname === "/members") return { kind: "members" } as const;
+  if (/^\/members(\/invitations)?$/.test(pathname)) {
+    return { kind: "members" } as const;
+  }
   if (pathname === "/system") return { kind: "system" } as const;
   if (pathname === "/privacy") return { kind: "privacy" } as const;
   if (pathname === "/legal") return { kind: "legal" } as const;

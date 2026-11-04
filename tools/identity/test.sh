@@ -125,6 +125,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
+  tests/e2e/members-keyboard.spec.mjs \
   tests/e2e/y-role-management.spec.mjs \
   tests/e2e/z-account-status.spec.mjs \
   --browser=chromium \

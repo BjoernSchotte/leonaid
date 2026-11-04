@@ -8239,12 +8239,18 @@
             },
             "title": "Availableroles",
             "type": "array"
+          },
+          "leadRequired": {
+            "description": "Revoking the last charity admin of this action is refused (draft, scheduled and active actions).",
+            "title": "Leadrequired",
+            "type": "boolean"
           }
         },
         "required": [
           "actionId",
           "actionName",
-          "availableRoles"
+          "availableRoles",
+          "leadRequired"
         ],
         "title": "MemberDirectoryActionResponse",
         "type": "object"
@@ -15744,7 +15750,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `action_responsible_administrator_unavailable`, `action_archive_slug_conflict`."
           },
           "422": {
             "content": {
@@ -15845,7 +15851,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `action_responsible_administrator_unavailable`, `action_archive_slug_conflict`."
           },
           "422": {
             "content": {

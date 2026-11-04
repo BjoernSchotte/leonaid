@@ -127,12 +127,16 @@ function runCommand(label: string) {
 function Harness({
   address,
   apply,
+  createCommandId,
   editOptions,
+  onCreate,
   onOpen,
   hooks,
   status,
   renderLimit,
 }: {
+  createCommandId?: string;
+  onCreate?: () => void;
   address?: ListAddress;
   status?: "ready" | "loading" | "error";
   renderLimit?: number;
@@ -194,7 +198,9 @@ function Harness({
           emptyIcon={ShoppingBasket}
           entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
           getId={(row) => row.id}
+          createCommandId={createCommandId}
           id="orders"
+          onCreate={onCreate}
           onOpen={onOpen}
           properties={properties}
           renderDetail={(row) => <p>Detail {row.number}</p>}
@@ -699,6 +705,23 @@ describe("palette commands", () => {
       screen.getByRole("dialog", { name: "Filter Herkunft" }),
     ).toBeTruthy();
     vi.useRealTimers();
+  });
+});
+
+describe("create command", () => {
+  it("publishes the create action under the list id or the given id", () => {
+    const onCreate = vi.fn();
+    const { unmount } = render(<Harness onCreate={onCreate} />);
+    expect(
+      published.find((command) => command.label === "Neu anlegen")?.id,
+    ).toBe("list:orders:create");
+    unmount();
+    render(<Harness createCommandId="create:order" onCreate={onCreate} />);
+    const create = published.find((command) => command.label === "Neu anlegen");
+    expect(create?.id).toBe("create:order");
+    expect(create?.keys).toBe("c");
+    act(() => create?.run());
+    expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });
 

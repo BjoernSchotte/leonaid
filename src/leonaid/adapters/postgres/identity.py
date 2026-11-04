@@ -21,6 +21,7 @@ from leonaid.application.identity import (
     MemberDirectorySnapshot,
     RoleAssignmentChange,
 )
+from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.identity import (
     OPEN_ACTION_STATUSES,
     AccessRemoval,
@@ -33,6 +34,7 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
     admin_invariant_violation,
+    charity_admin_required,
 )
 from leonaid.domain.sessions import UserSession
 
@@ -555,6 +557,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -571,6 +574,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -641,6 +645,9 @@ class AsyncpgIdentityRepository:
                         ActionRole.ACQUIRER,
                         ActionRole.FINANCE_READER,
                         *((ActionRole.DRIVER,) if bool(row["has_delivery"]) else ()),
+                    ),
+                    lead_required=charity_admin_required(
+                        CharityActionStatus(str(row["status"]))
                     ),
                 )
                 for row in action_rows
@@ -1038,8 +1045,8 @@ class AsyncpgIdentityRepository:
                 ):
                     raise Conflict(
                         "role_action_scope_changed",
-                        "Deine Verwaltungsrolle wurde zwischenzeitlich "
-                        "geändert. Bitte lade den aktuellen Stand.",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
                     )
                 if role is ActionRole.DRIVER and not bool(
                     await connection.fetchval(
