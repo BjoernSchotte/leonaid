@@ -1,0 +1,903 @@
+import {
+  CheckCheck,
+  MapPin,
+  PackageCheck,
+  Phone,
+  RotateCcw,
+  Truck,
+  Undo2,
+  UserRound,
+} from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+
+import {
+  ApiError,
+  type DeliveryBoardResponse,
+  type DeliveryBoardWindowResponse,
+  type DeliveryDropResponse,
+  type LeonAidApiClient,
+} from "@leonaid/api-client";
+import {
+  Avatar,
+  Button,
+  EmptyState,
+  ErrorState,
+  Icon,
+  Kbd,
+  Meter,
+  Modal,
+  NextStep,
+  OptionMenu,
+  Popover,
+  SkeletonRows,
+  StatusIcon,
+  cn,
+  useHotkeys,
+  useMediaQuery,
+  useOptionalHotkeyRegistry,
+  useOptionalToast,
+} from "@leonaid/ui";
+
+import { useContextCommands } from "../command-palette/store";
+
+/*
+ * The delivery day board (prototype pages/Delivery.tsx). Managers see every
+ * drop of the day, assign drivers and close windows; drivers (PWA) see and
+ * tick only the drops assigned to them. Admin copy uses "Sie", the PWA "Du".
+ */
+
+export type DeliverySurface = "web" | "pwa";
+
+const NO_DRIVER = "none";
+const ALL_DRIVERS = "all";
+
+const weekday = (iso: string, zone: string) =>
+  new Intl.DateTimeFormat("de-DE", { weekday: "short", timeZone: zone })
+    .format(new Date(iso))
+    .replace(".", "");
+
+const clock = (iso: string, zone: string) => {
+  const value = new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: zone,
+  }).format(new Date(iso));
+  return value.endsWith(":00") ? value.slice(0, 2) : value;
+};
+
+const dayMonth = (iso: string, zone: string) =>
+  new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: zone,
+  }).format(new Date(iso));
+
+/** "Mi 11.11. · 07–09 Uhr" (prototype window label). */
+export function deliveryWindowLabel(
+  window: Pick<DeliveryBoardWindowResponse, "startsAt" | "endsAt">,
+  zone: string,
+) {
+  return `${weekday(window.startsAt, zone)} ${dayMonth(window.startsAt, zone)} · ${clock(window.startsAt, zone)}–${clock(window.endsAt, zone)} Uhr`;
+}
+
+/** "Mittwoch, 11. November" for an ISO day. */
+function longDay(day: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    weekday: "long",
+  }).format(new Date(`${day}T12:00:00Z`));
+}
+
+const boxes = (count: number) => `${count} ${count === 1 ? "Box" : "Boxen"}`;
+
+function dropAddress(drop: DeliveryDropResponse) {
+  const address = drop.address;
+  if (!address) return null;
+  return `${address.streetLine1}, ${address.postalCode} ${address.city}`;
+}
+
+const copy = {
+  web: {
+    intro:
+      "Pro Fenster abhaken, was angekommen ist. Alles bleibt bis zum Abschluss änderbar.",
+    pickFirst: "Erst eine Lieferung mit J/K auswählen.",
+    noDrops: "Für dieses Fenster ist nichts gebucht.",
+    noDropsForDriver: "Für diesen Fahrer ist hier nichts eingeplant.",
+    nothingAssigned: "Noch keine Lieferungen",
+    notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
+    error: "Die Auslieferung konnte nicht geladen werden.",
+  },
+  pwa: {
+    intro: "Hake ab, was angekommen ist. Du siehst nur deine Lieferungen.",
+    pickFirst: "Wähle erst eine Lieferung aus.",
+    noDrops: "In diesem Fenster ist dir nichts zugewiesen.",
+    noDropsForDriver: "In diesem Fenster ist dir nichts zugewiesen.",
+    nothingAssigned: "Dir ist noch keine Lieferung zugewiesen",
+    notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
+    error: "Deine Lieferungen konnten nicht geladen werden.",
+  },
+} as const;
+
+export interface DeliveryBoardPageProps {
+  readonly client: LeonAidApiClient;
+  readonly actionId: string;
+  readonly surface: DeliverySurface;
+}
+
+export function DeliveryBoardPage({
+  actionId,
+  client,
+  surface,
+}: DeliveryBoardPageProps) {
+  const text = copy[surface];
+  const queries = useQueryClient();
+  const toast = useOptionalToast();
+  const [day, setDay] = useState<string | null>(null);
+  const [driver, setDriver] = useState(ALL_DRIVERS);
+  const [activeWindow, setActiveWindow] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [closing, setClosing] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState<{
+    readonly ids: readonly string[];
+    readonly current: string | null;
+  } | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
+  const openAssign = (
+    ids: readonly string[],
+    current: string | null,
+    anchor: HTMLElement,
+  ) => {
+    anchorRef.current = anchor;
+    setAssigning({ ids, current });
+  };
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const isMobile = useMediaQuery("(max-width: 720px)");
+
+  const queryKey = ["delivery-board", actionId, day] as const;
+  const board = useQuery({
+    enabled: Boolean(actionId),
+    queryFn: () => client.getDeliveryBoard(actionId, { day }),
+    queryKey,
+    // Addresses and phones: no refetch on focus surprises, no retries.
+    retry: false,
+  });
+  const refresh = () =>
+    queries.invalidateQueries({ queryKey: ["delivery-board", actionId] });
+
+  const data = board.data;
+  const zone = data?.timezone ?? "Europe/Berlin";
+  const manager = data?.manager ?? surface === "web";
+
+  const windows = useMemo(() => {
+    if (!data) return [];
+    return data.windows.map((window) => ({
+      window,
+      label: deliveryWindowLabel(window, zone),
+      rows: window.drops.filter(
+        (drop) =>
+          driver === ALL_DRIVERS ||
+          (driver === NO_DRIVER
+            ? drop.driverUserId === null
+            : drop.driverUserId === driver),
+      ),
+    }));
+  }, [data, driver, zone]);
+
+  const selectedWindow =
+    windows.find((group) => group.window.id === activeWindow) ?? windows[0];
+  const visible = isMobile && selectedWindow ? [selectedWindow] : windows;
+  const flat = visible
+    .filter((group) => !group.window.closure || manager)
+    .flatMap((group) => group.rows);
+
+  const focus = (id: string | undefined) => {
+    if (!id) return;
+    setFocusedId(id);
+    rowRefs.current.get(id)?.focus();
+  };
+  const move = (delta: number) => {
+    const index = flat.findIndex((drop) => drop.commitmentId === focusedId);
+    focus(
+      flat[
+        Math.max(0, Math.min(flat.length - 1, index === -1 ? 0 : index + delta))
+      ]?.commitmentId,
+    );
+  };
+
+  const setState = useMutation({
+    mutationFn: ({
+      drop,
+      delivered,
+    }: {
+      drop: DeliveryDropResponse;
+      delivered: boolean;
+    }) =>
+      client.setDeliveryState(actionId, drop.commitmentId, {
+        delivered,
+        expectedRevision: drop.revision,
+      }),
+    onSettled: () => void refresh(),
+    onError: (error) =>
+      toast?.show({
+        title:
+          error instanceof ApiError
+            ? error.detail.message
+            : "Die Änderung wurde nicht gespeichert.",
+        tone: "error",
+      }),
+  });
+
+  const latest = useRef<DeliveryBoardResponse | undefined>(undefined);
+  latest.current = board.data;
+  /** The newer of a drop as returned and as currently on the board. */
+  const freshest = (drop: DeliveryDropResponse) => {
+    const onBoard = latest.current?.windows
+      .flatMap((window) => window.drops)
+      .find((item) => item.commitmentId === drop.commitmentId);
+    return onBoard && onBoard.revision > drop.revision ? onBoard : drop;
+  };
+
+  const toggle = (drop: DeliveryDropResponse, closed: boolean) => {
+    const delivered = drop.state !== "delivered";
+    if (closed && !manager) return;
+    setState.mutate(
+      { drop, delivered },
+      {
+        onSuccess: (updated) =>
+          toast?.show({
+            title: delivered
+              ? `${drop.buyerName}: geliefert.`
+              : `${drop.buyerName}: wieder offen.`,
+            tone: delivered ? "success" : "info",
+            action: {
+              label: "Rückgängig",
+              // The freshest revision: the board may have reloaded since.
+              run: () =>
+                setState.mutate({
+                  drop: freshest(updated),
+                  delivered: !delivered,
+                }),
+            },
+          }),
+      },
+    );
+  };
+
+  const closeWindow = useMutation({
+    mutationFn: (windowId: string) =>
+      client.closeDeliveryWindow(actionId, windowId),
+    onSuccess: (result) => {
+      setClosing(null);
+      toast?.show({
+        title: result.missedCount
+          ? result.followUp === "tasks"
+            ? `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen als Aufgabe angelegt.`
+            : `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen bleiben unter „Nachliefern“.`
+          : "Fenster abgeschlossen. Alles geliefert.",
+        tone: "success",
+      });
+    },
+    onError: (error) =>
+      toast?.show({
+        title:
+          error instanceof ApiError
+            ? error.detail.message
+            : "Das Fenster wurde nicht abgeschlossen.",
+        tone: "error",
+      }),
+    onSettled: () => void refresh(),
+  });
+
+  const reopenWindow = useMutation({
+    mutationFn: (windowId: string) =>
+      client.reopenDeliveryWindow(actionId, windowId),
+    onSuccess: () =>
+      toast?.show({ title: "Fenster wieder geöffnet.", tone: "info" }),
+    onSettled: () => void refresh(),
+  });
+
+  const assign = useMutation({
+    mutationFn: ({
+      ids,
+      driverUserId,
+    }: {
+      ids: readonly string[];
+      driverUserId: string | null;
+    }) =>
+      client.assignDeliveryDriver(actionId, {
+        commitmentIds: [...ids],
+        driverUserId,
+      }),
+    onSuccess: (_result, variables) => {
+      setAssigning(null);
+      toast?.show({
+        title: variables.driverUserId
+          ? "Fahrer zugewiesen."
+          : "Fahrer entfernt.",
+        tone: "success",
+      });
+    },
+    onError: (error) =>
+      toast?.show({
+        title:
+          error instanceof ApiError
+            ? error.detail.message
+            : "Die Zuweisung wurde nicht gespeichert.",
+        tone: "error",
+      }),
+    onSettled: () => void refresh(),
+  });
+
+  useContextCommands(
+    manager
+      ? windows
+          .filter((group) => !group.window.closure && group.window.drops.length)
+          .map((group) => ({
+            id: `delivery:close:${group.window.id}`,
+            label: `Fenster abschließen: ${group.label}`,
+            group: "Auslieferung",
+            icon: CheckCheck,
+            run: () => setClosing(group.window.id),
+          }))
+      : [],
+  );
+
+  const closingGroup = windows.find((group) => group.window.id === closing);
+  const openInClosing =
+    closingGroup?.window.drops.filter((drop) => drop.state === "open") ?? [];
+
+  const unassigned = manager
+    ? windows.flatMap((group) =>
+        group.window.closure
+          ? []
+          : group.window.drops.filter((drop) => drop.driverUserId === null),
+      )
+    : [];
+
+  const driverOptions = [
+    ...(data?.drivers ?? []).map((item) => ({
+      value: item.userId,
+      label: item.displayName,
+      icon: <Avatar name={item.displayName} size="xs" />,
+    })),
+    { value: NO_DRIVER, label: "Kein Fahrer" },
+  ];
+
+  if (!actionId) {
+    return (
+      <div className="page delivery">
+        <EmptyState
+          headingLevel={2}
+          icon={Truck}
+          title="Keine Aktion gewählt"
+          description={
+            surface === "web"
+              ? "Wählen Sie eine Charity-Aktion, um die Auslieferung zu sehen."
+              : "Dir ist noch keine Aktion als Ausfahrer zugeordnet."
+          }
+        />
+      </div>
+    );
+  }
+
+  const notEnabled =
+    board.error instanceof ApiError &&
+    board.error.detail.code === "delivery_not_enabled";
+
+  return (
+    <div className="page delivery" data-zone="delivery">
+      <header className="page-header">
+        <div>
+          <div className="page-heading">
+            <h1>Auslieferung</h1>
+            {data?.day ? (
+              <span className="page-count">{longDay(data.day)}</span>
+            ) : null}
+          </div>
+          <p className="page-sub">{text.intro}</p>
+        </div>
+        {data && (data.days.length > 1 || manager) ? (
+          <div className="delivery-filters">
+            {data.days.length > 1 ? (
+              <label className="driver-filter">
+                <span>Liefertag</span>
+                <select
+                  className="input select"
+                  data-testid="delivery-day"
+                  onChange={(event) => {
+                    setDay(event.target.value);
+                    setActiveWindow(null);
+                  }}
+                  value={data.day ?? ""}
+                >
+                  {data.days.map((item) => (
+                    <option key={item} value={item}>
+                      {longDay(item)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {manager ? (
+              <label className="driver-filter">
+                <span>Fahrdienst</span>
+                <select
+                  className="input select"
+                  data-testid="delivery-driver-filter"
+                  onChange={(event) => setDriver(event.target.value)}
+                  value={driver}
+                >
+                  <option value={ALL_DRIVERS}>Alle Fahrer</option>
+                  {data.drivers.map((item) => (
+                    <option key={item.userId} value={item.userId}>
+                      {item.displayName}
+                    </option>
+                  ))}
+                  <option value={NO_DRIVER}>Ohne Fahrer</option>
+                </select>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+      </header>
+
+      {board.isPending ? (
+        <SkeletonRows rows={6} />
+      ) : notEnabled ? (
+        <EmptyState
+          headingLevel={2}
+          icon={Truck}
+          title="Keine Lieferplanung"
+          description={text.notEnabled}
+        />
+      ) : board.isError ? (
+        <ErrorState onRetry={() => void board.refetch()} title={text.error}>
+          {surface === "web"
+            ? "Prüfen Sie die Verbindung und versuchen Sie es erneut."
+            : "Prüfe deine Verbindung und versuche es erneut."}
+        </ErrorState>
+      ) : !windows.length ? (
+        <EmptyState
+          headingLevel={2}
+          icon={Truck}
+          title={text.nothingAssigned}
+          description={
+            manager
+              ? "Legen Sie Lieferfenster in der Aktion an. Gebuchte Bestellungen erscheinen dann hier."
+              : "Sobald dir jemand Lieferungen zuweist, erscheinen sie hier."
+          }
+        />
+      ) : (
+        <>
+          {manager && unassigned.length && data?.drivers.length ? (
+            <NextStep
+              action={
+                <Button
+                  data-testid="delivery-next-assign"
+                  icon={UserRound}
+                  onClick={(event) =>
+                    openAssign(
+                      unassigned.map((drop) => drop.commitmentId),
+                      null,
+                      event.currentTarget,
+                    )
+                  }
+                  variant="primary"
+                >
+                  Fahrer zuweisen
+                </Button>
+              }
+              consequence={`${unassigned.length} ${unassigned.length === 1 ? "Lieferung hat" : "Lieferungen haben"} noch keinen Fahrer. Ausfahrer sehen nur, was ihnen zugewiesen ist.`}
+            />
+          ) : null}
+
+          <div
+            aria-label="Lieferfenster wählen"
+            className="segmented"
+            role="radiogroup"
+          >
+            {windows.map(({ window }) => (
+              <button
+                aria-checked={selectedWindow?.window.id === window.id}
+                className={cn(
+                  "segment",
+                  selectedWindow?.window.id === window.id && "is-active",
+                )}
+                key={window.id}
+                onClick={() => setActiveWindow(window.id)}
+                role="radio"
+                type="button"
+              >
+                {clock(window.startsAt, zone)}–{clock(window.endsAt, zone)}
+                <span className="segment-day">
+                  {weekday(window.startsAt, zone)}{" "}
+                  {dayMonth(window.startsAt, zone)}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="windows-board">
+            {visible.map(({ window, label, rows }) => {
+              const delivered = rows.filter(
+                (drop) => drop.state === "delivered",
+              ).length;
+              const boxCount = rows.reduce(
+                (sum, drop) => sum + drop.totalBoxes,
+                0,
+              );
+              const drivers = [
+                ...new Set(
+                  rows.flatMap((drop) =>
+                    drop.driverName ? [drop.driverName] : [],
+                  ),
+                ),
+              ];
+              const closed = window.closure !== null;
+              return (
+                <section
+                  aria-labelledby={`win-${window.id}`}
+                  className={cn("window-section", closed && "is-closed")}
+                  data-testid="delivery-window"
+                  key={window.id}
+                >
+                  <header className="window-head">
+                    <div className="window-title">
+                      <h2 id={`win-${window.id}`}>{label}</h2>
+                      <span className="small muted num">
+                        {delivered} von {rows.length} geliefert ·{" "}
+                        {boxes(boxCount)}
+                        {drivers.length ? ` · ${drivers.join(", ")}` : ""}
+                      </span>
+                    </div>
+                    <div className="window-progress">
+                      <Meter
+                        label={`${label}: ${delivered} von ${rows.length} geliefert`}
+                        max={Math.max(1, rows.length)}
+                        tone={
+                          delivered === rows.length && rows.length > 0
+                            ? "ok"
+                            : "zone"
+                        }
+                        value={delivered}
+                      />
+                    </div>
+                    {closed ? (
+                      <div className="window-closed">
+                        <span className="stamp tone-ok">Abgeschlossen</span>
+                        {manager ? (
+                          <Button
+                            icon={RotateCcw}
+                            onClick={() => reopenWindow.mutate(window.id)}
+                            size="sm"
+                            variant="ghost"
+                          >
+                            Wieder öffnen
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : manager ? (
+                      <div className="window-actions">
+                        {data?.drivers.length && window.drops.length ? (
+                          <Button
+                            icon={UserRound}
+                            onClick={(event) =>
+                              openAssign(
+                                window.drops.map((drop) => drop.commitmentId),
+                                null,
+                                event.currentTarget,
+                              )
+                            }
+                            size="sm"
+                            variant="ghost"
+                          >
+                            Fahrer für alle
+                          </Button>
+                        ) : null}
+                        <Button
+                          data-testid="delivery-close-window"
+                          disabled={window.drops.length === 0}
+                          icon={CheckCheck}
+                          onClick={() => setClosing(window.id)}
+                          size="sm"
+                        >
+                          Fenster abschließen
+                        </Button>
+                      </div>
+                    ) : null}
+                  </header>
+                  {rows.length === 0 ? (
+                    <EmptyState
+                      icon={Truck}
+                      title="Keine Lieferungen in diesem Fenster"
+                      description={
+                        driver === ALL_DRIVERS
+                          ? text.noDrops
+                          : text.noDropsForDriver
+                      }
+                    />
+                  ) : (
+                    <ul className="drops">
+                      {rows.map((drop) => {
+                        const done = drop.state === "delivered";
+                        const missed = drop.state === "missed";
+                        const cancelled = drop.orderStatus === "cancelled";
+                        const disabled = (closed && !manager) || cancelled;
+                        const address = dropAddress(drop);
+                        return (
+                          <li
+                            className={cn(
+                              "drop",
+                              done && "is-done",
+                              missed && "is-missed",
+                              cancelled && "is-cancelled",
+                              focusedId === drop.commitmentId && "is-focused",
+                            )}
+                            data-commitment-id={drop.commitmentId}
+                            data-testid="delivery-drop"
+                            key={drop.commitmentId}
+                          >
+                            <button
+                              aria-label={`${drop.buyerName}, ${boxes(drop.totalBoxes)}: ${
+                                done
+                                  ? "geliefert, zurücknehmen"
+                                  : missed
+                                    ? "nicht geliefert, jetzt als geliefert markieren"
+                                    : "als geliefert markieren"
+                              }`}
+                              aria-pressed={done}
+                              className="drop-check"
+                              disabled={disabled || setState.isPending}
+                              onClick={() => toggle(drop, closed)}
+                              onFocus={() => setFocusedId(drop.commitmentId)}
+                              ref={(element) => {
+                                if (element)
+                                  rowRefs.current.set(
+                                    drop.commitmentId,
+                                    element,
+                                  );
+                                else rowRefs.current.delete(drop.commitmentId);
+                              }}
+                              type="button"
+                            >
+                              <StatusIcon
+                                label={
+                                  done
+                                    ? "Geliefert"
+                                    : missed
+                                      ? "Nachliefern"
+                                      : "Offen"
+                                }
+                                size={20}
+                                status={
+                                  done ? "done" : missed ? "alert" : "open"
+                                }
+                              />
+                            </button>
+                            <div className="drop-main">
+                              <p className="drop-name">
+                                <span
+                                  className={
+                                    cancelled ? "is-struck" : undefined
+                                  }
+                                >
+                                  {drop.buyerName}
+                                </span>{" "}
+                                <span className="num drop-boxes">
+                                  {boxes(drop.totalBoxes)}
+                                </span>
+                                {missed ? (
+                                  <span className="drop-flag">Nachliefern</span>
+                                ) : null}
+                                {cancelled ? (
+                                  <span className="drop-flag">storniert</span>
+                                ) : null}
+                              </p>
+                              {address ? (
+                                <p className="drop-meta">
+                                  <Icon icon={MapPin} size={12} />{" "}
+                                  {drop.address?.recipientName
+                                    ? `${drop.address.recipientName}, `
+                                    : ""}
+                                  {address}
+                                </p>
+                              ) : null}
+                              {drop.contact?.name || drop.contact?.phone ? (
+                                <p className="drop-meta">
+                                  <Icon icon={Phone} size={12} />{" "}
+                                  {drop.contact.name}
+                                  {drop.contact.phone ? (
+                                    <>
+                                      {drop.contact.name ? " · " : ""}
+                                      <a href={`tel:${drop.contact.phone}`}>
+                                        {drop.contact.phone}
+                                      </a>
+                                    </>
+                                  ) : null}
+                                </p>
+                              ) : null}
+                            </div>
+                            {manager ? (
+                              <button
+                                aria-label={
+                                  drop.driverName
+                                    ? `Fahrer: ${drop.driverName}, ändern`
+                                    : "Fahrer zuweisen"
+                                }
+                                className="drop-driver"
+                                disabled={closed}
+                                onClick={(event) =>
+                                  openAssign(
+                                    [drop.commitmentId],
+                                    drop.driverUserId,
+                                    event.currentTarget,
+                                  )
+                                }
+                                type="button"
+                              >
+                                {drop.driverName ? (
+                                  <Avatar name={drop.driverName} size="sm" />
+                                ) : (
+                                  <span className="drop-driver-empty">
+                                    <Icon icon={UserRound} size={14} />
+                                  </span>
+                                )}
+                              </button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+          {surface === "web" ? (
+            <p aria-hidden="true" className="list-hint">
+              <Kbd announce={false} keys="j" />{" "}
+              <Kbd announce={false} keys="k" /> bewegen ·{" "}
+              <Kbd announce={false} keys="d" /> geliefert ·{" "}
+              <Kbd announce={false} keys="?" /> alle Kürzel
+            </p>
+          ) : null}
+        </>
+      )}
+
+      <BoardHotkeys
+        move={move}
+        onDeliver={() => {
+          const drop = flat.find((item) => item.commitmentId === focusedId);
+          if (!drop) {
+            toast?.show({ title: text.pickFirst, tone: "info" });
+            return;
+          }
+          const group = windows.find((item) =>
+            item.window.drops.includes(drop),
+          );
+          toggle(drop, group?.window.closure !== null);
+        }}
+      />
+
+      <Popover
+        anchor={anchorRef}
+        label="Fahrer wählen"
+        onClose={() => setAssigning(null)}
+        open={assigning !== null}
+      >
+        <OptionMenu<string>
+          onSelect={(value) => {
+            if (!assigning) return;
+            assign.mutate({
+              ids: assigning.ids,
+              driverUserId: value === NO_DRIVER ? null : value,
+            });
+          }}
+          options={driverOptions}
+          placeholder="Fahrer suchen"
+          value={assigning?.current ?? NO_DRIVER}
+        />
+      </Popover>
+
+      <Modal
+        description="Danach lassen sich die Lieferungen dieses Fensters nicht mehr abhaken."
+        footer={
+          <>
+            <Button onClick={() => setClosing(null)} variant="ghost">
+              Abbrechen
+            </Button>
+            <Button
+              data-testid="delivery-close-confirm"
+              icon={PackageCheck}
+              loading={closeWindow.isPending}
+              onClick={() => closing && closeWindow.mutate(closing)}
+              variant="primary"
+            >
+              {openInClosing.length
+                ? `Mit ${openInClosing.length} offenen abschließen`
+                : "Abschließen"}
+            </Button>
+          </>
+        }
+        onClose={() => setClosing(null)}
+        open={Boolean(closingGroup)}
+        title={`${closingGroup?.label ?? ""} abschließen?`}
+      >
+        {openInClosing.length ? (
+          <div className="stack">
+            <p className="small">
+              <strong>
+                {openInClosing.length}{" "}
+                {openInClosing.length === 1
+                  ? "Lieferung ist"
+                  : "Lieferungen sind"}{" "}
+                noch nicht abgehakt.
+              </strong>{" "}
+              {data?.followUpTasks
+                ? "Sie werden als Aufgabe „Nachliefern“ für Sie angelegt, damit nichts verloren geht."
+                : "Sie bleiben auf dieser Tafel unter „Nachliefern“ sichtbar."}
+            </p>
+            <ul className="open-list">
+              {openInClosing.map((drop) => (
+                <li key={drop.commitmentId}>
+                  <Icon icon={Undo2} size={12} /> {drop.buyerName} ·{" "}
+                  {boxes(drop.totalBoxes)}
+                  {dropAddress(drop) ? ` · ${dropAddress(drop)}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="small">
+            Alle Lieferungen dieses Fensters sind abgehakt.
+          </p>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/** j/k/d on the board; only where a hotkey registry exists (admin shell). */
+function BoardHotkeys(props: {
+  readonly move: (delta: number) => void;
+  readonly onDeliver: () => void;
+}) {
+  const registry = useOptionalHotkeyRegistry();
+  return registry ? <RegisteredBoardHotkeys {...props} /> : null;
+}
+
+function RegisteredBoardHotkeys({
+  move,
+  onDeliver,
+}: {
+  readonly move: (delta: number) => void;
+  readonly onDeliver: () => void;
+}) {
+  useHotkeys([
+    {
+      keys: "j",
+      label: "Nächste Lieferung",
+      group: "Auslieferung",
+      run: () => move(1),
+    },
+    {
+      keys: "k",
+      label: "Vorherige Lieferung",
+      group: "Auslieferung",
+      run: () => move(-1),
+    },
+    {
+      keys: "d",
+      label: "Als geliefert markieren / zurücknehmen",
+      group: "Auslieferung",
+      run: onDeliver,
+    },
+  ]);
+  return null;
+}
+
+export type { DeliveryBoardResponse };
