@@ -34,6 +34,7 @@ import {
   Button,
   Modal,
   NextStep,
+  ReadOnlyNotice,
   StatusMessage,
   useDiscardDialog,
   useHotkeys,
@@ -552,13 +553,13 @@ function PageEditor({
       </header>
 
       {!canEdit ? (
-        <NextStep
-          readOnly={says(
+        <ReadOnlyNotice>
+          {says(
             address,
             "Du kannst diese Seite lesen; bearbeiten dürfen die Personen mit Bearbeitungsrecht.",
             "Sie können diese Seite lesen; bearbeiten dürfen die Personen mit Bearbeitungsrecht.",
           )}
-        />
+        </ReadOnlyNotice>
       ) : empty && !editing ? (
         <NextStep
           action={
@@ -566,13 +567,12 @@ function PageEditor({
               Bearbeiten
             </Button>
           }
-        >
-          {says(
+          consequence={says(
             address,
             "Die Seite ist noch leer. Schreib den ersten Abschnitt – gespeichert wird erst mit „Speichern“.",
             "Die Seite ist noch leer. Schreiben Sie den ersten Abschnitt – gespeichert wird erst mit „Speichern“.",
           )}
-        </NextStep>
+        />
       ) : null}
 
       {conflict ? (

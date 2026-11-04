@@ -32,7 +32,7 @@ import {
   IconButton,
   Kbd,
   Modal,
-  NextStep,
+  ReadOnlyNotice,
   StatusMessage,
   useHotkeys,
   useLeaveGuard,
@@ -257,13 +257,13 @@ function UploadDialog({
         }}
       >
         {readOnly ? (
-          <NextStep
-            readOnly={says(
+          <ReadOnlyNotice>
+            {says(
               address,
               "Du kannst dieses Material herunterladen, aber keine neue Version hochladen.",
               "Sie können dieses Material herunterladen, aber keine neue Version hochladen.",
             )}
-          />
+          </ReadOnlyNotice>
         ) : null}
         {upload.error ? (
           <StatusMessage tone="error">
