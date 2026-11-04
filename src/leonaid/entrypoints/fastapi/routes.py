@@ -934,8 +934,8 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="acquirer.pipeline",
                     label="Meine Pipeline",
                     description=(
-                        "Alle Sponsor-Zuordnungen dieser Aktion, für die du "
-                        "persönlich verantwortlich bist."
+                        "Alle Sponsor-Zuordnungen dieser Aktion, die dem "
+                        "eigenen Konto zugeordnet sind."
                     ),
                     href=f"/app/sponsors?action={action}",
                 ),
@@ -952,7 +952,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="acquirer.activities",
                     label="Meine Aktivitäten",
                     description=(
-                        "Von dir dokumentierte Kontakte in dieser Charity-Aktion."
+                        "Selbst dokumentierte Kontakte in dieser Charity-Aktion."
                     ),
                     href=f"/app/activities?view=contacts&action={action}",
                 ),
@@ -2582,7 +2582,7 @@ async def run_support_probe(request: Request) -> ApiErrorResponse:
         "support_probe_failed",
         (
             "Der kontrollierte Diagnosetest wurde wie vorgesehen abgebrochen. "
-            "Kopiere den Support-Code und prüfe ihn direkt darunter."
+            "Den Support-Code kopieren und direkt darunter prüfen."
         ),
     )
 
@@ -2607,7 +2607,7 @@ async def support_request_diagnostic(
             "support_request_not_found",
             (
                 "Zu diesem Support-Code gibt es im aktuellen Diagnosefenster "
-                "keinen Eintrag. Prüfe den Code oder wiederhole den Vorgang."
+                "keinen Eintrag. Den Code prüfen oder den Vorgang wiederholen."
             ),
         )
     outcome: Literal["successful", "rejected", "failed"]
@@ -2615,14 +2615,14 @@ async def support_request_diagnostic(
         outcome = "failed"
         impact = "Die Anfrage konnte nicht abgeschlossen werden."
         next_step = (
-            "Prüfe den Betriebsstatus und das Runbook zum genannten Fehlercode. "
-            "Wiederhole erst danach die betroffene Aktion."
+            "Betriebsstatus und Runbook zum genannten Fehlercode prüfen. "
+            "Erst danach die betroffene Aktion wiederholen."
         )
     elif diagnostic.status_code >= 400:
         outcome = "rejected"
         impact = "Die Anfrage wurde kontrolliert abgelehnt."
         next_step = (
-            "Prüfe Berechtigung, Eingaben und Anmeldung. Es wurden keine "
+            "Berechtigung, Eingaben und Anmeldung prüfen. Es wurden keine "
             "fachlichen Daten aus dieser Anfrage angezeigt."
         )
     else:

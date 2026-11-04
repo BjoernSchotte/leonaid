@@ -255,7 +255,7 @@ class AsyncpgMaterialRepository:
                 except ObjectStorageError as error:
                     raise DependencyUnavailable(
                         "material_storage_unavailable",
-                        "Die Upload-Bereinigung konnte nicht bestätigt werden. Wiederhole denselben Aufruf.",
+                        "Die Upload-Bereinigung konnte nicht bestätigt werden. Bitte denselben Aufruf wiederholen.",
                     ) from error
                 if command.apply:
                     await conn.execute(
@@ -306,7 +306,7 @@ class AsyncpgMaterialRepository:
         except ObjectStorageError as error:
             raise DependencyUnavailable(
                 "material_storage_unavailable",
-                "Die Datei konnte nicht sicher gespeichert werden. Wiederhole denselben Upload.",
+                "Die Datei konnte nicht sicher gespeichert werden. Bitte denselben Upload wiederholen.",
             ) from error
         await conn.execute(
             """

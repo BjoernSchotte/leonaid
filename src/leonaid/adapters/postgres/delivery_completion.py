@@ -67,7 +67,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Liefervervollständigung wurde nicht ausgeführt.")

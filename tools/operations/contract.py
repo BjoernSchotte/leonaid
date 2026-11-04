@@ -230,8 +230,8 @@ async def prepare(
             "code": "support_probe_failed",
             "message": (
                 "Der kontrollierte Diagnosetest wurde wie vorgesehen "
-                "abgebrochen. Kopiere den Support-Code und prüfe ihn direkt "
-                "darunter."
+                "abgebrochen. Den Support-Code kopieren und direkt darunter "
+                "prüfen."
             ),
             "requestId": SUPPORT_PROBE_REQUEST_ID,
         }:

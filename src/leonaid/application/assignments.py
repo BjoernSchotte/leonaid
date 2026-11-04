@@ -291,5 +291,5 @@ class AssignmentManagementService:
         if assignment.revision != expected_revision:
             raise Conflict(
                 "assignment_revision_conflict",
-                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte lade sie neu.",
+                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte neu laden.",
             )

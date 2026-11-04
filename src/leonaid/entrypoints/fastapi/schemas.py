@@ -1662,14 +1662,14 @@ class SponsorDraftRequest(TransportModel):
         family_name = (self.family_name or "").strip()
         email = (self.email or "").strip()
         if not company_name and (not given_name or not family_name):
-            raise ValueError("Gib einen Firmennamen oder Vorname und Nachname an.")
+            raise ValueError("Bitte einen Firmennamen oder Vor- und Nachnamen angeben.")
         if (
             company_name
             and (given_name or family_name or email)
             and (not given_name or not family_name)
         ):
             raise ValueError(
-                "Gib für einen Firmenkontakt Vorname und Nachname gemeinsam an."
+                "Für einen Firmenkontakt bitte Vor- und Nachnamen gemeinsam angeben."
             )
         return self
 
