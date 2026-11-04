@@ -144,13 +144,37 @@ async def main():
                 member,
                 404,
             )
+            # A report-only member may only export snapshots made under the
+            # settled rule (I1): the owner's one is refused, its own is fine.
+            await call(
+                "POST",
+                path + "/exports",
+                {
+                    "operationId": "denied-unsettled",
+                    "snapshotId": snapshot["id"],
+                    "product": "analysis_xlsx",
+                },
+                member,
+                404,
+            )
+            member_selection = (
+                await call(
+                    "POST",
+                    path + "/export-selections",
+                    {
+                        "operationId": "member-selection",
+                        "filter": {"versionId": version["id"]},
+                    },
+                    member,
+                )
+            ).json()
             member_job = (
                 await call(
                     "POST",
                     path + "/exports",
                     {
                         "operationId": "revoked-before-processing",
-                        "snapshotId": snapshot["id"],
+                        "snapshotId": member_selection["id"],
                         "product": "analysis_xlsx",
                     },
                     member,
