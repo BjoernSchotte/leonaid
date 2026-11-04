@@ -358,6 +358,53 @@ def test_navigation_keeps_backoffice_overview_for_authorized_roles(
         assert microsites[0].href == "/_emdash/admin/content/campaign_pages"
 
 
+@pytest.mark.parametrize(
+    ("global_roles", "action_role", "managed"),
+    (
+        (frozenset({GlobalRole.SYSTEM_ADMIN}), None, True),
+        (frozenset(), ActionRole.CHARITY_ADMIN, True),
+        (frozenset(), ActionRole.FINANCE_READER, False),
+        (frozenset(), ActionRole.ACQUIRER, False),
+    ),
+)
+@pytest.mark.parametrize("delivery", (True, False))
+def test_delivery_navigation_needs_a_managed_action_with_delivery(
+    global_roles: frozenset[GlobalRole],
+    action_role: ActionRole | None,
+    managed: bool,
+    delivery: bool,
+) -> None:
+    memberships = (
+        (
+            ActionMembership(
+                id=UUID("21000000-0000-4000-8000-000000000022"),
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+                user_id=KLARA_ID,
+                role=action_role,
+                active_from=NOW,
+            ),
+        )
+        if action_role is not None
+        else ()
+    )
+    principal = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=global_roles,
+        action_memberships=memberships,
+    )
+
+    items = [
+        item
+        for item in navigation_for(principal, delivery=delivery)
+        if item.key == "delivery"
+    ]
+
+    assert len(items) == int(managed and delivery)
+    if items:
+        assert (items[0].surface, items[0].href) == ("web", "/admin/delivery")
+
+
 def test_role_management_matrix_separates_global_and_action_scopes() -> None:
     charity_admin = IdentityPrincipal(
         account=account(AccountStatus.ACTIVE),

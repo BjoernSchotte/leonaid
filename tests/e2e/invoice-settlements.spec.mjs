@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import {
   closeInvoice,
@@ -50,7 +50,7 @@ function sessionCookie(value) {
 }
 
 async function expectNoSeriousAccessibilityViolations(page) {
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(
     accessibility.violations.filter(
       (violation) =>

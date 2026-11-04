@@ -173,7 +173,9 @@ export function TaskDetail({
 
       {task.description ? (
         <DetailSection title="Beschreibung">
-          <p className="task-description">{task.description}</p>
+          <p className="task-description">
+            <LinkedText text={task.description} />
+          </p>
         </DetailSection>
       ) : null}
 
@@ -474,5 +476,27 @@ function ListAudience({
         </p>
       ) : null}
     </DetailSection>
+  );
+}
+
+/* In-app paths in a description become links; anything else stays text.
+   Only same-origin "/admin/…" and "/app/…" paths, never schemes, so a
+   description cannot smuggle in a javascript: or external link. Generated
+   tasks (delivery "Nachliefern") link to their order this way. */
+const IN_APP_PATH = /(\/(?:admin|app)\/[^\s<>"']*)/;
+
+export function LinkedText({ text }: { readonly text: string }) {
+  return (
+    <>
+      {text.split(IN_APP_PATH).map((part, index) =>
+        index % 2 === 1 ? (
+          <a href={part} key={index}>
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }

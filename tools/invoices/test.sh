@@ -154,7 +154,7 @@ compose --profile dev-mail up --detach --wait --wait-timeout 420 \
 # The bulk fault proof runs after the main proof: it relies on its invoice
 # numbers and seeded orders, and its source is pinned in
 # tools/ci/reviewed_network_faults.json.
-for spec in invoices.spec.mjs invoices-bulk-faults.spec.mjs; do
+for spec in invoices.spec.mjs invoices-bulk-faults.spec.mjs delivery-board.spec.mjs; do
   docker run --rm \
     --network "${project}_edge" \
     --env CI=1 \
@@ -186,7 +186,9 @@ for screenshot in \
   invoice-bulk-release-desktop.png \
   invoice-bulk-release-result.png \
   invoice-bulk-release-retry.png \
-  invoice-bulk-release-refused.png; do
+  invoice-bulk-release-refused.png \
+  delivery-board-desktop.png \
+  delivery-board-driver-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invoice-test: ERROR: browser proof is missing: $screenshot" >&2
     exit 1
@@ -194,7 +196,7 @@ for screenshot in \
 done
 
 mkdir -p "$root/.artifacts/poc090"
-cp "$proof"/invoice-*.png "$root/.artifacts/poc090/"
+cp "$proof"/invoice-*.png "$proof"/delivery-board-*.png "$root/.artifacts/poc090/"
 
 echo "invoice-test: OK: server contract, fresh login, invoice issuing,"
 echo "invoice-test:     finance reader view and real Twenty snapshots proven"

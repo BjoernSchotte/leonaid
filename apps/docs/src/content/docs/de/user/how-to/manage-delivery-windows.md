@@ -4,8 +4,8 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
@@ -49,8 +49,8 @@ keine Lieferadresse und kein Fenster. Solange die Lieferplanung aktiv ist, kann
 für sie keine Rechnung freigegeben werden: **Rechnung prüfen** zeigt
 **Lieferangaben fehlen**, und die Freigabe bleibt gesperrt.
 
-1. Öffne **Bestellungen prüfen** und bei der Bestellung den Abschnitt **Liefer-
-   und Rechnungsangaben ergänzen**.
+1. Öffne **Bestellungen** und wähle die Bestellung. Die Seitenansicht zeigt den
+   Block **Nächster Schritt**; wähle dort **Angaben ergänzen**.
 2. Trage die Lieferadresse ein, wähle ein Fenster und korrigiere bei Bedarf die
    Rechnungsadresse.
 3. Wähle **Angaben speichern**.
@@ -83,3 +83,9 @@ Hat inzwischen eine andere Person die Bestellung gespeichert, bleiben deine
 Eingaben im Formular erhalten. Wähle **Aktuellen Stand laden und vergleichen**,
 prüfe die gespeicherten Angaben, wähle **Meine Eingaben auf diesen Stand
 anwenden** und speichere erneut.
+
+## Am Liefertag
+
+Gebuchte Bestellungen erscheinen pro Fenster auf der Seite **Auslieferung**.
+Dort weist du Ausfahrer zu, hakst Lieferungen ab und schließt Fenster ab; siehe
+[Auslieferung abhaken](/de/user/how-to/work-delivery-board/).

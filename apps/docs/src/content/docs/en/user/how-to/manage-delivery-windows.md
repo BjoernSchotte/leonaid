@@ -4,8 +4,8 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
@@ -46,8 +46,8 @@ or window. While delivery planning is active, such an order cannot be invoiced:
 **Rechnung prüfen** shows **Lieferangaben fehlen** and the approval stays
 disabled.
 
-1. Open **Bestellungen prüfen**, then the order's **Liefer- und
-   Rechnungsangaben ergänzen** section.
+1. Open **Bestellungen** (orders) and select the order. The side pane shows the
+   **Nächster Schritt** (next step) block; select **Angaben ergänzen** there.
 2. Enter the delivery address, select a window and, if needed, correct the
    billing address.
 3. Select **Angaben speichern**.
@@ -79,3 +79,9 @@ If another administrator saved the order in the meantime, your inputs stay in
 the form. Select **Aktuellen Stand laden und vergleichen**, check the stored
 details, then select **Meine Eingaben auf diesen Stand anwenden** and save
 again.
+
+## On the delivery day
+
+Booked orders appear per window on the **Auslieferung** (delivery) page. There
+you assign drivers, tick off deliveries and close windows; see
+[Work the delivery board](/en/user/how-to/work-delivery-board/).

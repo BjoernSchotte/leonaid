@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -22,28 +22,8 @@ function sessionCookie(value) {
   };
 }
 
-/**
- * Lets finite CSS animations end before axe measures colours. A popover
- * fades in over 120 ms (opacity); axe blends text and ground with the
- * current opacity, so a scan during the fade reports the list menu's
- * 14.5:1 label as 4.39:1. Endless animations (spinner, shimmer) are skipped.
- */
-async function settleAnimations(page) {
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((animation) =>
-          Number.isFinite(animation.effect?.getComputedTiming().endTime),
-        )
-        .map((animation) => animation.finished.catch(() => undefined)),
-    ),
-  );
-}
-
 async function expectNoSeriousAccessibilityViolations(page, context) {
-  await settleAnimations(page);
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(
     accessibility.violations.filter(
       (violation) =>

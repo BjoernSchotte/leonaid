@@ -9,11 +9,13 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@leonaid/api-client": "workspace:*",
     "@astrojs/node": "11.1.9",
     "@astrojs/react": "7.1.2",
     "@aws-sdk/client-s3": "3.1127.0",
     "@aws-sdk/s3-request-presigner": "3.1127.0",
+    "@fontsource/barlow": "5.3.0",
+    "@leonaid/api-client": "workspace:*",
+    "@leonaid/ui": "workspace:*",
     "astro": "7.4.4",
     "emdash": "1.4.0",
     "kysely": "0.29.5",

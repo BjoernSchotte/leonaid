@@ -765,6 +765,12 @@ check_all() {
     python /workspace/tools/ci/conflict_markers.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/axe_helper_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/axe_helper.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/core_oneoff_user.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
