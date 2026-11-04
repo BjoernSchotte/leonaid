@@ -1,12 +1,17 @@
 import {
-  ArrowRight02Icon,
-  CheckmarkCircle02Icon,
-  InboxUnreadIcon,
-  PackageReceive01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  Activity as ActivityIcon,
+  ArrowRight,
+  CheckCheck,
+  Circle,
+  CircleDot,
+} from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -14,9 +19,23 @@ import {
   type ActivityFeedResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import {
+  Avatar,
+  Button,
+  cn,
+  EmptyState,
+  ErrorState,
+  Icon,
+  Kbd,
+  StatusMessage,
+  useHotkeys,
+  useToast,
+} from "@leonaid/ui";
 
+import { useContextCommands } from "../command-palette/store";
 import { formatQuantities } from "../commitments/quantities";
+import { zoneForNavKey } from "../navigation/zones";
+import { isoDay, localIsoDate } from "../shared/dates";
 
 interface ActivityFeedPageProps {
   readonly client: LeonAidApiClient;
@@ -25,6 +44,10 @@ interface ActivityFeedPageProps {
 
 type FeedFilter = "all" | "unread";
 
+/** Public orders are the feed's one event type; they belong to "orders". */
+const FEED_ZONE = "orders";
+const PAGE_SIZE = 50;
+
 function formatMoney(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
     currency,
@@ -32,242 +55,257 @@ function formatMoney(amountMinor: number, currency: string) {
   }).format(amountMinor / 100);
 }
 
-function formatDateTime(value: string) {
+function formatTime(value: string) {
   return new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "Europe/Berlin",
   }).format(new Date(value));
 }
 
-function quantityCopy(item: ActivityFeedItemResponse) {
-  return formatQuantities(item.quantities, item.totalPieces);
+/** "Heute", "Gestern" or "Montag, 2. November" (Berlin day, prototype). */
+export function feedDayLabel(occurredAt: string, today = localIsoDate()) {
+  const day = isoDay(occurredAt);
+  const diff = Math.round((Date.parse(today) - Date.parse(day)) / 86_400_000);
+  if (diff === 0) return "Heute";
+  if (diff === 1) return "Gestern";
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    weekday: "long",
+  }).format(new Date(`${day}T12:00:00Z`));
 }
 
-function updatedPage(
-  current: ActivityFeedResponse,
+function groupByDay(items: readonly ActivityFeedItemResponse[]) {
+  const groups = new Map<string, ActivityFeedItemResponse[]>();
+  for (const item of items) {
+    const key = feedDayLabel(item.occurredAt);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return [...groups.entries()];
+}
+
+/** Applies one changed entry to every loaded page and the unread count. */
+export function withReadState(
+  current: InfiniteData<ActivityFeedResponse, number>,
   updated: ActivityFeedItemResponse,
-  filter: FeedFilter,
-): ActivityFeedResponse {
-  const existing = current.items.find((item) => item.id === updated.id);
+): InfiniteData<ActivityFeedResponse, number> {
+  const existing = current.pages
+    .flatMap((page) => page.items)
+    .find((item) => item.id === updated.id);
   if (!existing) return current;
-  const becameRead = !existing.isRead && updated.isRead;
-  const becameUnread = existing.isRead && !updated.isRead;
+  const delta =
+    !existing.isRead && updated.isRead
+      ? -1
+      : existing.isRead && !updated.isRead
+        ? 1
+        : 0;
   return {
     ...current,
-    items:
-      filter === "unread" && updated.isRead
-        ? current.items.filter((item) => item.id !== updated.id)
-        : current.items.map((item) =>
-            item.id === updated.id ? updated : item,
-          ),
-    unreadCount: Math.max(
-      0,
-      current.unreadCount - (becameRead ? 1 : 0) + (becameUnread ? 1 : 0),
-    ),
+    pages: current.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) =>
+        item.id === updated.id ? updated : item,
+      ),
+      unreadCount: Math.max(0, page.unreadCount + delta),
+    })),
   };
 }
 
-function ActivityFeedEntry({
-  item,
-  onToggleRead,
-  pending,
-}: {
-  readonly item: ActivityFeedItemResponse;
-  readonly onToggleRead: (item: ActivityFeedItemResponse) => void;
-  readonly pending: boolean;
-}) {
-  return (
-    <li
-      className="activity-feed-entry"
-      data-event-id={item.id}
-      data-read={item.isRead}
-      data-testid="activity-feed-entry"
-    >
-      <span aria-hidden="true" className="activity-feed-entry__marker">
-        <HugeiconsIcon
-          icon={PackageReceive01Icon}
-          size={20}
-          strokeWidth={1.8}
-        />
-      </span>
-      <article>
-        <div className="activity-feed-entry__meta">
-          {!item.isRead ? (
-            <span className="activity-feed-entry__new">Neu</span>
-          ) : null}
-          <time dateTime={item.occurredAt}>
-            {formatDateTime(item.occurredAt)}
-          </time>
-          <span>{item.actionName}</span>
-        </div>
-        <h2>Neue öffentliche Bestellung</h2>
-        <p>
-          <strong>{item.partyDisplayName}</strong> hat {quantityCopy(item)} im
-          Wert von {formatMoney(item.totalMinor, item.currency)} bestellt.
-        </p>
-        <dl className="activity-feed-entry__facts">
-          <div>
-            <dt>Bestellreferenz</dt>
-            <dd>{item.publicReference}</dd>
-          </div>
-          <div>
-            <dt>Kontaktart</dt>
-            <dd>{item.partyKind === "company" ? "Firma" : "Person"}</dd>
-          </div>
-        </dl>
-        <footer>
-          <a
-            className="activity-feed-entry__next"
-            data-testid="activity-feed-next-action"
-            href={item.nextActionHref}
-          >
-            {item.nextActionLabel}
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={ArrowRight02Icon}
-              size={18}
-              strokeWidth={1.8}
-            />
-          </a>
-          <button
-            aria-label={
-              item.isRead
-                ? `${item.partyDisplayName} als ungelesen markieren`
-                : `${item.partyDisplayName} als gelesen markieren`
-            }
-            className="activity-feed-entry__read-toggle"
-            data-testid="activity-feed-read-toggle"
-            disabled={pending}
-            onClick={() => onToggleRead(item)}
-            type="button"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={CheckmarkCircle02Icon}
-              size={18}
-              strokeWidth={1.8}
-            />
-            {pending
-              ? "Wird gespeichert …"
-              : item.isRead
-                ? "Als ungelesen"
-                : "Als gelesen"}
-          </button>
-        </footer>
-      </article>
-    </li>
-  );
-}
-
 export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
+  const du = surface === "pwa";
   const [filter, setFilter] = useState<FeedFilter>("all");
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const links = useRef(new Map<string, HTMLAnchorElement>());
   const queryClient = useQueryClient();
-  const feed = useQuery({
-    queryFn: () => client.getActivityFeed({ limit: 50, status: filter }),
-    queryKey: ["activity-feed", filter],
+  const toast = useToast();
+  const queryKey = ["activity-feed", filter] as const;
+  const feed = useInfiniteQuery({
+    queryFn: ({ pageParam }) =>
+      client.getActivityFeed({
+        limit: PAGE_SIZE,
+        offset: pageParam,
+        status: filter,
+      }),
+    getNextPageParam: (last) =>
+      last.offset + last.items.length < last.total
+        ? last.offset + last.items.length
+        : undefined,
+    initialPageParam: 0,
+    queryKey,
   });
+
   const updateReadState = useMutation({
     mutationFn: ({
-      eventId,
+      id,
       read,
     }: {
-      readonly eventId: string;
+      readonly id: string;
       readonly read: boolean;
-    }) => client.updateActivityFeedItem(eventId, { read }),
+    }) => client.updateActivityFeedItem(id, { read }),
     onError: () => setPendingId(null),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ActivityFeedResponse>(
-        ["activity-feed", filter],
-        (current) =>
-          current ? updatedPage(current, updated, filter) : current,
+      queryClient.setQueryData<InfiniteData<ActivityFeedResponse, number>>(
+        queryKey,
+        (current) => (current ? withReadState(current, updated) : current),
       );
       setPendingId(null);
       void queryClient.invalidateQueries({ queryKey: ["activity-feed"] });
     },
   });
+  const markAll = useMutation({
+    mutationFn: () => client.markActivityFeedRead(),
+    onSuccess: () => {
+      toast.show({ title: "Alles als gelesen markiert.", tone: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["activity-feed"] });
+    },
+  });
+
+  const items = useMemo(
+    () => feed.data?.pages.flatMap((page) => page.items) ?? [],
+    [feed.data],
+  );
+  // The newest page carries the current count.
+  const unread = feed.data?.pages.at(-1)?.unreadCount ?? 0;
+  const groups = useMemo(() => groupByDay(items), [items]);
+  const zone = zoneForNavKey(FEED_ZONE);
 
   function toggleRead(item: ActivityFeedItemResponse) {
     setPendingId(item.id);
-    updateReadState.mutate({ eventId: item.id, read: !item.isRead });
+    updateReadState.mutate({ id: item.id, read: !item.isRead });
+  }
+  function markAllRead() {
+    if (unread > 0 && !markAll.isPending) markAll.mutate();
+  }
+  function move(delta: number) {
+    if (!items.length) return;
+    const index = items.findIndex((item) => item.id === focusId);
+    const next =
+      items[
+        Math.max(
+          0,
+          Math.min(items.length - 1, index === -1 ? 0 : index + delta),
+        )
+      ];
+    if (!next) return;
+    setFocusId(next.id);
+    links.current.get(next.id)?.focus();
   }
 
-  const updateError =
+  useHotkeys([
+    {
+      keys: "j",
+      label: "Nächster Eintrag",
+      group: "Aktivität",
+      run: () => move(1),
+    },
+    {
+      keys: "k",
+      label: "Vorheriger Eintrag",
+      group: "Aktivität",
+      run: () => move(-1),
+    },
+    {
+      keys: "u",
+      label: "Gelesen/ungelesen",
+      group: "Aktivität",
+      run: () => {
+        const item = items.find((entry) => entry.id === focusId);
+        if (item) toggleRead(item);
+      },
+    },
+    {
+      keys: "shift+u",
+      label: "Alle als gelesen markieren",
+      group: "Aktivität",
+      run: markAllRead,
+    },
+  ]);
+  useContextCommands([
+    {
+      id: "feed-read-all",
+      label: "Alle als gelesen markieren",
+      group: "Aktivität",
+      icon: CheckCheck,
+      keys: "shift+u",
+      run: markAllRead,
+    },
+  ]);
+
+  const filtered = filter === "unread";
+  const readError =
     updateReadState.error instanceof ApiError &&
     updateReadState.error.status === 404
       ? "Dieser Eintrag ist nicht mehr verfügbar. Die Liste wurde aktualisiert."
-      : "Der Lesestatus konnte nicht gespeichert werden. Versuche es erneut.";
+      : du
+        ? "Der Lesestatus konnte nicht gespeichert werden. Versuche es erneut."
+        : "Der Lesestatus konnte nicht gespeichert werden. Versuchen Sie es erneut.";
 
   return (
-    <div className="activity-feed-page" data-surface={surface}>
-      <header className="activity-feed-page__header">
-        <div>
-          <p className="activity-feed-eyebrow">Dein Arbeitsvorrat</p>
-          <h1>Neues &amp; Aktivitäten</h1>
-          <p>
-            Öffentliche Bestellungen deiner Sponsoren und der nächste sinnvolle
-            Schritt – aktuell und ohne Doppelarbeit.
-          </p>
+    <div className="activity" data-surface={surface} data-zone={FEED_ZONE}>
+      <header className="page-header">
+        <div className="page-heading">
+          <h1>{du ? "Neues" : "Aktivität"}</h1>
+          <span
+            aria-live="polite"
+            className="page-count num"
+            data-testid="activity-feed-unread-count"
+          >
+            {feed.data
+              ? unread
+                ? `${unread} ungelesen`
+                : "Alles gelesen"
+              : ""}
+          </span>
         </div>
-        <div
-          aria-label={`${feed.data?.unreadCount ?? 0} ungelesene Einträge`}
-          className="activity-feed-unread"
-          data-testid="activity-feed-unread-count"
+        <Button
+          disabled={!unread || markAll.isPending}
+          icon={CheckCheck}
+          loading={markAll.isPending}
+          onClick={markAllRead}
+          shortcut="shift+u"
+          variant="secondary"
         >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={InboxUnreadIcon}
-            size={22}
-            strokeWidth={1.8}
-          />
-          <strong>{feed.data?.unreadCount ?? "–"}</strong>
-          <span>ungelesen</span>
-        </div>
+          Alle als gelesen markieren
+        </Button>
       </header>
 
-      <div className="activity-feed-toolbar">
-        <div
-          aria-label="Aktivitäten filtern"
-          className="activity-feed-filter"
-          role="tablist"
+      <div
+        aria-label="Nach Bereich filtern"
+        className="feed-filters"
+        role="group"
+      >
+        <button
+          aria-pressed={filtered}
+          className={cn("feed-chip", filtered && "is-on")}
+          onClick={() => setFilter(filtered ? "all" : "unread")}
+          type="button"
         >
+          <Icon icon={CircleDot} size={12} /> Nur ungelesene
+        </button>
+        {filtered ? (
           <button
-            aria-selected={filter === "all"}
+            className="chip-clear"
             onClick={() => setFilter("all")}
-            role="tab"
             type="button"
           >
-            Alle
+            Zurücksetzen
           </button>
-          <button
-            aria-selected={filter === "unread"}
-            onClick={() => setFilter("unread")}
-            role="tab"
-            type="button"
-          >
-            Ungelesen
-            {feed.data?.unreadCount ? (
-              <span>{feed.data.unreadCount}</span>
-            ) : null}
-          </button>
-        </div>
-        {feed.data ? (
-          <span aria-live="polite">
-            {feed.data.items.length}{" "}
-            {feed.data.items.length === 1 ? "Eintrag" : "Einträge"}
-          </span>
         ) : null}
       </div>
 
-      {updateReadState.isError ? (
-        <StatusMessage tone="error">{updateError}</StatusMessage>
+      {updateReadState.isError || markAll.isError ? (
+        <StatusMessage tone="error">{readError}</StatusMessage>
       ) : null}
 
       {feed.isPending ? (
         <div
           aria-label="Aktivitäten werden geladen"
-          className="activity-feed-loading"
+          className="feed-loading"
           role="status"
         >
           <span />
@@ -275,53 +313,132 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
           <span />
         </div>
       ) : feed.isError ? (
-        <StatusMessage tone="error">
-          <div>
-            <strong>Aktivitäten nicht erreichbar</strong>
-            <p>
-              Der Arbeitsvorrat konnte nicht geladen werden. Prüfe deine
-              Verbindung und versuche es erneut.
-            </p>
-            <Button onClick={() => void feed.refetch()} variant="secondary">
-              Erneut laden
-            </Button>
-          </div>
-        </StatusMessage>
-      ) : feed.data?.items.length ? (
-        <ol className="activity-feed-list" data-testid="activity-feed-list">
-          {feed.data.items.map((item) => (
-            <ActivityFeedEntry
-              item={item}
-              key={item.id}
-              onToggleRead={toggleRead}
-              pending={pendingId === item.id}
-            />
-          ))}
-        </ol>
+        <ErrorState
+          onRetry={() => void feed.refetch()}
+          title="Aktivitäten nicht erreichbar"
+        >
+          {du
+            ? "Prüfe deine Verbindung und versuche es erneut."
+            : "Prüfen Sie die Verbindung und versuchen Sie es erneut."}
+        </ErrorState>
+      ) : items.length === 0 ? (
+        <div data-testid="activity-feed-empty">
+          <EmptyState
+            description={
+              filtered
+                ? du
+                  ? "Entferne den Filter, um mehr zu sehen."
+                  : "Entfernen Sie den Filter, um mehr zu sehen."
+                : "Neue öffentliche Bestellungen erscheinen hier und nennen den nächsten Schritt."
+            }
+            icon={ActivityIcon}
+            title={filtered ? "Nichts in dieser Auswahl" : "Alles erledigt"}
+          />
+        </div>
       ) : (
-        <div className="activity-feed-empty" data-testid="activity-feed-empty">
-          <span aria-hidden="true">
-            <HugeiconsIcon icon={InboxUnreadIcon} size={24} strokeWidth={1.8} />
-          </span>
-          <div>
-            <strong>
-              {filter === "unread"
-                ? "Alles gelesen"
-                : "Noch keine neuen Bestellungen"}
-            </strong>
-            <p>
-              {filter === "unread"
-                ? "Als ungelesen markierte Einträge erscheinen hier wieder."
-                : "Neue öffentliche Bestellungen erscheinen hier automatisch und nennen direkt den nächsten Schritt."}
-            </p>
-          </div>
-          {filter === "unread" ? (
-            <Button onClick={() => setFilter("all")} variant="secondary">
-              Alle Aktivitäten zeigen
+        <div data-testid="activity-feed-list">
+          {groups.map(([day, dayItems]) => (
+            <section aria-label={day} className="feed-day" key={day}>
+              <h2 className="feed-day-title">{day}</h2>
+              <ol className="feed">
+                {dayItems.map((item) => (
+                  <li
+                    className={cn(
+                      "feed-item",
+                      !item.isRead && "is-unread",
+                      focusId === item.id && "is-focused",
+                    )}
+                    data-event-id={item.id}
+                    data-read={item.isRead}
+                    data-testid="activity-feed-entry"
+                    data-zone={FEED_ZONE}
+                    key={item.id}
+                  >
+                    <span aria-hidden="true" className="feed-zone">
+                      {zone ? <Icon icon={zone.icon} size={14} /> : null}
+                    </span>
+                    <a
+                      className="feed-link"
+                      data-testid="activity-feed-next-action"
+                      href={item.nextActionHref}
+                      onClick={() => {
+                        // Opening an entry reads it; the link still navigates.
+                        if (!item.isRead) {
+                          void client.updateActivityFeedItem(item.id, {
+                            read: true,
+                          });
+                        }
+                      }}
+                      onFocus={() => setFocusId(item.id)}
+                      ref={(element) => {
+                        if (element) links.current.set(item.id, element);
+                        else links.current.delete(item.id);
+                      }}
+                      tabIndex={item.id === (focusId ?? items[0]?.id) ? 0 : -1}
+                    >
+                      <span className="feed-text">
+                        <Avatar name={item.partyDisplayName} size="xs" />
+                        <strong>{item.partyDisplayName}</strong> hat öffentlich
+                        bestellt
+                      </span>
+                      <span className="feed-object">
+                        {formatQuantities(item.quantities, item.totalPieces)} ·{" "}
+                        {formatMoney(item.totalMinor, item.currency)} ·{" "}
+                        {item.actionName} · {item.publicReference}
+                      </span>
+                      <span className="feed-next">
+                        {item.nextActionLabel}
+                        <Icon icon={ArrowRight} size={12} />
+                      </span>
+                    </a>
+                    <time className="feed-time num" dateTime={item.occurredAt}>
+                      {formatTime(item.occurredAt)}
+                    </time>
+                    <button
+                      aria-label={
+                        item.isRead
+                          ? `${item.partyDisplayName} als ungelesen markieren`
+                          : `${item.partyDisplayName} als gelesen markieren`
+                      }
+                      className="feed-read"
+                      data-testid="activity-feed-read-toggle"
+                      disabled={pendingId === item.id}
+                      onClick={() => toggleRead(item)}
+                      title={
+                        item.isRead
+                          ? "Als ungelesen markieren (U)"
+                          : "Als gelesen markieren (U)"
+                      }
+                      type="button"
+                    >
+                      <Icon icon={item.isRead ? Circle : CircleDot} size={14} />
+                    </button>
+                    {!item.isRead ? (
+                      <span className="sr-only">ungelesen</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
+          {feed.hasNextPage ? (
+            <Button
+              className="feed-more"
+              loading={feed.isFetchingNextPage}
+              onClick={() => void feed.fetchNextPage()}
+              variant="ghost"
+            >
+              Ältere Einträge laden
             </Button>
           ) : null}
         </div>
       )}
+      <p aria-hidden="true" className="list-hint">
+        <Kbd announce={false} keys="j" /> <Kbd announce={false} keys="k" />{" "}
+        bewegen · <Kbd announce={false} keys="enter" /> öffnen ·{" "}
+        <Kbd announce={false} keys="u" /> gelesen/ungelesen ·{" "}
+        <Kbd announce={false} keys="shift+u" /> alle gelesen
+      </p>
     </div>
   );
 }
