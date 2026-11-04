@@ -5085,6 +5085,7 @@ def delivery_board_response(board: DeliveryBoard) -> DeliveryBoardResponse:
                 starts_at=window.starts_at,
                 ends_at=window.ends_at,
                 retired=window.retired,
+                fully_booked=window.fully_booked,
                 closure=(
                     DeliveryWindowClosureResponse(
                         closed_at=window.closure.closed_at,

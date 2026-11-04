@@ -139,7 +139,7 @@ class AsyncpgDeliveryBoardRepository:
                 windows = await connection.fetch(
                     """
                     SELECT window_row.id, window_row.starts_at, window_row.ends_at,
-                        window_row.retired,
+                        window_row.retired, window_row.fully_booked,
                         closure.closed_at, closure.missed_count,
                         closer.display_name AS closed_by_name
                     FROM action_delivery_window AS window_row
@@ -236,6 +236,7 @@ class AsyncpgDeliveryBoardRepository:
                     starts_at=row["starts_at"],
                     ends_at=row["ends_at"],
                     retired=bool(row["retired"]),
+                    fully_booked=bool(row["fully_booked"]),
                     closure=(
                         WindowClosure(
                             closed_at=row["closed_at"],

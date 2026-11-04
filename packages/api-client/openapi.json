@@ -5405,6 +5405,10 @@
             "title": "Endsat",
             "type": "string"
           },
+          "fullyBooked": {
+            "title": "Fullybooked",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5425,6 +5429,7 @@
           "startsAt",
           "endsAt",
           "retired",
+          "fullyBooked",
           "closure",
           "drops"
         ],
@@ -5929,6 +5934,18 @@
             "format": "time",
             "title": "Endsat",
             "type": "string"
+          },
+          "fullyBooked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ignored; use setDeliveryWindowFullyBooked for \"ausgebucht\".",
+            "title": "Fullybooked"
           },
           "id": {
             "anyOf": [
