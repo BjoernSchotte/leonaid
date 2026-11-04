@@ -770,3 +770,31 @@
     grid-template-columns: 16px 1fr auto;
   }
 }
+
+/* Product: the key figures the earlier dashboard showed (orders, value,
+   invoiced, open items) stay available above their definitions. */
+.dashboard-definitions .dashboard-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--s-3) var(--s-6);
+  margin: 0 0 var(--s-4);
+}
+.dashboard-definitions .dashboard-figures > div {
+  display: grid;
+  gap: 2px;
+}
+.dashboard-definitions .dashboard-figures dt {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.dashboard-definitions .dashboard-figures dd {
+  display: grid;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.dashboard-definitions .dashboard-figures strong {
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}

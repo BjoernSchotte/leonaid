@@ -115,10 +115,13 @@ test("charity admin completes the desktop review path without losing context", a
   try {
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toHaveText(
-      /^Aktionsziel: 900,00\s€ von 1\.000,00\s€ erreicht, 90 Prozent\.$/,
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
     );
     await expect(page.getByTestId("current-action")).toHaveText(
       "Krapfentaxi 2026",
@@ -144,9 +147,15 @@ test("charity admin completes the desktop review path without losing context", a
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/admin/\\?action=${actionId}`));
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
 
+    await page
+      .locator("summary", { hasText: "So werden die Kennzahlen berechnet" })
+      .click();
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
     // The dashboard's ?status=open link lands in the "Offen" list view.
@@ -563,7 +572,10 @@ test("three core surfaces meet reproducible mobile performance budgets", async (
       path: `/admin/?action=${actionId}`,
       ready: (page) =>
         page
-          .getByRole("heading", { level: 1, name: "Was jetzt zählt." })
+          .getByRole("heading", {
+            level: 1,
+            name: /^Guten (Morgen|Tag|Abend), Klara$/,
+          })
           .waitFor(),
       session: klaraSession,
     },

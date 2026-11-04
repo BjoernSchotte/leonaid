@@ -13,7 +13,13 @@ import {
   Truck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type {
   CurrentIdentityResponse,
@@ -244,13 +250,17 @@ function Pipeline({
 }
 
 function MetricDefinitions({
+  figures,
   items,
 }: {
+  /** Key figures listed above their definitions (admin). */
+  readonly figures?: ReactNode;
   readonly items: ReadonlyArray<DashboardMetricDefinitionResponse>;
 }) {
   return (
     <details className="dashboard-definitions">
       <summary>So werden die Kennzahlen berechnet</summary>
+      {figures}
       <dl>
         {items.map((item) => (
           <div key={item.key}>
@@ -752,7 +762,78 @@ function AdminDashboard({
           </section>
         </aside>
       </div>
-      <MetricDefinitions items={dashboard.metricDefinitions} />
+      <MetricDefinitions
+        figures={
+          <dl
+            aria-label="Kennzahlen der Aktion"
+            className="dashboard-figures"
+            data-testid="admin-dashboard-metrics"
+          >
+            <div>
+              <dt>
+                <a href={href("admin.commitments", ordersHref)}>Bestellungen</a>
+              </dt>
+              <dd>
+                <strong className="num">{commitments.activeTotal}</strong>
+                {formatQuantities(
+                  commitments.quantities,
+                  commitments.totalPieces,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Bestellwert</dt>
+              <dd>
+                <strong className="num">
+                  {formatMoney(
+                    commitments.activeTotalMinor,
+                    commitments.currency,
+                  )}
+                </strong>
+                ohne stornierte Bestellungen
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <a
+                  href={href(
+                    "admin.invoiced",
+                    `/admin/invoices?action=${action}`,
+                  )}
+                >
+                  Fakturiert
+                </a>
+              </dt>
+              <dd>
+                <strong className="num">
+                  {formatMoney(invoices.invoicedAmountMinor, invoices.currency)}
+                </strong>
+                ausgestellt, versendet oder bezahlt
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <a
+                  href={href(
+                    "admin.open_receivables",
+                    `/admin/invoices?action=${action}&status=open`,
+                  )}
+                >
+                  Offene Posten
+                </a>
+              </dt>
+              <dd>
+                <strong className="num">
+                  {formatMoney(invoices.openAmountMinor, invoices.currency)}
+                </strong>
+                {invoices.open}{" "}
+                {invoices.open === 1 ? "Rechnung" : "Rechnungen"}
+              </dd>
+            </div>
+          </dl>
+        }
+        items={dashboard.metricDefinitions}
+      />
     </div>
   );
 }
