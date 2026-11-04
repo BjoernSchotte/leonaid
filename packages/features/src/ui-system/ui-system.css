@@ -404,16 +404,6 @@
     display: flex;
   }
 }
-.ui-list-demo .next-step {
-  display: grid;
-  gap: var(--s-3);
-  padding: var(--s-4);
-  border: var(--hair) solid var(--zone-line);
-  border-radius: var(--r-md);
-  background: var(--zone-soft);
-  font-size: var(--fs-sm);
-}
-
 .ui-catalog-zones {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
