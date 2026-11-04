@@ -6,7 +6,7 @@
   },
   {
     "path": "tests/e2e/surveys-authoring.spec.mjs",
-    "sha256": "d44c3dd904ac6e231c57d83ab3aeea4b7bf463ccb09a474382904b27bbe04583",
+    "sha256": "5f043d0ad547292ca80ed0cbeb897f2a88654a24fb494c438e5d7579038af710",
     "reason": "Drop one real publication acknowledgement; subsequent request reaches the server unchanged."
   },
   {
@@ -36,12 +36,12 @@
   },
   {
     "path": "tests/e2e/surveys-module.spec.mjs",
-    "sha256": "24420933a618187f2641b59472ef1d9bdbee18ff8b1f34f86387a88f12c2481c",
+    "sha256": "9489a73db35a7a732169ef533a30f06243f8b66fc0d6fa712284f474a1cb68fc",
     "reason": "Hold one real survey GET after a settings save until other settings forms are edited; the request then reaches the server unchanged."
   },
   {
     "path": "tests/e2e/surveys-package.spec.mjs",
-    "sha256": "b8353c71c33c584f88b0f9f995e5446f95c2e67c062605162333e54ae71dbecb",
+    "sha256": "6424672786f2be12fbef3940390649dad7344f7fa187f14a78c0eee35166a2f5",
     "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
   },
   {

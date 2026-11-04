@@ -41,10 +41,11 @@ for (const scenario of ["Krapfentaxi", "Golf"])
       );
     const add = async (type, title) => {
       await editor
-        .getByRole("combobox", { name: "Fragetyp", exact: true })
-        .selectOption(type);
-      await editor
         .getByRole("button", { name: "Frage hinzufügen", exact: true })
+        .click();
+      await editor
+        .getByRole("menu", { name: "Fragetyp" })
+        .locator(`[data-kind="${type}"]`)
         .click();
       await props.getByLabel("Fragetitel", { exact: true }).fill(title);
     };
