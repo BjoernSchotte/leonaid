@@ -311,6 +311,63 @@ test("without JavaScript the confirmation is the focused target of the post", as
   }
 });
 
+test("without JavaScript a refused order comes back focused with the entries kept", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    javaScriptEnabled: false,
+    userAgent: "LeonAid public-order proof (no JavaScript, refused)",
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  try {
+    // A stale price quote, as after a price change while the form was open:
+    // Core refuses the order and the page renders the form again.
+    await page.route("**/krapfentaxi?_action=createPublicOrder*", (route) => {
+      const body = new URLSearchParams(route.request().postData() ?? "");
+      body.set("quotedUnitPriceMinor", "1");
+      return route.continue({ postData: body.toString() });
+    });
+    await page.goto(`${baseUrl}/krapfentaxi`, { waitUntil: "networkidle" });
+    const form = page.locator("[data-order-form]");
+    await form.locator('input[name="quantity"]').first().fill("1");
+    await form
+      .locator('input[name="companyName"]')
+      .fill("POC072 Preisalt GmbH");
+    await form.locator('input[name="givenName"]').fill("Petra");
+    await form.locator('input[name="familyName"]').fill("Preisalt");
+    await form
+      .locator('input[name="email"]')
+      .fill("petra.preisalt@leonaid.invalid");
+    await form
+      .locator('input[name="deliveryRecipientName"]')
+      .fill("POC072 Preisalt GmbH");
+    await form.locator('input[name="deliveryStreetLine1"]').fill("Preisweg 3");
+    await form.locator('input[name="deliveryPostalCode"]').fill("86150");
+    await form.locator('input[name="deliveryCity"]').fill("Augsburg");
+    await form.locator('input[name="privacyAcknowledged"]').check();
+    await form.locator('input[name="bindingOrderConfirmed"]').check();
+    await form.locator('button[type="submit"]').click();
+    await page.waitForLoadState("domcontentloaded");
+    const summary = page.locator("[data-form-message]");
+    await expect(summary).toBeVisible();
+    await expect(summary).toHaveAttribute("data-state", "error");
+    await expect(summary).toHaveAttribute("autofocus", "");
+    await expect(summary).toBeFocused();
+    await expect(summary).toBeInViewport();
+    await expect(summary).toContainText("Ihre Eingaben wurden übernommen.");
+    await expect(summary).not.toContainText(/\b(du|dein|bitte lade)\b/i);
+    await expect(page.locator("[data-order-success]")).toBeHidden();
+    await expect(page.locator('input[name="givenName"]')).toHaveValue("Petra");
+    await expect(page.locator('input[name="companyName"]')).toHaveValue(
+      "POC072 Preisalt GmbH",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
 test("the same form posted twice without JavaScript creates one order", async ({
   page,
 }) => {
