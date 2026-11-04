@@ -362,8 +362,11 @@ test("without JavaScript a refused order comes back focused with the entries kep
     await expect(summary).toContainText("Ihre Eingaben wurden übernommen.");
     await expect(summary).not.toContainText(/\b(du|dein|bitte lade)\b/i);
     await expect(page.locator("[data-order-success]")).toBeHidden();
-    await expect(page.locator('input[name="givenName"]')).toHaveValue("Petra");
-    await expect(page.locator('input[name="companyName"]')).toHaveValue(
+    const redisplayed = page.locator("[data-order-form]");
+    await expect(redisplayed.locator('input[name="givenName"]')).toHaveValue(
+      "Petra",
+    );
+    await expect(redisplayed.locator('input[name="companyName"]')).toHaveValue(
       "POC072 Preisalt GmbH",
     );
   } finally {
