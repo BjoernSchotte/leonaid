@@ -436,7 +436,8 @@ class AsyncpgLegalConfigurationRepository:
         if state.revision != expected_revision:
             raise Conflict(
                 "legal_configuration_revision_conflict",
-                "Die Konfiguration wurde zwischenzeitlich geändert. Lade sie neu.",
+                "Die Konfiguration wurde zwischenzeitlich geändert. "
+                "Bitte laden Sie sie neu.",
             )
 
     @staticmethod
@@ -487,7 +488,8 @@ class AsyncpgLegalConfigurationRepository:
         if row is None:
             raise Conflict(
                 "legal_configuration_revision_conflict",
-                "Die Konfiguration wurde zwischenzeitlich geändert. Lade sie neu.",
+                "Die Konfiguration wurde zwischenzeitlich geändert. "
+                "Bitte laden Sie sie neu.",
             )
         return int(row["revision"])
 

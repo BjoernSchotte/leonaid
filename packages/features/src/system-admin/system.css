@@ -1,0 +1,220 @@
+/* System (prototype pages/System.css): Betrieb, Hintergrundaufgaben,
+   Funktionen, Datenschutz. */
+
+/* ---------- prototype styles/components.css ---------- */
+:is(.system, .legal) .muted {
+  color: var(--text-2);
+}
+:is(.system, .legal) .subtle {
+  color: var(--text-3);
+}
+:is(.system, .legal) .small {
+  font-size: var(--fs-sm);
+}
+:is(.system, .legal) .stack {
+  display: grid;
+  gap: var(--s-3);
+}
+:is(.system, .legal) .cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+:where(.system, .legal) p {
+  margin: 0;
+}
+.system .stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px var(--s-2);
+  border: 1.5px solid currentColor;
+  border-radius: var(--r-xs);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.system .stamp.tone-ok {
+  color: var(--ok);
+}
+.system .stamp.tone-neutral {
+  color: var(--text-2);
+}
+
+/* ---------- prototype pages/System.css ---------- */
+.system-panel {
+  padding-top: var(--s-5);
+}
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: var(--s-5);
+  align-items: start;
+}
+.system-intro {
+  max-width: 72ch;
+  margin-bottom: var(--s-3);
+}
+.svc-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.svc-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon name state"
+    ". detail detail";
+  align-items: center;
+  column-gap: var(--s-3);
+  padding: var(--s-2) var(--s-5);
+  border-bottom: var(--hair) solid var(--border);
+}
+.svc-row:last-child {
+  border-bottom: 0;
+}
+.svc-row > svg,
+.svc-row > .status-icon {
+  grid-area: icon;
+}
+.svc-name {
+  grid-area: name;
+  font-weight: var(--fw-medium);
+}
+.svc-state {
+  grid-area: state;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.svc-detail {
+  grid-area: detail;
+}
+.svc-callout {
+  margin: var(--s-3) var(--s-5) var(--s-5);
+}
+.svc-actions {
+  margin-top: var(--s-2);
+}
+.panel-intro {
+  padding-bottom: 0;
+}
+.reason-list {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding-left: var(--s-5);
+}
+.system .tab-h2 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.job-kind {
+  font-weight: var(--fw-medium);
+}
+.job-error {
+  max-width: 28ch;
+  color: var(--danger);
+}
+.copy-id {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 28px;
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--text-2);
+}
+.copy-id:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.flag-note {
+  margin: var(--s-3) var(--s-5) 0;
+}
+.flag-list {
+  display: grid;
+  margin: 0;
+  padding: var(--s-2) 0;
+  list-style: none;
+}
+.flag-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-5);
+  border-bottom: var(--hair) solid var(--border);
+}
+.flag-row:last-child {
+  border-bottom: 0;
+}
+.flag-text {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.flag-name {
+  font-weight: var(--fw-semibold);
+}
+.audit-list {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  color: var(--text-2);
+  list-style: none;
+}
+.support-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.support-form .field {
+  flex: 1 1 240px;
+}
+.support-form .btn {
+  margin-bottom: 22px;
+}
+.privacy {
+  display: grid;
+  gap: var(--s-5);
+}
+.privacy-search {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  max-width: 720px;
+}
+.privacy-search .field {
+  flex: 1 1 320px;
+}
+.privacy-search .btn {
+  height: 36px;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 720px) {
+  .flag-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .flag-row > .num {
+    display: none;
+  }
+  .privacy-search .btn,
+  .support-form .btn {
+    width: 100%;
+    height: var(--control-h-lg);
+    margin-bottom: 0;
+  }
+}

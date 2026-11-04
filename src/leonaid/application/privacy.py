@@ -115,7 +115,7 @@ class PrivacyService:
         if not normalized_reason or len(normalized_reason) > 500:
             raise Conflict(
                 "privacy_revocation_reason_invalid",
-                "Gib einen kurzen, nachvollziehbaren Sperrgrund an.",
+                "Bitte geben Sie einen kurzen, nachvollziehbaren Sperrgrund an.",
             )
         consent = await self._repository.revoke_consent(
             consent_id=consent_id,
@@ -144,7 +144,8 @@ class PrivacyService:
         if confirmation != normalized:
             raise Conflict(
                 "privacy_erasure_confirmation_mismatch",
-                "Bestätige die Löschung mit der exakt eingegebenen E-Mail-Adresse.",
+                "Bitte bestätigen Sie die Löschung mit der exakt eingegebenen "
+                "E-Mail-Adresse.",
             )
         result = await self._repository.erase_subject(
             normalized_email=normalized,

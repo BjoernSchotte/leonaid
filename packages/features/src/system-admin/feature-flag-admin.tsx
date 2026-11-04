@@ -1,102 +1,39 @@
-import {
-  Alert02Icon,
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-  Settings02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleCheck, Info } from "lucide-react";
+import { useState } from "react";
 
 import {
   ApiError,
   type FeatureFlagAdminResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
+import {
+  Badge,
+  ConfirmDialog,
+  ErrorState,
+  Icon,
+  SkeletonRows,
+  StatusMessage,
+  Switch,
+  useOptionalToast,
+} from "@leonaid/ui";
 
-import { actionErrorMessage } from "../action-admin/errors";
+import {
+  actionErrorMessage,
+  type ActionErrorMessage,
+} from "../action-admin/errors";
+import { useActionErrorMessage } from "../action-admin/use-action-error";
 import {
   FEATURE_FLAGS,
   useLeonAidBooleanFlag,
 } from "../feature-flags/openfeature-provider";
-import { OperationsAdminPanel } from "./operations-admin";
-import { SupportDiagnosticsPanel } from "./support-diagnostics";
+import { formatDateTime } from "../shared/dates";
 
 export interface FeatureFlagAdminPageProps {
   readonly client: LeonAidApiClient;
 }
 
-function formatUpdatedAt(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function FlagCard({
-  flag,
-  pending,
-  onToggle,
-}: {
-  readonly flag: FeatureFlagAdminResponse;
-  readonly pending: boolean;
-  readonly onToggle: (flag: FeatureFlagAdminResponse) => void;
-}) {
-  return (
-    <article className="feature-flag-card" data-flag-key={flag.key}>
-      <div className="feature-flag-card__copy">
-        <div className="feature-flag-card__title">
-          <span
-            aria-hidden="true"
-            className={`feature-flag-card__indicator ${
-              flag.enabled ? "is-enabled" : ""
-            }`}
-          />
-          <div>
-            <p className="feature-flag-card__key">{flag.key}</p>
-            <h2>{flag.title}</h2>
-          </div>
-        </div>
-        <p>{flag.description}</p>
-        <div className="feature-flag-card__meta">
-          <span>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={InformationCircleIcon}
-              size={16}
-              strokeWidth={1.8}
-            />
-            {flag.effect}
-          </span>
-          <small>
-            Version {flag.revision} · zuletzt aktualisiert{" "}
-            {formatUpdatedAt(flag.updatedAt)}
-          </small>
-        </div>
-      </div>
-      <div className="feature-flag-card__control">
-        <span className={flag.enabled ? "is-enabled" : ""}>
-          {pending ? "Wird gespeichert …" : flag.enabled ? "Aktiv" : "Inaktiv"}
-        </span>
-        <button
-          aria-checked={flag.enabled}
-          aria-label={`${flag.title} ${
-            flag.enabled ? "deaktivieren" : "aktivieren"
-          }`}
-          className="feature-switch"
-          data-testid={`feature-switch-${flag.key}`}
-          disabled={pending}
-          onClick={() => onToggle(flag)}
-          role="switch"
-          type="button"
-        >
-          <span />
-        </button>
-      </div>
-    </article>
-  );
-}
-
+/** The server-side OpenFeature check, shown while its flag is on. */
 function SystemStatusPanel({ client }: FeatureFlagAdminPageProps) {
   const enabled = useLeonAidBooleanFlag(FEATURE_FLAGS.systemStatusPanel);
   const status = useQuery({
@@ -105,61 +42,67 @@ function SystemStatusPanel({ client }: FeatureFlagAdminPageProps) {
     queryKey: ["feature-flag-system-status"],
     retry: false,
   });
-
   if (!enabled) return null;
-
   return (
     <section
       aria-labelledby="feature-system-status-title"
-      className="feature-system-status"
+      className="panel"
       data-testid="feature-system-status"
     >
-      <div className="feature-system-status__icon" aria-hidden="true">
-        <HugeiconsIcon
-          icon={CheckmarkCircle02Icon}
-          size={24}
-          strokeWidth={1.8}
-        />
-      </div>
-      <div>
-        <p className="feature-system-status__eyebrow">
-          Serverseitiger Nachweis
-        </p>
+      <header className="panel-header">
         <h2 id="feature-system-status-title">OpenFeature-Systemstatus</h2>
+        <Badge tone={status.isSuccess ? "ok" : "neutral"}>
+          Serverseitiger Nachweis
+        </Badge>
+      </header>
+      <div className="panel-pad small">
         {status.isPending ? (
-          <p>Der geschützte Backend-Endpunkt wird geprüft …</p>
+          <p className="muted">Der geschützte Endpunkt wird geprüft …</p>
         ) : status.isError ? (
-          <p>
+          <p className="muted">
             Der Diagnose-Endpunkt ist trotz sichtbarem Browser-Flag nicht
             verfügbar.
           </p>
         ) : (
-          <>
-            <p>
-              Betriebsbereit · ausgewertet durch{" "}
-              <strong>{status.data.evaluatedBy}</strong>
-            </p>
-            <small>Provider: {status.data.provider}</small>
-          </>
+          <p className="cluster">
+            <Icon icon={CircleCheck} size={16} />
+            Betriebsbereit · ausgewertet durch{" "}
+            <strong>{status.data.evaluatedBy}</strong> · Provider{" "}
+            {status.data.provider}
+          </p>
         )}
       </div>
     </section>
   );
 }
 
-export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
+/**
+ * Funktionen (prototype System.tsx Flags): installation-wide switches with
+ * a confirmation; the server versions them and asks for a fresh sign-in.
+ */
+export function FlagsTab({ client }: FeatureFlagAdminPageProps) {
   const queryClient = useQueryClient();
+  const toast = useOptionalToast();
+  const [asking, setAsking] = useState<FeatureFlagAdminResponse>();
+  const [error, setError] = useState<ActionErrorMessage>();
   const flags = useQuery({
     queryFn: () => client.listFeatureFlags(),
     queryKey: ["feature-flags", "admin"],
   });
+  const loadError = useActionErrorMessage(flags.error);
   const update = useMutation({
     mutationFn: (flag: FeatureFlagAdminResponse) =>
       client.updateFeatureFlag(flag.key, {
         enabled: !flag.enabled,
         expectedRevision: flag.revision,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_result, flag) => {
+      setAsking(undefined);
+      setError(undefined);
+      toast?.show({
+        title: `${flag.title}: ${flag.enabled ? "aus" : "an"}`,
+        tone: "success",
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["feature-flags", "admin"] }),
         queryClient.invalidateQueries({ queryKey: ["feature-flags", "web"] }),
@@ -168,116 +111,120 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
         }),
       ]);
     },
+    onError: (cause) => {
+      setAsking(undefined);
+      setError(actionErrorMessage(cause));
+    },
   });
 
-  const error = update.error ? actionErrorMessage(update.error) : null;
-
-  if (flags.isPending) {
-    return (
-      <div aria-live="polite" className="action-loading" role="status">
-        <span aria-hidden="true" />
-        <h1>Feature-Flags werden geladen</h1>
-        <p>LeonAid ruft den installationsweiten Schaltzustand ab.</p>
-      </div>
-    );
-  }
-
+  if (flags.isPending) return <SkeletonRows rows={3} />;
   if (flags.isError) {
     const forbidden =
       flags.error instanceof ApiError && flags.error.status === 403;
     return (
-      <div>
-        <StatusMessage tone="error">
-          <h1>
-            {forbidden
-              ? "Nur für System-Admins"
-              : "Feature-Flags nicht erreichbar"}
-          </h1>
-          <p>
-            {forbidden
-              ? "Dieser Bereich steuert installationsweite Funktionen."
-              : "Die Schaltzustände konnten gerade nicht geladen werden."}
-          </p>
-          {!forbidden && (
-            <Button onClick={() => void flags.refetch()} variant="secondary">
-              Erneut versuchen
-            </Button>
-          )}
-        </StatusMessage>
-      </div>
+      <ErrorState
+        onRetry={forbidden ? undefined : () => void flags.refetch()}
+        title={
+          forbidden ? "Nur für System-Admins" : "Funktionen nicht erreichbar"
+        }
+      >
+        {forbidden
+          ? "Dieser Bereich steuert installationsweite Funktionen."
+          : (loadError?.message ??
+            "Die Schalter konnten nicht geladen werden.")}
+      </ErrorState>
     );
   }
 
+  const list = flags.data.flags;
+  const changes = [...list].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
+
   return (
-    <div className="feature-admin-page">
-      <header className="feature-admin-header">
-        <div className="feature-admin-header__icon" aria-hidden="true">
-          <HugeiconsIcon icon={Settings02Icon} size={24} strokeWidth={1.8} />
+    <div className="system-grid">
+      <section aria-labelledby="flags-title" className="panel">
+        <header className="panel-header">
+          <h2 id="flags-title">Funktionen dieser Installation</h2>
+        </header>
+        <div className="callout flag-note">
+          <Icon icon={Info} size={16} />
+          <span>
+            Schalter ändern nur Sichtbarkeit und Einführung. Rollen und
+            Berechtigungen bleiben unverändert; Schreibzugriffe prüft immer der
+            Server. Module werden bei der Installation über die
+            Betriebskonfiguration ein- oder ausgeschaltet.
+          </span>
         </div>
-        <div>
-          <p className="feature-admin-header__eyebrow">
-            System · kontrollierter Rollout
-          </p>
-          <h1>System & Betrieb</h1>
-          <p>
-            Prüfe Abhängigkeiten und Jobs live. Darunter steuerst du
-            vorbereitete Funktionen ohne Redeploy.
-          </p>
-        </div>
-        <a
-          className={`${buttonClassName({ variant: "secondary" })} feature-admin-header__catalog`}
-          href="/admin/system/ui"
-        >
-          UI-Basis
-        </a>
-      </header>
-
-      <aside className="feature-admin-guardrail">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={Alert02Icon}
-          size={20}
-          strokeWidth={1.8}
-        />
-        <p>
-          Feature-Flags steuern Sichtbarkeit und Rollout – niemals
-          Berechtigungen. Schreibzugriffe bleiben immer serverseitig geschützt.
-        </p>
-      </aside>
-
-      {error && (
-        <StatusMessage tone="error">
-          <p>{error.message}</p>
-        </StatusMessage>
-      )}
-
-      <OperationsAdminPanel client={client} />
-      <SupportDiagnosticsPanel client={client} />
-
-      <div className="feature-admin-section-heading" id="feature-flags">
-        <p className="feature-admin-header__eyebrow">Kontrollierter Rollout</p>
-        <h2>Feature-Flags</h2>
-        <p>
-          Änderungen gelten installationsweit, werden versioniert und im
-          Audit-Log dokumentiert.
-        </p>
-      </div>
-
-      <section
-        aria-label="Installationsweite Feature-Flags"
-        className="feature-flag-list"
-      >
-        {flags.data.flags.map((flag) => (
-          <FlagCard
-            flag={flag}
-            key={flag.key}
-            onToggle={(selected) => update.mutate(selected)}
-            pending={update.isPending && update.variables?.key === flag.key}
-          />
-        ))}
+        {error ? (
+          <StatusMessage className="flag-note" tone="error">
+            <p>{error.message}</p>
+          </StatusMessage>
+        ) : null}
+        <ul aria-label="Installationsweite Funktionen" className="flag-list">
+          {list.map((flag) => (
+            <li className="flag-row" data-flag-key={flag.key} key={flag.key}>
+              <div className="flag-text">
+                <label className="flag-name" htmlFor={`flag-${flag.key}`}>
+                  {flag.title}
+                </label>
+                <p className="small muted" id={`flag-${flag.key}-desc`}>
+                  {flag.description}
+                </p>
+              </div>
+              <span className="small muted num">Rev. {flag.revision}</span>
+              <Badge tone={flag.enabled ? "ok" : "neutral"}>
+                {flag.enabled ? "An" : "Aus"}
+              </Badge>
+              <Switch
+                aria-describedby={`flag-${flag.key}-desc`}
+                checked={flag.enabled}
+                data-testid={`feature-switch-${flag.key}`}
+                disabled={update.isPending}
+                id={`flag-${flag.key}`}
+                onChange={() => setAsking(flag)}
+              />
+            </li>
+          ))}
+        </ul>
       </section>
-
+      <section aria-labelledby="audit-title" className="panel">
+        <header className="panel-header">
+          <h2 id="audit-title">Letzte Änderungen</h2>
+        </header>
+        <ol className="audit-list">
+          {changes.map((flag) => (
+            <li className="small num" key={flag.key}>
+              {formatDateTime(flag.updatedAt)} · {flag.title}{" "}
+              {flag.enabled ? "an" : "aus"} (Revision {flag.revision})
+            </li>
+          ))}
+        </ol>
+      </section>
       <SystemStatusPanel client={client} />
+      <ConfirmDialog
+        confirmLabel={asking?.enabled ? "Ausschalten" : "Einschalten"}
+        description={
+          asking
+            ? asking.enabled
+              ? `${asking.title} verschwindet für alle Mitglieder beim nächsten Seitenaufruf. ${asking.effect}`
+              : `${asking.title} erscheint für alle berechtigten Mitglieder beim nächsten Seitenaufruf. ${asking.effect}`
+            : ""
+        }
+        onConfirm={() => {
+          if (asking) update.mutate(asking);
+        }}
+        onOpenChange={(open) => {
+          if (!open && !update.isPending) setAsking(undefined);
+        }}
+        open={Boolean(asking)}
+        pending={update.isPending}
+        title={
+          asking
+            ? `${asking.title} ${asking.enabled ? "ausschalten" : "einschalten"}?`
+            : ""
+        }
+      />
     </div>
   );
 }
