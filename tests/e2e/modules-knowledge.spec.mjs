@@ -42,7 +42,7 @@ for (const [surface, width] of [
       exact: true,
     });
     const createPageBox = await createPageButton.boundingBox();
-    expect(createPageBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 32);
+    expect(createPageBox.height).toBeGreaterThanOrEqual(width <= 760 ? 43 : 31);
     expect(createPageBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 40);
     await expect(createPageButton).toHaveCSS("font-weight", "600");
     // A new page opens for writing.

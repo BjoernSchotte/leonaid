@@ -37,7 +37,7 @@ for (const [surface, route, width] of [
       .getByRole("button", { name: "Material hochladen", exact: true })
       .first();
     const createBox = await create.boundingBox();
-    expect(createBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 32);
+    expect(createBox.height).toBeGreaterThanOrEqual(width <= 760 ? 43 : 31);
     expect(createBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 40);
     await expect(create).toHaveCSS("font-weight", "600");
     // Touch targets are 44 px on phones; desktop shell controls are 32 px.

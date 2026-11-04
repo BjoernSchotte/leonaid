@@ -232,6 +232,22 @@
   padding: 0;
   border: 0;
 }
+/* The page is 920 px wide (prototype): one row of tools, the rest under
+   "Weitere Formate". */
+.format-bar .knowledge-primary-controls {
+  display: none;
+}
+.format-bar .knowledge-formatting .knowledge-more-trigger {
+  display: inline-flex;
+}
+/* Touch targets on phones, also in the selection menu. */
+@media (max-width: 720px) {
+  .knowledge-tool,
+  .knowledge-formatting select {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
 .knowledge-formatting-row,
 .knowledge-tool-group {
   display: flex;
