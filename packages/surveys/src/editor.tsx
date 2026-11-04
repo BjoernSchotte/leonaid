@@ -911,7 +911,7 @@ export function SurveyEditor({
                                 )) ||
                                 question.type === "rating" ||
                                 question.type === "checkbox") && (
-                                <fieldset>
+                                <fieldset className="se-limits">
                                   <legend>{t("Grenzen")}</legend>
                                   {(question.type === "rating"
                                     ? [

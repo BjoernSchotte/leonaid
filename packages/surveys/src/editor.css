@@ -123,14 +123,19 @@
 }
 /* Questionnaire texts start as one line and grow with their content;
    browsers without field-sizing keep a two-line box. */
-.survey-editor:not(.survey-preview) .se-meta textarea {
+.survey-editor:not(.survey-preview) .se-meta textarea,
+.survey-editor:not(.survey-preview) .se-properties textarea {
   min-height: var(--se-control-h);
   field-sizing: content;
 }
 @supports not (field-sizing: content) {
-  .survey-editor:not(.survey-preview) .se-meta textarea {
+  .survey-editor:not(.survey-preview) .se-meta textarea,
+  .survey-editor:not(.survey-preview) .se-properties textarea {
     min-height: 3.75rem;
   }
+}
+.se-limits {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }
 .survey-editor:not(.survey-preview) input[type="file"] {
   padding-block: 0.6rem;
