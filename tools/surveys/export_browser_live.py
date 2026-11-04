@@ -9,7 +9,7 @@ import os
 import secrets
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -34,6 +34,7 @@ async def main():
     state_path = PROOF / "export-browser-access.json"
     if sys.argv[1] == "seed":
         now = datetime.now(timezone.utc)
+        answered = now - timedelta(days=2)
         fixture = json.loads(
             Path("tests/fixtures/surveys/analysis-golden.json").read_text()
         )
@@ -68,8 +69,10 @@ async def main():
                 hashlib.sha256(secrets.token_bytes(48)).hexdigest(),
                 "partial" if index == 4 else "completed",
                 json.dumps(answers),
-                now,
-                None if index == 4 else now,
+                # Two days back: a report-only member's selection covers whole
+                # past days only (disclosure.whole_days), never today.
+                answered,
+                None if index == 4 else answered,
             )
         await conn.execute(
             "INSERT INTO user_account(id,email,display_name,status,email_verified_at) VALUES($1,$2,'Synthetic report exporter','active',$3)",
