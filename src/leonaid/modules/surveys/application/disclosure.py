@@ -28,7 +28,11 @@ R5  Last-page counts say where people stopped. Under page conditions they
     included) when one of those is; under a condition on an unreleased
     answer they are protected like a distribution (with R4b).
 R6  A number question never shows its minimum or maximum: each is one
-    person's exact value (Björn, 2026-11-04, review M2).
+    person's exact value (Björn, 2026-11-04, review M2). Its mean stays.
+    Accepted residual: mean plus count can determine single answers near
+    the range edges; accepted by Björn Schotte on 2026-11-04. (Example: 5
+    answers on 0 to 4 with mean 0.2 are four 0s and one 1.) The solver
+    does not claim uniqueness-safety for the mean.
 Snapshots from before these records get the conservative variant: any
 question hidden for someone counts as conditional on anything.
 

@@ -332,3 +332,24 @@ def test_the_solver_catches_a_leak():
             )
     finally:
         disclosure.protect = original
+
+
+def test_a_number_never_releases_its_extremes():
+    """R6: over every answer set, a number's minimum and maximum stay
+    withheld, and its other withheld numbers are not solvable. The mean is
+    an accepted residual (Björn Schotte, 2026-11-04): mean plus count can
+    determine single answers near the range edges, so it is not checked
+    for uniqueness here."""
+    questions = [{"id": "hours", "kind": "number", "options": [0, 5, 15, 30]}]
+    answers = [{"hours": v} for v in [0, 5, 15, 30]] + [{"hours": None}]
+    released = 0
+    for size in range(1, 12):
+        for people in combinations_with_replacement(range(len(answers)), size):
+            stored = aggregate(tuple(answers[i] for i in people), questions)
+            shown = disclose(stored).questions[0]
+            assert (shown.minimum, shown.maximum) == (None, None)
+            released += shown.mean is not None
+    assert released  # the mean is shown from k answers on
+    examined, withheld = check(questions, answers, range(1, 12))
+    print(f"number: {examined} answer sets, {withheld} withheld numbers checked")
+    assert examined and withheld
