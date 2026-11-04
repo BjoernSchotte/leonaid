@@ -15,6 +15,7 @@ export * from "./badge";
 export * from "./icon";
 export * from "./kbd";
 export * from "./meter";
+export * from "./chart";
 export * from "./status-icon";
 export * from "./option-menu";
 export * from "./popover";

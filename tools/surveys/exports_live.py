@@ -144,13 +144,37 @@ async def main():
                 member,
                 404,
             )
+            # A report-only member may only export snapshots made under the
+            # settled rule (I1): the owner's one is refused, its own is fine.
+            await call(
+                "POST",
+                path + "/exports",
+                {
+                    "operationId": "denied-unsettled",
+                    "snapshotId": snapshot["id"],
+                    "product": "analysis_xlsx",
+                },
+                member,
+                404,
+            )
+            member_selection = (
+                await call(
+                    "POST",
+                    path + "/export-selections",
+                    {
+                        "operationId": "member-selection",
+                        "filter": {"versionId": version["id"]},
+                    },
+                    member,
+                )
+            ).json()
             member_job = (
                 await call(
                     "POST",
                     path + "/exports",
                     {
                         "operationId": "revoked-before-processing",
-                        "snapshotId": snapshot["id"],
+                        "snapshotId": member_selection["id"],
                         "product": "analysis_xlsx",
                     },
                     member,
@@ -268,6 +292,32 @@ async def main():
                     token.encode() not in content
                     and state["memberToken"].encode() not in content
                 )
+                if product.startswith("analysis_"):
+                    # A report rendered under older disclosure rules (the
+                    # previous render version) is never delivered (M4).
+                    current = await conn.fetchval(
+                        "SELECT render_version FROM survey_export_job WHERE id=$1",
+                        UUID(jid),
+                    )
+                    previous = (
+                        "survey-analysis-v6+typst-0.13.1"
+                        if product == "analysis_pdf"
+                        else "survey-tabular-v7"
+                    )
+                    await conn.execute(
+                        "UPDATE survey_export_job SET render_version=$2 WHERE id=$1",
+                        UUID(jid),
+                        previous,
+                    )
+                    outdated = await call(
+                        "GET", path + f"/exports/{jid}/download", expected=409
+                    )
+                    assert outdated.json()["error"]["code"] == "export_outdated"
+                    await conn.execute(
+                        "UPDATE survey_export_job SET render_version=$2 WHERE id=$1",
+                        UUID(jid),
+                        current,
+                    )
                 if product == "responses_csv":
                     records = list(
                         csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
@@ -285,7 +335,17 @@ async def main():
                         state["snapshot"]["id"] in text
                         and state["snapshot"]["filter"]["versionId"] in text
                     )
-                    assert "33,33" in text and "Mittelwert" in text
+                    # Report exports are disclosed like the screen (k = 5).
+                    nps = next(
+                        q
+                        for q in state["snapshot"]["questions"]
+                        if q["questionId"] == "nps"
+                    )
+                    assert (
+                        "33,33" in text and "Mittelwert" in text
+                        if nps["nps"] is not None
+                        else "Weniger als 5 gültige Antworten" in text
+                    )
                     assert "SENSITIVE_" not in text and len(reader.pages) >= 2
                     Path("/proof/survey-worker-report.pdf").write_bytes(content)
                 else:
@@ -311,13 +371,26 @@ async def main():
                                 "nps",
                             ):
                                 expected = question[key]
+                                if expected is None and key not in {"mean", "nps"}:
+                                    expected = "–"  # a withheld count
                                 actual = metrics[question["questionId"]][key]
                                 assert (
                                     actual == expected
                                     or isinstance(actual, float)
                                     and abs(actual - expected) < 1e-10
                                 )
-                        assert len(workbook["Charts"]._charts) > 0
+                        # One chart per shown distribution (k = 5 may hide all).
+                        shown = sum(
+                            any(c["percentage"] is not None for c in counts)
+                            for q in state["snapshot"]["questions"]
+                            for counts in [
+                                q["counts"],
+                                *(row["counts"] for row in q["matrixRows"]),
+                            ]
+                            if counts
+                        )
+                        assert len(workbook["Charts"]._charts) == shown
+                        assert meta["minimum_group_size"] == 5
                 stored = await conn.fetchrow(
                     "SELECT bucket,object_key,object_version,sha256 FROM survey_export_job WHERE id=$1",
                     UUID(jid),

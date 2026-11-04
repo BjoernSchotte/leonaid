@@ -54,6 +54,10 @@ cleanup() {
     # The only background mutation belongs to this invocation's private project.
     docker rm -f "${project}-export-verifier" >/dev/null 2>&1 || true
     wait "$export_verifier_pid" || true
+    # A failed run shows why the background verifier failed (local log only).
+    if [ "$status" -ne 0 ] && [ -f "$proof/export-verifier.log" ]; then
+      tail -n 40 "$proof/export-verifier.log" >&2 || true
+    fi
   fi
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     compose ps >&2 || true
@@ -462,7 +466,7 @@ if [ "$mode" = exports ]; then
   export_verifier_pid=$!
 fi
 if [ "$mode" = analysis ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs tests/e2e/surveys-responses-faults.spec.mjs tests/e2e/surveys-responses-keyboard.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs tests/e2e/surveys-responses-faults.spec.mjs tests/e2e/surveys-responses-keyboard.spec.mjs tests/e2e/surveys-summary.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
@@ -471,6 +475,8 @@ if [ "$mode" = analysis ]; then
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py recover
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/raw_responses_live.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/summary_live.py
 fi
 if [ "$mode" = invitations ]; then
   browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"

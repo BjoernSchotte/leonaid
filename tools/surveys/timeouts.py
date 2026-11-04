@@ -15,12 +15,12 @@ import httpx
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 
-
 def cookie_header(cookies):
     """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
     if not cookies:
         return None
     return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 
 async def main():
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])

@@ -1423,9 +1423,16 @@
         "additionalProperties": false,
         "properties": {
           "count": {
-            "minimum": 0.0,
-            "title": "Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
           },
           "label": {
             "title": "Label",
@@ -1443,6 +1450,11 @@
               }
             ],
             "title": "Percentage"
+          },
+          "suppressed": {
+            "default": false,
+            "title": "Suppressed",
+            "type": "boolean"
           },
           "value": {
             "anyOf": [
@@ -1552,10 +1564,23 @@
             "title": "Lastpagecounts",
             "type": "array"
           },
-          "participationCount": {
-            "minimum": 0.0,
-            "title": "Participationcount",
+          "minimumGroupSize": {
+            "default": 5,
+            "minimum": 1.0,
+            "title": "Minimumgroupsize",
             "type": "integer"
+          },
+          "participationCount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participationcount"
           },
           "questions": {
             "items": {
@@ -1570,6 +1595,11 @@
           },
           "statusCounts": {
             "$ref": "#/components/schemas/ParticipationCounts"
+          },
+          "suppressed": {
+            "default": false,
+            "title": "Suppressed",
+            "type": "boolean"
           },
           "surveyId": {
             "title": "Surveyid",
@@ -6831,6 +6861,23 @@
             "title": "Answers",
             "type": "object"
           },
+          "choiceAnswers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choiceanswers"
+          },
           "completedAt": {
             "anyOf": [
               {
@@ -8018,9 +8065,16 @@
         "additionalProperties": false,
         "properties": {
           "count": {
-            "minimum": 0.0,
-            "title": "Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
           },
           "pageId": {
             "anyOf": [
@@ -8878,9 +8932,16 @@
         "additionalProperties": false,
         "properties": {
           "answered": {
-            "minimum": 0.0,
-            "title": "Answered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
           },
           "counts": {
             "items": {
@@ -8890,9 +8951,16 @@
             "type": "array"
           },
           "invalid": {
-            "minimum": 0.0,
-            "title": "Invalid",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid"
           },
           "label": {
             "title": "Label",
@@ -8902,10 +8970,22 @@
             "title": "Rowid",
             "type": "string"
           },
+          "suppressed": {
+            "default": false,
+            "title": "Suppressed",
+            "type": "boolean"
+          },
           "unanswered": {
-            "minimum": 0.0,
-            "title": "Unanswered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unanswered"
           }
         },
         "required": [
@@ -9468,6 +9548,34 @@
           "surface"
         ],
         "title": "NavigationItemResponse",
+        "type": "object"
+      },
+      "NpsSegments": {
+        "additionalProperties": false,
+        "description": "People per NPS group (0–6, 7–8, 9–10); only when no score is withheld.",
+        "properties": {
+          "detractors": {
+            "minimum": 0.0,
+            "title": "Detractors",
+            "type": "integer"
+          },
+          "passives": {
+            "minimum": 0.0,
+            "title": "Passives",
+            "type": "integer"
+          },
+          "promoters": {
+            "minimum": 0.0,
+            "title": "Promoters",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detractors",
+          "passives",
+          "promoters"
+        ],
+        "title": "NpsSegments",
         "type": "object"
       },
       "OperationalAlertResponse": {
@@ -10197,19 +10305,40 @@
         "additionalProperties": false,
         "properties": {
           "completed": {
-            "minimum": 0.0,
-            "title": "Completed",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
           },
           "in_progress": {
-            "minimum": 0.0,
-            "title": "In Progress",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Progress"
           },
           "partial": {
-            "minimum": 0.0,
-            "title": "Partial",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial"
           }
         },
         "required": [
@@ -11971,9 +12100,16 @@
         "additionalProperties": false,
         "properties": {
           "answered": {
-            "minimum": 0.0,
-            "title": "Answered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
           },
           "counts": {
             "items": {
@@ -11983,14 +12119,28 @@
             "type": "array"
           },
           "hidden": {
-            "minimum": 0.0,
-            "title": "Hidden",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden"
           },
           "invalid": {
-            "minimum": 0.0,
-            "title": "Invalid",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid"
           },
           "kind": {
             "enum": [
@@ -12060,34 +12210,64 @@
             ],
             "title": "Nps"
           },
+          "npsSegments": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NpsSegments"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "questionId": {
             "title": "Questionid",
             "type": "string"
           },
           "relevant": {
-            "minimum": 0.0,
-            "title": "Relevant",
-            "type": "integer"
-          },
-          "sum": {
             "anyOf": [
               {
-                "type": "number"
+                "minimum": 0.0,
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Sum"
+            "title": "Relevant"
+          },
+          "suppressed": {
+            "default": false,
+            "title": "Suppressed",
+            "type": "boolean"
           },
           "title": {
             "title": "Title",
             "type": "string"
           },
           "unanswered": {
-            "minimum": 0.0,
-            "title": "Unanswered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unanswered"
+          },
+          "withheldReason": {
+            "anyOf": [
+              {
+                "const": "unreleasedCondition",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withheldreason"
           }
         },
         "required": [
@@ -12100,7 +12280,6 @@
           "hidden",
           "invalid",
           "counts",
-          "sum",
           "mean",
           "minimum",
           "maximum",
@@ -12613,6 +12792,23 @@
       "ResponseItem": {
         "additionalProperties": false,
         "properties": {
+          "choiceAnswers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choiceanswers"
+          },
           "completedAt": {
             "anyOf": [
               {
@@ -35536,6 +35732,129 @@
         ]
       }
     },
+    "/api/v1/surveys/{survey_id}/response-selections/{snapshot_id}/aggregates": {
+      "get": {
+        "operationId": "getSurveyResponseAggregates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "survey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Survey Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Response Aggregates",
+        "tags": [
+          "surveys"
+        ]
+      }
+    },
     "/api/v1/surveys/{survey_id}/response-selections/{snapshot_id}/free-text/{question_id}": {
       "get": {
         "operationId": "listSurveyFreeText",
@@ -35728,6 +36047,25 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "choice: add the labels of choice, rating and matrix answers (never free text).",
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "choice",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "choice: add the labels of choice, rating and matrix answers (never free text).",
+              "title": "Fields"
             }
           }
         ],

@@ -244,6 +244,7 @@ RESPONSE_PAGE_MAX = 5000
 class ResponsePage(SnapshotReference):
     offset: int = Field(default=0, ge=0, le=5000)
     limit: int = Field(default=50, ge=1, le=RESPONSE_PAGE_MAX)
+    fields: Literal["choice"] | None = None
 
 
 class IndividualResponseQuery(SnapshotReference):

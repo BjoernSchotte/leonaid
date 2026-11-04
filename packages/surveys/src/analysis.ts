@@ -1,4 +1,7 @@
-import type { JsonValue, QuestionAggregate } from "./contracts";
+import type {
+  ComputedQuestionAggregate as QuestionAggregate,
+  JsonValue,
+} from "./contracts";
 import { profileAnswerError, type ProfileQuestion } from "./answer-validation";
 import { createSurveyModel, restoreSurveyAnswers } from "./model";
 

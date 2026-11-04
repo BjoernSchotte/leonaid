@@ -163,18 +163,22 @@ export interface QuestionAggregate {
   questionId: string;
   title: string;
   kind: string;
-  relevant: number;
-  answered: number;
-  unanswered: number;
-  hidden: number;
-  invalid: number;
+  /** null: withheld (a conditional question whose condition is withheld). */
+  relevant: number | null;
+  answered: number | null;
+  unanswered: number | null;
+  hidden: number | null;
+  invalid: number | null;
   counts: {
     value: JsonValue;
     label: string;
-    count: number;
+    /** null: withheld, fewer than `minimumGroupSize` people ("< 5"). */
+    count: number | null;
     percentage: number | null;
+    suppressed?: boolean;
   }[];
-  sum: number | null;
+  /** Engine output only; the disclosed snapshot has no sum. */
+  sum?: number | null;
   mean: number | null;
   minimum: number | null;
   maximum: number | null;
@@ -182,12 +186,52 @@ export interface QuestionAggregate {
   matrixRows: {
     rowId: string;
     label: string;
+    answered: number | null;
+    unanswered: number | null;
+    invalid: number | null;
+    counts: QuestionAggregate["counts"];
+    /** Fewer than `minimumGroupSize` valid answers in this row. */
+    suppressed?: boolean;
+  }[];
+  /** Fewer than `minimumGroupSize` valid answers: no distribution, no statistics. */
+  suppressed?: boolean;
+  /** Why the question is withheld as a whole, when the screen says it. */
+  withheldReason?: "unreleasedCondition" | null;
+}
+/** Engine output before disclosure: every count is present. */
+export type ComputedBucket = Omit<
+  QuestionAggregate["counts"][number],
+  "count" | "suppressed"
+> & { count: number };
+export type ComputedQuestionAggregate = Omit<
+  QuestionAggregate,
+  | "counts"
+  | "matrixRows"
+  | "suppressed"
+  | "relevant"
+  | "answered"
+  | "unanswered"
+  | "hidden"
+  | "invalid"
+  | "sum"
+> & {
+  relevant: number;
+  answered: number;
+  unanswered: number;
+  hidden: number;
+  invalid: number;
+  sum: number | null;
+  counts: ComputedBucket[];
+  matrixRows: (Omit<
+    QuestionAggregate["matrixRows"][number],
+    "counts" | "suppressed" | "answered" | "unanswered" | "invalid"
+  > & {
     answered: number;
     unanswered: number;
     invalid: number;
-    counts: QuestionAggregate["counts"];
-  }[];
-}
+    counts: ComputedBucket[];
+  })[];
+};
 /** Frozen snapshot IDs bind UI and all exports to the same result set. */
 export interface AnalysisSnapshot {
   id: string;
@@ -197,10 +241,20 @@ export interface AnalysisSnapshot {
   versionNumber: number;
   rendererVersion: string;
   capabilityProfile: string;
-  participationCount: number;
-  statusCounts: Record<ResponseStatus, number>;
-  lastPageCounts: { pageId: string | null; title: string; count: number }[];
+  /** null: 1 to minimumGroupSize - 1 participations (withheld). */
+  participationCount: number | null;
+  /** null: withheld, fewer than `minimumGroupSize` people. */
+  statusCounts: Record<ResponseStatus, number | null>;
+  lastPageCounts: {
+    pageId: string | null;
+    title: string;
+    count: number | null;
+  }[];
   questions: QuestionAggregate[];
+  /** Smallest group any shown count stands for (k, server-side). */
+  minimumGroupSize?: number;
+  /** Fewer than `minimumGroupSize` participations: no results. */
+  suppressed?: boolean;
 }
 export type ExportProduct =
   | "responses_csv"

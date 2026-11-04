@@ -109,6 +109,11 @@ for (const mobile of [false, true]) {
                   (has("export_raw") || has("export_reports")),
               ],
               ["Einzelantworten lesen", has("read_responses")],
+              // Charts: view_aggregates OR read_responses (Björn, 2026-11-04).
+              [
+                "Auswertung ansehen",
+                has("view_aggregates") || has("read_responses"),
+              ],
             ])
               await expect(page.getByText(label, { exact: true })).toHaveCount(
                 allowed ? 1 : 0,

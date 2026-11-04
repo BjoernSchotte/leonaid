@@ -9,7 +9,7 @@ import os
 import secrets
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -34,6 +34,7 @@ async def main():
     state_path = PROOF / "export-browser-access.json"
     if sys.argv[1] == "seed":
         now = datetime.now(timezone.utc)
+        answered = now - timedelta(days=2)
         fixture = json.loads(
             Path("tests/fixtures/surveys/analysis-golden.json").read_text()
         )
@@ -68,8 +69,10 @@ async def main():
                 hashlib.sha256(secrets.token_bytes(48)).hexdigest(),
                 "partial" if index == 4 else "completed",
                 json.dumps(answers),
-                now,
-                None if index == 4 else now,
+                # Two days back: a report-only member's selection covers whole
+                # past days only (disclosure.whole_days), never today.
+                answered,
+                None if index == 4 else answered,
             )
         await conn.execute(
             "INSERT INTO user_account(id,email,display_name,status,email_verified_at) VALUES($1,$2,'Synthetic report exporter','active',$3)",
@@ -132,16 +135,32 @@ async def main():
     elif sys.argv[1] in {"verify-revoke", "verify-revoke-when-ready"}:
         state = json.loads(state_path.read_text())
         observed = json.loads((PROOF / "export-populated-browser.json").read_text())
+        # The browser shows the disclosed view (k = 5); the engine's full
+        # numbers are checked against the stored snapshot.
         snapshot = observed["snapshot"]
-        assert snapshot["participationCount"] == 5
-        assert snapshot["statusCounts"] == {
+        stored = json.loads(
+            await conn.fetchval(
+                "SELECT payload FROM survey_analysis_snapshot WHERE id=$1",
+                UUID(snapshot["id"]),
+            )
+        )
+        assert stored["participationCount"] == snapshot["participationCount"] == 5
+        assert stored["statusCounts"] == {
             "completed": 4,
             "partial": 1,
             "in_progress": 0,
         }
+        engine = {q["questionId"]: q for q in stored["questions"]}
+        assert abs(engine["nps"]["nps"] - 100 / 3) < 1e-10
+        assert engine["number"]["mean"] == 15
+        # Disclosed: 4 completed and 1 partial would reveal each other.
+        assert snapshot["minimumGroupSize"] == 5
+        assert snapshot["statusCounts"] == {
+            "completed": None,
+            "partial": None,
+            "in_progress": 0,
+        }
         metrics = {q["questionId"]: q for q in snapshot["questions"]}
-        assert abs(metrics["nps"]["nps"] - 100 / 3) < 1e-10
-        assert metrics["number"]["mean"] == 15
         # These are files downloaded by the browser, never a second API download.
         csv_rows = list(
             csv.DictReader(
@@ -189,28 +208,41 @@ async def main():
                 "maximum",
                 "nps",
             ):
+                # A withheld count (null in the API) reads "–" in the
+                # workbook; a withheld statistic is an empty cell.
+                counted = key in {
+                    "relevant",
+                    "answered",
+                    "unanswered",
+                    "hidden",
+                    "invalid",
+                }
+                want = "–" if expected[key] is None and counted else expected[key]
                 assert (
-                    actual[key] == expected[key]
+                    actual[key] == want
                     or isinstance(actual[key], float)
-                    and abs(actual[key] - expected[key]) < 1e-10
+                    and abs(actual[key] - want) < 1e-10
                 ), key
         text = "\n".join(
             p.extract_text()
             for p in PdfReader(PROOF / "browser-analysis_pdf.pdf").pages
         )
-        assert snapshot["id"] in text and "33,33" in text and "Mittelwert" in text
-        assert "Net Promoter Score 33,33" in text
-        assert "Summe 30\nMittelwert 15\nMinimum 10\nMaximum 20" in text
+        assert snapshot["id"] in text
+        # Questions with fewer than 5 valid answers carry the note; none of
+        # the engine's small numbers is in the report.
+        if any(q["suppressed"] for q in snapshot["questions"]):
+            assert "Weniger als 5 gültige Antworten" in text
+        assert "33,33" not in text and "Mittelwert 15" not in text
         for index, question in enumerate(snapshot["questions"], 1):
             counts = " ".join(
-                str(question[key])
+                "–" if question[key] is None else str(question[key])
                 for key in ("relevant", "answered", "unanswered", "hidden", "invalid")
             )
             assert (
                 f"{index}. {question['title']}\nRelevant Beantwortet Unbeantwortet Ausgeblendet Ungültig\n{counts}"
                 in text
             )
-        for expected in (
+        for withheld in (
             "Alpha 2 2 100 %",
             "Beta 1 2 50 %",
             "good 1 2 50 %",
@@ -218,12 +250,20 @@ async def main():
             "good 0 1 0 %",
             "bad 1 1 100 %",
         ):
-            assert expected in text
+            assert withheld not in text
         assert "SENSITIVE_" not in text
         assert "SENSITIVE_" not in " ".join(
             str(c) for sheet in book for row in sheet.values for c in row
         )
-        assert len(book["Charts"]._charts) > 0
+        # One chart per distribution with a shown share; the k note in the metadata.
+        shown = sum(
+            any(c["percentage"] is not None for c in counts)
+            for q in snapshot["questions"]
+            for counts in [q["counts"], *(row["counts"] for row in q["matrixRows"])]
+            if counts
+        )
+        assert len(book["Charts"]._charts) == shown
+        assert meta["minimum_group_size"] == 5
         await conn.execute(
             "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2 AND capability='export_reports'",
             UUID(state["surveyId"]),

@@ -433,3 +433,26 @@
   border-radius: 2px;
   background: var(--zone);
 }
+
+/* Charts demo (Task 5.6b); grid items shrink so canvases follow. */
+.ui-catalog-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.ui-catalog-chart {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.ui-catalog-chart figcaption {
+  font-weight: var(--fw-semibold);
+}

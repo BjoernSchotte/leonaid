@@ -1,7 +1,7 @@
 """Version-explicit analysis filters and immutable public snapshot contracts."""
 
 from datetime import datetime, timezone
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
@@ -86,6 +86,26 @@ class LastPageCount(AggregateModel):
     count: int = Field(ge=0)
 
 
+ConditionLeaf = Annotated[list[str], Field(min_length=3, max_length=3)]
+"""[name, operator, literal] of one visibleIf comparison."""
+
+
+class SnapshotDependencies(AggregateModel):
+    """visibleIf references from the frozen version (Task 5.6b, R4/R5).
+
+    ``questions``: question id -> names its own or its page's condition
+    reads. ``pages``: page name -> names its condition reads.
+    """
+
+    questions: dict[str, list[str]]
+    pages: dict[str, list[str]]
+    # The leaves ([name, operator, literal]) of each condition; a question's
+    # list holds its page's leaves too. None: recorded before the leaves
+    # (review 5.6b round 2), which disclose treats conservatively.
+    questionLeaves: dict[str, list[ConditionLeaf]] | None = None
+    pageLeaves: dict[str, list[ConditionLeaf]] | None = None
+
+
 class AnalysisSnapshot(AggregateModel):
     id: str
     surveyId: str
@@ -98,6 +118,11 @@ class AnalysisSnapshot(AggregateModel):
     statusCounts: ParticipationCounts
     lastPageCounts: list[LastPageCount]
     questions: list[QuestionAggregate]
+    # Absent on snapshots from before Task 5.6b: disclose() is conservative.
+    dependencies: SnapshotDependencies | None = None
+    # "settled": created for an account without raw access (whole days,
+    # completed before the end). Only those may be read by such accounts.
+    disclosurePolicy: Literal["reader", "settled"] = "reader"
 
     @model_validator(mode="after")
     def consistent_selection(self) -> Self:
