@@ -84,10 +84,8 @@ export function Button({
   );
 }
 
-export interface IconButtonProps extends Omit<
-  ButtonProps,
-  "children" | "icon" | "shortcut" | "loading"
-> {
+export interface IconButtonProps
+  extends Omit<ButtonProps, "children" | "icon" | "shortcut" | "loading"> {
   readonly icon: LucideIcon | ReactElement;
   /** Required: becomes the accessible name and the tooltip. */
   readonly label: string;
