@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 import { campaignEditorial } from "../../apps/campaign-site/src/auth/campaign-editorial.mjs";
 
@@ -188,4 +189,31 @@ export function krapfentaxiImportData(actionId, media) {
     brand_logo: reference("logo"),
     partners: [{ ...data.partners[0], logo: reference("partner") }],
   });
+}
+
+/**
+ * Whether an existing import journal row belongs to this source and the
+ * initiating identities. A row written by another import version (other
+ * manifest, other fingerprint) does not, and the importer refuses it with
+ * `journal_conflict` instead of resuming or overwriting.
+ */
+export function krapfentaxiJournalMatches(
+  job,
+  source,
+  { coreUserId, authorId },
+) {
+  return (
+    job.fingerprint === source.fingerprint &&
+    isDeepStrictEqual(job.manifest, source.manifest) &&
+    job.core_user_id === coreUserId &&
+    job.author_id === authorId &&
+    Boolean(job.media) &&
+    !Array.isArray(job.media) &&
+    Object.entries(job.media).every(
+      ([key, id]) =>
+        ["hero", "logo", "partner"].includes(key) &&
+        typeof id === "string" &&
+        /^[0-9A-HJKMNP-TV-Z]{26}$/.test(id),
+    )
+  );
 }

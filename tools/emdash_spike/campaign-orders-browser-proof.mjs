@@ -158,28 +158,30 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(await page.locator("[data-order-form]").count(), 1);
         }
         // The campaign page (Leitsystem tokens, theme on top) stays free of
-        // serious and critical WCAG findings. axe-core needs page scripts
-        // (it never resolves in a context with JavaScript disabled), and the
-        // deadline runs hand off to SQL operators on a clock, so the scan
-        // runs once, in the plain enhanced Chromium run.
+        // serious and critical WCAG findings, at both widths and in both
+        // colour schemes. axe-core needs page scripts (it never resolves in
+        // a context with JavaScript disabled), and the deadline runs hand off
+        // to SQL operators on a clock, so the scan runs in the plain enhanced
+        // Chromium run. The imported run shows the Krapfentaxi theme; the
+        // other run shows the generic story (no theme).
         if (
           !controlledDeadline &&
           javaScriptEnabled &&
           engineName === "chromium" &&
           scenario === "new-company"
         ) {
-          const accessibility = await analyzeAccessibility(page, {
-            tags: WCAG_TAGS,
-          });
-          assert.deepEqual(
-            accessibility.violations
-              .filter((violation) =>
-                ["serious", "critical"].includes(violation.impact),
-              )
-              .map((violation) => `${label}: ${violation.id}`),
-            [],
+          // Strict CSP: the server HTML carries no <style> element and no
+          // style attribute (stylesheets are external, see astro.config.mjs).
+          const html = await entered.text();
+          assert.doesNotMatch(
+            html,
+            /<style[\s>]/i,
+            `${label}: <style> element`,
           );
-          // Fidelity shots of the campaign page for the task review.
+          assert.doesNotMatch(html, /\sstyle=/i, `${label}: style attribute`);
+          const story =
+            (await page.locator("article.campaign-story").count()) === 1;
+          assert.equal(story, !imported, `${label}: unexpected page variant`);
           for (const [width, height] of [
             [1440, 900],
             [390, 844],
@@ -187,8 +189,21 @@ for (const [engineName, engine] of Object.entries({
             for (const colorScheme of ["light", "dark"]) {
               await page.setViewportSize({ width, height });
               await page.emulateMedia({ colorScheme });
+              const view = `${story ? "campaign-story" : "campaign-page"}-${width}-${colorScheme}`;
+              const accessibility = await analyzeAccessibility(page, {
+                tags: WCAG_TAGS,
+              });
+              assert.deepEqual(
+                accessibility.violations
+                  .filter((violation) =>
+                    ["serious", "critical"].includes(violation.impact),
+                  )
+                  .map((violation) => `${label} ${view}: ${violation.id}`),
+                [],
+              );
+              // Fidelity shots for the task review.
               await page.screenshot({
-                path: `/visual-proof/campaign-page-${width}-${colorScheme}.png`,
+                path: `/visual-proof/${view}.png`,
                 fullPage: true,
               });
             }
