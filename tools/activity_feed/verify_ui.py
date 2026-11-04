@@ -58,9 +58,11 @@ async def verify(connection: asyncpg.Connection[Any]) -> dict[str, object]:
         raise VerificationFailure("Browser proof changed the set of recipients")
     if state[(MUSTERWERK_ID, ANNA_ID)] is None:
         raise VerificationFailure("Anna's browser action stored no read_at")
-    if any(
-        state[key] is not None for key in expected if key != (MUSTERWERK_ID, ANNA_ID)
-    ):
+    # Klara's "Alle als gelesen markieren" (Shift+U) reads only her entry.
+    if state[(FREIE_FIRMA_ID, KLARA_ID)] is None:
+        raise VerificationFailure("Klara's mark-all stored no read_at")
+    browser_read = {(MUSTERWERK_ID, ANNA_ID), (FREIE_FIRMA_ID, KLARA_ID)}
+    if any(state[key] is not None for key in expected - browser_read):
         raise VerificationFailure("Read status of another recipient was changed")
     event_count = await connection.fetchval(
         """
