@@ -374,33 +374,24 @@ for (const template of ["krapfentaxi", "golf"])
           .click();
         const snapshot = await (await snapshotEvent).json();
         expect(snapshot.versionNumber).toBe(1);
-        expect(snapshot.participationCount).toBe(1);
+        // One participation: below k = 5 the size and every count are
+        // withheld (Task 5.6b, R0) and read "–".
+        expect(snapshot.participationCount).toBe(null);
+        expect(snapshot.suppressed).toBe(true);
         await expect(
           page.getByText("Ausgewerteter Stand: Version 1", { exact: false }),
         ).toBeVisible();
         const results = page.locator(`[data-snapshot-id="${snapshot.id}"]`);
         await expect(results).toBeVisible();
-        for (const question of snapshot.questions) {
-          const section = results.locator(
-            `[data-question-id="${question.questionId}"]`,
-          );
-          await expect(
-            section.getByRole("heading", { name: question.title, exact: true }),
-          ).toBeVisible();
-          const counts = await section
-            .locator(":scope > .survey-analytics-counts dd")
-            .allTextContents();
-          expect(counts).toEqual(
-            ["relevant", "answered", "unanswered", "hidden", "invalid"].map(
-              (k) => String(question[k]),
-            ),
-          );
-        }
-        await results
-          .locator(".survey-analytics-table > summary")
-          .first()
-          .click();
-        await expect(results.getByRole("table").first()).toBeVisible();
+        // The screen says why and shows no question, count or table.
+        await expect(results.getByRole("status")).toHaveText(
+          "Weniger als 5 Teilnahmen: Ergebnisse werden nicht gezeigt, damit niemand erkennbar wird.",
+        );
+        await expect(results.locator(".survey-analytics-total")).toContainText(
+          "–",
+        );
+        await expect(results.locator("[data-question-id]")).toHaveCount(0);
+        await expect(results.getByRole("table")).toHaveCount(0);
         const panel = page.getByRole("region", {
           name: "Auswertung exportieren",
           exact: true,
