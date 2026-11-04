@@ -11,6 +11,7 @@ import type {
   ModuleSurface,
   UiModule,
 } from "../modules";
+import { createHref } from "./create-request";
 
 /** Shortest query that starts a search ("Ab 2 Zeichen"). */
 export const MIN_SEARCH_LENGTH = 2;
@@ -138,7 +139,7 @@ export function createEntries(
       id: "create:member-invitation",
       label: "Mitglied einladen",
       icon: UserPlus,
-      href: `${members.href.replace(/\/+$/, "")}?view=invite`,
+      href: createHref(members.href.replace(/\/+$/, ""), "member-invitation"),
     });
   }
   return entries;

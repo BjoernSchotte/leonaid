@@ -135,7 +135,10 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
 
   await page.goto(`${baseUrl}/app/`);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+    }),
   ).toBeVisible();
   const actionSelector = page.getByRole("combobox", {
     name: "Charity-Aktion",

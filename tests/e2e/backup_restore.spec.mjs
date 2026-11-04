@@ -39,9 +39,14 @@ test("restored instance works with an existing session", async ({
   try {
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toContainText("90 Prozent");
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
+    );
     await expect(page.getByTestId("admin-dashboard-metrics")).toContainText(
       "25 Boxen · 600 Stück",
     );

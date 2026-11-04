@@ -1,4 +1,6 @@
 import "./action-admin.css";
+import "./action-admin/members.css";
+import "./action-admin/manage-action.css";
 import "./acquisition/acquisition.css";
 import "./activity-feed/activity-feed.css";
 import "./commitments/commitments.css";

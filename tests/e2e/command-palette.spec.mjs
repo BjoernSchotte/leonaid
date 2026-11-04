@@ -206,11 +206,11 @@ test.describe("enabled modules", () => {
         .getByRole("group", { name: "Anlegen" })
         .getByRole("option", { name: "Mitglied einladen" })
         .click();
-      await expect(page).toHaveURL(/\/admin\/members\?view=invite/);
-      await expect(page.locator("#member-invite-tab")).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      // The members page opens its invitation dialog and drops ?create=.
+      await expect(
+        page.getByRole("dialog", { name: "Mitglied einladen" }),
+      ).toBeVisible();
+      await expect(page).toHaveURL(/\/admin\/members$/);
     } finally {
       await context.close();
     }

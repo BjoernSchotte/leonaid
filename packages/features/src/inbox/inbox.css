@@ -11,15 +11,6 @@
   font-size: 0.82em;
   margin-inline-end: var(--s-1);
 }
-.inbox-page .next-step {
-  display: grid;
-  gap: var(--s-3);
-  padding: var(--s-4);
-  border: var(--hair) solid var(--zone-line);
-  border-radius: var(--r-md);
-  background: var(--zone-soft);
-  font-size: var(--fs-sm);
-}
 
 /* ---------- prototype styles/components.css ---------- */
 .inbox-page .muted {

@@ -16,7 +16,8 @@ export interface TabsProps<T extends string> {
   readonly label?: string;
   /**
    * Prefix for the tab and panel ids. Set it when a {@link TabPanel} with the
-   * same prefix renders the content; only then the tabs point at a panel.
+   * same prefix renders the content; only then the selected tab points at
+   * its panel (the other panels are not in the DOM).
    */
   readonly idPrefix?: string;
   readonly className?: string;
@@ -71,7 +72,9 @@ export function Tabs<T extends string>({
         const selected = item.id === value;
         return (
           <button
-            aria-controls={idPrefix ? tabPanelId(prefix, item.id) : undefined}
+            aria-controls={
+              idPrefix && selected ? tabPanelId(prefix, item.id) : undefined
+            }
             aria-selected={selected}
             className={cn("tab", selected && "is-active")}
             id={tabId(prefix, item.id)}

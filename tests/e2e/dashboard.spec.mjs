@@ -1,6 +1,5 @@
 import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
-import { invoiceRows } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -80,7 +79,10 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
   try {
     await page.goto(`${baseUrl}/app/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
     await expect(page.getByTestId("dashboard-action")).toHaveValue(actionId);
     await expect(page.getByTestId("goal-status")).toContainText(
@@ -127,7 +129,7 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
   }
 });
 
-test("charity admin checks action-wide figures and open invoices", async ({
+test("charity admin sees next steps, delivery, goal, weekly value and pipeline", async ({
   browser,
 }) => {
   const { context, page, pageErrors } = await pageFor(browser, klaraSession, {
@@ -137,19 +139,39 @@ test("charity admin checks action-wide figures and open invoices", async ({
   try {
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toContainText("90 Prozent");
-    const metrics = page.getByTestId("admin-dashboard-metrics");
-    await expect(metrics).toContainText("Bestellungen");
-    await expect(metrics).toContainText("6");
-    await expect(metrics).toContainText("25 Boxen · 600 Stück");
-    await expect(metrics).toContainText("900,00 €");
-    await expect(metrics).toContainText("504,00 €");
-    await expect(metrics).toContainText("360,00 €");
-    await expect(page.getByTestId("dashboard-pipeline")).toContainText(
-      "5 Zuordnungen",
+    await expect(page.locator(".page-sub")).toContainText("Krapfentaxi 2026");
+    const goal = page.getByTestId("dashboard-goal");
+    await expect(goal).toContainText("900,00 €");
+    await expect(goal).toContainText("von 1.000,00 €");
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
     );
+
+    const queue = page.getByTestId("dashboard-queue");
+    const review = queue.getByRole("link", { name: /Bestellungen prüfen/ });
+    await expect(review).toBeVisible();
+    await expect(review).toHaveAttribute("href", /\/admin\/orders\?action=/);
+    await expect(page.getByTestId("dashboard-primary-action")).toHaveText(
+      /^\d+ Bestellungen prüfen$/,
+    );
+
+    const weekly = page.getByTestId("dashboard-weekly");
+    await expect(weekly.locator(".spark-bar")).toHaveCount(8);
+    await expect(weekly.getByRole("img")).toHaveAttribute(
+      "aria-label",
+      /^Bestellwert der letzten 8 Wochen, diese Woche /,
+    );
+    await expect(weekly.locator(".spark-axis")).toContainText(/KW \d+/);
+
+    const pipeline = page.getByTestId("dashboard-pipeline");
+    await expect(
+      pipeline.getByRole("link", { name: /Offen\s*5/ }),
+    ).toBeVisible();
     await expect(
       page.locator("summary", {
         hasText: "So werden die Kennzahlen berechnet",
@@ -162,22 +184,19 @@ test("charity admin checks action-wide figures and open invoices", async ({
     });
     await expectNoSeriousAccessibilityViolations(page, "Admin-Dashboard");
 
-    await metrics.getByRole("link", { name: /Offene Posten/ }).click();
-    // The dashboard's ?status=open link lands in the "Offen" list view.
-    await expect(page).toHaveURL(/\/admin\/invoices\?action=/);
-    await expect(page).not.toHaveURL(/status=/);
+    await review.click();
+    await expect(page).toHaveURL(/\/admin\/orders\?action=/);
     await expect(
       page
         .getByRole("navigation", { name: "Gespeicherte Ansichten" })
-        .getByRole("button", { name: "Offen", exact: true }),
+        .getByRole("button", { name: "Zu prüfen", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
-    await expect(invoiceRows(page)).toHaveCount(1);
 
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-    const openPipeline = page
+    await page
       .getByTestId("dashboard-pipeline")
-      .getByRole("link", { name: /Offen 5/ });
-    await openPipeline.click();
+      .getByRole("link", { name: /Offen\s*5/ })
+      .click();
     await expect(page).toHaveURL(/\/admin\/acquisition\?.*status=open/);
     await expect(
       page.getByTestId("admin-pipeline-filter-open"),
@@ -185,6 +204,12 @@ test("charity admin checks action-wide figures and open invoices", async ({
     await expect(
       page.getByTestId("acquisition-admin-list").locator("tbody tr"),
     ).toHaveCount(5, { timeout: 75_000 });
+
+    // 390 px: one column, the primary action spans the width.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseUrl}/admin/?action=${actionId}`);
+    await expect(page.getByTestId("dashboard-queue")).toBeVisible();
+    await expectNoSeriousAccessibilityViolations(page, "Admin-Dashboard mobil");
     expectNoUnexpectedPageErrors(pageErrors);
   } finally {
     await context.close();
@@ -200,23 +225,18 @@ test("partly configured empty action explains its state without an empty chart",
   });
   try {
     await page.goto(`${baseUrl}/admin/?action=${emptyActionId}`);
-    await expect(page.getByTestId("dashboard-action")).toHaveValue(
-      emptyActionId,
-    );
-    await expect(page.getByTestId("dashboard-goal")).toHaveAttribute(
-      "data-configured",
-      "false",
-    );
+    await expect(page.getByTestId("admin-dashboard")).toBeVisible();
     await expect(page.getByTestId("goal-status")).toContainText(
-      "Ein Zielwert ist noch nicht vollständig gepflegt.",
+      "Noch kein Zielwert gepflegt",
     );
     await expect(page.getByRole("progressbar")).toHaveCount(0);
-    await expect(
-      page.getByRole("heading", { name: "Die Pipeline ist noch leer" }),
-    ).toBeVisible();
-    await expect(page.getByTestId("admin-dashboard-metrics")).toContainText(
-      "0",
+    await expect(page.getByTestId("dashboard-queue-empty")).toContainText(
+      "Alles erledigt.",
     );
+    await expect(page.getByTestId("dashboard-primary-action")).toHaveCount(0);
+    await expect(
+      page.getByTestId("dashboard-pipeline").locator(".pipeline-count"),
+    ).toHaveText(["0", "0", "0", "0", "0"]);
     await page.screenshot({
       path: `${artifactDirectory}/dashboard-empty-desktop.png`,
       fullPage: true,

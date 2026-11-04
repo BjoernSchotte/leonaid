@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import asyncpg
 
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -30,7 +31,7 @@ async def read_configuration(
     )
     if row is None:
         raise ResourceNotFound("action_not_found", "Diese Aktion wurde nicht gefunden.")
-    zone_name = str(row["timezone"] or "Europe/Berlin")
+    zone_name = str(row["timezone"] or INSTALLATION_TIME_ZONE.key)
     zone = ZoneInfo(zone_name)
     windows = await connection.fetch(
         "SELECT * FROM action_delivery_window WHERE action_id = $1 ORDER BY starts_at, id",

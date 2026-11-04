@@ -1,68 +1,143 @@
-.materials-workspace {
+/*
+ * Material: ported from the prototype's pages/Materials.css. The table is
+ * the shared .table-wrap/.table (page-sections.css), search and filter use
+ * the list view's .search and .select-inline. Helpers are scoped to
+ * .materials-page. New tokens only.
+ */
+
+/* ---------- prototype pages/Materials.css ---------- */
+.materials {
   display: grid;
-  gap: 1.5rem;
-  min-width: 0;
-}
-.materials-workspace h1 {
-  margin: 0;
-}
-.materials-workspace p {
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-  max-width: 70ch;
-}
-.materials-workspace summary {
-  cursor: pointer;
-  padding-block: 0.75rem;
-  color: var(--primary);
-}
-.materials-workspace label {
-  display: grid;
-  gap: 0.5rem;
-}
-.materials-workspace :is(input, select) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--control-height);
-  padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
   background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
+  overflow: hidden;
 }
-.materials-workspace :is(input, select, summary, a):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
+.material + .material {
+  border-top: var(--hair) solid var(--border);
 }
-.material-upload,
-.material-upload fieldset {
-  display: grid;
-  gap: 0.75rem;
+.material-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4) var(--s-2) var(--s-2);
+}
+.material-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 1 1 320px;
   min-width: 0;
-  max-width: 40rem;
-}
-.material-upload fieldset {
+  min-height: 52px;
+  padding: var(--s-1) var(--s-2);
   border: 0;
-  padding: 0;
-  margin: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
 }
-.material-results {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.material-toggle:hover {
+  background: var(--row-hover);
 }
-.material-results li {
-  padding-block: 1.25rem;
-  border-bottom: 1px solid var(--border);
+.material-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.material-chevron {
+  flex: none;
+  color: var(--text-3);
+  transform: rotate(-90deg);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.material.is-open .material-chevron {
+  transform: none;
+}
+.material-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+.material-text {
+  display: grid;
+  min-width: 0;
+}
+.material-title {
+  font-weight: var(--fw-semibold);
   overflow-wrap: anywhere;
 }
-.material-results h2 {
-  font-size: var(--text-lg);
+.material-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.versions {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-2);
+  padding: 0 var(--s-4) var(--s-4) calc(var(--s-4) + 52px);
+}
+.versions .table-wrap {
+  justify-self: stretch;
+  border-radius: var(--r-md);
+}
+.versions-access {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-1);
   margin: 0;
 }
-.materials-workspace a {
-  color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+.file-input {
+  padding: var(--s-2);
+}
+@media (max-width: 720px) {
+  .versions {
+    padding: 0 var(--s-3) var(--s-3);
+  }
+  .material-head {
+    padding: var(--s-2) var(--s-3);
+  }
+  .material-meta .btn {
+    height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .material-chevron {
+    transition: none;
+  }
+}
+
+/* ---------- product parts (search, filter, paging, upload form) ---------- */
+.materials-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+.materials-more {
+  margin-top: var(--s-4);
+}
+.material-upload {
+  display: grid;
+  gap: var(--s-4);
+}
+.materials-page .list-hint {
+  margin-top: var(--s-4);
+}
+
+/* Prototype helpers (styles/components.css), scoped to this page. */
+.materials-page .small,
+.material-upload .small {
+  font-size: var(--fs-sm);
+}
+.materials-page .subtle {
+  color: var(--text-3);
 }

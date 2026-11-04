@@ -6,7 +6,7 @@ import {
   Eye,
   FolderInput,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
   Avatar,
@@ -42,8 +42,6 @@ export interface TaskMoveControls {
   readonly toDay: (plannedOn: string) => void;
 }
 
-export type DraftKind = "editor" | "structure";
-
 /**
  * The form state follows the row while it is not dirty; a draft keeps the
  * revision it started from, so a save after someone else's change is
@@ -66,7 +64,6 @@ export function TaskDetail({
   close,
   listPage,
   move,
-  onDraft,
   row,
   userId,
 }: {
@@ -78,7 +75,6 @@ export function TaskDetail({
   /** Shown on a list page: no link to the list itself. */
   readonly listPage: boolean;
   readonly move: TaskMoveControls | null;
-  readonly onDraft: (kind: DraftKind, dirty: boolean) => void;
   readonly row: TaskRow;
   readonly userId: string;
 }) {
@@ -88,17 +84,6 @@ export function TaskDetail({
   const [editorDirty, setEditorDirty] = useState(false);
   const editorTask = useSnapshot(row, editorDirty);
   const [editorKey, setEditorKey] = useState(0);
-  const editorDraft = useCallback(
-    (dirty: boolean) => {
-      setEditorDirty(dirty);
-      onDraft("editor", dirty);
-    },
-    [onDraft],
-  );
-  const structureDraft = useCallback(
-    (dirty: boolean) => onDraft("structure", dirty),
-    [onDraft],
-  );
   const dueDay = task.dueAt ? localIsoDate(new Date(task.dueAt)) : null;
   const overdue = row.dueBucket === "overdue";
   return (
@@ -215,15 +200,10 @@ export function TaskDetail({
               headingLevel={3}
               key={`${editorTask.id}:${editorTask.revision}:${editorKey}`}
               listId={task.listId}
-              onClose={() => {
-                if (editorDirty && !window.confirm(discardQuestion(address))) {
-                  return;
-                }
-                editorDraft(false);
-                setEditorKey((key) => key + 1);
-                close();
-              }}
-              onDirtyChange={editorDraft}
+              // The list asks "Entwurf verwerfen?" when the form holds a
+              // draft (useLeaveGuard in the pane).
+              onClose={close}
+              onDirtyChange={setEditorDirty}
               onSaved={() => {
                 // The saved revision arrives with the refetched row.
                 toast?.show({ title: "Aufgabe gespeichert.", tone: "success" });
@@ -234,12 +214,7 @@ export function TaskDetail({
             />
           </section>
           <section className="pane-section">
-            <TaskStructurePanel
-              address={address}
-              client={client}
-              onDirtyChange={structureDraft}
-              task={task}
-            />
+            <TaskStructurePanel address={address} client={client} task={task} />
           </section>
         </>
       ) : null}
@@ -248,14 +223,6 @@ export function TaskDetail({
         <TaskPlanPanel address={address} client={client} taskId={task.id} />
       </section>
     </div>
-  );
-}
-
-export function discardQuestion(address: Address): string {
-  return says(
-    address,
-    "Deine Änderungen wurden noch nicht gespeichert. Entwurf verwerfen?",
-    "Ihre Änderungen wurden noch nicht gespeichert. Entwurf verwerfen?",
   );
 }
 

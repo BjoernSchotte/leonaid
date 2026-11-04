@@ -98,7 +98,7 @@ function SubNav({
   ];
   return (
     <div className="inv-subnav">
-      <nav aria-label="Finanzbereiche" className="inv-links">
+      <nav aria-label="Finanzbereiche" className="section-links">
         {links.map(([section, label]) => (
           <a
             aria-current={current === section ? "page" : undefined}

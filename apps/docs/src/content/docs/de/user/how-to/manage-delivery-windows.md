@@ -4,41 +4,43 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
+contentRevision: 5
+reviewedRevision: 5
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
 
-**Rolle:** Charity-Admin der betroffenen Aktion. Der Editor wird für Aktionen
-mit der Funktion **Auslieferung** angeboten. Vorlagen wie **Krapfentaxi**
-aktivieren sie; bei anderen Aktionen aktivierst du sie im Entwurf oder in der
-Planung unter **Funktionen & Team**. Auslieferung setzt **Bestellungen** voraus.
-Öffne im Backoffice die Aktion und den Abschnitt **Lieferung planen**.
+**Rolle:** Charity-Admin der betroffenen Aktion. Der Reiter **Lieferfenster**
+erscheint bei Aktionen mit der Funktion **Auslieferung**. Vorlagen wie
+**Krapfentaxi** aktivieren sie; bei anderen Aktionen aktivierst du sie im
+Entwurf oder in der Planung über **Bearbeiten** unter **Funktionen**.
+Auslieferung setzt **Bestellungen** voraus. Öffne im Backoffice die Aktion und
+den Reiter **Lieferfenster**.
 
-1. Aktiviere bei einer neuen Planung **Lieferplanung für diese Aktion
-   aktivieren**.
-2. Wähle die **Zeitzone**, bevor du das erste Fenster speicherst. Sobald Termine
-   vorhanden sind, bleibt sie fest.
-3. Wähle **Weiteren Tag hinzufügen**, trage ein Datum innerhalb des
-   Aktionszeitraums ein und ergänze **Beginn** und **Ende**.
-4. Füge mit **Zeitfenster hinzufügen** bei Bedarf weitere Zeiträume am selben
-   Tag hinzu.
-5. Wähle **Lieferplanung speichern**.
+1. Wähle **Lieferfenster hinzufügen**.
+2. Trage einen **Tag** innerhalb des Aktionszeitraums sowie **Von** und **Bis**
+   ein. Beim ersten Fenster wählst du auch die **Zeitzone**; danach bleibt sie
+   fest.
+3. Wähle **Speichern**. Die Meldung **Lieferfenster … angelegt.** bestätigt
+   das Fenster. Wiederhole das für weitere Zeiträume.
+4. Ist die Lieferplanung noch nicht aktiv, bietet der Block **Nächster
+   Schritt** **Lieferplanung aktivieren** an. Bestätige den Dialog. Ab dann
+   müssen neue verbindliche Bestellungen eine Lieferadresse und ein freies
+   Fenster enthalten.
 
-Die Bestätigung lautet **Lieferplanung gespeichert. Die Fenster gelten für
-Akquise und öffentliche Bestellungen.** Neue verbindliche Bestellungen müssen
-nun eine Lieferadresse und ein verfügbares Fenster enthalten.
+Die Tabelle zeigt jedes Fenster mit Status (**Buchbar** oder **Stillgelegt**)
+und, bei Aktionen mit Bestellungen, die gebuchten Boxen ohne stornierte
+Bestellungen.
 
-Gespeicherte Termine werden nicht editiert. Markiere stattdessen das alte
-Fenster mit **… Uhr stilllegen**, ergänze den neuen Termin und speichere.
+Gespeicherte Fenster werden nicht editiert. Wähle beim alten Fenster
+**Stilllegen**, bestätige **Fenster stilllegen** und lege den neuen Termin an.
 Bestehende Bestellungen behalten ihren gebuchten Snapshot. Wenn alle Fenster
 stillgelegt sind, können keine neuen verbindlichen Bestellungen abgeschlossen
 werden.
 
-Bei einem Änderungskonflikt wähle **Aktuellen Stand laden und Eingaben
-behalten**, vergleiche die zusammengeführte Planung und speichere erneut. Öffne
-bei Unsicherheit den aktuellen Stand im angebotenen neuen Tab.
+Hat inzwischen eine andere Person die Lieferfenster geändert, lädt der Dialog
+den aktuellen Stand und behält deine Eingaben. Prüfe sie und wähle erneut
+**Speichern**.
 
 ## Fehlende Lieferangaben ergänzen
 

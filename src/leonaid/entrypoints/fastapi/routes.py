@@ -22,6 +22,7 @@ from leonaid.application.delivery_completion import (
     DeliveryCompletionService,
     delivery_completion_version,
 )
+from leonaid.domain.calendar import local_day
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -219,6 +220,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateSummaryResponse,
     ActivityFeedItemResponse,
     ActivityFeedQuery,
+    ActivityFeedReadAllResponse,
     ActivityFeedResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityBoardResponse,
@@ -241,6 +243,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     AssignedAcquirerResponse,
     ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    ACTION_CREATE_CONFLICT_RESPONSES,
+    MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
+    MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
+    MEMBER_STATUS_CONFLICT_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
@@ -270,7 +276,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     InstallationResponse,
     DashboardCommitmentResponse,
     DashboardGoalResponse,
+    DashboardDeliveryResponse,
+    DashboardDeliveryWindowResponse,
     DashboardInvoiceResponse,
+    DashboardOrderValueWeekResponse,
     DashboardMetricDefinitionResponse,
     DashboardPipelineResponse,
     DashboardReminderResponse,
@@ -987,6 +996,48 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     ),
                     href=f"/admin/invoices?action={action}&status=open",
                 ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.overdue",
+                    label="Überfällige Rechnungen",
+                    description=(
+                        "Offene Rechnungen, deren Fälligkeitstag nach "
+                        "Kalendertag des Clubs vorbei ist; Bruttosumme."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=overdue",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery_failed",
+                    label="Versand fehlgeschlagen",
+                    description=(
+                        "Nicht stornierte Rechnungen, deren letzter Versand "
+                        "endgültig gescheitert ist."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=all&f.sent=failed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.to_invoice",
+                    label="Rechnung erstellen",
+                    description="Bestätigte Bestellungen, noch ohne Rechnung.",
+                    href=f"/admin/orders?action={action}&view=all&f.status=confirmed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.order_value_weeks",
+                    label="Bestellwert pro Woche",
+                    description=(
+                        "Summe der nicht stornierten Bestellungen nach "
+                        "Eingangswoche (Montag bis Sonntag, Zeit des Clubs)."
+                    ),
+                    href=f"/admin/orders?action={action}&view=all",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery",
+                    label="Lieferfenster",
+                    description=(
+                        "Lieferfenster ab heute und die nicht stornierten "
+                        "Bestellungen darin."
+                    ),
+                    href=f"/admin/orders?action={action}&view=windows",
+                ),
             )
         )
         admin_response = CharityAdminDashboardResponse(
@@ -1014,7 +1065,31 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                 total=admin.invoices.total,
                 invoiced_amount_minor=admin.invoices.invoiced_amount_minor,
                 open_amount_minor=admin.invoices.open_amount_minor,
+                overdue=admin.invoices.overdue,
+                overdue_amount_minor=admin.invoices.overdue_amount_minor,
+                delivery_failed=admin.invoices.delivery_failed,
                 currency=snapshot.currency,
+            ),
+            order_value_weeks=[
+                DashboardOrderValueWeekResponse(
+                    week_start=week.week_start,
+                    iso_week=week.iso_week,
+                    total_minor=week.total_minor,
+                )
+                for week in admin.order_value_weeks
+            ],
+            delivery=DashboardDeliveryResponse(
+                enabled=admin.delivery.enabled,
+                windows=[
+                    DashboardDeliveryWindowResponse(
+                        id=window.id,
+                        starts_at=window.starts_at,
+                        ends_at=window.ends_at,
+                        commitments=window.commitments,
+                        quantities=unit_quantity_responses(window.quantities),
+                    )
+                    for window in admin.delivery.windows
+                ],
             ),
         )
 
@@ -2135,7 +2210,7 @@ async def get_member(
     "/api/v1/admin/members/{user_id}/status",
     operation_id="changeMemberStatus",
     response_model=MemberStatusChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_STATUS_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_status(
@@ -2203,7 +2278,7 @@ def member_role_change_response(
     "/api/v1/admin/members/{user_id}/global-roles/{role}",
     operation_id="changeMemberGlobalRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_global_role(
@@ -2231,7 +2306,7 @@ async def change_member_global_role(
     "/api/v1/admin/members/{user_id}/actions/{action_id}/roles/{role}",
     operation_id="changeMemberActionRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_action_role(
@@ -2472,7 +2547,7 @@ async def pilot_daily_report(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Content-Disposition"] = (
         f'inline; filename="leonaid-pilot-daily-'
-        f'{report.generated_at.date().isoformat()}.json"'
+        f'{local_day(report.generated_at).isoformat()}.json"'
     )
     response.headers["X-Content-SHA256"] = checksum
     return transport.model_copy(update={"checksum_sha256": checksum})
@@ -3056,7 +3131,7 @@ async def list_action_templates(
     "/api/v1/actions/from-template",
     operation_id="createCharityActionFromTemplate",
     response_model=CharityActionConfigurationResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )
@@ -3091,7 +3166,7 @@ async def create_charity_action_from_template(
     "/api/v1/actions",
     operation_id="createCharityAction",
     response_model=CharityActionResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )
@@ -4413,6 +4488,23 @@ async def get_activity_feed(
         offset=page.offset,
         limit=page.limit,
     )
+
+
+@router.post(
+    "/api/v1/activity-feed/read",
+    operation_id="markActivityFeedRead",
+    response_model=ActivityFeedReadAllResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["activity-feed"],
+)
+async def mark_activity_feed_read(
+    request: Request,
+    response: Response,
+) -> ActivityFeedReadAllResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    updated = await activity_feed_service(request).mark_all_read(actor)
+    response.headers["Cache-Control"] = "private, no-store"
+    return ActivityFeedReadAllResponse(updated=updated)
 
 
 @router.patch(

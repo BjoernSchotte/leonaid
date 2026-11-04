@@ -377,7 +377,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         row = await connection.fetchrow(
             """
             SELECT
-                id, action_id, number, status, issued_at,
+                id, action_id, number, status, issued_at, issued_on,
                 gross_minor, currency
             FROM invoice
             WHERE id = $1
@@ -398,6 +398,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
             issued_at=row["issued_at"],
+            issued_on=row["issued_on"],
             gross=Money(int(row["gross_minor"]), str(row["currency"])),
         )
 

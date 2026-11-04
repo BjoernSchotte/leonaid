@@ -23,16 +23,207 @@ from leonaid.application.identity import (
 )
 from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.identity import (
+    OPEN_ACTION_STATUSES,
+    AccessRemoval,
     AccountStatus,
     ActionMembership,
     ActionRole,
+    AdminCoverage,
+    AdminInvariant,
     GlobalRole,
     IdentityPrincipal,
     UserAccount,
-    removes_last_active_system_admin,
-    removes_last_required_charity_admin,
+    admin_invariant_violation,
+    charity_admin_required,
 )
 from leonaid.domain.sessions import UserSession
+
+#: One advisory lock for every command that can change who is an active
+#: system admin or an active lead: account status, global roles, action
+#: memberships and an action's responsible admins. One key means one lock
+#: order, so these commands serialize and each check sees the other's result.
+ADMIN_ACCESS_LOCK = "identity.admin_access"
+
+
+async def lock_admin_access(connection: asyncpg.Connection[Any]) -> None:
+    """Take the admin-access lock; call first in the transaction."""
+
+    await connection.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        ADMIN_ACCESS_LOCK,
+    )
+
+
+async def load_admin_coverage(
+    connection: asyncpg.Connection[Any],
+    *,
+    user_id: UUID,
+    now: datetime,
+    action_id: UUID | None = None,
+) -> AdminCoverage:
+    """Active system admins, and the active leads of the open actions where
+    ``user_id`` currently leads (only ``action_id`` when given). Call under
+    :func:`lock_admin_access`."""
+
+    system_admins = frozenset(
+        row["user_id"]
+        for row in await connection.fetch(
+            """
+            SELECT role.user_id
+            FROM user_global_role AS role
+            JOIN user_account AS account ON account.id = role.user_id
+            WHERE role.role = 'system_admin'
+              AND account.status = 'active'
+            """
+        )
+    )
+    rows = await connection.fetch(
+        """
+        SELECT membership.action_id, membership.user_id
+        FROM action_membership AS membership
+        JOIN user_account AS account ON account.id = membership.user_id
+        JOIN charity_action AS action ON action.id = membership.action_id
+        WHERE membership.role = 'charity_admin'
+          AND account.status = 'active'
+          AND membership.active_from <= $2
+          AND (membership.active_until IS NULL OR membership.active_until > $2)
+          AND action.status = ANY($3::text[])
+          AND ($4::uuid IS NULL OR membership.action_id = $4)
+          AND membership.action_id IN (
+            SELECT own.action_id
+            FROM action_membership AS own
+            WHERE own.user_id = $1
+              AND own.role = 'charity_admin'
+              AND own.active_from <= $2
+              AND (own.active_until IS NULL OR own.active_until > $2)
+          )
+        """,
+        user_id,
+        now,
+        sorted(status.value for status in OPEN_ACTION_STATUSES),
+        action_id,
+    )
+    leads: dict[UUID, set[UUID]] = {}
+    for row in rows:
+        leads.setdefault(row["action_id"], set()).add(row["user_id"])
+    return AdminCoverage(
+        system_admins=system_admins,
+        open_action_leads={key: frozenset(value) for key, value in leads.items()},
+    )
+
+
+async def guard_admin_access(
+    connection: asyncpg.Connection[Any],
+    removal: AccessRemoval,
+    *,
+    now: datetime,
+    action_id: UUID | None = None,
+    codes: dict[AdminInvariant, tuple[str, str]],
+) -> None:
+    """Refuse a removal that leaves no active system admin or an open action
+    without an active lead. ``codes`` maps the broken invariant to the
+    command's stable error code and message."""
+
+    coverage = await load_admin_coverage(
+        connection, user_id=removal.user_id, now=now, action_id=action_id
+    )
+    violation = admin_invariant_violation(coverage, removal)
+    if violation is not None:
+        code, message = codes[violation]
+        raise Conflict(code, message)
+
+
+async def actor_still_manages(
+    connection: asyncpg.Connection[Any],
+    actor_user_id: UUID,
+    *,
+    now: datetime,
+    action_id: UUID | None = None,
+) -> bool:
+    """Whether the actor is still an active system admin, or (with
+    ``action_id``) an active lead of that action. The request was authorized
+    before the lock; this re-reads it under :func:`lock_admin_access`."""
+
+    return bool(
+        await connection.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM user_account AS account
+                WHERE account.id = $1
+                  AND account.status = 'active'
+                  AND (
+                    EXISTS (
+                        SELECT 1 FROM user_global_role AS role
+                        WHERE role.user_id = account.id
+                          AND role.role = 'system_admin'
+                    )
+                    OR (
+                        $2::uuid IS NOT NULL
+                        AND EXISTS (
+                            SELECT 1 FROM action_membership AS membership
+                            WHERE membership.user_id = account.id
+                              AND membership.action_id = $2
+                              AND membership.role = 'charity_admin'
+                              AND membership.active_from <= $3
+                              AND (
+                                membership.active_until IS NULL
+                                OR membership.active_until > $3
+                              )
+                        )
+                    )
+                  )
+            )
+            """,
+            actor_user_id,
+            action_id,
+            now,
+        )
+    )
+
+
+_ADMIN_SCOPE_CHANGED = (
+    "admin_scope_changed",
+    "Ihre Verwaltungsrolle wurde zwischenzeitlich geändert. Bitte laden Sie "
+    "den aktuellen Stand.",
+)
+
+
+_LAST_SYSTEM_ADMIN_ROLE = (
+    "last_system_admin_role_forbidden",
+    "Die Rolle des letzten aktiven System-Admins kann nicht entfernt werden.",
+)
+_LAST_CHARITY_ADMIN_ROLE = (
+    "last_charity_admin_role_forbidden",
+    "Die letzte aktive Charity-Admin-Rolle einer offenen Aktion kann nicht "
+    "entfernt werden. Bestimmen Sie zuerst eine weitere aktive Aktionsleitung.",
+)
+_STATUS_CODES: dict[AccountStatus, dict[AdminInvariant, tuple[str, str]]] = {
+    AccountStatus.SUSPENDED: {
+        AdminInvariant.LAST_SYSTEM_ADMIN: (
+            "last_system_admin_suspension_forbidden",
+            "Der letzte aktive System-Admin kann nicht gesperrt werden.",
+        ),
+        AdminInvariant.LAST_CHARITY_ADMIN: (
+            "last_charity_admin_suspension_forbidden",
+            "Der letzte aktive Charity-Admin einer offenen Aktion kann "
+            "nicht gesperrt werden. Bestimmen Sie zuerst eine weitere aktive "
+            "Aktionsleitung.",
+        ),
+    },
+    AccountStatus.ARCHIVED: {
+        AdminInvariant.LAST_SYSTEM_ADMIN: (
+            "last_system_admin_archival_forbidden",
+            "Der letzte aktive System-Admin kann nicht archiviert werden.",
+        ),
+        AdminInvariant.LAST_CHARITY_ADMIN: (
+            "last_charity_admin_archival_forbidden",
+            "Der letzte aktive Charity-Admin einer offenen Aktion kann "
+            "nicht archiviert werden. Bestimmen Sie zuerst eine weitere aktive "
+            "Aktionsleitung.",
+        ),
+    },
+}
 
 
 def account_from_record(row: asyncpg.Record) -> UserAccount:
@@ -366,6 +557,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -382,6 +574,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -453,6 +646,9 @@ class AsyncpgIdentityRepository:
                         ActionRole.FINANCE_READER,
                         *((ActionRole.DRIVER,) if bool(row["has_delivery"]) else ()),
                     ),
+                    lead_required=charity_admin_required(
+                        CharityActionStatus(str(row["status"]))
+                    ),
                 )
                 for row in action_rows
             ),
@@ -472,10 +668,7 @@ class AsyncpgIdentityRepository:
     ) -> AccountStatusChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await connection.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-                    "identity.account.status",
-                )
+                await lock_admin_access(connection)
                 inserted = await connection.fetchval(
                     """
                     INSERT INTO command_receipt (
@@ -518,6 +711,10 @@ class AsyncpgIdentityRepository:
                             "abgeschlossen. Bitte versuche es erneut.",
                         )
                     return replayed_status_change(receipt["result"])
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at
+                ):
+                    raise Conflict(*_ADMIN_SCOPE_CHANGED)
                 row = await connection.fetchrow(
                     """
                     SELECT
@@ -525,7 +722,7 @@ class AsyncpgIdentityRepository:
                         revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -559,39 +756,15 @@ class AsyncpgIdentityRepository:
                         "account_status_unchanged",
                         "Der Zugang besitzt diesen Status bereits.",
                     )
-                if (
-                    target is AccountStatus.ARCHIVED
-                    and current.status is AccountStatus.ACTIVE
-                    and await connection.fetchval(
-                        """
-                        SELECT EXISTS (
-                            SELECT 1
-                            FROM user_global_role
-                            WHERE user_id = $1
-                              AND role = 'system_admin'
-                        )
-                        """,
-                        user_id,
+                # Only an active account covers anything; suspending or
+                # archiving it must keep every invariant.
+                if current.status is AccountStatus.ACTIVE and target in _STATUS_CODES:
+                    await guard_admin_access(
+                        connection,
+                        AccessRemoval.deactivation(user_id),
+                        now=occurred_at,
+                        codes=_STATUS_CODES[target],
                     )
-                ):
-                    active_system_admins = int(
-                        await connection.fetchval(
-                            """
-                            SELECT count(*)
-                            FROM user_global_role AS role
-                            JOIN user_account AS account
-                              ON account.id = role.user_id
-                            WHERE role.role = 'system_admin'
-                              AND account.status = 'active'
-                            """
-                        )
-                    )
-                    if active_system_admins <= 1:
-                        raise Conflict(
-                            "last_system_admin_archival_forbidden",
-                            "Der letzte aktive System-Admin kann nicht "
-                            "archiviert werden.",
-                        )
                 revision = await connection.fetchval(
                     """
                     UPDATE user_account
@@ -697,10 +870,7 @@ class AsyncpgIdentityRepository:
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await connection.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-                    "identity.role.assignment",
-                )
+                await lock_admin_access(connection)
                 replayed = await self._begin_role_command(
                     connection,
                     idempotency_key=idempotency_key,
@@ -708,12 +878,16 @@ class AsyncpgIdentityRepository:
                 )
                 if replayed is not None:
                     return replayed
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at
+                ):
+                    raise Conflict(*_ADMIN_SCOPE_CHANGED)
                 account = await connection.fetchrow(
                     """
                     SELECT revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -744,27 +918,15 @@ class AsyncpgIdentityRepository:
                         "role_assignment_unchanged",
                         "Diese Rolle besitzt bereits den gewünschten Stand.",
                     )
-                active_system_admin_count = int(
-                    await connection.fetchval(
-                        """
-                        SELECT count(*)
-                        FROM user_global_role AS role
-                        JOIN user_account AS account
-                          ON account.id = role.user_id
-                        WHERE role.role = 'system_admin'
-                          AND account.status = 'active'
-                        """
-                    )
-                )
-                if removes_last_active_system_admin(
-                    role=role,
-                    enabled=enabled,
-                    active_admin_count=active_system_admin_count,
-                ):
-                    raise Conflict(
-                        "last_system_admin_role_forbidden",
-                        "Die Rolle des letzten aktiven System-Admins kann "
-                        "nicht entfernt werden.",
+                if not enabled and role is GlobalRole.SYSTEM_ADMIN:
+                    await guard_admin_access(
+                        connection,
+                        AccessRemoval.system_admin_role(user_id),
+                        now=occurred_at,
+                        codes={
+                            AdminInvariant.LAST_SYSTEM_ADMIN: _LAST_SYSTEM_ADMIN_ROLE,
+                            AdminInvariant.LAST_CHARITY_ADMIN: _LAST_CHARITY_ADMIN_ROLE,
+                        },
                     )
                 if enabled:
                     await connection.execute(
@@ -843,10 +1005,7 @@ class AsyncpgIdentityRepository:
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await connection.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-                    "identity.role.assignment",
-                )
+                await lock_admin_access(connection)
                 replayed = await self._begin_role_command(
                     connection,
                     idempotency_key=idempotency_key,
@@ -859,7 +1018,7 @@ class AsyncpgIdentityRepository:
                     SELECT revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -868,7 +1027,7 @@ class AsyncpgIdentityRepository:
                     SELECT id, name, status
                     FROM charity_action
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     action_id,
                 )
@@ -881,33 +1040,14 @@ class AsyncpgIdentityRepository:
                         "Die Rollen wurden zwischenzeitlich geändert. "
                         "Bitte lade den aktuellen Stand.",
                     )
-                if not actor.is_system_admin:
-                    actor_still_manages = bool(
-                        await connection.fetchval(
-                            """
-                            SELECT EXISTS (
-                                SELECT 1
-                                FROM action_membership
-                                WHERE action_id = $1
-                                  AND user_id = $2
-                                  AND role = 'charity_admin'
-                                  AND active_from <= $3
-                                  AND (
-                                    active_until IS NULL OR active_until > $3
-                                  )
-                            )
-                            """,
-                            action_id,
-                            actor_user_id,
-                            occurred_at,
-                        )
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at, action_id=action_id
+                ):
+                    raise Conflict(
+                        "role_action_scope_changed",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
                     )
-                    if not actor_still_manages:
-                        raise Conflict(
-                            "role_action_scope_changed",
-                            "Deine Verwaltungsrolle wurde zwischenzeitlich "
-                            "geändert. Bitte lade den aktuellen Stand.",
-                        )
                 if role is ActionRole.DRIVER and not bool(
                     await connection.fetchval(
                         """
@@ -930,7 +1070,7 @@ class AsyncpgIdentityRepository:
                     SELECT id, active_from, active_until
                     FROM action_membership
                     WHERE action_id = $1 AND user_id = $2 AND role = $3
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     action_id,
                     user_id,
@@ -949,32 +1089,16 @@ class AsyncpgIdentityRepository:
                         "role_assignment_unchanged",
                         "Diese Rolle besitzt bereits den gewünschten Stand.",
                     )
-                active_charity_admin_count = int(
-                    await connection.fetchval(
-                        """
-                        SELECT count(*)
-                        FROM action_membership
-                        WHERE action_id = $1
-                          AND role = 'charity_admin'
-                          AND active_from <= $2
-                          AND (
-                            active_until IS NULL OR active_until > $2
-                          )
-                        """,
-                        action_id,
-                        occurred_at,
-                    )
-                )
-                if removes_last_required_charity_admin(
-                    action_status=CharityActionStatus(str(action["status"])),
-                    role=role,
-                    enabled=enabled,
-                    active_admin_count=active_charity_admin_count,
-                ):
-                    raise Conflict(
-                        "last_charity_admin_role_forbidden",
-                        "Die letzte Charity-Admin-Rolle einer laufenden "
-                        "Aktion kann nicht entfernt werden.",
+                if not enabled and role is ActionRole.CHARITY_ADMIN:
+                    await guard_admin_access(
+                        connection,
+                        AccessRemoval.lead_role(user_id, action_id),
+                        now=occurred_at,
+                        action_id=action_id,
+                        codes={
+                            AdminInvariant.LAST_SYSTEM_ADMIN: _LAST_SYSTEM_ADMIN_ROLE,
+                            AdminInvariant.LAST_CHARITY_ADMIN: _LAST_CHARITY_ADMIN_ROLE,
+                        },
                     )
                 membership_id: UUID
                 if enabled and current is None:

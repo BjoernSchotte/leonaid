@@ -179,6 +179,12 @@ class MemberDirectoryActionResponse(TransportModel):
     available_roles: list[
         Literal["charity_admin", "acquirer", "finance_reader", "driver"]
     ]
+    lead_required: bool = Field(
+        description=(
+            "Revoking the last charity admin of this action is refused "
+            "(draft, scheduled and active actions)."
+        )
+    )
 
 
 class MemberDirectoryResponse(TransportModel):
@@ -1383,7 +1389,29 @@ class DashboardInvoiceResponse(TransportModel):
     total: int = Field(ge=0)
     invoiced_amount_minor: int = Field(ge=0)
     open_amount_minor: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+    overdue_amount_minor: int = Field(ge=0)
+    delivery_failed: int = Field(ge=0)
     currency: str
+
+
+class DashboardOrderValueWeekResponse(TransportModel):
+    week_start: date
+    iso_week: int = Field(ge=1, le=53)
+    total_minor: int = Field(ge=0)
+
+
+class DashboardDeliveryWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    commitments: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
+
+
+class DashboardDeliveryResponse(TransportModel):
+    enabled: bool
+    windows: list[DashboardDeliveryWindowResponse]
 
 
 class AcquirerDashboardResponse(TransportModel):
@@ -1396,6 +1424,8 @@ class CharityAdminDashboardResponse(TransportModel):
     pipeline: DashboardPipelineResponse
     commitments: DashboardCommitmentResponse
     invoices: DashboardInvoiceResponse
+    order_value_weeks: list[DashboardOrderValueWeekResponse]
+    delivery: DashboardDeliveryResponse
 
 
 class DashboardMetricDefinitionResponse(TransportModel):
@@ -1942,6 +1972,10 @@ class UpdateActivityFeedItemRequest(TransportModel):
     read: bool
 
 
+class ActivityFeedReadAllResponse(TransportModel):
+    updated: int = Field(ge=0)
+
+
 class AcquisitionDocumentResponse(TransportModel):
     id: UUID
     action_id: UUID
@@ -2125,6 +2159,60 @@ AUTHENTICATED_CONFLICT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "description": "Änderung kollidiert mit dem aktuellen Zustand.",
     },
 }
+
+
+def _conflicts(*codes: str) -> dict[int | str, dict[str, object]]:
+    """Authenticated responses whose 409 lists the command's stable codes."""
+
+    return {
+        **AUTHENTICATED_ERROR_RESPONSES,
+        409: {
+            "model": ApiErrorResponse,
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. "
+            "Stabile Codes: " + ", ".join(f"`{code}`" for code in codes) + ".",
+        },
+    }
+
+
+# The admin-access invariants: at least one active system admin and one
+# active lead (charity admin) per open action; only active accounts count.
+MEMBER_STATUS_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "account_status_unchanged",
+    "account_invitation_activation_forbidden",
+    "account_self_status_change_forbidden",
+    "admin_scope_changed",
+    "last_system_admin_suspension_forbidden",
+    "last_system_admin_archival_forbidden",
+    "last_charity_admin_suspension_forbidden",
+    "last_charity_admin_archival_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "admin_scope_changed",
+    "last_system_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "role_action_scope_changed",
+    "driver_role_capability_missing",
+    "last_charity_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+
+# Action creation: the creator becomes the action's only lead, so it must
+# still be an active account when the action is written.
+ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
+    "action_responsible_administrator_unavailable",
+    "action_archive_slug_conflict",
+)
 
 RequestIdHeader = Annotated[
     str | None,

@@ -1,7 +1,13 @@
-"""Local calendar-day boundaries for personal task planning."""
+"""Local calendar-day boundaries for personal task planning.
 
-from datetime import date, datetime, time, timezone
+Planning is personal: "today" is the viewer's day in the zone their client
+sends, not the club's. The day arithmetic is the shared calendar helper's.
+"""
+
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from leonaid.domain.calendar import local_day, local_day_bounds
 
 
 def require_time_zone(value: str) -> str:
@@ -16,9 +22,6 @@ def planning_day(
     time_zone: str, *, now: datetime | None = None
 ) -> tuple[date, datetime, datetime]:
     zone = ZoneInfo(require_time_zone(time_zone))
-    local_today = (now or datetime.now(timezone.utc)).astimezone(zone).date()
-    start = datetime.combine(local_today, time.min, zone).astimezone(timezone.utc)
-    end = datetime.combine(
-        local_today.fromordinal(local_today.toordinal() + 1), time.min, zone
-    ).astimezone(timezone.utc)
+    local_today = local_day(now or datetime.now(timezone.utc), zone)
+    start, end = local_day_bounds(local_today, zone)
     return local_today, start, end

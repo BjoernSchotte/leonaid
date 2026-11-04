@@ -15,6 +15,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
 )
+from leonaid.domain.calendar import local_day
 from leonaid.domain.errors import DomainInvariantError
 
 INVOICE_NUMBER = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,31}$")
@@ -345,6 +346,9 @@ class Invoice:
     number: str
     status: InvoiceStatus
     issued_at: datetime
+    # The invoice date as issued and printed. Stored, never re-derived:
+    # invoices issued before Berlin days were introduced carry their UTC day.
+    issued_on: date
     service_on: date
     due_on: date
     issuer: InvoiceIssuerSnapshot
@@ -371,7 +375,7 @@ class Invoice:
                 "invoice_issued_at_timezone_required",
                 "Der Freigabezeitpunkt benötigt eine eindeutige Zeitzone.",
             )
-        if self.due_on < self.issued_at.date():
+        if self.due_on < self.issued_on:
             raise DomainInvariantError(
                 "invoice_due_date_invalid",
                 "Das Zahlungsziel darf nicht vor dem Rechnungsdatum liegen.",
@@ -480,6 +484,8 @@ class Invoice:
             )
             for line in commitment.lines
         )
+        # The club's day of the issue, fixed now for the printed invoice.
+        issued_on = local_day(issued_at)
         currency = commitment.total.currency
         net = Money(sum(line.net.amount_minor for line in lines), currency)
         tax = Money(sum(line.tax.amount_minor for line in lines), currency)
@@ -491,8 +497,9 @@ class Invoice:
             number=number,
             status=InvoiceStatus.ISSUED,
             issued_at=issued_at,
+            issued_on=issued_on,
             service_on=service_on,
-            due_on=issued_at.date() + timedelta(days=profile.payment_terms_days),
+            due_on=issued_on + timedelta(days=profile.payment_terms_days),
             issuer=profile.issuer,
             payment_details=payment_details,
             recipient=commitment.invoice_recipient,

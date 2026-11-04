@@ -37,6 +37,10 @@ from leonaid.domain.actions import (
 )
 
 
+from leonaid.adapters.postgres.identity import (
+    actor_still_manages,
+    lock_admin_access,
+)
 from leonaid.adapters.postgres.delivery import (
     has_delivery_capability,
     lock_configuration,
@@ -63,6 +67,21 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         try:
             async with self._pool.acquire() as connection:
                 async with connection.transaction():
+                    # The creator becomes the only lead: it must still be
+                    # active, under the lock that suspension also takes.
+                    await lock_admin_access(connection)
+                    if not await connection.fetchval(
+                        """
+                        SELECT true FROM user_account
+                        WHERE id = $1 AND status = 'active'
+                        FOR SHARE
+                        """,
+                        responsible_admin_user_id,
+                    ):
+                        raise Conflict(
+                            "action_responsible_administrator_unavailable",
+                            "Mindestens ein ausgewähltes Mitglied ist nicht mehr verfügbar.",
+                        )
                     await connection.execute(
                         """
                         INSERT INTO charity_action (
@@ -494,6 +513,17 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> ActionManagementState:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                # Same lock as account status and role changes: the new
+                # leads must still be active when this commits.
+                await lock_admin_access(connection)
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at, action_id=action.id
+                ):
+                    raise Conflict(
+                        "role_action_scope_changed",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
+                    )
                 available_rows = await connection.fetch(
                     """
                     SELECT id

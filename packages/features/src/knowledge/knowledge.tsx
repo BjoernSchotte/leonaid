@@ -1,8 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { BookOpen, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Modal,
+  StatusMessage,
+} from "@leonaid/ui";
+
 import { consumeCreateRequest } from "../command-palette/create-request";
 import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
@@ -10,33 +18,174 @@ import {
   ActionContextSearch,
   useActionContexts,
 } from "../shared/action-contexts";
-import "../shared/module-workspace.css";
 import "./knowledge.css";
 
-export function KnowledgePage({
-  client,
+type Address = "Sie" | "du";
+const says = (address: Address, du: string, sie: string) =>
+  address === "du" ? du : sie;
+
+export function knowledgeAddress(
+  basePath: string,
+  surface?: "web" | "pwa",
+): Address {
+  return (surface ?? (basePath.startsWith("/app") ? "pwa" : "web")) === "pwa"
+    ? "du"
+    : "Sie";
+}
+
+function CreatePageDialog({
+  address,
   basePath,
-}: ModulePageContext & { basePath: string }) {
-  const cache = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
+  client,
+  onClose,
+  open,
+}: {
+  readonly address: Address;
+  readonly basePath: string;
+  readonly client: ModulePageContext["client"];
+  readonly onClose: () => void;
+  readonly open: boolean;
+}) {
+  const contexts = useActionContexts(client);
+  const { managedActions } = contexts;
   const [title, setTitle] = useState("");
   const [actionId, setActionId] = useState("");
-  const [actionFilter, setActionFilter] = useState("");
-  const contexts = useActionContexts(client);
-  const { knownActions, managedActions } = contexts;
-  const [notice, setNotice] = useState("");
+  const [touched, setTouched] = useState(false);
   const operation = useRef(crypto.randomUUID());
-  const createPanel = useRef<HTMLDetailsElement>(null);
-  const openCreate = () => {
-    const panel = createPanel.current;
-    if (!panel) return;
-    panel.open = true;
-    panel.querySelector<HTMLInputElement>("input")?.focus();
+  const create = useMutation({
+    mutationFn: () =>
+      client.createKnowledgePage({
+        title: title.trim(),
+        actionId: actionId || null,
+        idempotencyKey: operation.current,
+      }),
+    // A new page is empty: open it for writing.
+    onSuccess: (page) => window.location.assign(`${basePath}/${page.id}?edit`),
+  });
+  const close = () => {
+    setTitle("");
+    setActionId("");
+    setTouched(false);
+    create.reset();
+    onClose();
   };
+  return (
+    <Modal
+      footer={
+        <>
+          <Button onClick={close} variant="ghost">
+            Abbrechen
+          </Button>
+          <Button
+            disabled={!title.trim()}
+            form="knowledge-create-form"
+            icon={Plus}
+            loading={create.isPending}
+            type="submit"
+            variant="primary"
+          >
+            {create.isPending ? "Wird angelegt …" : "Seite anlegen"}
+          </Button>
+        </>
+      }
+      onClose={close}
+      open={open}
+      title="Neue Seite"
+    >
+      <form
+        className="knowledge-create"
+        id="knowledge-create-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setTouched(true);
+          if (title.trim()) create.mutate();
+        }}
+      >
+        {create.error ? (
+          <StatusMessage tone="error">
+            {create.error instanceof ApiError && create.error.status === 401
+              ? says(
+                  address,
+                  "Bitte melde dich erneut an.",
+                  "Bitte melden Sie sich erneut an.",
+                )
+              : says(
+                  address,
+                  "Die Seite konnte nicht angelegt werden. Dein Titel bleibt erhalten; versuche es erneut.",
+                  "Die Seite konnte nicht angelegt werden. Ihr Titel bleibt erhalten; versuchen Sie es erneut.",
+                )}
+          </StatusMessage>
+        ) : null}
+        <Field
+          error={
+            touched && !title.trim() ? "Bitte einen Titel angeben." : undefined
+          }
+          label="Seitentitel"
+          required
+        >
+          <input
+            maxLength={240}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              operation.current = crypto.randomUUID();
+              create.reset();
+            }}
+            value={title}
+          />
+        </Field>
+        <Field
+          hint={
+            actionId
+              ? "Aktuelle Mitglieder dieser Aktion können die Seite lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
+              : says(
+                  address,
+                  "Die neue Seite ist zunächst nur für dich sichtbar.",
+                  "Die neue Seite ist zunächst nur für Sie sichtbar.",
+                )
+          }
+          label="Kontext der neuen Seite"
+        >
+          <select
+            onChange={(event) => {
+              setActionId(event.target.value);
+              operation.current = crypto.randomUUID();
+              create.reset();
+            }}
+            value={actionId}
+          >
+            <option value="">Eigenständig</option>
+            {actionId && !managedActions.some(([id]) => id === actionId) && (
+              <option value={actionId}>Ausgewählte Aktion beibehalten</option>
+            )}
+            {managedActions.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <ActionContextSearch contexts={contexts} />
+      </form>
+    </Modal>
+  );
+}
+
+/** "Wissen": the pages the person may read (prototype pages/Knowledge). */
+export function KnowledgePage({
+  basePath,
+  client,
+  surface,
+}: ModulePageContext & { basePath: string; surface?: "web" | "pwa" }) {
+  const address = knowledgeAddress(basePath, surface);
+  const [search, setSearch] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [creating, setCreating] = useState(false);
+  const contexts = useActionContexts(client);
+  const { knownActions } = contexts;
   // "Wissensseite anlegen" from the palette, here or on another page.
   useEffect(() => {
-    if (consumeCreateRequest("knowledge-page")) openCreate();
+    if (consumeCreateRequest("knowledge-page")) setCreating(true);
   }, []);
   useContextCommands([
     {
@@ -45,200 +194,167 @@ export function KnowledgePage({
       group: "Wissen",
       icon: Plus,
       keywords: ["neu", "Seite"],
-      run: openCreate,
+      run: () => setCreating(true),
     },
   ]);
-  const pages = useQuery({
-    queryKey: ["knowledge-pages", search, offset, actionFilter],
-    queryFn: () =>
+  const pages = useInfiniteQuery({
+    queryKey: ["knowledge-pages", search, actionFilter],
+    queryFn: ({ pageParam }) =>
       client.listKnowledgePages({
         search,
-        offset,
+        offset: pageParam,
         actionId: actionFilter || undefined,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
     retry: false,
   });
-  const create = useMutation({
-    mutationFn: () =>
-      client.createKnowledgePage({
-        title: title.trim(),
-        actionId: actionId || null,
-        idempotencyKey: operation.current,
-      }),
-    onSuccess: (page) => {
-      setNotice(`„${page.title}“ wurde angelegt.`);
-      setTitle("");
-      setSearch("");
-      setActionFilter(page.actionId ?? "");
-      setOffset(0);
-      operation.current = crypto.randomUUID();
-      void cache.invalidateQueries({ queryKey: ["knowledge-pages"] });
-    },
-  });
+  const items = pages.data?.pages.flatMap((page) => page.items) ?? [];
+  const actionName = (id: string | null) =>
+    id
+      ? (knownActions.find(([known]) => known === id)?.[1] ?? "Charity-Aktion")
+      : null;
+  const filtered = !!search || !!actionFilter;
   return (
-    <section
-      className="knowledge-workspace"
-      aria-labelledby="knowledge-heading"
-    >
-      <header>
-        <h1 id="knowledge-heading">Wissen</h1>
-        <p>Seiten für gemeinsame Abläufe, Notizen und Vorbereitung.</p>
+    <div className="knowledge-list-page" data-zone="knowledge">
+      <header className="page-header">
+        <div className="page-heading">
+          <h1>Wissen</h1>
+          {pages.data ? (
+            <span className="page-count num">
+              {items.length}
+              {pages.hasNextPage ? "+" : ""}{" "}
+              {items.length === 1 ? "Seite" : "Seiten"}
+            </span>
+          ) : null}
+        </div>
+        <div className="page-actions">
+          <Button
+            icon={Plus}
+            onClick={() => setCreating(true)}
+            variant="primary"
+          >
+            Seite anlegen
+          </Button>
+        </div>
       </header>
-      <ActionContextSearch contexts={contexts} />
-      <label>
-        Seiten nach Aktion filtern
-        <select
-          value={actionFilter}
-          onChange={(event) => {
-            setActionFilter(event.target.value);
-            setOffset(0);
-          }}
-        >
-          <option value="">Alle zugänglichen Seiten</option>
-          {actionFilter &&
-            !knownActions.some(([id]) => id === actionFilter) && (
-              <option value={actionFilter}>
-                Ausgewählte Aktion beibehalten
-              </option>
-            )}
-          {knownActions.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <details className="knowledge-create" ref={createPanel}>
-        <summary>Neue Seite</summary>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setNotice("");
-            create.mutate();
-          }}
-        >
-          <label>
-            Seitentitel
-            <input
-              required
-              maxLength={240}
-              value={title}
-              disabled={create.isPending}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                operation.current = crypto.randomUUID();
-                create.reset();
-              }}
-            />
-          </label>
-          <label>
-            Kontext der neuen Seite
+      <div className="knowledge-tools">
+        <label className="search">
+          <Search aria-hidden="true" size={15} />
+          <span className="sr-only">Seiten suchen</span>
+          <input
+            maxLength={200}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Wissen durchsuchen"
+            type="search"
+            value={search}
+          />
+        </label>
+        {knownActions.length > 0 || actionFilter ? (
+          <label className="select-inline">
+            <span className="sr-only">Seiten nach Aktion filtern</span>
             <select
-              value={actionId}
-              disabled={create.isPending}
-              onChange={(event) => {
-                setActionId(event.target.value);
-                operation.current = crypto.randomUUID();
-                create.reset();
-              }}
+              onChange={(event) => setActionFilter(event.target.value)}
+              value={actionFilter}
             >
-              <option value="">Eigenständig</option>
-              {actionId && !managedActions.some(([id]) => id === actionId) && (
-                <option value={actionId}>Ausgewählte Aktion beibehalten</option>
-              )}
-              {managedActions.map(([id, name]) => (
+              <option value="">Alle zugänglichen Seiten</option>
+              {actionFilter &&
+                !knownActions.some(([id]) => id === actionFilter) && (
+                  <option value={actionFilter}>
+                    Ausgewählte Aktion beibehalten
+                  </option>
+                )}
+              {knownActions.map(([id, name]) => (
                 <option key={id} value={id}>
                   {name}
                 </option>
               ))}
             </select>
           </label>
-          <p>
-            {actionId
-              ? "Aktuelle Mitglieder dieser Aktion können die Seite lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
-              : "Die neue Seite ist zunächst nur für dich sichtbar."}
-          </p>
-          <Button type="submit" disabled={create.isPending || !title.trim()}>
-            {create.isPending ? "Wird angelegt …" : "Seite anlegen"}
-          </Button>
-        </form>
-      </details>
-      {notice && <p role="status">{notice}</p>}
-      {create.error && (
-        <StatusMessage tone="error">
-          <p>
-            {create.error instanceof ApiError && create.error.status === 401
-              ? "Bitte melde dich erneut an."
-              : "Die Seite konnte nicht angelegt werden. Dein Titel bleibt erhalten; versuche es erneut."}
-          </p>
-        </StatusMessage>
-      )}
-      <label className="knowledge-search">
-        Seiten suchen
-        <input
-          type="search"
-          maxLength={200}
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setOffset(0);
-          }}
-        />
-      </label>
-      {pages.isPending && <p role="status">Seiten werden geladen …</p>}
-      {pages.error && (
+        ) : null}
+      </div>
+      {pages.isError ? (
         <StatusMessage tone="error">
           <p>Die Seiten konnten nicht geladen werden.</p>
-          <Button variant="secondary" onClick={() => void pages.refetch()}>
+          <Button
+            onClick={() => void pages.refetch()}
+            size="sm"
+            variant="secondary"
+          >
             Erneut laden
           </Button>
         </StatusMessage>
-      )}
-      {!pages.error && pages.data && (
-        <>
-          {pages.data.items.length === 0 ? (
-            <p>
-              {search
-                ? "Keine Seiten zu dieser Suche gefunden."
-                : "Hier erscheinen die Seiten, auf die du Zugriff hast. Lege deine erste Seite an."}
-            </p>
-          ) : (
-            <ul className="knowledge-results">
-              {pages.data.items.map((page) => (
-                <li key={page.id}>
-                  <h2>
-                    <a href={`${basePath}/${page.id}`}>{page.title}</a>
-                  </h2>
-                  <p>
-                    {page.actionId
-                      ? `Aktionsseite: ${knownActions.find(([id]) => id === page.actionId)?.[1] ?? "Charity-Aktion"}`
-                      : "Eigenständige Seite"}{" "}
-                    · Version {page.revision}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {(offset > 0 || pages.data.nextOffset !== null) && (
-            <nav className="knowledge-paging" aria-label="Ergebnisseiten">
+      ) : pages.isPending ? (
+        <p className="small subtle" role="status">
+          Seiten werden geladen …
+        </p>
+      ) : items.length === 0 ? (
+        <EmptyState
+          action={
+            filtered ? undefined : (
               <Button
-                variant="secondary"
-                disabled={offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - 50))}
+                icon={Plus}
+                onClick={() => setCreating(true)}
+                variant="primary"
               >
-                Zurück
+                Seite anlegen
               </Button>
-              <Button
-                variant="secondary"
-                disabled={pages.data.nextOffset === null}
-                onClick={() => setOffset(pages.data!.nextOffset!)}
-              >
-                Weitere Seiten
-              </Button>
-            </nav>
-          )}
-        </>
+            )
+          }
+          description={
+            filtered
+              ? says(
+                  address,
+                  "Ändere die Suche oder den Aktionsfilter.",
+                  "Ändern Sie die Suche oder den Aktionsfilter.",
+                )
+              : says(
+                  address,
+                  "Hier erscheinen die Seiten, auf die du Zugriff hast: Abläufe, Notizen und Vorbereitung.",
+                  "Hier erscheinen die Seiten, auf die Sie Zugriff haben: Abläufe, Notizen und Vorbereitung.",
+                )
+          }
+          headingLevel={2}
+          icon={BookOpen}
+          title={filtered ? "Keine passenden Seiten" : "Noch keine Seiten"}
+        />
+      ) : (
+        <ul className="kb-list">
+          {items.map((page) => {
+            const action = actionName(page.actionId);
+            return (
+              <li key={page.id}>
+                <a className="kb-row" href={`${basePath}/${page.id}`}>
+                  <span className="kb-title">{page.title}</span>
+                  <span className="kb-meta small subtle">
+                    <Badge tone={action ? "zone" : "neutral"}>
+                      {action ?? "Eigenständig"}
+                    </Badge>
+                    Fassung {page.revision}
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </section>
+      {pages.hasNextPage ? (
+        <Button
+          className="knowledge-more"
+          loading={pages.isFetchingNextPage}
+          onClick={() => void pages.fetchNextPage()}
+          variant="secondary"
+        >
+          Weitere Seiten
+        </Button>
+      ) : null}
+      <CreatePageDialog
+        address={address}
+        basePath={basePath}
+        client={client}
+        onClose={() => setCreating(false)}
+        open={creating}
+      />
+    </div>
   );
 }

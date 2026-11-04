@@ -56,7 +56,7 @@ export function ActionListPage({ identity }: ActionListPageProps) {
           />
           <h2>Noch keine verwaltete Aktion</h2>
           <p>
-            Sobald du einer Charity-Aktion als Admin zugeordnet bist, erscheint
+            Sobald Sie einer Charity-Aktion als Admin zugeordnet sind, erscheint
             sie hier.
           </p>
         </section>

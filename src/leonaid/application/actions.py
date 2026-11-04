@@ -722,6 +722,8 @@ class CharityActionService:
         request_id: str,
     ) -> ActionManagementState:
         current = await self.get_management(actor, action_id)
+        # The leads of an archived action stay as they were, like its data.
+        current.action.require_mutable()
         selected = frozenset(responsible_user_ids)
         if not selected:
             raise DomainInvariantError(
