@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { openInvoice } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
@@ -126,7 +126,7 @@ async function waitForCode(request, recipient, previousIds) {
 }
 
 async function expectAccessible(page) {
-  const result = await new AxeBuilder({ page }).analyze();
+  const result = await analyzeAccessibility(page);
   expect(
     result.violations.filter(
       ({ impact }) => impact === "critical" || impact === "serious",

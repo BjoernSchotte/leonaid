@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -145,7 +145,7 @@ test("POC-062 manifest, installation, update and offline notice are real", async
   await expect(
     page.getByRole("heading", { name: "Gerade keine Verbindung" }),
   ).toBeVisible();
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),
@@ -212,7 +212,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),

@@ -3,7 +3,7 @@
 // KT26-…), Felix only of Krapfentaxi Nord 2026, Simone is system admin
 // without memberships. With LEONAID_PALETTE_DISABLED_MODULES set, the API
 // runs with LEONAID_DISABLED_MODULES and only the switched-off test runs.
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -113,10 +113,10 @@ test.describe("enabled modules", () => {
       await expect(
         invoices.getByRole("option", { name: /KT26-0001/ }),
       ).toBeVisible();
-      const axe = await new AxeBuilder({ page })
-        .include("dialog.palette")
-        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-        .analyze();
+      const axe = await analyzeAccessibility(page, {
+        include: "dialog.palette",
+        tags: WCAG_TAGS,
+      });
       expect(
         axe.violations.filter(({ impact }) =>
           ["serious", "critical"].includes(impact),

@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { writeFile } from "node:fs/promises";
 
@@ -148,9 +148,7 @@ test("WCAG and Web Vitals budgets are met in the defined mobile profile", async 
     performanceReport.budgets.cls,
   );
 
-  const axeResults = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const axeResults = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const seriousFindings = axeResults.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );

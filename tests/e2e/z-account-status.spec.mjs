@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -247,7 +247,7 @@ test("fresh login revokes all old sessions and reactivation requires a new sign-
       ).status(),
     ).toBe(401);
 
-    const accessibility = await new AxeBuilder({ page: systemPage }).analyze();
+    const accessibility = await analyzeAccessibility(systemPage);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),

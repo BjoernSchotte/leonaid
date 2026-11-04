@@ -1,7 +1,7 @@
 // Keyboard walk through the task list: j/k, Enter, Esc, x, the property
 // letters (s, w, a, p), c for the quick add, f for filters, and the palette.
 import { test, expect } from "./csp-guard.mjs";
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
@@ -76,7 +76,7 @@ async function createList(context) {
 }
 
 async function expectNoSeriousViolations(page, label) {
-  const results = await new AxeBuilder({ page }).include(".listview").analyze();
+  const results = await analyzeAccessibility(page, { include: ".listview" });
   const serious = results.violations.filter((violation) =>
     ["serious", "critical"].includes(violation.impact),
   );

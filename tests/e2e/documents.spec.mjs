@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { openInvoice } from "./invoice-list.mjs";
 import { readFile } from "node:fs/promises";
@@ -149,7 +149,7 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
       .filter({ hasText: "KT26-0001" });
     await expect(documentRow).toBeVisible();
     await expectByteIdenticalDownload(documentRow);
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) => violation.impact === "critical",
