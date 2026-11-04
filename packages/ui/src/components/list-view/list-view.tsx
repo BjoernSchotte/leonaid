@@ -56,11 +56,42 @@ import {
   type ListViewDefinition,
 } from "./saved-views";
 import type {
+  ListAddress,
   ListColumns,
   ListCommand,
   ListProperty,
   ListViewProps,
 } from "./types";
+
+/** The list's own copy in both forms of address. */
+const listCopy: Readonly<
+  Record<
+    ListAddress,
+    {
+      readonly retry: string;
+      readonly storage: string;
+      readonly loadError: string;
+      readonly noMatch: string;
+    }
+  >
+> = {
+  Sie: {
+    retry: "Bitte versuchen Sie es erneut.",
+    storage:
+      "Der Browser erlaubt keine Speicherung. Prüfen Sie die Einstellungen für Website-Daten.",
+    loadError:
+      "Der Server hat nicht geantwortet. Ihre Filter bleiben erhalten. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+    noMatch: "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff.",
+  },
+  du: {
+    retry: "Bitte versuche es erneut.",
+    storage:
+      "Der Browser erlaubt keine Speicherung. Prüfe die Einstellungen für Website-Daten.",
+    loadError:
+      "Der Server hat nicht geantwortet. Deine Filter bleiben erhalten. Prüfe die Verbindung und versuche es erneut.",
+    noMatch: "Entferne einen Filter oder ändere den Suchbegriff.",
+  },
+};
 
 /** Help overlay section of every list binding. */
 export const LIST_HOTKEY_GROUP = "Liste";
@@ -274,6 +305,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     title,
   } = props;
   const toast = useOptionalToast();
+  const copy = listCopy[props.address ?? "Sie"];
   const headingId = useId();
   const viewNameId = useId();
 
@@ -388,24 +420,52 @@ export function ListView<T>(props: ListViewProps<T>) {
     // Only the options matter here; schema follows fieldSchema.
   }, [fieldSchema]);
 
+  /* The URL this list last wrote or accepted; a refused Back returns to it. */
+  const lastUrl = useRef(window.location.href);
   useEffect(() => {
     const next = serializeListState(window.location.search, state, schema);
     const push = pushNext.current;
     pushNext.current = false;
-    if (next === window.location.search) return;
-    const url = `${window.location.pathname}${next}${window.location.hash}`;
-    if (push) window.history.pushState(window.history.state, "", url);
-    else window.history.replaceState(window.history.state, "", url);
+    if (next !== window.location.search) {
+      const url = `${window.location.pathname}${next}${window.location.hash}`;
+      if (push) window.history.pushState(window.history.state, "", url);
+      else window.history.replaceState(window.history.state, "", url);
+    }
+    lastUrl.current = window.location.href;
   }, [state, schema]);
+
+  const onStateChangeRef = useRef(props.onStateChange);
+  onStateChangeRef.current = props.onStateChange;
+  useEffect(() => {
+    onStateChangeRef.current?.(state);
+  }, [state]);
+
+  const paneGuardRef = useRef(props.paneGuard);
+  paneGuardRef.current = props.paneGuard;
+  const paneMayChange = useCallback(() => paneGuardRef.current?.() ?? true, []);
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
+  const openIdRef = useRef(state.openId);
+  openIdRef.current = state.openId;
   useEffect(() => {
-    const onPopState = () =>
-      setState(parseListState(window.location.search, schemaRef.current));
+    const onPopState = () => {
+      const next = parseListState(window.location.search, schemaRef.current);
+      if (
+        openIdRef.current !== null &&
+        next.openId !== openIdRef.current &&
+        !paneMayChange()
+      ) {
+        // Keep the pane: put the entry the person tried to leave back.
+        window.history.pushState(window.history.state, "", lastUrl.current);
+        return;
+      }
+      lastUrl.current = window.location.href;
+      setState(next);
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [paneMayChange]);
 
   const baseView =
     allViews.find((view) => view.id === state.viewId) ?? allViews[0]!;
@@ -571,6 +631,9 @@ export function ListView<T>(props: ListViewProps<T>) {
   }, []);
 
   const openById = (id: string) => {
+    if (renderDetail && openRow && state.openId !== id && !paneMayChange()) {
+      return;
+    }
     setFocusedId(id);
     if (!renderDetail) {
       const row = rowById.get(id);
@@ -581,6 +644,7 @@ export function ListView<T>(props: ListViewProps<T>) {
   };
 
   const closePane = () => {
+    if (!paneMayChange()) return;
     const previous = state.openId;
     // Replace, not push: opening pushed the entry, so Back after a close
     // leaves the list instead of reopening the pane.
@@ -608,6 +672,7 @@ export function ListView<T>(props: ListViewProps<T>) {
           ? 0
           : Math.max(0, Math.min(flatIds.length - 1, index + delta))
       ]!;
+    if (openRow && next !== state.openId && !paneMayChange()) return;
     focusRow(next);
     if (openRow) update({ openId: next });
   };
@@ -704,22 +769,41 @@ export function ListView<T>(props: ListViewProps<T>) {
     try {
       const outcome = await prop.edit.apply(ids, value);
       if (outcome === "cancelled") return;
+      const undo = outcome ? outcome.undo : undefined;
       toast?.show({
         title:
           ids.length > 1
             ? `${prop.label} bei ${ids.length} Einträgen: ${label}`
             : `${prop.label}: ${label}`,
         tone: "success",
+        action: undo
+          ? { label: "Rückgängig", run: () => void undoEdit(prop, undo) }
+          : undefined,
       });
     } catch {
       toast?.show({
         title: `${prop.label} wurde nicht geändert.`,
-        description: "Bitte versuchen Sie es erneut.",
+        description: copy.retry,
         tone: "error",
       });
     } finally {
       for (const id of ids) busyRef.current.delete(id);
       setRowsBusy(ids, false);
+    }
+  };
+
+  const undoEdit = async (
+    prop: ListProperty<T>,
+    undo: () => void | Promise<void>,
+  ) => {
+    try {
+      await undo();
+    } catch {
+      toast?.show({
+        title: `${prop.label} wurde nicht zurückgesetzt.`,
+        description: copy.retry,
+        tone: "error",
+      });
     }
   };
 
@@ -767,8 +851,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     } else {
       toast?.show({
         title: `Ansicht „${label}“ gilt nur bis zum Neuladen.`,
-        description:
-          "Der Browser erlaubt keine Speicherung. Prüfen Sie die Einstellungen für Website-Daten.",
+        description: copy.storage,
         tone: "error",
       });
     }
@@ -967,7 +1050,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     ...(props.onCreate
       ? [
           {
-            id: `list:${props.id}:create`,
+            id: props.createCommandId ?? `list:${props.id}:create`,
             label: props.createLabel ?? "Neu anlegen",
             group: title,
             icon: Plus,
@@ -1070,8 +1153,7 @@ export function ListView<T>(props: ListViewProps<T>) {
         onRetry={props.onRetry}
         title="Die Liste konnte nicht geladen werden"
       >
-        Der Server hat nicht geantwortet. Ihre Filter bleiben erhalten. Prüfen
-        Sie die Verbindung und versuchen Sie es erneut.
+        {copy.loadError}
       </ErrorState>
     );
   } else if (status === "loading") {
@@ -1096,7 +1178,7 @@ export function ListView<T>(props: ListViewProps<T>) {
         description={
           total === 0
             ? "Sobald die ersten Einträge da sind, erscheinen sie hier."
-            : "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff."
+            : copy.noMatch
         }
         headingLevel={2}
         icon={total === 0 ? props.emptyIcon : SearchX}
@@ -1387,7 +1469,7 @@ export function ListView<T>(props: ListViewProps<T>) {
               })}
             </div>
           ) : null}
-          {renderDetail(openRow)}
+          {renderDetail(openRow, { close: closePane })}
         </DetailPane>
       ) : null}
 

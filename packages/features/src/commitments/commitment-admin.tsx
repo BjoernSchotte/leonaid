@@ -72,6 +72,7 @@ import {
   DetailTimeline,
   Icon,
   ListView,
+  fullBleedPage,
   StatusIcon,
   StatusLabel,
   StatusMessage,
@@ -1156,7 +1157,7 @@ export function CommitmentAdminPage({
         : "ready";
 
   return (
-    <div className="commitment-list" data-zone="orders">
+    <div className="commitment-list" data-zone="orders" {...fullBleedPage}>
       <ListView<OrderRow>
         bulkActions={
           mayRelease

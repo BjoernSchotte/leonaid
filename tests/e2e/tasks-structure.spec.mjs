@@ -1,6 +1,7 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { taskPane, taskRow } from "./task-list.mjs";
 
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
@@ -67,8 +68,10 @@ test("priority, a new tag and a checklist are saved in one revision and shown on
     if (/Content Security Policy/i.test(message.text()))
       violations.push(message.text());
   });
+  // An old deep link opens the task in the pane.
   await page.goto(`${baseURL}/admin/tasks/${list.id}?task=${task.id}`);
-  const panel = page.getByRole("form", {
+  await expect(page).toHaveURL(new RegExp(`open=${task.id}`));
+  const panel = taskPane(page, task.id).getByRole("form", {
     name: "Priorität, Tags und Checkliste",
   });
   await expect(panel).toBeVisible();
@@ -85,6 +88,11 @@ test("priority, a new tag and a checklist are saved in one revision and shown on
   await panel.getByLabel("Schritt 1 erledigt").check();
   await panel.getByRole("button", { name: "Struktur speichern" }).click();
   await expect(panel.getByRole("status")).toHaveText("Struktur gespeichert.");
+  // The pane's steps follow the saved checklist and toggle directly.
+  const steps = taskPane(page, task.id).locator(".steps");
+  await expect(
+    steps.getByRole("checkbox", { name: "Tische holen" }),
+  ).toBeChecked();
 
   const saved = await (
     await web.request.get(`${baseURL}/api/v1/tasks/${task.id}`)
@@ -117,10 +125,12 @@ test("priority, a new tag and a checklist are saved in one revision and shown on
   const mobile = await signedInContext(browser, 390);
   const app = await mobile.newPage();
   await app.goto(`${baseURL}/app/tasks/${list.id}`);
-  const row = app.locator(`#task-metadata-${task.id}`);
-  await expect(row).toContainText("Hohe Priorität");
-  await expect(row).toContainText(`#${tagTitle}`);
-  await expect(row).toContainText("Checkliste 1/2");
+  const row = taskRow(app, task.id);
+  await expect(
+    row.locator('.flag-high[aria-label="Hohe Priorität"]'),
+  ).toBeVisible();
+  await expect(row.locator(".row-secondary")).toContainText(`#${tagTitle}`);
+  await expect(row.locator(".row-secondary")).toContainText("1/2 Schritte");
   expect(
     await app.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

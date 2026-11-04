@@ -1,6 +1,7 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { taskRowLink, taskRows } from "./task-list.mjs";
 
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
@@ -94,7 +95,7 @@ async function createViewsFixture(context, times) {
   return { list, created };
 }
 
-test("S3 server views paginate, group and retain navigation state on web and PWA", async ({
+test("S3 views load every page, filter, group and keep navigation state on web and PWA", async ({
   browser,
 }, testInfo) => {
   const desktop = await signedInContext(browser, 1440);
@@ -128,99 +129,95 @@ test("S3 server views paginate, group and retain navigation state on web and PWA
       taskQueries.push(url);
     }
   });
+  // An old "Heute fällig" bookmark becomes the due filter of "Offen".
   await page.goto(
     `${baseURL}/admin/tasks/${list.id}?scope=all&view=due-today&sort=due&search=S3`,
   );
-
-  const view = page.locator(".tasks-filter-status select");
-  const sort = page.locator(".tasks-filter-sort select");
-  await expect(view).toHaveValue("due-today");
-  await expect(sort).toHaveValue("due");
+  await expect(page).toHaveURL(/f\.due=today/);
+  await expect(page).toHaveURL(/q=S3/);
+  await expect(page).not.toHaveURL(/scope=|search=/);
+  const filters = page.getByRole("group", { name: "Aktive Filter" });
+  await expect(filters).toContainText("Fällig");
   await expect(
-    page.getByRole("button", {
-      name: "S3 Heute hinter Seite eins",
-      exact: true,
-    }),
+    taskRowLink(page, { title: "S3 Heute hinter Seite eins" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", {
-      name: "S3 Heute und zurückgestellt",
-      exact: true,
-    }),
+    taskRowLink(page, { title: "S3 Heute und zurückgestellt" }),
   ).toBeVisible();
-  await expect.poll(() => taskQueries.length).toBeGreaterThan(0);
-  const todayQuery = taskQueries.at(-1).searchParams;
-  expect(todayQuery.get("deferredState")).toBe("all");
-  expect(todayQuery.get("sort")).toBe("due");
-  expect(todayQuery.get("dueFrom")).toBeTruthy();
-  expect(todayQuery.get("dueBefore")).toBeTruthy();
-
-  await view.selectOption("deferred");
-  await expect(page).toHaveURL(/view=deferred/);
+  await expect(taskRows(page)).toHaveCount(2);
+  // All open tasks of the list arrive in pages of 100, without a button.
+  const listQueries = taskQueries.filter(
+    (url) => url.searchParams.get("listId") === list.id,
+  );
+  expect(
+    listQueries
+      .slice(0, 2)
+      .map((url) => [
+        url.searchParams.get("status"),
+        url.searchParams.get("deferredState"),
+        url.searchParams.get("offset"),
+        url.searchParams.get("limit"),
+      ]),
+  ).toEqual([
+    ["open", "all", "0", "100"],
+    ["open", "all", "100", "100"],
+  ]);
   await expect(
-    page.getByRole("button", {
-      name: "S3 Heute und zurückgestellt",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: "S3 Heute hinter Seite eins",
-      exact: true,
-    }),
+    page.getByRole("button", { name: "Weitere Aufgaben laden" }),
   ).toHaveCount(0);
 
-  await view.selectOption("open");
-  await sort.selectOption("section");
-  await expect(page).toHaveURL(/sort=section/);
-  const more = page.getByRole("button", { name: "Weitere Aufgaben" });
-  await more.click();
-  await expect(page.locator(".task-row")).toHaveCount(100);
-  await more.click();
-  await expect(page.locator(".task-row")).toHaveCount(121);
-  await expect(more).toHaveCount(0);
+  await page.goto(`${baseURL}/admin/tasks/${list.id}?scope=all&view=deferred`);
+  await expect(page).toHaveURL(/f\.deferral=deferred/);
   await expect(
-    page.locator(".task-section-heading h2", { hasText: "Planung" }),
-  ).toHaveCount(1);
+    taskRowLink(page, { title: "S3 Heute und zurückgestellt" }),
+  ).toBeVisible();
   await expect(
-    page.locator(".task-section-heading h2", { hasText: "Umsetzung" }),
-  ).toHaveCount(1);
-  await expect(
-    page.locator(".task-section-heading h2", { hasText: "Ohne Abschnitt" }),
-  ).toHaveCount(1);
-  await page.locator(".task-section-heading").first().scrollIntoViewIfNeeded();
+    taskRowLink(page, { title: "S3 Heute hinter Seite eins" }),
+  ).toHaveCount(0);
+
+  // "Offen": every active task, grouped by section.
+  await page.goto(`${baseURL}/admin/tasks/${list.id}`);
+  await expect(taskRows(page)).toHaveCount(121);
+  for (const section of ["Planung", "Umsetzung", "Ohne Abschnitt"]) {
+    await expect(
+      page.locator(".group-header", { hasText: section }),
+    ).toHaveCount(1);
+  }
+  await page.locator(".group-header").first().scrollIntoViewIfNeeded();
   await page.screenshot({
     path: testInfo.outputPath("s3-desktop-sections.png"),
     fullPage: false,
   });
 
-  await view.selectOption("due-next");
-  await expect(
-    page.getByRole("button", { name: "S3 Morgen", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".task-row")).toHaveCount(1);
+  // Filter "Fällig: Nächste 7 Tage" through the filter menu.
+  await page.keyboard.press("f");
+  await page
+    .locator(".popover")
+    .getByRole("option", { name: "Fällig" })
+    .click();
+  await page
+    .locator(".popover")
+    .getByRole("option", { name: "Nächste 7 Tage" })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/f\.due=week/);
+  await expect(taskRowLink(page, { title: "S3 Morgen" })).toBeVisible();
+  await expect(taskRows(page)).toHaveCount(1);
   const filteredUrl = page.url();
-  await page.getByRole("button", { name: "S3 Morgen", exact: true }).click();
-  await expect(page).toHaveURL(/task=/);
+  await taskRowLink(page, { title: "S3 Morgen" }).click();
+  await expect(page).toHaveURL(/open=/);
   await page.goBack();
   await expect(page).toHaveURL(filteredUrl);
-  await expect(page.locator(".tasks-filter-status select")).toHaveValue(
-    "due-next",
-  );
+  await expect(taskRows(page)).toHaveCount(1);
 
   const mobile = await signedInContext(browser, 390);
   const mobilePage = await mobile.newPage();
   await mobilePage.goto(
     `${baseURL}/app/tasks/${list.id}?scope=all&view=due-today&sort=due&search=S3`,
   );
-  await expect(mobilePage.locator(".tasks-filter-status select")).toHaveValue(
-    "due-today",
-  );
+  await expect(mobilePage).toHaveURL(/f\.due=today/);
   await expect(
-    mobilePage.getByRole("button", {
-      name: "S3 Heute und zurückgestellt",
-      exact: true,
-    }),
+    taskRowLink(mobilePage, { title: "S3 Heute und zurückgestellt" }),
   ).toBeVisible();
   expect(
     await mobilePage.evaluate(
