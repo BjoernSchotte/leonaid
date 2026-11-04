@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from zoneinfo import ZoneInfo
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -11,7 +12,11 @@ from uuid import UUID
 import asyncpg
 
 from leonaid.domain.action_templates import OfferingUnit
-from leonaid.domain.calendar import local_day, local_day_bounds
+from leonaid.domain.calendar import (
+    INSTALLATION_TIME_ZONE,
+    local_day,
+    local_day_bounds,
+)
 from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.dashboard import (
     AcquirerDashboard,
@@ -160,7 +165,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                             connection, action_id, today=today
                         ),
                         delivery=await self._delivery(
-                            connection, action_id, today=today
+                            connection, action_id, evaluated_at=evaluated_at
                         ),
                     )
 
@@ -447,14 +452,29 @@ class AsyncpgDashboardRepository(DashboardRepository):
         connection: asyncpg.Connection[Any],
         action_id: UUID,
         *,
-        today: date,
+        evaluated_at: datetime,
     ) -> DeliveryOverview:
-        """Windows that have not ended before today, with booked orders."""
+        """Windows that have not ended before today, with booked orders.
 
-        enabled = await connection.fetchval(
-            "SELECT enabled FROM action_delivery_configuration WHERE action_id = $1",
+        "Today" is the day in the zone of the action's delivery configuration,
+        the zone its windows are planned in (calendar module).
+        """
+
+        configuration = await connection.fetchrow(
+            """
+            SELECT enabled, timezone
+            FROM action_delivery_configuration
+            WHERE action_id = $1
+            """,
             action_id,
         )
+        zone = (
+            ZoneInfo(str(configuration["timezone"]))
+            if configuration is not None
+            else INSTALLATION_TIME_ZONE
+        )
+        enabled = bool(configuration["enabled"]) if configuration else False
+        window_day_start = local_day_bounds(local_day(evaluated_at, zone), zone)[0]
         rows = await connection.fetch(
             """
             SELECT
@@ -491,11 +511,11 @@ class AsyncpgDashboardRepository(DashboardRepository):
             LIMIT $3
             """,
             action_id,
-            local_day_bounds(today)[0],
+            window_day_start,
             DELIVERY_WINDOW_LIMIT,
         )
         return DeliveryOverview(
-            enabled=bool(enabled),
+            enabled=enabled,
             windows=tuple(
                 DeliveryWindowLoad(
                     id=UUID(str(row["id"])),
