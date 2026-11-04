@@ -54,6 +54,7 @@ test("visual page and question editing persists stable identities through the re
   // it instead of dragging the card (only the card head is draggable).
   for (const label of ["Fragetitel", "Hinweis", "Eintrag 1"]) {
     const field = editor.getByLabel(label, { exact: true });
+    await field.scrollIntoViewIfNeeded();
     const box = await field.boundingBox();
     const y = box.y + Math.min(box.height / 2, 18);
     await page.mouse.move(box.x + 8, y);
