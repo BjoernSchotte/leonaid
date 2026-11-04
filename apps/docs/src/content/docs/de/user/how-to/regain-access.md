@@ -19,7 +19,7 @@ Passworts.
 2. Trage genau die **Login-E-Mail** ein, mit der du eingeladen wurdest, und
    wähle **Login-Code anfordern**.
 3. Öffne die zuletzt versendete LeonAid-E-Mail. Verwende den Magic Link oder
-   trage den **Sechsstelligen Code** ein und wähle **Anmelden**.
+   trage unter **Sechsstelliger Code** den Code ein und wähle **Anmelden**.
 
 Kommt kein Code an, wähle nach 30 Sekunden **Neuen Code senden**. Mit
 **Andere E-Mail-Adresse** kehrst du zum ersten Schritt zurück und korrigierst
