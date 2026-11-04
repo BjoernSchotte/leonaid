@@ -419,20 +419,15 @@ function QuestionPanel({
       </>
     );
   } else if (question.kind === "number") {
+    // No minimum or maximum: each is one person's value (R6).
     body = (
       <dl className="svs-stats">
-        {(
-          [
-            ["Durchschnitt", question.mean],
-            ["Minimum", question.minimum],
-            ["Maximum", question.maximum],
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd className="num">{value === null ? "–" : n(value)}</dd>
-          </div>
-        ))}
+        <div>
+          <dt>Durchschnitt</dt>
+          <dd className="num">
+            {question.mean === null ? "–" : n(question.mean)}
+          </dd>
+        </div>
       </dl>
     );
   } else if (question.kind === "date") {

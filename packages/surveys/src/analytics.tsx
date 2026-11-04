@@ -228,8 +228,13 @@ export function SurveyAnalytics({
                 {(
                   [
                     ["mean", m.mean],
-                    ["minimum", m.minimum],
-                    ["maximum", m.maximum],
+                    // A number's extremes are single people's values (R6).
+                    ...(q.kind === "rating"
+                      ? [
+                          ["minimum", m.minimum],
+                          ["maximum", m.maximum],
+                        ]
+                      : []),
                     ...(q.nps !== null ||
                     (q.kind === "rating" &&
                       q.counts.length === 11 &&

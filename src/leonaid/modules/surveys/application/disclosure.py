@@ -27,6 +27,8 @@ R5  Last-page counts say where people stopped. Under page conditions they
     follow the answers those read, so they are all withheld (zeros
     included) when one of those is; under a condition on an unreleased
     answer they are protected like a distribution (with R4b).
+R6  A number question never shows its minimum or maximum: each is one
+    person's exact value (Björn, 2026-11-04, review M2).
 Snapshots from before these records get the conservative variant: any
 question hidden for someone counts as conditional on anything.
 
@@ -277,6 +279,8 @@ def _question(question: dict[str, Any]) -> QuestionAggregate:
     counts = _counts(question["counts"], question["answered"] if single else None)
     # R3: a figure computed from the counts would give withheld ones back.
     linked = any(bucket.suppressed for bucket in counts)
+    # R6: the extremes of a number are single people's values.
+    extremes = linked or question["kind"] == "number"
     return QuestionAggregate(
         **{
             key: question[key]
@@ -284,8 +288,8 @@ def _question(question: dict[str, Any]) -> QuestionAggregate:
         },
         counts=counts,
         mean=None if linked else question["mean"],
-        minimum=None if linked else question["minimum"],
-        maximum=None if linked else question["maximum"],
+        minimum=None if extremes else question["minimum"],
+        maximum=None if extremes else question["maximum"],
         nps=None if linked else question["nps"],
         npsSegments=None if linked else _nps_segments(question),
         matrixRows=rows,

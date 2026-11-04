@@ -366,3 +366,17 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         assert not disclosed_render(product, version), (product, version)
     # Raw exports are raw by design.
     assert disclosed_render("responses_csv", "survey-tabular-v1")
+
+
+def test_a_number_never_shows_its_extremes():
+    """R6 (M2): minimum and maximum are single people's values."""
+    hours = question(
+        "h",
+        "number",
+        [],
+        answered=30,
+        stats={"mean": 15.5, "minimum": 1.0, "maximum": 30.0},
+    )
+    q = disclose(snapshot(30, [hours])).questions[0]
+    assert (q.minimum, q.maximum) == (None, None)
+    assert q.mean == 15.5
