@@ -208,6 +208,51 @@ class AsyncpgActivityFeedRepository:
                 )
         return self._stored(row) if row is not None else None
 
+    async def mark_all_read(
+        self,
+        *,
+        recipient_user_id: UUID,
+        read_at: datetime,
+        evaluated_at: datetime,
+    ) -> int:
+        # The same visibility as the list: active acquirer or charity-admin
+        # membership in the event's action and a well-formed party reference.
+        async with self._pool.acquire() as connection:
+            result = await connection.execute(
+                """
+                UPDATE activity_event_recipient AS recipient
+                SET read_at = $2
+                FROM activity_event AS event
+                WHERE recipient.user_id = $1
+                  AND recipient.read_at IS NULL
+                  AND event.id = recipient.activity_event_id
+                  AND event.event_type = 'public_order_received'
+                  AND (
+                    (event.twenty_company_id IS NOT NULL
+                     AND event.twenty_person_id IS NULL)
+                    OR
+                    (event.twenty_company_id IS NULL
+                     AND event.twenty_person_id IS NOT NULL)
+                  )
+                  AND EXISTS (
+                    SELECT 1
+                    FROM action_membership AS membership
+                    WHERE membership.action_id = event.action_id
+                      AND membership.user_id = recipient.user_id
+                      AND membership.role IN ('acquirer', 'charity_admin')
+                      AND membership.active_from <= $3
+                      AND (
+                        membership.active_until IS NULL
+                        OR membership.active_until > $3
+                      )
+                  )
+                """,
+                recipient_user_id,
+                read_at,
+                evaluated_at,
+            )
+        return int(result.split()[-1])
+
     @staticmethod
     def _stored(row: asyncpg.Record) -> StoredActivityFeedItem:
         company_id = row["twenty_company_id"]

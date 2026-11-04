@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from zoneinfo import ZoneInfo
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -11,7 +12,11 @@ from uuid import UUID
 import asyncpg
 
 from leonaid.domain.action_templates import OfferingUnit
-from leonaid.domain.calendar import local_day, local_day_bounds
+from leonaid.domain.calendar import (
+    INSTALLATION_TIME_ZONE,
+    local_day,
+    local_day_bounds,
+)
 from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.dashboard import (
     AcquirerDashboard,
@@ -19,8 +24,13 @@ from leonaid.application.dashboard import (
     CommitmentCounts,
     DashboardRepository,
     DashboardSnapshot,
+    DELIVERY_WINDOW_LIMIT,
+    DeliveryOverview,
+    DeliveryWindowLoad,
     GoalProgress,
     InvoiceCounts,
+    ORDER_VALUE_WEEKS,
+    OrderValueWeek,
     PipelineCounts,
     ReminderCounts,
     progress_basis_points,
@@ -144,12 +154,19 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         action_id=action_id,
                         actor_user_id=None,
                     )
+                    today = local_day(evaluated_at)
                     commitments = await self._commitments(connection, action_id)
-                    invoices = await self._invoices(connection, action_id)
+                    invoices = await self._invoices(connection, action_id, today=today)
                     charity_admin = CharityAdminDashboard(
                         pipeline=pipeline,
                         commitments=commitments,
                         invoices=invoices,
+                        order_value_weeks=await self._order_value_weeks(
+                            connection, action_id, today=today
+                        ),
+                        delivery=await self._delivery(
+                            connection, action_id, evaluated_at=evaluated_at
+                        ),
                     )
 
         actual_value = Decimal(action["actual_value"])
@@ -315,10 +332,40 @@ class AsyncpgDashboardRepository(DashboardRepository):
     async def _invoices(
         connection: asyncpg.Connection[Any],
         action_id: UUID,
+        *,
+        today: date,
     ) -> InvoiceCounts:
         row = await connection.fetchrow(
             """
+            WITH latest_delivery AS (
+                SELECT DISTINCT ON (delivery.invoice_id)
+                    delivery.invoice_id,
+                    event.status AS outbox_status,
+                    mail.sent_at
+                FROM invoice_delivery AS delivery
+                JOIN outbox_event AS event
+                  ON event.id = delivery.outbox_event_id
+                LEFT JOIN mail_delivery AS mail
+                  ON mail.outbox_event_id = event.id
+                WHERE delivery.action_id = $1
+                ORDER BY
+                    delivery.invoice_id,
+                    delivery.requested_at DESC,
+                    delivery.created_at DESC,
+                    delivery.id DESC
+            )
             SELECT
+                count(*) FILTER (
+                    WHERE status IN ('issued', 'sent') AND due_on < $2
+                ) AS overdue,
+                coalesce(sum(gross_minor) FILTER (
+                    WHERE status IN ('issued', 'sent') AND due_on < $2
+                ), 0) AS overdue_amount_minor,
+                count(*) FILTER (
+                    WHERE status <> 'cancelled'
+                      AND latest_delivery.outbox_status = 'dead_letter'
+                      AND latest_delivery.sent_at IS NULL
+                ) AS delivery_failed,
                 count(*) FILTER (WHERE status = 'issued') AS issued,
                 count(*) FILTER (WHERE status = 'sent') AS sent,
                 count(*) FILTER (WHERE status = 'paid') AS paid,
@@ -331,9 +378,12 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 ), 0) AS open_amount_minor,
                 array_remove(array_agg(DISTINCT currency), NULL) AS currencies
             FROM invoice
-            WHERE action_id = $1
+            LEFT JOIN latest_delivery
+              ON latest_delivery.invoice_id = invoice.id
+            WHERE invoice.action_id = $1
             """,
             action_id,
+            today,
         )
         if row is None:
             raise RuntimeError("Rechnungs-Aggregat fehlt.")
@@ -347,4 +397,138 @@ class AsyncpgDashboardRepository(DashboardRepository):
             cancelled=_integer(row, "cancelled"),
             invoiced_amount_minor=_integer(row, "invoiced_amount_minor"),
             open_amount_minor=_integer(row, "open_amount_minor"),
+            overdue=_integer(row, "overdue"),
+            overdue_amount_minor=_integer(row, "overdue_amount_minor"),
+            delivery_failed=_integer(row, "delivery_failed"),
+        )
+
+    @staticmethod
+    async def _order_value_weeks(
+        connection: asyncpg.Connection[Any],
+        action_id: UUID,
+        *,
+        today: date,
+    ) -> tuple[OrderValueWeek, ...]:
+        """Order value per ISO week of club time, the current week last."""
+
+        current_monday = today - timedelta(days=today.weekday())
+        mondays = [
+            current_monday - timedelta(weeks=offset)
+            for offset in range(ORDER_VALUE_WEEKS - 1, -1, -1)
+        ]
+        # Week starts in UTC, plus the end of the current week.
+        bounds = [local_day_bounds(monday)[0] for monday in mondays]
+        bounds.append(local_day_bounds(current_monday + timedelta(days=7))[0])
+        rows = await connection.fetch(
+            """
+            SELECT
+                week.index,
+                coalesce(sum(commitment.total_minor), 0) AS total_minor
+            FROM generate_series(1, $2::int) AS week(index)
+            LEFT JOIN commitment
+              ON commitment.action_id = $1
+             AND commitment.status <> 'cancelled'
+             AND commitment.created_at >= ($3::timestamptz[])[week.index]
+             AND commitment.created_at < ($3::timestamptz[])[week.index + 1]
+            GROUP BY week.index
+            ORDER BY week.index
+            """,
+            action_id,
+            ORDER_VALUE_WEEKS,
+            bounds,
+        )
+        totals = {int(row["index"]): int(row["total_minor"]) for row in rows}
+        return tuple(
+            OrderValueWeek(
+                week_start=monday,
+                iso_week=monday.isocalendar().week,
+                total_minor=totals.get(index, 0),
+            )
+            for index, monday in enumerate(mondays, start=1)
+        )
+
+    @staticmethod
+    async def _delivery(
+        connection: asyncpg.Connection[Any],
+        action_id: UUID,
+        *,
+        evaluated_at: datetime,
+    ) -> DeliveryOverview:
+        """Windows that have not ended before today, with booked orders.
+
+        "Today" is the day in the zone of the action's delivery configuration,
+        the zone its windows are planned in (calendar module).
+        """
+
+        configuration = await connection.fetchrow(
+            """
+            SELECT enabled, timezone
+            FROM action_delivery_configuration
+            WHERE action_id = $1
+            """,
+            action_id,
+        )
+        zone = (
+            ZoneInfo(str(configuration["timezone"]))
+            if configuration is not None
+            else INSTALLATION_TIME_ZONE
+        )
+        enabled = bool(configuration["enabled"]) if configuration else False
+        window_day_start = local_day_bounds(local_day(evaluated_at, zone), zone)[0]
+        rows = await connection.fetch(
+            """
+            SELECT
+                window_row.id,
+                window_row.starts_at,
+                window_row.ends_at,
+                count(commitment.id) AS commitments,
+                (
+                    SELECT coalesce(
+                        jsonb_object_agg(unit_totals.unit, unit_totals.quantity),
+                        '{}'::jsonb
+                    )::text
+                    FROM (
+                        SELECT line.unit_snapshot AS unit,
+                               sum(line.quantity) AS quantity
+                        FROM commitment AS booked
+                        JOIN commitment_line AS line
+                          ON line.commitment_id = booked.id
+                        WHERE booked.delivery_window_id = window_row.id
+                          AND booked.status <> 'cancelled'
+                        GROUP BY line.unit_snapshot
+                    ) AS unit_totals
+                ) AS quantities_by_unit
+            FROM action_delivery_window AS window_row
+            LEFT JOIN commitment
+              ON commitment.delivery_window_id = window_row.id
+             AND commitment.action_id = window_row.action_id
+             AND commitment.status <> 'cancelled'
+            WHERE window_row.action_id = $1
+              AND NOT window_row.retired
+              AND window_row.ends_at >= $2
+            GROUP BY window_row.id
+            ORDER BY window_row.starts_at, window_row.id
+            LIMIT $3
+            """,
+            action_id,
+            window_day_start,
+            DELIVERY_WINDOW_LIMIT,
+        )
+        return DeliveryOverview(
+            enabled=enabled,
+            windows=tuple(
+                DeliveryWindowLoad(
+                    id=UUID(str(row["id"])),
+                    starts_at=row["starts_at"],
+                    ends_at=row["ends_at"],
+                    commitments=_integer(row, "commitments"),
+                    quantities=UnitQuantity.summarize(
+                        (OfferingUnit(str(unit)), int(quantity))
+                        for unit, quantity in json.loads(
+                            str(row["quantities_by_unit"] or "{}")
+                        ).items()
+                    ),
+                )
+                for row in rows
+            ),
         )

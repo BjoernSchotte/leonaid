@@ -109,7 +109,9 @@ test("POC-062 manifest, installation, update and offline notice are real", async
       page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
     )
     .toBe(true);
-  await expect(page.locator("main h1")).toContainText("Guten Tag, Anna.");
+  await expect(page.locator("main h1")).toHaveText(
+    /^Guten (Morgen|Tag|Abend), Anna\.$/,
+  );
 
   const serviceWorkerResponse = await page.request.get(`${baseUrl}/app/sw.js`);
   const serviceWorkerSource = await serviceWorkerResponse.text();
@@ -133,7 +135,9 @@ test("POC-062 manifest, installation, update and offline notice are real", async
   );
   // The shell keeps the open page, its tabs and the gold network state.
   await expect(page.getByRole("img", { name: "Offline" })).toBeVisible();
-  await expect(page.locator("main h1")).toContainText("Guten Tag, Anna.");
+  await expect(page.locator("main h1")).toHaveText(
+    /^Guten (Morgen|Tag|Abend), Anna\.$/,
+  );
   await expect(
     page.getByRole("navigation", { name: "App-Navigation" }),
   ).toBeVisible();

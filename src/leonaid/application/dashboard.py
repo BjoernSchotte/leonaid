@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Protocol, TypeVar
 from uuid import UUID
@@ -83,6 +83,11 @@ class InvoiceCounts:
     cancelled: int = 0
     invoiced_amount_minor: int = 0
     open_amount_minor: int = 0
+    # Open invoices whose due day (club time) has passed.
+    overdue: int = 0
+    overdue_amount_minor: int = 0
+    # Invoices whose newest dispatch ended in the dead-letter queue.
+    delivery_failed: int = 0
 
     @property
     def open(self) -> int:
@@ -91,6 +96,32 @@ class InvoiceCounts:
     @property
     def total(self) -> int:
         return self.open + self.paid + self.cancelled
+
+
+@dataclass(frozen=True, slots=True)
+class OrderValueWeek:
+    """Value of the orders taken in one ISO week (club time, Monday start)."""
+
+    week_start: date
+    iso_week: int
+    total_minor: int
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryWindowLoad:
+    """An upcoming delivery window and the orders booked into it."""
+
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    commitments: int
+    quantities: tuple[UnitQuantity, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryOverview:
+    enabled: bool = False
+    windows: tuple[DeliveryWindowLoad, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +149,9 @@ class CharityAdminDashboard:
     pipeline: PipelineCounts
     commitments: CommitmentCounts
     invoices: InvoiceCounts
+    # The last ORDER_VALUE_WEEKS weeks, oldest first; the last one is current.
+    order_value_weeks: tuple[OrderValueWeek, ...] = ()
+    delivery: DeliveryOverview = DeliveryOverview()
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +176,10 @@ class DashboardRepository(Protocol):
         include_charity_admin: bool,
         evaluated_at: datetime,
     ) -> DashboardSnapshot | None: ...
+
+
+ORDER_VALUE_WEEKS = 8
+DELIVERY_WINDOW_LIMIT = 8
 
 
 def progress_basis_points(
