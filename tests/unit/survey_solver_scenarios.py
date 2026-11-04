@@ -363,6 +363,18 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "sizes": [1, 11],
         "secrets": ["co", "c", ["0x10", "16", "x"]],
     },
+    'probe N14: a boolean literal equals 1 and "true"': {
+        "definition": survey(
+            page(
+                "main",
+                checkbox("c", [1, "true", "x"]),
+                radio("f", ["y"], "{c} contains true"),
+            )
+        ),
+        "profiles": profiles(c=subsets([1, "true", "x"], 1, 3), f=["y"]),
+        "sizes": [1, 11],
+        "secrets": ["co", "c", [1, "true", "x"]],
+    },
 }
 
 

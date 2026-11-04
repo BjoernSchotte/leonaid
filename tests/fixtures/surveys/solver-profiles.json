@@ -1135,6 +1135,83 @@
     }
    ]
   },
+  "probe N14: a boolean literal equals 1 and \"true\"": {
+   "definition": {
+    "pages": [
+     {
+      "elements": [
+       {
+        "choices": [
+         1,
+         "true",
+         "x"
+        ],
+        "name": "c",
+        "type": "checkbox"
+       },
+       {
+        "choices": [
+         "y"
+        ],
+        "name": "f",
+        "type": "radiogroup",
+        "visibleIf": "{c} contains true"
+       }
+      ],
+      "name": "main"
+     }
+    ]
+   },
+   "profiles": [
+    {
+     "c": [
+      1
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      "true"
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      "x"
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      1,
+      "true"
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      1,
+      "x"
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      "true",
+      "x"
+     ],
+     "f": "y"
+    },
+    {
+     "c": [
+      1,
+      "true",
+      "x"
+     ],
+     "f": "y"
+    }
+   ]
+  },
   "probe N7a: last pages through empty pages (cross-tab)": {
    "definition": {
     "pages": [
@@ -10459,6 +10536,509 @@
      "c": [
       "0x10",
       "16",
+      "x"
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   }
+  ],
+  "probe N14: a boolean literal equals 1 and \"true\"": [
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 0,
+        "percentage": 0
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      1
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 0,
+        "percentage": 0
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      "true"
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 0,
+      "answered": 0,
+      "unanswered": 0,
+      "hidden": 1,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 0,
+        "percentage": null
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      "x"
+     ]
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 0,
+        "percentage": 0
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      1,
+      "true"
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      1,
+      "x"
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 0,
+        "percentage": 0
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      "true",
+      "x"
+     ],
+     "f": "y"
+    },
+    "lastPage": "main"
+   },
+   {
+    "questions": [
+     {
+      "questionId": "c",
+      "title": "c",
+      "kind": "checkbox",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": 1,
+        "label": "1",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "true",
+        "label": "true",
+        "count": 1,
+        "percentage": 100
+       },
+       {
+        "value": "x",
+        "label": "x",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     },
+     {
+      "questionId": "f",
+      "title": "f",
+      "kind": "radiogroup",
+      "relevant": 1,
+      "answered": 1,
+      "unanswered": 0,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+       {
+        "value": "y",
+        "label": "y",
+        "count": 1,
+        "percentage": 100
+       }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+     }
+    ],
+    "values": {
+     "c": [
+      1,
+      "true",
       "x"
      ],
      "f": "y"

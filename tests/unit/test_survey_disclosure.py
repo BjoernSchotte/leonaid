@@ -377,8 +377,10 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         assert disclosed_render(product, current)
     assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
     # Older, unknown or foreign versions are refused (fails closed). The
-    # previous versions predate review round 4 (N11).
+    # previous versions predate review round 5 (N14).
     for product, version in [
+        ("analysis_pdf", "survey-analysis-v6+typst-0.13.1"),
+        ("analysis_xlsx", "survey-tabular-v7"),
         ("analysis_pdf", "survey-analysis-v5+typst-0.13.1"),
         ("analysis_xlsx", "survey-tabular-v6"),
         ("analysis_pdf", "survey-analysis-v4+typst-0.13.1"),
@@ -520,7 +522,13 @@ def test_options_equal_under_surveyjs_comparison_make_a_condition_opaque():
         (["5.", "x"], False),
         # Not numbers for JavaScript either: text.
         (["-0x10", "16"], True),
-        (["1,5", "15"], True),
+        # SurveyJS: decimal comma and boolean words (round 5, sweep).
+        (["1,5", "15"], False),
+        (["true", "x"], False),
+        (["False", "x"], False),
+        ([1, "x"], True),
+        ([True, "x"], False),
+        ([None, "x"], False),
     ],
 )
 def test_options_are_compared_as_surveyjs_does_or_fail_closed(options, distinct):
@@ -528,3 +536,54 @@ def test_options_are_compared_as_surveyjs_does_or_fail_closed(options, distinct)
 
     source = {"counts": [{"value": value} for value in options]}
     assert _distinct_options(source) is distinct
+
+
+def _decoded(item):
+    if item["type"] == "null":
+        return None
+    if item["type"] == "boolean":
+        return item["value"] == "true"
+    if item["type"] == "number":
+        return (
+            float(item["value"])
+            if "." in item["value"] or item["value"] == "-0"
+            else int(item["value"])
+        )
+    return item["value"]
+
+
+def test_every_pair_surveyjs_equates_is_equal_or_opaque_for_disclose():
+    """N14 sweep: tests/fixtures/surveys/surveyjs-equality.json lists every
+    pair of the corpus SurveyJS's condition evaluation calls equal
+    (tools/surveys/equality-sweep.ts, checked in test-surveys-core). For each,
+    disclose's keys are equal or one side is not modelled (opaque)."""
+    import json
+    from pathlib import Path
+
+    from leonaid.modules.surveys.application.disclosure import (
+        AmbiguousOption,
+        _surveyjs_key,
+    )
+
+    sweep = json.loads(
+        (
+            Path(__file__).parents[1] / "fixtures/surveys/surveyjs-equality.json"
+        ).read_text()
+    )
+    values = [_decoded(item) for item in sweep["corpus"]]
+
+    def key(value):
+        try:
+            return _surveyjs_key(value)
+        except AmbiguousOption:
+            return None
+
+    missed = [
+        (values[i], values[j])
+        for i, j in sweep["equal"]
+        if key(values[i]) is not None
+        and key(values[j]) is not None
+        and key(values[i]) != key(values[j])
+    ]
+    assert missed == []
+    assert len(sweep["equal"]) > 50  # the sweep found the known classes

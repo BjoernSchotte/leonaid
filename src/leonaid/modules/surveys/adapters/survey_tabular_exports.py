@@ -32,9 +32,9 @@ from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
 )
 
-# v7: report workbooks under the disclosure rules of review round 4 (Task
+# v8: report workbooks under the disclosure rules of review round 5 (Task
 # 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
-RENDER_VERSION = "survey-tabular-v7"
+RENDER_VERSION = "survey-tabular-v8"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [

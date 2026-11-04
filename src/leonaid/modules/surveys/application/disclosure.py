@@ -71,6 +71,8 @@ schema; the stored models in ``analysis`` and ``analysis_snapshot`` never
 appear in a response.
 """
 
+import json
+import math
 import re
 from datetime import datetime
 from typing import Any, Literal, Self
@@ -448,26 +450,64 @@ class AmbiguousOption(ValueError):
 
 
 def _surveyjs_key(value: Any) -> tuple[str, Any]:
-    """How SurveyJS compares a value in a condition (N10, N11).
+    """How SurveyJS compares a value in a condition (N10, N11, N14).
 
-    SurveyJS compares case-insensitively and trimmed, and numbers with
-    strings by JavaScript's loose equality (ToNumber). Only plain decimals
-    (optional sign, digits, optional fraction) count as numbers here. Any
-    other string ToNumber would read as a number (0x10, 0b1, 0o7, 1e1,
-    Infinity, blank or whitespace only, padded decimals) raises
-    ``AmbiguousOption``; everything else is text.
+    A whitelist: only strings and finite numbers are modelled. SurveyJS
+    compares case-insensitively and trimmed, and numbers with strings by
+    JavaScript's loose equality (ToNumber); true equals 1 and "true".
+    Only plain decimals (optional sign, digits, optional fraction) count
+    as numbers here. Booleans, null, other types, non-finite numbers and
+    any other string ToNumber would read as a number (0x10, 0b1, 0o7, 1e1,
+    Infinity, blank or whitespace only, padded decimals) raise
+    ``AmbiguousOption``; every other string is text.
+    tests/fixtures/surveys/surveyjs-equality.json checks this against
+    SurveyJS's own condition evaluation.
     """
-    if isinstance(value, bool):
-        return ("bool", value)
+    if isinstance(value, bool) or value is None:
+        raise AmbiguousOption(repr(value))
     if isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            raise AmbiguousOption(repr(value))
         return ("number", float(value))
-    text = str(value)
+    if not isinstance(value, str):
+        raise AmbiguousOption(repr(value))
+    text = value
     if CANONICAL_DECIMAL.fullmatch(text):
         return ("number", float(text))
     stripped = text.strip(JS_WHITESPACE)
-    if not stripped or JS_NUMBER.fullmatch(stripped):
+    if (
+        not stripped
+        or JS_NUMBER.fullmatch(stripped)
+        # SurveyJS also reads a decimal comma as a number ("1,5" = 1.5)
+        # and "true"/"false" as booleans (= 1/0); null-like words likewise.
+        or JS_NUMBER.fullmatch(stripped.replace(",", "."))
+        or stripped.lower() in {"true", "false", "null", "undefined"}
+    ):
         raise AmbiguousOption(text)
     return ("text", stripped.lower())
+
+
+def _literal_key(literal: str) -> tuple[str, Any]:
+    """The key of a recorded condition literal: a quoted string or a JSON
+    number; anything else (true, false, null, ...) is not modelled (N14)."""
+    if re.fullmatch(r"'[^'\\]*'", literal):
+        return _surveyjs_key(literal[1:-1])
+    try:
+        value = json.loads(literal)
+    except ValueError:
+        raise AmbiguousOption(literal) from None
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise AmbiguousOption(literal)
+    return _surveyjs_key(value)
+
+
+def _option_keys(source: dict[str, Any]) -> list[tuple[str, Any]] | None:
+    """The options' keys, or None if any cannot be modelled or two collide."""
+    try:
+        keys = [_surveyjs_key(bucket["value"]) for bucket in source["counts"]]
+    except AmbiguousOption:
+        return None
+    return keys if len(set(keys)) == len(keys) else None
 
 
 def _distinct_options(source: dict[str, Any]) -> bool:
@@ -497,19 +537,26 @@ def _classify(
         return "none", None
     if len(leaves) != 1:
         return "opaque", None
-    name, op, _ = leaves[0]
+    name, op, literal = leaves[0]
     source = questions.get(name)
     if source is None:
         return "opaque", None
     if source["kind"] in DERIVED_OPERATORS:
         # An invalid answer could match a literal outside the options.
-        if (
-            op in DERIVED_OPERATORS[source["kind"]]
-            and source["invalid"] == 0
-            and _distinct_options(source)
-        ):
+        if op not in DERIVED_OPERATORS[source["kind"]] or source["invalid"] != 0:
+            return "opaque", None
+        keys = _option_keys(source)
+        if keys is None:
+            return "opaque", None
+        if op in {"empty", "notempty"}:
             return "derived", name
-        return "opaque", None
+        # Whitelist (N14): the literal is a string or a finite number that
+        # SurveyJS equates with exactly one option.
+        try:
+            key = _literal_key(literal)
+        except AmbiguousOption:
+            return "opaque", None
+        return ("derived", name) if keys.count(key) == 1 else ("opaque", None)
     if source["kind"] in UNRELEASED_KINDS:
         return "new", name
     return "opaque", None
