@@ -1,13 +1,6 @@
-import {
-  Add01Icon,
-  Calendar03Icon,
-  FloppyDiskIcon,
-  Target01Icon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { Plus, Save } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import type {
   ActionManagementResponse,
@@ -15,24 +8,25 @@ import type {
   LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
+  Avatar,
+  Badge,
   Button,
   ConfirmDialog,
+  Field,
+  Input,
+  NextStep,
   StatusMessage,
-  type StatusTone,
+  Textarea,
+  useOptionalToast,
 } from "@leonaid/ui";
 
-import { actionErrorMessage } from "./errors";
+import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { isRevisionConflict } from "./use-action-error";
 
-type Capability = CharityActionResponse["capabilities"][number];
-type ActionStatus = CharityActionResponse["status"];
+export type Capability = CharityActionResponse["capabilities"][number];
+export type ActionStatus = CharityActionResponse["status"];
 
-interface Feedback {
-  readonly conflict?: boolean;
-  readonly message: string;
-  readonly tone: StatusTone;
-}
-
-interface SharedSectionProps {
+export interface SharedSectionProps {
   readonly client: LeonAidApiClient;
   readonly disabled: boolean;
   readonly state: ActionManagementResponse;
@@ -40,16 +34,25 @@ interface SharedSectionProps {
   readonly updateState: (state: ActionManagementResponse) => void;
 }
 
-function FeedbackMessage({ feedback }: { readonly feedback?: Feedback }) {
-  if (!feedback) return null;
+export const statusLabels: Readonly<Record<ActionStatus, string>> = {
+  active: "Aktiv",
+  archived: "Archiviert",
+  completed: "Abgeschlossen",
+  draft: "Entwurf",
+  scheduled: "Geplant",
+};
+
+/** Error under a form; a stale revision links to the current state. */
+function SectionError({ error }: { readonly error?: ActionErrorMessage }) {
+  if (!error) return null;
   return (
-    <StatusMessage tone={feedback.tone}>
-      <span>{feedback.message}</span>
-      {feedback.conflict ? (
+    <StatusMessage tone="error">
+      <span>{error.message}</span>
+      {isRevisionConflict(error) || error.conflict ? (
         <>
           {" "}
           <a
-            href={`${window.location.pathname}${window.location.search}`}
+            href={`${window.location.pathname}${window.location.search}${window.location.hash}`}
             rel="noreferrer"
             target="_blank"
           >
@@ -61,13 +64,75 @@ function FeedbackMessage({ feedback }: { readonly feedback?: Feedback }) {
   );
 }
 
-function success(message: string): Feedback {
-  return { message, tone: "success" };
+/** A titled form block of the edit mode (prototype .tab-h2 heading). */
+function EditSection({
+  children,
+  description,
+  id,
+  title,
+}: {
+  readonly children: ReactNode;
+  readonly description: ReactNode;
+  readonly id: string;
+  readonly title: string;
+}) {
+  return (
+    <section aria-labelledby={`${id}-heading`} className="edit-section" id={id}>
+      <h2 className="tab-h2" id={`${id}-heading`}>
+        {title}
+      </h2>
+      <p className="small muted edit-section-intro">{description}</p>
+      {children}
+    </section>
+  );
 }
 
-function failure(error: unknown): Feedback {
-  const details = actionErrorMessage(error);
-  return { ...details, tone: "error" };
+/** One save mutation per section: toast on success, inline error. */
+function useSectionSave<T>(
+  run: () => Promise<T>,
+  onSaved: (result: T) => void,
+  message: string,
+) {
+  const toast = useOptionalToast();
+  const [error, setError] = useState<ActionErrorMessage>();
+  const mutation = useMutation({
+    mutationFn: run,
+    onSuccess(result) {
+      setError(undefined);
+      onSaved(result);
+      toast?.show({ title: message, tone: "success" });
+    },
+    onError(cause) {
+      // Redirects to /fresh-login when the server asks for it.
+      setError(actionErrorMessage(cause));
+    },
+  });
+  return { error, mutation, setError };
+}
+
+function SaveButton({
+  disabled,
+  label,
+  pending,
+  testId,
+}: {
+  readonly disabled: boolean;
+  readonly label: string;
+  readonly pending: boolean;
+  readonly testId: string;
+}) {
+  return (
+    <Button
+      data-testid={testId}
+      disabled={disabled}
+      icon={Save}
+      loading={pending}
+      type="submit"
+      variant="secondary"
+    >
+      {label}
+    </Button>
+  );
 }
 
 export function DetailsSection({
@@ -84,157 +149,137 @@ export function DetailsSection({
     purpose: action.purpose,
     startsOn: action.startsOn,
   }));
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation } = useSectionSave(
+    () =>
       client.setCharityActionDetails(action.id, {
         ...draft,
         revision: action.revision,
       }),
-    onSuccess(updated) {
-      updateAction(updated);
-      setFeedback(success("Grunddaten und Zeitraum wurden gespeichert."));
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateAction,
+    "Grunddaten und Zeitraum wurden gespeichert.",
+  );
 
   return (
-    <section
-      aria-labelledby="details-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Name, Zweck, Träger und Laufzeit der Aktion."
       id="details"
+      title="Grunddaten und Zeitraum"
     >
-      <header>
-        <div>
-          <h2 id="details-heading">Grunddaten und Zeitraum</h2>
-          <p>Name, Zweck, Träger und Laufzeit der Aktion.</p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-form-grid">
-            <label className="action-field action-field--wide">
-              <span>Name der Aktion</span>
-              <small id="manage-name-help">
-                Der öffentliche Titel mit Jahr, zum Beispiel „Krapfentaxi 2026“.
-              </small>
-              <input
-                aria-describedby="manage-name-help"
-                data-testid="manage-name"
-                maxLength={200}
-                onChange={(event) =>
-                  setDraft({ ...draft, name: event.currentTarget.value })
-                }
-                required
-                value={draft.name}
-              />
-            </label>
-            <label className="action-field">
-              <span>Träger</span>
-              <small id="manage-carrier-help">
-                Verein oder Organisation, die diese Aktion durchführt.
-              </small>
-              <input
-                aria-describedby="manage-carrier-help"
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Grunddaten und Zeitraum</legend>
+          <Field
+            hint="Der öffentliche Titel mit Jahr, zum Beispiel „Krapfentaxi 2026“."
+            label="Name der Aktion"
+            required
+          >
+            <Input
+              data-testid="manage-name"
+              id="manage-name"
+              maxLength={200}
+              onChange={(event) =>
+                setDraft({ ...draft, name: event.currentTarget.value })
+              }
+              value={draft.name}
+            />
+          </Field>
+          <div className="form-row">
+            <Field
+              hint="Verein oder Organisation, die diese Aktion durchführt."
+              label="Träger"
+              required
+            >
+              <Input
                 data-testid="manage-carrier"
+                id="manage-carrier"
                 maxLength={200}
                 onChange={(event) =>
                   setDraft({ ...draft, carrierName: event.currentTarget.value })
                 }
-                required
                 value={draft.carrierName}
               />
-            </label>
-            <div className="action-field">
-              <span>Archiv-Adresse</span>
-              <small id="manage-archive-slug-help">
-                Dauerhafte Adresse dieser Ausgabe; sie kann nicht geändert oder
-                erneut vergeben werden.
-              </small>
+            </Field>
+            <Field
+              hint="Dauerhafte Adresse dieser Ausgabe; sie kann nicht geändert oder erneut vergeben werden."
+              label="Archiv-Adresse"
+            >
               <output
-                aria-describedby="manage-archive-slug-help"
+                className="input is-readonly mono"
                 data-testid="manage-archive-slug"
+                id="manage-archive-slug"
               >
                 /archive/{action.archiveSlug}
               </output>
-            </div>
-            <label className="action-field action-field--wide">
-              <span>Zweck</span>
-              <small id="manage-purpose-help">
-                Wofür die Aktion Spenden oder Erlöse sammelt.
-              </small>
-              <textarea
-                aria-describedby="manage-purpose-help"
-                data-testid="manage-purpose"
-                maxLength={2000}
-                onChange={(event) =>
-                  setDraft({ ...draft, purpose: event.currentTarget.value })
-                }
-                required
-                rows={4}
-                value={draft.purpose}
-              />
-            </label>
-            <label className="action-field">
-              <span>Beginn</span>
-              <small id="manage-start-help">
-                Erster Tag des fachlichen Aktionszeitraums.
-              </small>
-              <input
-                aria-describedby="manage-start-help"
+            </Field>
+          </div>
+          <Field
+            hint="Wofür die Aktion Spenden oder Erlöse sammelt."
+            label="Zweck"
+            required
+          >
+            <Textarea
+              data-testid="manage-purpose"
+              id="manage-purpose"
+              maxLength={2000}
+              onChange={(event) =>
+                setDraft({ ...draft, purpose: event.currentTarget.value })
+              }
+              rows={4}
+              value={draft.purpose}
+            />
+          </Field>
+          <div className="form-row">
+            <Field
+              hint="Erster Tag des fachlichen Aktionszeitraums."
+              label="Beginn"
+              required
+            >
+              <Input
                 data-testid="manage-start"
+                id="manage-start"
                 onChange={(event) =>
                   setDraft({ ...draft, startsOn: event.currentTarget.value })
                 }
-                required
                 type="date"
                 value={draft.startsOn}
               />
-            </label>
-            <label className="action-field">
-              <span>Ende</span>
-              <small id="manage-end-help">
-                Letzter Tag; danach kann die Aktion abgeschlossen werden.
-              </small>
-              <input
-                aria-describedby="manage-end-help"
+            </Field>
+            <Field
+              hint="Letzter Tag; danach kann die Aktion abgeschlossen werden."
+              label="Ende"
+              required
+            >
+              <Input
                 data-testid="manage-end"
+                id="manage-end"
                 onChange={(event) =>
                   setDraft({ ...draft, endsOn: event.currentTarget.value })
                 }
-                required
                 type="date"
                 value={draft.endsOn}
               />
-            </label>
+            </Field>
           </div>
-          <Button
-            data-testid="save-details"
-            disabled={disabled || mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={FloppyDiskIcon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
-            type="submit"
-          >
-            {mutation.isPending ? "Wird gespeichert …" : "Grunddaten speichern"}
-          </Button>
+          <div className="form-actions">
+            <SaveButton
+              disabled={disabled || mutation.isPending}
+              label="Grunddaten speichern"
+              pending={mutation.isPending}
+              testId="save-details"
+            />
+          </div>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
@@ -251,9 +296,8 @@ export function GoalSection({
     goalValue: action.goal.goalValue ?? "",
     unit: action.goal.unit ?? "",
   }));
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation } = useSectionSave(
+    () =>
       client.setCharityActionGoal(action.id, {
         actualValue: draft.actualValue,
         currency: draft.currency || null,
@@ -261,90 +305,81 @@ export function GoalSection({
         revision: action.revision,
         unit: draft.unit || null,
       }),
-    onSuccess(updated) {
-      updateAction(updated);
-      setFeedback(success("Aktionsziel und Fortschritt wurden gespeichert."));
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateAction,
+    "Aktionsziel und Fortschritt wurden gespeichert.",
+  );
 
   return (
-    <section
-      aria-labelledby="goal-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Der aktuelle Stand zeigt allen Beteiligten den Fortschritt."
       id="goal"
+      title="Ziel und Fortschritt"
     >
-      <header>
-        <div>
-          <h2 id="goal-heading">Ziel und Fortschritt</h2>
-          <p>Der aktuelle Stand zeigt allen Beteiligten den Fortschritt.</p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-form-grid">
-            <label className="action-field">
-              <span>Ziel</span>
-              <small id="manage-goal-help">
-                Messbarer Wert, den die Aktion erreichen soll.
-              </small>
-              <input
-                aria-describedby="manage-goal-help"
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Ziel und Fortschritt</legend>
+          <div className="form-row">
+            <Field
+              hint="Messbarer Wert, den die Aktion erreichen soll."
+              label="Ziel"
+            >
+              <Input
                 data-testid="manage-goal"
+                id="manage-goal"
                 inputMode="decimal"
                 onChange={(event) =>
                   setDraft({ ...draft, goalValue: event.currentTarget.value })
                 }
                 value={draft.goalValue}
               />
-            </label>
-            <label className="action-field">
-              <span>Einheit</span>
-              <small id="manage-unit-help">
-                Was gezählt wird, zum Beispiel Boxen, Bestellungen oder Euro.
-              </small>
-              <input
-                aria-describedby="manage-unit-help"
+            </Field>
+            <Field
+              hint="Was gezählt wird, zum Beispiel Boxen, Bestellungen oder Euro."
+              label="Einheit"
+            >
+              <Input
                 data-testid="manage-unit"
+                id="manage-unit"
                 maxLength={40}
                 onChange={(event) =>
                   setDraft({ ...draft, unit: event.currentTarget.value })
                 }
                 value={draft.unit}
               />
-            </label>
-            <label className="action-field">
-              <span>Aktueller Stand</span>
-              <small id="manage-actual-help">
-                Bereits erreichter Wert; er ist für Beteiligte sichtbar.
-              </small>
-              <input
-                aria-describedby="manage-actual-help"
+            </Field>
+          </div>
+          <div className="form-row">
+            <Field
+              hint="Bereits erreichter Wert; er ist für Beteiligte sichtbar."
+              label="Aktueller Stand"
+              required
+            >
+              <Input
                 data-testid="manage-actual"
+                id="manage-actual"
                 inputMode="decimal"
                 onChange={(event) =>
                   setDraft({ ...draft, actualValue: event.currentTarget.value })
                 }
-                required
                 value={draft.actualValue}
               />
-            </label>
-            <label className="action-field">
-              <span>Währung (optional)</span>
-              <small id="manage-currency-help">
-                Nur bei Geldzielen: dreistelliger Code, zum Beispiel EUR.
-              </small>
-              <input
-                aria-describedby="manage-currency-help"
+            </Field>
+            <Field
+              hint="Nur bei Geldzielen: dreistelliger Code, zum Beispiel EUR."
+              label="Währung"
+              optional
+            >
+              <Input
                 data-testid="manage-currency"
+                id="manage-currency"
                 maxLength={3}
                 onChange={(event) =>
                   setDraft({
@@ -355,27 +390,20 @@ export function GoalSection({
                 pattern="[A-Z]{3}"
                 value={draft.currency}
               />
-            </label>
+            </Field>
           </div>
-          <Button
-            data-testid="save-goal"
-            disabled={disabled || mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Target01Icon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
-            type="submit"
-          >
-            {mutation.isPending ? "Wird gespeichert …" : "Ziel speichern"}
-          </Button>
+          <div className="form-actions">
+            <SaveButton
+              disabled={disabled || mutation.isPending}
+              label="Ziel speichern"
+              pending={mutation.isPending}
+              testId="save-goal"
+            />
+          </div>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
@@ -399,9 +427,8 @@ export function BeneficiariesSection({
       publicDescription: item.publicDescription,
     })),
   );
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation } = useSectionSave(
+    () =>
       client.setCharityActionBeneficiaries(action.id, {
         beneficiaries: draft.map(({ organizationName, publicDescription }) => ({
           organizationName,
@@ -409,14 +436,9 @@ export function BeneficiariesSection({
         })),
         revision: action.revision,
       }),
-    onSuccess(updated) {
-      updateAction(updated);
-      setFeedback(success("Die Begünstigten wurden gespeichert."));
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateAction,
+    "Die Begünstigten wurden gespeichert.",
+  );
 
   function change(
     key: number,
@@ -431,137 +453,111 @@ export function BeneficiariesSection({
   }
 
   return (
-    <section
-      aria-labelledby="beneficiaries-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Eine Aktion unterstützt eine oder mehrere Organisationen."
       id="beneficiaries"
+      title="Begünstigte"
     >
-      <header>
-        <div>
-          <h2 id="beneficiaries-heading">Begünstigte</h2>
-          <p>Eine Aktion unterstützt eine oder mehrere Organisationen.</p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-beneficiary-list">
-            {draft.map((beneficiary, index) => (
-              <div className="action-beneficiary" key={beneficiary.key}>
-                <label className="action-field">
-                  <span>Name der Organisation</span>
-                  <small id={`manage-beneficiary-name-help-${beneficiary.key}`}>
-                    Organisation, die von den Erlösen der Aktion profitiert.
-                  </small>
-                  <input
-                    aria-describedby={`manage-beneficiary-name-help-${beneficiary.key}`}
-                    data-testid={`manage-beneficiary-name-${index}`}
-                    maxLength={200}
-                    onChange={(event) =>
-                      change(
-                        beneficiary.key,
-                        "organizationName",
-                        event.currentTarget.value,
-                      )
-                    }
-                    required
-                    value={beneficiary.organizationName}
-                  />
-                </label>
-                <label className="action-field action-field--grow">
-                  <span>Öffentliche Beschreibung</span>
-                  <small
-                    id={`manage-beneficiary-description-help-${beneficiary.key}`}
-                  >
-                    Kurzer Text für die öffentliche Aktionsseite.
-                  </small>
-                  <textarea
-                    aria-describedby={`manage-beneficiary-description-help-${beneficiary.key}`}
-                    data-testid={`manage-beneficiary-description-${index}`}
-                    maxLength={2000}
-                    onChange={(event) =>
-                      change(
-                        beneficiary.key,
-                        "publicDescription",
-                        event.currentTarget.value,
-                      )
-                    }
-                    required
-                    rows={3}
-                    value={beneficiary.publicDescription}
-                  />
-                </label>
-                {draft.length > 1 ? (
-                  <Button
-                    aria-label={`Begünstigten ${index + 1} entfernen`}
-                    onClick={() =>
-                      setDraft((items) =>
-                        items.filter((item) => item.key !== beneficiary.key),
-                      )
-                    }
-                    variant="ghost"
-                  >
-                    Entfernen
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div className="action-inline-actions">
-            <Button
-              icon={
-                <HugeiconsIcon
-                  aria-hidden="true"
-                  icon={Add01Icon}
-                  size={18}
-                  strokeWidth={1.8}
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Begünstigte</legend>
+          {draft.map((beneficiary, index) => (
+            <div className="beneficiary-row" key={beneficiary.key}>
+              <Field
+                hint="Organisation, die von den Erlösen der Aktion profitiert."
+                label="Name der Organisation"
+                required
+              >
+                <Input
+                  data-testid={`manage-beneficiary-name-${index}`}
+                  id={`manage-beneficiary-name-${beneficiary.key}`}
+                  maxLength={200}
+                  onChange={(event) =>
+                    change(
+                      beneficiary.key,
+                      "organizationName",
+                      event.currentTarget.value,
+                    )
+                  }
+                  value={beneficiary.organizationName}
                 />
-              }
+              </Field>
+              <Field
+                hint="Kurzer Text für die öffentliche Aktionsseite."
+                label="Öffentliche Beschreibung"
+                required
+              >
+                <Textarea
+                  data-testid={`manage-beneficiary-description-${index}`}
+                  id={`manage-beneficiary-description-${beneficiary.key}`}
+                  maxLength={2000}
+                  onChange={(event) =>
+                    change(
+                      beneficiary.key,
+                      "publicDescription",
+                      event.currentTarget.value,
+                    )
+                  }
+                  rows={3}
+                  value={beneficiary.publicDescription}
+                />
+              </Field>
+              {draft.length > 1 ? (
+                <Button
+                  aria-label={`Begünstigten ${index + 1} entfernen`}
+                  onClick={() =>
+                    setDraft((items) =>
+                      items.filter((item) => item.key !== beneficiary.key),
+                    )
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  Entfernen
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          <div className="form-actions">
+            <Button
+              icon={Plus}
               onClick={() =>
                 setDraft((items) => [
                   ...items,
                   {
-                    key: Math.max(...items.map((item) => item.key)) + 1,
+                    key: Math.max(-1, ...items.map((item) => item.key)) + 1,
                     organizationName: "",
                     publicDescription: "",
                   },
                 ])
               }
-              variant="secondary"
+              variant="ghost"
             >
               Begünstigten hinzufügen
             </Button>
-            <Button
-              data-testid="save-beneficiaries"
+            <SaveButton
               disabled={disabled || mutation.isPending}
-              icon={
-                <HugeiconsIcon
-                  aria-hidden="true"
-                  icon={FloppyDiskIcon}
-                  size={18}
-                  strokeWidth={1.8}
-                />
-              }
-              type="submit"
-            >
-              {mutation.isPending
-                ? "Wird gespeichert …"
-                : "Begünstigte speichern"}
-            </Button>
+              label="Begünstigte speichern"
+              pending={mutation.isPending}
+              testId="save-beneficiaries"
+            />
           </div>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
-const capabilityOptions: ReadonlyArray<{
+export const capabilityOptions: ReadonlyArray<{
   readonly description: string;
   readonly label: string;
   readonly value: Capability;
@@ -604,87 +600,69 @@ export function CapabilitiesSection({
   const [selected, setSelected] = useState<Capability[]>(() => [
     ...action.capabilities,
   ]);
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation } = useSectionSave(
+    () =>
       client.setCharityActionCapabilities(action.id, {
         capabilities: selected,
         revision: action.revision,
       }),
-    onSuccess(updated) {
-      updateAction(updated);
-      setFeedback(success("Die Funktionen der Aktion wurden gespeichert."));
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateAction,
+    "Die Funktionen der Aktion wurden gespeichert.",
+  );
 
   return (
-    <section
-      aria-labelledby="capabilities-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Wählen Sie nur die Bereiche, die diese Aktion wirklich braucht. Bestellungen benötigen mindestens ein Angebot; LeonAid prüft das beim Speichern."
       id="capabilities"
+      title="Funktionen"
     >
-      <header>
-        <div>
-          <h2 id="capabilities-heading">Funktionen</h2>
-          <p>Wähle nur die Bereiche, die diese Aktion wirklich braucht.</p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-choice-grid">
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Funktionen</legend>
+          <ul className="choice-list">
             {capabilityOptions.map((option) => (
-              <label className="action-choice" key={option.value}>
-                <input
-                  checked={selected.includes(option.value)}
-                  onChange={(event) =>
-                    setSelected((items) =>
-                      event.currentTarget.checked
-                        ? [...items, option.value]
-                        : items.filter((item) => item !== option.value),
-                    )
-                  }
-                  type="checkbox"
-                  value={option.value}
-                />
-                <span>
-                  <strong>{option.label}</strong>
-                  <small>{option.description}</small>
-                </span>
-              </label>
+              <li key={option.value}>
+                <label className="choice">
+                  <input
+                    checked={selected.includes(option.value)}
+                    onChange={(event) =>
+                      setSelected((items) =>
+                        event.currentTarget.checked
+                          ? [...items, option.value]
+                          : items.filter((item) => item !== option.value),
+                      )
+                    }
+                    type="checkbox"
+                    value={option.value}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <span className="small muted">{option.description}</span>
+                  </span>
+                </label>
+              </li>
             ))}
+          </ul>
+          <div className="form-actions">
+            <SaveButton
+              disabled={disabled || mutation.isPending}
+              label="Funktionen speichern"
+              pending={mutation.isPending}
+              testId="save-capabilities"
+            />
           </div>
-          <p className="action-form-help">
-            Bestellungen benötigen mindestens ein Angebot. LeonAid prüft diese
-            Abhängigkeit beim Speichern.
-          </p>
-          <Button
-            data-testid="save-capabilities"
-            disabled={disabled || mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={FloppyDiskIcon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
-            type="submit"
-          >
-            {mutation.isPending ? "Wird gespeichert …" : "Funktionen speichern"}
-          </Button>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
@@ -700,115 +678,89 @@ export function AdministratorsSection({
       .filter((option) => option.isResponsible)
       .map((option) => option.userId),
   );
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation, setError } = useSectionSave(
+    () =>
       client.setCharityActionResponsibleAdministrators(action.id, {
         revision: action.revision,
         userIds: selected,
       }),
-    onSuccess(updated) {
-      updateState(updated);
-      setFeedback(success("Die verantwortlichen Admins wurden gespeichert."));
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateState,
+    "Die verantwortlichen Admins wurden gespeichert.",
+  );
 
   return (
-    <section
-      aria-labelledby="administrators-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Mindestens ein aktives Mitglied muss die Aktion weiter verwalten können."
       id="administrators"
+      title="Verantwortliche Admins"
     >
-      <header>
-        <div>
-          <h2 id="administrators-heading">Verantwortliche Admins</h2>
-          <p>
-            Mindestens ein Mitglied muss die Aktion weiter verwalten können.
-          </p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           if (selected.length === 0) {
-            setFeedback({
+            setError({
+              code: null,
+              conflict: false,
               message:
-                "Wähle mindestens einen verantwortlichen Charity-Admin aus.",
-              tone: "error",
+                "Wählen Sie mindestens einen verantwortlichen Charity-Admin aus.",
+              requestId: null,
             });
             return;
           }
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-admin-list">
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Verantwortliche Admins</legend>
+          <ul className="choice-list">
             {state.administratorOptions.map((option) => (
-              <label
-                className="action-admin-option"
-                data-available={option.isAvailable}
-                key={option.userId}
-              >
-                <input
-                  checked={selected.includes(option.userId)}
-                  data-testid={`administrator-${option.userId}`}
-                  disabled={!option.isAvailable && !option.isResponsible}
-                  onChange={(event) =>
-                    setSelected((items) =>
-                      event.currentTarget.checked
-                        ? [...items, option.userId]
-                        : items.filter((item) => item !== option.userId),
-                    )
-                  }
-                  type="checkbox"
-                />
-                <span
-                  className="action-admin-option__avatar"
-                  aria-hidden="true"
+              <li key={option.userId}>
+                <label
+                  className="choice choice-person"
+                  data-available={option.isAvailable}
                 >
-                  {option.displayName
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((part) => part[0])
-                    .join("")}
-                </span>
-                <span>
-                  <strong>{option.displayName}</strong>
-                  <small>{option.email}</small>
-                </span>
-                {!option.isAvailable ? (
-                  <em>
-                    {option.isResponsible ? "Nicht mehr aktiv" : "Gesperrt"}
-                  </em>
-                ) : null}
-              </label>
+                  <input
+                    checked={selected.includes(option.userId)}
+                    data-testid={`administrator-${option.userId}`}
+                    disabled={!option.isAvailable && !option.isResponsible}
+                    onChange={(event) =>
+                      setSelected((items) =>
+                        event.currentTarget.checked
+                          ? [...items, option.userId]
+                          : items.filter((item) => item !== option.userId),
+                      )
+                    }
+                    type="checkbox"
+                  />
+                  <Avatar name={option.displayName} />
+                  <span>
+                    <strong>{option.displayName}</strong>
+                    <span className="small muted">{option.email}</span>
+                  </span>
+                  {!option.isAvailable ? (
+                    <Badge tone="warn">
+                      {option.isResponsible ? "Nicht mehr aktiv" : "Gesperrt"}
+                    </Badge>
+                  ) : null}
+                </label>
+              </li>
             ))}
+          </ul>
+          <div className="form-actions">
+            <SaveButton
+              disabled={disabled || mutation.isPending}
+              label="Verantwortliche speichern"
+              pending={mutation.isPending}
+              testId="save-administrators"
+            />
           </div>
-          <Button
-            data-testid="save-administrators"
-            disabled={disabled || mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={UserGroupIcon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
-            type="submit"
-          >
-            {mutation.isPending
-              ? "Wird gespeichert …"
-              : "Verantwortliche speichern"}
-          </Button>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
@@ -835,9 +787,8 @@ export function PublicationSection({
     endsAt: localDateTime(action.publicationEndsAt),
     startsAt: localDateTime(action.publicationStartsAt),
   }));
-  const [feedback, setFeedback] = useState<Feedback>();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const { error, mutation, setError } = useSectionSave(
+    () =>
       client.setCharityActionPublication(action.id, {
         publicAlias: draft.alias || null,
         publicationEndsAt: draft.endsAt ? isoDateTime(draft.endsAt) : null,
@@ -846,180 +797,172 @@ export function PublicationSection({
           : null,
         revision: action.revision,
       }),
-    onSuccess(updated) {
-      updateState(updated);
-      setFeedback(
-        success("Die Einstellungen der öffentlichen Seite wurden gespeichert."),
-      );
-    },
-    onError(error) {
-      setFeedback(failure(error));
-    },
-  });
+    updateState,
+    "Die Einstellungen der öffentlichen Seite wurden gespeichert.",
+  );
   const partialWindow = Boolean(draft.startsAt) !== Boolean(draft.endsAt);
 
   return (
-    <section
-      aria-labelledby="publication-heading"
-      className="action-edit-section"
+    <EditSection
+      description="Der aktive Alias zeigt im gewählten Zeitraum auf diese Aktion. Die Archiv-Adresse bleibt dauerhaft erreichbar."
       id="publication"
+      title="Öffentliche Seite"
     >
-      <header>
-        <div>
-          <h2 id="publication-heading">Öffentliche Seite</h2>
-          <p>
-            Die Kurzadresse zeigt im gewählten Zeitraum auf diese Aktion. Die
-            Archiv-Adresse bleibt dauerhaft erreichbar.
-          </p>
-        </div>
-      </header>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          setFeedback(undefined);
           if (partialWindow || (draft.alias && !draft.startsAt)) {
-            setFeedback({
+            setError({
+              code: null,
+              conflict: false,
               message:
-                "Trage „Online ab“ und „Online bis“ gemeinsam ein. Eine Kurzadresse benötigt einen vollständigen Zeitraum.",
-              tone: "error",
+                "Tragen Sie „Online ab“ und „Online bis“ gemeinsam ein. Ein aktiver Alias braucht einen vollständigen Zeitraum.",
+              requestId: null,
             });
             return;
           }
           mutation.mutate();
         }}
       >
-        <fieldset disabled={disabled || mutation.isPending}>
-          <div className="action-form-grid">
-            <label className="action-field">
-              <span>Online ab</span>
-              <small id="publication-start-help">
-                Ab diesem Zeitpunkt ist die Aktion öffentlich erreichbar.
-              </small>
-              <input
-                aria-describedby="publication-start-help"
+        <fieldset
+          className="form-grid"
+          disabled={disabled || mutation.isPending}
+        >
+          <legend className="sr-only">Öffentliche Seite</legend>
+          <div className="form-row">
+            <Field
+              hint="Ab diesem Zeitpunkt ist die Aktion öffentlich erreichbar."
+              label="Online ab"
+            >
+              <Input
                 data-testid="publication-start"
+                id="publication-start"
                 onChange={(event) =>
                   setDraft({ ...draft, startsAt: event.currentTarget.value })
                 }
                 type="datetime-local"
                 value={draft.startsAt}
               />
-            </label>
-            <label className="action-field">
-              <span>Online bis</span>
-              <small id="publication-end-help">
-                Danach bleibt nur noch die Archiv-Adresse erreichbar.
-              </small>
-              <input
-                aria-describedby="publication-end-help"
+            </Field>
+            <Field
+              hint="Danach bleibt nur noch die Archiv-Adresse erreichbar."
+              label="Online bis"
+            >
+              <Input
                 data-testid="publication-end"
+                id="publication-end"
                 onChange={(event) =>
                   setDraft({ ...draft, endsAt: event.currentTarget.value })
                 }
                 type="datetime-local"
                 value={draft.endsAt}
               />
-            </label>
-            <label className="action-field action-field--wide">
-              <span>Kurzadresse</span>
-              <small id="publication-alias-help">
-                Leicht merkbarer URL-Teil, zum Beispiel „krapfentaxi“.
-              </small>
-              <div className="action-prefixed-input">
-                <span aria-hidden="true">/</span>
-                <input
-                  aria-describedby="publication-alias-help"
-                  data-testid="publication-alias"
-                  maxLength={160}
-                  onChange={(event) =>
-                    setDraft({ ...draft, alias: event.currentTarget.value })
-                  }
-                  pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                  value={draft.alias}
-                />
-              </div>
-            </label>
+            </Field>
           </div>
-          <Button
-            data-testid="save-publication"
-            disabled={disabled || mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Calendar03Icon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
-            type="submit"
+          <Field
+            hint="Leicht merkbarer Teil der Adresse, zum Beispiel „krapfentaxi“."
+            label="Aktiver Alias"
           >
-            {mutation.isPending
-              ? "Wird gespeichert …"
-              : "Öffentliche Seite speichern"}
-          </Button>
+            <Input
+              className="mono"
+              data-testid="publication-alias"
+              id="publication-alias"
+              maxLength={160}
+              onChange={(event) =>
+                setDraft({ ...draft, alias: event.currentTarget.value })
+              }
+              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              placeholder="krapfentaxi"
+              value={draft.alias}
+            />
+          </Field>
+          <div className="form-actions">
+            <SaveButton
+              disabled={disabled || mutation.isPending}
+              label="Öffentliche Seite speichern"
+              pending={mutation.isPending}
+              testId="save-publication"
+            />
+          </div>
         </fieldset>
       </form>
-      <FeedbackMessage feedback={feedback} />
-    </section>
+      <SectionError error={error} />
+    </EditSection>
   );
 }
 
-const statusLabels: Record<ActionStatus, string> = {
-  active: "Aktiv",
-  archived: "Archiviert",
-  completed: "Abgeschlossen",
-  draft: "Entwurf",
-  scheduled: "Geplant",
-};
-
-const transitionCopy: Record<
-  ActionStatus,
-  {
-    readonly confirm: string;
-    readonly description: string;
-    readonly tone: "danger" | "primary";
-  }
+const transitionCopy: Readonly<
+  Record<
+    ActionStatus,
+    {
+      readonly confirm: string;
+      readonly next: string;
+      readonly description: string;
+      readonly tone: "danger" | "primary";
+    }
+  >
 > = {
   active: {
     confirm: "Aktion aktivieren",
+    next: "Aktion aktivieren.",
     description:
       "Die Aktion wechselt in den laufenden Betrieb. Danach kann sie nur noch abgeschlossen, nicht mehr in den Entwurf zurückgesetzt werden.",
     tone: "primary",
   },
   archived: {
     confirm: "Unwiderruflich archivieren",
+    next: "Aktion archivieren.",
     description:
-      "Die Aktion wird dauerhaft schreibgeschützt und ihre Kurzadresse für eine andere Aktion freigegeben. Dieser Schritt kann nicht rückgängig gemacht werden.",
+      "Die Aktion wird dauerhaft schreibgeschützt und ihr aktiver Alias für eine andere Aktion freigegeben. Dieser Schritt kann nicht rückgängig gemacht werden.",
     tone: "danger",
   },
   completed: {
     confirm: "Aktion abschließen",
+    next: "Aktion abschließen.",
     description:
       "Die operative Phase endet. Die Aktion kann danach nicht erneut aktiviert, sondern nur noch archiviert werden.",
     tone: "danger",
   },
   draft: {
     confirm: "In Entwurf zurücksetzen",
+    next: "Zurück in den Entwurf.",
     description:
-      "Die Planung wird aufgehoben. Du kannst Grunddaten weiter bearbeiten und die Aktion später erneut planen.",
+      "Die Planung wird aufgehoben. Sie können Grunddaten weiter bearbeiten und die Aktion später erneut planen.",
     tone: "primary",
   },
   scheduled: {
     confirm: "Aktion einplanen",
+    next: "Aktion einplanen.",
     description:
       "Die Aktion wird als geplant markiert. Bis zur Aktivierung kann sie noch in den Entwurf zurückgesetzt werden.",
     tone: "primary",
   },
 };
 
-export function LifecycleSection({
+/** The lifecycle order; the first allowed later status is the next step. */
+const forward: readonly ActionStatus[] = [
+  "draft",
+  "scheduled",
+  "active",
+  "completed",
+  "archived",
+];
+
+/**
+ * The status change as the "Nächster Schritt" block (DESIGN.md Patterns):
+ * the next status in the lifecycle is the one primary action, the other
+ * allowed transitions are ghost alternatives. Each needs a confirmation;
+ * the server decides with the revision.
+ */
+export function LifecycleNextStep({
   client,
   state,
   updateAction,
 }: SharedSectionProps) {
   const action = state.action;
+  const toast = useOptionalToast();
   const [target, setTarget] = useState<ActionStatus>();
-  const [feedback, setFeedback] = useState<Feedback>();
+  const [error, setError] = useState<ActionErrorMessage>();
   const mutation = useMutation({
     mutationFn: (next: ActionStatus) =>
       client.transitionCharityAction(action.id, {
@@ -1028,60 +971,57 @@ export function LifecycleSection({
       }),
     onSuccess(updated) {
       updateAction(updated);
-      setFeedback(
-        success(`Die Aktion ist jetzt „${statusLabels[updated.status]}“.`),
-      );
+      setError(undefined);
       setTarget(undefined);
+      toast?.show({
+        title: `Die Aktion ist jetzt „${statusLabels[updated.status]}“.`,
+        tone: "success",
+      });
     },
-    onError(error) {
-      setFeedback(failure(error));
+    onError(cause) {
+      setError(actionErrorMessage(cause));
       setTarget(undefined);
     },
   });
+  const allowed = state.allowedTransitions;
+  if (allowed.length === 0) return null;
+  const position = forward.indexOf(action.status);
+  const primary =
+    allowed
+      .filter((next) => forward.indexOf(next) > position)
+      .sort((a, b) => forward.indexOf(a) - forward.indexOf(b))[0] ??
+    allowed[0]!;
+  const others = allowed.filter((next) => next !== primary);
   const confirmation = target ? transitionCopy[target] : undefined;
 
   return (
-    <section
-      aria-labelledby="lifecycle-heading"
-      className="action-edit-section action-edit-section--lifecycle"
-      id="lifecycle"
-    >
-      <header>
-        <div>
-          <h2 id="lifecycle-heading">Status der Aktion</h2>
-          <p>
-            Aktuell:{" "}
-            <strong data-testid="action-status-label">
-              {statusLabels[action.status]}
-            </strong>
-          </p>
-        </div>
-      </header>
-      {state.allowedTransitions.length === 0 ? (
-        <StatusMessage>
-          Diese Aktion ist archiviert. Grunddaten und Konfiguration bleiben
-          nachvollziehbar, können aber nicht mehr geändert werden.
-        </StatusMessage>
-      ) : (
-        <div className="action-transition-list">
-          {state.allowedTransitions.map((next) => (
-            <Button
-              data-testid={`transition-${next}`}
-              disabled={mutation.isPending}
-              key={next}
-              onClick={() => setTarget(next)}
-              variant={
-                next === "completed" || next === "archived"
-                  ? "danger"
-                  : "secondary"
-              }
-            >
-              {transitionCopy[next].confirm}
-            </Button>
-          ))}
-        </div>
-      )}
-      <FeedbackMessage feedback={feedback} />
+    <>
+      <NextStep
+        action={
+          <Button
+            data-testid={`transition-${primary}`}
+            disabled={mutation.isPending}
+            onClick={() => setTarget(primary)}
+            variant="primary"
+          >
+            {transitionCopy[primary].confirm}
+          </Button>
+        }
+        alternatives={others.map((next) => (
+          <Button
+            data-testid={`transition-${next}`}
+            disabled={mutation.isPending}
+            key={next}
+            onClick={() => setTarget(next)}
+            variant="ghost"
+          >
+            {transitionCopy[next].confirm}
+          </Button>
+        ))}
+        consequence={`${transitionCopy[primary].next} ${transitionCopy[primary].description}`}
+        data-testid="action-next-step"
+      />
+      <SectionError error={error} />
       {confirmation && target ? (
         <ConfirmDialog
           confirmLabel={confirmation.confirm}
@@ -1096,6 +1036,6 @@ export function LifecycleSection({
           tone={confirmation.tone}
         />
       ) : null}
-    </section>
+    </>
   );
 }

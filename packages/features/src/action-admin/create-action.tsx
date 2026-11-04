@@ -206,14 +206,16 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         {created.capabilities.includes("delivery") && (
           <>
             <p>
-              Ergänze jetzt die Liefertermine. Du kannst den Entwurf auch
+              Ergänzen Sie jetzt die Liefertermine. Sie können den Entwurf auch
               verlassen und die Planung später vervollständigen.
             </p>
             <DeliverySection
-              client={client}
               actionId={created.id}
-              startsOn={created.startsOn}
+              actionName={created.name}
+              client={client}
               endsOn={created.endsOn}
+              heading
+              startsOn={created.startsOn}
             />
           </>
         )}
