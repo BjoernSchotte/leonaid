@@ -256,10 +256,15 @@ async def main():
         body = {"operationId": "golden", "filter": filters}
 
         # Created by the owner (raw reader): the selection is not snapped
-        # to whole days. The aggregate-only member reads it below.
+        # to whole days, so the aggregate-only member cannot read it (I1).
         shown = await call("POST", path, body)
         assert shown == await call("POST", path, body)
-        assert shown == await call("GET", path + "/" + shown["id"], auth=analyst)
+        await call("GET", path + "/" + shown["id"], auth=analyst, expected=404)
+        # The member's own selection is settled; the access checks below use it.
+        settled = await call(
+            "POST", path, {"operationId": "settled-golden", "filter": filters}, analyst
+        )
+        assert settled == await call("GET", path + "/" + settled["id"], auth=analyst)
         # The API discloses with k = 5 (application/disclosure.py): the five
         # participations are shown, every count of 1-4 people is withheld.
         assert shown["minimumGroupSize"] == 5 and not shown["suppressed"]
@@ -516,7 +521,7 @@ async def main():
             sid,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
         await call("POST", path, body, analyst, 404)
         await call("GET", path + "/versions", auth=analyst, expected=404)
         action = uuid4()
@@ -535,20 +540,20 @@ async def main():
             sid,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
         await conn.execute(
             "INSERT INTO action_membership(id,action_id,user_id,role) VALUES($1,$2,$3,'acquirer')",
             uuid4(),
             action,
             analyst_id,
         )
-        assert shown == await call("GET", path + "/" + original["id"], auth=analyst)
+        assert settled == await call("GET", path + "/" + settled["id"], auth=analyst)
         await conn.execute(
             "DELETE FROM action_membership WHERE action_id=$1 AND user_id=$2",
             action,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
 
         pid, resume = participants[1]
         await call(
