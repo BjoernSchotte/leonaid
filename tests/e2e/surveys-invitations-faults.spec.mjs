@@ -1,6 +1,5 @@
 import { test, expect } from "./csp-guard.mjs";
 const base = process.env.LEONAID_E2E_BASE_URL;
-const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
 test("invitation send retries two lost acknowledgements with one delivery", async ({
   browser,
@@ -9,10 +8,6 @@ test("invitation send retries two lost acknowledgements with one delivery", asyn
   const admin = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 1440, height: 1000 },
-  });
-  const recipient = await browser.newContext({
-    ignoreHTTPSErrors: true,
-    viewport: { width: 390, height: 844 },
   });
   await admin.addCookies([
     {
@@ -105,7 +100,6 @@ test("invitation send retries two lost acknowledgements with one delivery", asyn
       )
       .toBe(1);
   } finally {
-    await recipient.close();
     await admin.close();
   }
 });

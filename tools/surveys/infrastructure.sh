@@ -66,6 +66,7 @@ cleanup() {
     mkdir -p "$artifact"
     if [ "$foundation" = false ]; then
       cp -R "$proof/test-results" "$artifact/" 2>/dev/null || true
+      cp -R "$proof/test-results-after" "$artifact/" 2>/dev/null || true
       cp "$proof"/surveys-accessibility* "$artifact/" 2>/dev/null || true
     fi
   fi
@@ -492,12 +493,12 @@ if [ "$mode" = invitations ]; then
   browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs tests/e2e/surveys-invitations-faults.spec.mjs"
 fi
 if [ "$mode" = lifecycle ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs tests/e2e/surveys-module-faults.spec.mjs"
 fi
 if [ "$mode" = editor ]; then
   # Files create their own surveys; the parent retains the reset lease throughout.
   browser_workers=2
-  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-templates-faults.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-import-recovery-faults.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-templates-faults.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-authoring-faults.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-import-recovery-faults.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
