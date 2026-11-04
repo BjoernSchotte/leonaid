@@ -72,57 +72,47 @@ try {
   ).toBeVisible();
   await page.goto(origin + actionPath);
   await expect(
-    page.getByRole("heading", { name: "Lieferung planen", exact: true }),
-  ).toBeVisible();
+    page.getByRole("tab", { name: /Lieferfenster/ }),
+  ).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText(/Noch keine Lieferfenster/)).toBeVisible();
-  for (let day = 1; day <= 2; day++) {
+  // The windows tab: one modal per window; each save is the whole
+  // configuration with its revision.
+  const addWindow = async (day, from, to) => {
     await page
-      .getByRole("button", { name: "Weiteren Tag hinzufügen", exact: true })
+      .getByRole("button", { name: "Lieferfenster hinzufügen", exact: true })
+      .first()
       .click();
-    await page
-      .getByLabel(`Datum für Liefertag ${day}`, { exact: true })
-      .fill(`2037-12-${day === 1 ? "04" : "05"}`);
-    const group = page.getByRole("group", {
-      name: `Neuer Liefertag ${day}`,
-      exact: true,
+    const dialog = page.getByRole("dialog", {
+      name: "Lieferfenster hinzufügen",
     });
+    await dialog.getByTestId("delivery-window-day").fill(day);
+    await dialog.getByTestId("delivery-window-from").fill(from);
+    await dialog.getByTestId("delivery-window-to").fill(to);
+    return dialog;
+  };
+  for (const day of ["2037-12-04", "2037-12-05"]) {
     for (let slot = 1; slot <= 3; slot++) {
-      if (slot > 1)
-        await group
-          .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
-          .click();
-      await page
-        .getByLabel(`Beginn ${slot} am Liefertag ${day}`, { exact: true })
-        .fill(`${String(6 + 2 * slot).padStart(2, "0")}:00`);
-      await page
-        .getByLabel(`Ende ${slot} am Liefertag ${day}`, { exact: true })
-        .fill(`${String(8 + 2 * slot).padStart(2, "0")}:00`);
+      const dialog = await addWindow(
+        day,
+        `${String(6 + 2 * slot).padStart(2, "0")}:00`,
+        `${String(8 + 2 * slot).padStart(2, "0")}:00`,
+      );
+      await dialog.getByTestId("delivery-window-save").click();
+      await expect(dialog).toBeHidden();
     }
   }
-  await page
-    .getByRole("button", { name: "Lieferplanung speichern", exact: true })
-    .click();
-  await expect(page.getByText(/Lieferplanung gespeichert/)).toBeVisible();
   let saved = await (await context.request.get(configPath)).json();
   assert.equal(saved.windows.length, 6);
-  await expect(page.locator('input[type="time"]')).toHaveCount(0);
+  await expect(
+    page.getByTestId("delivery-windows").locator("tbody tr"),
+  ).toHaveCount(6);
   // A server-side concurrent edit exercises the real 409 response, not a mock.
-  const firstDay = page.getByRole("group", {
-    name: "Freitag, 4. Dezember 2037",
-    exact: true,
-  });
-  await firstDay
-    .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
-    .click();
-  await page
-    .getByLabel("Beginn 4 am Liefertag 1", { exact: true })
-    .fill("14:00");
-  await page.getByLabel("Ende 4 am Liefertag 1", { exact: true }).fill("16:00");
+  const dialog = await addWindow("2037-12-04", "14:00", "16:00");
   const parallel = await context.request.put(configPath, {
     headers: { Origin: origin },
     data: {
       expectedRevision: saved.revision,
-      enabled: true,
+      enabled: saved.enabled,
       timezone: saved.timezone,
       windows: [
         ...saved.windows,
@@ -131,29 +121,11 @@ try {
     },
   });
   assert.equal(parallel.status(), 200);
-  await page
-    .getByRole("button", { name: "Lieferplanung speichern", exact: true })
-    .click();
-  await expect(
-    page.getByText(/Die Lieferplanung wurde inzwischen geändert/),
-  ).toBeVisible();
-  await expect(
-    page.getByLabel("Beginn 4 am Liefertag 1", { exact: true }),
-  ).toHaveValue("14:00");
-  await page
-    .getByRole("button", {
-      name: "Aktuellen Stand laden und Eingaben behalten",
-      exact: true,
-    })
-    .click();
-  await expect(page.getByText(/Aktueller Stand geladen/)).toBeVisible();
-  await expect(
-    page.getByLabel("Beginn 4 am Liefertag 1", { exact: true }),
-  ).toHaveValue("14:00");
-  await page
-    .getByRole("button", { name: "Lieferplanung speichern", exact: true })
-    .click();
-  await expect(page.getByText(/Lieferplanung gespeichert/)).toBeVisible();
+  await dialog.getByTestId("delivery-window-save").click();
+  await expect(dialog.getByText(/inzwischen geändert/)).toBeVisible();
+  await expect(dialog.getByTestId("delivery-window-from")).toHaveValue("14:00");
+  await dialog.getByTestId("delivery-window-save").click();
+  await expect(dialog).toBeHidden();
   saved = await (await context.request.get(configPath)).json();
   assert.equal(saved.windows.length, 8);
   for (const [name, width] of [
@@ -167,9 +139,7 @@ try {
       window.scrollTo({ top: 0, behavior: "instant" });
     });
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-    await expect(
-      page.getByRole("heading", { name: "Lieferung planen", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByTestId("delivery-windows")).toBeVisible();
     assert.equal(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -218,18 +188,21 @@ try {
     document.documentElement.style.removeProperty("font-size"),
   );
   await page
-    .getByLabel("08:00–10:00 Uhr stilllegen", { exact: true })
+    .getByRole("button", { name: /08:00–10:00 Uhr stilllegen$/ })
     .first()
-    .check();
-  await page
-    .getByRole("button", { name: "Lieferplanung speichern", exact: true })
     .click();
-  await expect(page.getByText("Stillgelegt", { exact: true })).toBeVisible();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Fenster stilllegen", exact: true })
+    .click();
+  await expect(
+    page.getByText("Stillgelegt", { exact: true }).first(),
+  ).toBeVisible();
   saved = await (await context.request.get(configPath)).json();
   assert.equal(saved.windows.filter((window) => window.retired).length, 1);
   assert.deepEqual(errors, []);
   console.log(
-    "KLF-040 browser PASS: real passwordless login, six windows, immutable saved dates, concurrent 409 with retained input and merge, eight variable windows, retirement, desktop/mobile/user viewport/200% text without page overflow",
+    "KLF-040 browser PASS: real passwordless login, six windows, immutable saved dates, concurrent 409 with retained modal input, eight windows, retirement, desktop/mobile/user viewport/200% text without page overflow",
   );
 } finally {
   await context.close();

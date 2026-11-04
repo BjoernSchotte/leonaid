@@ -410,14 +410,14 @@ describe("action detail", () => {
     );
   });
 
-  it("pauses a window only after the confirmation", async () => {
+  it("retires a window only after the confirmation", async () => {
     const client = await renderPage("#delivery");
     await screen.findByTestId("delivery-windows");
-    fireEvent.click(screen.getByRole("button", { name: /pausieren$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /stilllegen$/ }));
     expect(client.saveDeliveryConfiguration).not.toHaveBeenCalled();
     fireEvent.click(
       within(screen.getByRole("alertdialog")).getByRole("button", {
-        name: "Fenster pausieren",
+        name: "Fenster stilllegen",
       }),
     );
     await waitFor(() =>

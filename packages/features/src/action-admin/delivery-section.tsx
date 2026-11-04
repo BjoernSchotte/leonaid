@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarRange, Pause, Plus } from "lucide-react";
+import { AlertTriangle, CalendarRange, Ban, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
 import {
@@ -81,7 +81,7 @@ function sorted(windows: readonly DeliveryWindowResponse[]) {
 
 /**
  * Lieferfenster (prototype Campaigns.tsx Windows). Saved windows stay as
- * they are: a change is a new window, an unwanted one is paused (retired).
+ * they are: a change is a new window, an unwanted one is retired.
  * Every change saves the whole configuration with its revision.
  */
 export function DeliverySection(props: Props) {
@@ -289,8 +289,8 @@ function DeliveryWindows({
         <div className="callout tone-warn" role="status">
           <Icon icon={AlertTriangle} size={16} />
           <span>
-            Alle Fenster sind pausiert. Ohne freies Lieferfenster können keine
-            neuen verbindlichen Bestellungen abgeschlossen werden.
+            Alle Fenster sind stillgelegt. Ohne freies Lieferfenster können
+            keine neuen verbindlichen Bestellungen abgeschlossen werden.
           </span>
         </div>
       ) : null}
@@ -339,7 +339,7 @@ function DeliveryWindows({
                   </td>
                   <td>
                     {window.retired ? (
-                      <Badge tone="neutral">Pausiert</Badge>
+                      <Badge tone="neutral">Stillgelegt</Badge>
                     ) : (
                       <Badge tone="ok">Buchbar</Badge>
                     )}
@@ -350,14 +350,14 @@ function DeliveryWindows({
                   <td className="right">
                     {!window.retired && !disabled ? (
                       <Button
-                        aria-label={`${windowLabel(window)} pausieren`}
+                        aria-label={`${windowLabel(window)} stilllegen`}
                         disabled={pending}
-                        icon={Pause}
+                        icon={Ban}
                         onClick={() => setPausing(window)}
                         size="sm"
                         variant="ghost"
                       >
-                        Pausieren
+                        Stilllegen
                       </Button>
                     ) : null}
                   </td>
@@ -367,8 +367,8 @@ function DeliveryWindows({
           </table>
           <p className="small subtle table-note">
             Gespeicherte Fenster bleiben unverändert, damit bestehende
-            Bestellungen ihren Zeitraum behalten. Für einen anderen Termin
-            pausieren Sie das Fenster und legen ein neues an.
+            Bestellungen ihren Zeitraum behalten. Für einen anderen Termin legen
+            Sie das Fenster still und legen ein neues an.
           </p>
         </div>
       )}
@@ -394,10 +394,10 @@ function DeliveryWindows({
         error={adding ? error : undefined}
       />
       <ConfirmDialog
-        confirmLabel="Fenster pausieren"
+        confirmLabel="Fenster stilllegen"
         description={
           pausing
-            ? `${windowLabel(pausing)} wird im Bestellformular und in der Akquise nicht mehr angeboten. Bestehende Bestellungen behalten ihren Zeitraum. Pausieren lässt sich nicht rückgängig machen; legen Sie bei Bedarf ein neues Fenster an.`
+            ? `${windowLabel(pausing)} wird im Bestellformular und in der Akquise nicht mehr angeboten. Bestehende Bestellungen behalten ihren Zeitraum. Das lässt sich nicht rückgängig machen; legen Sie bei Bedarf ein neues Fenster an.`
             : ""
         }
         onConfirm={() => {
@@ -408,7 +408,7 @@ function DeliveryWindows({
               ...windowRequest(window),
               retired: window.retired || window.id === pausing.id,
             })),
-            `${windowLabel(pausing)} ist pausiert.`,
+            `${windowLabel(pausing)} ist stillgelegt.`,
           ).then(() => setPausing(undefined));
         }}
         onOpenChange={(next) => {
@@ -416,7 +416,7 @@ function DeliveryWindows({
         }}
         open={Boolean(pausing)}
         pending={pending}
-        title="Lieferfenster pausieren?"
+        title="Lieferfenster stilllegen?"
         tone="danger"
       />
       <ConfirmDialog
