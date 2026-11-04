@@ -6,8 +6,10 @@ therefore words them without a personal address ("Bitte erneut
 versuchen.", "Für … fehlt die Berechtigung."). Clients that want a personal
 address map the stable error code per surface (see `actionErrorMessage`).
 
-The mail builders are the only exception: their address is a product
-decision per recipient and is listed in MAIL_BUILDERS until it is taken.
+The member mail builders are the only exception: login code, invitation
+and e-mail change mails address members with "du", like the member sign-in
+pages (Björn, 2026-11-04). Mails to non-members use "Sie"; see
+test_mail_address.py.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[2] / "src" / "leonaid"
 
-# Mail bodies and subjects keep their current address (open decision).
+# Member mails: "du" by decision (see the module docstring).
 MAIL_BUILDERS = {
     ("application/email_changes.py", "_request_mail_events"),
     ("application/email_changes.py", "_completion_mail_events"),
