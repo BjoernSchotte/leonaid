@@ -33,8 +33,9 @@ import {
   useOptionalToast,
 } from "@leonaid/ui";
 
-import { formatDateTime, relativeDay } from "../invoices/invoice-format";
+import { formatDateTime, relativeDay } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { isRevisionConflict, useActionErrorMessage } from "./use-action-error";
 import {
   GLOBAL_ROLES,
   actionRoleLabels,
@@ -75,7 +76,10 @@ function sessionText(count: number): string {
   return count === 1 ? "1 aktive Sitzung" : `${count} aktive Sitzungen`;
 }
 
-/** Error block with "Aktuellen Stand laden" for a revision conflict. */
+/**
+ * Error block; "Aktuellen Stand laden" only for a stale revision. Other
+ * 409s (last charity admin, unchanged role) are refusals, not conflicts.
+ */
 function CommandError({
   error,
   onReload,
@@ -85,13 +89,14 @@ function CommandError({
   readonly onReload: () => void;
   readonly title: string;
 }) {
+  const conflict = isRevisionConflict(error);
   return (
     <StatusMessage tone="error">
       <strong>
-        {error.conflict ? "Stand wurde zwischenzeitlich geändert" : title}
+        {conflict ? "Stand wurde zwischenzeitlich geändert" : title}
       </strong>
       <p>{error.message}</p>
-      {error.conflict ? (
+      {conflict ? (
         <Button onClick={onReload} size="sm" variant="secondary">
           Aktuellen Stand laden
         </Button>
@@ -276,12 +281,15 @@ export function MemberDetail({
     },
   });
 
+  const detailError = useActionErrorMessage(detail.error);
+  const emailError = useActionErrorMessage(emailChange.error);
+
   if (detail.isError && !detail.data) {
     return (
       <div className="member-detail" data-testid="member-detail">
         <StatusMessage tone="error">
           <strong>Details nicht erreichbar</strong>
-          <p>{actionErrorMessage(detail.error).message}</p>
+          <p>{detailError?.message}</p>
           <Button
             onClick={() => void detail.refetch()}
             size="sm"
@@ -320,7 +328,12 @@ export function MemberDetail({
     member.status === "active" &&
     member.globalRoles.includes("system_admin") &&
     activeHolders((other) => other.globalRoles.includes("system_admin")) === 0;
+  // Mirrors the server's rule (409 last_charity_admin_role_forbidden): only
+  // draft, scheduled and active actions (`leadRequired`) keep their last
+  // charity admin. Counting only active accounts is stricter than the
+  // server, which also counts suspended ones; the server still decides.
   const isLastLead = (actionId: string) =>
+    Boolean(manageable.get(actionId)?.leadRequired) &&
     member.status === "active" &&
     activeHolders((other) =>
       other.actionMemberships.some(
@@ -353,8 +366,9 @@ export function MemberDetail({
   ) {
     if (role === "charity_admin" && isLastLead(actionId)) {
       toast?.show({
-        title: `${member.displayName} ist die letzte Aktionsleitung von ${actionName}.`,
-        description: "Bitte zuerst eine Vertretung als Charity-Admin ernennen.",
+        title: `${member.displayName} ist der letzte Charity-Admin von ${actionName}.`,
+        description:
+          "Laufende Aktionen behalten mindestens einen Charity-Admin. Bitte zuerst eine Vertretung ernennen.",
         tone: "error",
       });
       return;
@@ -416,9 +430,6 @@ export function MemberDetail({
             description: `${member.displayName} wird dauerhaft archiviert. Aktionszuordnungen, Audit-Verlauf, Rechnungen und Dokumente bleiben historisch erhalten.`,
           };
 
-  const emailError = emailChange.error
-    ? actionErrorMessage(emailChange.error)
-    : null;
   const canManageAccess = systemAdmin && !partial;
   const globalRolesEditable = canManageAccess && !archived;
 
@@ -458,11 +469,7 @@ export function MemberDetail({
             { label: "Name", value: member.displayName },
             {
               label: "Anmeldeadresse",
-              value: (
-                <a className="member-link" href={`mailto:${member.email}`}>
-                  {member.email}
-                </a>
-              ),
+              value: member.email,
             },
             {
               label: "Status",
@@ -555,7 +562,7 @@ export function MemberDetail({
                   </span>
                   {item.role === "charity_admin" &&
                   isLastLead(item.actionId) ? (
-                    <Badge tone="warn">Letzte Aktionsleitung</Badge>
+                    <Badge tone="warn">Letzter Charity-Admin</Badge>
                   ) : null}
                   {mayRevoke ? (
                     <Button
@@ -602,7 +609,7 @@ export function MemberDetail({
               Aktion
             </label>
             <select
-              className="input select"
+              className="input select role-add-action"
               data-testid="member-role-add-action"
               id={`role-add-action-${member.userId}`}
               onChange={(event) => setAddActionId(event.target.value)}
@@ -924,7 +931,7 @@ export function MemberDetail({
             error={
               emailError
                 ? `${
-                    emailError.conflict
+                    isRevisionConflict(emailError)
                       ? "E-Mail-Korrektur nicht möglich."
                       : "E-Mail-Korrektur fehlgeschlagen."
                   } ${emailError.message}`

@@ -29,6 +29,7 @@ from leonaid.domain.identity import (
     GlobalRole,
     IdentityPrincipal,
     UserAccount,
+    charity_admin_required,
     removes_last_active_system_admin,
     removes_last_required_charity_admin,
 )
@@ -366,6 +367,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -382,6 +384,7 @@ class AsyncpgIdentityRepository:
                         SELECT
                             action.id,
                             action.name,
+                            action.status,
                             EXISTS (
                                 SELECT 1
                                 FROM charity_action_capability AS capability
@@ -452,6 +455,9 @@ class AsyncpgIdentityRepository:
                         ActionRole.ACQUIRER,
                         ActionRole.FINANCE_READER,
                         *((ActionRole.DRIVER,) if bool(row["has_delivery"]) else ()),
+                    ),
+                    lead_required=charity_admin_required(
+                        CharityActionStatus(str(row["status"]))
                     ),
                 )
                 for row in action_rows

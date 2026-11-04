@@ -24,9 +24,11 @@ import {
   type StatusShape,
 } from "@leonaid/ui";
 
-import { formatDateTime } from "../invoices/invoice-format";
-import { actionErrorMessage } from "./errors";
-import { actionRoleLabels } from "./member-model";
+import { createHref } from "../command-palette/create-request";
+import { formatDateTime } from "../shared/dates";
+import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { INVITE_KIND, actionRoleLabels } from "./member-model";
+import { useActionErrorMessage } from "./use-action-error";
 
 type InvitationRole = CreateInvitationRequest["role"];
 type InvitationStatus = InvitationSummaryResponse["status"];
@@ -35,6 +37,47 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const retryUnlessApiError = (failureCount: number, error: unknown) =>
   !(error instanceof ApiError) && failureCount < 2;
+
+interface InviteDraft {
+  readonly email: string;
+  readonly displayName: string;
+  readonly actionId: string;
+  readonly role: InvitationRole | "";
+}
+
+/*
+ * The draft survives the fresh sign-in: /fresh-login reloads the page, so
+ * it waits in this tab's sessionStorage and is removed when the dialog
+ * takes it back.
+ */
+const DRAFT_KEY = "leonaid.member-invite-draft";
+
+function saveDraft(draft: InviteDraft) {
+  try {
+    window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Storage blocked: the person types the invitation again.
+  }
+}
+
+function takeDraft(): InviteDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    window.sessionStorage.removeItem(DRAFT_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<InviteDraft>;
+    return {
+      email: typeof value.email === "string" ? value.email : "",
+      displayName:
+        typeof value.displayName === "string" ? value.displayName : "",
+      actionId: typeof value.actionId === "string" ? value.actionId : "",
+      role:
+        typeof value.role === "string" ? (value.role as InvitationRole) : "",
+    };
+  } catch {
+    return null;
+  }
+}
 
 interface DraftErrors {
   readonly email?: string;
@@ -70,11 +113,37 @@ export function InviteMemberDialog({
     retryDelay: (attempt) => 150 * (attempt + 1),
     staleTime: 30_000,
   });
+  const [submitError, setSubmitError] = useState<ActionErrorMessage | null>(
+    null,
+  );
+  const optionsError = useActionErrorMessage(options.error);
   const invite = useMutation({
     mutationFn: (request: CreateInvitationRequest) =>
       client.createInvitation(request),
+    onError: (error, request) => {
+      const fresh =
+        error instanceof ApiError &&
+        error.detail.code === "fresh_login_required";
+      if (fresh) saveDraft(request);
+      // After the fresh sign-in the dialog opens again with the draft.
+      setSubmitError(
+        actionErrorMessage(
+          error,
+          fresh
+            ? {
+                returnTo: createHref(
+                  `${window.location.pathname}${window.location.search}`,
+                  INVITE_KIND,
+                ),
+              }
+            : {},
+        ),
+      );
+    },
     onSuccess: (_result, request) => {
       void queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      // The invited person is listed as "Eingeladen" right away.
+      void queryClient.invalidateQueries({ queryKey: ["members"] });
       toast?.show({
         title: `Einladung an ${request.email} gesendet.`,
         description:
@@ -84,6 +153,16 @@ export function InviteMemberDialog({
       close();
     },
   });
+
+  useEffect(() => {
+    if (!open) return;
+    const draft = takeDraft();
+    if (!draft) return;
+    setEmail(draft.email);
+    setDisplayName(draft.displayName);
+    if (draft.actionId) setActionId(draft.actionId);
+    if (draft.role) setRole(draft.role);
+  }, [open]);
 
   useEffect(() => {
     if (!options.data) return;
@@ -103,6 +182,7 @@ export function InviteMemberDialog({
     setEmail("");
     setDisplayName("");
     setErrors({});
+    setSubmitError(null);
     invite.reset();
     onClose();
   }
@@ -110,7 +190,6 @@ export function InviteMemberDialog({
   const canInvite =
     Boolean(options.data?.actions.length) &&
     Boolean(options.data?.roles.length);
-  const submitError = invite.error ? actionErrorMessage(invite.error) : null;
 
   return (
     <Modal
@@ -143,7 +222,7 @@ export function InviteMemberDialog({
       ) : options.isError ? (
         <StatusMessage tone="error">
           <strong>Einladung konnte nicht vorbereitet werden</strong>
-          <p>{actionErrorMessage(options.error).message}</p>
+          <p>{optionsError?.message}</p>
           <Button onClick={() => void options.refetch()} variant="secondary">
             Erneut versuchen
           </Button>
@@ -165,6 +244,7 @@ export function InviteMemberDialog({
             };
             setErrors(next);
             if (next.email || next.displayName || !actionId || !role) return;
+            setSubmitError(null);
             invite.mutate({
               actionId,
               displayName: displayName.trim(),
@@ -344,9 +424,8 @@ export function InvitationLedger({
     },
   });
   const correctionFormId = useId();
-  const correctionError = correctAddress.error
-    ? actionErrorMessage(correctAddress.error)
-    : null;
+  const correctionError = useActionErrorMessage(correctAddress.error);
+  const invitationsError = useActionErrorMessage(invitations.error);
   const items = invitations.data?.items ?? [];
 
   return (
@@ -394,7 +473,7 @@ export function InvitationLedger({
           onRetry={() => void invitations.refetch()}
           title="Die Einladungen konnten nicht geladen werden"
         >
-          {actionErrorMessage(invitations.error).message}
+          {invitationsError?.message}
         </ErrorState>
       ) : items.length === 0 ? (
         <EmptyState

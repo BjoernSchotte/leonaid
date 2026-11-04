@@ -303,6 +303,46 @@ async def prove_role_administration(
                 "charity admin got no clear scope error for a foreign action"
             )
 
+        # The last charity admin of a running action stays; the directory
+        # tells the UI which actions need one (draft, scheduled, active).
+        directory = require_http(
+            await client.get(
+                "/api/v1/admin/members", params={"limit": 100}, cookies=system_cookies
+            ),
+            200,
+            "member directory could not be loaded",
+        )
+        lead_required = {
+            UUID(item["actionId"]): item["leadRequired"]
+            for item in directory["actions"]
+        }
+        if (
+            lead_required.get(ACTIVE_ACTION_ID) is not True
+            or lead_required.get(FOREIGN_ACTION_ID) is not True
+            or lead_required.get(ARCHIVED_ACTION_ID) is not False
+        ):
+            raise ContractFailure(
+                f"directory reports the wrong lead requirement: {lead_required}"
+            )
+        klara_revision = await member_revision(client, KLARA_ID)
+        last_lead = await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            revision=klara_revision,
+            command_id="pilot012:system:last-lead",
+            expected_status=409,
+        )
+        if last_lead.get("error", {}).get("code") != (
+            "last_charity_admin_role_forbidden"
+        ):
+            raise ContractFailure("the last charity admin of a running action left")
+        if await member_revision(client, KLARA_ID) != klara_revision:
+            raise ContractFailure("a refused last-lead revoke changed the member")
+
         finance_grant_id = "pilot012:charity:finance-grant"
         finance_grant = await change_action_role(
             client,

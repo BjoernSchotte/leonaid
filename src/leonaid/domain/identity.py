@@ -183,6 +183,21 @@ def removes_last_active_system_admin(
     return not enabled and role is GlobalRole.SYSTEM_ADMIN and active_admin_count <= 1
 
 
+LEAD_REQUIRED_STATUSES = frozenset(
+    {
+        CharityActionStatus.DRAFT,
+        CharityActionStatus.SCHEDULED,
+        CharityActionStatus.ACTIVE,
+    }
+)
+
+
+def charity_admin_required(action_status: CharityActionStatus) -> bool:
+    """Actions that can still be operated or changed keep one charity admin."""
+
+    return action_status in LEAD_REQUIRED_STATUSES
+
+
 def removes_last_required_charity_admin(
     *,
     action_status: CharityActionStatus,
@@ -195,11 +210,6 @@ def removes_last_required_charity_admin(
     return (
         not enabled
         and role is ActionRole.CHARITY_ADMIN
-        and action_status
-        in {
-            CharityActionStatus.DRAFT,
-            CharityActionStatus.SCHEDULED,
-            CharityActionStatus.ACTIVE,
-        }
+        and charity_admin_required(action_status)
         and active_admin_count <= 1
     )

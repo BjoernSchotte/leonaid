@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -33,6 +34,7 @@ import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialo
 
 const ownAction = "20000000-0000-4000-8000-000000000001";
 const foreignAction = "20000000-0000-4000-8000-000000000003";
+const archivedAction = "20000000-0000-4000-8000-000000000002";
 const adminId = "10000000-0000-4000-8000-000000000001";
 const annaId = "10000000-0000-4000-8000-000000000004";
 const klaraId = "10000000-0000-4000-8000-000000000002";
@@ -60,6 +62,7 @@ beforeAll(() => {
 afterEach(() => {
   resetCommandPaletteState();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   window.history.replaceState(null, "", "/admin/members");
   vi.restoreAllMocks();
 });
@@ -98,6 +101,12 @@ const members: MemberDirectoryMemberResponse[] = [
         role: "charity_admin",
         roleLabel: "Charity-Admin",
       },
+      {
+        actionId: archivedAction,
+        actionName: "Krapfentaxi 2025",
+        role: "charity_admin",
+        roleLabel: "Charity-Admin",
+      },
     ],
   }),
   member(annaId, "Anna Akquise", {
@@ -127,6 +136,14 @@ const ownActionEntry: MemberDirectoryActionResponse = {
   actionId: ownAction,
   actionName: "Krapfentaxi 2026",
   availableRoles: ["charity_admin", "acquirer", "finance_reader", "driver"],
+  leadRequired: true,
+};
+
+const archivedActionEntry: MemberDirectoryActionResponse = {
+  actionId: archivedAction,
+  actionName: "Krapfentaxi 2025",
+  availableRoles: ["charity_admin", "acquirer", "finance_reader"],
+  leadRequired: false,
 };
 
 function identity(systemAdmin: boolean): CurrentIdentityResponse {
@@ -161,7 +178,7 @@ function fakeClient({
       }): Promise<MemberDirectoryResponse> => {
         const index = cursor ? Number(cursor) : 0;
         return {
-          actions: [ownActionEntry],
+          actions: [ownActionEntry, archivedActionEntry],
           items: [...(pages[index] ?? [])],
           nextCursor: index + 1 < pages.length ? String(index + 1) : null,
           partial,
@@ -326,7 +343,14 @@ describe("member list", () => {
     fireEvent.change(dialog.getByLabelText("Name"), {
       target: { value: "Nora Neu" },
     });
+    const directoryLoads = client.listMembers.mock.calls.length;
     fireEvent.click(dialog.getByTestId("invite-submit"));
+    // The new "Eingeladen" member is loaded right away.
+    await waitFor(() =>
+      expect(client.listMembers.mock.calls.length).toBeGreaterThan(
+        directoryLoads,
+      ),
+    );
     await waitFor(() =>
       expect(client.createInvitation).toHaveBeenCalledWith({
         actionId: ownAction,
@@ -343,6 +367,61 @@ describe("member list", () => {
         screen.queryByRole("dialog", { name: "Mitglied einladen" }),
       ).toBeNull(),
     );
+  });
+
+  it("reopens the invitation with its draft after the fresh sign-in", async () => {
+    const client = await renderPage({
+      url: "/admin/members?create=member-invitation",
+    });
+    client.createInvitation.mockRejectedValueOnce(
+      new ApiError(401, {
+        code: "fresh_login_required",
+        message: "Bitte erneut anmelden.",
+        requestId: "req-4",
+      }),
+    );
+    let dialog = within(
+      await screen.findByRole("dialog", { name: "Mitglied einladen" }),
+    );
+    await dialog.findByTestId("invite-action");
+    fireEvent.change(dialog.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "neu@leonaid.invalid" },
+    });
+    fireEvent.change(dialog.getByLabelText("Name"), {
+      target: { value: "Nora Neu" },
+    });
+    const assign = vi.fn();
+    const { pathname, search } = window.location;
+    const location = vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+      pathname,
+      search,
+    } as Location);
+    fireEvent.click(dialog.getByTestId("invite-submit"));
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `/fresh-login?returnTo=${encodeURIComponent("/admin/members?create=member-invitation")}`,
+      ),
+    );
+    expect(assign).toHaveBeenCalledTimes(1);
+    location.mockRestore();
+    cleanup();
+
+    // Back from /fresh-login: the dialog opens with the typed draft.
+    await renderPage({ url: "/admin/members?create=member-invitation" });
+    dialog = within(
+      await screen.findByRole("dialog", { name: "Mitglied einladen" }),
+    );
+    expect(
+      (dialog.getByLabelText("E-Mail-Adresse") as HTMLInputElement).value,
+    ).toBe("neu@leonaid.invalid");
+    expect((dialog.getByLabelText("Name") as HTMLInputElement).value).toBe(
+      "Nora Neu",
+    );
+    expect(
+      window.sessionStorage.getItem("leonaid.member-invite-draft"),
+    ).toBeNull();
   });
 
   it("shows the server's refusal instead of the list", async () => {
@@ -457,20 +536,50 @@ describe("member pane", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("keeps the last charity admin of an action", async () => {
+  it("keeps the last charity admin only where the server requires one", async () => {
     const client = await renderPage();
+    client.changeMemberActionRole.mockRejectedValue(
+      new ApiError(409, {
+        code: "last_charity_admin_role_forbidden",
+        message: "Die letzte Charity-Admin-Rolle bleibt.",
+        requestId: "req-3",
+      }),
+    );
     const pane = await openMember("Klara Kern");
-    expect(pane.getByText("Letzte Aktionsleitung")).toBeTruthy();
+    // Running action (leadRequired): blocked with the badge and a toast.
+    expect(pane.getAllByText("Letzter Charity-Admin")).toHaveLength(1);
     fireEvent.click(
       pane.getByTestId(`member-revoke-action-${ownAction}-charity_admin`),
     );
     expect(
       await screen.findByText(
-        "Klara Kern ist die letzte Aktionsleitung von Krapfentaxi 2026.",
+        "Klara Kern ist der letzte Charity-Admin von Krapfentaxi 2026.",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(client.changeMemberActionRole).not.toHaveBeenCalled();
+
+    // Archived action: the server allows it, so the UI asks and sends it.
+    fireEvent.click(
+      pane.getByTestId(`member-revoke-action-${archivedAction}-charity_admin`),
+    );
+    fireEvent.click(
+      confirmDialog().getByRole("button", { name: "Rolle entziehen" }),
+    );
+    await waitFor(() =>
+      expect(client.changeMemberActionRole).toHaveBeenCalledWith(
+        klaraId,
+        archivedAction,
+        "charity_admin",
+        { enabled: false, expectedRevision: 3 },
+        expect.anything(),
+      ),
+    );
+    // A 409 refusal is no revision conflict: no "Aktuellen Stand laden".
+    expect(
+      await pane.findByText("Rolle konnte nicht geändert werden"),
+    ).toBeTruthy();
+    expect(pane.queryByText("Aktuellen Stand laden")).toBeNull();
   });
 
   it("suspends through the confirmation and reports the ended sessions", async () => {

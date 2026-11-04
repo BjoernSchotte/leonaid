@@ -179,6 +179,12 @@ class MemberDirectoryActionResponse(TransportModel):
     available_roles: list[
         Literal["charity_admin", "acquirer", "finance_reader", "driver"]
     ]
+    lead_required: bool = Field(
+        description=(
+            "Revoking the last charity admin of this action is refused "
+            "(draft, scheduled and active actions)."
+        )
+    )
 
 
 class MemberDirectoryResponse(TransportModel):

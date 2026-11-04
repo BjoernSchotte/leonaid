@@ -37,6 +37,7 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
     can_manage_action_roles,
+    charity_admin_required,
     removes_last_active_system_admin,
     removes_last_required_charity_admin,
 )
@@ -419,6 +420,14 @@ def test_last_admin_invariants_cover_global_and_action_lifecycles() -> None:
         enabled=False,
         active_admin_count=2,
     )
+    # The member directory exposes the same rule as `leadRequired`.
+    assert {
+        status for status in CharityActionStatus if charity_admin_required(status)
+    } == {
+        CharityActionStatus.DRAFT,
+        CharityActionStatus.SCHEDULED,
+        CharityActionStatus.ACTIVE,
+    }
 
 
 def test_membership_period_is_timezone_aware_and_end_exclusive() -> None:
