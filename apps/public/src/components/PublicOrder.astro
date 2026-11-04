@@ -5,6 +5,7 @@ import type {
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
+import PublicBillingFields from "./PublicBillingFields.astro";
 import PublicDeliveryWindows from "./PublicDeliveryWindows.astro";
 import {
   money,
@@ -20,12 +21,15 @@ interface Props {
     NonNullable<PublicActionRouteResponse["action"]>["orderForm"]
   >;
   publicAlias: string;
+  /** Link to the contact form on the same page, when the inbox is on. */
+  contactFormHref?: string;
   orderResult?: {
     data?: PublicOrderResultResponse;
     error?: { message: string };
   };
 }
-const { action, orderForm, publicAlias, orderResult } = Astro.props;
+const { action, orderForm, publicAlias, contactFormHref, orderResult } =
+  Astro.props;
 const serverOrder = orderResult?.data;
 const serverError = orderResult?.error?.message;
 const redisplay = serverError
@@ -35,10 +39,6 @@ const commandId = redisplay?.commandId ?? crypto.randomUUID();
 // Core sets requireDeliveryAddress only for actions with the delivery
 // capability; pickup or donation campaigns skip the delivery step.
 const collectsDelivery = orderForm.requireDeliveryAddress;
-const stepNumber = (step: number) => String(step).padStart(2, "0");
-const billingStep = collectsDelivery ? 4 : 3;
-const messageStep = billingStep + 1;
-const confirmStep = orderForm.allowMessage ? messageStep + 1 : messageStep;
 const deliveryConfiguration = orderForm.deliveryConfiguration;
 const deliveryEnabled = Boolean(deliveryConfiguration?.enabled);
 const deliveryUnavailable =
@@ -46,6 +46,7 @@ const deliveryUnavailable =
   !deliveryConfiguration?.windows.some((window) => !window.retired);
 const quantityFor = (id: string, index: number) =>
   redisplay?.quantities[id] ?? (index === 0 ? 1 : 0);
+const currency = action.offerings[0]?.currency ?? "EUR";
 const totalMinor = action.offerings.reduce(
   (sum, offering, index) =>
     sum + quantityFor(offering.id, index) * offering.unitPriceMinor,
@@ -58,787 +59,790 @@ const quantitySummary = orderQuantitySummary(
     quantity: quantityFor(offering.id, index),
   })),
 );
+// "Firma oder Verein / Privatperson" only where the company is optional.
+const offerCustomerKind = !orderForm.requireCompanyName;
+const successNextSteps = [
+  "Notieren Sie die Referenz für Rückfragen.",
+  "Ein Clubmitglied prüft die Bestellung. Bei Fragen melden wir uns über die angegebene E-Mail-Adresse.",
+  ...(collectsDelivery
+    ? ["Am Liefertag bringen wir die Bestellung an die angegebene Adresse."]
+    : []),
+  "Eine Rechnung folgt separat, sobald der Club die Bestellung geprüft hat.",
+];
+const checkIcon = "M20 6 9 17l-5-5";
 ---
 
 <section class="order-section" id="bestellen" aria-labelledby="order-heading">
-  <div class="site-shell order-section__intro">
-    <p class="eyebrow">In wenigen Minuten erledigt</p>
-    <h2 id="order-heading">{orderForm.title}</h2>
-    <p>{orderForm.introduction}</p>
-  </div>
-
-  <div class="site-shell order-layout">
-    <aside class="order-guide" aria-label="Ablauf der Bestellung">
-      <p class="order-guide__label">Dein Weg zur Bestellung</p>
-      <ol>
-        <li>
-          <span aria-hidden="true">01</span>
-          <div>
-            <strong>Menge wählen</strong>
-            <p>Du siehst Preis und Gesamtmenge direkt.</p>
-          </div>
-        </li>
-        <li>
-          <span aria-hidden="true">02</span>
-          <div>
-            <strong>Kontakt & Lieferung</strong>
-            <p>Damit wir Bestellung und Auslieferung zuordnen können.</p>
-          </div>
-        </li>
-        <li>
-          <span aria-hidden="true">03</span>
-          <div>
-            <strong>Verbindlich absenden</strong>
-            <p>Du erhältst sofort eine eindeutige Referenz.</p>
-          </div>
-        </li>
-      </ol>
-    </aside>
+  <div class="site-shell public-order">
+    <div class="order-section__intro">
+      <h2 id="order-heading">{orderForm.title}</h2>
+      {orderForm.introduction && <p>{orderForm.introduction}</p>}
+    </div>
 
     <div class="order-surface">
-      {
-        serverOrder ? (
-          <section
-            class="order-success"
-            data-order-success
-            tabindex="-1"
-            aria-labelledby="order-success-heading"
+      <section
+        class="order-success public-thanks"
+        data-order-success
+        tabindex="-1"
+        aria-labelledby="order-success-heading"
+        hidden={!serverOrder}
+        autofocus={serverOrder ? true : undefined}
+      >
+        <span class="public-thanks-icon" aria-hidden="true">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"><path d={checkIcon}></path></svg
           >
-            <p class="order-success__eyebrow">Bestellung eingegangen</p>
-            <h3 id="order-success-heading">Danke für deine Unterstützung.</h3>
-            <p>
-              Wir haben deine Bestellung eindeutig erfasst. Der Lions Club prüft
-              sie und meldet sich über die angegebene E-Mail-Adresse, falls noch
-              etwas offen ist.
-            </p>
-            <dl>
-              <div>
-                <dt>Referenz</dt>
-                <dd data-order-reference>{serverOrder.publicReference}</dd>
-              </div>
-              <div>
-                <dt>Bestellwert</dt>
-                <dd data-order-total>
-                  {money(serverOrder.totalMinor, serverOrder.currency)}
-                </dd>
-              </div>
-              <div>
-                <dt>Menge</dt>
-                <dd data-order-quantity>
-                  {orderQuantitySummary(serverOrder.quantities)}
-                </dd>
-              </div>
-            </dl>
-            <p class="order-success__next">
-              Notiere die Referenz für Rückfragen. Eine Rechnung folgt separat,
-              sobald der Club die Bestellung geprüft hat.
-            </p>
-          </section>
-        ) : (
-          <>
-            <section
-              class="order-success"
-              data-order-success
+        </span>
+        <p class="order-success__eyebrow">Bestellung eingegangen</p>
+        <h3 id="order-success-heading">Danke für Ihre Bestellung!</h3>
+        <p class="public-lead">
+          Ihre Referenz:
+          <strong class="mono public-thanks-reference" data-order-reference
+            >{serverOrder?.publicReference}</strong
+          >
+        </p>
+        <dl class="public-thanks-facts">
+          <div>
+            <dt>Bestellwert</dt>
+            <dd data-order-total>
+              {
+                serverOrder &&
+                  money(serverOrder.totalMinor, serverOrder.currency)
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Menge</dt>
+            <dd data-order-quantity>
+              {serverOrder && orderQuantitySummary(serverOrder.quantities)}
+            </dd>
+          </div>
+        </dl>
+        <ol class="public-next">
+          {successNextSteps.map((step) => <li>{step}</li>)}
+        </ol>
+        <p class="small muted">
+          {
+            contactFormHref ? (
+              <>
+                Etwas falsch eingegeben? Schreiben Sie uns über das{" "}
+                <a href={contactFormHref}>Kontaktformular</a> und nennen Sie
+                Ihre Referenz.
+              </>
+            ) : (
+              <>
+                Etwas falsch eingegeben? Schreiben Sie an{" "}
+                <a href={`mailto:${orderForm.privacyContactEmail}`}>
+                  {orderForm.privacyContactEmail}
+                </a>{" "}
+                und nennen Sie Ihre Referenz.
+              </>
+            )
+          }
+        </p>
+        <a class="btn btn-secondary btn-lg" href="#main-content"
+          >Zur Aktionsseite</a
+        >
+      </section>
+
+      {
+        !serverOrder && (
+          <form
+            action={actions.createPublicOrder}
+            method="POST"
+            class="order-form public-form"
+            data-order-form
+            data-action-id={action.id}
+            data-submit-label={orderForm.submitLabel}
+          >
+            <input type="hidden" name="publicAlias" value={publicAlias} />
+            <input
+              type="hidden"
+              name="accessToken"
+              value={orderForm.accessToken}
+            />
+            <input type="hidden" name="commandId" value={commandId} />
+            <input
+              type="hidden"
+              name="privacyNoticeVersion"
+              value={orderForm.privacyNoticeVersion}
+            />
+
+            <div
+              class="form-message public-errors"
+              data-form-message
+              data-state={serverError ? "error" : "idle"}
+              role={serverError ? "alert" : undefined}
               tabindex="-1"
-              aria-labelledby="order-success-heading"
-              hidden
+              aria-labelledby="order-errors-title"
+              hidden={!serverError}
+              autofocus={serverError ? true : undefined}
             >
-              <p class="order-success__eyebrow">Bestellung eingegangen</p>
-              <h3 id="order-success-heading">Danke für deine Unterstützung.</h3>
-              <p>
-                Wir haben deine Bestellung eindeutig erfasst. Der Lions Club
-                prüft sie und meldet sich über die angegebene E-Mail-Adresse,
-                falls noch etwas offen ist.
-              </p>
-              <dl>
-                <div>
-                  <dt>Referenz</dt>
-                  <dd data-order-reference />
-                </div>
-                <div>
-                  <dt>Bestellwert</dt>
-                  <dd data-order-total />
-                </div>
-                <div>
-                  <dt>Menge</dt>
-                  <dd data-order-quantity />
-                </div>
-              </dl>
-              <p class="order-success__next">
-                Notiere die Referenz für Rückfragen. Eine Rechnung folgt
-                separat, sobald der Club die Bestellung geprüft hat.
-              </p>
-            </section>
-
-            <form
-              action={actions.createPublicOrder}
-              method="POST"
-              class="order-form"
-              data-order-form
-              data-action-id={action.id}
-            >
-              <input type="hidden" name="publicAlias" value={publicAlias} />
-              <input
-                type="hidden"
-                name="accessToken"
-                value={orderForm.accessToken}
-              />
-              <input type="hidden" name="commandId" value={commandId} />
-              <input
-                type="hidden"
-                name="privacyNoticeVersion"
-                value={orderForm.privacyNoticeVersion}
-              />
-
-              <div
-                class="form-message"
-                data-form-message
-                data-state={serverError ? "error" : "idle"}
-                role={serverError ? "alert" : "status"}
-                tabindex="-1"
-                hidden={!serverError}
-              >
-                {serverError}
-                {redisplay && (
-                  <p>
-                    Deine Eingaben wurden übernommen. Prüfe den aktuellen
-                    Bestellwert und bestätige die Bestellung erneut.
-                  </p>
-                )}
-              </div>
-
-              <fieldset class="order-step">
-                <legend>
-                  <span>01</span>
-                  <span>
-                    Deine Auswahl
-                    <small>Menge und Bestellwert</small>
-                  </span>
-                </legend>
-                <div class="quantity-list">
-                  {action.offerings.map((offering, index) => (
-                    <div class="quantity-card">
-                      <input
-                        type="hidden"
-                        name="offeringId"
-                        value={offering.id}
-                      />
-                      <input type="hidden" name="unit" value={offering.unit} />
-                      <input
-                        type="hidden"
-                        name="quotedUnitPriceMinor"
-                        value={offering.unitPriceMinor}
-                      />
-                      <div>
-                        <label for={`quantity-${offering.id}`}>
-                          {offering.name}
-                        </label>
-                        <small>
-                          {offering.piecesPerUnit
-                            ? `${offering.piecesPerUnit} Stück pro ${offering.unit === "box" ? "Box" : "Einheit"}`
-                            : "Direkte Unterstützung"}
-                          {" · "}
-                          {offeringPrice(offering)} {offeringUnit(offering)}
-                        </small>
-                      </div>
-                      <div class="quantity-control">
-                        <span>Menge</span>
-                        <input
-                          id={`quantity-${offering.id}`}
-                          name="quantity"
-                          type="number"
-                          inputmode="numeric"
-                          min={index === 0 ? "1" : "0"}
-                          max="5000"
-                          step="1"
-                          value={quantityFor(offering.id, index)}
-                          required={index === 0}
-                          data-quantity
-                          data-unit-price={offering.unitPriceMinor}
-                          data-currency={offering.currency}
-                          data-unit={offering.unit}
-                          data-pieces-per-unit={offering.piecesPerUnit ?? ""}
-                          aria-describedby={`quantity-${offering.id}-help quantity-error`}
-                        />
-                      </div>
-                      <span id={`quantity-${offering.id}-help`} class="sr-only">
-                        Trage ein, wie viele Einheiten du bestellen möchtest.
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p
-                  id="quantity-error"
-                  class="field-error"
-                  data-error-for="quantity"
-                />
-                <div class="order-total" aria-live="polite">
-                  <span>Aktueller Bestellwert</span>
-                  <strong data-order-preview-total>
-                    {money(totalMinor, action.offerings[0]?.currency ?? "EUR")}
-                  </strong>
-                  <small data-order-preview-quantity>{quantitySummary}</small>
-                </div>
-              </fieldset>
-
-              <fieldset class="order-step">
-                <legend>
-                  <span>02</span>
-                  <span>
-                    Kontakt
-                    <small>Für Zuordnung und Rückfragen</small>
-                  </span>
-                </legend>
-                <div class="form-grid">
-                  <div class="form-field form-field--wide">
-                    <label for="companyName">
-                      Firma
-                      {orderForm.requireCompanyName && <em>Pflichtfeld</em>}
-                    </label>
-                    <input
-                      id="companyName"
-                      name="companyName"
-                      value={redisplay?.fields.companyName ?? ""}
-                      autocomplete="organization"
-                      maxlength="300"
-                      required={orderForm.requireCompanyName}
-                      aria-describedby="companyName-help companyName-error"
-                    />
-                    <small id="companyName-help">
-                      Optional bei Privatbestellungen. Eine bestehende Firma
-                      wird automatisch erkannt.
-                    </small>
-                    <span
-                      id="companyName-error"
-                      class="field-error"
-                      data-error-for="companyName"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="givenName">
-                      Vorname <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="givenName"
-                      name="givenName"
-                      value={redisplay?.fields.givenName ?? ""}
-                      autocomplete="given-name"
-                      maxlength="200"
-                      required
-                      aria-describedby="givenName-help givenName-error"
-                    />
-                    <small id="givenName-help">
-                      Ansprechpartner:in für diese Bestellung.
-                    </small>
-                    <span
-                      id="givenName-error"
-                      class="field-error"
-                      data-error-for="givenName"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="familyName">
-                      Nachname <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="familyName"
-                      name="familyName"
-                      value={redisplay?.fields.familyName ?? ""}
-                      autocomplete="family-name"
-                      maxlength="200"
-                      required
-                      aria-describedby="familyName-help familyName-error"
-                    />
-                    <small id="familyName-help">
-                      Wird gemeinsam mit dem Vornamen zugeordnet.
-                    </small>
-                    <span
-                      id="familyName-error"
-                      class="field-error"
-                      data-error-for="familyName"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="email">
-                      E-Mail <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      value={redisplay?.fields.email ?? ""}
-                      type="email"
-                      autocomplete="email"
-                      maxlength="320"
-                      required
-                      aria-describedby="email-help email-error"
-                    />
-                    <small id="email-help">
-                      Für Rückfragen und die spätere Rechnung.
-                    </small>
-                    <span
-                      id="email-error"
-                      class="field-error"
-                      data-error-for="email"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="phone">
-                      Telefon
-                      {orderForm.requirePhone && <em>Pflichtfeld</em>}
-                    </label>
-                    <input
-                      id="phone"
-                      name="phone"
-                      value={redisplay?.fields.phone ?? ""}
-                      type="tel"
-                      autocomplete="tel"
-                      maxlength="40"
-                      required={orderForm.requirePhone}
-                      aria-describedby="phone-help phone-error"
-                    />
-                    <small id="phone-help">
-                      Hilft uns bei kurzfristigen Fragen, zum Beispiel +49 821
-                      123456.
-                    </small>
-                    <span
-                      id="phone-error"
-                      class="field-error"
-                      data-error-for="phone"
-                    />
-                  </div>
-                </div>
-              </fieldset>
-
-              {collectsDelivery && (
-                <fieldset class="order-step">
-                  <legend>
-                    <span>03</span>
-                    <span>
-                      Lieferung
-                      <small>Wohin die Bestellung gebracht wird</small>
-                    </span>
-                  </legend>
-                  <div class="form-grid">
-                    <div class="form-field form-field--wide">
-                      <label for="deliveryRecipientName">
-                        Empfänger:in <em>Pflichtfeld</em>
-                      </label>
-                      <input
-                        id="deliveryRecipientName"
-                        name="deliveryRecipientName"
-                        value={redisplay?.fields.deliveryRecipientName ?? ""}
-                        autocomplete="shipping name"
-                        maxlength="300"
-                        required
-                        aria-describedby="deliveryRecipientName-help deliveryRecipientName-error"
-                      />
-                      <small id="deliveryRecipientName-help">
-                        Firma, Abteilung oder Person, die die Lieferung annimmt.
-                      </small>
-                      <span
-                        id="deliveryRecipientName-error"
-                        class="field-error"
-                        data-error-for="deliveryRecipientName"
-                      />
-                    </div>
-                    <div class="form-field form-field--wide">
-                      <label for="deliveryStreetLine1">
-                        Straße und Hausnummer <em>Pflichtfeld</em>
-                      </label>
-                      <input
-                        id="deliveryStreetLine1"
-                        name="deliveryStreetLine1"
-                        value={redisplay?.fields.deliveryStreetLine1 ?? ""}
-                        autocomplete="shipping street-address"
-                        maxlength="300"
-                        required
-                        aria-describedby="deliveryStreetLine1-help deliveryStreetLine1-error"
-                      />
-                      <small id="deliveryStreetLine1-help">
-                        Die genaue Adresse für die Tourenplanung.
-                      </small>
-                      <span
-                        id="deliveryStreetLine1-error"
-                        class="field-error"
-                        data-error-for="deliveryStreetLine1"
-                      />
-                    </div>
-                    <div class="form-field">
-                      <label for="deliveryPostalCode">
-                        Postleitzahl <em>Pflichtfeld</em>
-                      </label>
-                      <input
-                        id="deliveryPostalCode"
-                        name="deliveryPostalCode"
-                        value={redisplay?.fields.deliveryPostalCode ?? ""}
-                        autocomplete="shipping postal-code"
-                        inputmode="numeric"
-                        maxlength="24"
-                        required
-                        aria-describedby="deliveryPostalCode-help deliveryPostalCode-error"
-                      />
-                      <small id="deliveryPostalCode-help">
-                        Grundlage für die spätere Routenzuordnung.
-                      </small>
-                      <span
-                        id="deliveryPostalCode-error"
-                        class="field-error"
-                        data-error-for="deliveryPostalCode"
-                      />
-                    </div>
-                    <div class="form-field">
-                      <label for="deliveryCity">
-                        Ort <em>Pflichtfeld</em>
-                      </label>
-                      <input
-                        id="deliveryCity"
-                        name="deliveryCity"
-                        value={redisplay?.fields.deliveryCity ?? ""}
-                        autocomplete="shipping address-level2"
-                        maxlength="200"
-                        required
-                        aria-describedby="deliveryCity-help deliveryCity-error"
-                      />
-                      <small id="deliveryCity-help">
-                        Ort der Lieferadresse.
-                      </small>
-                      <span
-                        id="deliveryCity-error"
-                        class="field-error"
-                        data-error-for="deliveryCity"
-                      />
-                    </div>
-                  </div>
-                  {deliveryEnabled && deliveryConfiguration && (
-                    <div class="order-delivery-details">
-                      <PublicDeliveryWindows
-                        configuration={deliveryConfiguration}
-                        selectedId={redisplay?.fields.deliveryWindowId}
-                      />
-                      <button
-                        type="button"
-                        class="delivery-refresh"
-                        data-delivery-refresh
-                        hidden
-                      >
-                        Lieferfenster aktualisieren
-                      </button>
-                      <p data-delivery-refresh-status role="status" />
-                      <div class="form-grid">
-                        <div class="form-field form-field--wide">
-                          <label for="deliveryContactName">
-                            Ansprechpartner bei der Lieferung (optional)
-                          </label>
-                          <input
-                            id="deliveryContactName"
-                            name="deliveryContactName"
-                            maxlength="200"
-                            autocomplete="section-delivery-contact name"
-                            value={redisplay?.fields.deliveryContactName ?? ""}
-                            aria-describedby="deliveryContact-help deliveryContactName-error"
-                          />
-                          <span
-                            id="deliveryContactName-error"
-                            class="field-error"
-                            data-error-for="deliveryContactName"
-                          />
-                        </div>
-                        <div class="form-field form-field--wide">
-                          <label for="deliveryContactPhone">
-                            Telefonnummer für die Lieferung (optional)
-                          </label>
-                          <input
-                            id="deliveryContactPhone"
-                            name="deliveryContactPhone"
-                            type="tel"
-                            maxlength="40"
-                            autocomplete="section-delivery-contact tel"
-                            value={redisplay?.fields.deliveryContactPhone ?? ""}
-                            aria-describedby="deliveryContact-help deliveryContactPhone-error"
-                          />
-                          <span
-                            id="deliveryContactPhone-error"
-                            class="field-error"
-                            data-error-for="deliveryContactPhone"
-                          />
-                          <small id="deliveryContact-help">
-                            Beide Angaben sind unabhängig optional. Ohne
-                            Lieferkontakt bleibt der Bestellkontakt für
-                            Rückfragen erhalten.
-                          </small>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </fieldset>
+              <h3 id="order-errors-title">
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                <span data-form-message-title>
+                  {serverError
+                    ? "Die Bestellung wurde noch nicht gesendet"
+                    : "Bitte prüfen Sie Ihre Angaben"}
+                </span>
+              </h3>
+              <p data-form-message-text>{serverError}</p>
+              {redisplay && (
+                <p>
+                  Ihre Eingaben wurden übernommen. Prüfen Sie den aktuellen
+                  Bestellwert und bestätigen Sie die Bestellung erneut.
+                </p>
               )}
+              <ul data-form-message-list />
+            </div>
 
-              <fieldset class="order-step">
-                <legend>
-                  <span>{stepNumber(billingStep)}</span>
-                  <span>
-                    Rechnung
-                    <small>
-                      {collectsDelivery
-                        ? "Standardmäßig wie die Lieferadresse"
-                        : "Wohin die Rechnung geschickt wird"}
-                    </small>
-                  </span>
-                </legend>
-                {collectsDelivery && (
-                  <label class="check-row">
-                    <input
-                      type="checkbox"
-                      name="billingSameAsDelivery"
-                      value="true"
-                      checked={redisplay?.billingSameAsDelivery ?? true}
-                      data-billing-same
-                    />
-                    <span>
-                      <strong>
-                        Rechnungsadresse entspricht der Lieferadresse
-                      </strong>
-                      <small>
-                        Deaktiviere dies nur, wenn die Rechnung an eine andere
-                        Anschrift gehen soll.
-                      </small>
-                    </span>
-                  </label>
-                )}
-                <div class="form-grid billing-fields" data-billing-fields>
-                  {collectsDelivery && (
-                    <p class="form-field--wide">
-                      Nur ausfüllen, wenn die Rechnungsadresse von der
-                      Lieferadresse abweicht. Bei gesetztem Häkchen verwenden
-                      wir die Lieferadresse.
+            <fieldset class="public-fieldset">
+              <legend>
+                Ihre Auswahl
+                <small>Menge und Bestellwert</small>
+              </legend>
+              {action.offerings.map((offering, index) => (
+                <div class="public-offer quantity-card">
+                  <input type="hidden" name="offeringId" value={offering.id} />
+                  <input type="hidden" name="unit" value={offering.unit} />
+                  <input
+                    type="hidden"
+                    name="quotedUnitPriceMinor"
+                    value={offering.unitPriceMinor}
+                  />
+                  <div>
+                    <label
+                      class="public-offer-name"
+                      for={`quantity-${offering.id}`}
+                    >
+                      {offering.name}
+                    </label>
+                    <p class="small muted">
+                      {offering.piecesPerUnit
+                        ? `${offering.piecesPerUnit} Stück pro ${offering.unit === "box" ? "Box" : "Einheit"}`
+                        : "Direkte Unterstützung"}
+                      {" · "}
+                      {offeringUnit(offering)}
                     </p>
+                  </div>
+                  <p class="public-offer-price num">
+                    {offeringPrice(offering)}
+                  </p>
+                  <div class="public-stepper quantity-control">
+                    <button
+                      type="button"
+                      data-step="-1"
+                      data-step-for={`quantity-${offering.id}`}
+                      aria-label={`Eine weniger: ${offering.name}`}
+                      hidden
+                    >
+                      <svg
+                        aria-hidden="true"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      >
+                        <path d="M5 12h14" />
+                      </svg>
+                    </button>
+                    <input
+                      id={`quantity-${offering.id}`}
+                      name="quantity"
+                      type="number"
+                      inputmode="numeric"
+                      min={index === 0 ? "1" : "0"}
+                      max="5000"
+                      step="1"
+                      value={quantityFor(offering.id, index)}
+                      required={index === 0}
+                      data-quantity
+                      data-unit-price={offering.unitPriceMinor}
+                      data-currency={offering.currency}
+                      data-unit={offering.unit}
+                      data-pieces-per-unit={offering.piecesPerUnit ?? ""}
+                      data-label={`Menge ${offering.name}`}
+                      aria-describedby={`quantity-${offering.id}-help quantity-error`}
+                    />
+                    <button
+                      type="button"
+                      data-step="1"
+                      data-step-for={`quantity-${offering.id}`}
+                      aria-label={`Eine mehr: ${offering.name}`}
+                      hidden
+                    >
+                      <svg
+                        aria-hidden="true"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      >
+                        <path d="M5 12h14M12 5v14" />
+                      </svg>
+                    </button>
+                  </div>
+                  <span id={`quantity-${offering.id}-help`} class="sr-only">
+                    Anzahl, die Sie bestellen möchten.
+                  </span>
+                </div>
+              ))}
+              <p
+                id="quantity-error"
+                class="field-error"
+                data-error-for="quantity"
+              />
+              <p class="public-total order-total num" aria-live="polite">
+                <span>Aktueller Bestellwert</span>
+                <strong data-order-preview-total>
+                  {money(totalMinor, currency)}
+                </strong>
+                <small data-order-preview-quantity>{quantitySummary}</small>
+              </p>
+            </fieldset>
+
+            <fieldset class="public-fieldset">
+              <legend>Wer bestellt?</legend>
+              {offerCustomerKind && (
+                <div
+                  class="public-toggle"
+                  role="radiogroup"
+                  aria-label="Bestellung als"
+                  data-customer-kind
+                  hidden
+                >
+                  <label class="public-toggle-option">
+                    <input
+                      type="radio"
+                      name="customerKind"
+                      value="company"
+                      checked={
+                        !redisplay || Boolean(redisplay.fields.companyName)
+                      }
+                    />
+                    Firma oder Verein
+                  </label>
+                  <label class="public-toggle-option">
+                    <input
+                      type="radio"
+                      name="customerKind"
+                      value="person"
+                      checked={Boolean(
+                        redisplay && !redisplay.fields.companyName,
+                      )}
+                    />
+                    Privatperson
+                  </label>
+                </div>
+              )}
+              <div class="field" data-company-field>
+                <label class="field-label" for="companyName">
+                  Firma
+                  {!orderForm.requireCompanyName && (
+                    <span class="field-optional"> (optional)</span>
                   )}
-                  <div class="form-field form-field--wide">
-                    <label for="invoiceRecipientName">
-                      Rechnungsempfänger:in <em>Pflichtfeld</em>
+                </label>
+                <input
+                  id="companyName"
+                  class="input"
+                  name="companyName"
+                  data-missing="Bitte geben Sie den Namen der Firma an."
+                  value={redisplay?.fields.companyName ?? ""}
+                  autocomplete="organization"
+                  maxlength="300"
+                  required={orderForm.requireCompanyName}
+                  aria-describedby="companyName-help companyName-error"
+                />
+                <p id="companyName-help" class="field-hint">
+                  Eine bestehende Firma wird automatisch erkannt.
+                </p>
+                <p
+                  id="companyName-error"
+                  class="field-error"
+                  data-error-for="companyName"
+                />
+              </div>
+              <div class="public-grid-2">
+                <div class="field">
+                  <label class="field-label" for="givenName">
+                    Vorname
+                  </label>
+                  <input
+                    id="givenName"
+                    class="input"
+                    name="givenName"
+                    data-missing="Bitte geben Sie Ihren Vornamen an."
+                    value={redisplay?.fields.givenName ?? ""}
+                    autocomplete="given-name"
+                    maxlength="200"
+                    required
+                    aria-describedby="givenName-error"
+                  />
+                  <p
+                    id="givenName-error"
+                    class="field-error"
+                    data-error-for="givenName"
+                  />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="familyName">
+                    Nachname
+                  </label>
+                  <input
+                    id="familyName"
+                    class="input"
+                    name="familyName"
+                    data-missing="Bitte geben Sie Ihren Nachnamen an."
+                    value={redisplay?.fields.familyName ?? ""}
+                    autocomplete="family-name"
+                    maxlength="200"
+                    required
+                    aria-describedby="familyName-error"
+                  />
+                  <p
+                    id="familyName-error"
+                    class="field-error"
+                    data-error-for="familyName"
+                  />
+                </div>
+              </div>
+              <div class="public-grid-2">
+                <div class="field">
+                  <label class="field-label" for="email">
+                    E-Mail
+                  </label>
+                  <input
+                    id="email"
+                    class="input"
+                    name="email"
+                    data-missing="Bitte geben Sie Ihre E-Mail-Adresse an. Dorthin senden wir die Rechnung."
+                    value={redisplay?.fields.email ?? ""}
+                    type="email"
+                    autocomplete="email"
+                    maxlength="320"
+                    required
+                    aria-describedby="email-help email-error"
+                  />
+                  <p id="email-help" class="field-hint">
+                    Für Rückfragen und die Rechnung.
+                  </p>
+                  <p
+                    id="email-error"
+                    class="field-error"
+                    data-error-for="email"
+                  />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="phone">
+                    Telefon
+                    {!orderForm.requirePhone && (
+                      <span class="field-optional"> (optional)</span>
+                    )}
+                  </label>
+                  <input
+                    id="phone"
+                    class="input"
+                    name="phone"
+                    data-missing="Bitte geben Sie eine Telefonnummer für Rückfragen an."
+                    value={redisplay?.fields.phone ?? ""}
+                    type="tel"
+                    autocomplete="tel"
+                    maxlength="40"
+                    required={orderForm.requirePhone}
+                    aria-describedby="phone-help phone-error"
+                  />
+                  <p id="phone-help" class="field-hint">
+                    Nur für Rückfragen, zum Beispiel +49 821 123456.
+                  </p>
+                  <p
+                    id="phone-error"
+                    class="field-error"
+                    data-error-for="phone"
+                  />
+                </div>
+              </div>
+            </fieldset>
+
+            {collectsDelivery && (
+              <fieldset class="public-fieldset">
+                <legend>Lieferung</legend>
+                <div class="field">
+                  <label class="field-label" for="deliveryRecipientName">
+                    Empfänger
+                  </label>
+                  <input
+                    id="deliveryRecipientName"
+                    class="input"
+                    name="deliveryRecipientName"
+                    data-missing="Bitte geben Sie an, wer die Lieferung annimmt."
+                    value={redisplay?.fields.deliveryRecipientName ?? ""}
+                    autocomplete="shipping name"
+                    maxlength="300"
+                    required
+                    aria-describedby="deliveryRecipientName-help deliveryRecipientName-error"
+                  />
+                  <p id="deliveryRecipientName-help" class="field-hint">
+                    Firma, Abteilung oder Person, die die Lieferung annimmt.
+                  </p>
+                  <p
+                    id="deliveryRecipientName-error"
+                    class="field-error"
+                    data-error-for="deliveryRecipientName"
+                  />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="deliveryStreetLine1">
+                    Straße und Hausnummer
+                  </label>
+                  <input
+                    id="deliveryStreetLine1"
+                    class="input"
+                    name="deliveryStreetLine1"
+                    data-missing="Bitte geben Sie Straße und Hausnummer an."
+                    value={redisplay?.fields.deliveryStreetLine1 ?? ""}
+                    autocomplete="shipping street-address"
+                    maxlength="300"
+                    required
+                    aria-describedby="deliveryStreetLine1-error"
+                  />
+                  <p
+                    id="deliveryStreetLine1-error"
+                    class="field-error"
+                    data-error-for="deliveryStreetLine1"
+                  />
+                </div>
+                <div class="public-grid-zip">
+                  <div class="field">
+                    <label class="field-label" for="deliveryPostalCode">
+                      PLZ
                     </label>
                     <input
-                      id="invoiceRecipientName"
-                      name="invoiceRecipientName"
-                      required={!collectsDelivery}
-                      value={redisplay?.fields.invoiceRecipientName ?? ""}
-                      autocomplete="billing name"
-                      maxlength="300"
-                      aria-describedby="invoiceRecipientName-help invoiceRecipientName-error"
-                    />
-                    <small id="invoiceRecipientName-help">
-                      Firma, Abteilung oder Person auf der Rechnung.
-                    </small>
-                    <span
-                      id="invoiceRecipientName-error"
-                      class="field-error"
-                      data-error-for="invoiceRecipientName"
-                    />
-                  </div>
-                  <div class="form-field form-field--wide">
-                    <label for="invoiceStreetLine1">
-                      Straße und Hausnummer <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="invoiceStreetLine1"
-                      name="invoiceStreetLine1"
-                      required={!collectsDelivery}
-                      value={redisplay?.fields.invoiceStreetLine1 ?? ""}
-                      autocomplete="billing street-address"
-                      maxlength="300"
-                      aria-describedby="invoiceStreetLine1-help invoiceStreetLine1-error"
-                    />
-                    <small id="invoiceStreetLine1-help">
-                      Abweichende Rechnungsanschrift.
-                    </small>
-                    <span
-                      id="invoiceStreetLine1-error"
-                      class="field-error"
-                      data-error-for="invoiceStreetLine1"
-                    />
-                  </div>
-                  <div class="form-field">
-                    <label for="invoicePostalCode">
-                      Postleitzahl <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="invoicePostalCode"
-                      name="invoicePostalCode"
-                      required={!collectsDelivery}
-                      value={redisplay?.fields.invoicePostalCode ?? ""}
-                      autocomplete="billing postal-code"
+                      id="deliveryPostalCode"
+                      class="input"
+                      name="deliveryPostalCode"
+                      data-missing="Bitte geben Sie die Postleitzahl an."
+                      value={redisplay?.fields.deliveryPostalCode ?? ""}
+                      autocomplete="shipping postal-code"
                       inputmode="numeric"
                       maxlength="24"
-                      aria-describedby="invoicePostalCode-help invoicePostalCode-error"
+                      required
+                      aria-describedby="deliveryPostalCode-error"
                     />
-                    <small id="invoicePostalCode-help">
-                      Postleitzahl der Rechnungsadresse.
-                    </small>
-                    <span
-                      id="invoicePostalCode-error"
+                    <p
+                      id="deliveryPostalCode-error"
                       class="field-error"
-                      data-error-for="invoicePostalCode"
+                      data-error-for="deliveryPostalCode"
                     />
                   </div>
-                  <div class="form-field">
-                    <label for="invoiceCity">
-                      Ort <em>Pflichtfeld</em>
+                  <div class="field">
+                    <label class="field-label" for="deliveryCity">
+                      Ort
                     </label>
                     <input
-                      id="invoiceCity"
-                      name="invoiceCity"
-                      required={!collectsDelivery}
-                      value={redisplay?.fields.invoiceCity ?? ""}
-                      autocomplete="billing address-level2"
+                      id="deliveryCity"
+                      class="input"
+                      name="deliveryCity"
+                      data-missing="Bitte geben Sie den Ort an."
+                      value={redisplay?.fields.deliveryCity ?? ""}
+                      autocomplete="shipping address-level2"
                       maxlength="200"
-                      aria-describedby="invoiceCity-help invoiceCity-error"
+                      required
+                      aria-describedby="deliveryCity-error"
                     />
-                    <small id="invoiceCity-help">
-                      Ort der Rechnungsadresse.
-                    </small>
-                    <span
-                      id="invoiceCity-error"
+                    <p
+                      id="deliveryCity-error"
                       class="field-error"
-                      data-error-for="invoiceCity"
-                    />
-                  </div>
-                  <div class="form-field form-field--wide">
-                    <label for="invoiceEmail">
-                      Rechnungs-E-Mail <em>Pflichtfeld</em>
-                    </label>
-                    <input
-                      id="invoiceEmail"
-                      name="invoiceEmail"
-                      required={!collectsDelivery}
-                      value={redisplay?.fields.invoiceEmail ?? ""}
-                      type="email"
-                      autocomplete="billing email"
-                      maxlength="320"
-                      aria-describedby="invoiceEmail-help invoiceEmail-error"
-                    />
-                    <small id="invoiceEmail-help">
-                      An diese Adresse wird die Rechnung später versendet.
-                    </small>
-                    <span
-                      id="invoiceEmail-error"
-                      class="field-error"
-                      data-error-for="invoiceEmail"
+                      data-error-for="deliveryCity"
                     />
                   </div>
                 </div>
-              </fieldset>
-
-              {orderForm.allowMessage && (
-                <fieldset class="order-step">
-                  <legend>
-                    <span>{stepNumber(messageStep)}</span>
-                    <span>
-                      Hinweis
-                      <small>Optional für das Aktionsteam</small>
-                    </span>
-                  </legend>
-                  <div class="form-field">
-                    <label for="message">Nachricht zur Bestellung</label>
+                <p class="field-hint">
+                  Grundlage für die spätere Routenzuordnung.
+                </p>
+                {deliveryEnabled && deliveryConfiguration && (
+                  <div class="order-delivery-details">
+                    <PublicDeliveryWindows
+                      configuration={deliveryConfiguration}
+                      selectedId={redisplay?.fields.deliveryWindowId}
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-lg delivery-refresh"
+                      data-delivery-refresh
+                      hidden
+                    >
+                      Lieferfenster aktualisieren
+                    </button>
+                    <p data-delivery-refresh-status role="status" />
+                    <div class="public-grid-2">
+                      <div class="field">
+                        <label class="field-label" for="deliveryContactName">
+                          Ansprechperson bei der Lieferung
+                          <span class="field-optional"> (optional)</span>
+                        </label>
+                        <input
+                          id="deliveryContactName"
+                          class="input"
+                          name="deliveryContactName"
+                          maxlength="200"
+                          autocomplete="section-delivery-contact name"
+                          value={redisplay?.fields.deliveryContactName ?? ""}
+                          aria-describedby="deliveryContact-help deliveryContactName-error"
+                        />
+                        <p
+                          id="deliveryContactName-error"
+                          class="field-error"
+                          data-error-for="deliveryContactName"
+                        />
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="deliveryContactPhone">
+                          Telefon für die Lieferung
+                          <span class="field-optional"> (optional)</span>
+                        </label>
+                        <input
+                          id="deliveryContactPhone"
+                          class="input"
+                          name="deliveryContactPhone"
+                          type="tel"
+                          maxlength="40"
+                          autocomplete="section-delivery-contact tel"
+                          value={redisplay?.fields.deliveryContactPhone ?? ""}
+                          aria-describedby="deliveryContact-help deliveryContactPhone-error"
+                        />
+                        <p
+                          id="deliveryContactPhone-error"
+                          class="field-error"
+                          data-error-for="deliveryContactPhone"
+                        />
+                      </div>
+                    </div>
+                    <p id="deliveryContact-help" class="field-hint">
+                      Nur für Rückfragen am Liefertag. Ohne Angabe gilt der
+                      Bestellkontakt.
+                    </p>
+                  </div>
+                )}
+                {orderForm.allowMessage && (
+                  <div class="field">
+                    <label class="field-label" for="message">
+                      Hinweis zur Bestellung
+                      <span class="field-optional"> (optional)</span>
+                    </label>
                     <textarea
                       id="message"
+                      class="input textarea"
                       name="message"
-                      rows="4"
+                      rows="2"
                       maxlength="1000"
+                      placeholder="z. B. Empfang im 2. Stock"
                       aria-describedby="message-help message-error"
                       set:text={redisplay?.fields.message ?? ""}
                     />
-                    <small id="message-help">
-                      Zum Beispiel Hinweise zur Anlieferung. Bitte keine
-                      sensiblen Daten eintragen.
-                    </small>
-                    <span
+                    <p id="message-help" class="field-hint">
+                      Bitte keine sensiblen Daten eintragen.
+                    </p>
+                    <p
                       id="message-error"
                       class="field-error"
                       data-error-for="message"
                     />
                   </div>
-                </fieldset>
-              )}
-
-              <div class="honeypot" aria-hidden="true">
-                <label for="website">Website</label>
-                <input
-                  id="website"
-                  name="website"
-                  tabindex="-1"
-                  autocomplete="off"
-                />
-              </div>
-
-              <fieldset class="order-step order-step--confirm">
-                <legend>
-                  <span>{stepNumber(confirmStep)}</span>
-                  <span>
-                    Prüfen & absenden
-                    <small>Mit klarer Bestätigung</small>
-                  </span>
-                </legend>
-                <label class="check-row">
+                )}
+                <label class="public-check">
                   <input
+                    type="checkbox"
+                    name="billingSameAsDelivery"
+                    value="true"
+                    checked={redisplay?.billingSameAsDelivery ?? true}
+                    data-billing-same
+                  />
+                  <span>Rechnungsadresse entspricht der Lieferadresse</span>
+                </label>
+                <div class="billing-fields" data-billing-fields>
+                  <p class="field-hint">
+                    Nur ausfüllen, wenn die Rechnung an eine andere Anschrift
+                    gehen soll.
+                  </p>
+                  <PublicBillingFields
+                    required={false}
+                    fields={redisplay?.fields}
+                  />
+                </div>
+              </fieldset>
+            )}
+
+            {!collectsDelivery && (
+              <fieldset class="public-fieldset">
+                <legend>Rechnung</legend>
+                <PublicBillingFields required fields={redisplay?.fields} />
+                {orderForm.allowMessage && (
+                  <div class="field">
+                    <label class="field-label" for="message">
+                      Hinweis zur Bestellung
+                      <span class="field-optional"> (optional)</span>
+                    </label>
+                    <textarea
+                      id="message"
+                      class="input textarea"
+                      name="message"
+                      rows="2"
+                      maxlength="1000"
+                      aria-describedby="message-help message-error"
+                      set:text={redisplay?.fields.message ?? ""}
+                    />
+                    <p id="message-help" class="field-hint">
+                      Bitte keine sensiblen Daten eintragen.
+                    </p>
+                    <p
+                      id="message-error"
+                      class="field-error"
+                      data-error-for="message"
+                    />
+                  </div>
+                )}
+              </fieldset>
+            )}
+
+            <fieldset class="public-fieldset">
+              <legend>Datenschutz</legend>
+              <dl class="public-privacy small">
+                <div>
+                  <dt>Zweck</dt>
+                  <dd>{orderForm.privacyNoticeText}</dd>
+                </div>
+                <div>
+                  <dt>Rechtsgrundlage</dt>
+                  <dd>{orderForm.legalBasis}</dd>
+                </div>
+                <div>
+                  <dt>Kontakt</dt>
+                  <dd>
+                    <a href={`mailto:${orderForm.privacyContactEmail}`}>
+                      {orderForm.privacyContactEmail}
+                    </a>
+                  </dd>
+                </div>
+              </dl>
+              <div class="field">
+                <label class="public-check" for="privacyAcknowledged">
+                  <input
+                    id="privacyAcknowledged"
                     type="checkbox"
                     name="privacyAcknowledged"
+                    data-missing="Bitte bestätigen Sie, dass Sie die Hinweise zur Datenverarbeitung gelesen haben."
                     value="true"
                     required
-                    aria-describedby="privacyAcknowledged-help privacyAcknowledged-error"
+                    data-label="Hinweise zur Datenverarbeitung"
+                    aria-describedby="privacyAcknowledged-error"
                   />
                   <span>
-                    <strong>
-                      Ich habe die Hinweise zur Datenverarbeitung gelesen.
-                    </strong>
-                    <small id="privacyAcknowledged-help">
-                      {orderForm.privacyNoticeText}
-                    </small>
-                    <span
-                      id="privacyAcknowledged-error"
-                      class="field-error"
-                      data-error-for="privacyAcknowledged"
-                    />
+                    Ich habe die Hinweise zur Datenverarbeitung gelesen.
                   </span>
                 </label>
-                <label class="check-row">
+                <p
+                  id="privacyAcknowledged-error"
+                  class="field-error"
+                  data-error-for="privacyAcknowledged"
+                />
+              </div>
+              <div class="field">
+                <label class="public-check" for="bindingOrderConfirmed">
                   <input
+                    id="bindingOrderConfirmed"
                     type="checkbox"
                     name="bindingOrderConfirmed"
+                    data-missing="Bitte bestätigen Sie die verbindliche Bestellung."
                     value="true"
                     required
+                    data-label="Verbindliche Bestellung"
                     aria-describedby="bindingOrderConfirmed-help bindingOrderConfirmed-error"
                   />
                   <span>
-                    <strong>
-                      Ich bestelle die gewählte Menge verbindlich.
-                    </strong>
+                    Ich bestelle die gewählte Menge verbindlich.
                     <small id="bindingOrderConfirmed-help">
-                      Der angezeigte Bestellwert wird serverseitig nochmals
-                      geprüft.
+                      Der Bestellwert wird beim Absenden nochmals geprüft.
                     </small>
-                    <span
-                      id="bindingOrderConfirmed-error"
-                      class="field-error"
-                      data-error-for="bindingOrderConfirmed"
-                    />
                   </span>
                 </label>
-                <button
-                  type="submit"
-                  class="order-submit"
-                  data-order-submit
-                  disabled={deliveryUnavailable}
+                <p
+                  id="bindingOrderConfirmed-error"
+                  class="field-error"
+                  data-error-for="bindingOrderConfirmed"
+                />
+              </div>
+            </fieldset>
+
+            <div class="honeypot" aria-hidden="true">
+              <label for="website">Website</label>
+              <input
+                id="website"
+                name="website"
+                tabindex="-1"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="public-submit">
+              <p class="small muted" data-order-submit-summary>
+                {`Mit „${orderForm.submitLabel}“ bestellen Sie `}
+                <span data-order-summary-quantity>{quantitySummary}</span>
+                {" für "}
+                <span data-order-summary-total>
+                  {money(totalMinor, currency)}
+                </span>
+                {". Kein Kundenkonto nötig; die Rechnung kommt per E-Mail."}
+              </p>
+              <button
+                type="submit"
+                class="btn btn-primary btn-lg order-submit"
+                data-order-submit
+                disabled={deliveryUnavailable}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                 >
-                  <span data-submit-label>{orderForm.submitLabel}</span>
-                  <span aria-hidden="true">→</span>
-                </button>
-                <p class="submit-note">
-                  Kein Kundenkonto nötig. Nach dem Absenden erhältst du sofort
-                  eine Referenz für Rückfragen.
-                </p>
-              </fieldset>
-            </form>
-          </>
+                  <path d="m22 2-7 20-4-9-9-4 20-7Z" />
+                  <path d="M22 2 11 13" />
+                </svg>
+                <span data-submit-label>{orderForm.submitLabel}</span>
+              </button>
+            </div>
+          </form>
         )
       }
     </div>

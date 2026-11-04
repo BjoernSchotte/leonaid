@@ -38,10 +38,10 @@ export function orderQuantitySummary(
   >();
   for (const { unit, piecesPerUnit, quantity } of lines) {
     if (!Number.isInteger(quantity) || quantity < 0 || quantity > 5000)
-      return "Bitte prüfe die Mengen.";
+      return "Bitte prüfen Sie die Mengen.";
     if (quantity === 0) continue;
     if (!["box", "package", "piece", "sponsoring"].includes(unit))
-      return "Bitte prüfe die Mengen.";
+      return "Bitte prüfen Sie die Mengen.";
     const pieces =
       (unit === "box" || unit === "package") &&
       piecesPerUnit !== null &&
