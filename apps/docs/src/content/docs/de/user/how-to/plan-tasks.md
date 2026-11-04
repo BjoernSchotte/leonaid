@@ -72,8 +72,8 @@ nach.
 **Persönliche Planung** in den Details legst du eine Aufgabe auf einen Tag, auf
 **Irgendwann** oder lässt sie **Nicht geplant**. Deine Planung ist privat:
 Andere Mitglieder sehen weder deinen Plan noch deine persönliche Reihenfolge.
-**Mein Plan** gruppiert nach **Heute**, **Heute fällig** (heute fällig oder
-überfällig), **Diese Woche**, **Später** und **Irgendwann**.
+**Mein Plan** gruppiert nach **Heute**, **Bis heute fällig** (heute fällig
+oder überfällig), **Diese Woche**, **Später** und **Irgendwann**.
 
 Eine zurückgestellte Aufgabe (**Zurückgestellt**) bleibt bis zum gewählten
 Zeitpunkt aus **Offen** und **Alle offenen** ausgeblendet; der Filter

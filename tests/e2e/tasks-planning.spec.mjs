@@ -123,7 +123,7 @@ test("S5 personal planning stays private and usable for owners and readers", asy
     today.locator(".group-header", { hasText: /^Heute\d/ }),
   ).toBeVisible();
   await expect(
-    today.locator(".group-header", { hasText: "Heute fällig" }),
+    today.locator(".group-header", { hasText: "Bis heute fällig" }),
   ).toBeVisible();
   await expect(taskRowLink(today, { id: tasks[0].id })).toHaveCount(1);
   await expect(taskRowLink(today, { id: tasks[1].id })).toHaveCount(1);

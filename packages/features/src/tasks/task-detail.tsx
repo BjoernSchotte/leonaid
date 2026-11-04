@@ -467,12 +467,24 @@ function ListAudience({
     queryFn: () => client.listTaskListMembers(row.task.listId, { limit: 20 }),
     retry: false,
     staleTime: 60_000,
+    // Editors who do not manage the list get a 403. The API has no manage
+    // flag to ask first, so the refusal is kept for the visit: one request
+    // per list, not one per opened task.
+    gcTime: Number.POSITIVE_INFINITY,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
   });
   // Only list managers may read members; others simply do not see this.
   if (members.isError || !members.data) return null;
   const items = members.data.items.filter((member) => member.active);
+  // No extra members: the list is visible to its owner (and, for an action
+  // list, the action's members) only; an empty section would say nothing.
+  if (items.length === 0 && !row.task.actionTitle) return null;
   return (
     <DetailSection title="Wer die Liste sieht">
+      {items.length === 0 ? (
+        <p className="small subtle">Keine weiteren Mitglieder.</p>
+      ) : null}
       <ul className="access-list">
         {items.map((member) => (
           <li key={member.userId}>

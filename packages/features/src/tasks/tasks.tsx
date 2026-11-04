@@ -23,6 +23,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -41,7 +42,6 @@ import {
   Button,
   ErrorState,
   fullBleedPage,
-  HotkeyProvider,
   Icon,
   IconButton,
   ListView,
@@ -49,7 +49,6 @@ import {
   StatusLabel,
   StatusMessage,
   statusShape,
-  useOptionalHotkeyRegistry,
   useOptionalToast,
   type ListColumns,
   type ListProperty,
@@ -149,21 +148,11 @@ const byPriority = (a: TaskRow, b: TaskRow) =>
 const byTitle = (a: TaskRow, b: TaskRow) =>
   a.task.title.localeCompare(b.task.title, "de");
 
-type Settled<T> = { readonly done: T[]; readonly failure: unknown };
-
-/** Runs writes in parallel; rejects when one failed, after all settled. */
+/** Runs writes in parallel; rejects with the first failure, after all settled. */
 async function settleAll<T>(jobs: readonly Promise<T>[]): Promise<T[]> {
   const results = await Promise.allSettled(jobs);
   const failure = results.find((result) => result.status === "rejected");
-  if (failure) {
-    const settled: Settled<T> = {
-      done: results.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      ),
-      failure: failure.reason,
-    };
-    throw Object.assign(new Error("Not every task was saved."), settled);
-  }
+  if (failure) throw (failure as PromiseRejectedResult).reason;
   return results.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
@@ -185,6 +174,7 @@ type TaskFields = Pick<
   | "checklist"
 >;
 
+/** Both shells (admin rail, PWA) mount the HotkeyProvider the list needs. */
 export function TasksPage(
   props: ModulePageContext & {
     basePath: string;
@@ -192,10 +182,24 @@ export function TasksPage(
     surface?: "web" | "pwa";
   },
 ) {
-  // The admin shell has a hotkey registry; the app shell does not (yet).
-  const registry = useOptionalHotkeyRegistry();
-  const page = <TasksWorkspace {...props} />;
-  return registry ? page : <HotkeyProvider>{page}</HotkeyProvider>;
+  // Old bookmarks and search links become list view parameters before the
+  // list reads the URL: a layout effect, then the first real render.
+  const [migrated, setMigrated] = useState(false);
+  useLayoutEffect(() => {
+    const next = migrateLegacyTaskQuery(window.location.search, {
+      listId: props.listId,
+      userId: props.identity.userId,
+    });
+    if (next !== null) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${next}${window.location.hash}`,
+      );
+    }
+    setMigrated(true);
+  }, [props.identity.userId, props.listId]);
+  return migrated ? <TasksWorkspace {...props} /> : null;
 }
 
 function TasksWorkspace({
@@ -215,21 +219,6 @@ function TasksWorkspace({
       : "Sie";
   const cache = useQueryClient();
   const toast = useOptionalToast();
-  // Old bookmarks and search links become list view parameters first.
-  useState(() => {
-    const next = migrateLegacyTaskQuery(window.location.search, {
-      listId,
-      userId: identity.userId,
-    });
-    if (next !== null) {
-      window.history.replaceState(
-        window.history.state,
-        "",
-        `${window.location.pathname}${next}${window.location.hash}`,
-      );
-    }
-    return null;
-  });
   // Consumed in an effect: StrictMode calls state initialisers twice, and
   // the second call would find the parameter already gone.
   const [createRequested, setCreateRequested] = useState(false);
@@ -328,11 +317,31 @@ function TasksWorkspace({
   );
   const rowsRef = useRef(rowById);
   rowsRef.current = rowById;
+  /**
+   * Reloads the sources an edit can change: the task lists (open and done)
+   * and/or my plans. A plan edit leaves the task lists alone; a task edit
+   * reloads the plans only when it can move a task in or out of them.
+   */
   const refresh = useCallback(
-    () =>
+    (
+      scope: { tasks?: boolean; plans?: boolean } = {
+        tasks: true,
+        plans: true,
+      },
+    ) =>
       Promise.all([
-        cache.invalidateQueries({ queryKey: ["tasks"] }),
-        cache.invalidateQueries({ queryKey: ["task-plan"] }),
+        ...(scope.tasks
+          ? [
+              cache.invalidateQueries({ queryKey: ["tasks", "open"] }),
+              cache.invalidateQueries({ queryKey: ["tasks", "done"] }),
+            ]
+          : []),
+        ...(scope.plans
+          ? [
+              cache.invalidateQueries({ queryKey: ["tasks", "plans"] }),
+              cache.invalidateQueries({ queryKey: ["task-plan"] }),
+            ]
+          : []),
       ]),
     [cache],
   );
@@ -407,13 +416,22 @@ function TasksWorkspace({
       }),
     [client],
   );
-  /** Writes each row, refreshes the list, and offers an undo of the writes. */
+  /**
+   * Writes each row, refreshes what changed, and offers an undo of the
+   * writes that were saved. All failed: rejects (the list reports it). Some
+   * failed: reports "k von n" itself, with the undo, and resolves
+   * "cancelled" so the list adds no second toast.
+   */
   const editRows = useCallback(
     async <S,>(
       ids: readonly string[],
       write: (row: TaskRow) => Promise<S> | null,
       revert: (saved: S, row: TaskRow) => Promise<unknown>,
-    ) => {
+      scope: { tasks?: boolean; plans?: boolean } = {
+        tasks: true,
+        plans: true,
+      },
+    ): Promise<{ undo: () => Promise<void> } | "cancelled"> => {
       const targets = ids.flatMap((id) => {
         const row = rowsRef.current.get(id);
         return row ? [row] : [];
@@ -425,23 +443,48 @@ function TasksWorkspace({
         },
       );
       try {
-        const saved = await settleAll(pairs.map((pair) => pair.job));
-        return {
-          undo: async () => {
-            try {
-              await settleAll(
-                saved.map((value, index) => revert(value, pairs[index]!.row)),
-              );
-            } finally {
-              await refresh();
-            }
-          },
+        const results = await Promise.allSettled(pairs.map((pair) => pair.job));
+        const saved = results.flatMap((result, index) =>
+          result.status === "fulfilled"
+            ? [{ value: result.value, row: pairs[index]!.row }]
+            : [],
+        );
+        const undo = async () => {
+          try {
+            await settleAll(saved.map(({ value, row }) => revert(value, row)));
+          } finally {
+            await refresh(scope);
+          }
         };
+        const failure = results.find((result) => result.status === "rejected");
+        if (!failure) return { undo };
+        if (saved.length === 0) throw (failure as PromiseRejectedResult).reason;
+        toast?.show({
+          title: `${saved.length} von ${pairs.length} Aufgaben geändert.`,
+          description: says(
+            address,
+            "Die übrigen wurden nicht gespeichert; die Liste zeigt den aktuellen Stand. Versuche es für sie erneut.",
+            "Die übrigen wurden nicht gespeichert; die Liste zeigt den aktuellen Stand. Versuchen Sie es für sie erneut.",
+          ),
+          tone: "error",
+          action: {
+            label: "Rückgängig",
+            run: () => {
+              undo().catch(() =>
+                toast?.show({
+                  title: "Die Änderung wurde nicht zurückgesetzt.",
+                  tone: "error",
+                }),
+              );
+            },
+          },
+        });
+        return "cancelled";
       } finally {
-        await refresh();
+        await refresh(scope);
       }
     },
-    [refresh],
+    [address, refresh, toast],
   );
   const setStatus = useCallback(
     (ids: readonly string[], status: "open" | "done") =>
@@ -584,6 +627,7 @@ function TasksWorkspace({
                 ),
               ({ before, saved }, row) =>
                 planTo(row, before.state, before.plannedOn, saved),
+              { plans: true },
             ),
         },
       },
@@ -726,6 +770,7 @@ function TasksWorkspace({
                   ? null
                   : setPriority(row.task, value as "high" | "none"),
               (saved, row) => setPriority(saved, row.task.priority),
+              { tasks: true },
             ),
         },
       },
@@ -1170,14 +1215,26 @@ function TasksWorkspace({
   );
 
   /* ----- bulk ----- */
+  const [completing, setCompleting] = useState(false);
   const completeChecked = async (ids: readonly string[], clear: () => void) => {
+    if (completing) return;
+    // Only open rows are written; done ones are skipped and not counted.
+    const changed = ids.filter(
+      (id) => rowsRef.current.get(id)?.task.status === "open",
+    ).length;
+    setCompleting(true);
     try {
       const result = await setStatus(ids, "done");
+      // A partial result has reported itself (k von n, with undo).
+      if (result === "cancelled") {
+        clear();
+        return;
+      }
       toast?.show({
         title:
-          ids.length === 1
+          changed === 1
             ? "1 Aufgabe erledigt."
-            : `${ids.length} Aufgaben erledigt.`,
+            : `${changed} Aufgaben erledigt.`,
         tone: "success",
         action: {
           label: "Rückgängig",
@@ -1194,7 +1251,7 @@ function TasksWorkspace({
       clear();
     } catch {
       toast?.show({
-        title: "Nicht alle Aufgaben wurden erledigt.",
+        title: "Die Aufgaben wurden nicht erledigt.",
         description: says(
           address,
           "Die Liste zeigt den aktuellen Stand. Versuche es erneut.",
@@ -1202,6 +1259,8 @@ function TasksWorkspace({
         ),
         tone: "error",
       });
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -1425,6 +1484,7 @@ function TasksWorkspace({
                   targets.every((row) => row.task.status === "done")
                 }
                 icon={CircleCheck}
+                loading={completing}
                 onClick={() => void completeChecked(ids, clear)}
                 size="sm"
                 variant="secondary"

@@ -54,23 +54,23 @@
   font-weight: var(--fw-semibold);
   line-height: 22px;
 }
-.steps {
+.tasks-page .steps {
   display: grid;
   gap: 2px;
 }
-.steps li {
+.tasks-page .steps li {
   display: flex;
   min-height: 36px;
   align-items: center;
 }
-.steps .checkbox {
+.tasks-page .steps .checkbox {
   min-height: 36px;
   cursor: pointer;
 }
-.access-list {
+.tasks-page .access-list {
   display: grid;
 }
-.access-list li {
+.tasks-page .access-list li {
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -78,7 +78,7 @@
   border-bottom: var(--hair) solid var(--border);
   font-size: var(--fs-sm);
 }
-.access-list li > span:nth-child(2) {
+.tasks-page .access-list li > span:nth-child(2) {
   flex: 1;
 }
 @media (max-width: 720px) {
@@ -371,8 +371,8 @@
 @media (max-width: 720px) {
   .task-editor-property > summary,
   .task-structure-check,
-  .steps li,
-  .steps .checkbox {
+  .tasks-page .steps li,
+  .tasks-page .steps .checkbox {
     min-height: 44px;
   }
 }

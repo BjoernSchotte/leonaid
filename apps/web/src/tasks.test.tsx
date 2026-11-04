@@ -379,6 +379,46 @@ describe("tasks page", () => {
     );
   });
 
+  it("reports a partial bulk edit with an undo for the saved rows", async () => {
+    const client = harness({
+      open: [task("a", "Stände aufbauen"), task("b", "Kasse zählen")],
+    });
+    const { ApiError } = await import("@leonaid/api-client");
+    client.updateTask.mockImplementation(async (id, body) => {
+      if (id === "b") throw new ApiError(409, { message: "conflict" } as never);
+      return {
+        ...task(id, "x"),
+        status: body.status,
+        revision: body.expectedRevision + 1,
+      } as TaskSummary;
+    });
+    renderPage(client, { path: "/admin/tasks?view=open&sort=title" });
+    await screen.findByText("Stände aufbauen");
+    press("j");
+    press("x");
+    press("j");
+    press("x");
+    press("s");
+    fireEvent.click(await screen.findByRole("option", { name: /Erledigt/ }));
+    expect(await screen.findByText("1 von 2 Aufgaben geändert.")).toBeTruthy();
+    expect(screen.queryByText("Status wurde nicht geändert.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+    await act(async () => {});
+    expect(client.updateTask).toHaveBeenLastCalledWith(
+      "a",
+      expect.objectContaining({ status: "open", expectedRevision: 2 }),
+    );
+  });
+
+  it("hides who sees the list when nobody else does", async () => {
+    const client = harness({ open: [task("a", "Stände aufbauen")] });
+    renderPage(client, { path: "/admin/tasks?view=open&open=a" });
+    await screen.findByRole("complementary", { name: /Stände/ });
+    await act(async () => {});
+    expect(client.listTaskListMembers).toHaveBeenCalled();
+    expect(screen.queryByText("Wer die Liste sieht")).toBeNull();
+  });
+
   it("refuses edits on tasks the person may only read", async () => {
     const client = harness({
       open: [task("a", "Nur lesen", { canEdit: false })],

@@ -23,7 +23,7 @@ export type DueBucket =
 
 export const PLAN_LABELS: Readonly<Record<PlanBucket, string>> = {
   today: "Heute",
-  due: "Heute fällig",
+  due: "Bis heute fällig",
   week: "Diese Woche",
   later: "Später",
   someday: "Irgendwann",
@@ -240,7 +240,7 @@ export function planLabel(row: TaskRow, today: string): string | null {
     return weekday.format(new Date(year!, month! - 1, day!));
   }
   if (row.plan?.state === "someday") return "Irgendwann";
-  if (row.planSource === "due") return "Heute fällig";
+  if (row.planSource === "due") return "Fällig";
   return null;
 }
 

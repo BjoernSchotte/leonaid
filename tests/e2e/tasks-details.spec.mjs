@@ -322,6 +322,24 @@ for (const [surface, width] of [
       ).toBe(true);
     }
 
+    if (width <= 720) {
+      // Phone: closing the sheet with a draft asks first; dismissing keeps
+      // sheet and draft.
+      const sheet = page.locator("dialog.pane-sheet");
+      const asked = [];
+      page.once("dialog", async (dialog) => {
+        asked.push(dialog.message());
+        await dialog.dismiss();
+      });
+      await sheet.getByRole("button", { name: "Schließen (Esc)" }).click();
+      await expect.poll(() => asked.length).toBe(1);
+      expect(asked[0]).toContain("verwerfen");
+      await expect(sheet).toBeVisible();
+      await expect(description).toHaveValue(
+        "Dieser Entwurf muss erhalten bleiben",
+      );
+    }
+
     page.once("dialog", async (dialog) => dialog.accept());
     await editor.getByRole("button", { name: "Abbrechen" }).click();
     await expect(taskPane(page)).toHaveCount(0);

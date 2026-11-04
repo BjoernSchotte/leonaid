@@ -67,7 +67,7 @@ details with unsaved changes asks first.
 Planung** in the details you place a task on a day, under **Irgendwann** (some
 day) or leave it **Nicht geplant**. Your planning is private: other members
 see neither your plan nor your personal order. **Mein Plan** groups by
-**Heute**, **Heute fällig** (due today or overdue), **Diese Woche**, **Später**
+**Heute**, **Bis heute fällig** (due today or overdue), **Diese Woche**, **Später**
 and **Irgendwann**.
 
 Deferring a task (**Zurückgestellt**) hides it from **Offen** and **Alle
