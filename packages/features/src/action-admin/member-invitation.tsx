@@ -27,6 +27,7 @@ import {
 import { createHref } from "../command-palette/create-request";
 import { formatDateTime } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { saveInviteDraft, takeInviteDraft } from "./invite-draft";
 import { INVITE_KIND, actionRoleLabels } from "./member-model";
 import { useActionErrorMessage } from "./use-action-error";
 
@@ -37,47 +38,6 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const retryUnlessApiError = (failureCount: number, error: unknown) =>
   !(error instanceof ApiError) && failureCount < 2;
-
-interface InviteDraft {
-  readonly email: string;
-  readonly displayName: string;
-  readonly actionId: string;
-  readonly role: InvitationRole | "";
-}
-
-/*
- * The draft survives the fresh sign-in: /fresh-login reloads the page, so
- * it waits in this tab's sessionStorage and is removed when the dialog
- * takes it back.
- */
-const DRAFT_KEY = "leonaid.member-invite-draft";
-
-function saveDraft(draft: InviteDraft) {
-  try {
-    window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  } catch {
-    // Storage blocked: the person types the invitation again.
-  }
-}
-
-function takeDraft(): InviteDraft | null {
-  try {
-    const raw = window.sessionStorage.getItem(DRAFT_KEY);
-    window.sessionStorage.removeItem(DRAFT_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<InviteDraft>;
-    return {
-      email: typeof value.email === "string" ? value.email : "",
-      displayName:
-        typeof value.displayName === "string" ? value.displayName : "",
-      actionId: typeof value.actionId === "string" ? value.actionId : "",
-      role:
-        typeof value.role === "string" ? (value.role as InvitationRole) : "",
-    };
-  } catch {
-    return null;
-  }
-}
 
 interface DraftErrors {
   readonly email?: string;
@@ -92,10 +52,13 @@ export function InviteMemberDialog({
   client,
   onClose,
   open,
+  userId,
 }: {
   readonly client: LeonAidApiClient;
   readonly onClose: () => void;
   readonly open: boolean;
+  /** The signed-in account; a stored draft belongs to it. */
+  readonly userId: string;
 }) {
   const queryClient = useQueryClient();
   const toast = useOptionalToast();
@@ -124,7 +87,7 @@ export function InviteMemberDialog({
       const fresh =
         error instanceof ApiError &&
         error.detail.code === "fresh_login_required";
-      if (fresh) saveDraft(request);
+      if (fresh) saveInviteDraft(userId, request);
       // After the fresh sign-in the dialog opens again with the draft.
       setSubmitError(
         actionErrorMessage(
@@ -156,13 +119,13 @@ export function InviteMemberDialog({
 
   useEffect(() => {
     if (!open) return;
-    const draft = takeDraft();
+    const draft = takeInviteDraft(userId);
     if (!draft) return;
     setEmail(draft.email);
     setDisplayName(draft.displayName);
     if (draft.actionId) setActionId(draft.actionId);
     if (draft.role) setRole(draft.role);
-  }, [open]);
+  }, [open, userId]);
 
   useEffect(() => {
     if (!options.data) return;

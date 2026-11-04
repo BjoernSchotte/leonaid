@@ -30,6 +30,12 @@ import {
   migrateLegacyInviteParam,
   roleFilterValues,
 } from "../../../packages/features/src/action-admin/member-model";
+import {
+  INVITE_DRAFT_KEY,
+  INVITE_DRAFT_TTL_MS,
+  saveInviteDraft,
+  takeInviteDraft,
+} from "../../../packages/features/src/action-admin/invite-draft";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
 
 const ownAction = "20000000-0000-4000-8000-000000000001";
@@ -295,6 +301,44 @@ describe("member model", () => {
     window.history.replaceState(null, "", "/admin/members?view=invite&x=1");
     migrateLegacyInviteParam();
     expect(window.location.search).toBe("?x=1&create=member-invitation");
+  });
+});
+
+describe("invite draft", () => {
+  const draft = {
+    email: "neu@leonaid.invalid",
+    displayName: "Nora Neu",
+    actionId: ownAction,
+    role: "acquirer" as const,
+  };
+
+  it("returns the draft once to the same account within 15 minutes", () => {
+    saveInviteDraft(adminId, draft, 1_000);
+    expect(takeInviteDraft(adminId, 1_000 + INVITE_DRAFT_TTL_MS)).toEqual(
+      draft,
+    );
+    expect(window.sessionStorage.getItem(INVITE_DRAFT_KEY)).toBeNull();
+    expect(takeInviteDraft(adminId, 2_000)).toBeNull();
+  });
+
+  it("drops a draft of another account", () => {
+    saveInviteDraft(klaraId, draft, 1_000);
+    expect(takeInviteDraft(adminId, 2_000)).toBeNull();
+    expect(window.sessionStorage.getItem(INVITE_DRAFT_KEY)).toBeNull();
+  });
+
+  it("drops an expired, future-dated or broken draft", () => {
+    saveInviteDraft(adminId, draft, 1_000);
+    expect(takeInviteDraft(adminId, 1_001 + INVITE_DRAFT_TTL_MS)).toBeNull();
+    saveInviteDraft(adminId, draft, 5_000);
+    expect(takeInviteDraft(adminId, 1_000)).toBeNull();
+    window.sessionStorage.setItem(INVITE_DRAFT_KEY, "{not json");
+    expect(takeInviteDraft(adminId)).toBeNull();
+    window.sessionStorage.setItem(
+      INVITE_DRAFT_KEY,
+      JSON.stringify({ ...draft, userId: adminId }),
+    );
+    expect(takeInviteDraft(adminId)).toBeNull();
   });
 });
 

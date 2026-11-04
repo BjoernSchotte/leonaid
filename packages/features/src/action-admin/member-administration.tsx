@@ -149,6 +149,7 @@ export function MemberAdministrationPage({
         client={client}
         onClose={() => setInviting(false)}
         open={inviting}
+        userId={identity.userId}
       />
     </div>
   );
