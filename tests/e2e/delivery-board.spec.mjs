@@ -94,6 +94,7 @@ test("managers assign, tick and close; drivers tick only their drops", async ({
       path: `${artifactDirectory}/delivery-board-desktop.png`,
     });
     // Fidelity set: 1440 and 390, light and dark (theme follows the system).
+    await page.mouse.move(0, 0);
     for (const [width, height] of [
       [1440, 900],
       [390, 844],
