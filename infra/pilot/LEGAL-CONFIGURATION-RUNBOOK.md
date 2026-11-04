@@ -54,8 +54,8 @@ email address, postal address or legal texts.
    part and checks the values.
 3. They choose `Als Entwurf speichern` (save as draft). The draft is not yet
    in effect. The author sees a lock note instead of the approval.
-4. A second system admin compares the changes of each part (old and new value
-   side by side) with the private evidence, enters its evidence ID and
+4. A second system admin compares the changes of each part (old value above
+   the new value) with the private evidence, enters its evidence ID and
    chooses `Entwurf freigeben` (approve draft).
 5. A system admin chooses `Version N aktivieren` (activate version N) and
    confirms it.

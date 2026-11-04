@@ -168,6 +168,11 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
   };
 }
 
+/** Evidence IDs: the server accepts upper case without surrounding spaces. */
+function evidenceId(value: string) {
+  return value.trim().toUpperCase();
+}
+
 function toInteger(value: string) {
   return Number.parseInt(value, 10);
 }
@@ -181,7 +186,7 @@ function requestFromForm(
     bic: form.bic || null,
     consentTextVersion: form.consentTextVersion,
     eInvoiceDecision: form.eInvoiceDecision,
-    eInvoiceEvidenceId: form.eInvoiceEvidenceId.toUpperCase() || null,
+    eInvoiceEvidenceId: evidenceId(form.eInvoiceEvidenceId) || null,
     expectedRevision: revision,
     iban: form.iban,
     issuer: {
@@ -197,7 +202,7 @@ function requestFromForm(
     numberWidth: toInteger(form.numberWidth),
     paymentTermsDays: toInteger(form.paymentTermsDays),
     privacyContactEmail: form.privacyContactEmail,
-    privacyEvidenceId: form.privacyEvidenceId.toUpperCase(),
+    privacyEvidenceId: evidenceId(form.privacyEvidenceId),
     publicOrderLegalBasis: form.publicOrderLegalBasis,
     publicOrderNoticeText: form.publicOrderNoticeText,
     retention: {
@@ -207,7 +212,7 @@ function requestFromForm(
       contactDays: toInteger(form.contactRetentionDays),
       invoiceDays: toInteger(form.invoiceRetentionDays),
     },
-    taxEvidenceId: form.taxEvidenceId.toUpperCase(),
+    taxEvidenceId: evidenceId(form.taxEvidenceId),
     taxNote: form.taxNote,
     taxRateBasisPoints: Math.round(Number(form.taxRatePercent) * 100),
     taxTreatment: form.taxTreatment,
@@ -493,8 +498,9 @@ const PARTS = [
       {
         key: "eInvoiceEvidenceId",
         label: "Nachweis-ID der Entscheidung",
-        hint: "Referenz auf die dokumentierte Entscheidung.",
+        hint: "Referenz auf die dokumentierte Entscheidung. Solange die Entscheidung offen ist, bleibt das Feld leer; aktivieren lässt sich die Version erst mit Nachweis.",
         placeholder: "z. B. ERECHNUNG-2026-01",
+        optional: true,
       },
     ],
   },
@@ -512,6 +518,10 @@ export type LegalPartId = Part["id"];
 export function legalPart(pathname: string): LegalPartId {
   const id = pathname.replace(/\/+$/, "").split("/admin/legal/")[1];
   return PARTS.find((part) => part.id === id)?.id ?? PARTS[0].id;
+}
+
+function earlierVersions(newest: number): string {
+  return newest === 2 ? "Version 1" : `Version 1 bis ${newest - 1}`;
 }
 
 function shown(spec: FieldSpec, form: LegalForm): string {
@@ -532,6 +542,20 @@ function changedFields(
     (spec: FieldSpec) => !before || before[spec.key] !== after[spec.key],
   );
 }
+
+/** The first required field left empty, in list order. */
+export function firstMissingField(
+  form: LegalForm,
+): { readonly part: Part; readonly spec: FieldSpec } | null {
+  for (const part of PARTS) {
+    for (const spec of part.fields as readonly FieldSpec[]) {
+      if (!spec.optional && form[spec.key].trim() === "") return { part, spec };
+    }
+  }
+  return null;
+}
+
+const fieldId = (key: FieldKey) => `legal-field-${key}`;
 
 export interface LegalConfigurationPageProps {
   readonly client: LeonAidApiClient;
@@ -601,7 +625,7 @@ export function LegalConfigurationPage({
       const state = configuration.data;
       if (!state?.draft) throw new Error("Entwurf fehlt.");
       return client.approveLegalConfigurationDraft(state.draft.id, {
-        evidenceId: approvalEvidence.trim().toUpperCase(),
+        evidenceId: evidenceId(approvalEvidence),
         expectedRevision: state.revision,
       });
     },
@@ -630,8 +654,28 @@ export function LegalConfigurationPage({
         tone: "success",
       });
     },
-    onError: (cause) => {
+    onError: async (cause) => {
       setConfirmActivate(false);
+      if (
+        cause instanceof ApiError &&
+        cause.detail.code === "legal_configuration_activation_blocked"
+      ) {
+        // The server lists codes; show the labelled blockers of the
+        // current draft instead.
+        const refreshed = await configuration.refetch();
+        const blockers = refreshed.data?.draft?.values.activationBlockers ?? [];
+        setError({
+          code: cause.detail.code,
+          conflict: true,
+          message: blockers.length
+            ? `Noch nicht aktivierbar: ${blockers
+                .map((blocker) => blockerLabels[blocker] ?? blocker)
+                .join(" ")}`
+            : "Die Version ist noch nicht aktivierbar. Bitte laden Sie die Seite neu.",
+          requestId: cause.detail.requestId,
+        });
+        return;
+      }
       failed(cause);
     },
   });
@@ -697,7 +741,24 @@ export function LegalConfigurationPage({
 
   function submitDraft(event: FormEvent) {
     event.preventDefault();
-    if (form) save.mutate(form);
+    if (!form) return;
+    // Only the shown part's fields are in the page, so the browser cannot
+    // check the others; open the part with the first empty field instead.
+    const missing = firstMissingField(form);
+    if (missing) {
+      setError({
+        code: null,
+        conflict: false,
+        message: `Bitte füllen Sie „${missing.spec.label}“ im Bereich ${missing.part.name} aus.`,
+        requestId: null,
+      });
+      go(missing.part.id);
+      window.requestAnimationFrame(() =>
+        document.getElementById(fieldId(missing.spec.key))?.focus(),
+      );
+      return;
+    }
+    save.mutate(form);
   }
 
   if (configuration.isPending) {
@@ -1152,25 +1213,29 @@ export function LegalConfigurationPage({
                   </span>
                 </li>
               ) : null}
-              {active
-                ? Array.from(
-                    { length: active.version },
-                    (_unused, offset) => active.version - offset,
-                  ).map((version) => (
-                    <li key={version}>
-                      <span>
-                        Version {version} ·{" "}
-                        {version === active.version ? "aktiv" : "ersetzt"}
-                        {version === active.version ? (
-                          <time dateTime={active.createdAt}>
-                            erstellt {formatDateTime(active.createdAt)} ·{" "}
-                            {active.createdByDisplayName}
-                          </time>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))
-                : null}
+              {active ? (
+                <li>
+                  <span>
+                    Version {active.version} · aktiv
+                    <time dateTime={active.createdAt}>
+                      erstellt {formatDateTime(active.createdAt)} ·{" "}
+                      {active.createdByDisplayName}
+                    </time>
+                  </span>
+                </li>
+              ) : null}
+              {/* Older numbers include drafts that were never in force, so
+                  they are named neutrally; there is no history API yet. */}
+              {(active?.version ?? draft?.version ?? 1) > 1 ? (
+                <li>
+                  <span>
+                    {earlierVersions(active?.version ?? draft!.version)}
+                    <time>
+                      frühere Versionen, ohne Verlauf in dieser Ansicht
+                    </time>
+                  </span>
+                </li>
+              ) : null}
             </ol>
           </section>
           <p className="callout small legal-note">
@@ -1234,6 +1299,7 @@ function LegalField({
     <Field
       className={spec.wide ? "legal-field is-wide" : "legal-field"}
       hint={spec.hint}
+      id={fieldId(spec.key)}
       label={spec.unit ? `${spec.label} (${spec.unit})` : spec.label}
       optional={spec.optional}
       required={!spec.optional}

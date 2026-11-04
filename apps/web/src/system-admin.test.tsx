@@ -132,6 +132,11 @@ const report: PrivacySubjectReportResponse = {
 function fakeClient() {
   return {
     getOperationsOverview: vi.fn(async () => overview),
+    getPlatformInformation: vi.fn(async () => ({
+      apiVersion: "v1",
+      release: "2026.11.1",
+      service: "leonaid",
+    })),
     retryOperationalJob: vi.fn(async () => ({})),
     getPilotDailyReport: vi.fn(),
     runSupportProbe: vi.fn(),
@@ -225,7 +230,9 @@ describe("SystemPage", () => {
   it("switches tabs with the URL and shows the failed-job count", async () => {
     renderPage("/admin/system");
     expect(
-      screen.getByText("Eine Installation für Lions Club Musterstadt"),
+      await screen.findByText(
+        "Version 2026.11.1 · eine Installation für Lions Club Musterstadt",
+      ),
     ).toBeTruthy();
     const jobsTab = await screen.findByRole("tab", {
       name: /Hintergrundaufgaben/,
@@ -334,5 +341,47 @@ describe("SystemPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nachweise suchen" }));
     expect(await screen.findByText(/vollständige E-Mail-Adresse/)).toBeTruthy();
     expect(client.lookupPrivacySubject).not.toHaveBeenCalled();
+  });
+
+  it("erases the found subject even after the search field changed", async () => {
+    const client = renderPage("/admin/privacy");
+    fireEvent.change(screen.getByTestId("privacy-email"), {
+      target: { value: subject },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Nachweise suchen" }));
+    await screen.findByTestId("privacy-summary");
+    // The admin starts typing the next request; the found subject stays.
+    fireEvent.change(screen.getByTestId("privacy-email"), {
+      target: { value: "other@example.invalid" },
+    });
+    // The re-lookup after the erasure fails: the erasure still succeeded.
+    client.lookupPrivacySubject.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Anonymisieren/ }));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Operative Daten anonymisieren?",
+    });
+    fireEvent.change(
+      within(dialog).getByTestId("privacy-erasure-confirmation"),
+      { target: { value: subject } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Verbindlich anonymisieren" }),
+    );
+    await waitFor(() =>
+      expect(client.erasePrivacySubject).toHaveBeenCalledWith({
+        confirmation: subject,
+        email: subject,
+      }),
+    );
+    expect(
+      await screen.findByText("Anonymisierung abgeschlossen"),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(client.lookupPrivacySubject).toHaveBeenLastCalledWith({
+        email: subject,
+      }),
+    );
+    expect(screen.queryByText("Vorgang nicht abgeschlossen")).toBeNull();
   });
 });

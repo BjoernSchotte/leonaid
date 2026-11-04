@@ -152,7 +152,8 @@ export function FlagsTab({ client }: FeatureFlagAdminPageProps) {
           <span>
             Schalter ändern nur Sichtbarkeit und Einführung. Rollen und
             Berechtigungen bleiben unverändert; Schreibzugriffe prüft immer der
-            Server.
+            Server. Module werden bei der Installation über die
+            Betriebskonfiguration ein- oder ausgeschaltet.
           </span>
         </div>
         {error ? (

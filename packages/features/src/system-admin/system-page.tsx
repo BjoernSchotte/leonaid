@@ -43,6 +43,12 @@ export interface SystemPageProps {
 export function SystemPage({ client, identity }: SystemPageProps) {
   const href = useLocationHref();
   const section = systemSection(href.split("?")[0] ?? "");
+  const platform = useQuery({
+    queryFn: () => client.getPlatformInformation(),
+    queryKey: ["platform-information"],
+    retry: false,
+    staleTime: 300_000,
+  });
   // The failed-job count for the tab comes from the same query as Betrieb.
   const overview = useQuery({
     queryFn: () => client.getOperationsOverview(),
@@ -93,7 +99,9 @@ export function SystemPage({ client, identity }: SystemPageProps) {
           <div className="page-heading">
             <h1>System</h1>
             <span className="page-count">
-              Eine Installation für {identity.installation.clubName}
+              {platform.data
+                ? `Version ${platform.data.release} · eine Installation für ${identity.installation.clubName}`
+                : `Eine Installation für ${identity.installation.clubName}`}
             </span>
           </div>
         </div>

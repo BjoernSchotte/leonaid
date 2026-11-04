@@ -91,7 +91,7 @@ class LegalConfigurationService:
         if expected_revision < 1:
             raise Conflict(
                 "legal_configuration_revision_invalid",
-                "Lade die Konfiguration neu und versuche es erneut.",
+                "Bitte laden Sie die Konfiguration neu und versuchen Sie es erneut.",
             )
         return await self._repository.save_draft(
             configuration=configuration,

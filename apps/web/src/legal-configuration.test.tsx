@@ -346,4 +346,96 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     );
     expect(await screen.findByTestId("legal-draft")).toBeTruthy();
   });
+
+  it("opens the part with the first empty required field instead of saving", async () => {
+    const client = fakeClient(stateWith({ active: null, draft: null }));
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/e-invoice",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte füllen Sie „Name des Trägers“ im Bereich Träger & Anschrift aus.",
+      ),
+    ).toBeTruthy();
+    expect(window.location.pathname).toBe("/admin/legal/carrier");
+    expect(client.saveLegalConfigurationDraft).not.toHaveBeenCalled();
+  });
+
+  it("names the blockers when the server refuses the activation", async () => {
+    const approved = stateWith({ draftApproval: approval });
+    const client = fakeClient(approved);
+    client.activateLegalConfigurationDraft.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "legal_configuration_activation_blocked",
+        message:
+          "Die Konfiguration ist noch nicht produktionsreif: e_invoice_decision_pending.",
+        requestId: "req-legal-2",
+      }),
+    );
+    renderPage(client);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Version 2 aktivieren" }),
+    );
+    // Meanwhile someone else reopened the e-invoice decision.
+    client.getLegalConfiguration.mockResolvedValue(
+      stateWith({
+        draft: version(2, klara, {
+          activationBlockers: ["e_invoice_decision_pending"],
+        }),
+        draftApproval: approval,
+      }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Jetzt aktivieren" }),
+    );
+    expect(
+      await screen.findByText(
+        "Noch nicht aktivierbar: Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/e_invoice_decision_pending/)).toBeNull();
+  });
+
+  it("does not call never-active versions replaced", async () => {
+    const client = fakeClient(
+      stateWith({ active: version(3, simone), draft: null }),
+    );
+    renderPage(client);
+    const versions = await screen.findByTestId("legal-versions");
+    expect(versions.textContent).toContain("Version 3 · aktiv");
+    expect(versions.textContent).toContain("Version 1 bis 2");
+    expect(versions.textContent).not.toContain("ersetzt");
+  });
+
+  it("trims and upper-cases evidence IDs before saving", async () => {
+    const client = fakeClient(stateWith({ draft: null }));
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(client);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    const editor = screen.getByTestId("legal-editor");
+    fireEvent.change(
+      within(editor).getByLabelText(/Nachweis-ID der Entscheidung/),
+      { target: { value: "  erechnung-2 " } },
+    );
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ eInvoiceEvidenceId: "ERECHNUNG-2" }),
+      ),
+    );
+  });
 });

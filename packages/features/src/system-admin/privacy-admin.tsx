@@ -100,6 +100,20 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
   const [erasureResult, setErasureResult] =
     useState<PrivacyErasureResponse | null>(null);
   const failed = (cause: unknown) => setError(actionErrorMessage(cause));
+  /*
+   * Reload the found subject after a change. The change itself succeeded,
+   * so a failed reload only leaves the previous report on screen.
+   */
+  async function reloadSubject(subjectEmail: string) {
+    try {
+      setReport(await client.lookupPrivacySubject({ email: subjectEmail }));
+    } catch {
+      toast?.show({
+        title: "Der neue Stand konnte nicht geladen werden. Suchen Sie erneut.",
+        tone: "error",
+      });
+    }
+  }
 
   const lookup = useMutation({
     mutationFn: (subjectEmail: string) =>
@@ -135,7 +149,7 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
           "Kontakt gesperrt. Keine Akquise und kein Marketing mehr an diese Adresse.",
         tone: "success",
       });
-      setReport(await client.lookupPrivacySubject({ email }));
+      if (report) await reloadSubject(report.subjectEmail);
     },
     onError: (cause) => {
       setRevokeTarget(null);
@@ -143,16 +157,20 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
     },
   });
   const erase = useMutation({
-    mutationFn: () =>
-      client.erasePrivacySubject({ confirmation: erasureConfirmation, email }),
-    onSuccess: async (result) => {
+    // The found subject, not the search field: it may have been edited since.
+    mutationFn: (subjectEmail: string) =>
+      client.erasePrivacySubject({
+        confirmation: erasureConfirmation,
+        email: subjectEmail,
+      }),
+    onSuccess: async (result, subjectEmail) => {
       setEraseOpen(false);
       setErasureResult(result);
       toast?.show({
         title: "Daten anonymisiert. Protokolleintrag erstellt.",
         tone: "success",
       });
-      setReport(await client.lookupPrivacySubject({ email }));
+      await reloadSubject(subjectEmail);
     },
     onError: (cause) => {
       setEraseOpen(false);
@@ -490,7 +508,9 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
           id={eraseFormId}
           onSubmit={(event) => {
             event.preventDefault();
-            if (erasureConfirmation === report?.subjectEmail) erase.mutate();
+            if (report && erasureConfirmation === report.subjectEmail) {
+              erase.mutate(report.subjectEmail);
+            }
           }}
         >
           <Field
