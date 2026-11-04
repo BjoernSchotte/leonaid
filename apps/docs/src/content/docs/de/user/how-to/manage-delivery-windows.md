@@ -4,8 +4,8 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
