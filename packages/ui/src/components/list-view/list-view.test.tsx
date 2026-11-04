@@ -240,6 +240,12 @@ afterEach(() => {
 });
 
 describe("ListView rendering", () => {
+  it("marks its root as a full-bleed page (shell layout contract)", () => {
+    const { container } = render(<Harness />);
+    const root = container.querySelector(".listview");
+    expect(root?.getAttribute("data-page-layout")).toBe("full-bleed");
+  });
+
   it("renders only the given rows with a live count", () => {
     render(<Harness />);
     expect(rowLinks()).toHaveLength(4);

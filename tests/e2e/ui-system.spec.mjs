@@ -62,6 +62,9 @@ test("UI catalog proves all base states with real identity", async ({
 
   try {
     await expect(page.getByText("Backend verbunden")).toBeVisible();
+    // Ordinary pages keep the page frame (padding, 1320 px cap).
+    await expect(page.locator(".page")).toHaveCSS("padding-left", "32px");
+    await expect(page.locator(".page")).toHaveCSS("max-width", "1320px");
     const catalog = page.getByTestId("ui-catalog");
     await expect(
       catalog.getByText("Simone System", { exact: true }).first(),

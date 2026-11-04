@@ -14,6 +14,7 @@ import json
 import os
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -351,11 +352,15 @@ async def assert_readable_where_it_points(
         elif kind in {"order", "invoice"}:
             route = "orders" if kind == "order" else "invoices"
             endpoint = "commitments" if kind == "order" else "invoices"
-            prefix = f"/admin/{route}?action="
-            assert href.startswith(prefix), href
-            listing = await session.get(
-                f"/api/v1/actions/{href.removeprefix(prefix)}/{endpoint}"
-            )
+            target = urlsplit(href)
+            assert target.path == f"/admin/{route}", href
+            query = parse_qs(target.query)
+            action_ids = query.get("action", [])
+            assert len(action_ids) == 1, href
+            if kind == "invoice":
+                # The invoice list view opens the record in its pane.
+                assert query.get("open") == [item_id], href
+            listing = await session.get(f"/api/v1/actions/{action_ids[0]}/{endpoint}")
             assert listing.status_code == 200, listing.text
             record = "commitment" if kind == "order" else "invoice"
             assert item_id in {entry[record]["id"] for entry in listing.json()["items"]}
