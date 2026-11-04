@@ -16,7 +16,21 @@ import {
  * ramp, each with its legend or table. Fixed demo values.
  */
 
-const scores = [0, 0, 0, null, 0, null, null, null, 5, 6, 10] as const;
+// As the server discloses (k = 5): once a count is withheld, every cell
+// under 10 is withheld with it, zeros included.
+const scores = [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  12,
+  14,
+  16,
+] as const;
 const segments = [
   ["Kritiker (0–6)", 6],
   ["Passive (7–8)", 8],

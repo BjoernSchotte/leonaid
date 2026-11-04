@@ -511,7 +511,7 @@ test("charts: token colours under the strict CSP, theme redraw, resize", async (
     await charts.scrollIntoViewIfNeeded();
     const canvases = charts.locator("canvas[role=img]");
     await expect(canvases).toHaveCount(3);
-    await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: < 5/);
+    await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: –/);
     await expect(
       charts.getByRole("list", { name: "Legende: Empfehlung" }),
     ).toContainText("Förderer (9–10)16 (53 %)");
@@ -530,7 +530,7 @@ test("charts: token colours under the strict CSP, theme redraw, resize", async (
       });
     const light = await pixel();
     await charts.getByText("Als Tabelle anzeigen").click();
-    await expect(charts.getByRole("table")).toContainText("< 5");
+    await expect(charts.getByRole("table")).toContainText("–");
     await expect(charts).toHaveScreenshot("ui-system-charts.png", {
       animations: "disabled",
       caret: "hide",
