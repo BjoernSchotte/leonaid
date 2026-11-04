@@ -27,6 +27,7 @@ from leonaid.domain.acquisition import (
     ReminderUrgency,
     reminder_urgency,
 )
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.privacy import (
     ContactChannel,
@@ -171,7 +172,7 @@ class AcquisitionActivityService:
         self._repository = repository
         self._crm = crm
         self._privacy = privacy
-        self._local_timezone = local_timezone or ZoneInfo("Europe/Berlin")
+        self._local_timezone = local_timezone or INSTALLATION_TIME_ZONE
 
     async def board(
         self,

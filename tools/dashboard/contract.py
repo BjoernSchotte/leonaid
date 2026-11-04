@@ -12,6 +12,7 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -311,6 +312,80 @@ def assert_definitions(payload: dict[str, Any], expected_keys: set[str]) -> None
         raise ContractFailure("Metric definitions are incomplete")
 
 
+async def assert_reminder_buckets_use_the_berlin_day() -> None:
+    """Follow-up buckets follow the club's day at a pinned night-hour clock.
+
+    Evaluated at 23:45 UTC on 14 January (00:45 on the 15th in Berlin). A
+    follow-up due 22:30 UTC on the 14th is overdue in Berlin (23:30 on the
+    14th) although UTC still calls it today; one due 22:30 UTC on the 15th
+    is today in Berlin although UTC calls it upcoming.
+    """
+
+    evaluated_at = datetime(2026, 1, 14, 23, 45, tzinfo=timezone.utc)
+    pool = await asyncpg.create_pool(require_env("CORE_DATABASE_URL"))
+    try:
+        ids = [
+            row["id"]
+            for row in await pool.fetch(
+                """
+                SELECT id FROM acquisition_assignment
+                WHERE action_id = $1 AND acquirer_user_id = $2
+                  AND status <> 'handed_over' AND due_at IS NULL
+                ORDER BY id
+                """,
+                ACTION_ID,
+                ANNA_ID,
+            )
+        ]
+        if len(ids) != 2:
+            raise ContractFailure("Golden follow-up fixture changed")
+        repository = AsyncpgDashboardRepository(pool)
+        cases = (
+            (
+                datetime(2026, 1, 14, 23, 30, tzinfo=timezone.utc),
+                datetime(2026, 1, 14, 22, 30, tzinfo=timezone.utc),
+                {"overdue": 1, "today": 1, "upcoming": 0},
+            ),
+            (
+                datetime(2026, 1, 14, 23, 30, tzinfo=timezone.utc),
+                datetime(2026, 1, 15, 22, 30, tzinfo=timezone.utc),
+                {"overdue": 0, "today": 2, "upcoming": 0},
+            ),
+        )
+        try:
+            for first, second, expected in cases:
+                await pool.executemany(
+                    "UPDATE acquisition_assignment SET due_at = $2 WHERE id = $1",
+                    [(ids[0], first), (ids[1], second)],
+                )
+                snapshot = await repository.snapshot(
+                    action_id=ACTION_ID,
+                    actor_user_id=ANNA_ID,
+                    include_acquirer=True,
+                    include_charity_admin=False,
+                    evaluated_at=evaluated_at,
+                )
+                if snapshot is None or snapshot.acquirer is None:
+                    raise ContractFailure("Acquirer dashboard missing")
+                reminders = snapshot.acquirer.reminders
+                actual = {
+                    "overdue": reminders.overdue,
+                    "today": reminders.today,
+                    "upcoming": reminders.upcoming,
+                }
+                if actual != expected:
+                    raise ContractFailure(
+                        f"Follow-ups ignore the Berlin day: {actual} != {expected}"
+                    )
+        finally:
+            await pool.execute(
+                "UPDATE acquisition_assignment SET due_at = NULL WHERE id = ANY($1)",
+                ids,
+            )
+    finally:
+        await pool.close()
+
+
 async def run() -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
@@ -413,6 +488,7 @@ async def run() -> None:
                 raise ContractFailure("Empty or partly configured action is not stable")
     finally:
         await connection.close()
+    await assert_reminder_buckets_use_the_berlin_day()
 
     print("dashboard-contract: OK: roles, golden metrics, real SQL aggregates,")
     print(

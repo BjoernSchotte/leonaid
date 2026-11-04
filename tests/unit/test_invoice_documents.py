@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -12,21 +9,11 @@ from leonaid.application.invoice_documents import (
     RenderedInvoiceDocument,
 )
 from leonaid.domain.errors import DomainInvariantError
-
-FIXTURE = (
-    Path(__file__).parents[1]
-    / "fixtures"
-    / "golden"
-    / "v1"
-    / "documents"
-    / "KT26-0001.json"
-)
+from tests.unit.invoice_builders import document_snapshot
 
 
 def snapshot() -> InvoiceDocumentSnapshot:
-    payload: Any = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    assert isinstance(payload, dict)
-    return InvoiceDocumentSnapshot.from_payload(payload)
+    return document_snapshot()
 
 
 def test_invoice_document_snapshot_round_trips_golden_data() -> None:

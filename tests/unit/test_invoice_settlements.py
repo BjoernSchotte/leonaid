@@ -32,6 +32,7 @@ def invoice_state(
         number="KT26-0001",
         status=status,
         issued_at=ISSUED_AT,
+        issued_on=ISSUED_AT.date(),
         gross=Money(36_000, "EUR"),
     )
 

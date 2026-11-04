@@ -437,9 +437,15 @@ test("complete Krapfentaxi journey without database intervention", async ({
     name: /Zahlung für .* erfassen/,
   });
   await paymentDialog.getByTestId("payment-amount").fill("72.00");
-  await paymentDialog
-    .getByTestId("payment-date")
-    .fill(new Date().toISOString().slice(0, 10));
+  // The club's day (Berlin), as UI and server use it; the UTC day is still
+  // yesterday between 00:00 and 01:00/02:00 in Berlin.
+  const berlinToday = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+  }).format(new Date());
+  await expect(paymentDialog.getByTestId("payment-date")).toHaveValue(
+    berlinToday,
+  );
+  await paymentDialog.getByTestId("payment-date").fill(berlinToday);
   await paymentDialog
     .getByTestId("payment-reference")
     .fill(`GOLDEN-${slug.toUpperCase()}`);

@@ -22,6 +22,7 @@ from leonaid.application.delivery_completion import (
     DeliveryCompletionService,
     delivery_completion_version,
 )
+from leonaid.domain.calendar import local_day
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -2475,7 +2476,7 @@ async def pilot_daily_report(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Content-Disposition"] = (
         f'inline; filename="leonaid-pilot-daily-'
-        f'{report.generated_at.date().isoformat()}.json"'
+        f'{local_day(report.generated_at).isoformat()}.json"'
     )
     response.headers["X-Content-SHA256"] = checksum
     return transport.model_copy(update={"checksum_sha256": checksum})

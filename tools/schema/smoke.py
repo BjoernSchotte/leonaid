@@ -96,10 +96,30 @@ class SchemaError(RuntimeError):
 async def expect_database_error(
     operation: Callable[[], Awaitable[Any]],
     label: str,
+    *,
+    sqlstate: str | None = None,
+    constraint: str | None = None,
+    message: str | None = None,
 ) -> None:
+    """The operation fails; when given, with this SQLSTATE, constraint, message."""
+
     try:
         await operation()
-    except asyncpg.PostgresError:
+    except asyncpg.PostgresError as error:
+        details = {
+            "sqlstate": (sqlstate, getattr(error, "sqlstate", None)),
+            "constraint": (constraint, getattr(error, "constraint_name", None)),
+            "message": (message, str(error)),
+        }
+        wrong = {
+            name: actual
+            for name, (expected, actual) in details.items()
+            if expected is not None and actual != expected
+        }
+        if wrong:
+            raise SchemaError(
+                f"{label}: rejected for another reason: {wrong}"
+            ) from error
         return
     raise SchemaError(f"constraint was not enforced: {label}")
 
@@ -158,6 +178,22 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             raise SchemaError(
                 "legacy invoice was not fully migrated to the new snapshot contract"
             )
+        invoice_dates = {
+            str(row["number"]): (row["issued_on"], row["due_on"])
+            for row in await connection.fetch(
+                """
+                SELECT number, issued_on, due_on FROM invoice
+                WHERE number IN ('LEGACY-0001', 'LEGACY-0002')
+                """
+            )
+        }
+        # Backfilled with the UTC day of issued_at: LEGACY-0002 was issued at
+        # 23:30 UTC on 16 November (already the 17th in Berlin).
+        if invoice_dates != {
+            "LEGACY-0001": (date(2026, 11, 16), date(2026, 11, 30)),
+            "LEGACY-0002": (date(2026, 11, 16), date(2026, 11, 30)),
+        }:
+            raise SchemaError(f"invoice dates were not backfilled: {invoice_dates}")
 
 
 async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
@@ -425,7 +461,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             recipient_snapshot,
             line_snapshot, tax_treatment, tax_rate_basis_points,
             tax_note, payment_reference, approved_by_user_id,
-            document_version, idempotency_key
+            document_version, idempotency_key, issued_on
         )
         VALUES (
             '90000000-0000-4000-8000-000000000001', $1,
@@ -438,7 +474,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             '[{"description":"Krapfenbox","quantity":2,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":7200,"taxMinor":0,"grossMinor":7200,"currency":"EUR"}]'::jsonb,
             'small_business', 0,
             'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-            'KT26-0001', $2, 2, 'poc090:schema:invoice'
+            'KT26-0001', $2, 2, 'poc090:schema:invoice', '2026-11-15'
         )
         """,
         ACTION,
@@ -457,6 +493,17 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
     )
     await expect_database_error(
         lambda: connection.execute(
+            "UPDATE invoice SET issued_on = issued_on + 1 WHERE number = 'KT26-0001'"
+        ),
+        "changed invoice date of an issued invoice",
+        sqlstate="23000",
+        message="issued invoice snapshots are immutable",
+    )
+    # The CHECK, not the immutability trigger: a new row with a due date
+    # before its invoice date. CHECK constraints run before the unique
+    # index on the commitment, so nothing else can reject it first.
+    await expect_database_error(
+        lambda: connection.execute(
             """
             INSERT INTO invoice (
                 id, action_id, commitment_id, number, status, issued_at,
@@ -465,7 +512,36 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
                 recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
-                document_version
+                document_version, issued_on
+            )
+            SELECT
+                '90000000-0000-4000-8000-000000000003', action_id,
+                commitment_id, 'KT26-0003', status, issued_at,
+                service_on, issued_on - 1, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, 'KT26-0003', approved_by_user_id,
+                document_version, issued_on
+            FROM invoice
+            WHERE number = 'KT26-0001'
+            """
+        ),
+        "due date before the invoice date",
+        sqlstate="23514",
+        constraint="ck_invoice_due_on_after_issued_on",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO invoice (
+                id, action_id, commitment_id, number, status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, payment_reference, approved_by_user_id,
+                document_version, issued_on
             )
             SELECT
                 '90000000-0000-4000-8000-000000000002', action_id,
@@ -475,7 +551,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
                 recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, 'KT26-0002', approved_by_user_id,
-                document_version
+                document_version, issued_on
             FROM invoice
             WHERE number = 'KT26-0001'
             """
