@@ -54,6 +54,7 @@ PHASES = {
     "survey-permissions-matrix",
     "survey-permissions-api",
     "survey-browser",
+    "survey-browser-after",
     "survey-export-renderers",
     "survey-responses-api",
     "survey-request-limits-api",

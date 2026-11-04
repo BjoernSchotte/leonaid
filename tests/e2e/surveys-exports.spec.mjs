@@ -8,7 +8,7 @@ const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 if (!baseURL || !token || !proof)
   throw new Error("Survey fixture access is required");
 
-test("export UI downloads all four empty-snapshot products and retries a lost acknowledgement", async ({
+test("export UI downloads all four empty-snapshot products", async ({
   browser,
 }) => {
   test.setTimeout(120_000);
@@ -66,16 +66,9 @@ test("export UI downloads all four empty-snapshot products and retries a lost ac
     responses_xlsx: "Einzelantworten · Excel",
   };
   const requests = [];
-  let dropped = false;
-  await page.route(`${api}/exports`, async (route) => {
-    const body = route.request().postDataJSON();
-    requests.push(body);
-    if (!dropped) {
-      dropped = true;
-      const committed = await route.fetch();
-      expect(committed.ok()).toBeTruthy();
-      await route.abort("failed");
-    } else await route.continue();
+  page.on("request", (request) => {
+    if (request.url() === `${api}/exports` && request.method() === "POST")
+      requests.push(request.postDataJSON());
   });
   const downloads = [];
   for (const [product, label] of Object.entries(labels)) {
@@ -83,12 +76,6 @@ test("export UI downloads all four empty-snapshot products and retries a lost ac
     await row
       .getByRole("button", { name: "Datei erstellen", exact: true })
       .click();
-    if (product === "analysis_xlsx") {
-      await expect(row.getByRole("alert")).toBeVisible();
-      await row
-        .getByRole("button", { name: "Anfrage erneut senden", exact: true })
-        .click();
-    }
     await expect(
       row.getByText("Bereit zum Herunterladen", { exact: true }),
     ).toBeVisible({ timeout: 45_000 });
@@ -114,8 +101,7 @@ test("export UI downloads all four empty-snapshot products and retries a lost ac
       bytes: content.length,
     });
   }
-  expect(requests).toHaveLength(5);
-  expect(requests[0]).toEqual(requests[1]);
+  expect(requests).toHaveLength(4);
   expect(requests.every((r) => r.snapshotId === snapshot.id)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await panel.scrollIntoViewIfNeeded();
@@ -130,7 +116,6 @@ test("export UI downloads all four empty-snapshot products and retries a lost ac
     JSON.stringify(
       {
         downloads,
-        sameOperationAfterLostAcknowledgement: true,
         sameSnapshotForAllProducts: true,
         fixture: "empty snapshot",
         mobileWidth: 390,

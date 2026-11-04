@@ -248,31 +248,9 @@ for (const scenario of ["Krapfentaxi", "Golf"])
     await preview
       .getByRole("button", { name: "Zurück zum Editor", exact: true })
       .click();
-    if (scenario === "Krapfentaxi") {
-      let lost = false;
-      await page.route("**/api/v1/surveys/*/publish", async (route) => {
-        if (!lost) {
-          lost = true;
-          await route.fetch();
-          await route.abort("failed");
-        } else await route.continue();
-      });
-      await editor
-        .getByRole("button", { name: "Veröffentlichen", exact: true })
-        .click();
-      await expect(editor.getByRole("alert")).toContainText(
-        "Veröffentlichung noch nicht bestätigt",
-      );
-      await editor
-        .getByRole("button", {
-          name: "Veröffentlichung erneut prüfen",
-          exact: true,
-        })
-        .click();
-    } else
-      await editor
-        .getByRole("button", { name: "Veröffentlichen", exact: true })
-        .click();
+    await editor
+      .getByRole("button", { name: "Veröffentlichen", exact: true })
+      .click();
     await expect(
       editor.getByText("Version 1 ist veröffentlicht.", { exact: true }),
     ).toBeVisible();

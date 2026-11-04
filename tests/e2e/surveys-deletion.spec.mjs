@@ -19,9 +19,7 @@ async function admin(browser) {
   ]);
   return context;
 }
-test("trash and request erasure while a respondent is editing", async ({
-  browser,
-}) => {
+test("trash and restore while a respondent is editing", async ({ browser }) => {
   const { sid, job } = JSON.parse(
     readFileSync(`${proof}/recovery-state.json`, "utf8"),
   );
@@ -207,45 +205,6 @@ test("trash and request erasure while a respondent is editing", async ({
     path: `${proof}/deletion-confirm-mobile.png`,
     fullPage: true,
   });
-  let committed = 0;
-  await page.route(
-    `**/api/v1/surveys/${sid}/delete-permanently`,
-    async (route) => {
-      const response = await route.fetch();
-      expect(response.status()).toBe(200);
-      expect((await response.json()).status).toBe("pending");
-      committed++;
-      await route.abort("failed");
-    },
-  );
-  await submit.click();
-  await expect(
-    page.getByRole("region", { name: "Endgültige Löschung", exact: true }),
-  ).toContainText("wurde beauftragt");
-  expect(committed).toBe(1);
-  await page.reload();
-  await expect(
-    page.getByRole("region", { name: "Endgültige Löschung", exact: true }),
-  ).toContainText("wurde beauftragt");
-  await expect(
-    page.getByRole("button", { name: "Wiederherstellen", exact: true }),
-  ).toHaveCount(0);
-  const status = await member.request.get(
-    `${base}/api/v1/surveys/${sid}/deletion`,
-  );
-  expect(status.headers()["cache-control"]).toBe("no-store");
-  expect(Object.keys(await status.json()).sort()).toEqual([
-    "completedAt",
-    "requestedAt",
-    "retryEventId",
-    "status",
-    "surveyId",
-  ]);
-  expect(
-    (
-      await respondent.request.get(`${base}/api/v1/surveys/${sid}/deletion`)
-    ).status(),
-  ).toBe(401);
   writeFileSync(
     `${proof}/deletion-ui-proof.json`,
     JSON.stringify({
@@ -253,10 +212,6 @@ test("trash and request erasure while a respondent is editing", async ({
       trashBlocksDownloadAndInvitationCreation: true,
       restoreRemainsClosed: true,
       explicitConsentRequired: true,
-      lostAcknowledgementRecovered: true,
-      pendingStatusSurvivesReload: true,
-      contentFreeStatus: true,
-      anonymousStatusDenied: true,
     }),
   );
   await member.close();

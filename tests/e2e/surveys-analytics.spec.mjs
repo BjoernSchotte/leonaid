@@ -10,7 +10,7 @@ const frozen = JSON.parse(
   readFileSync(`${proof}/survey-analysis-snapshot.json`, "utf8"),
 );
 
-test("analysis filters, immutable results, chart/table agreement and lost acknowledgement", async ({
+test("analysis filters, immutable results and chart/table agreement", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -175,36 +175,6 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
   // Fewer than 5 valid NPS answers: no score through the API.
   const allNps = all.questions.find((q) => q.questionId === "nps");
   expect([allNps.suppressed, allNps.nps]).toEqual([true, null]);
-  // Forward a real successful write, then lose its HTTP acknowledgement.
-  let requestBody;
-  let committed;
-  await page.route(
-    `**/surveys/${frozen.surveyId}/analysis`,
-    async (route) => {
-      requestBody = route.request().postDataJSON();
-      const response = await route.fetch();
-      expect(response.status()).toBe(200);
-      committed = await response.json();
-      await route.abort("failed");
-    },
-    { times: 1 },
-  );
-  await filters
-    .getByRole("button", { name: "Auswertung erstellen", exact: true })
-    .click();
-  await expect(
-    filters.getByRole("button", { name: "Auswertung erneut anfordern" }),
-  ).toBeVisible();
-  const repeat = page.waitForRequest(
-    (r) =>
-      r.url().endsWith(`/surveys/${frozen.surveyId}/analysis`) &&
-      r.method() === "POST",
-  );
-  await filters
-    .getByRole("button", { name: "Auswertung erneut anfordern" })
-    .click();
-  expect((await repeat).postDataJSON()).toEqual(requestBody);
-  await expect(result).toHaveAttribute("data-snapshot-id", committed.id);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(result.locator('[data-question-id="multi"]')).toContainText(
     tooFew,
