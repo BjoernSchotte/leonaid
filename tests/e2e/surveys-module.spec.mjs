@@ -131,6 +131,10 @@ test("member manages lifecycle and timeout through the real module", async ({
   await page
     .getByRole("button", { name: "Teilnahme beenden", exact: true })
     .click();
+  await page
+    .getByRole("alertdialog", { name: "Teilnahme beenden?" })
+    .getByRole("button", { name: "Teilnahme beenden", exact: true })
+    .click();
   await expect(state).toHaveAttribute("data-survey-status", "ended");
   await page.getByRole("button", { name: "Archivieren", exact: true }).click();
   await expect(state).toHaveAttribute("data-survey-status", "archived");

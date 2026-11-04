@@ -1,64 +1,64 @@
 ---
-import PublicMark from "../components/PublicMark.astro";
 import AuthLayout from "../layouts/AuthLayout.astro";
 
 Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 <AuthLayout title="Neue Login-E-Mail bestätigen">
-  <section class="auth-page">
-    <main class="auth-panel">
-      <PublicMark />
-      <p class="eyebrow">Kontosicherheit</p>
-      <h1>Neue Login-E-Mail bestätigen</h1>
-      <p class="auth-panel__lead" id="email-change-intro">
-        Bestätige die neue Adresse per Link oder mit dem sechsstelligen Code aus
-        deiner E-Mail. Erst danach wird sie aktiv.
+  <div class="login-card">
+    <h1>Neue Login-E-Mail bestätigen</h1>
+    <p class="login-lead" id="email-change-intro">
+      Bestätige die neue Adresse per Link oder mit dem sechsstelligen Code aus
+      deiner E-Mail. Erst danach wird sie aktiv.
+    </p>
+    <form id="email-change-form">
+      <div class="login-field code-field">
+        <label for="email-change-email">Neue E-Mail</label>
+        <small id="email-change-email-help">
+          Die Adresse, an die der Bestätigungscode gesendet wurde.
+        </small>
+        <input
+          id="email-change-email"
+          aria-describedby="email-change-email-help"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+        />
+      </div>
+      <div class="login-field code-field">
+        <label for="email-change-code">Sechsstelliger Code</label>
+        <small id="email-change-code-help">
+          Verwende den Code aus der zuletzt versendeten Nachricht.
+        </small>
+        <input
+          class="login-code"
+          id="email-change-code"
+          aria-describedby="email-change-code-help"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          required
+        />
+      </div>
+      <button
+        class="login-submit"
+        data-testid="email-change-submit"
+        type="submit"
+      >
+        Neue E-Mail bestätigen
+      </button>
+      <p
+        id="email-change-status"
+        class="login-status"
+        role="status"
+        aria-live="polite"
+      >
       </p>
-      <form id="email-change-form">
-        <div class="auth-field code-field">
-          <label for="email-change-email">Neue E-Mail</label>
-          <small id="email-change-email-help">
-            Die Adresse, an die der Bestätigungscode gesendet wurde.
-          </small>
-          <input
-            id="email-change-email"
-            aria-describedby="email-change-email-help"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-          />
-        </div>
-        <div class="auth-field code-field">
-          <label for="email-change-code">Sechsstelliger Code</label>
-          <small id="email-change-code-help">
-            Verwende den Code aus der zuletzt versendeten Nachricht.
-          </small>
-          <input
-            id="email-change-code"
-            aria-describedby="email-change-code-help"
-            name="code"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxlength="6"
-            required
-          />
-        </div>
-        <button data-testid="email-change-submit" type="submit">
-          Neue E-Mail bestätigen
-        </button>
-        <p
-          id="email-change-status"
-          class="auth-panel__status"
-          role="status"
-          aria-live="polite"
-        >
-        </p>
-      </form>
-    </main>
-  </section>
+    </form>
+  </div>
 </AuthLayout>
 
 <script>
@@ -127,9 +127,11 @@ Astro.response.headers.set("Cache-Control", "no-store");
       loginLink.textContent = "Mit neuer E-Mail anmelden";
       status.append(loginLink);
       submit.hidden = true;
-      document.querySelectorAll<HTMLElement>(".auth-field").forEach((field) => {
-        field.hidden = true;
-      });
+      document
+        .querySelectorAll<HTMLElement>(".login-field")
+        .forEach((field) => {
+          field.hidden = true;
+        });
     } catch {
       status.dataset.state = "error";
       status.textContent =

@@ -3,12 +3,15 @@
 import "@leonaid/ui/fonts.css";
 import "@leonaid/ui/leitsystem.css";
 import "../styles/global.css";
+import "../styles/auth.css";
 
 interface Props {
   title: string;
 }
 
 const { title } = Astro.props;
+// The installation's club (LEONAID_CLUB_NAME); the line is left out without it.
+const club = process.env.LEONAID_CLUB_NAME?.trim() ?? "";
 ---
 
 <!doctype html>
@@ -27,6 +30,26 @@ const { title } = Astro.props;
     <title>{title} · LeonAid</title>
   </head>
   <body>
-    <slot />
+    <div class="login">
+      <aside class="login-brand" aria-label="LeonAid">
+        <div class="login-brand-inner">
+          <span class="login-mark" aria-hidden="true">
+            <span class="login-mark-l"></span>
+            <span class="login-mark-dot"></span>
+          </span>
+          <p class="login-brand-name">LeonAid</p>
+          {club && <p class="login-brand-club">{club}</p>}
+          <p class="login-brand-line">
+            Charity-Aktionen gemeinsam planen, verkaufen, ausliefern und sauber
+            abrechnen.
+          </p>
+        </div>
+      </aside>
+      <div class="login-side">
+        <main id="main" class="login-main" tabindex="-1">
+          <slot />
+        </main>
+      </div>
+    </div>
   </body>
 </html>

@@ -297,6 +297,7 @@ test("editor host translates controls without changing author content or resetti
     "New page",
   );
   await page.getByRole("button", { name: "Add question", exact: true }).click();
+  await page.getByRole("menu").getByRole("menuitem").first().click();
   await expect(page.getByLabel("Question title", { exact: true })).toHaveValue(
     "New question",
   );
