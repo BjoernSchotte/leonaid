@@ -531,7 +531,12 @@ function PageEditor({
                   >
                     Aufgabe aus dieser Seite
                   </Button>
-                  <Button icon={PenLine} onClick={startEditing} shortcut="e">
+                  <Button
+                    icon={PenLine}
+                    onClick={startEditing}
+                    shortcut="e"
+                    variant="secondary"
+                  >
                     Bearbeiten
                   </Button>
                 </>

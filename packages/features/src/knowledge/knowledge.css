@@ -48,8 +48,9 @@
 }
 
 /* ---------- prototype pages/Knowledge.css: page ---------- */
+/* The prototype caps the padded page at 920 px; the shell pads around us. */
 .knowledge-page {
-  max-width: 920px;
+  max-width: calc(920px - 2 * var(--s-8));
 }
 .knowledge-page-editor {
   display: grid;
