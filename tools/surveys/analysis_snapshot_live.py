@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
+from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 
@@ -29,6 +30,15 @@ async def main():
             assert r.status_code == expected, (path, r.status_code, expected)
             return r.json()
 
+        async def stored(result):
+            """The engine's full numbers: the stored snapshot, not the API view."""
+            return json.loads(
+                await conn.fetchval(
+                    "SELECT payload FROM survey_analysis_snapshot WHERE id=$1",
+                    UUID(result["id"]),
+                )
+            )
+
         if sys.argv[1] == "recover":
             state = json.loads(state_path.read_text())
             for _ in range(100):
@@ -40,10 +50,12 @@ async def main():
                     break
                 await asyncio.sleep(0.1)
             assert status == "partial"
-            after = await call(
-                "POST",
-                state["path"],
-                {"operationId": "after-worker", "filter": state["filter"]},
+            after = await stored(
+                await call(
+                    "POST",
+                    state["path"],
+                    {"operationId": "after-worker", "filter": state["filter"]},
+                )
             )
             for key in (
                 "questions",
@@ -52,10 +64,11 @@ async def main():
                 "lastPageCounts",
             ):
                 assert after[key] == state["before"][key], key
-            frozen = await call("GET", state["path"] + "/" + state["original"]["id"])
-            assert frozen == state["original"]
+            frozen = await call("GET", state["path"] + "/" + state["shown"]["id"])
+            assert frozen == state["shown"]
+            assert await stored(frozen) == state["original"]
             Path("/proof/survey-analysis-snapshot.json").write_text(
-                json.dumps(state["original"])
+                json.dumps(state["shown"])
             )
             state_path.unlink()
             print(
@@ -241,9 +254,33 @@ async def main():
         assert not any("definition" in v for v in versions["items"])
         filters = {"versionId": str(version)}
         body = {"operationId": "golden", "filter": filters}
-        original = await call("POST", path, body, analyst)
-        assert original == await call("POST", path, body, analyst)
-        assert original == await call("GET", path + "/" + original["id"], auth=analyst)
+
+        # Created by the owner (raw reader): the selection is not snapped
+        # to whole days, so the aggregate-only member cannot read it (I1).
+        shown = await call("POST", path, body)
+        assert shown == await call("POST", path, body)
+        await call("GET", path + "/" + shown["id"], auth=analyst, expected=404)
+        # The member's own selection is settled; the access checks below use it.
+        settled = await call(
+            "POST", path, {"operationId": "settled-golden", "filter": filters}, analyst
+        )
+        assert settled == await call("GET", path + "/" + settled["id"], auth=analyst)
+        # The API discloses with k = 5 (application/disclosure.py): the five
+        # participations are shown, every count of 1-4 people is withheld.
+        assert shown["minimumGroupSize"] == 5 and not shown["suppressed"]
+        assert shown["statusCounts"] == {
+            "in_progress": None,
+            "partial": None,
+            "completed": None,
+        }
+        # The follow-up page's condition reads a withheld answer: every last
+        # page count is withheld, zeros included (disclosure R5).
+        assert [p["count"] for p in shown["lastPageCounts"]] == [None, None, None]
+        assert all(
+            q["suppressed"] and q["counts"] == [] and q["mean"] is None
+            for q in shown["questions"]
+        )
+        original = await stored(shown)
         assert original["participationCount"] == 5
         assert original["statusCounts"] == {
             "in_progress": 1,
@@ -257,7 +294,7 @@ async def main():
             (1, 50),
         ]
         assert (q["number"]["mean"], q["follow"]["hidden"]) == (15, 2)
-        public_text = json.dumps(original)
+        public_text = json.dumps(shown)
         assert [
             (row["answered"], row["unanswered"], row["invalid"])
             for row in q["matrix"]["matrixRows"]
@@ -282,13 +319,13 @@ async def main():
             participants[0][1],
         ):
             assert marker not in public_text, "Protected data in aggregate payload"
-        stored = await conn.fetchrow(
+        row = await conn.fetchrow(
             "SELECT payload,private_responses FROM survey_analysis_snapshot WHERE id=$1",
             UUID(original["id"]),
         )
-        assert "SENSITIVE_FIRST_TEXT" in stored["private_responses"]
-        assert "SENSITIVE_RECIPIENT" not in stored["private_responses"]
-        assert participants[0][1] not in stored["private_responses"]
+        assert "SENSITIVE_FIRST_TEXT" in row["private_responses"]
+        assert "SENSITIVE_RECIPIENT" not in row["private_responses"]
+        assert participants[0][1] not in row["private_responses"]
         try:
             async with conn.transaction():
                 await conn.execute(
@@ -304,7 +341,7 @@ async def main():
             "POST",
             path,
             {**body, "filter": {**filters, "statuses": ["completed"]}},
-            analyst,
+            admin,
             409,
         )
         completed = await call(
@@ -314,18 +351,23 @@ async def main():
                 "operationId": "completed",
                 "filter": {**filters, "statuses": ["completed"]},
             },
-            analyst,
         )
+        # One participation: no results through the API at all.
+        assert completed["suppressed"] and all(
+            q["nps"] is None for q in completed["questions"]
+        )
+        completed = await stored(completed)
         assert completed["participationCount"] == 1
         assert (
             next(q for q in completed["questions"] if q["questionId"] == "nps")["nps"]
             == 100
         )
-        v2 = await call(
-            "POST",
-            path,
-            {"operationId": "v2", "filter": {"versionId": str(second_version)}},
-            analyst,
+        v2 = await stored(
+            await call(
+                "POST",
+                path,
+                {"operationId": "v2", "filter": {"versionId": str(second_version)}},
+            )
         )
         assert v2["participationCount"] == 1 and v2["versionNumber"] == 2
         assert (
@@ -334,7 +376,9 @@ async def main():
         test_snapshot = await call(
             "POST", path, {"operationId": "test", "filter": {**filters, "isTest": True}}
         )
-        assert test_snapshot["participationCount"] == 1
+        # 1 participation: the size itself is withheld (R0).
+        assert test_snapshot["participationCount"] is None
+        assert (await stored(test_snapshot))["participationCount"] == 1
         await call("GET", path + "/" + test_snapshot["id"], auth=analyst, expected=404)
         await call(
             "POST",
@@ -381,27 +425,72 @@ async def main():
                 "operationId": "future",
                 "filter": {**filters, "createdFrom": "2099-01-01T00:00:00Z"},
             },
-            analyst,
         )
         assert empty["participationCount"] == 0 and all(
             q["nps"] is None and q["answered"] == 0 for q in empty["questions"]
         )
-        before = await call(
-            "POST",
-            path,
-            {
-                "operationId": "before",
-                "filter": {
-                    **filters,
-                    "createdBefore": (now - timedelta(seconds=90)).isoformat(),
+        before = await stored(
+            await call(
+                "POST",
+                path,
+                {
+                    "operationId": "before",
+                    "filter": {
+                        **filters,
+                        "createdBefore": (now - timedelta(seconds=90)).isoformat(),
+                    },
                 },
-            },
-            analyst,
+            )
         )
         assert (
             before["participationCount"] == 1 and before["statusCounts"]["partial"] == 1
         )
         boundary = now - timedelta(minutes=1)
+        # Aggregate-only (no read_responses, no export_raw): whole Berlin
+        # days, never into today (disclosure.whole_days).
+        narrow = await call(
+            "POST",
+            path,
+            {
+                "operationId": "narrow",
+                "filter": {**filters, "createdFrom": boundary.isoformat()},
+            },
+            analyst,
+            422,
+        )
+        assert narrow["error"]["code"] == "range_whole_days"
+        snapped = await call(
+            "POST",
+            path,
+            {
+                "operationId": "snapped",
+                "filter": {
+                    **filters,
+                    "createdFrom": "2026-01-01T13:00:00Z",
+                    "createdBefore": "2026-02-01T05:00:00Z",
+                },
+            },
+            analyst,
+        )
+        assert (
+            snapped["filter"]["createdFrom"],
+            snapped["filter"]["createdBefore"],
+        ) == ("2025-12-31T23:00:00+00:00", "2026-02-01T23:00:00+00:00")
+        today_start = local_day_bounds(local_day(datetime.now(timezone.utc)))[0]
+        open_end = await call(
+            "POST", path, {"operationId": "open-end", "filter": filters}, analyst
+        )
+        assert open_end["filter"]["createdBefore"] == today_start.isoformat()
+        before_today = await conn.fetchval(
+            "SELECT count(*) FROM survey_participation WHERE survey_id=$1 AND version_id=$2 AND NOT is_test AND created_at < $3",
+            sid,
+            version,
+            today_start,
+        )
+        assert open_end["participationCount"] <= before_today
+        if before_today == 0:
+            assert open_end["participationCount"] == 0
+        # The boundary semantics, checked as the survey owner (raw reader).
         inclusive = await call(
             "POST",
             path,
@@ -414,9 +503,9 @@ async def main():
                     ).isoformat(),
                 },
             },
-            analyst,
         )
-        assert inclusive["participationCount"] == 4
+        assert inclusive["participationCount"] is None  # 4: withheld (R0)
+        assert (await stored(inclusive))["participationCount"] == 4
         assert inclusive["filter"]["createdFrom"] == boundary.isoformat()
         exclusive = await call(
             "POST",
@@ -425,15 +514,14 @@ async def main():
                 "operationId": "exclusive",
                 "filter": {**filters, "createdBefore": boundary.isoformat()},
             },
-            analyst,
         )
-        assert exclusive["participationCount"] == 1
+        assert (await stored(exclusive))["participationCount"] == 1
         await conn.execute(
             "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2",
             sid,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
         await call("POST", path, body, analyst, 404)
         await call("GET", path + "/versions", auth=analyst, expected=404)
         action = uuid4()
@@ -452,20 +540,20 @@ async def main():
             sid,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
         await conn.execute(
             "INSERT INTO action_membership(id,action_id,user_id,role) VALUES($1,$2,$3,'acquirer')",
             uuid4(),
             action,
             analyst_id,
         )
-        assert original == await call("GET", path + "/" + original["id"], auth=analyst)
+        assert settled == await call("GET", path + "/" + settled["id"], auth=analyst)
         await conn.execute(
             "DELETE FROM action_membership WHERE action_id=$1 AND user_id=$2",
             action,
             analyst_id,
         )
-        await call("GET", path + "/" + original["id"], auth=analyst, expected=404)
+        await call("GET", path + "/" + settled["id"], auth=analyst, expected=404)
 
         pid, resume = participants[1]
         await call(
@@ -486,10 +574,12 @@ async def main():
             },
             {"Cookie": f"__Host-survey_{pid}={resume}"},
         )
-        assert original == await call("GET", path + "/" + original["id"])
+        assert shown == await call("GET", path + "/" + original["id"])
         all_filters = {**filters, "statuses": ["in_progress", "partial", "completed"]}
-        changed = await call(
-            "POST", path, {"operationId": "after-save", "filter": all_filters}
+        changed = await stored(
+            await call(
+                "POST", path, {"operationId": "after-save", "filter": all_filters}
+            )
         )
         assert changed["participationCount"] == 6
         assert (
@@ -515,7 +605,12 @@ async def main():
             {"operationId": "batch", "filter": {"versionId": str(foreign_version)}},
         )
         assert batched["participationCount"] == 101
-        batch_rating = next(q for q in batched["questions"] if q["questionId"] == "nps")
+        # One "10" among 100 "0": withheld, and with it the NPS and mean (R3).
+        shown_rating = next(q for q in batched["questions"] if q["questionId"] == "nps")
+        assert shown_rating["nps"] is None and shown_rating["mean"] is None
+        batch_rating = next(
+            q for q in (await stored(batched))["questions"] if q["questionId"] == "nps"
+        )
         assert math.isclose(batch_rating["nps"], -9900 / 101)
         assert math.isclose(batch_rating["mean"], 10 / 101)
         await call("GET", path + "/" + batched["id"], expected=404)
@@ -539,7 +634,7 @@ async def main():
             },
         )
         await asyncio.sleep(2.2)
-        deadline = await call(
+        deadline_shown = await call(
             "POST",
             foreign_path + "/analysis",
             {
@@ -547,6 +642,13 @@ async def main():
                 "filter": {"versionId": str(foreign_version)},
             },
         )
+        # partial 1 is withheld; completed 101 would reveal it, so it is too.
+        assert deadline_shown["statusCounts"] == {
+            "completed": None,
+            "partial": None,
+            "in_progress": 0,
+        }
+        deadline = await stored(deadline_shown)
         assert deadline["statusCounts"] == {
             "completed": 101,
             "partial": 1,
@@ -655,6 +757,7 @@ async def main():
                     "filter": all_filters,
                     "before": changed,
                     "original": original,
+                    "shown": shown,
                     "overdue": str(participants[4][0]),
                 }
             )

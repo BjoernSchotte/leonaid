@@ -103,3 +103,8 @@
     grid-row: 2;
   }
 }
+.survey-analytics-withheld {
+  margin: 0.5rem 0;
+  color: var(--survey-analytics-muted, inherit);
+  font-style: italic;
+}

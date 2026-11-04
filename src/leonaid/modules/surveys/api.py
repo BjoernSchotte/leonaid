@@ -2,9 +2,9 @@
 
 from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisVersions,
-    AnalysisSnapshot,
     CreateAnalysisSnapshot,
 )
+from leonaid.modules.surveys.application.disclosure import AnalysisSnapshot, disclose
 from leonaid.modules.surveys.application.response_selection import (
     ResponseSelection,
     ResponseItems,
@@ -267,7 +267,8 @@ class SurveyService:
         result = await self.repository.author(
             actor, survey_id, "analysis-create", body.model_dump(mode="json")
         )
-        return AnalysisSnapshot.model_validate(result)
+        # Stored and replayed in full; shown only within the minimum group size.
+        return disclose(result)
 
     async def get_analysis(
         self, actor: IdentityPrincipal, survey_id: UUID, body: SnapshotReference
@@ -276,7 +277,17 @@ class SurveyService:
         result = await self.repository.author(
             actor, survey_id, "analysis-get", body.model_dump(mode="json")
         )
-        return AnalysisSnapshot.model_validate(result)
+        return disclose(result)
+
+    async def get_response_aggregates(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: SnapshotReference
+    ) -> AnalysisSnapshot:
+        """Aggregates of a response selection, for accounts with read_responses."""
+        body = SnapshotReference.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "response-aggregates", body.model_dump(mode="json")
+        )
+        return disclose(result)
 
     async def list_response_versions(
         self, actor: IdentityPrincipal, survey_id: UUID

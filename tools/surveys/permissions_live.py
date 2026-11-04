@@ -179,6 +179,54 @@ async def main():
                         "product": product,
                     },
                 )
+            # Accounts without raw access read and export only snapshots
+            # created under the settled policy (I1), so they make their own.
+            settled = {"analysis": snapshot["id"], "report": snapshot["id"]}
+            if kind in {"standalone", "member-action"}:
+                settled["analysis"] = (
+                    await call(
+                        "POST",
+                        path + "/analysis",
+                        {
+                            "operationId": "settled",
+                            "filter": {"versionId": version["id"]},
+                        },
+                        actor="view_aggregates",
+                    )
+                )["id"]
+                settled["report"] = (
+                    await call(
+                        "POST",
+                        path + "/export-selections",
+                        {
+                            "operationId": "settled",
+                            "filter": {"versionId": version["id"]},
+                        },
+                        actor="export_reports",
+                    )
+                )["id"]
+                for actor, snap_id in [
+                    ("view_aggregates", snapshot["id"]),
+                    ("export_reports", snapshot["id"]),
+                ]:
+                    # A reader's snapshot stays hidden from them.
+                    await call(
+                        "GET",
+                        path + "/analysis/" + snap_id,
+                        actor=actor,
+                        expected=404,
+                    )
+                await call(
+                    "POST",
+                    path + "/exports",
+                    {
+                        "operationId": "reader-snapshot",
+                        "snapshotId": snapshot["id"],
+                        "product": "analysis_xlsx",
+                    },
+                    actor="export_reports",
+                    expected=404,
+                )
             resources.append(
                 {
                     "id": sid,
@@ -186,10 +234,14 @@ async def main():
                     "kind": kind,
                     "version": version["id"],
                     "snapshot": snapshot["id"],
+                    "settled": settled,
                     "participation": pid,
                     "jobs": jobs,
                 }
             )
+
+        def raw_access(caps):
+            return bool(caps & {"read_responses", "export_raw"})
 
         def expected_caps(name, kind):
             if name == "admin":
@@ -236,7 +288,9 @@ async def main():
                             resource["path"] + "/exports",
                             {
                                 "operationId": "own-matrix-" + product,
-                                "snapshotId": resource["snapshot"],
+                                "snapshotId": resource["snapshot"]
+                                if raw_access(caps)
+                                else resource["settled"]["report"],
                                 "product": product,
                             },
                             actor=name,
@@ -287,7 +341,15 @@ async def main():
                         ("/draft", {"design"}),
                         ("/publication", {"publish"}),
                         ("/analysis/versions", {"view_aggregates"}),
-                        ("/analysis/" + snap, {"view_aggregates"}),
+                        (
+                            "/analysis/"
+                            + (
+                                snap
+                                if raw_access(caps)
+                                else resource["settled"]["analysis"]
+                            ),
+                            {"view_aggregates"},
+                        ),
                         ("/response-selections/versions", {"read_responses"}),
                         ("/response-selections/" + snap, {"read_responses"}),
                         (

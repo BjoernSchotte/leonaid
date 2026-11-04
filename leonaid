@@ -3247,6 +3247,9 @@ case "$command" in
     run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync pytest tests/unit/test_survey*.py -q
     run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts tools/surveys/editor.test.ts tools/surveys/editor-i18n.test.ts
+    # The disclosure solver's per-person results are SurveyJS's own.
+    run_bun bun tools/surveys/solver-profiles.ts check tests/fixtures/surveys/solver-profiles.json
+    run_bun bun tools/surveys/equality-sweep.ts check tests/fixtures/surveys/surveyjs-equality.json
     ;;
   test-surveys-validation-candidate)
     run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare
