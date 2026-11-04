@@ -96,10 +96,30 @@ class SchemaError(RuntimeError):
 async def expect_database_error(
     operation: Callable[[], Awaitable[Any]],
     label: str,
+    *,
+    sqlstate: str | None = None,
+    constraint: str | None = None,
+    message: str | None = None,
 ) -> None:
+    """The operation fails; when given, with this SQLSTATE, constraint, message."""
+
     try:
         await operation()
-    except asyncpg.PostgresError:
+    except asyncpg.PostgresError as error:
+        details = {
+            "sqlstate": (sqlstate, getattr(error, "sqlstate", None)),
+            "constraint": (constraint, getattr(error, "constraint_name", None)),
+            "message": (message, str(error)),
+        }
+        wrong = {
+            name: actual
+            for name, (expected, actual) in details.items()
+            if expected is not None and actual != expected
+        }
+        if wrong:
+            raise SchemaError(
+                f"{label}: rejected for another reason: {wrong}"
+            ) from error
         return
     raise SchemaError(f"constraint was not enforced: {label}")
 
@@ -476,12 +496,40 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             "UPDATE invoice SET issued_on = issued_on + 1 WHERE number = 'KT26-0001'"
         ),
         "changed invoice date of an issued invoice",
+        sqlstate="23000",
+        message="issued invoice snapshots are immutable",
     )
+    # The CHECK, not the immutability trigger: a new row with a due date
+    # before its invoice date. CHECK constraints run before the unique
+    # index on the commitment, so nothing else can reject it first.
     await expect_database_error(
         lambda: connection.execute(
-            "UPDATE invoice SET due_on = issued_on - 1 WHERE number = 'KT26-0001'"
+            """
+            INSERT INTO invoice (
+                id, action_id, commitment_id, number, status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, payment_reference, approved_by_user_id,
+                document_version, issued_on
+            )
+            SELECT
+                '90000000-0000-4000-8000-000000000003', action_id,
+                commitment_id, 'KT26-0003', status, issued_at,
+                service_on, issued_on - 1, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, 'KT26-0003', approved_by_user_id,
+                document_version, issued_on
+            FROM invoice
+            WHERE number = 'KT26-0001'
+            """
         ),
         "due date before the invoice date",
+        sqlstate="23514",
+        constraint="ck_invoice_due_on_after_issued_on",
     )
     await expect_database_error(
         lambda: connection.execute(
