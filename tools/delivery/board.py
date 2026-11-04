@@ -32,7 +32,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot
-from leonaid.domain.delivery_board import DropState
+from leonaid.domain.delivery_board import DeliveryBoard, DeliveryDrop, DropState
 from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
@@ -144,12 +144,16 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
     outsider = _principal(acquirer, action_id, ActionRole.ACQUIRER)
     day = window.delivery_on
 
-    async def board(actor: IdentityPrincipal, at: datetime | None = None):
+    async def board(
+        actor: IdentityPrincipal, at: datetime | None = None
+    ) -> DeliveryBoard:
         return await with_tasks.board(
             actor, action_id, day=day, viewed_at=at or datetime.now(timezone.utc)
         )
 
-    async def drop(actor: IdentityPrincipal, commitment_id: UUID):
+    async def drop(
+        actor: IdentityPrincipal, commitment_id: UUID
+    ) -> DeliveryDrop | None:
         for item in (await board(actor)).windows:
             for value in item.drops:
                 if value.commitment_id == commitment_id:
@@ -430,7 +434,8 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
     assert await with_tasks.reopen_window(
         admin, action_id, window.id, request_id="board-proof", occurred_at=now
     ) == len(open_before)
-    assert (await drop(admin, drei)).state is DropState.OPEN  # type: ignore[union-attr]
+    reopened = await drop(admin, drei)
+    assert reopened is not None and reopened.state is DropState.OPEN
     assert await task_status(drei) == "done"
     await with_tasks.close_window(
         admin, action_id, window.id, request_id="board-proof", occurred_at=now
