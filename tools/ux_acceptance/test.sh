@@ -166,6 +166,7 @@ run_browser() {
 }
 
 run_browser tests/e2e/ux-acceptance.spec.mjs tests/e2e/command-palette.spec.mjs \
+  tests/e2e/command-palette-faults.spec.mjs \
   --output=/browser-results/run
 
 # Review Focus #1: with modules switched off, the palette offers neither
