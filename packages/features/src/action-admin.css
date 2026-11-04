@@ -25,13 +25,13 @@
 .action-page__header p:not(.action-page__eyebrow) {
   max-width: 48rem;
   margin: 0.65rem 0 0;
-  color: var(--muted);
+  color: var(--text-2);
   line-height: 1.6;
 }
 
 .action-page__eyebrow {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -44,14 +44,14 @@
   min-height: 2.5rem;
   align-items: center;
   gap: 0.45rem;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.86rem;
   font-weight: 680;
   text-decoration: none;
 }
 
 .action-back:hover {
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .action-card-grid {
@@ -66,9 +66,9 @@
   gap: 0.9rem;
   padding: 1.1rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-1);
 }
 
 .action-card__icon {
@@ -76,8 +76,8 @@
   width: 2.75rem;
   height: 2.75rem;
   place-items: center;
-  border-radius: var(--radius-md);
-  color: var(--accent-foreground);
+  border-radius: var(--r-md);
+  color: var(--accent-ink);
   background: var(--accent-soft);
 }
 
@@ -87,7 +87,7 @@
 }
 
 .action-card p {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.72rem;
 }
 
@@ -98,7 +98,7 @@
 }
 
 .action-card span {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.82rem;
 }
 
@@ -110,7 +110,7 @@
   justify-content: space-between;
   padding: 0.55rem 0.75rem;
   border-top: 1px solid var(--border);
-  color: var(--foreground);
+  color: var(--text);
   font-weight: 700;
   text-decoration: none;
 }
@@ -123,8 +123,8 @@
   gap: 0.55rem;
   padding: 2rem;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
-  color: var(--muted);
+  border-radius: var(--r-lg);
+  color: var(--text-2);
   text-align: center;
 }
 
@@ -134,7 +134,7 @@
 }
 
 .action-empty h2 {
-  color: var(--foreground);
+  color: var(--text);
   font-size: 1.1rem;
 }
 
@@ -153,8 +153,8 @@
   gap: 0.55rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--muted);
+  border-radius: var(--r-md);
+  color: var(--text-2);
   background: var(--surface);
   font-size: 0.82rem;
   font-weight: 690;
@@ -168,8 +168,8 @@
   flex: 0 0 1.65rem;
   place-items: center;
   border-radius: 999px;
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: var(--on-accent);
+  background: var(--accent);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -183,9 +183,9 @@
   min-width: 0;
   padding: clamp(1rem, 3vw, 1.45rem);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-1);
 }
 
 .action-section > legend {
@@ -201,7 +201,7 @@
 }
 
 .action-section > legend small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.82rem;
   font-weight: 450;
 }
@@ -226,7 +226,7 @@
   display: grid;
   align-content: start;
   gap: 0.38rem;
-  color: var(--foreground);
+  color: var(--text);
   font-size: 0.83rem;
   font-weight: 690;
 }
@@ -240,7 +240,7 @@
 }
 
 .action-field small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.76rem;
   font-weight: 450;
   line-height: 1.45;
@@ -261,23 +261,23 @@
   min-height: 2.85rem;
   padding: 0.65rem 0.72rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--foreground);
+  border-radius: var(--r-md);
+  color: var(--text);
   background: var(--surface);
   font-weight: 480;
 }
 
 .action-field input::placeholder,
 .action-field textarea::placeholder {
-  color: var(--muted);
+  color: var(--text-2);
   opacity: 0.72;
 }
 
 .action-field output {
   display: flex;
   align-items: center;
-  color: var(--muted);
-  background: var(--surface-muted);
+  color: var(--text-2);
+  background: var(--surface-2);
 }
 
 .action-field textarea {
@@ -294,8 +294,8 @@
 
 .action-field input:disabled,
 .action-field textarea:disabled {
-  color: var(--muted);
-  background: var(--surface-muted);
+  color: var(--text-2);
+  background: var(--surface-2);
 }
 
 .action-choice-grid {
@@ -312,7 +312,7 @@
   gap: 0.7rem;
   padding: 0.8rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   background: var(--surface);
   cursor: pointer;
 }
@@ -326,7 +326,7 @@
   width: 1.1rem;
   height: 1.1rem;
   margin-top: 0.1rem;
-  accent-color: var(--primary);
+  accent-color: var(--accent);
 }
 
 .action-choice span {
@@ -335,7 +335,7 @@
 }
 
 .action-choice small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.76rem;
   font-weight: 450;
   line-height: 1.4;
@@ -353,8 +353,8 @@
   gap: 0.75rem;
   padding: 0.85rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
 }
 
 .action-form-actions {
@@ -371,9 +371,9 @@
   z-index: 4;
   padding: 0.65rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   background: color-mix(in oklch, var(--surface) 92%, transparent);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-2);
   backdrop-filter: blur(12px);
 }
 
@@ -394,7 +394,7 @@
   width: 2rem;
   height: 2rem;
   border: 3px solid var(--border);
-  border-top-color: var(--primary);
+  border-top-color: var(--accent);
   border-radius: 999px;
   animation: action-spin 0.85s linear infinite;
 }
@@ -405,7 +405,7 @@
 }
 
 .action-loading p {
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 @keyframes action-spin {

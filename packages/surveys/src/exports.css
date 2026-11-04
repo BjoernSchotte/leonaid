@@ -38,7 +38,7 @@
   cursor: pointer;
 }
 .survey-exports button:focus-visible {
-  outline: 3px solid var(--ring, #186aaa);
+  outline: 3px solid var(--focus, #186aaa);
   outline-offset: 3px;
 }
 .survey-exports button:disabled {
