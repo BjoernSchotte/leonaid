@@ -1,0 +1,390 @@
+/*
+ * Mobile shell of the acquisition PWA, ported from the Leitsystem prototype
+ * (pages/pwa/Acquire.css, shell part; the "Mehr" sheet from styles/shell.css).
+ * Phone-first: one column of at most 480 px, centred on wide screens.
+ */
+.pwa-stage {
+  min-height: 100dvh;
+  background: var(--surface-3);
+}
+.pwa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 480px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--bg);
+  font-size: 1rem;
+}
+/* Viewport query on purpose (media type keeps it out of the column rewrite). */
+@media screen and (min-width: 560px) {
+  .pwa {
+    box-shadow: var(--shadow-2);
+  }
+}
+.pwa-skip-link {
+  position: absolute;
+  left: var(--s-2);
+  top: -100px;
+  z-index: 1000;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-semibold);
+}
+.pwa-skip-link:focus {
+  top: var(--s-2);
+}
+
+/* App bar: Lions blue in both themes. */
+.pwa-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: env(safe-area-inset-top) var(--s-2) 0 var(--s-4);
+  background: var(--rail-bg);
+  color: var(--rail-text);
+}
+.pwa-campaign {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+.pwa-campaign-name {
+  overflow: hidden;
+  font-weight: var(--fw-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pwa-campaign-sub {
+  overflow: hidden;
+  color: var(--rail-text-2);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pwa-bar-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+.pwa-net,
+.pwa-menu-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--rail-text);
+}
+.pwa-net.is-offline {
+  color: var(--lions-gold);
+}
+.pwa-menu-button {
+  cursor: pointer;
+}
+.pwa-menu-button:hover {
+  background: var(--rail-bg-2);
+}
+/* Gold focus on the blue ground, where the blue ring would vanish. */
+.pwa-bar :focus-visible {
+  outline: 2px solid var(--lions-gold);
+  outline-offset: 2px;
+}
+
+/* Notices under the bar: offline (warn-soft), update and install. */
+.pwa-offline,
+.pwa-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-sm);
+}
+.pwa-offline {
+  background: var(--warn-soft);
+}
+.pwa-offline > svg,
+.pwa-notice > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.pwa-offline > svg {
+  color: var(--warn);
+}
+.pwa-notice {
+  align-items: center;
+  border-bottom: var(--hair) solid var(--border);
+  background: var(--surface);
+}
+.pwa-notice > svg {
+  margin-top: 0;
+  color: var(--accent-ink);
+}
+.pwa-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+.pwa-notice .btn {
+  flex: none;
+  min-height: 44px;
+}
+
+/* Container of the shared pages; the PWA build turns width @media into
+ * @container queries on it (apps/pwa/column-queries.ts). */
+.pwa-main {
+  container: pwa-column / inline-size;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  outline: none;
+}
+.pwa-screen {
+  display: grid;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-4);
+}
+.pwa-screen > * {
+  min-width: 0;
+}
+.pwa .meter {
+  height: 10px;
+}
+
+/* Bottom tabs */
+.pwa-tabs {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  z-index: 40;
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  width: min(100%, 480px);
+  padding: var(--s-1) var(--s-1) env(safe-area-inset-bottom);
+  transform: translateX(-50%);
+  border-top: var(--hair) solid var(--border);
+  background: var(--surface);
+}
+/* The task detail editor needs the full height of the screen. */
+.pwa:has(.tasks-layout--detail) .pwa-tabs {
+  display: none;
+}
+.pwa-tab {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 60px;
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.pwa-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 28px;
+  border-radius: var(--r-pill);
+}
+/* Like the prototype, a long label ("Wiedervorlagen") may run into the
+ * gap next to its tab; longer ones (text zoom) are cut off. */
+.pwa-tab-label {
+  max-width: calc(100% + var(--s-2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pwa-tab.is-active {
+  color: var(--text);
+}
+.pwa-tab.is-active .pwa-tab-icon {
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+.pwa-tab.is-new .pwa-tab-icon {
+  width: 44px;
+  height: 28px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--r-md);
+}
+.pwa-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* "Mehr" sheet */
+.pwa-sheet {
+  width: min(100%, 480px);
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  color: var(--text);
+}
+.pwa-sheet[open] {
+  animation: pwa-sheet-up var(--dur-3) var(--ease-out);
+}
+@keyframes pwa-sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.pwa-sheet::backdrop {
+  background: var(--overlay);
+}
+.pwa-sheet-body {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4) calc(var(--s-6) + env(safe-area-inset-bottom));
+}
+.pwa-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pwa-sheet-header h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+.pwa-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.pwa-sheet-close:hover {
+  background: var(--row-hover);
+}
+.pwa-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+.pwa-sheet-tile {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--s-2);
+  min-height: 76px;
+  padding: var(--s-3) var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.pwa-sheet-tile:hover {
+  background: var(--row-hover);
+}
+.pwa-sheet-tile[aria-current="page"] {
+  box-shadow: inset 0 0 0 2px var(--zone);
+}
+.pwa-sheet-tile[aria-disabled="true"] {
+  color: var(--text-3);
+}
+.pwa-sheet-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+.pwa-sheet-tile-status {
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+}
+.pwa-sheet-section {
+  display: grid;
+  gap: var(--s-2);
+}
+.pwa-sheet-label {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.pwa-segment {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+}
+.pwa-segment button {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.pwa-segment button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+.pwa-account {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: var(--hair) solid var(--border);
+}
+.pwa-account-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.pwa-account-name {
+  overflow: hidden;
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pwa-account-role {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.pwa-account .btn {
+  flex: none;
+  min-height: 44px;
+}

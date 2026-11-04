@@ -1,4 +1,5 @@
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
+import { buttonClassName } from "@leonaid/ui";
 
 type CampaignIdentity = Pick<
   CurrentIdentityResponse,
@@ -35,7 +36,7 @@ export function CampaignEditorLink({
   if (!href) return null;
 
   return (
-    <a className="ui-button ui-button--secondary" href={href}>
+    <a className={buttonClassName({ variant: "secondary" })} href={href}>
       Microsite bearbeiten
     </a>
   );

@@ -1,0 +1,40 @@
+/* Badge: ported from the Leitsystem prototype (components.css). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.badge.tone-neutral {
+  background: var(--neutral-soft);
+  color: var(--text-2);
+}
+.badge.tone-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.badge.tone-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge.tone-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.badge.tone-accent {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.badge.tone-zone {
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}

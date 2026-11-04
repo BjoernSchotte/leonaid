@@ -103,7 +103,7 @@
 
 .ui-catalog-jumpnav a:hover {
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 
 .ui-catalog-section {
@@ -171,7 +171,7 @@
   font-weight: 720;
 }
 
-.ui-catalog-section > .ui-empty-state {
+.ui-catalog-section > .empty {
   min-height: 11rem;
 }
 
@@ -198,12 +198,124 @@
   color: var(--primary);
 }
 
+/* Grundbausteine: layout ported from the prototype proposal page
+   (Proposal.css .component-grid, .component, .shape-list, .keys and
+   components.css .cluster, .stack, .small). */
+.ui-catalog-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 var(--s-8);
+}
+
+.ui-catalog-component {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  padding: var(--s-5) 0;
+  border-bottom: var(--hair) solid var(--border);
+}
+
+.ui-catalog-component h3,
+.ui-catalog-keys-block h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+.ui-catalog-keys-block {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.ui-catalog-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.ui-catalog-stack {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.ui-catalog-small {
+  font-size: var(--fs-sm);
+}
+
+.ui-catalog-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.ui-catalog-shapes {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-sm);
+  list-style: none;
+}
+
+.ui-catalog-shapes li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.ui-catalog-keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.ui-catalog-keys caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ui-catalog-keys td {
+  padding: var(--s-2) var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+  vertical-align: middle;
+}
+
+.ui-catalog-keys td:first-child {
+  width: 180px;
+}
+
+.ui-catalog-keys tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Tailwind preflight makes svg a block; keep the note icon inline. */
+.ui-catalog-note svg {
+  display: inline;
+  vertical-align: -2px;
+}
+
+@media (max-width: 860px) {
+  .ui-catalog-components {
+    grid-template-columns: 1fr;
+  }
+
+  .ui-catalog-keys td:first-child {
+    width: auto;
+  }
+}
+
 @media (max-width: 800px) {
   .ui-catalog-hero {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .ui-catalog-hero > .ui-button {
+  .ui-catalog-hero > .btn {
     grid-column: 1 / -1;
     justify-self: start;
   }
@@ -233,7 +345,101 @@
     padding: 1rem;
   }
 
-  .ui-catalog-row .ui-button {
+  .ui-catalog-row .btn {
     width: 100%;
   }
+}
+
+/* Native modal dialog that proves option menus work above the top layer. */
+.ui-catalog-menu-dialog {
+  width: min(calc(100vw - 2rem), 28rem);
+  margin: auto;
+  padding: var(--s-5);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+.ui-catalog-menu-dialog::backdrop {
+  background: rgb(15 23 42 / 0.55);
+}
+
+.ui-catalog-menu-dialog h3 {
+  margin: 0 0 var(--s-2);
+}
+
+/* List view demo (?listview): page bits of the prototype's orders list
+   (prototype pages.css). */
+.ui-list-demo .flag-high {
+  color: var(--danger);
+}
+.ui-list-demo .flag-space {
+  display: inline-block;
+  width: 14px;
+}
+.ui-list-demo .order-no {
+  color: var(--text-3);
+  font-size: 0.82em;
+  margin-inline-end: var(--s-1);
+}
+.ui-list-demo .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.ui-list-demo .inv-open {
+  align-self: center;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+/* Align status and dispatch columns across rows (prototype Invoices.css). */
+.ui-list-demo .inv-list .row-chips {
+  display: grid;
+  grid-template-columns: 112px 190px;
+}
+@media (max-width: 720px) {
+  .ui-list-demo .inv-list .row-chips {
+    display: flex;
+  }
+}
+.ui-list-demo .next-step {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  font-size: var(--fs-sm);
+}
+
+.ui-catalog-zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--s-1) var(--s-4);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+
+.ui-catalog-zones li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 28px;
+}
+
+.ui-catalog-zones .kbd-group {
+  margin-inline-start: auto;
+}
+
+.ui-catalog-zone-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--zone);
 }

@@ -64,7 +64,7 @@
   overflow-wrap: anywhere;
 }
 .tasks-list-links a[aria-current="page"] {
-  background: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-foreground);
   font-weight: 600;
   border-radius: var(--radius-sm);
@@ -313,9 +313,8 @@
   justify-self: end;
   white-space: nowrap;
 }
-.task-quick-create .ui-status-message {
+.task-quick-create .callout {
   grid-column: 1 / -1;
-  grid-area: error;
 }
 .task-editor-property {
   border-top: 1px solid var(--border);
@@ -491,7 +490,7 @@
 }
 .task-order-handle:hover {
   color: var(--foreground);
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-order-handle:active {
   cursor: grabbing;
@@ -574,7 +573,7 @@
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.5rem 0.75rem;
-  background: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-foreground);
   border-radius: var(--radius-sm);
 }
@@ -634,7 +633,7 @@
   display: none;
 }
 .task-row-menu summary:hover {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-row-menu summary:focus-visible {
   outline: 2px solid var(--focus);
@@ -653,7 +652,7 @@
   gap: 0.5rem;
   box-shadow: var(--shadow-sm);
 }
-.task-row-menu > div > .ui-button {
+.task-row-menu > div > .btn {
   justify-content: flex-start;
 }
 .task-menu-directions {
@@ -678,7 +677,7 @@
   cursor: pointer;
 }
 .task-menu-action:hover:not(:disabled) {
-  background: var(--accent);
+  background: var(--accent-soft);
 }
 .task-menu-action:disabled {
   cursor: not-allowed;

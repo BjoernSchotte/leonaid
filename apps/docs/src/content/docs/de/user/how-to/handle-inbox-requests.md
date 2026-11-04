@@ -4,15 +4,15 @@ description: Öffentliche Kontaktanfragen lesen, zuweisen, den CRM-Kontakt klär
 docId: DOC-P045
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 0fb14dea5053c12fc1ff6e83757f9b458cf2317a
 reviewer: Björn Schotte
 ---
 
 **Rolle:** Systemadministration sieht alle Anfragen. Aktionsverwaltungen sehen
 die Anfragen ihrer Aktion. Zugewiesene Mitglieder sehen die ihnen zugewiesenen
-Anfragen. Öffne **Eingänge** im Backoffice (`/admin/inbox`) oder in der App
+Anfragen. Öffne **Eingang** im Backoffice (`/admin/inbox`) oder in der App
 (`/app/inbox`). Das Modul braucht die Module Aufgaben und Materialien. Hat
 deine Installation das Modul abgeschaltet, fehlen der Eintrag und das
 öffentliche Formular.
@@ -36,42 +36,55 @@ bis zum Ende des Zeitfensters abgelehnt.
 
 ## Eine Anfrage bearbeiten
 
-1. Öffne eine Anfrage aus **Alle Eingänge**. Filtere bei Bedarf nach Status:
-   **Neu**, **In Bearbeitung** oder **Abgeschlossen**.
-2. Setze unter **Bearbeitung** den Status und die **Zuständigkeit**. Wähle dann
-   **Bearbeitung speichern**.
-3. Schreibe unter **Interne Notizen** eine Notiz und wähle **Notiz speichern**.
-   Nur Personen, die die Anfrage öffnen dürfen, sehen die Notizen.
-4. Zum Abschließen wählst du **Abgeschlossen**, schreibst eine
-   **Abschlussnotiz** und speicherst. Eine abgeschlossene Anfrage kannst du
-   später wieder öffnen.
+1. Öffne **Eingang**. Die Ansicht **Offen** zeigt neue Anfragen und Anfragen
+   in Bearbeitung, nach Status gruppiert. Weitere Ansichten sind **Mir
+   zugewiesen**, **Kontakt klären** und **Alle**. Mit **Filter** (Taste F)
+   filterst du nach Status, Kontakt, Zuständigkeit oder Aktion.
+2. Wähle eine Anfrage, oder gehe mit J und K zu ihr und drücke Enter. Die
+   Anfrage öffnet sich rechts neben der Liste, auf dem Handy als Blatt. Esc
+   schließt sie wieder.
+3. Ändere oben **Status** (Taste S) und **Zuständigkeit** (Taste A). Die
+   Zuständigkeit ändert nur die Fallverwaltung, also die Systemadministration
+   und die Aktionsverwaltung. Mit X wählst du mehrere Anfragen aus und änderst
+   sie gemeinsam.
+4. **Übernehmen** setzt eine neue Anfrage auf **In Bearbeitung**. Ist noch
+   niemand zuständig, wirst du zuständig.
+5. Schreibe unter **Interne Notizen** eine Notiz und wähle **Hinzufügen**. Nur
+   Personen, die die Anfrage öffnen dürfen, sehen die Notizen.
+6. Zum Abschließen wählst du **Abschließen …** oder den Status
+   **Abgeschlossen**. Der Dialog **Anfrage abschließen** fragt eine
+   **Abschlussnotiz** mit mindestens 10 Zeichen ab. **Abbrechen** ändert
+   nichts. Eine abgeschlossene Anfrage öffnest du wieder, indem du einen
+   anderen Status wählst.
 
-Hat jemand die Anfrage inzwischen gespeichert, lehnt LeonAid dein Speichern ab
-und behält deinen Entwurf. Lade bewusst den aktuellen Stand, bevor du erneut
-speicherst.
+Hat jemand die Anfrage inzwischen geändert, lehnt LeonAid deine Änderung ab
+und lädt den aktuellen Stand. Deine Abschlussnotiz bleibt im Dialog erhalten.
 
 ## Den CRM-Kontakt klären
 
 Nach dem Eingang legt ein Hintergrundauftrag die anfragende Person in Twenty
 (dem CRM) an oder verknüpft eine vorhandene Person. Der Status **Kontakt
 zugeordnet** bestätigt die Verknüpfung. Erst dann speichert LeonAid die
-Einwilligung für diese Person.
+Einwilligung für diese Person. Die Ansicht **Kontakt klären** zeigt alle
+Anfragen, deren Kontakt offen ist.
 
-Steht der Status auf **Kontaktzuordnung benötigt Klärung**:
+Steht unter **Kontakt in Twenty** der Status **Kontaktzuordnung benötigt
+Klärung** oder **Kontaktzuordnung fehlgeschlagen**:
 
-1. Passe unter **Bestehenden Kontakt suchen** die Namen an und wähle **In
-   Twenty suchen**.
-2. Wähle unter **Kontakt auswählen** die richtige Person.
-3. Wähle **Kontaktzuordnung bestätigen**. LeonAid überschreibt die Daten der
-   vorhandenen Person nicht.
+1. Passe Vorname und Nachname an und wähle **In Twenty suchen**.
+2. Wähle in den Treffern die richtige Person.
+3. Begründe die Wahl unter **Begründung der Zuordnung** und wähle **Zuordnung
+   bestätigen**. LeonAid überschreibt die Daten der vorhandenen Person nicht.
 
 ## Aufgaben und Dateiversionen verknüpfen
 
-- Wähle unter **Aufgaben** **Aufgabe verknüpfen** und dann unter **Bestehende
-  Aufgabe auswählen** eine Aufgabe. Du kannst Aufgaben aus Listen wählen, die
-  du bearbeiten darfst. Die Anfrage zeigt den aktuellen Aufgabenstatus.
-- Wähle unter **Materialien** **Material verknüpfen**, dann ein Material und
-  **Dateiversion einfügen**. Die Verknüpfung bleibt genau bei dieser Version.
+- Wähle unter **Verknüpft** **Aufgabe verknüpfen** und dann unter
+  **Bestehende Aufgabe auswählen** eine Aufgabe. Du kannst Aufgaben aus Listen
+  wählen, die du bearbeiten darfst. Die Anfrage zeigt den aktuellen
+  Aufgabenstatus.
+- Wähle **Material verknüpfen**, dann ein Material und **Dateiversion
+  einfügen**. Die Verknüpfung bleibt genau bei dieser Version. Ein Klick auf
+  die Datei lädt diese Version herunter.
 
 Eine Verknüpfung gewährt keinen Zugriff. Wer Aufgabe oder Material nicht öffnen
 darf, sieht sie als nicht verfügbar.

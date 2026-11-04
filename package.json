@@ -19,6 +19,7 @@
     "build:pwa": "bun run --filter @leonaid/pwa build",
     "check:locks": "bun install --frozen-lockfile --ignore-scripts",
     "test:components": "bun run --filter @leonaid/web test:components",
+    "test:ui": "bun run --filter @leonaid/ui test",
     "typecheck": "bun run typecheck:api-client && bun run typecheck:ui && bun run typecheck:features && bun run typecheck:web && bun run typecheck:pwa && bun run typecheck:public && bun run typecheck:campaign-site && bun run typecheck:docs",
     "typecheck:docs": "bun run --filter @leonaid/docs check",
     "typecheck:campaign-site": "bun run --filter @leonaid/campaign-site typecheck",
@@ -26,8 +27,9 @@
     "typecheck:features": "tsc --noEmit -p packages/features/tsconfig.json",
     "typecheck:pwa": "tsc --noEmit -p apps/pwa/tsconfig.json",
     "typecheck:public": "bun run --filter @leonaid/public typecheck",
-    "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json",
-    "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json"
+    "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json && tsc --noEmit -p packages/ui/tsconfig.test.json",
+    "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json",
+    "test:pwa": "bun run --filter @leonaid/pwa test"
   },
   "overrides": {
     "zod": "4.6.7"
@@ -43,6 +45,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
     "jsdom": "29.1.1",
+    "postcss": "8.5.32",
     "prettier": "3.6.2",
     "prettier-plugin-astro": "0.14.1",
     "tailwindcss": "4.3.3",

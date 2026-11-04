@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 15
-reviewedRevision: 15
+contentRevision: 16
+reviewedRevision: 16
 verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
 reviewer: Björn Schotte
 ---
@@ -67,6 +67,16 @@ start with `worker.configuration.invalid`. The metric
 outbox counters on `/admin/system` therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
+
+## Club name
+
+`LEONAID_CLUB_NAME` in the installation's env file names the club this
+installation serves, for example `LEONAID_CLUB_NAME=Lions Club Beispielstadt`.
+The API returns it with the signed-in identity, and the admin rail shows it
+under "LeonAid". Production requires it: without it the API refuses to start
+and `./leonaid pilot-doctor` reports `club_name_invalid` or a missing key.
+Local and test stacks fall back to "Lions Club Musterstadt". At most 120
+printable characters; runs of spaces collapse to one.
 
 ## Module switches
 

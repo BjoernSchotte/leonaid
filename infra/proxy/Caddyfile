@@ -40,6 +40,40 @@
 	}
 }
 
+# Compress only static build assets under fixed build prefixes: scripts,
+# styles, SVG and the PWA manifest. HTML pages, API responses (including
+# /_emdash/api), source maps and every other dynamic route stay uncompressed
+# because they can carry session-bound secrets next to reflected input
+# (BREACH). woff2 is already compressed. Prefix and response type must both
+# match.
+# Inside handle_path /admin/* and /app/* (prefix already stripped).
+(spa_asset_encoding) {
+	@spa_build_asset path /assets/* /manifest.webmanifest
+	encode @spa_build_asset zstd gzip {
+		match {
+			header Content-Type text/javascript*
+			header Content-Type application/javascript*
+			header Content-Type text/css*
+			header Content-Type image/svg+xml*
+			header Content-Type application/manifest+json*
+		}
+	}
+}
+
+# Astro build output of the public app and the campaign site.
+(astro_asset_encoding) {
+	@astro_build_asset path /_astro/* /_campaign-assets/*
+	encode @astro_build_asset zstd gzip {
+		match {
+			header Content-Type text/javascript*
+			header Content-Type application/javascript*
+			header Content-Type text/css*
+			header Content-Type image/svg+xml*
+			header Content-Type application/manifest+json*
+		}
+	}
+}
+
 # A public order whose declared body exceeds 64 KiB. Shared by the rejection
 # route and the request body read deadlines below.
 (oversized_order_match) {
@@ -117,6 +151,7 @@
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
 	handle @campaign_routes {
 		import astro_headers
+		import astro_asset_encoding
 		import order_declared_body_limit
 		reverse_proxy campaign-site:3000 {
 			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
@@ -140,11 +175,13 @@
 
 	handle_path /app/* {
 		import leonaid_headers
+		import spa_asset_encoding
 		reverse_proxy pwa:3000
 	}
 
 	handle_path /admin/* {
 		import leonaid_headers
+		import spa_asset_encoding
 		reverse_proxy web:3000
 	}
 
@@ -167,6 +204,7 @@
 
 	handle {
 		import astro_headers
+		import astro_asset_encoding
 		import order_declared_body_limit
 		reverse_proxy public:3000 {
 			@body_rejected status 408 413

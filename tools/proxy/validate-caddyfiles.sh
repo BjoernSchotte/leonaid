@@ -34,6 +34,21 @@ for caddyfile in \
     echo "caddyfile-check: ERROR: $caddyfile is invalid for $CADDY_IMAGE" >&2
     exit 1
   fi
+  # BREACH guard: compression only for build assets under fixed prefixes and
+  # only for static asset types; never for HTML, JSON or dynamic routes.
+  if ! docker run --rm --network none \
+    --env LEONAID_HTTPS_PORT=8443 \
+    --env LEONAID_LAN_HOST=127.0.0.1 \
+    --env LEONAID_REMOTE_HOST=127.0.0.1 \
+    --env CADDY_ACME_EMAIL=operator@leonaid.invalid \
+    --env LEONAID_PUBLIC_DOMAIN=leonaid.invalid \
+    --env TWENTY_PUBLIC_DOMAIN=crm.leonaid.invalid \
+    --volume "$root/$caddyfile:/etc/caddy/Caddyfile:ro" \
+    "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile \
+    --adapter caddyfile 2>/dev/null |
+    python3 "$root/tools/proxy/encode_scope.py" "$caddyfile"; then
+    exit 1
+  fi
   count=$((count + 1))
 done
 

@@ -343,7 +343,7 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .legal-einvoice .ui-field {
+  .legal-einvoice .field {
     grid-column: 1 / -1;
   }
 }
@@ -395,7 +395,7 @@
     position: static;
   }
 
-  .legal-form-footer .ui-button {
+  .legal-form-footer .btn {
     width: 100%;
   }
 }

@@ -1,11 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./csp-guard.mjs";
+import { invoiceRows, openInvoice, showInvoiceView } from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const klaraSession = process.env.KLARA_STALE_SESSION;
 const finnSession = process.env.FINN_SESSION;
+const klaraBulkSession = process.env.KLARA_BULK_SESSION;
 const commitmentId = "80000000-0000-4000-8000-000000000002";
 const email = "klara.kern@leonaid.invalid";
 
@@ -14,6 +16,7 @@ if (
   !mailpitBaseUrl ||
   !artifactDirectory ||
   !klaraSession ||
+  !klaraBulkSession ||
   !finnSession
 ) {
   throw new Error("POC-090 browser environment is incomplete");
@@ -113,9 +116,10 @@ async function openCompletion(page) {
   await page.goto(
     `${baseUrl}/admin/orders?status=review_ready&invoice=${commitmentId}`,
   );
+  // The order opens in the list's detail pane (a sheet at 390 px).
   const row = page.locator(`[data-commitment-id="${commitmentId}"]`);
   await expect(row).toBeVisible();
-  await row.getByTestId("commitment-order-details").locator("summary").click();
+  await row.getByTestId("commitment-edit-details").click();
   const form = row.getByTestId("delivery-completion");
   await expect(form).toBeVisible();
   return { form, row };
@@ -207,7 +211,7 @@ test("manager records past delivery details historically and recovers from a com
 
     await mobile.form.getByTestId("delivery-completion-submit").click();
     await expect(mobile.form).toContainText("inzwischen geändert");
-    await expect(mobile.form).toContainText("Deine Eingaben bleiben erhalten");
+    await expect(mobile.form).toContainText("Ihre Eingaben bleiben erhalten");
     await expect(
       mobile.form.getByLabel("Ansprechpartner bei der Lieferung (optional)"),
     ).toHaveValue("Lager Süd");
@@ -283,7 +287,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
   try {
     await page.goto(`${baseUrl}/admin/orders?invoice=${commitmentId}`);
     await expect(
-      page.getByRole("heading", { name: "Bestellungen prüfen" }),
+      page.getByRole("heading", { name: "Bestellungen", exact: true }),
     ).toBeVisible();
     await expect(page.getByTestId("invoice-review")).toBeVisible();
     await expect(page.getByTestId("invoice-review")).toContainText("KT26-0004");
@@ -321,20 +325,31 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toBeVisible();
 
     await page.locator('[data-nav-key="invoices"]').first().click();
-    await page.waitForURL(`${baseUrl}/admin/invoices`);
+    // The rail link carries the campaign the admin is working in.
+    await page.waitForURL(/\/admin\/invoices\?action=[0-9a-f-]{36}$/);
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(page.getByTestId("invoice-profile")).toContainText(
-      "Freigegebene Rechtsgrundlage aktiv",
-    );
-    await expect(page.getByTestId("invoice-row")).toHaveCount(4);
-    await expect(page.getByTestId("invoice-totals")).toContainText("648,00");
-    const issuedRow = page
-      .getByTestId("invoice-row")
-      .filter({ hasText: "KT26-0004" });
-    await expect(issuedRow).toBeVisible();
-    await issuedRow.locator("summary").click();
+    await expect(page.getByTestId("invoice-profile-incomplete")).toHaveCount(0);
+    await expect(page.getByTestId("invoice-open-total")).toContainText("€");
+    // List pages are full-bleed: the list starts at the rail and runs to the
+    // right edge, without the page padding or the 1320 px cap.
+    const frame = await page.evaluate(() => {
+      const main = document
+        .querySelector("#main-content")
+        .getBoundingClientRect();
+      const list = document.querySelector(".listview").getBoundingClientRect();
+      const pageStyle = getComputedStyle(document.querySelector(".page"));
+      return {
+        left: list.left - main.left,
+        right: main.right - list.right,
+        padding: pageStyle.paddingLeft,
+      };
+    });
+    expect(frame).toEqual({ left: 0, right: 0, padding: "0px" });
+    await showInvoiceView(page, "Alle");
+    await expect(invoiceRows(page)).toHaveCount(4);
+    const issuedRow = await openInvoice(page, { number: "KT26-0004" });
     await expect(issuedRow).toContainText("Bäckerei Sonnenseite KG");
     await expect(issuedRow).toContainText("Sonnenstraße 2");
     await expect(issuedRow).toContainText(
@@ -353,8 +368,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toEqual([]);
     expect(pageErrors).toEqual([]);
 
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-dark").click();
+    await page.getByTestId("theme-toggle").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.screenshot({
       path: `${artifactDirectory}/invoice-ledger-dark.png`,
@@ -375,10 +389,11 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     await expect(
       financePage.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
-    await expect(financePage.getByTestId("invoice-profile")).toContainText(
-      "Nur Lesezugriff",
+    await expect(financePage.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
     );
-    await expect(financePage.getByTestId("invoice-row")).toHaveCount(4);
+    await showInvoiceView(financePage, "Alle");
+    await expect(invoiceRows(financePage)).toHaveCount(4);
     await expect(financePage.getByTestId("issue-invoice")).toHaveCount(0);
     await expect(financePage.getByTestId("mobile-menu")).toBeVisible();
     await expect(financePage.getByTestId("desktop-sidebar")).toBeHidden();
@@ -396,5 +411,172 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toEqual([]);
   } finally {
     await financeContext.close();
+  }
+});
+
+const bulkOrders = {
+  eins: "80000000-0000-4000-8000-0000000000b1",
+  zwei: "80000000-0000-4000-8000-0000000000b2",
+  drei: "80000000-0000-4000-8000-0000000000b3",
+};
+
+test("bulk release issues several invoices with one service date and never twice", async ({
+  browser,
+}) => {
+  // A finance reader cannot issue: no bulk release on the orders page.
+  const financeContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    ignoreHTTPSErrors: true,
+  });
+  await financeContext.addCookies([sessionCookie(finnSession)]);
+  try {
+    const financePage = await financeContext.newPage();
+    await financePage.goto(
+      `${baseUrl}/admin/orders?action=${actionId}&view=all`,
+    );
+    await expect(
+      financePage.getByRole("heading", { name: "Bestellungen", exact: true }),
+    ).toBeVisible();
+    await expect(financePage.getByTestId("bulk-release-open")).toHaveCount(0);
+    await expect(financePage.locator(".listview li.row")).toHaveCount(0);
+  } finally {
+    await financeContext.close();
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    ignoreHTTPSErrors: true,
+  });
+  await context.addCookies([sessionCookie(klaraBulkSession)]);
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  try {
+    await page.goto(`${baseUrl}/admin/orders?action=${actionId}&view=all`);
+    for (const name of [
+      "Sammel Eins KG",
+      "Sammel Zwei KG",
+      "Sammel Drei KG",
+      "Doppelkontakt AG",
+    ]) {
+      await page
+        .getByRole("checkbox", { name: new RegExp(`^${name} ·`) })
+        .check();
+    }
+    const open = page.getByTestId("bulk-release-open");
+    await expect(open).toContainText("3 von 4 freigebbar");
+    await open.click();
+    const dialog = page.getByRole("dialog", { name: "Rechnungen freigeben" });
+    await expect(dialog.locator("[data-release-id]")).toHaveCount(3);
+    await expect(dialog.getByTestId("bulk-release-total")).toHaveText(
+      "324,00 €",
+    );
+    await expect(dialog).toContainText(
+      "Doppelkontakt AG (Rechnungsadresse fehlt)",
+    );
+    const dateField = dialog.getByTestId("bulk-release-service-on");
+    const serviceOn = await dateField.inputValue();
+    const firstDay = await dateField.getAttribute("min");
+    expect(serviceOn).not.toBe(firstDay);
+    const accessibility = await new AxeBuilder({ page })
+      .include(".bulk-release")
+      .analyze();
+    expect(
+      accessibility.violations.filter((violation) =>
+        ["critical", "serious"].includes(violation.impact),
+      ),
+    ).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-bulk-release-desktop.png`,
+    });
+
+    // The stale session confirms the sign-in first; the dialog comes back
+    // with the same orders and date.
+    const previousMailIds = await messageIds(context.request);
+    await dialog
+      .getByRole("button", { name: "3 Rechnungen verbindlich ausstellen" })
+      .click();
+    await page.waitForURL(/\/fresh-login\?returnTo=/);
+    await page.getByTestId("request-login").click();
+    await expect(page.locator("#complete-login-form")).toBeVisible();
+    const code = await waitForCode(context.request, previousMailIds);
+    await page.locator("#login-code").fill(code);
+    await page.getByTestId("complete-login").click();
+    await page.waitForURL(/\/admin\/orders\?/);
+    await expect(dialog.locator("[data-release-id]")).toHaveCount(3);
+    await expect(dateField).toHaveValue(serviceOn);
+
+    // Meanwhile another manager issues "Drei" with the first day.
+    const elsewhere = await page.request.post(
+      `${baseUrl}/api/v1/actions/${actionId}/commitments/${bulkOrders.drei}/invoice`,
+      {
+        headers: {
+          Origin: baseUrl,
+          "Idempotency-Key": `poc090:${crypto.randomUUID()}`,
+        },
+        data: { serviceOn: firstDay },
+      },
+    );
+    expect(elsewhere.ok(), await elsewhere.text()).toBeTruthy();
+    const dreiNumber = (await elsewhere.json()).number;
+
+    // A double click starts one run. Drei comes back as the existing
+    // invoice, the others are issued once each.
+    await dialog
+      .getByRole("button", { name: "3 Rechnungen verbindlich ausstellen" })
+      .dblclick();
+    const result = page.getByRole("dialog", { name: "Ergebnis der Freigabe" });
+    const issued = result.getByTestId("bulk-release-issued");
+    await expect(issued).toContainText("Ausgestellt (3)");
+    await expect(issued).toContainText(
+      `${dreiNumber} · Sammel Drei KG · 108,00 € (war bereits ausgestellt, keine zweite Rechnung; Leistungsdatum ${firstDay.split("-").reverse().join(".")})`,
+    );
+    await expect(result.getByTestId("bulk-release-failed")).toHaveCount(0);
+    await expect(result.getByTestId("bulk-release-unfinished")).toHaveCount(0);
+    const shownNumbers = await issued.locator("a").allTextContents();
+    expect(shownNumbers).toHaveLength(3);
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-bulk-release-result.png`,
+    });
+
+    // Exactly one invoice per order, unique numbers, the chosen dates.
+    const invoices = await (
+      await page.request.get(`${baseUrl}/api/v1/actions/${actionId}/invoices`)
+    ).json();
+    const invoicesFor = (commitment) =>
+      invoices.items
+        .filter((item) => item.invoice.commitmentId === commitment)
+        .map((item) => item.invoice);
+    const [eins, zwei, drei] = [
+      invoicesFor(bulkOrders.eins),
+      invoicesFor(bulkOrders.zwei),
+      invoicesFor(bulkOrders.drei),
+    ];
+    expect([eins.length, zwei.length, drei.length]).toEqual([1, 1, 1]);
+    expect(shownNumbers.sort()).toEqual(
+      [eins[0].number, zwei[0].number, drei[0].number].sort(),
+    );
+    expect(drei[0].number).toBe(dreiNumber);
+    expect(eins[0].serviceOn).toBe(serviceOn);
+    expect(zwei[0].serviceOn).toBe(serviceOn);
+    expect(drei[0].serviceOn).toBe(firstDay);
+    const allNumbers = invoices.items.map((item) => item.invoice.number);
+    expect(new Set(allNumbers).size).toBe(allNumbers.length);
+
+    await result
+      .locator(".modal-footer")
+      .getByRole("button", { name: "Schließen" })
+      .click();
+    await expect(result).toHaveCount(0);
+    for (const id of Object.values(bulkOrders)) {
+      await expect(
+        page.locator(".listview li.row", {
+          has: page.locator(`[data-order-id="${id}"]`),
+        }),
+      ).toContainText("Fakturiert");
+    }
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
   }
 });

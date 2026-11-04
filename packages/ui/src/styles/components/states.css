@@ -1,0 +1,146 @@
+/* Empty, error and loading states and the callout: ported from the Leitsystem prototype (components.css). */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-12) var(--s-6);
+  text-align: center;
+}
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-lg);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+  margin-bottom: var(--s-2);
+}
+.empty-title {
+  font-size: var(--fs-lg);
+}
+.empty-text {
+  max-width: 42ch;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.empty-action {
+  margin-top: var(--s-3);
+}
+.error-state {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+  margin: var(--s-6);
+  padding: var(--s-5);
+  border: var(--hair) solid var(--danger);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+}
+.error-state h3 {
+  font-size: var(--fs-md);
+  color: var(--danger);
+}
+.error-text {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  max-width: 60ch;
+}
+.skeleton-list {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-2) var(--s-4);
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--row-h);
+}
+.skeleton {
+  display: block;
+  border-radius: var(--r-xs);
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 0%,
+    var(--surface-2) 50%,
+    var(--surface-3) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s var(--ease-in-out) infinite;
+}
+.skeleton-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.skeleton-line {
+  height: 10px;
+}
+.skeleton-chip {
+  width: 72px;
+  height: 18px;
+  margin-inline-start: auto;
+  border-radius: var(--r-pill);
+}
+/* Scoped: bare .w-40 would collide with the Tailwind utility of that name. */
+.skeleton-line.w-40 {
+  width: 40%;
+}
+.skeleton-line.w-50 {
+  width: 50%;
+}
+.skeleton-line.w-60 {
+  width: 60%;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.callout {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--info-soft);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+.callout.tone-warn {
+  background: var(--warn-soft);
+}
+.callout.tone-warn > svg {
+  color: var(--warn);
+}
+.callout.tone-danger {
+  background: var(--danger-soft);
+}
+.callout.tone-danger > svg {
+  color: var(--danger);
+}
+.callout.tone-ok {
+  background: var(--ok-soft);
+}
+.callout.tone-ok > svg {
+  color: var(--ok);
+}
+
+/* The prototype's base heading rule, scoped to these components. */
+.empty-title,
+.error-state h3 {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}

@@ -12,7 +12,7 @@ import {
   type FeatureFlagAdminResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import {
@@ -186,7 +186,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
     const forbidden =
       flags.error instanceof ApiError && flags.error.status === 403;
     return (
-      <main className="ui-main">
+      <div>
         <StatusMessage tone="error">
           <h1>
             {forbidden
@@ -204,7 +204,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
             </Button>
           )}
         </StatusMessage>
-      </main>
+      </div>
     );
   }
 
@@ -225,7 +225,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
           </p>
         </div>
         <a
-          className="ui-button ui-button--secondary feature-admin-header__catalog"
+          className={`${buttonClassName({ variant: "secondary" })} feature-admin-header__catalog`}
           href="/admin/system/ui"
         >
           UI-Basis

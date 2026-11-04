@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import fields, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
@@ -128,6 +128,14 @@ from leonaid.application.public_orders import (
     PublicOrderService,
     PublicOrderTokenCodec,
     public_order_fingerprint,
+)
+from leonaid.application.search import (
+    SEARCH_LIMIT_DEFAULT,
+    SEARCH_LIMIT_MAX,
+    SEARCH_QUERY_MAX_LENGTH,
+    SEARCH_QUERY_MIN_LENGTH,
+    SearchQuery,
+    SearchService,
 )
 from leonaid.application.sessions import SessionGrant, SessionService
 from leonaid.application.crm import CrmPartyKind
@@ -259,6 +267,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CreateInvitationRequest,
     CreateCharityActionRequest,
     CurrentIdentityResponse,
+    InstallationResponse,
     DashboardCommitmentResponse,
     DashboardGoalResponse,
     DashboardInvoiceResponse,
@@ -313,6 +322,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     LogoutResponse,
     MemberDirectoryMemberResponse,
     MemberDirectoryResponse,
+    SearchResponse,
+    SearchResultResponse,
     MemberRoleChangeResponse,
     MemberStatusChangeResponse,
     OperationalAlertResponse,
@@ -493,6 +504,10 @@ def action_service(request: Request) -> CharityActionService:
 
 def campaign_alias_service(request: Request) -> CampaignAliasService:
     return cast(CampaignAliasService, request.app.state.campaign_alias_service)
+
+
+def search_service(request: Request) -> SearchService:
+    return cast(SearchService, request.app.state.search_service)
 
 
 def commitment_service(request: Request) -> CommitmentService:
@@ -2025,7 +2040,12 @@ async def current_identity(
 ) -> CurrentIdentityResponse:
     result = await identity_service(request).current_identity(session_token(request))
     response.headers["Cache-Control"] = "no-store"
-    return CurrentIdentityResponse.model_validate(result)
+    return CurrentIdentityResponse.model_validate(
+        {
+            **{field.name: getattr(result, field.name) for field in fields(result)},
+            "installation": InstallationResponse(club_name=request.app.state.club_name),
+        }
+    )
 
 
 @router.get(
@@ -2060,6 +2080,37 @@ async def list_members(
     )
     response.headers["Cache-Control"] = "no-store"
     return MemberDirectoryResponse.model_validate(page)
+
+
+@router.get(
+    "/api/v1/search",
+    operation_id="searchCore",
+    response_model=SearchResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["search"],
+)
+async def search_core(
+    request: Request,
+    response: Response,
+    q: Annotated[
+        str,
+        Query(
+            min_length=SEARCH_QUERY_MIN_LENGTH,
+            max_length=SEARCH_QUERY_MAX_LENGTH,
+            description=(
+                "Search text; actions, orders, invoices and members the "
+                "account may read."
+            ),
+        ),
+    ],
+    limit: Annotated[int, Query(ge=1, le=SEARCH_LIMIT_MAX)] = SEARCH_LIMIT_DEFAULT,
+) -> SearchResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    results = await search_service(request).search(actor, SearchQuery(q, limit))
+    response.headers["Cache-Control"] = "no-store"
+    return SearchResponse(
+        results=[SearchResultResponse.model_validate(item) for item in results]
+    )
 
 
 @router.get(

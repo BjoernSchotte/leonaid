@@ -17,7 +17,7 @@ async function confirmTransition(page, trigger, confirm) {
   await page.getByTestId(trigger).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".ui-dialog__description")).toHaveText(/.{20,}/);
+  await expect(dialog.locator(".modal-description")).toHaveText(/.{20,}/);
   await dialog.getByRole("button", { name: confirm }).click();
 }
 
@@ -90,29 +90,18 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       fullPage: true,
     });
 
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-dark").click();
-    await expect(page.getByTestId("theme-dark")).toBeHidden();
+    await page.getByTestId("theme-toggle").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme-preference",
       "dark",
     );
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-system").click();
-    await expect(page.getByTestId("theme-system")).toBeHidden();
+    await page.keyboard.press("Shift+T");
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme-preference",
-      "system",
+      "light",
     );
-
-    await page.getByTestId("sidebar-toggle").click();
-    await expect(page.locator(".ui-shell")).toHaveAttribute(
-      "data-sidebar-collapsed",
-      "true",
-    );
-    await page.getByTestId("sidebar-toggle").click();
 
     await page.getByTestId("action-name").fill("Krapfentaxi Golden UI 2028");
     await page
@@ -165,7 +154,11 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     );
     await expect(
       page.locator('a[data-nav-key="invoices"]').first(),
-    ).toHaveAttribute("href", "/admin/invoices");
+    ).toHaveAttribute(
+      "href",
+      // Campaign-scoped rail links carry the campaign on screen.
+      `/admin/invoices?action=${actionId}`,
+    );
     await expect(page.locator("#manage-name-help")).toContainText(
       "öffentliche Titel",
     );
@@ -265,14 +258,13 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       path: `${artifactDirectory}/action-admin-public.png`,
       fullPage: false,
     });
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-dark").click();
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.screenshot({
       path: `${artifactDirectory}/action-admin-dark.png`,
       fullPage: false,
     });
-    await page.getByTestId("theme-trigger").click();
-    await page.getByTestId("theme-system").click();
+    await page.getByTestId("theme-toggle").click();
 
     await page.getByTestId("management-tab-status").click();
     await confirmTransition(page, "transition-scheduled", "Aktion einplanen");
@@ -325,7 +317,7 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(page.getByTestId("desktop-sidebar")).toBeHidden();
     await page.getByTestId("mobile-menu").focus();
     await page.keyboard.press("Enter");
-    const drawer = page.getByRole("dialog", { name: "Navigation" });
+    const drawer = page.getByRole("dialog", { name: "Alle Bereiche" });
     await expect(drawer).toBeVisible();
     await expect(drawer.locator('[data-nav-key="actions"]')).toBeVisible();
     await drawer.screenshot({
@@ -343,9 +335,7 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(
       page.getByRole("heading", { name: "Aktionen verwalten" }),
     ).toBeVisible();
-    await expect(page.getByTestId("current-action")).toHaveText(
-      "Alle Aktionen",
-    );
+    await expect(page.getByTestId("topbar-zone")).toHaveText("Aktionen");
     await page.screenshot({
       path: `${artifactDirectory}/action-overview-desktop.png`,
       fullPage: false,

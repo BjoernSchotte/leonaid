@@ -1,0 +1,108 @@
+/* Avatar: ported from the Leitsystem prototype (components.css). */
+.avatar {
+  --avatar-h: 262;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: oklch(0.9 0.05 var(--avatar-h));
+  color: oklch(0.32 0.1 var(--avatar-h));
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
+}
+:root[data-theme="dark"] .avatar {
+  background: oklch(0.36 0.07 var(--avatar-h));
+  color: oklch(0.93 0.04 var(--avatar-h));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .avatar {
+    background: oklch(0.36 0.07 var(--avatar-h));
+    color: oklch(0.93 0.04 var(--avatar-h));
+  }
+}
+.avatar-h0 {
+  --avatar-h: 0;
+}
+.avatar-h1 {
+  --avatar-h: 15;
+}
+.avatar-h2 {
+  --avatar-h: 30;
+}
+.avatar-h3 {
+  --avatar-h: 45;
+}
+.avatar-h4 {
+  --avatar-h: 60;
+}
+.avatar-h5 {
+  --avatar-h: 75;
+}
+.avatar-h6 {
+  --avatar-h: 90;
+}
+.avatar-h7 {
+  --avatar-h: 105;
+}
+.avatar-h8 {
+  --avatar-h: 120;
+}
+.avatar-h9 {
+  --avatar-h: 135;
+}
+.avatar-h10 {
+  --avatar-h: 150;
+}
+.avatar-h11 {
+  --avatar-h: 165;
+}
+.avatar-h12 {
+  --avatar-h: 180;
+}
+.avatar-h13 {
+  --avatar-h: 195;
+}
+.avatar-h14 {
+  --avatar-h: 210;
+}
+.avatar-h15 {
+  --avatar-h: 225;
+}
+.avatar-h16 {
+  --avatar-h: 240;
+}
+.avatar-h17 {
+  --avatar-h: 255;
+}
+.avatar-h18 {
+  --avatar-h: 270;
+}
+.avatar-h19 {
+  --avatar-h: 285;
+}
+.avatar-h20 {
+  --avatar-h: 300;
+}
+.avatar-h21 {
+  --avatar-h: 315;
+}
+.avatar-h22 {
+  --avatar-h: 330;
+}
+.avatar-h23 {
+  --avatar-h: 345;
+}
+.avatar-xs {
+  width: 20px;
+  height: 20px;
+  font-size: 9.5px;
+  font-weight: var(--fw-semibold);
+}
+.avatar-md {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}

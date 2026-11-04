@@ -1,0 +1,134 @@
+/*
+ * Shortcut help ("?") and prefix hint, ported from the Leitsystem prototype
+ * (components.css: .modal, .modal-lg, help overlay; shell.css: .prefix-hint).
+ * The dialog carries the modal-lg frame itself so it does not depend on the
+ * generic Modal styles.
+ */
+.help-dialog {
+  /* Preflight zeroes the UA margin that centres a modal dialog. */
+  margin: auto;
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
+  padding: 0;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+}
+.help-dialog::backdrop {
+  background: var(--overlay);
+}
+.help-dialog[open] {
+  animation: help-rise var(--dur-2) var(--ease-out);
+}
+@keyframes help-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.help-dialog .help-body {
+  display: grid;
+  max-height: inherit;
+  grid-template-rows: auto 1fr auto;
+}
+.help-dialog .help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-5) var(--s-6) var(--s-3);
+}
+.help-dialog .help-header h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.help-dialog .help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-6);
+  padding: var(--s-2) var(--s-6) var(--s-4);
+  overflow: auto;
+}
+.help-dialog .help-section h3 {
+  margin: 0 0 var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.help-dialog .help-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.help-dialog .help-section li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 30px;
+  font-size: var(--fs-sm);
+  border-bottom: var(--hair) solid var(--border);
+}
+.help-dialog .help-zone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.help-dialog .help-zone .zone-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--zone);
+}
+.help-dialog .help-foot {
+  margin: 0;
+  padding: var(--s-3) var(--s-6) var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.prefix-hint {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s-6);
+  z-index: 950;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--text-inverse);
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-2);
+}
+.prefix-hint .kbd {
+  background: transparent;
+  color: inherit;
+  border-color: currentColor;
+}
+
+@media (max-width: 720px) {
+  .prefix-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-dialog[open] {
+    animation: none;
+  }
+}

@@ -1,0 +1,755 @@
+/*
+ * Admin rail shell, ported from the Leitsystem prototype (styles/shell.css).
+ * Left out: the prototype ribbon, the thin rail scrollbar (scrollbars stay
+ * invisible) and .prefix-hint (components/shortcut-help.css). Product
+ * additions are marked "Product:".
+ */
+/* ---------- Admin shell: Lions-blue rail + content ---------- */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100dvh;
+}
+.shell-rail {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+.rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--rail-bg);
+  color: var(--rail-text);
+}
+.rail-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+}
+.brand-mark {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--rail-bg-2);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.12);
+}
+.brand-l {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  width: 4px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--lions-gold);
+  box-shadow: 0 0 0 0 transparent;
+}
+.brand-l::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 13px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--lions-gold);
+}
+.brand-dot {
+  position: absolute;
+  right: 6px;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: oklch(1 0 0);
+}
+.brand-text {
+  display: grid;
+  line-height: 1.15;
+}
+.brand-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.01em;
+}
+.brand-club {
+  color: var(--rail-text-2);
+  font-size: var(--fs-xs);
+}
+/* Product: a long club name ends in an ellipsis instead of widening the rail. */
+.brand-text {
+  min-width: 0;
+}
+.brand-name,
+.brand-club {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-campaign {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin: 0 var(--s-3) var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: var(--hair) solid oklch(1 0 0 / 0.14);
+  border-radius: var(--r-md);
+  background: var(--rail-bg-2);
+  color: var(--rail-text);
+  text-align: left;
+}
+.rail-campaign-label {
+  grid-column: 1;
+  color: var(--rail-text-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.rail-campaign-name {
+  grid-column: 1;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+}
+.rail-campaign svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--rail-text-2);
+}
+.rail-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 var(--s-3) var(--s-3);
+  height: 34px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: oklch(1 0 0 / 0.07);
+  color: var(--rail-text-2);
+  font-size: var(--fs-sm);
+}
+.rail-search:hover {
+  background: oklch(1 0 0 / 0.12);
+  color: var(--rail-text);
+}
+.rail-search span:first-of-type {
+  flex: 1;
+  text-align: left;
+}
+.rail .kbd-group.is-subtle .kbd {
+  border-color: oklch(1 0 0 / 0.22);
+  color: var(--rail-text-2);
+}
+.rail-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--s-2) var(--s-3);
+}
+.rail-group + .rail-group {
+  margin-top: var(--s-3);
+}
+.rail-group-title {
+  padding: var(--s-2) var(--s-3) var(--s-1);
+  color: var(--rail-text-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 32px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--rail-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.nav-item .kbd-group {
+  margin-inline-start: auto;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.nav-item:hover .kbd-group,
+.nav-item:focus-visible .kbd-group {
+  opacity: 1;
+}
+.nav-item:hover {
+  background: oklch(1 0 0 / 0.07);
+}
+/* Signature: each destination shows its zone code as a small coloured tile. */
+.nav-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-xs);
+  color: oklch(0.88 0.08 var(--zone-h));
+}
+.nav-item.is-active {
+  background: var(--rail-active);
+  color: oklch(1 0 0);
+}
+.nav-item.is-active .nav-icon {
+  background: oklch(0.78 0.12 var(--zone-h));
+  color: oklch(0.2 0.06 var(--zone-h));
+}
+.nav-item:focus-visible {
+  outline-color: var(--lions-gold);
+}
+.rail-user {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: var(--hair) solid oklch(1 0 0 / 0.1);
+}
+.rail-user-text {
+  display: grid;
+  line-height: 1.2;
+}
+.rail-user-name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.rail-user-role {
+  color: var(--rail-text-2);
+  font-size: var(--fs-xs);
+}
+
+/* ---------- Topbar ---------- */
+.shell-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  height: var(--topbar-h);
+  padding: 0 var(--s-4) 0 var(--s-6);
+  border-bottom: var(--hair) solid var(--border);
+  background: oklch(from var(--bg) l c h / 0.92);
+  backdrop-filter: saturate(1.4) blur(8px);
+}
+/* Zone band: the wayfinding colour of the current area. */
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--zone);
+}
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.zone-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+.topbar-zone {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 32px;
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  min-width: 220px;
+}
+.topbar-search:hover {
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+.topbar-search-text {
+  flex: 1;
+  text-align: left;
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+}
+
+/* ---------- Bottom nav + sheet (mobile) ---------- */
+.bottom-nav {
+  display: none;
+}
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  margin: auto 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+.sheet[open] {
+  animation: sheet-up var(--dur-3) var(--ease-out);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet-body {
+  padding: var(--s-3) var(--s-4) calc(var(--s-6) + env(safe-area-inset-bottom));
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-3);
+}
+.sheet-header h2 {
+  font-size: var(--fs-lg);
+}
+.sheet-search {
+  width: 100%;
+  height: 44px;
+  margin: 0 0 var(--s-4);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+.sheet-tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  min-height: 76px;
+  padding: var(--s-3) var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+  text-decoration: none;
+}
+.sheet-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--zone-soft);
+  color: var(--zone-ink);
+}
+
+/* ---------- Page scaffolding shared by all admin pages ---------- */
+.page {
+  padding: var(--s-6) var(--s-8) var(--s-12);
+  max-width: 1320px;
+}
+/* Product: full-bleed pages (components/page-layout.ts). The prototype puts
+   its list pages straight into main; here the page root opts out of the
+   padding and width cap. Other direct children (the preview notice) keep an
+   inset. */
+.page:has(> [data-page-layout="full-bleed"]) {
+  padding: 0;
+  max-width: none;
+}
+.page:has(> [data-page-layout="full-bleed"])
+  > :not([data-page-layout="full-bleed"]) {
+  margin: var(--s-4) var(--s-6) 0;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-4);
+}
+.page-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.page-heading h1 {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.015em;
+}
+.page-count {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.page-sub {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  margin-top: var(--s-1);
+}
+.page-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-bottom: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.crumbs a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+.crumbs a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .shell {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .rail-brand .brand-text,
+  .rail-campaign,
+  .rail-search span,
+  .rail-search .kbd-group,
+  .rail-group-title,
+  .nav-label,
+  .nav-item .kbd-group,
+  .rail-user-text {
+    display: none;
+  }
+  .rail-brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .rail-search {
+    justify-content: center;
+    margin-inline: var(--s-2);
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 0;
+    height: 40px;
+  }
+  .rail-user {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .page {
+    padding: var(--s-5) var(--s-5) var(--s-10);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  .shell-rail,
+  .hide-mobile {
+    display: none;
+  }
+  .topbar {
+    padding: 0 var(--s-2) 0 var(--s-4);
+  }
+  .topbar-search {
+    min-width: 0;
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+  .topbar-search .kbd-group {
+    display: none;
+  }
+  /* Keep the label for assistive tech (accessible name = visible name on desktop). */
+  .topbar-search-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .topbar .btn-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .bottom-nav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    padding: var(--s-1) var(--s-1) env(safe-area-inset-bottom);
+    border-top: var(--hair) solid var(--border);
+    background: var(--surface);
+  }
+  .bottom-nav .nav-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    height: 58px;
+    padding: 0;
+    color: var(--text-2);
+    font-size: var(--fs-2xs);
+  }
+  .bottom-nav .nav-label {
+    display: block;
+  }
+  .bottom-nav .nav-icon {
+    width: 32px;
+    height: 26px;
+    color: var(--text-2);
+    border-radius: var(--r-pill);
+  }
+  .bottom-nav .nav-item.is-active {
+    background: none;
+    color: var(--text);
+  }
+  .bottom-nav .nav-item.is-active .nav-icon {
+    background: var(--zone-soft);
+    color: var(--zone-ink);
+  }
+  .page {
+    padding: var(--s-4) var(--s-4) var(--s-8);
+  }
+  .page-heading h1 {
+    font-size: var(--fs-lg);
+  }
+  .toaster {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    right: var(--s-4);
+  }
+}
+
+/* ---------- Product additions ---------- */
+
+/* Product: prototype base.css typography and focus, scoped to the shell. */
+.shell {
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-ui);
+}
+.shell h2 {
+  margin: 0;
+}
+.shell :is(.rail, .topbar, .bottom-nav, .sheet) :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+.shell .rail :focus-visible {
+  outline-color: var(--lions-gold);
+}
+.shell .rail button {
+  cursor: pointer;
+}
+.rail-nav {
+  scrollbar-width: none;
+}
+
+/* Skip link (prototype base.css). */
+.skip-link {
+  position: absolute;
+  left: var(--s-2);
+  top: -100px;
+  z-index: 1000;
+  padding: var(--s-2) var(--s-3);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--r-sm);
+  font-weight: var(--fw-semibold);
+}
+.skip-link:focus {
+  top: var(--s-2);
+}
+
+/* Product: the campaign switcher and the user row truncate long names. */
+.rail-campaign-name,
+.rail-user-name,
+.rail-user-role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-campaign {
+  cursor: pointer;
+}
+.rail-campaign:hover {
+  border-color: oklch(1 0 0 / 0.24);
+}
+.rail-user-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Product: sign-out next to the user (the prototype has no session). */
+.rail-logout.btn {
+  flex: none;
+  color: var(--rail-text-2);
+}
+.rail-logout.btn:hover {
+  background: oklch(1 0 0 / 0.1);
+  color: var(--rail-text);
+}
+
+/* Sheet backdrop (prototype components.css). Product: the "Mehr" sheet also
+   carries the account and sign-out. */
+.sheet::backdrop {
+  background: var(--overlay);
+}
+.sheet-account {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: var(--hair) solid var(--border);
+}
+.sheet-account-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+.sheet-account-name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.sheet-account-role {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+.sheet-logout.btn {
+  min-height: 44px;
+}
+
+/* Product: the bottom nav adapts to fewer than five entries. */
+@media (max-width: 720px) {
+  .bottom-nav {
+    grid-template-columns: none;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Product: the prototype's collapsed-rail margin also hit the sheet
+     search and pushed it past the sheet's right edge. */
+  .sheet-search {
+    margin-inline: 0;
+  }
+  .rail-user {
+    flex-direction: column;
+    gap: var(--s-1);
+  }
+}
+
+/* Product: pages without a rail entry get a neutral band. */
+[data-zone="none"] {
+  --zone-c: 0;
+}
+
+/* Product: "Alle Bereiche" takes the prototype's base.css heading style. */
+.sheet-header h2 {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+/* Product: campaign switching at ≤ 1024 px (collapsed rail, sheet). */
+.rail-campaign-compact {
+  display: none;
+}
+.sheet-campaign-row {
+  margin-top: var(--s-4);
+}
+.sheet-campaign {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s-2) var(--s-3);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-campaign .rail-campaign-label {
+  color: var(--text-2);
+}
+.sheet-campaign svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--text-2);
+}
+@media (max-width: 1024px) {
+  .rail-campaign-compact {
+    display: grid;
+    place-items: center;
+    height: 40px;
+    margin: 0 var(--s-2) var(--s-2);
+    border: var(--hair) solid oklch(1 0 0 / 0.14);
+    border-radius: var(--r-md);
+    background: var(--rail-bg-2);
+    color: var(--rail-text);
+    cursor: pointer;
+  }
+  .rail-campaign-compact:hover {
+    border-color: oklch(1 0 0 / 0.24);
+  }
+}

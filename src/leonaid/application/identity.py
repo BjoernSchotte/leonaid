@@ -263,6 +263,26 @@ def decode_member_cursor(value: str) -> UUID:
         ) from error
 
 
+def member_directory_scope(actor: IdentityPrincipal) -> tuple[UUID, ...] | None:
+    """Actions whose members the actor may read; ``None`` means every member."""
+
+    if actor.is_system_admin:
+        return None
+    action_ids = tuple(
+        dict.fromkeys(
+            membership.action_id
+            for membership in actor.action_memberships
+            if membership.role is ActionRole.CHARITY_ADMIN
+        )
+    )
+    if not action_ids:
+        raise PermissionDenied(
+            "member_directory_forbidden",
+            "Nur Charity- oder System-Admins dürfen Mitglieder einsehen.",
+        )
+    return action_ids
+
+
 def paginate_member_directory(
     members: tuple[MemberDirectoryMember, ...],
     query: MemberDirectoryQuery,
@@ -499,30 +519,12 @@ class IdentityQueryService:
             fresh_until=identity.session.fresh_login_at + self._fresh_login_window,
         )
 
-    @staticmethod
-    def _member_scope(actor: IdentityPrincipal) -> tuple[UUID, ...] | None:
-        if actor.is_system_admin:
-            return None
-        action_ids = tuple(
-            dict.fromkeys(
-                membership.action_id
-                for membership in actor.action_memberships
-                if membership.role is ActionRole.CHARITY_ADMIN
-            )
-        )
-        if not action_ids:
-            raise PermissionDenied(
-                "member_directory_forbidden",
-                "Nur Charity- oder System-Admins dürfen Mitglieder einsehen.",
-            )
-        return action_ids
-
     async def list_members(
         self,
         actor: IdentityPrincipal,
         query: MemberDirectoryQuery,
     ) -> MemberDirectoryPage:
-        visible_action_ids = self._member_scope(actor)
+        visible_action_ids = member_directory_scope(actor)
         if (
             visible_action_ids is not None
             and query.action_id is not None
@@ -554,7 +556,7 @@ class IdentityQueryService:
         actor: IdentityPrincipal,
         user_id: UUID,
     ) -> MemberDirectoryMember:
-        visible_action_ids = self._member_scope(actor)
+        visible_action_ids = member_directory_scope(actor)
         snapshot = await self._repository.member_directory_snapshot(
             visible_action_ids=visible_action_ids,
             include_global_roles=actor.is_system_admin,

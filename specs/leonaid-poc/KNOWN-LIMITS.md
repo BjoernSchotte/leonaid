@@ -20,6 +20,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege. Ein
   allgemeines DMS mit freiem Upload, Versionierung und Volltextsuche fehlt.
 - listmonk und Canva sind nicht Teil des Core-PoC.
+- Core search (`GET /api/v1/search`) finds actions, orders, invoices and
+  members. It does not find sponsors: they live only in Twenty, and the
+  search does not call the CRM per keystroke. The `sponsor` result type is
+  reserved for a later local sponsor index.
 
 ## Identität und Administration
 

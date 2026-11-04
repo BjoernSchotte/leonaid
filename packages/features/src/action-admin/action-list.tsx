@@ -6,7 +6,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
-import { Button } from "@leonaid/ui";
+import { Button, buttonClassName } from "@leonaid/ui";
 
 export interface ActionListPageProps {
   readonly identity: CurrentIdentityResponse;
@@ -32,7 +32,10 @@ export function ActionListPage({ identity }: ActionListPageProps) {
             Veröffentlichung an einem Ort.
           </p>
         </div>
-        <a className="ui-button ui-button--primary" href="/admin/actions/new">
+        <a
+          className={buttonClassName({ variant: "primary" })}
+          href="/admin/actions/new"
+        >
           <HugeiconsIcon
             aria-hidden="true"
             icon={Add01Icon}

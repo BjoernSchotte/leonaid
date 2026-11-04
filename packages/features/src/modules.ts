@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type {
   CurrentIdentityResponse,
@@ -45,6 +46,20 @@ export interface ModuleSearchProvider {
 }
 
 /**
+ * An "Anlegen" entry in the command palette. The target page reads
+ * `?create=<kind>` (see command-palette/create-request.ts) and opens its own
+ * create form. Shown only while the module is enabled for the account; the
+ * page's create request is still authorized by the server.
+ */
+export interface ModuleCreateEntry {
+  /** "create:<kind>"; a mounted page command with the same id replaces it. */
+  readonly id: string;
+  readonly label: string;
+  readonly icon: LucideIcon;
+  readonly href: (surface: ModuleSurface) => string;
+}
+
+/**
  * A UI contribution of one backend module. The ID is the backend module ID.
  * Registration only makes pages reachable; the server still authorizes every
  * request and filters navigation, so a registered route grants no access.
@@ -57,6 +72,7 @@ export interface UiModule {
   readonly surfaces: readonly ModuleSurface[];
   readonly routes: readonly ModuleRoute[];
   readonly search?: ModuleSearchProvider;
+  readonly creates?: readonly ModuleCreateEntry[];
 }
 
 export interface ResolvedModuleRoute {

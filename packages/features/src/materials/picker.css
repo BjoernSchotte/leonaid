@@ -13,7 +13,7 @@
 .material-picker li {
   min-width: 0;
 }
-.material-picker li .ui-button {
+.material-picker li .btn {
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: start;

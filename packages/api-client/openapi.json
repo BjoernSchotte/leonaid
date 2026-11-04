@@ -4695,6 +4695,9 @@
             "title": "Globalroles",
             "type": "array"
           },
+          "installation": {
+            "$ref": "#/components/schemas/InstallationResponse"
+          },
           "navigation": {
             "items": {
               "$ref": "#/components/schemas/NavigationItemResponse"
@@ -4736,7 +4739,8 @@
           "sessionExpiresAt",
           "sessionLastSeenAt",
           "freshLoginAt",
-          "freshUntil"
+          "freshUntil",
+          "installation"
         ],
         "title": "CurrentIdentityResponse",
         "type": "object"
@@ -6177,6 +6181,21 @@
           "answers"
         ],
         "title": "IndividualResponse",
+        "type": "object"
+      },
+      "InstallationResponse": {
+        "additionalProperties": false,
+        "description": "Installation facts every signed-in surface shows (one club per install).",
+        "properties": {
+          "clubName": {
+            "title": "Clubname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clubName"
+        ],
+        "title": "InstallationResponse",
         "type": "object"
       },
       "InvitationAcceptanceResponse": {
@@ -12234,6 +12253,68 @@
           "privacyEvidenceId"
         ],
         "title": "SaveLegalConfigurationDraftRequest",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultResponse"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SearchResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "title": "Context",
+            "type": "string"
+          },
+          "href": {
+            "examples": [
+              "/admin/actions/00000000-0000-4000-8000-000000000001"
+            ],
+            "title": "Href",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "action",
+              "order",
+              "invoice",
+              "sponsor",
+              "member"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "context",
+          "href"
+        ],
+        "title": "SearchResultResponse",
         "type": "object"
       },
       "SelectCampaignRendererRequest": {
@@ -30478,6 +30559,114 @@
         "summary": "Complete",
         "tags": [
           "surveys"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "searchCore",
+        "parameters": [
+          {
+            "description": "Search text; actions, orders, invoices and members the account may read.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Search text; actions, orders, invoices and members the account may read.",
+              "maxLength": 80,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Search Core",
+        "tags": [
+          "search"
         ]
       }
     },

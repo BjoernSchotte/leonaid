@@ -55,12 +55,37 @@ async def main() -> None:
                     receipt.reference,
                 )
             cases[surface] = str(case_id)
+        # Three more for the keyboard spec of the list (tests/e2e/inbox-keyboard).
+        keyboard: list[str] = []
+        for letter in ("A", "B", "C"):
+            receipt = await inbox.submit(
+                SubmitCase(
+                    privacy_consent=True,
+                    privacy_notice_version=INBOX_PRIVACY_NOTICE_VERSION,
+                    idempotency_key=uuid4(),
+                    subject=f"Tastaturprobe {letter}",
+                    message="Bitte um Rückruf wegen der Ausgabezeiten.",
+                    given_name="Tom",
+                    family_name=f"Taste-{letter}",
+                    email=f"tom.{uuid4().hex[:8]}@example.org",
+                )
+            )
+            async with pool.acquire() as connection:
+                keyboard.append(
+                    str(
+                        await connection.fetchval(
+                            "SELECT id FROM inbox_case WHERE public_reference=$1",
+                            receipt.reference,
+                        )
+                    )
+                )
     finally:
         await pool.close()
     fixture["cases"] = cases
+    fixture["keyboardCases"] = keyboard
     FIXTURE.write_text(json.dumps(fixture))
     FIXTURE.chmod(0o600)
-    print("inbox-module-seed: two synthetic cases added to the module fixture")
+    print("inbox-module-seed: five synthetic cases added to the module fixture")
 
 
 if __name__ == "__main__":

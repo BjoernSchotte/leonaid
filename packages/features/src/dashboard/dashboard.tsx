@@ -11,6 +11,7 @@ import {
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Target } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -21,7 +22,12 @@ import type {
   DashboardResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  EmptyState,
+  StatusMessage,
+} from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { formatQuantities } from "../commitments/quantities";
@@ -174,10 +180,13 @@ function GoalProgress({
 function Pipeline({
   baseHref,
   counts,
+  emptyDescription,
   title,
 }: {
   readonly baseHref: string;
   readonly counts: DashboardPipelineResponse;
+  /** Du in the acquisition app, Sie in admin. */
+  readonly emptyDescription: string;
   readonly title: string;
 }) {
   return (
@@ -196,11 +205,14 @@ function Pipeline({
       {counts.total === 0 ? (
         <EmptyState
           action={
-            <a className="ui-button ui-button--secondary" href={baseHref}>
+            <a
+              className={buttonClassName({ variant: "secondary" })}
+              href={baseHref}
+            >
               Akquise öffnen
             </a>
           }
-          description="Lege den ersten Sponsor an oder ordne einen bestehenden Kontakt zu."
+          description={emptyDescription}
           title="Die Pipeline ist noch leer"
         />
       ) : (
@@ -303,7 +315,7 @@ function AcquirerDashboard({
             {data.reminders.unscheduled} ohne Termin
           </span>
         </div>
-        <a className="ui-button ui-button--primary" href={nextHref}>
+        <a className={buttonClassName({ variant: "primary" })} href={nextHref}>
           Jetzt öffnen
           <HugeiconsIcon
             aria-hidden="true"
@@ -355,6 +367,7 @@ function AcquirerDashboard({
       <Pipeline
         baseHref={pipelineHref}
         counts={data.pipeline}
+        emptyDescription="Lege den ersten Sponsor an oder ordne einen bestehenden Kontakt zu."
         title="Deine persönliche Pipeline"
       />
     </>
@@ -371,7 +384,7 @@ function AdminDashboard({
     return (
       <StatusMessage tone="error">
         <strong>Admin-Sicht nicht verfügbar</strong>
-        <p>Für diese Aktion fehlt deine aktive Charity-Admin-Zuordnung.</p>
+        <p>Für diese Aktion fehlt Ihre aktive Charity-Admin-Zuordnung.</p>
       </StatusMessage>
     );
   }
@@ -453,6 +466,7 @@ function AdminDashboard({
       <Pipeline
         baseHref={pipelineHref}
         counts={data.pipeline}
+        emptyDescription="Legen Sie den ersten Sponsor an oder ordnen Sie einen bestehenden Kontakt zu."
         title="Pipeline der gesamten Aktion"
       />
     </>
@@ -490,9 +504,10 @@ export function RoleDashboardPage({
         description={
           mode === "acquirer"
             ? "Sobald du einer Charity-Aktion als Akquisiteur zugeordnet bist, erscheint hier dein persönlicher Arbeitsstand."
-            : "Sobald du eine Charity-Aktion verwaltest, erscheint hier der gemeinsame Arbeitsstand."
+            : "Sobald Sie eine Charity-Aktion verwalten, erscheint hier der gemeinsame Arbeitsstand."
         }
-        icon={<HugeiconsIcon icon={Target01Icon} size={25} strokeWidth={1.7} />}
+        headingLevel={2}
+        icon={Target}
         title="Noch keine passende Charity-Aktion"
       />
     );
@@ -551,7 +566,14 @@ export function RoleDashboardPage({
       ) : dashboard.isError ? (
         <StatusMessage tone="error">
           <strong>Aktionsstand nicht erreichbar</strong>
-          <p>{actionErrorMessage(dashboard.error).message}</p>
+          <p>
+            {
+              actionErrorMessage(dashboard.error, {
+                // The acquirer dashboard is the PWA (du); admins get Sie.
+                address: mode === "acquirer" ? "du" : "Sie",
+              }).message
+            }
+          </p>
           <Button onClick={() => void dashboard.refetch()} variant="secondary">
             Erneut laden
           </Button>

@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
+import { Upload as UploadIcon } from "lucide-react";
+import { consumeCreateRequest } from "../command-palette/create-request";
+import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import {
   AccessMembersPanel,
@@ -74,15 +77,7 @@ function Upload({
     setNotice("");
   };
   const valid = file && file.size > 0 && file.size <= 25 * 1024 * 1024;
-  useEffect(() => {
-    if (!file) return;
-    const guard = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
-  }, [file]);
+  useLeaveGuard(Boolean(file));
   if (!canEdit && !file) return null;
   return (
     <form
@@ -368,6 +363,31 @@ export function MaterialsPage({
   const [offset, setOffset] = useState(0);
   const [actionId, setActionId] = useState("");
   const contexts = useActionContexts(client);
+  const createPanel = useRef<HTMLDetailsElement>(null);
+  const openCreate = () => {
+    const panel = createPanel.current;
+    if (!panel) return;
+    panel.open = true;
+    panel.querySelector<HTMLElement>("input, button")?.focus();
+  };
+  // "Material hochladen" from the palette, here or on another page.
+  useEffect(() => {
+    if (!materialId && consumeCreateRequest("material")) openCreate();
+  }, [materialId]);
+  useContextCommands(
+    materialId
+      ? []
+      : [
+          {
+            id: "create:material",
+            label: "Material hochladen",
+            group: "Material",
+            icon: UploadIcon,
+            keywords: ["neu", "Datei"],
+            run: openCreate,
+          },
+        ],
+  );
   const materials = useQuery({
     queryKey: ["materials", search, offset, actionId],
     queryFn: () =>
@@ -385,7 +405,7 @@ export function MaterialsPage({
             <h1>Materialien</h1>
             <p>Dateien gemeinsam nutzen und frühere Versionen behalten.</p>
           </header>
-          <details>
+          <details ref={createPanel}>
             <summary>Neues Material</summary>
             <Upload
               client={client}

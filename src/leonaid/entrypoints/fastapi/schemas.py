@@ -90,6 +90,12 @@ class NavigationItemResponse(TransportModel):
     surface: Literal["web", "pwa"]
 
 
+class InstallationResponse(TransportModel):
+    """Installation facts every signed-in surface shows (one club per install)."""
+
+    club_name: str
+
+
 class CurrentIdentityResponse(TransportModel):
     user_id: UUID
     display_name: str
@@ -102,6 +108,7 @@ class CurrentIdentityResponse(TransportModel):
     session_last_seen_at: datetime
     fresh_login_at: datetime
     fresh_until: datetime
+    installation: InstallationResponse
 
 
 class MemberDirectoryMembershipResponse(TransportModel):
@@ -180,6 +187,18 @@ class MemberDirectoryResponse(TransportModel):
     total: int = Field(ge=0)
     next_cursor: str | None
     partial: bool
+
+
+class SearchResultResponse(TransportModel):
+    id: UUID
+    type: Literal["action", "order", "invoice", "sponsor", "member"]
+    title: str
+    context: str
+    href: str = Field(examples=["/admin/actions/00000000-0000-4000-8000-000000000001"])
+
+
+class SearchResponse(TransportModel):
+    results: list[SearchResultResponse]
 
 
 FeatureFlagKeyValue = Literal[

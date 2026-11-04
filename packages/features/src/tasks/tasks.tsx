@@ -41,6 +41,9 @@ import {
   type TaskSummary,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+import { Plus } from "lucide-react";
+import { consumeCreateRequest } from "../command-palette/create-request";
+import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import { ListMembersPanel } from "./list-members";
 import { TaskEditor, TaskPlanPanel, type Task } from "./task-editor";
@@ -273,9 +276,29 @@ function QuickTaskForm({
   const [assignee, setAssignee] = useState("");
   const [assignmentTouched, setAssignmentTouched] = useState(false);
   const operation = useRef(crypto.randomUUID());
+  const titleInput = useRef<HTMLInputElement>(null);
+  const editable = !list || list.canEdit;
   useEffect(() => {
     if (list) setListChoice(list.id);
   }, [list]);
+  // "Aufgabe anlegen" from the palette, here or on another page.
+  useEffect(() => {
+    if (editable && consumeCreateRequest("task")) titleInput.current?.focus();
+  }, [editable]);
+  useContextCommands(
+    editable
+      ? [
+          {
+            id: "create:task",
+            label: "Aufgabe anlegen",
+            group: "Aufgaben",
+            icon: Plus,
+            keywords: ["neu", "erfassen"],
+            run: () => titleInput.current?.focus(),
+          },
+        ]
+      : [],
+  );
   const assignees = useQuery({
     queryKey: ["task-assignees", "quick", listChoice, identity.displayName],
     queryFn: () =>
@@ -324,6 +347,7 @@ function QuickTaskForm({
       <label className="task-quick-title">
         <span className="sr-only">Titel</span>
         <input
+          ref={titleInput}
           aria-label="Titel"
           maxLength={240}
           placeholder="Neue Aufgabe …"
@@ -1080,7 +1104,7 @@ export function TasksPage({
       <div
         className={`tasks-layout${detailTaskId ? " tasks-layout--detail" : ""}`}
       >
-        <main className="tasks-main">
+        <div className="tasks-main">
           {(!listId || selected.data?.canEdit) && (
             <QuickTaskForm
               client={client}
@@ -1723,7 +1747,7 @@ export function TasksPage({
               </Button>
             </div>
           )}
-        </main>
+        </div>
         {detailTaskId && (
           <aside className="tasks-detail-panel" aria-label="Aufgabendetails">
             {!detailTask ||

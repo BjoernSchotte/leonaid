@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
+contentRevision: 4
+reviewedRevision: 4
 verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
 reviewer: Björn Schotte
 ---
@@ -209,6 +209,8 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 - the tenant ID in `LEONAID_COMPOSE_PROJECT`, `RUSTFS_BUCKET` and
   `RESTIC_REPOSITORY`;
 - the eight lines from `release-images.env` (replace the template lines);
+- `LEONAID_CLUB_NAME`, the club name the admin rail shows (the API does not
+  start in production without it);
 - the portal domain, `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
 - `TWENTY_ADMIN_PORT` only if port 3020 is taken on the server;
 - `TWENTY_MAIL_FROM_ADDRESS` and `TWENTY_MAIL_FROM_NAME`, the sender of

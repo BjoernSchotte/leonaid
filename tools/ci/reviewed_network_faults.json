@@ -68,5 +68,15 @@
     "path": "tests/e2e/public-inbox-retry.spec.mjs",
     "sha256": "22c98ea9574802b48a95fbe71b38df3e541e3bf6bfe6a48c5598eeb177ef0196",
     "reason": "Drop only the real committed Inbox response; exhaust the real server rate limit and verify the browser retains and repeats the identical command after HTTP 429."
+  },
+  {
+    "path": "tests/e2e/command-palette-faults.spec.mjs",
+    "sha256": "f62745cd1dd9d827c2c719cf254983d6745b19ddddd5e6015967a97cf1a596ea",
+    "reason": "Hold one real search request for 3 s, then forward it unchanged, so the next keystroke must abort it in flight; every response comes from the real API."
+  },
+  {
+    "path": "tests/e2e/invoices-bulk-faults.spec.mjs",
+    "sha256": "171b014710bacec49a3cbb0c435d83c7869b77181b67d90e207f3e94dc938510",
+    "reason": "Let one real invoice-issue request reach the API and commit, then abort its first successful answer once (connectionreset), so the bulk release must stop and the retry must replay the same idempotency key; every other request and response passes unchanged from the real API."
   }
 ]

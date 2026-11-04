@@ -23,6 +23,8 @@ EMPTY_ACTION_ID = UUID("20000000-0000-4000-8000-000000000003")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FELIX_ID = UUID("10000000-0000-4000-8000-000000000003")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
+# Signed in by the command palette browser test (system admin, no membership).
+SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 SESSION_NAMESPACE = UUID("fc6f4986-ff43-4fd3-b4aa-92a6cead8141")
 
 
@@ -43,7 +45,7 @@ def token_for(user_id: UUID) -> str:
 
 async def seed_sessions(connection: asyncpg.Connection[Any]) -> None:
     now = datetime.now(timezone.utc)
-    users = (KLARA_ID, FELIX_ID, ANNA_ID)
+    users = (KLARA_ID, FELIX_ID, ANNA_ID, SIMONE_ID)
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
         list(users),

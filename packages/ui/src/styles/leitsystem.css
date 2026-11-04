@@ -1,0 +1,362 @@
+/*
+ * LeonAid "Leitsystem" tokens, ported verbatim from the approved prototype.
+ * Base: Lions Blue (PMS 287) and Lions Gold (PMS 7406), used semantically.
+ * Zones: every work area carries a wayfinding hue (--zone-h), set on the
+ * area root with [data-zone="<server navigation key>"]. Components read
+ * --zone, --zone-soft, --zone-line and --zone-ink.
+ * Theme: [data-theme] on <html> (theme-init.js, setThemePreference in components/theme.ts); without it the
+ * system preference applies. contrast.test.ts checks every pair's WCAG target.
+ */
+
+/* Fonts: fonts.css (self-hosted @fontsource, latin subset). */
+
+:root {
+  /* Type */
+  --font-sans:
+    "Barlow", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --fs-2xs: 0.6875rem; /* 11 */
+  --fs-xs: 0.75rem; /* 12 */
+  --fs-sm: 0.8125rem; /* 13 */
+  --fs-md: 0.9375rem; /* 15 body + rows */
+  --fs-lg: 1.0625rem; /* 17 */
+  --fs-xl: 1.3125rem; /* 21 page title */
+  --fs-2xl: 1.75rem; /* 28 */
+  --fs-3xl: 2.5rem; /* 40 proposal display */
+  --lh-tight: 1.2;
+  --lh-ui: 1.4;
+  --lh-prose: 1.6;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --track-caps: 0.06em;
+
+  /* Space: 4 px base */
+  --s-0: 2px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* Shape */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+  --hair: 1px;
+
+  /* Size */
+  --row-h: 40px;
+  --row-h-compact: 34px;
+  --control-h: 32px;
+  --control-h-lg: 44px;
+  --sidebar-w: 248px;
+  --pane-w: 440px;
+  --topbar-h: 52px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 260ms;
+
+  /* Brand constants */
+  --lions-blue: oklch(0.33 0.15 262); /* ≈ #00338D family */
+  --lions-gold: oklch(0.82 0.16 86); /* ≈ #EBB700 family */
+
+  /* Zone default */
+  --zone-h: 262;
+  --zone-c: 0.15;
+}
+
+/* ---------- Light ---------- */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: oklch(0.985 0.004 262);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.97 0.006 262);
+  --surface-3: oklch(0.945 0.008 262);
+  --overlay: oklch(0.2 0.03 262 / 0.42);
+  --border: oklch(0.9 0.01 262);
+  --border-strong: oklch(0.8 0.015 262);
+  --control-border: oklch(0.62 0.02 262); /* ≥3:1 on surface (WCAG 1.4.11) */
+  --text: oklch(0.22 0.025 262);
+  --text-2: oklch(0.42 0.02 262);
+  --text-3: oklch(0.52 0.018 262);
+  --text-inverse: oklch(0.99 0 0);
+
+  --accent: oklch(0.45 0.18 262);
+  --accent-hover: oklch(0.4 0.18 262);
+  --accent-soft: oklch(0.95 0.03 262);
+  --accent-ink: oklch(0.38 0.16 262);
+  --on-accent: oklch(0.99 0 0);
+  --focus: oklch(0.55 0.22 262);
+  --selection: oklch(0.9 0.06 262);
+  --row-hover: oklch(0.965 0.008 262);
+  --row-active: oklch(0.94 0.025 262);
+
+  /* Rail (sidebar) – committed Lions Blue in both themes */
+  --rail-bg: oklch(0.27 0.11 262);
+  --rail-bg-2: oklch(0.32 0.12 262);
+  --rail-text: oklch(0.93 0.02 262);
+  --rail-text-2: oklch(0.8 0.04 262);
+  --rail-active: oklch(0.38 0.13 262);
+  --rail-marker: var(--lions-gold);
+
+  /* Status */
+  --ok: oklch(0.5 0.13 150);
+  --ok-soft: oklch(0.95 0.04 150);
+  --warn: oklch(0.52 0.13 70);
+  --warn-soft: oklch(0.96 0.05 85);
+  --danger: oklch(0.52 0.19 27);
+  --danger-soft: oklch(0.96 0.03 27);
+  --info: oklch(0.5 0.14 240);
+  --info-soft: oklch(0.95 0.03 240);
+  --neutral: oklch(0.52 0.015 262);
+  --neutral-soft: oklch(0.95 0.006 262);
+
+  /* Zone derivations */
+  --zl: 0.52;
+  --zl-ink: 0.42;
+  --zl-soft: 0.955;
+  --zl-line: 0.86;
+  --zk: 1;
+  --zk-ink: 0.95;
+  --zk-soft: 0.22;
+  --zk-line: 0.5;
+
+  --shadow-1:
+    0 1px 2px oklch(0.2 0.03 262 / 0.06), 0 1px 1px oklch(0.2 0.03 262 / 0.04);
+  --shadow-2:
+    0 8px 24px -6px oklch(0.2 0.04 262 / 0.18),
+    0 2px 6px oklch(0.2 0.04 262 / 0.08);
+  --shadow-3:
+    0 24px 64px -12px oklch(0.15 0.05 262 / 0.32),
+    0 4px 12px oklch(0.15 0.05 262 / 0.12);
+}
+
+/* ---------- Dark ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: oklch(0.19 0.035 262);
+    --surface: oklch(0.225 0.035 262);
+    --surface-2: oklch(0.205 0.032 262);
+    --surface-3: oklch(0.27 0.038 262);
+    --overlay: oklch(0.08 0.02 262 / 0.6);
+    --border: oklch(0.32 0.035 262);
+    --border-strong: oklch(0.4 0.03 262);
+    --control-border: oklch(0.55 0.03 262);
+    --text: oklch(0.94 0.008 262);
+    --text-2: oklch(0.78 0.015 262);
+    --text-3: oklch(0.68 0.018 262);
+    --text-inverse: oklch(0.18 0.02 262);
+
+    --accent: oklch(0.72 0.13 262);
+    --accent-hover: oklch(0.78 0.12 262);
+    --accent-soft: oklch(0.29 0.06 262);
+    --accent-ink: oklch(0.82 0.1 262);
+    --on-accent: oklch(0.16 0.03 262);
+    --focus: oklch(0.78 0.14 262);
+    --selection: oklch(0.36 0.09 262);
+    --row-hover: oklch(0.255 0.038 262);
+    --row-active: oklch(0.29 0.055 262);
+
+    --rail-bg: oklch(0.28 0.11 262);
+    --rail-bg-2: oklch(0.33 0.12 262);
+    --rail-text: oklch(0.92 0.02 262);
+    --rail-text-2: oklch(0.76 0.04 262);
+    --rail-active: oklch(0.4 0.13 262);
+
+    --ok: oklch(0.76 0.13 150);
+    --ok-soft: oklch(0.28 0.05 150);
+    --warn: oklch(0.8 0.13 80);
+    --warn-soft: oklch(0.3 0.05 80);
+    --danger: oklch(0.72 0.16 27);
+    --danger-soft: oklch(0.3 0.06 27);
+    --info: oklch(0.75 0.12 240);
+    --info-soft: oklch(0.28 0.05 240);
+    --neutral: oklch(0.7 0.015 262);
+    --neutral-soft: oklch(0.27 0.015 262);
+
+    --zl: 0.74;
+    --zl-ink: 0.83;
+    --zl-soft: 0.27;
+    --zl-line: 0.4;
+    --zk: 0.85;
+    --zk-ink: 0.7;
+    --zk-soft: 0.35;
+    --zk-line: 0.5;
+
+    --shadow-1: 0 1px 2px oklch(0 0 0 / 0.4);
+    --shadow-2:
+      0 10px 28px -6px oklch(0 0 0 / 0.55), 0 2px 6px oklch(0 0 0 / 0.35);
+    --shadow-3:
+      0 28px 72px -12px oklch(0 0 0 / 0.7), 0 4px 12px oklch(0 0 0 / 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(0.19 0.035 262);
+  --surface: oklch(0.225 0.035 262);
+  --surface-2: oklch(0.205 0.032 262);
+  --surface-3: oklch(0.27 0.038 262);
+  --overlay: oklch(0.08 0.02 262 / 0.6);
+  --border: oklch(0.32 0.035 262);
+  --border-strong: oklch(0.4 0.03 262);
+  --control-border: oklch(0.55 0.03 262);
+  --text: oklch(0.94 0.008 262);
+  --text-2: oklch(0.78 0.015 262);
+  --text-3: oklch(0.68 0.018 262);
+  --text-inverse: oklch(0.18 0.02 262);
+
+  --accent: oklch(0.72 0.13 262);
+  --accent-hover: oklch(0.78 0.12 262);
+  --accent-soft: oklch(0.29 0.06 262);
+  --accent-ink: oklch(0.82 0.1 262);
+  --on-accent: oklch(0.16 0.03 262);
+  --focus: oklch(0.78 0.14 262);
+  --selection: oklch(0.36 0.09 262);
+  --row-hover: oklch(0.255 0.038 262);
+  --row-active: oklch(0.29 0.055 262);
+
+  --rail-bg: oklch(0.28 0.11 262);
+  --rail-bg-2: oklch(0.33 0.12 262);
+  --rail-text: oklch(0.92 0.02 262);
+  --rail-text-2: oklch(0.76 0.04 262);
+  --rail-active: oklch(0.4 0.13 262);
+
+  --ok: oklch(0.76 0.13 150);
+  --ok-soft: oklch(0.28 0.05 150);
+  --warn: oklch(0.8 0.13 80);
+  --warn-soft: oklch(0.3 0.05 80);
+  --danger: oklch(0.72 0.16 27);
+  --danger-soft: oklch(0.3 0.06 27);
+  --info: oklch(0.75 0.12 240);
+  --info-soft: oklch(0.28 0.05 240);
+  --neutral: oklch(0.7 0.015 262);
+  --neutral-soft: oklch(0.27 0.015 262);
+
+  --zl: 0.74;
+  --zl-ink: 0.83;
+  --zl-soft: 0.27;
+  --zl-line: 0.4;
+  --zk: 0.85;
+  --zk-ink: 0.7;
+  --zk-soft: 0.35;
+  --zk-line: 0.5;
+
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.4);
+  --shadow-2:
+    0 10px 28px -6px oklch(0 0 0 / 0.55), 0 2px 6px oklch(0 0 0 / 0.35);
+  --shadow-3:
+    0 28px 72px -12px oklch(0 0 0 / 0.7), 0 4px 12px oklch(0 0 0 / 0.4);
+}
+
+/* ---------- Zones (wayfinding hues) ----------
+ * Derived colours are declared on every zone root so they recompute with the
+ * zone's hue (custom properties resolve where they are declared). */
+:root,
+[data-zone] {
+  --zone: oklch(var(--zl) calc(var(--zone-c) * var(--zk)) var(--zone-h));
+  --zone-ink: oklch(
+    var(--zl-ink) calc(var(--zone-c) * var(--zk-ink)) var(--zone-h)
+  );
+  --zone-soft: oklch(
+    var(--zl-soft) calc(var(--zone-c) * var(--zk-soft)) var(--zone-h)
+  );
+  --zone-line: oklch(
+    var(--zl-line) calc(var(--zone-c) * var(--zk-line)) var(--zone-h)
+  );
+}
+
+/* Hues per server navigation key (prototype zone in brackets). */
+[data-zone="overview-web"],
+[data-zone="overview-pwa"] {
+  --zone-h: 262;
+  --zone-c: 0.15;
+} /* uebersicht */
+[data-zone="actions"] {
+  --zone-h: 85;
+  --zone-c: 0.14;
+} /* aktionen */
+[data-zone="orders"] {
+  --zone-h: 48;
+  --zone-c: 0.16;
+} /* bestellungen */
+[data-zone="delivery"] {
+  --zone-h: 205;
+  --zone-c: 0.13;
+} /* lieferung */
+[data-zone="invoices"] {
+  --zone-h: 145;
+  --zone-c: 0.13;
+} /* rechnungen */
+[data-zone="members"] {
+  --zone-h: 300;
+  --zone-c: 0.15;
+} /* mitglieder */
+[data-zone="surveys"] {
+  --zone-h: 176;
+  --zone-c: 0.11;
+} /* umfragen */
+[data-zone="tasks"] {
+  --zone-h: 5;
+  --zone-c: 0.16;
+} /* aufgaben */
+[data-zone="inbox"] {
+  --zone-h: 234;
+  --zone-c: 0.14;
+} /* eingang */
+[data-zone="materials"] {
+  --zone-h: 115;
+  --zone-c: 0.12;
+} /* material */
+[data-zone="knowledge"] {
+  --zone-h: 278;
+  --zone-c: 0.1;
+} /* wissen */
+[data-zone="activities"] {
+  --zone-h: 262;
+  --zone-c: 0.04;
+} /* aktivitaet */
+[data-zone="microsite"] {
+  --zone-h: 330;
+  --zone-c: 0.15;
+} /* kampagnenseiten */
+[data-zone="legal"],
+[data-zone="privacy"] {
+  --zone-h: 50;
+  --zone-c: 0.05;
+} /* recht */
+[data-zone="system"] {
+  --zone-h: 230;
+  --zone-c: 0.03;
+} /* system */
+/* Acquisition app surface and its entries (akquise = bestellungen hue). */
+[data-zone="pwa"],
+[data-zone="acquisition-app"],
+[data-zone="acquisition-web"],
+[data-zone="acquisition-pwa"],
+[data-zone="sponsors"],
+[data-zone="commitment"] {
+  --zone-h: 48;
+  --zone-c: 0.16;
+} /* akquise */
+/* Public order pages (oeffentlich = aktionen hue). */
+[data-zone="public"] {
+  --zone-h: 85;
+  --zone-c: 0.14;
+} /* oeffentlich */
