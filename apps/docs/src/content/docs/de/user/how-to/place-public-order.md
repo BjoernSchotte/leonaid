@@ -4,8 +4,8 @@ description: Ohne LeonAid-Konto eine verbindliche Bestellung auf einer veröffen
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
+contentRevision: 4
+reviewedRevision: 4
 verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
 reviewer: Björn Schotte
 ---
