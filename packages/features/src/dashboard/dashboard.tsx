@@ -556,7 +556,7 @@ function AdminDashboard({
     goal.targetValue === null ? null : Number(goal.targetValue);
   const goalActual = Number(goal.actualValue);
   const windows = data.delivery.enabled ? data.delivery.windows : [];
-  const firstName = identity.displayName.split(" ")[0];
+  const givenName = identity.displayName.split(" ")[0];
 
   return (
     <div className="dashboard" data-testid="admin-dashboard">
@@ -564,7 +564,7 @@ function AdminDashboard({
         <div>
           <div className="page-heading">
             <h1>
-              {greeting()}, {firstName}
+              {greeting()}, {givenName}
             </h1>
           </div>
           <p className="page-sub">
