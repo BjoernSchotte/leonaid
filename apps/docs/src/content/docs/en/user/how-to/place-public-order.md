@@ -4,8 +4,8 @@ description: Submit a binding order from a published campaign page without a Leo
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
 reviewer: Björn Schotte
 ---
