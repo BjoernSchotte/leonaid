@@ -21,6 +21,7 @@ from leonaid.adapters.postgres.delivery_board import (
     order_reference,
     purge_read_audits,
 )
+from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.application.commitments import CommitmentDraft, CommitmentLineDraft
 from leonaid.application.delivery_board import DeliveryBoardService
 from leonaid.application.errors import Conflict, PermissionDenied
@@ -39,6 +40,7 @@ from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
     ActionRole,
+    GlobalRole,
     IdentityPrincipal,
     UserAccount,
 )
@@ -599,6 +601,39 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         await without_tasks.board(admin, action_id, day=day, viewed_at=now)
     ).follow_up_tasks
 
+    # The web nav entry: only managers of an action with delivery planning on.
+    identities = AsyncpgIdentityRepository(pool)
+    system_admin = IdentityPrincipal(
+        UserAccount(uuid4(), "root@example.invalid", "Root", AccountStatus.ACTIVE),
+        frozenset({GlobalRole.SYSTEM_ADMIN}),
+        (),
+    )
+    elsewhere = _principal(admin_id, uuid4(), ActionRole.CHARITY_ADMIN)
+    assert await identities.manages_delivery(admin)
+    assert await identities.manages_delivery(system_admin)
+    assert not await identities.manages_delivery(anna)
+    assert not await identities.manages_delivery(outsider)
+    assert not await identities.manages_delivery(elsewhere)
+    others_enabled = await pool.fetchval(
+        "SELECT count(*) FROM action_delivery_configuration"
+        " WHERE enabled AND action_id <> $1",
+        action_id,
+    )
+    await pool.execute(
+        "UPDATE action_delivery_configuration SET enabled = false WHERE action_id = $1",
+        action_id,
+    )
+    try:
+        assert not await identities.manages_delivery(admin)
+        # System admins still see it while another action delivers.
+        assert await identities.manages_delivery(system_admin) == bool(others_enabled)
+    finally:
+        await pool.execute(
+            "UPDATE action_delivery_configuration SET enabled = true"
+            " WHERE action_id = $1",
+            action_id,
+        )
+
     # Read audits older than 90 days are purged; newer ones stay.
     await pool.execute(
         "INSERT INTO delivery_read_audit(driver_user_id,window_id,viewed_on,"
@@ -617,5 +652,6 @@ async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> No
         " with revisions, closure with Nachliefern tasks without personal"
         " data (mirrored on later delivery, undo and reopen, moved to the"
         " re-closer), closed-window undo only for missed drops, late"
-        " bookings tickable, cancelled orders refused, tasks module off"
+        " bookings tickable, cancelled orders refused, tasks module off,"
+        " nav entry only with delivery planning on"
     )

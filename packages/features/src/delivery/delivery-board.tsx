@@ -231,8 +231,21 @@ export function DeliveryBoardPage({
     retry: false,
   });
   useEffect(() => {
-    if (hideOffline) queries.removeQueries({ queryKey: ["delivery-board"] });
+    if (!hideOffline) return;
+    queries.removeQueries({ queryKey: ["delivery-board"] });
+    // Finished commands keep the returned drop (address, phone) as data.
+    const mutations = queries.getMutationCache();
+    for (const mutation of mutations.findAll({
+      mutationKey: ["delivery-board"],
+    })) {
+      mutations.remove(mutation);
+    }
   }, [hideOffline, queries]);
+  // PWA: finished commands are dropped at once, like the board query.
+  const mutationOptions = {
+    gcTime: surface === "pwa" ? 0 : undefined,
+    mutationKey: ["delivery-board", actionId],
+  };
   const refresh = () =>
     queries.invalidateQueries({ queryKey: ["delivery-board", actionId] });
   /** Shared error handling (fresh login, support code), board copy per code. */
@@ -287,6 +300,7 @@ export function DeliveryBoardPage({
   };
 
   const setState = useMutation({
+    ...mutationOptions,
     mutationFn: ({
       drop,
       delivered,
@@ -346,6 +360,7 @@ export function DeliveryBoardPage({
   };
 
   const closeWindow = useMutation({
+    ...mutationOptions,
     mutationFn: (windowId: string) =>
       client.closeDeliveryWindow(actionId, windowId),
     onSuccess: (result) => {
@@ -354,7 +369,7 @@ export function DeliveryBoardPage({
         title: result.missedCount
           ? result.followUp === "tasks"
             ? `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen als Aufgabe angelegt.`
-            : `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen bleiben unter „Nachliefern“.`
+            : `Fenster abgeschlossen. ${result.missedCount} offene Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.`
           : "Fenster abgeschlossen. Alles geliefert.",
         tone: "success",
       });
@@ -364,6 +379,7 @@ export function DeliveryBoardPage({
   });
 
   const reopenWindow = useMutation({
+    ...mutationOptions,
     mutationFn: (windowId: string) =>
       client.reopenDeliveryWindow(actionId, windowId),
     onSuccess: () =>
@@ -373,6 +389,7 @@ export function DeliveryBoardPage({
   });
 
   const assign = useMutation({
+    ...mutationOptions,
     mutationFn: ({
       ids,
       driverUserId,
@@ -425,10 +442,33 @@ export function DeliveryBoardPage({
         group.window.closure
           ? []
           : group.window.drops.filter(
-              (drop) => drop.driverUserId === null && deliverable(drop),
+              (drop) =>
+                drop.driverUserId === null &&
+                drop.state === "open" &&
+                deliverable(drop),
             ),
       )
     : [];
+  // Booked after the window was closed and not yet delivered: no task
+  // exists for them, so the board reminds the manager.
+  const lateBookings = manager
+    ? windows.flatMap((group) =>
+        group.window.closure
+          ? group.window.drops
+              .filter((drop) => drop.state === "open" && deliverable(drop))
+              .map((drop) => ({ drop, windowId: group.window.id }))
+          : [],
+      )
+    : [];
+  const showLate = () => {
+    const first = lateBookings[0];
+    if (!first) return;
+    setDriver(ALL_DRIVERS);
+    setActiveWindow(first.windowId);
+    // The row renders after the filter and window change.
+    window.requestAnimationFrame(() => focus(first.drop.commitmentId));
+  };
+
   // A past, still open window with nothing left to tick: only closing it
   // remains (design §7).
   const now = Date.now();
@@ -601,6 +641,21 @@ export function DeliveryBoardPage({
         />
       ) : (
         <>
+          {lateBookings.length ? (
+            <NextStep
+              action={
+                <Button
+                  data-testid="delivery-next-late"
+                  icon={PackageCheck}
+                  onClick={showLate}
+                  variant="primary"
+                >
+                  Zur Lieferung
+                </Button>
+              }
+              consequence={`${lateBookings.length} ${lateBookings.length === 1 ? "Lieferung wurde" : "Lieferungen wurden"} nach dem Abschluss ins Fenster gebucht und ${lateBookings.length === 1 ? "ist" : "sind"} noch nicht abgehakt. Haken Sie sie nach der Lieferung ab, oder öffnen Sie das Fenster wieder, damit sie beim erneuten Abschluss als „Nachliefern“ zählen.`}
+            />
+          ) : null}
           {manager && unassigned.length && !data?.drivers.length ? (
             <NextStep
               action={
@@ -858,6 +913,13 @@ export function DeliveryBoardPage({
                                 </span>
                                 {missed ? (
                                   <span className="drop-flag">Nachliefern</span>
+                                ) : null}
+                                {closed &&
+                                drop.state === "open" &&
+                                !cancelled ? (
+                                  <span className="drop-flag">
+                                    nach Abschluss gebucht
+                                  </span>
                                 ) : null}
                                 {cancelled ? (
                                   <span className="drop-flag">storniert</span>

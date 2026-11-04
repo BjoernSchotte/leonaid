@@ -60,8 +60,12 @@ the board with the **Nachliefern** note.
 - **Nachliefern:** tick a delivery marked **Nachliefern** once it has arrived
   after all. This completes its task. You can take this tick back; the task is
   then open again.
-- **Booked later:** if an order was booked into the window after it was closed,
-  you can tick it. This is logged and cannot be taken back without reopening.
+- **Booked later:** an order booked into the window after it was closed carries
+  the note **nach Abschluss gebucht** (booked after closing), and **Nächster
+  Schritt** reminds you with **Zur Lieferung** (go to delivery). No task is
+  created for it. Tick it once delivered; this is logged and cannot be taken
+  back without reopening. If it is not delivered, reopen the window and close
+  it again: it then counts as **Nachliefern**.
 - **Correct:** change other ticks in a closed window only after **Wieder
   öffnen** (reopen). Reopening clears the Nachliefern marks and completes their
   tasks. When you close again, LeonAid reopens the same tasks and assigns them

@@ -92,6 +92,60 @@ class TaskDeliveryFollowUp:
             occurred_at,
         )
 
+    async def _lock_current(
+        self,
+        connection: Any,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        needed: bool,
+        assignee_user_id: UUID,
+    ) -> tuple[Any, UUID | None]:
+        """The follow-up task, locked like the tasks module does: lists
+        first (in id order), then the task. Also returns the list the task
+        must move to, when another closer reopens it (that list is locked
+        too). Retries when someone moved the task in between."""
+
+        for _ in range(5):
+            seen = await connection.fetchrow(
+                """
+                SELECT task.id, task.list_id, task.assignee_user_id
+                FROM task_delivery_follow_up AS follow_up
+                JOIN task ON task.id = follow_up.task_id
+                WHERE follow_up.commitment_id = $1
+                """,
+                commitment_id,
+            )
+            if seen is None:
+                return None, None
+            move_to = (
+                await self._list(
+                    connection, action_id=action_id, owner_user_id=assignee_user_id
+                )
+                if needed and seen["assignee_user_id"] != assignee_user_id
+                else None
+            )
+            lists = sorted({seen["list_id"], *([move_to] if move_to else [])})
+            await connection.execute(
+                "SELECT id FROM task_list WHERE id = ANY($1::uuid[])"
+                " ORDER BY id FOR UPDATE",
+                lists,
+            )
+            current = await connection.fetchrow(
+                """
+                SELECT id AS task_id, status, list_id, assignee_user_id
+                FROM task WHERE id = $1 FOR UPDATE
+                """,
+                seen["id"],
+            )
+            if (
+                current is not None
+                and current["list_id"] == seen["list_id"]
+                and current["assignee_user_id"] == seen["assignee_user_id"]
+            ):
+                return current, move_to
+        raise RuntimeError("Nachliefern task kept changing; giving up")
+
     async def sync(
         self,
         connection: Any,
@@ -106,16 +160,12 @@ class TaskDeliveryFollowUp:
         request_id: str,
         occurred_at: datetime,
     ) -> None:
-        current = await connection.fetchrow(
-            """
-            SELECT follow_up.task_id, task.status, task.list_id,
-                task.assignee_user_id
-            FROM task_delivery_follow_up AS follow_up
-            JOIN task ON task.id = follow_up.task_id
-            WHERE follow_up.commitment_id = $1
-            FOR UPDATE OF task
-            """,
-            commitment_id,
+        current, move_to = await self._lock_current(
+            connection,
+            action_id=action_id,
+            commitment_id=commitment_id,
+            needed=needed,
+            assignee_user_id=assignee_user_id,
         )
         if current is None:
             if not needed:
@@ -173,11 +223,15 @@ class TaskDeliveryFollowUp:
             )
             return
         target = "open" if needed else "done"
-        if needed and current["assignee_user_id"] != assignee_user_id:
+        if move_to is not None:
             # Reopened by another closer: the task moves to that person
-            # (Q-T1: it belongs to whoever closed the window).
-            list_id = await self._list(
-                connection, action_id=action_id, owner_user_id=assignee_user_id
+            # (Q-T1: it belongs to whoever closed the window). Both lists
+            # are locked; their order revision changes, as on a create.
+            list_id = move_to
+            await connection.execute(
+                "UPDATE task_list SET order_revision = order_revision + 1"
+                " WHERE id = ANY($1::uuid[])",
+                [current["list_id"], list_id],
             )
             await connection.execute(
                 """

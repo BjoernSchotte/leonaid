@@ -59,8 +59,12 @@ Lieferungen mit dem Hinweis **Nachliefern** auf der Tafel.
   sie doch angekommen ist. Die Aufgabe wird damit erledigt. Diesen Haken kannst
   du zurücknehmen; die Aufgabe ist dann wieder offen.
 - **Später gebucht:** Wurde eine Bestellung nach dem Abschluss in das Fenster
-  gebucht, kannst du sie abhaken. Das wird protokolliert und lässt sich ohne
-  erneutes Öffnen nicht zurücknehmen.
+  gebucht, trägt sie den Hinweis **nach Abschluss gebucht**, und **Nächster
+  Schritt** erinnert mit **Zur Lieferung** daran. Eine Aufgabe entsteht dafür
+  nicht. Hake sie nach der Lieferung ab; das wird protokolliert und lässt sich
+  ohne erneutes Öffnen nicht zurücknehmen. Wird sie nicht geliefert, öffne das
+  Fenster wieder und schließe es erneut ab: Dann zählt sie als
+  **Nachliefern**.
 - **Korrigieren:** Andere Haken in einem abgeschlossenen Fenster änderst du nur
   nach **Wieder öffnen**. Dabei werden Nachliefern-Markierungen aufgehoben und
   ihre Aufgaben erledigt. Schließt du erneut ab, öffnet LeonAid dieselben

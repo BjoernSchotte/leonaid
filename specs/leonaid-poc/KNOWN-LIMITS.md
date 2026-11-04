@@ -24,6 +24,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
   members. It does not find sponsors: they live only in Twenty, and the
   search does not call the CRM per keystroke. The `sponsor` result type is
   reserved for a later local sponsor index.
+- Orders cannot be cancelled yet (no cancel command). The future cancel
+  feature must close the open "Nachliefern" task of a missed order it
+  cancels and must leave cancelled orders out of the delivery board's
+  commands (`TODO(cancel-follow-up)` in
+  `src/leonaid/adapters/postgres/delivery_board.py`).
 
 ## Identität und Administration
 

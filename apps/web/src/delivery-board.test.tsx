@@ -481,6 +481,98 @@ describe("delivery board", () => {
     expect(second!.textContent).toContain("Werkstatt Süd, Hofweg 1");
   });
 
+  it("drops finished commands from memory when the PWA goes offline", async () => {
+    const client = fakeClient(board({ manager: false, drivers: [] }));
+    const view = await renderBoard(client, "pwa");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Autohaus Nord, 3 Boxen: als geliefert/,
+      }),
+    );
+    await screen.findByText("Autohaus Nord: geliefert.");
+    view.rerender({ offline: true });
+    await screen.findByText(/Ohne Verbindung zeigen wir keine Lieferungen/);
+    await waitFor(() =>
+      expect(
+        view.queries
+          .getMutationCache()
+          .findAll({ mutationKey: ["delivery-board"] }),
+      ).toHaveLength(0),
+    );
+  });
+
+  it("reminds of orders booked into a closed window", async () => {
+    await renderBoard(
+      fakeClient(
+        board({
+          windows: [
+            {
+              ...board().windows[0]!,
+              closure: {
+                closedAt: "2026-11-11T09:00:00Z",
+                closedByName: "Klara Kern",
+                missedCount: 0,
+              },
+              drops: [
+                drop("c1", "Bäckerei Kern", { state: "delivered" }),
+                drop("c3", "Neu Gebucht GmbH"),
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    expect(
+      screen.getByText(/1 Lieferung wurde nach dem Abschluss/),
+    ).toBeTruthy();
+    expect(screen.getByText("nach Abschluss gebucht")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("delivery-next-late"));
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute("aria-label")).toMatch(
+        /^Neu Gebucht GmbH/,
+      ),
+    );
+  });
+
+  it("asks for drivers only for open drops", async () => {
+    await renderBoard(
+      fakeClient(
+        board({
+          windows: [
+            {
+              ...board().windows[0]!,
+              drops: [
+                drop("c1", "Bäckerei Kern", { state: "delivered" }),
+                drop("c2", "Autohaus Nord"),
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    expect(
+      screen.getByText(/^1 Lieferung hat noch keinen Fahrer/),
+    ).toBeTruthy();
+  });
+
+  it("says where open drops stay after closing without tasks", async () => {
+    const client = fakeClient(board({ followUpTasks: false }));
+    vi.mocked(client.closeDeliveryWindow).mockResolvedValueOnce({
+      followUp: "board",
+      missedCount: 2,
+    });
+    await renderBoard(client);
+    fireEvent.click(screen.getByTestId("delivery-close-window"));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByTestId(
+        "delivery-close-confirm",
+      ),
+    );
+    await screen.findByText(
+      "Fenster abgeschlossen. 2 offene Lieferungen bleiben mit dem Hinweis „Nachliefern“ auf dieser Tafel.",
+    );
+  });
+
   it("lets a driver with several actions switch between them", async () => {
     const other = "20000000-0000-4000-8000-000000000002";
     await renderBoard(

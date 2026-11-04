@@ -644,7 +644,9 @@
         "Wieder öffnen",
         "Nachliefern",
         "Rückgängig",
-        "Ohne Verbindung zeigen wir keine Lieferungen."
+        "Ohne Verbindung zeigen wir keine Lieferungen.",
+        "nach Abschluss gebucht",
+        "Zur Lieferung"
       ]
     }
   ]

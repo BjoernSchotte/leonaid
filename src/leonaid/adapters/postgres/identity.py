@@ -337,8 +337,9 @@ class AsyncpgIdentityRepository:
         """Whether the principal manages an action with delivery planning on.
 
         Gates the "Auslieferung" navigation entry: the action carries the
-        ``delivery`` capability and its delivery configuration is enabled.
-        System admins manage every action; charity admins their own.
+        ``delivery`` capability, its delivery configuration is enabled and
+        it is not archived. System admins manage every action; charity
+        admins their own.
         """
         managed = (
             None
@@ -361,7 +362,10 @@ class AsyncpgIdentityRepository:
                         JOIN charity_action_capability AS capability
                           ON capability.action_id = configuration.action_id
                          AND capability.capability = 'delivery'
+                        JOIN charity_action AS action
+                          ON action.id = configuration.action_id
                         WHERE configuration.enabled
+                          AND action.status <> 'archived'
                           AND ($1::uuid[] IS NULL
                                OR configuration.action_id = ANY($1::uuid[]))
                     )
