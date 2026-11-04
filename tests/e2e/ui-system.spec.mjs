@@ -542,6 +542,26 @@ test("charts: token colours under the strict CSP, theme redraw, resize", async (
     );
     await expect.poll(pixel).not.toBe(light);
     await expectNoSeriousAccessibilityViolations(page, "Diagramme dunkel");
+    // Reduced motion gives every element a 0.01 ms transition: token
+    // resolution must still read each colour, not the previous one.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    await charts.scrollIntoViewIfNeeded();
+    const segment = (share) =>
+      canvases.nth(2).evaluate((canvas, at) => {
+        const ctx = canvas.getContext("2d");
+        const ratio = canvas.width / canvas.clientWidth;
+        return ctx
+          .getImageData(
+            Math.round(canvas.width * at),
+            Math.round(18 * ratio),
+            1,
+            1,
+          )
+          .data.slice(0, 3)
+          .join(",");
+      }, share);
+    await expect.poll(() => segment(0.35)).not.toBe(await segment(0.97));
     // The canvas follows its container.
     await page.setViewportSize({ width: 390, height: 844 });
     await expect

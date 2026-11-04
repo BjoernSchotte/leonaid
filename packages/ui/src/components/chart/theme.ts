@@ -19,14 +19,22 @@ export interface ChartTheme {
 }
 
 export function resolveTheme(host: HTMLElement): ChartTheme {
-  const probe = document.createElement("span");
-  probe.setAttribute("aria-hidden", "true");
-  host.append(probe);
+  /*
+   * One fresh probe per token, transitions off: reusing one probe would
+   * start a colour transition from the previous token, and reading right
+   * away returns that start colour (all tokens would read as the first).
+   */
   const read = (token: string) => {
+    const probe = document.createElement("span");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.setProperty("transition", "none");
     probe.style.setProperty("color", `var(${token})`);
-    return getComputedStyle(probe).color;
+    host.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
   };
-  const theme: ChartTheme = {
+  return {
     zone: read("--zone"),
     track: read("--surface-3"),
     text: read("--text"),
@@ -42,8 +50,6 @@ export function resolveTheme(host: HTMLElement): ChartTheme {
     ],
     font: getComputedStyle(host).fontFamily,
   };
-  probe.remove();
-  return theme;
 }
 
 /** Bumps when the theme changes: `<html data-theme>` or the OS scheme. */
