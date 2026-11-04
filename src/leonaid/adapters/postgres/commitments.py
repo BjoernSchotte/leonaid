@@ -151,7 +151,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             ):
                 raise PermissionDenied(
                     "commitment_owner_required",
-                    "Du kannst nur deine eigenen Akquise-Bestellungen aufrufen.",
+                    "Nur eigene Akquise-Bestellungen können aufgerufen werden.",
                 )
             buyer = BuyerSnapshot.from_payload(
                 _json_object(row["customer_snapshot"], label="Besteller-Snapshot")

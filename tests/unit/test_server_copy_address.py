@@ -18,6 +18,8 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 SOURCE = Path(__file__).resolve().parents[2] / "src" / "leonaid"
 
 # Member mails: "du" by decision (see the module docstring).
@@ -28,20 +30,25 @@ MAIL_BUILDERS = {
     ("application/sessions.py", "_mail_event"),
 }
 
-PRONOUNS = re.compile(r"\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deines)\b", re.I)
-IMPERATIVES = (
-    "lade|gib|prüfe|versuche|wähle|trage|nenne|melde|öffne|fordere|nutze|"
-    "ergänze|hinterlege|entscheide|speichere|starte|kontaktiere|lege|wende|"
-    "sende|schließe|gleiche|aktualisiere|warte|füge|ändere|entferne|"
-    "korrigiere|wiederhole|kläre|erstelle|kopiere|antworte|bestätige"
-)
-# An imperative at a sentence start or after "Bitte", followed by its object.
-IMPERATIVE = re.compile(
-    rf"(?:^|[.!?:]\s+|\bBitte\s+)(?:{IMPERATIVES})\s+"
-    r"(es|den|die|das|dem|einen|eine|sie|ihn|kurz|erneut|denselben|dieselbe)\b",
+# Informal pronouns as whole words ("Dublin", "Produkt" do not match).
+PRONOUNS = re.compile(
+    r"\b(du|dich|dir|dein\w*|euch|euer|eure\w*)\b",
     re.I,
 )
-GERMAN = re.compile(r"[äöüß]|\b(der|die|das|und|nicht|bitte|ist|für)\b", re.I)
+IMPERATIVES = (
+    "lade|lad|gib|vergib|prüfe|prüf|versuche|wähle|trage|nenne|melde|öffne|"
+    "fordere|nutze|verwende|ergänze|hinterlege|entscheide|speichere|starte|"
+    "kontaktiere|informiere|lege|wende|sende|schicke|schließe|gleiche|"
+    "aktualisiere|warte|füge|ändere|entferne|lösche|korrigiere|wiederhole|"
+    "kläre|erstelle|kopiere|antworte|bestätige|achte|beachte|schau|sieh|lies|"
+    "stelle|setze|nimm|lass|klicke"
+)
+# A du-imperative at a clause start: text or sentence start, after
+# "Bitte", after "und"/"oder" or after a comma, followed by another word.
+IMPERATIVE = re.compile(
+    rf"(?:^|[.!?:;]\s+|\bBitte\s+|\b(?:und|oder)\s+|,\s+)(?:{IMPERATIVES})\b(?=\s+\w)",
+    re.I,
+)
 
 
 def _docstrings(tree: ast.AST) -> set[int]:
@@ -84,7 +91,7 @@ def _texts(path: Path) -> list[tuple[int, str, str | None]]:
 
 
 def _personal(text: str) -> bool:
-    if " " not in text or not GERMAN.search(text):
+    if " " not in text:
         return False
     return bool(PRONOUNS.search(text) or IMPERATIVE.search(text))
 
@@ -101,13 +108,42 @@ def test_server_texts_have_no_du_address() -> None:
     assert offenders == []
 
 
-def test_the_check_catches_both_forms() -> None:
-    assert _personal("Bitte lade den Beleg neu.")
-    assert _personal("Du darfst die Rechnungen nicht einsehen.")
-    assert _personal("Die Sitzung ist abgelaufen. Melde dich erneut an.") is True
-    assert not _personal("Zu viele Versuche. Bitte kurz warten und erneut versuchen.")
-    assert not _personal("Bitte den Beleg neu laden.")
-    assert not _personal("Bitte versuchen Sie es erneut.")
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Bitte lade den Beleg neu.",
+        "Du darfst die Rechnungen nicht einsehen.",
+        "Die Sitzung ist abgelaufen. Melde dich erneut an.",
+        # Former misses: no umlaut and no stop word.
+        "Du kannst nur deine eigenen Akquise-Bestellungen aufrufen.",
+        "Du darfst Mitglieder nur in selbst verwalteten Aktionen einsehen.",
+        "Von dir dokumentierte Kontakte in dieser Charity-Aktion.",
+        # Former misses: imperative without an article after it.
+        "Prüfe Berechtigung, Eingaben und Anmeldung.",
+        "Den Code kopieren. Wiederhole erst danach die betroffene Aktion.",
+        # Mid-sentence imperative after a conjunction or comma.
+        "Die Liste ist veraltet und prüfe sie bitte erneut.",
+        "Der Stand hat sich geändert, lade ihn neu.",
+        "Ihr habt das schon, schickt es euch zu.",
+    ],
+)
+def test_the_check_catches_informal_texts(text: str) -> None:
+    assert _personal(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Zu viele Versuche. Bitte kurz warten und erneut versuchen.",
+        "Bitte den Beleg neu laden.",
+        "Bitte versuchen Sie es erneut.",
+        "Lieferung nach Dublin ist nicht möglich.",
+        "Das Produkt ist durch den Import dauerhaft gesperrt.",
+        "Selbst dokumentierte Kontakte in dieser Charity-Aktion.",
+    ],
+)
+def test_the_check_accepts_neutral_texts(text: str) -> None:
+    assert not _personal(text)
 
 
 def test_mail_builders_exist() -> None:

@@ -934,8 +934,8 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="acquirer.pipeline",
                     label="Meine Pipeline",
                     description=(
-                        "Alle Sponsor-Zuordnungen dieser Aktion in eigener "
-                        "Verantwortung."
+                        "Alle Sponsor-Zuordnungen dieser Aktion, die dem "
+                        "eigenen Konto zugeordnet sind."
                     ),
                     href=f"/app/sponsors?action={action}",
                 ),
@@ -952,7 +952,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="acquirer.activities",
                     label="Meine Aktivitäten",
                     description=(
-                        "Von dir dokumentierte Kontakte in dieser Charity-Aktion."
+                        "Selbst dokumentierte Kontakte in dieser Charity-Aktion."
                     ),
                     href=f"/app/activities?view=contacts&action={action}",
                 ),

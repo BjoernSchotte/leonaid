@@ -553,7 +553,7 @@ class IdentityQueryService:
         ):
             raise PermissionDenied(
                 "member_action_scope_forbidden",
-                "Du darfst Mitglieder nur in selbst verwalteten Aktionen einsehen.",
+                "Mitglieder dürfen nur in selbst verwalteten Aktionen eingesehen werden.",
             )
         snapshot = await self._repository.member_directory_snapshot(
             visible_action_ids=visible_action_ids,
@@ -736,7 +736,7 @@ class IdentityAdministrationService:
         if not can_manage_action_roles(actor, action_id):
             raise PermissionDenied(
                 "role_action_scope_forbidden",
-                "Rollen lassen sich nur in selbst verwalteten Aktionen ändern.",
+                "Rollen dürfen nur in selbst verwalteten Aktionen geändert werden.",
             )
         self._validate_role_command(
             expected_revision=expected_revision,
