@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
@@ -18,7 +18,10 @@ from leonaid.domain.invoices import (
     TaxTreatment,
 )
 
-INVOICE_DOCUMENT_SCHEMA_VERSION = 1
+INVOICE_DOCUMENT_SCHEMA_VERSION = 2
+# Version 1 had no stored invoice date; its renderer printed the UTC day of
+# issuedAt, which is what such a document keeps.
+SUPPORTED_INVOICE_DOCUMENT_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 def _object(value: object, *, label: str) -> dict[str, object]:
@@ -55,6 +58,7 @@ class InvoiceDocumentSnapshot:
     invoice_id: UUID
     number: str
     issued_at: datetime
+    issued_on: date
     service_on: date
     due_on: date
     issuer: InvoiceIssuerSnapshot
@@ -103,6 +107,7 @@ class InvoiceDocumentSnapshot:
             invoice_id=invoice.id,
             number=invoice.number,
             issued_at=invoice.issued_at,
+            issued_on=invoice.issued_on,
             service_on=invoice.service_on,
             due_on=invoice.due_on,
             issuer=invoice.issuer,
@@ -123,6 +128,7 @@ class InvoiceDocumentSnapshot:
             "invoiceId": str(self.invoice_id),
             "number": self.number,
             "issuedAt": self.issued_at.isoformat(),
+            "issuedOn": self.issued_on.isoformat(),
             "serviceOn": self.service_on.isoformat(),
             "dueOn": self.due_on.isoformat(),
             "issuer": self.issuer.payload(),
@@ -143,17 +149,24 @@ class InvoiceDocumentSnapshot:
     @classmethod
     def from_payload(cls, payload: dict[str, object]) -> InvoiceDocumentSnapshot:
         version = _integer(payload.get("schemaVersion"), label="Schemaversion")
-        if version != INVOICE_DOCUMENT_SCHEMA_VERSION:
+        if version not in SUPPORTED_INVOICE_DOCUMENT_SCHEMA_VERSIONS:
             raise DomainInvariantError(
                 "invoice_document_schema_unsupported",
                 f"Dokumentschema {version} wird nicht unterstützt.",
             )
         totals = _object(payload.get("totals"), label="Summen")
         currency = str(totals.get("currency"))
+        issued_at = datetime.fromisoformat(str(payload.get("issuedAt")))
+        issued_on = (
+            date.fromisoformat(str(payload.get("issuedOn")))
+            if version >= 2
+            else issued_at.astimezone(timezone.utc).date()
+        )
         return cls(
             invoice_id=UUID(str(payload.get("invoiceId"))),
             number=str(payload.get("number")),
-            issued_at=datetime.fromisoformat(str(payload.get("issuedAt"))),
+            issued_at=issued_at,
+            issued_on=issued_on,
             service_on=date.fromisoformat(str(payload.get("serviceOn"))),
             due_on=date.fromisoformat(str(payload.get("dueOn"))),
             issuer=InvoiceIssuerSnapshot.from_payload(

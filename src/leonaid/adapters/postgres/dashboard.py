@@ -11,7 +11,7 @@ from uuid import UUID
 import asyncpg
 
 from leonaid.domain.action_templates import OfferingUnit
-from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
+from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.dashboard import (
     AcquirerDashboard,
@@ -94,15 +94,15 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         SELECT
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE $4)::date < $3
+                                  AND due_at < $3
                             ) AS overdue,
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE $4)::date = $3
+                                  AND due_at >= $3 AND due_at < $4
                             ) AS today,
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE $4)::date > $3
+                                  AND due_at >= $4
                             ) AS upcoming,
                             count(*) FILTER (WHERE due_at IS NULL) AS unscheduled
                         FROM acquisition_assignment
@@ -112,8 +112,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         """,
                         action_id,
                         actor_user_id,
-                        local_day(evaluated_at),
-                        INSTALLATION_TIME_ZONE.key,
+                        *local_day_bounds(local_day(evaluated_at)),
                     )
                     activity_count = await connection.fetchval(
                         """

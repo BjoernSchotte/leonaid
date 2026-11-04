@@ -10,7 +10,6 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from leonaid.domain.calendar import local_day
 from leonaid.application.invoice_documents import (
     InvoiceDocumentSnapshot,
     RenderedInvoiceDocument,
@@ -58,7 +57,7 @@ def render_payload(snapshot: InvoiceDocumentSnapshot) -> dict[str, object]:
         "renderVersion": RENDER_VERSION,
         "number": snapshot.number,
         "title": f"Rechnung {snapshot.number}",
-        "issuedOn": _date_label(local_day(snapshot.issued_at)),
+        "issuedOn": _date_label(snapshot.issued_on),
         "serviceOn": _date_label(snapshot.service_on),
         "dueOn": _date_label(snapshot.due_on),
         "issuer": snapshot.issuer.payload(),

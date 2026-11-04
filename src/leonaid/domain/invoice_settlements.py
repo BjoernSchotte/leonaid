@@ -38,6 +38,8 @@ class InvoiceSettlementState:
     number: str
     status: InvoiceStatus
     issued_at: datetime
+    # The stored invoice date; payments may not predate the printed date.
+    issued_on: date
     gross: Money
 
     def __post_init__(self) -> None:
@@ -107,7 +109,7 @@ class PaymentRecord:
                 "invoice_payment_full_amount_required",
                 "Im PoC kann nur der vollständige Rechnungsbetrag verbucht werden.",
             )
-        if received_on < local_day(invoice.issued_at):
+        if received_on < invoice.issued_on:
             raise DomainInvariantError(
                 "invoice_payment_before_issue",
                 "Der Zahlungseingang darf nicht vor der Rechnungsfreigabe liegen.",
