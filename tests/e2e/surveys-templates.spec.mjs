@@ -52,35 +52,9 @@ for (const [template, width] of [
             path: `${process.env.LEONAID_E2E_ARTIFACT_DIR}/surveys-template-${template}.png`,
             fullPage: true,
           });
-        // First creation loses only the acknowledgement after the actual commit.
-        if (copy === 0) {
-          await page.route(
-            "**/api/v1/surveys/*",
-            async (route) => {
-              if (route.request().method() !== "POST") return route.continue();
-              await route.fetch();
-              await route.abort("failed");
-            },
-            { times: 1 },
-          );
-        }
         await page
           .getByRole("button", { name: "Umfrage erstellen", exact: true })
           .click();
-        if (copy === 0) {
-          await expect(
-            page.getByLabel("Fragebogenvorlage", { exact: true }),
-          ).toBeDisabled();
-          await expect(
-            page.getByRole("button", {
-              name: "Umfrage erstellen",
-              exact: true,
-            }),
-          ).toBeEnabled();
-          await page
-            .getByRole("button", { name: "Umfrage erstellen", exact: true })
-            .click();
-        }
         const editor = page.getByRole("region", {
           name: "Fragebogen bearbeiten",
         });

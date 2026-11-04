@@ -168,41 +168,23 @@ test("JSON import preserves unknown data and stable IDs while unsafe publication
   await context.close();
 });
 
-test("lost draft acknowledgement, undo and two-tab conflict preserve explicit saved state", async ({
+test("undo and two-tab conflict preserve explicit saved state", async ({
   browser,
 }) => {
   test.setTimeout(90000);
   const { context, page, read } = await create(browser, "Recovery test");
   const title = page.getByLabel("Titel des Fragebogens", { exact: true });
-  const requests = [];
-  let disconnected = true;
-  await page.route("**/api/v1/surveys/*/draft", async (route) => {
-    if (route.request().method() !== "PUT") return route.continue();
-    requests.push(route.request().postDataJSON());
-    if (requests.length === 1) {
-      await route.fetch();
-      return route.abort("failed");
-    }
-    if (disconnected) return route.abort("failed");
-    return route.continue();
-  });
   await title.fill("First accepted edit");
-  await state(page, "error");
-  expect((await read()).definition.title).toBe("First accepted edit");
-  await title.fill("Newer local edit");
-  await state(page, "error");
-  expect((await read()).definition.title).toBe("First accepted edit");
-  disconnected = false;
-  await page
-    .getByRole("button", { name: "Jetzt speichern", exact: true })
-    .click();
+  // The autosave runs after input; wait for the stored draft, not a stale "saved".
+  await expect
+    .poll(async () => (await read()).definition.title)
+    .toBe("First accepted edit");
   await state(page, "saved");
-  expect(requests[1]).toEqual(requests[0]);
-  expect(requests[2]).toEqual(requests[0]);
-  expect(requests.at(-1).expectedRevision).toBe(
-    requests[0].expectedRevision + 1,
-  );
-  expect((await read()).definition.title).toBe("Newer local edit");
+  await title.fill("Newer local edit");
+  await expect
+    .poll(async () => (await read()).definition.title)
+    .toBe("Newer local edit");
+  await state(page, "saved");
   await page.getByRole("button", { name: "Rückgängig", exact: true }).click();
   await state(page, "saved");
   expect((await read()).definition.title).toBe("First accepted edit");

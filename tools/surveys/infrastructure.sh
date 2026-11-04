@@ -19,6 +19,7 @@ artifact="$root/.artifacts/surveys-infrastructure"
 owned=false
 foundation=false
 foundation_failure=0
+browser_after_specs=""
 browser_trace=retain-on-failure
 browser_reporter=line
 export_verifier_pid=""
@@ -230,6 +231,8 @@ if [ "$mode" = branding ]; then
 fi
 if [ "$mode" = permissions ]; then
   browser_workers=2
+  # The publication fault needs the draft revision the review leaves behind.
+  browser_after_specs="tests/e2e/surveys-publisher-faults.spec.mjs"
   browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
 fi
 state_worker_pid=""
@@ -287,7 +290,14 @@ if [ "$mode" = deletion-ui ]; then
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
     node_modules/.bin/playwright test tests/e2e/surveys-deletion.spec.mjs \
-    --grep 'trash and request' --browser=chromium --output=/proof/test-results --reporter=line
+    --grep 'trash and restore' --browser=chromium --output=/proof/test-results --reporter=line
+  # The erasure request needs the trashed survey left by the test above.
+  docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-deletion-faults.spec.mjs \
+    --browser=chromium --output=/proof/test-results --reporter=line
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/deletion_ui_live.py
   docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
@@ -390,7 +400,7 @@ if [ "$mode" = export-states ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/export_states_live.py &
   state_worker_pid=$!
-  browser_specs="$browser_specs tests/e2e/surveys-export-states.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-export-states-faults.spec.mjs"
 fi
 if [ "$mode" = export-permissions ]; then
   compose stop worker
@@ -448,7 +458,7 @@ if [ "$mode" = exports ]; then
     exit "$render_status"
   )
   phase survey-export-renderers render_exports
-  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs tests/e2e/surveys-export-values.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs tests/e2e/surveys-exports-faults.spec.mjs tests/e2e/surveys-export-values.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py prepare
@@ -466,7 +476,7 @@ if [ "$mode" = exports ]; then
   export_verifier_pid=$!
 fi
 if [ "$mode" = analysis ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs tests/e2e/surveys-responses-faults.spec.mjs tests/e2e/surveys-responses-keyboard.spec.mjs tests/e2e/surveys-summary.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-analytics-faults.spec.mjs tests/e2e/surveys-responses.spec.mjs tests/e2e/surveys-responses-faults.spec.mjs tests/e2e/surveys-responses-keyboard.spec.mjs tests/e2e/surveys-summary.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
@@ -479,7 +489,7 @@ if [ "$mode" = analysis ]; then
     --workdir /repo --entrypoint python api tools/surveys/summary_live.py
 fi
 if [ "$mode" = invitations ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs tests/e2e/surveys-invitations-faults.spec.mjs"
 fi
 if [ "$mode" = lifecycle ]; then
   browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
@@ -487,20 +497,28 @@ fi
 if [ "$mode" = editor ]; then
   # Files create their own surveys; the parent retains the reset lease throughout.
   browser_workers=2
-  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-templates-faults.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-import-recovery-faults.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
-  browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs tests/e2e/surveys-runner-faults.spec.mjs"
 fi
 phase survey-browser docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test $browser_specs \
-  --grep-invert 'trash and request|failed deletion' \
+  --grep-invert 'trash and restore|failed deletion' \
   --browser=chromium --workers="$browser_workers" --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
+if [ -n "$browser_after_specs" ]; then
+  phase survey-browser-after docker run --rm --user "$(id -u):$(id -g)" --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test $browser_after_specs \
+    --browser=chromium --workers=1 --output=/proof/test-results-after --trace="$browser_trace" --reporter="$browser_reporter"
+fi
 mkdir -p "$artifact"
 if [ "$mode" = journeys ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -600,6 +618,7 @@ if [ "$mode" = exports ]; then
   cp "$proof/survey-exports-proof.json" "$artifact/"
   cp "$proof/survey-worker-report.pdf" "$artifact/"
   cp "$proof/survey-export-browser.json" "$artifact/"
+  cp "$proof/survey-export-browser-faults.json" "$artifact/"
   cp "$proof/surveys-exports-mobile.png" "$artifact/"
 fi
 if [ "$mode" = analysis ]; then

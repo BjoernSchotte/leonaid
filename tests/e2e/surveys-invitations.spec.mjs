@@ -61,26 +61,6 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
     await page
       .getByLabel("Name des Empfängers (optional)", { exact: true })
       .fill("Synthetic browser recipient");
-    const attempts = [];
-    await page.route(`**/api/v1/surveys/${id}/invitations`, async (route) => {
-      if (route.request().method() !== "POST") return route.continue();
-      attempts.push(route.request().postDataJSON());
-      const response = await route.fetch();
-      expect(response.status()).toBe(200);
-      // Lose two real acknowledgements after the server has committed each request.
-      // A retry must reuse the original operation without duplicating delivery.
-      if (attempts.length <= 2) await route.abort("failed");
-      else await route.fulfill({ response });
-    });
-    await page
-      .getByRole("button", { name: "Einladung senden", exact: true })
-      .click();
-    await expect(page.getByRole("alert")).toBeVisible();
-    await page
-      .getByRole("button", { name: "Einladung senden", exact: true })
-      .click();
-    await expect.poll(() => attempts.length).toBe(2);
-    await expect(page.getByRole("alert")).toBeVisible();
     await page
       .getByRole("button", { name: "Einladung senden", exact: true })
       .click();
@@ -89,9 +69,6 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
         exact: true,
       }),
     ).toBeVisible();
-    expect(attempts).toHaveLength(3);
-    expect(attempts[2]).toEqual(attempts[0]);
-    expect(attempts[1]).toEqual(attempts[0]);
     await expect
       .poll(
         async () => {
