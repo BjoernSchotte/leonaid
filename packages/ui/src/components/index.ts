@@ -2,6 +2,7 @@ export * from "./page-layout";
 export * from "./rail-shell";
 export * from "./button";
 export * from "./confirm-dialog";
+export * from "./discard-dialog";
 export * from "./data-table";
 export * from "./empty-state";
 export * from "./error-boundary";

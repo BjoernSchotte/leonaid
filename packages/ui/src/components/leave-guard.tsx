@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 
 /**
  * Pages with unsaved work register here, so the shell owning in-app
@@ -8,15 +8,31 @@ import { createContext, useContext, useEffect } from "react";
  */
 export class LeaveGuardRegistry {
   private readonly dirty = new Set<object>();
+  private confirmedLeaving = false;
+
+  /**
+   * A scope (e.g. a list's detail pane) passes its drafts on to the parent,
+   * so the shell still sees them, and also answers for its own part.
+   */
+  constructor(private readonly parent: LeaveGuardRegistry | null = null) {}
+
   /** Set once the user confirmed leaving: page guards stay silent. */
-  leaving = false;
+  get leaving(): boolean {
+    return this.confirmedLeaving || (this.parent?.leaving ?? false);
+  }
+
+  set leaving(value: boolean) {
+    this.confirmedLeaving = value;
+  }
 
   register(token: object): void {
     this.dirty.add(token);
+    this.parent?.register(token);
   }
 
   unregister(token: object): void {
     this.dirty.delete(token);
+    this.parent?.unregister(token);
   }
 
   hasDirtyPages(): boolean {
@@ -51,4 +67,14 @@ export function useLeaveGuard(dirty: boolean): void {
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [dirty, registry]);
+}
+
+/**
+ * A child registry of the surrounding one for a part of the page (a detail
+ * pane): `hasDirtyPages()` answers for that part only, while the shell
+ * still sees every draft.
+ */
+export function useLeaveGuardScope(): LeaveGuardRegistry {
+  const parent = useContext(LeaveGuardContext);
+  return useMemo(() => new LeaveGuardRegistry(parent), [parent]);
 }
