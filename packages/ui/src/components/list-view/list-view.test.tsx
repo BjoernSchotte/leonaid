@@ -1351,6 +1351,43 @@ describe("drafts in the pane", () => {
     expect(screen.queryByLabelText("Notiz B-001")).toBeNull();
   });
 
+  it("goes back once, however often Back was pressed while asking", async () => {
+    render(<DraftList />);
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.change(screen.getByLabelText("Notiz B-001"), {
+      target: { value: "Entwurf" },
+    });
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    for (let index = 0; index < 3; index += 1) {
+      act(() => {
+        window.history.replaceState(null, "", "/admin/orders");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+    }
+    expect(window.location.search).toBe("?open=o1");
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await act(async () => {});
+    expect(back).toHaveBeenCalledOnce();
+    expect(window.location.search).toBe("");
+  });
+
+  it("keeps the pane when the page guard fails", async () => {
+    render(
+      <DraftList paneGuard={() => Promise.reject(new Error("offline"))} />,
+    );
+    fireEvent.click(rowLinks()[0]!);
+    press("Escape");
+    await act(async () => {});
+    expect(screen.getByLabelText("Notiz B-001")).toBeTruthy();
+  });
+
   it("waits for an async page guard", async () => {
     let answer: (allowed: boolean) => void = () => {};
     const paneGuard = vi.fn(

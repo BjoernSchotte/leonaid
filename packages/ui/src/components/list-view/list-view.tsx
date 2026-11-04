@@ -470,9 +470,13 @@ export function ListView<T>(props: ListViewProps<T>) {
     const decision = paneDecision();
     if (decision === true) action();
     else if (decision !== false)
-      void decision.then((allowed) => {
-        if (allowed) action();
-      });
+      // A guard that fails keeps the pane, like a "no".
+      void decision.then(
+        (allowed) => {
+          if (allowed) action();
+        },
+        () => {},
+      );
   };
 
   const schemaRef = useRef(schema);
@@ -481,11 +485,17 @@ export function ListView<T>(props: ListViewProps<T>) {
   openIdRef.current = state.openId;
   /* Set when an answered Back goes on: the next popstate is not asked again. */
   const backConfirmed = useRef(false);
+  /* An asked Back is still open: further Backs only restore the entry. */
+  const backPending = useRef(false);
   useEffect(() => {
     const onPopState = () => {
       const next = parseListState(window.location.search, schemaRef.current);
       const leavesPane =
         openIdRef.current !== null && next.openId !== openIdRef.current;
+      if (leavesPane && backPending.current && !backConfirmed.current) {
+        window.history.pushState(window.history.state, "", lastUrl.current);
+        return;
+      }
       const decision =
         leavesPane && !backConfirmed.current ? paneDecision() : true;
       backConfirmed.current = false;
@@ -494,11 +504,18 @@ export function ListView<T>(props: ListViewProps<T>) {
         // back, and go back once they agree.
         window.history.pushState(window.history.state, "", lastUrl.current);
         if (decision !== false) {
-          void decision.then((allowed) => {
-            if (!allowed) return;
-            backConfirmed.current = true;
-            window.history.back();
-          });
+          backPending.current = true;
+          void decision.then(
+            (allowed) => {
+              backPending.current = false;
+              if (!allowed) return;
+              backConfirmed.current = true;
+              window.history.back();
+            },
+            () => {
+              backPending.current = false;
+            },
+          );
         }
         return;
       }
