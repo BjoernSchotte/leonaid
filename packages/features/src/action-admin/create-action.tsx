@@ -1,9 +1,4 @@
-import {
-  Add01Icon,
-  ArrowLeft01Icon,
-  CharityIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft, HandHeart, Plus } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -232,12 +227,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
   return (
     <div className="action-page action-page--form">
       <a className="action-back" href="/admin/actions">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={ArrowLeft01Icon}
-          size={18}
-          strokeWidth={1.8}
-        />
+        <ChevronLeft aria-hidden="true" size={18} />
         Alle Aktionen
       </a>
       <header className="action-page__header">
@@ -551,14 +541,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           </div>
           <Button
             data-testid="add-beneficiary"
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Add01Icon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
+            icon={<Plus aria-hidden="true" size={18} />}
             onClick={() =>
               setBeneficiaries((items) => [
                 ...items,
@@ -590,14 +573,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <Button
             data-testid="action-submit"
             disabled={mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={CharityIcon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
+            icon={<HandHeart aria-hidden="true" size={18} />}
             type="submit"
           >
             {mutation.isPending

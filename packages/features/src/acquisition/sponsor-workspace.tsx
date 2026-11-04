@@ -1,17 +1,17 @@
 import {
-  Add01Icon,
-  ArrowRight02Icon,
-  CancelCircleIcon,
-  CheckmarkCircle02Icon,
-  Clock01Icon,
-  Mail01Icon,
-  PackageAdd01Icon,
-  Search01Icon,
-  TelephoneIcon,
-  UserMultiple02Icon,
-  UserSwitchIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  ArrowRight,
+  ArrowRightLeft,
+  CircleCheck,
+  CircleX,
+  Clock,
+  type LucideIcon,
+  Mail,
+  PackagePlus,
+  Phone,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   useMemo,
@@ -98,22 +98,17 @@ function dueLabel(item: AcquisitionActivityWorkItemResponse) {
 function IconAction({
   children,
   href,
-  icon,
+  icon: Glyph,
   label,
 }: {
   readonly children: ReactNode;
   readonly href: string;
-  readonly icon: typeof Mail01Icon;
+  readonly icon: LucideIcon;
   readonly label: string;
 }) {
   return (
     <a aria-label={label} className="acq-contact-action" href={href}>
-      <HugeiconsIcon
-        aria-hidden="true"
-        icon={icon}
-        size={18}
-        strokeWidth={1.8}
-      />
+      <Glyph aria-hidden="true" size={18} />
       <span>{children}</span>
     </a>
   );
@@ -158,12 +153,7 @@ function SponsorRow({
         ) : null}
         {others.length > 0 ? (
           <p className="acq-sponsor-row__shared" data-testid="co-assignees">
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={UserMultiple02Icon}
-              size={17}
-              strokeWidth={1.8}
-            />
+            <Users aria-hidden="true" size={17} />
             Gemeinsam mit {others.map((item) => item.displayName).join(", ")}
           </p>
         ) : null}
@@ -182,7 +172,7 @@ function SponsorRow({
         {item.phone ? (
           <IconAction
             href={`tel:${item.phone}`}
-            icon={TelephoneIcon}
+            icon={Phone}
             label={`${item.partyDisplayName} anrufen`}
           >
             Anrufen
@@ -191,7 +181,7 @@ function SponsorRow({
         {item.email ? (
           <IconAction
             href={`mailto:${item.email}`}
-            icon={Mail01Icon}
+            icon={Mail}
             label={`E-Mail an ${item.partyDisplayName} schreiben`}
           >
             E-Mail
@@ -202,23 +192,13 @@ function SponsorRow({
           href={`/app/activities?view=contacts&assignment=${encodeURIComponent(item.assignmentId)}`}
         >
           <span>Aktivität</span>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ArrowRight02Icon}
-            size={18}
-            strokeWidth={1.8}
-          />
+          <ArrowRight aria-hidden="true" size={18} />
         </a>
         <a
           className="acq-contact-action acq-contact-action--next"
           href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
         >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={PackageAdd01Icon}
-            size={18}
-            strokeWidth={1.8}
-          />
+          <PackagePlus aria-hidden="true" size={18} />
           <span>Bestellung</span>
         </a>
       </div>
@@ -257,12 +237,7 @@ function SponsorList({
   if (items.length === 0) {
     return (
       <div className="acq-empty acq-empty--roomy" data-testid="sponsor-empty">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={UserMultiple02Icon}
-          size={22}
-          strokeWidth={1.8}
-        />
+        <Users aria-hidden="true" size={22} />
         <strong>Noch kein Sponsor zugeordnet</strong>
         <span>
           Prüfe einen vorhandenen CRM-Kontakt oder lege den ersten Sponsor an.
@@ -276,12 +251,7 @@ function SponsorList({
     <>
       <div className="acq-list-toolbar">
         <label className="acq-search" htmlFor="sponsor-filter">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={Search01Icon}
-            size={19}
-            strokeWidth={1.8}
-          />
+          <Search aria-hidden="true" size={19} />
           <span className="sr-only">Sponsoren filtern</span>
           <input
             id="sponsor-filter"
@@ -302,14 +272,14 @@ function SponsorList({
       >
         {(
           [
-            ["all", "Alle", UserMultiple02Icon],
-            ["open", "Offen", Clock01Icon],
-            ["contacted", "Kontaktiert", TelephoneIcon],
-            ["committed", "Zugesagt", CheckmarkCircle02Icon],
-            ["declined", "Abgesagt", CancelCircleIcon],
-            ["handed_over", "Übergeben", UserSwitchIcon],
+            ["all", "Alle", Users],
+            ["open", "Offen", Clock],
+            ["contacted", "Kontaktiert", Phone],
+            ["committed", "Zugesagt", CircleCheck],
+            ["declined", "Abgesagt", CircleX],
+            ["handed_over", "Übergeben", ArrowRightLeft],
           ] as const
-        ).map(([value, label, icon]) => (
+        ).map(([value, label, Glyph]) => (
           <button
             aria-selected={status === value}
             data-testid={`sponsor-status-${value}`}
@@ -328,12 +298,7 @@ function SponsorList({
             role="tab"
             type="button"
           >
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={icon}
-              size={22}
-              strokeWidth={1.8}
-            />
+            <Glyph aria-hidden="true" size={22} />
             <span>{label}</span>
           </button>
         ))}
@@ -351,12 +316,7 @@ function SponsorList({
         </div>
       ) : (
         <div className="acq-empty" data-testid="sponsor-filter-empty">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={Search01Icon}
-            size={22}
-            strokeWidth={1.8}
-          />
+          <Search aria-hidden="true" size={22} />
           <strong>Kein passender Sponsor</strong>
           <span>Ändere den Suchbegriff oder lösche den Filter.</span>
         </div>
@@ -422,12 +382,7 @@ function MatchResult({
   if (!match) {
     return (
       <div className="acq-empty acq-empty--roomy">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={Search01Icon}
-          size={22}
-          strokeWidth={1.8}
-        />
+        <Search aria-hidden="true" size={22} />
         <strong>Noch keine CRM-Prüfung</strong>
         <span>
           Nach der Prüfung siehst du Treffer, Zusatzdaten und vorhandene
@@ -651,7 +606,7 @@ function SponsorCapture({
       <section aria-labelledby="sponsor-form-heading" className="acq-workflow">
         <div className="acq-section-heading">
           <span aria-hidden="true" className="acq-section-heading__icon">
-            <HugeiconsIcon icon={Add01Icon} size={20} strokeWidth={1.8} />
+            <Plus aria-hidden="true" size={20} />
           </span>
           <div>
             <h2 id="sponsor-form-heading">Wen möchtest du ansprechen?</h2>
@@ -922,14 +877,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         </div>
         {view === "list" ? (
           <Button
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Add01Icon}
-                size={18}
-                strokeWidth={1.9}
-              />
-            }
+            icon={<Plus aria-hidden="true" size={18} />}
             onClick={() => setView("new")}
           >
             Sponsor erfassen
