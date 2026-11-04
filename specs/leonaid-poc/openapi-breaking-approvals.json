@@ -57,6 +57,14 @@
         "property-type-changed:PrivacyReferenceResponse.referenceType"
       ],
       "rationale": "Inbox module (port of PR #7, step 7): the privacy subject report gains the response-only reference type 'inbox_case' so system administrators see inbox cases of a data subject. Existing values are unchanged; the only client, the generated TypeScript client and the privacy admin view, is updated in the same change and labels the new type."
+    },
+    {
+      "oldSha256": "45994c0909b49237cba7aaf4bba1f4f6551e1880ee00c40909af4a2dba1b5929",
+      "newSha256": "d6574ed12d45853eb8925e7358a85bb1e8de26a8bf092a02c941c5b31c0ecc28",
+      "changes": [
+        "property-newly-required:CurrentIdentityResponse.installation"
+      ],
+      "rationale": "Leitsystem shell (Task 4.1): the identity response gains the output-only installation object with the club name (LEONAID_CLUB_NAME, one club per installation) that the admin rail and the PWA show. Core always serializes it; no request contract changes and every existing response field stays. A cached older web or PWA bundle ignores the extra property. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approved by Björn Schotte on 2026-11-04. Approval is bound to these exact contract hashes and this change."
     }
   ]
 }
