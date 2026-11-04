@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 
 import type { Case, LeonAidApiClient } from "@leonaid/api-client";
-import { Button, DetailProps, DetailSection } from "@leonaid/ui";
+import { Button, DetailProps, DetailSection, NextStep } from "@leonaid/ui";
 
 import { InboxComments } from "./comments";
 import { InboxContact } from "./contact";
@@ -47,14 +47,8 @@ export function CaseDetail({
   return (
     <div className="inbox-detail" data-testid="inbox-case-detail">
       {item.status !== "closed" ? (
-        <div className="next-step">
-          <p>
-            <strong>Nächster Schritt:</strong>{" "}
-            {item.contactStatus === "linked"
-              ? "Antworten und danach mit Abschlussnotiz schließen."
-              : "Kontakt zuordnen, dann antworten."}
-          </p>
-          <div className="cluster">
+        <NextStep
+          action={
             <Button
               data-testid="close-case"
               onClick={() => onClose(item)}
@@ -62,7 +56,9 @@ export function CaseDetail({
             >
               Abschließen …
             </Button>
-            {item.status === "new" ? (
+          }
+          alternatives={
+            item.status === "new" ? (
               <Button
                 loading={takingOver}
                 onClick={() => onTakeOver(item)}
@@ -70,9 +66,14 @@ export function CaseDetail({
               >
                 Übernehmen
               </Button>
-            ) : null}
-          </div>
-        </div>
+            ) : null
+          }
+          consequence={
+            item.contactStatus === "linked"
+              ? "Antworten und danach mit Abschlussnotiz schließen."
+              : "Kontakt zuordnen, dann antworten."
+          }
+        />
       ) : null}
 
       <DetailSection title="Anfrage">
