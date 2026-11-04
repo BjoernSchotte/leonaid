@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -118,6 +119,35 @@ async def read_snapshot(
     if result.filter.isTest and not can_test:
         raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
     return result.model_dump()
+
+
+REFERENCE = re.compile(r"\{([^}]+)\}")
+
+
+def dependencies(definition: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
+    """Which answers each question's and page's visibleIf reads (R4/R5).
+
+    A reference like ``{matrix.r1}`` names the question ``matrix``.
+    """
+
+    def names(expression: Any) -> list[str]:
+        if not isinstance(expression, str):
+            return []
+        return sorted(
+            {ref.split(".")[0].strip() for ref in REFERENCE.findall(expression)}
+        )
+
+    questions: dict[str, list[str]] = {}
+    pages: dict[str, list[str]] = {}
+    for page in definition.get("pages", []):
+        page_refs = names(page.get("visibleIf"))
+        if page_refs:
+            pages[page["name"]] = page_refs
+        for element in page.get("elements", []):
+            refs = sorted({*page_refs, *names(element.get("visibleIf"))})
+            if refs:
+                questions[element["name"]] = refs
+    return {"questions": questions, "pages": pages}
 
 
 async def create_snapshot(
@@ -239,6 +269,8 @@ async def create_snapshot(
             "statusCounts": status_counts,
             "lastPageCounts": list(pages.values()),
             "questions": [question.model_dump() for question in questions],
+            "dependencies": dependencies(definition),
+            "disclosurePolicy": "settled" if settled else "reader",
         }
     )
     await conn.execute(

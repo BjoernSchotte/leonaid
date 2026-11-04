@@ -23,7 +23,7 @@ from leonaid.application.object_storage import (
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
 from leonaid.modules.surveys.application.disclosure import disclose
 from leonaid.modules.surveys.application.export_rendering import (
-    AGGREGATE_PRODUCTS,
+    RAW_PRODUCTS,
     SurveyExportArtifact,
     SurveyExportSource,
     export_filename,
@@ -87,7 +87,10 @@ async def current_principal(conn: Any, user_id: UUID) -> IdentityPrincipal:
     )
 
 
-async def authorize(conn: Any, user_id: UUID, survey: Any, product: str) -> bool:
+async def authorize(
+    conn: Any, user_id: UUID, survey: Any, product: str
+) -> tuple[bool, bool]:
+    """(may see test data, has raw access) for this export product."""
     if survey is None or survey["status"] == "deleted":
         raise not_found()
     principal = await current_principal(conn, user_id)
@@ -115,7 +118,15 @@ async def authorize(conn: Any, user_id: UUID, survey: Any, product: str) -> bool
         else Capability.EXPORT_REPORTS
     ):
         raise not_found()
-    return allowed(Capability.DESIGN)
+    raw = allowed(Capability.READ_RESPONSES) or allowed(Capability.EXPORT_RAW)
+    return allowed(Capability.DESIGN), raw
+
+
+def require_policy(snapshot: dict[str, Any], raw: bool) -> None:
+    """I1: without raw access, only snapshots made under the settled rule
+    (whole past days, completed before the end) may be read or exported."""
+    if not raw and snapshot.get("disclosurePolicy") != "settled":
+        raise not_found()
 
 
 JOB_SELECT = """SELECT j.*, e.status AS event_status, e.attempts, e.last_error_code
@@ -203,9 +214,12 @@ class AsyncpgSurveyExports:
     ) -> SurveyExportJob:
         async with self.pool.acquire() as conn, conn.transaction():
             survey = await self._survey(conn, survey_id)
-            can_test = await authorize(conn, user_id, survey, body.product)
-            await read_snapshot(
-                conn, survey_id, UUID(body.snapshotId), can_test=can_test
+            can_test, raw = await authorize(conn, user_id, survey, body.product)
+            require_policy(
+                await read_snapshot(
+                    conn, survey_id, UUID(body.snapshotId), can_test=can_test
+                ),
+                raw,
             )
             request_hash = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
             existing = await conn.fetchrow(
@@ -278,8 +292,11 @@ class AsyncpgSurveyExports:
         )
         if row is None:
             raise not_found()
-        can_test = await authorize(conn, user_id, survey, row["product"])
-        await read_snapshot(conn, survey_id, row["snapshot_id"], can_test=can_test)
+        can_test, raw = await authorize(conn, user_id, survey, row["product"])
+        require_policy(
+            await read_snapshot(conn, survey_id, row["snapshot_id"], can_test=can_test),
+            raw,
+        )
         return row
 
     async def get(
@@ -346,12 +363,13 @@ class AsyncpgSurveyExports:
             if row["status"] in {"available", "cancelled"}:
                 return
             try:
-                can_test = await authorize(
+                can_test, raw = await authorize(
                     conn, row["requested_by"], survey, row["product"]
                 )
                 payload = await read_snapshot(
                     conn, row["survey_id"], row["snapshot_id"], can_test=can_test
                 )
+                require_policy(payload, raw)
             except ResourceNotFound:
                 await self._cancel(conn, row)
                 return
@@ -368,9 +386,9 @@ class AsyncpgSurveyExports:
             # exports need the raw permissions and stay raw.
             source = SurveyExportSource(
                 row["title"],
-                disclose(payload)
-                if row["product"] in AGGREGATE_PRODUCTS
-                else AnalysisSnapshot.model_validate(payload),
+                AnalysisSnapshot.model_validate(payload)
+                if row["product"] in RAW_PRODUCTS
+                else disclose(payload),
                 responses,
             )
             artifact = (
@@ -394,11 +412,14 @@ class AsyncpgSurveyExports:
             # Save the reference even on cancellation so retention can remove it.
             status = "available"
             try:
-                can_test = await authorize(
+                can_test, raw = await authorize(
                     conn, row["requested_by"], survey, row["product"]
                 )
-                await read_snapshot(
-                    conn, row["survey_id"], row["snapshot_id"], can_test=can_test
+                require_policy(
+                    await read_snapshot(
+                        conn, row["survey_id"], row["snapshot_id"], can_test=can_test
+                    ),
+                    raw,
                 )
             except ResourceNotFound:
                 status = "cancelled"

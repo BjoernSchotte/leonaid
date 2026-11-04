@@ -30,7 +30,8 @@ from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
 )
 
-RENDER_VERSION = "survey-tabular-v2"
+# v3: report workbooks with disclosed numbers (k = 5, Task 5.6b).
+RENDER_VERSION = "survey-tabular-v3"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [
@@ -145,7 +146,7 @@ def metadata(source: SurveyExportSource) -> dict[str, Any]:
         "test_data": s.filter.isTest,
         "created_from_inclusive": s.filter.createdFrom,
         "created_before_exclusive": s.filter.createdBefore,
-        "selected_participations": s.participationCount,
+        "selected_participations": shown_count(s.participationCount),
         "scope_in_progress": shown_count(s.statusCounts.in_progress),
         "scope_partial": shown_count(s.statusCounts.partial),
         "scope_completed": shown_count(s.statusCounts.completed),
@@ -290,12 +291,13 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 q.questionId,
                 q.title,
                 q.kind,
-                q.relevant,
-                q.answered,
-                q.unanswered,
-                q.hidden,
-                q.invalid,
-                q.sum,
+                shown_count(q.relevant),
+                shown_count(q.answered),
+                shown_count(q.unanswered),
+                shown_count(q.hidden),
+                shown_count(q.invalid),
+                # Not in the disclosed model (R3); stored snapshots keep it.
+                getattr(q, "sum", None),
                 q.mean,
                 q.minimum,
                 q.maximum,
@@ -303,7 +305,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             ],
         )
         # Stored (raw exports) or disclosed (report exports) buckets.
-        groups: list[tuple[str | None, str | None, int, list[Any]]] = (
+        groups: list[tuple[str | None, str | None, int | None, list[Any]]] = (
             [(None, None, q.answered, q.counts)] if q.counts else []
         )
         for row in q.matrixRows:
@@ -313,9 +315,9 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                     q.questionId,
                     row.rowId,
                     row.label,
-                    row.answered,
-                    row.unanswered,
-                    row.invalid,
+                    shown_count(row.answered),
+                    shown_count(row.unanswered),
+                    shown_count(row.invalid),
                 ],
             )
             groups.append((row.rowId, row.label, row.answered, row.counts))
@@ -332,7 +334,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                         json_value(bucket.value),
                         bucket.label,
                         shown_count(bucket.count),
-                        denominator,
+                        shown_count(denominator),
                         bucket.percentage,
                         f"{ordinal}. {bucket.label[:55]}"
                         + ("…" if len(bucket.label) > 55 else ""),
@@ -397,7 +399,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 page.pageId,
                 page.title,
                 shown_count(page.count),
-                source.snapshot.participationCount,
+                shown_count(source.snapshot.participationCount),
                 page.count / source.snapshot.participationCount * 100
                 if source.snapshot.participationCount and page.count is not None
                 else None,

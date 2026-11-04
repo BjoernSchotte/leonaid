@@ -522,9 +522,19 @@ class AsyncpgSurveyRepository:
                         ]
                     }
                 if operation == "analysis-get":
-                    return await read_snapshot(
+                    snapshot = await read_snapshot(
                         conn, survey_id, UUID(body["snapshotId"]), can_test=can_test
                     )
+                    access = self._capabilities(actor, survey, grants)
+                    # I1: without raw access only settled snapshots (whole
+                    # past days, completed before the end) can be read.
+                    if (
+                        "read_responses" not in access
+                        and "export_raw" not in access
+                        and snapshot.get("disclosurePolicy") != "settled"
+                    ):
+                        raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
+                    return snapshot
                 if operation.startswith("response-") and operation != "response-create":
                     return await read_responses(
                         conn,

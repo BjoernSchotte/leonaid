@@ -2,19 +2,37 @@
 
 The stored snapshot (``analysis_snapshot.AnalysisSnapshot``) keeps every
 computed number. Everything that leaves the API as an aggregate passes
-``disclose`` first, which applies Björn's rule (2026-11-04):
+``disclose`` first (Björn, 2026-11-04; review rulings for Task 5.6b):
 
-- a selection with fewer than ``K`` participations shows no results;
-- a question (or matrix row) with fewer than ``K`` valid answers shows no
-  distribution and no statistics;
-- a count of 1 to ``K - 1`` people is withheld ("< 5"), with its share;
-- where the shown counts of a distribution add up to a known total, a single
-  withheld count could be worked out by subtraction, so the next smallest
-  non-zero count of that distribution is withheld as well.
+R0  A selection with fewer than K participations shows nothing, not even
+    its exact size.
+R1  A count of 1 to K - 1 people is withheld. Where the counts of a
+    distribution add up to a known total, every cell below 2K (zeros
+    included) is withheld with it, and more if those stand for fewer than
+    K people, so neither subtraction nor the choice of cells pins them down.
+R2  A question (or matrix row) with 1 to K - 1 valid answers shows no
+    distribution and no statistics (with 0 answers there is nothing to
+    hide: every count is 0).
+R3  If any count of a question is withheld, so is every figure derived
+    from its counts: mean, minimum, maximum, NPS score and NPS segments.
+R4  A conditional question (hidden for some people) has denominators that
+    are counts of its condition's answers. The snapshot records which
+    answers each condition reads (visibleIf). If one of them is withheld,
+    the conditional question is withheld as a whole, denominators
+    included. If a condition reads an answer without a released
+    distribution (number, date, text), the shown/hidden pair is protected
+    like a distribution (R1), and the mean, minimum and maximum of that
+    number are withheld with it (R4b).
+R5  Last-page counts say where people stopped. Under page conditions they
+    follow the answers those read, so they are all withheld (zeros
+    included) when one of those is; under a condition on an unreleased
+    answer they are protected like a distribution (with R4b).
+Snapshots from before these records get the conservative variant: any
+question hidden for someone counts as conditional on anything.
 
-Counts of 0 stay visible: they reveal no one. Question denominators
-(shown, answered, unanswered, hidden, invalid) say how many people saw or
-answered a question, not what they answered, and stay visible.
+Outside R1, counts of 0 stay visible. tests/unit/test_survey_
+disclosure_solver.py checks by brute force that no withheld number is
+uniquely determined by the rest of a released result.
 
 The public models below carry the OpenAPI names of the earlier snapshot
 schema; the stored models in ``analysis`` and ``analysis_snapshot`` never
@@ -65,6 +83,11 @@ def whole_days(
 
 # Kinds whose counts add up to the number of valid answers (one value each).
 SINGLE_VALUE_KINDS = {"radiogroup", "dropdown", "rating"}
+# Kinds a condition (visibleIf) can usefully test; text conditions only see
+# "answered", which is shown anyway.
+CONDITION_KINDS = {"radiogroup", "dropdown", "checkbox", "rating", "matrix", "number"}
+# Kinds whose answers are released as a distribution of counts.
+DISTRIBUTION_KINDS = {"radiogroup", "dropdown", "checkbox", "rating", "matrix"}
 
 
 class AggregateCount(AggregateModel):
@@ -86,19 +109,19 @@ class AggregateCount(AggregateModel):
 class MatrixRowAggregate(AggregateModel):
     rowId: str
     label: str
-    answered: int = Field(ge=0)
-    unanswered: int = Field(ge=0)
-    invalid: int = Field(ge=0)
+    answered: int | None = Field(ge=0)
+    unanswered: int | None = Field(ge=0)
+    invalid: int | None = Field(ge=0)
     counts: list[AggregateCount]
     suppressed: bool = False
 
 
 class NpsSegments(AggregateModel):
-    """People per NPS group (0–6, 7–8, 9–10); None = withheld (1 to K − 1)."""
+    """People per NPS group (0–6, 7–8, 9–10); only when no score is withheld."""
 
-    detractors: int | None = Field(ge=0)
-    passives: int | None = Field(ge=0)
-    promoters: int | None = Field(ge=0)
+    detractors: int = Field(ge=0)
+    passives: int = Field(ge=0)
+    promoters: int = Field(ge=0)
 
 
 class QuestionAggregate(AggregateModel):
@@ -115,22 +138,22 @@ class QuestionAggregate(AggregateModel):
         "rating",
         "matrix",
     ]
-    relevant: int = Field(ge=0)
-    answered: int = Field(ge=0)
-    unanswered: int = Field(ge=0)
-    hidden: int = Field(ge=0)
-    invalid: int = Field(ge=0)
+    # None: withheld (R4, a conditional question whose condition is withheld).
+    relevant: int | None = Field(ge=0)
+    answered: int | None = Field(ge=0)
+    unanswered: int | None = Field(ge=0)
+    hidden: int | None = Field(ge=0)
+    invalid: int | None = Field(ge=0)
     counts: list[AggregateCount]
-    sum: FiniteFloat | None
     mean: FiniteFloat | None
     minimum: FiniteFloat | None
     maximum: FiniteFloat | None
     nps: FiniteFloat | None = Field(ge=-100, le=100)
     matrixRows: list[MatrixRowAggregate]
     suppressed: bool = False
-    """Fewer than K valid answers: no distribution, no statistics."""
+    """No distribution and no statistics (R2–R4)."""
     npsSegments: NpsSegments | None = None
-    """Only for a 0–10 NPS rating that is shown."""
+    """Only for a 0–10 NPS rating with every score shown (R3)."""
 
 
 class ParticipationCounts(AggregateModel):
@@ -153,7 +176,8 @@ class AnalysisSnapshot(AggregateModel):
     versionNumber: int = Field(ge=1)
     rendererVersion: str
     capabilityProfile: str
-    participationCount: int = Field(ge=0)
+    # None: 1 to K - 1 participations (R0).
+    participationCount: int | None = Field(ge=0)
     statusCounts: ParticipationCounts
     lastPageCounts: list[LastPageCount]
     questions: list[QuestionAggregate]
@@ -167,17 +191,27 @@ def _withheld(count: int) -> bool:
 
 
 def protect(counts: list[int], total: int | None) -> list[bool]:
-    """Which counts to withhold. ``total`` is the known sum, if any."""
+    """Which counts to withhold (R1). ``total`` is their known sum, if any.
+
+    Primary: every count of 1 to K - 1. With a known total the withheld
+    cells can be worked out together (total minus the shown ones), and an
+    observer who knows this rule also learns from *which* cells are
+    withheld. So once anything is withheld, the choice depends on values
+    only, never on the other cells: every cell below 2K is withheld, zeros
+    included. If those still stand for fewer than K people, the smallest
+    remaining cells follow until they do.
+    """
     hidden = [_withheld(count) for count in counts]
-    if total is not None and sum(hidden) == 1:
-        # One withheld count = total - shown counts: withhold one more.
+    if total is None or not any(hidden):
+        return hidden
+    hidden = [count < 2 * K for count in counts]
+    while sum(c for c, h in zip(counts, hidden, strict=True) if h) < K:
         candidates = [
-            (count, index)
-            for index, count in enumerate(counts)
-            if count > 0 and not hidden[index]
+            (count, index) for index, count in enumerate(counts) if not hidden[index]
         ]
-        if candidates:
-            hidden[min(candidates)[1]] = True
+        if not candidates:
+            break
+        hidden[min(candidates)[1]] = True
     return hidden
 
 
@@ -195,32 +229,36 @@ def _counts(buckets: list[dict[str, Any]], total: int | None) -> list[AggregateC
     ]
 
 
-def _question(question: dict[str, Any], everything_hidden: bool) -> QuestionAggregate:
-    base = {
-        key: question[key]
-        for key in (
-            "questionId",
-            "title",
-            "kind",
-            "relevant",
-            "answered",
-            "unanswered",
-            "hidden",
-            "invalid",
-        )
-    }
-    if everything_hidden or question["answered"] < K:
-        return QuestionAggregate(
-            **base,
-            counts=[],
-            sum=None,
-            mean=None,
-            minimum=None,
-            maximum=None,
-            nps=None,
-            matrixRows=[],
-            suppressed=True,
-        )
+_DENOMINATORS = ("relevant", "answered", "unanswered", "hidden", "invalid")
+
+
+def _withheld_question(
+    question: dict[str, Any], *, denominators: bool
+) -> QuestionAggregate:
+    """No distribution, no statistics; denominators too if asked (R4)."""
+    return QuestionAggregate(
+        questionId=question["questionId"],
+        title=question["title"],
+        kind=question["kind"],
+        **{key: None if denominators else question[key] for key in _DENOMINATORS},
+        counts=[],
+        mean=None,
+        minimum=None,
+        maximum=None,
+        nps=None,
+        matrixRows=[],
+        suppressed=True,
+    )
+
+
+def _question(question: dict[str, Any]) -> QuestionAggregate:
+    """R2 and R3 for one question (conditions are handled in ``disclose``)."""
+    if 0 < question["answered"] < K:
+        withheld = _withheld_question(question, denominators=False)
+        if len(question["counts"]) == 1 and not question["matrixRows"]:
+            # One option: its count *is* "answered" (e.g. a lone "I agree").
+            return withheld.model_copy(update={"answered": None, "unanswered": None})
+        return withheld
     single = question["kind"] in SINGLE_VALUE_KINDS
     rows = []
     for row in question["matrixRows"]:
@@ -228,7 +266,7 @@ def _question(question: dict[str, Any], everything_hidden: bool) -> QuestionAggr
             key: row[key]
             for key in ("rowId", "label", "answered", "unanswered", "invalid")
         }
-        if row["answered"] < K:
+        if 0 < row["answered"] < K:
             rows.append(MatrixRowAggregate(**row_base, counts=[], suppressed=True))
         else:
             rows.append(
@@ -236,15 +274,20 @@ def _question(question: dict[str, Any], everything_hidden: bool) -> QuestionAggr
                     **row_base, counts=_counts(row["counts"], row["answered"])
                 )
             )
+    counts = _counts(question["counts"], question["answered"] if single else None)
+    # R3: a figure computed from the counts would give withheld ones back.
+    linked = any(bucket.suppressed for bucket in counts)
     return QuestionAggregate(
-        **base,
-        npsSegments=_nps_segments(question),
-        counts=_counts(question["counts"], question["answered"] if single else None),
-        sum=question["sum"],
-        mean=question["mean"],
-        minimum=question["minimum"],
-        maximum=question["maximum"],
-        nps=question["nps"],
+        **{
+            key: question[key]
+            for key in ("questionId", "title", "kind", *_DENOMINATORS)
+        },
+        counts=counts,
+        mean=None if linked else question["mean"],
+        minimum=None if linked else question["minimum"],
+        maximum=None if linked else question["maximum"],
+        nps=None if linked else question["nps"],
+        npsSegments=None if linked else _nps_segments(question),
         matrixRows=rows,
     )
 
@@ -256,11 +299,120 @@ def _nps_segments(question: dict[str, Any]) -> NpsSegments | None:
     for bucket in question["counts"]:
         score = float(bucket["value"])
         groups[0 if score <= 6 else 1 if score <= 8 else 2] += bucket["count"]
-    hidden = protect(groups, question["answered"])
-    detractors, passives, promoters = (
-        None if hide else count for count, hide in zip(groups, hidden, strict=True)
+    return NpsSegments(detractors=groups[0], passives=groups[1], promoters=groups[2])
+
+
+def _has_withheld(question: QuestionAggregate) -> bool:
+    return (
+        question.suppressed
+        or any(bucket.suppressed for bucket in question.counts)
+        or any(
+            row.suppressed or any(bucket.suppressed for bucket in row.counts)
+            for row in question.matrixRows
+        )
     )
-    return NpsSegments(detractors=detractors, passives=passives, promoters=promoters)
+
+
+def _with_dependencies(
+    stored: dict[str, Any], total: int
+) -> tuple[list[QuestionAggregate], list[bool]]:
+    """R4/R5 from the recorded visibleIf references (definition order).
+
+    A conditional question is withheld as a whole if a question its
+    condition reads is withheld, or if its condition reads an answer
+    without a released distribution and its shown/hidden pair would be.
+    Page counts are withheld if a question a page condition reads is.
+    """
+    deps = stored["dependencies"]
+    known = {q["questionId"] for q in stored["questions"]}
+    shown: dict[str, QuestionAggregate] = {}
+    withheld: set[str] = set()
+
+    def blocked(names: list[str]) -> bool:
+        # An unknown or later reference counts as withheld (conservative).
+        return any(n in withheld or n not in known or n not in shown for n in names)
+
+    def strip(names: list[str]) -> None:
+        """R4b: mean, minimum and maximum of a number a protected condition
+        reads would narrow the protected count (e.g. how many are >= 10)."""
+        for n in names:
+            if n in shown:
+                shown[n] = shown[n].model_copy(
+                    update={"mean": None, "minimum": None, "maximum": None}
+                )
+                withheld.add(n)
+
+    kinds = {q["questionId"]: q["kind"] for q in stored["questions"]}
+    for q in stored["questions"]:
+        qid = q["questionId"]
+        refs = deps["questions"].get(qid, [])
+        # The shown/hidden pair follows from the referenced answers. If all
+        # of those are released (choice distributions), it adds nothing;
+        # if a reference has no released distribution (number, date, text),
+        # the pair is a new count and is protected like a distribution.
+        unreleased = [n for n in refs if kinds.get(n) not in DISTRIBUTION_KINDS]
+        pair_protected = bool(unreleased) and any(
+            protect([q["relevant"], q["hidden"]], total)
+        )
+        if refs and (blocked(refs) or pair_protected):
+            shown[qid] = _withheld_question(q, denominators=True)
+            withheld.add(qid)
+            if pair_protected:
+                strip(unreleased)
+            continue
+        disclosed = _question(q)
+        shown[qid] = disclosed
+        if _has_withheld(disclosed):
+            withheld.add(qid)
+    pages = stored["lastPageCounts"]
+    page_refs = sorted({n for refs in deps["pages"].values() for n in refs})
+    # Last pages say where people stopped (no answer content), like the
+    # denominators; under page conditions they also follow the referenced
+    # answers, so they are withheld exactly when one of those is.
+    unreleased_pages = [n for n in page_refs if kinds.get(n) not in DISTRIBUTION_KINDS]
+    if page_refs and blocked(page_refs):
+        pages_hidden = [True for _ in pages]
+    elif unreleased_pages and len(pages) > 1:
+        # Page counts are then new counts of the unreleased answers.
+        pages_hidden = protect([page["count"] for page in pages], total)
+        if any(pages_hidden):
+            strip(unreleased_pages)
+    else:
+        pages_hidden = [False for _ in pages]
+    return [shown[q["questionId"]] for q in stored["questions"]], pages_hidden
+
+
+def _conservative(
+    stored: dict[str, Any], total: int
+) -> tuple[list[QuestionAggregate], list[bool]]:
+    """R4/R5 without recorded references (snapshots before Task 5.6b):
+    any question hidden for someone counts as conditional on anything."""
+    plain = [q for q in stored["questions"] if q["hidden"] == 0]
+    conditional = [q for q in stored["questions"] if q["hidden"] > 0]
+    shown = {q["questionId"]: _question(q) for q in plain}
+    withheld = any(
+        _has_withheld(shown[q["questionId"]])
+        for q in plain
+        if q["kind"] in CONDITION_KINDS
+    )
+    if not withheld:
+        for q in conditional:
+            provisional = _question(q)
+            if any(protect([q["relevant"], q["hidden"]], total)) or (
+                q["kind"] in CONDITION_KINDS and _has_withheld(provisional)
+            ):
+                withheld = True
+                break
+            shown[q["questionId"]] = provisional
+    for q in conditional:
+        if withheld:
+            shown[q["questionId"]] = _withheld_question(q, denominators=True)
+    questions = [shown[q["questionId"]] for q in stored["questions"]]
+    anything = withheld or any(_has_withheld(q) for q in questions)
+    pages = stored["lastPageCounts"]
+    hide_pages = anything and len(pages) > 1
+    pages_hidden = [hide_pages for _ in pages]
+    return questions, pages_hidden
 
 
 def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
@@ -270,17 +422,28 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
         if isinstance(snapshot, StoredSnapshot)
         else StoredSnapshot.model_validate(snapshot)
     ).model_dump()
-    everything_hidden = stored["participationCount"] < K
-    selected = stored["filter"]["statuses"]
+    total = stored["participationCount"]
     status_keys = ["in_progress", "partial", "completed"]
-    # The selected statuses add up to the participation count.
+    everything_hidden = total < K  # R0
+
+    questions: list[QuestionAggregate] = []
+    if everything_hidden:
+        questions = [
+            _withheld_question(q, denominators=True) for q in stored["questions"]
+        ]
+        pages_hidden = [True for _ in stored["lastPageCounts"]]
+    elif stored.get("dependencies") is not None:
+        questions, pages_hidden = _with_dependencies(stored, total)
+    else:
+        questions, pages_hidden = _conservative(stored, total)
+
+    selected = stored["filter"]["statuses"]
     status_hidden = dict(
         zip(
             selected,
-            protect(
-                [stored["statusCounts"][key] for key in selected],
-                stored["participationCount"],
-            ),
+            protect([stored["statusCounts"][key] for key in selected], total)
+            if not everything_hidden
+            else [True for _ in selected],
             strict=True,
         )
     )
@@ -288,13 +451,11 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
     status_hidden.update(
         zip(
             other,
-            protect([stored["statusCounts"][key] for key in other], None),
+            protect([stored["statusCounts"][key] for key in other], None)
+            if not everything_hidden
+            else [True for _ in other],
             strict=True,
         )
-    )
-    pages = stored["lastPageCounts"]
-    page_hidden = protect(
-        [page["count"] for page in pages], stored["participationCount"]
     )
     return AnalysisSnapshot(
         **{
@@ -307,9 +468,9 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
                 "versionNumber",
                 "rendererVersion",
                 "capabilityProfile",
-                "participationCount",
             )
         },
+        participationCount=None if _withheld(total) else total,
         statusCounts=ParticipationCounts(
             **{
                 key: None if status_hidden[key] else stored["statusCounts"][key]
@@ -322,9 +483,9 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
                 title=page["title"],
                 count=None if hide else page["count"],
             )
-            for page, hide in zip(pages, page_hidden, strict=True)
+            for page, hide in zip(stored["lastPageCounts"], pages_hidden, strict=True)
         ],
-        questions=[_question(q, everything_hidden) for q in stored["questions"]],
+        questions=questions,
         minimumGroupSize=K,
         suppressed=everything_hidden,
     )

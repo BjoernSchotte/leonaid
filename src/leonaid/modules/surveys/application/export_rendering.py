@@ -32,13 +32,22 @@ class SurveyExportRenderError(RuntimeError):
     """Stable failure code only; never include respondent data in diagnostics."""
 
 
-AGGREGATE_PRODUCTS: frozenset[str] = frozenset({"analysis_xlsx", "analysis_pdf"})
-"""Report exports: rendered from the disclosed snapshot (k = 5), like the UI."""
+RAW_PRODUCTS: frozenset[str] = frozenset({"responses_csv", "responses_xlsx"})
+"""Raw exports (export_raw): the stored snapshot. Every other product, now
+and in future, renders from the disclosed snapshot (fails closed, M3)."""
+
+
+WITHHELD = f"< {K}"
+"""How reports show a withheld count (one place; the UI uses the same)."""
 
 
 def shown_count(value: int | None) -> int | str:
-    """A count as a report shows it: a withheld one (None) reads "< 5"."""
-    return f"< {K}" if value is None else value
+    """A count as a report shows it: a withheld one (None) reads WITHHELD."""
+    return WITHHELD if value is None else value
+
+
+def withheld_note(k: int) -> str:
+    return f"Weniger als {k} gültige Antworten oder daraus ableitbar: nicht ausgewertet, damit niemand erkennbar wird."
 
 
 @dataclass(frozen=True)

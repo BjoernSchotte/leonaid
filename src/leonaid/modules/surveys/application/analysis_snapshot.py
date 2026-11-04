@@ -86,6 +86,17 @@ class LastPageCount(AggregateModel):
     count: int = Field(ge=0)
 
 
+class SnapshotDependencies(AggregateModel):
+    """visibleIf references from the frozen version (Task 5.6b, R4/R5).
+
+    ``questions``: question id -> names its own or its page's condition
+    reads. ``pages``: page name -> names its condition reads.
+    """
+
+    questions: dict[str, list[str]]
+    pages: dict[str, list[str]]
+
+
 class AnalysisSnapshot(AggregateModel):
     id: str
     surveyId: str
@@ -98,6 +109,11 @@ class AnalysisSnapshot(AggregateModel):
     statusCounts: ParticipationCounts
     lastPageCounts: list[LastPageCount]
     questions: list[QuestionAggregate]
+    # Absent on snapshots from before Task 5.6b: disclose() is conservative.
+    dependencies: SnapshotDependencies | None = None
+    # "settled": created for an account without raw access (whole days,
+    # completed before the end). Only those may be read by such accounts.
+    disclosurePolicy: Literal["reader", "settled"] = "reader"
 
     @model_validator(mode="after")
     def consistent_selection(self) -> Self:
