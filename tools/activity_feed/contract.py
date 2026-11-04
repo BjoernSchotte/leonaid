@@ -457,6 +457,17 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         repeat.raise_for_status()
         if repeat.json().get("updated") != 0:
             raise ContractFailure("Mark all as read is not idempotent")
+        # The browser tests that follow expect Anna's entries unread again.
+        for item in anna_items:
+            restored = await authenticated_request(
+                api,
+                "PATCH",
+                f"/api/v1/activity-feed/{item['id']}",
+                tokens[ANNA_ID],
+                f"poc082:restore-{item['id']}",
+                {"read": False},
+            )
+            restored.raise_for_status()
 
         event_count = await connection.fetchval(
             """
