@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
@@ -172,34 +173,87 @@ def can_manage_action_roles(
     )
 
 
-def removes_last_active_system_admin(
-    *,
-    role: GlobalRole,
-    enabled: bool,
-    active_admin_count: int,
-) -> bool:
-    """Protect an installation from losing its final active system admin."""
+#: Actions that can still be operated or changed and so need a lead.
+OPEN_ACTION_STATUSES: frozenset[CharityActionStatus] = frozenset(
+    {
+        CharityActionStatus.DRAFT,
+        CharityActionStatus.SCHEDULED,
+        CharityActionStatus.ACTIVE,
+    }
+)
 
-    return not enabled and role is GlobalRole.SYSTEM_ADMIN and active_admin_count <= 1
+
+@dataclass(frozen=True, slots=True)
+class AdminCoverage:
+    """Who keeps the installation and its open actions manageable.
+
+    Only active accounts count: a suspended, archived or invited account
+    cannot sign in, so it covers nothing. ``open_action_leads`` maps each
+    open action (draft, scheduled, active) to the active accounts with a
+    current charity-admin membership.
+    """
+
+    system_admins: frozenset[UUID]
+    open_action_leads: Mapping[UUID, frozenset[UUID]]
 
 
-def removes_last_required_charity_admin(
-    *,
-    action_status: CharityActionStatus,
-    role: ActionRole,
-    enabled: bool,
-    active_admin_count: int,
-) -> bool:
-    """Protect actions that can still be operated or changed."""
+@dataclass(frozen=True, slots=True)
+class AccessRemoval:
+    """What one command takes away from one account."""
 
-    return (
-        not enabled
-        and role is ActionRole.CHARITY_ADMIN
-        and action_status
-        in {
-            CharityActionStatus.DRAFT,
-            CharityActionStatus.SCHEDULED,
-            CharityActionStatus.ACTIVE,
-        }
-        and active_admin_count <= 1
-    )
+    user_id: UUID
+    #: The account stops counting as system admin.
+    system_admin: bool
+    #: Actions where it stops counting as lead; ``None`` means every action.
+    lead_actions: frozenset[UUID] | None
+
+    @classmethod
+    def deactivation(cls, user_id: UUID) -> AccessRemoval:
+        """Suspension or archival: the account covers nothing any more."""
+
+        return cls(user_id=user_id, system_admin=True, lead_actions=None)
+
+    @classmethod
+    def system_admin_role(cls, user_id: UUID) -> AccessRemoval:
+        return cls(user_id=user_id, system_admin=True, lead_actions=frozenset())
+
+    @classmethod
+    def lead_role(cls, user_id: UUID, action_id: UUID) -> AccessRemoval:
+        return cls(
+            user_id=user_id,
+            system_admin=False,
+            lead_actions=frozenset({action_id}),
+        )
+
+
+class AdminInvariant(StrEnum):
+    """The invariant a refused command would have broken."""
+
+    LAST_SYSTEM_ADMIN = "last_system_admin"
+    LAST_CHARITY_ADMIN = "last_charity_admin"
+
+
+def admin_invariant_violation(
+    coverage: AdminCoverage,
+    removal: AccessRemoval,
+) -> AdminInvariant | None:
+    """Return the invariant the removal breaks, or ``None``.
+
+    The installation keeps at least one active system admin, and every open
+    action keeps at least one active lead. Only a removal that takes away
+    the last one is refused; a gap that already exists does not block
+    unrelated changes.
+    """
+
+    user = removal.user_id
+    if (
+        removal.system_admin
+        and user in coverage.system_admins
+        and not coverage.system_admins - {user}
+    ):
+        return AdminInvariant.LAST_SYSTEM_ADMIN
+    for action_id, leads in coverage.open_action_leads.items():
+        affected = removal.lead_actions is None or action_id in removal.lead_actions
+        if affected and user in leads and not leads - {user}:
+            return AdminInvariant.LAST_CHARITY_ADMIN
+    return None

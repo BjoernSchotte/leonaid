@@ -37,6 +37,7 @@ from leonaid.domain.actions import (
 )
 
 
+from leonaid.adapters.postgres.identity import lock_admin_access
 from leonaid.adapters.postgres.delivery import (
     has_delivery_capability,
     lock_configuration,
@@ -494,6 +495,9 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> ActionManagementState:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                # Same lock as account status and role changes: the new
+                # leads must still be active when this commits.
+                await lock_admin_access(connection)
                 available_rows = await connection.fetch(
                     """
                     SELECT id
