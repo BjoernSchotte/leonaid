@@ -1383,7 +1383,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             raise Conflict(
                 "action_revision_conflict",
                 "Die Charity-Aktion wurde zwischenzeitlich geändert. "
-                "Lade den aktuellen Stand und prüfe deine Eingaben erneut.",
+                "Bitte den aktuellen Stand laden und die Eingaben erneut prüfen.",
             )
         changed = action.next_revision()
         if int(revision) != changed.revision:

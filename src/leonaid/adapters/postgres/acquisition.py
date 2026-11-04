@@ -244,7 +244,7 @@ class AsyncpgAcquisitionPolicyRepository(
                         raise Conflict(
                             "idempotency_incomplete",
                             "Die vorherige Verarbeitung ist noch nicht "
-                            "abgeschlossen. Bitte versuche es erneut.",
+                            "abgeschlossen. Bitte erneut versuchen.",
                         )
                     existing_result = _replayed_resolution(receipt["result"])
 
@@ -2046,7 +2046,7 @@ class AsyncpgAcquisitionPolicyRepository(
         if current_revision is not None and int(current_revision) != expected_revision:
             raise Conflict(
                 "assignment_revision_conflict",
-                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte lade sie neu.",
+                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte neu laden.",
             )
 
     @staticmethod

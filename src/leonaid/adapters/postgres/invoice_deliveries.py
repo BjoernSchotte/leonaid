@@ -307,8 +307,7 @@ class AsyncpgInvoiceDeliveryRepository:
                 if updated != "UPDATE 1":
                     raise Conflict(
                         "invoice_delivery_retry_raced",
-                        "Der Versandstatus wurde gleichzeitig geändert. Bitte "
-                        "lade die Rechnung neu.",
+                        "Der Versandstatus wurde gleichzeitig geändert. Bitte die Rechnung neu laden.",
                     )
                 await self._audit(
                     connection,
