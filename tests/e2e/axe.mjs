@@ -23,15 +23,20 @@ export async function settleAnimations(page) {
   const stuck = await page.evaluate(async () => {
     const running = document.getAnimations().filter((animation) => {
       const timing = animation.effect?.getComputedTiming();
-      // Paused or idle animations never finish; only running finite ones end.
+      // Paused, idle or rate-0 animations never finish; only running finite
+      // ones with a nonzero playback rate end.
       return (
-        animation.playState === "running" && Number.isFinite(timing?.endTime)
+        animation.playState === "running" &&
+        animation.playbackRate !== 0 &&
+        Number.isFinite(timing?.endTime)
       );
     });
     const remaining = running.map((animation) => {
       const timing = animation.effect.getComputedTiming();
-      const rate = Math.abs(animation.playbackRate) || 1;
-      return (timing.endTime - (timing.localTime ?? 0)) / rate;
+      const rate = animation.playbackRate;
+      const local = timing.localTime ?? 0;
+      // Forwards it finishes at endTime, backwards (rate < 0) at time 0.
+      return rate > 0 ? (timing.endTime - local) / rate : local / -rate;
     });
     const limit = Math.max(0, ...remaining) + 2000;
     const settled = await Promise.race([
