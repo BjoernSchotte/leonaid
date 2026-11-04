@@ -1,27 +1,41 @@
-import {
-  Alert02Icon,
-  Calendar03Icon,
-  CheckmarkCircle02Icon,
-  DatabaseExportIcon,
-  Delete02Icon,
-  File02Icon,
-  LockIcon,
-  Search01Icon,
-  ShieldUserIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import {
+  Database,
+  Download,
+  FileSearch,
+  Info,
+  Search,
+  ShieldAlert,
+  UserX,
+} from "lucide-react";
+import { useId, useState, type FormEvent } from "react";
+
+import type {
+  LeonAidApiClient,
+  PrivacyConsentResponse,
+  PrivacyErasureResponse,
+  PrivacySubjectReportResponse,
+} from "@leonaid/api-client";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DetailProps,
+  EmptyState,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  NextStep,
+  StatusMessage,
+  useOptionalToast,
+} from "@leonaid/ui";
 
 import {
-  type LeonAidApiClient,
-  type PrivacyConsentResponse,
-  type PrivacyErasureResponse,
-  type PrivacySubjectReportResponse,
-} from "@leonaid/api-client";
-import { Button, ConfirmDialog, FormField, StatusMessage } from "@leonaid/ui";
-
-import { actionErrorMessage } from "../action-admin/errors";
+  actionErrorMessage,
+  type ActionErrorMessage,
+} from "../action-admin/errors";
+import { formatDateTime } from "../shared/dates";
 
 export interface PrivacyAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -42,12 +56,13 @@ const referenceLabels = {
   invoice: "Rechnung",
 } as const;
 
-function localDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
+const channelLabels = {
+  email: "E-Mail",
+  phone: "Telefon",
+  postal: "Post",
+} as const;
+
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function saveExport(report: PrivacySubjectReportResponse) {
   const blob = new Blob([JSON.stringify(report, null, 2)], {
@@ -63,63 +78,28 @@ function saveExport(report: PrivacySubjectReportResponse) {
   URL.revokeObjectURL(url);
 }
 
-function EvidenceCard({
-  consent,
-  onRevoke,
-  pending,
-}: {
-  readonly consent: PrivacyConsentResponse;
-  readonly onRevoke: (consent: PrivacyConsentResponse) => void;
-  readonly pending: boolean;
-}) {
-  const active = consent.revokedAt === null;
-  return (
-    <article className="privacy-evidence" data-consent-id={consent.id}>
-      <div className="privacy-evidence__status">
-        <span data-active={active}>{active ? "Aktiv" : "Gesperrt"}</span>
-        <small>{purposeLabels[consent.purpose]}</small>
-      </div>
-      <div>
-        <h3>
-          {consent.evidenceKind === "notice_acknowledgement"
-            ? "Datenschutzhinweis bestätigt"
-            : "Einwilligungsnachweis"}
-        </h3>
-        <p>
-          Textversion <strong>{consent.textVersion}</strong> · Quelle{" "}
-          {consent.source}
-        </p>
-        <small>
-          Erfasst {localDateTime(consent.grantedAt)}
-          {consent.revokedAt
-            ? ` · gesperrt ${localDateTime(consent.revokedAt)}`
-            : ""}
-        </small>
-      </div>
-      {active ? (
-        <Button
-          disabled={pending}
-          onClick={() => onRevoke(consent)}
-          variant="secondary"
-        >
-          Kontakt sperren
-        </Button>
-      ) : null}
-    </article>
-  );
-}
-
-export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
+/**
+ * Datenschutz (prototype System.tsx Privacy): exact-address lookup,
+ * Auskunft, Kontaktsperre and anonymization. Invoices stay untouched
+ * (statutory retention); the server checks the confirmation and asks for
+ * a fresh sign-in.
+ */
+export function PrivacyTab({ client }: PrivacyAdminPageProps) {
+  const toast = useOptionalToast();
+  const eraseFormId = useId();
   const [email, setEmail] = useState("");
+  const [inputError, setInputError] = useState("");
   const [report, setReport] = useState<PrivacySubjectReportResponse | null>(
     null,
   );
+  const [error, setError] = useState<ActionErrorMessage>();
   const [revokeTarget, setRevokeTarget] =
     useState<PrivacyConsentResponse | null>(null);
+  const [eraseOpen, setEraseOpen] = useState(false);
   const [erasureConfirmation, setErasureConfirmation] = useState("");
-  const [eraseDialogOpen, setEraseDialogOpen] = useState(false);
   const [erasureResult, setErasureResult] =
     useState<PrivacyErasureResponse | null>(null);
+  const failed = (cause: unknown) => setError(actionErrorMessage(cause));
 
   const lookup = useMutation({
     mutationFn: (subjectEmail: string) =>
@@ -129,11 +109,19 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
       setErasureResult(null);
       setErasureConfirmation("");
     },
+    onError: failed,
   });
   const exportSubject = useMutation({
     mutationFn: (subjectEmail: string) =>
       client.exportPrivacySubject({ email: subjectEmail }),
-    onSuccess: saveExport,
+    onSuccess: (data) => {
+      saveExport(data);
+      toast?.show({
+        title: "Auskunft erstellt und heruntergeladen.",
+        tone: "success",
+      });
+    },
+    onError: failed,
   });
   const revoke = useMutation({
     mutationFn: (consent: PrivacyConsentResponse) =>
@@ -142,90 +130,84 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
       }),
     onSuccess: async () => {
       setRevokeTarget(null);
-      const refreshed = await client.lookupPrivacySubject({ email });
-      setReport(refreshed);
+      toast?.show({
+        title:
+          "Kontakt gesperrt. Keine Akquise und kein Marketing mehr an diese Adresse.",
+        tone: "success",
+      });
+      setReport(await client.lookupPrivacySubject({ email }));
+    },
+    onError: (cause) => {
+      setRevokeTarget(null);
+      failed(cause);
     },
   });
   const erase = useMutation({
     mutationFn: () =>
-      client.erasePrivacySubject({
-        confirmation: erasureConfirmation,
-        email,
-      }),
+      client.erasePrivacySubject({ confirmation: erasureConfirmation, email }),
     onSuccess: async (result) => {
-      setEraseDialogOpen(false);
+      setEraseOpen(false);
       setErasureResult(result);
-      const refreshed = await client.lookupPrivacySubject({ email });
-      setReport(refreshed);
+      toast?.show({
+        title: "Daten anonymisiert. Protokolleintrag erstellt.",
+        tone: "success",
+      });
+      setReport(await client.lookupPrivacySubject({ email }));
+    },
+    onError: (cause) => {
+      setEraseOpen(false);
+      failed(cause);
     },
   });
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const normalized = email.trim().toLowerCase();
+    if (!EMAIL.test(normalized)) {
+      setInputError(
+        "Bitte eine vollständige E-Mail-Adresse eingeben. Gesucht wird nur nach exakter Übereinstimmung.",
+      );
+      return;
+    }
+    setInputError("");
+    setError(undefined);
     setEmail(normalized);
     lookup.mutate(normalized);
   }
 
-  const operationError =
-    lookup.error ?? exportSubject.error ?? revoke.error ?? erase.error;
-  const error = operationError ? actionErrorMessage(operationError) : null;
+  const busy =
+    lookup.isPending ||
+    exportSubject.isPending ||
+    revoke.isPending ||
+    erase.isPending;
 
   return (
-    <div className="privacy-admin-page">
-      <header className="privacy-admin-header">
-        <div className="privacy-admin-header__icon" aria-hidden="true">
-          <HugeiconsIcon icon={ShieldUserIcon} size={25} strokeWidth={1.8} />
-        </div>
-        <div>
-          <p className="privacy-eyebrow">System · Datenschutz</p>
-          <h1>Datenschutz-Vorgänge</h1>
-          <p>
-            Finde LeonAid-Daten über eine exakte E-Mail-Adresse, sperre
-            Folgendkontakte und führe Auskunft oder Anonymisierung
-            nachvollziehbar aus.
-          </p>
-        </div>
-      </header>
-
-      <section
-        aria-labelledby="privacy-search-title"
-        className="privacy-search-card"
-      >
-        <div>
-          <p className="privacy-eyebrow">1 · Person finden</p>
-          <h2 id="privacy-search-title">Exakte E-Mail-Adresse</h2>
-          <p>
-            Die Suche gleicht nur exakt ab. E-Mail-Adressen werden nicht in
-            URLs, Logs oder Löschprotokollen abgelegt.
-          </p>
-        </div>
-        <form className="privacy-search-form" onSubmit={submit}>
-          <FormField
-            description="Die Adresse aus der Anfrage der betroffenen Person."
-            label="E-Mail-Adresse"
-            required
-          >
-            <input
-              autoComplete="off"
-              data-testid="privacy-email"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@unternehmen.de"
-              type="email"
-              value={email}
-            />
-          </FormField>
-          <Button
-            disabled={lookup.isPending}
-            icon={
-              <HugeiconsIcon aria-hidden="true" icon={Search01Icon} size={18} />
-            }
-            type="submit"
-          >
-            {lookup.isPending ? "Suche läuft …" : "Daten prüfen"}
-          </Button>
-        </form>
-      </section>
+    <div className="privacy">
+      <form className="privacy-search" noValidate onSubmit={submit}>
+        <Field
+          error={inputError || undefined}
+          hint="Die Adresse aus der Anfrage der betroffenen Person. Gesucht wird nur nach exakter Übereinstimmung."
+          label="E-Mail-Adresse der betroffenen Person"
+        >
+          <Input
+            autoComplete="off"
+            data-testid="privacy-email"
+            id="privacy-email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@unternehmen.de"
+            type="email"
+            value={email}
+          />
+        </Field>
+        <Button
+          icon={Search}
+          loading={lookup.isPending}
+          type="submit"
+          variant="primary"
+        >
+          Nachweise suchen
+        </Button>
+      </form>
 
       {error ? (
         <StatusMessage tone="error">
@@ -234,222 +216,8 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
         </StatusMessage>
       ) : null}
 
-      {report && !report.found ? (
-        <StatusMessage tone="info">
-          <strong>Keine LeonAid-Daten gefunden</strong>
-          <p>
-            Prüfe die Schreibweise. Die Suche enthält bewusst keine unscharfen
-            Treffer.
-          </p>
-        </StatusMessage>
-      ) : null}
-
-      {report?.found ? (
-        <>
-          <section className="privacy-summary" data-testid="privacy-summary">
-            <div>
-              <p className="privacy-eyebrow">2 · Umfang verstehen</p>
-              <h2>{report.subjectEmail}</h2>
-              <p>
-                {report.consents.length} Nachweis
-                {report.consents.length === 1 ? "" : "e"},{" "}
-                {report.references.length} fachliche Zuordnung
-                {report.references.length === 1 ? "" : "en"}
-              </p>
-            </div>
-            <Button
-              disabled={exportSubject.isPending}
-              icon={
-                <HugeiconsIcon
-                  aria-hidden="true"
-                  icon={DatabaseExportIcon}
-                  size={18}
-                />
-              }
-              onClick={() => exportSubject.mutate(report.subjectEmail)}
-              variant="secondary"
-            >
-              JSON-Auskunft laden
-            </Button>
-          </section>
-
-          <div className="privacy-result-grid">
-            <section
-              aria-labelledby="privacy-evidence-title"
-              className="privacy-panel"
-            >
-              <div className="privacy-panel__heading">
-                <HugeiconsIcon aria-hidden="true" icon={LockIcon} size={20} />
-                <div>
-                  <h2 id="privacy-evidence-title">Nachweise & Sperren</h2>
-                  <p>Version, Zweck, Quelle und Zeitpunkt bleiben sichtbar.</p>
-                </div>
-              </div>
-              <div className="privacy-evidence-list">
-                {report.consents.map((consent) => (
-                  <EvidenceCard
-                    consent={consent}
-                    key={consent.id}
-                    onRevoke={setRevokeTarget}
-                    pending={revoke.isPending}
-                  />
-                ))}
-              </div>
-              {report.suppressions.length ? (
-                <div className="privacy-suppression" role="status">
-                  <strong>Folgendkontakt gesperrt</strong>
-                  <p>
-                    {report.suppressions
-                      .map(
-                        (item) =>
-                          `${purposeLabels[item.purpose]} per ${item.channel}`,
-                      )
-                      .join(" · ")}
-                  </p>
-                </div>
-              ) : null}
-            </section>
-
-            <section
-              aria-labelledby="privacy-references-title"
-              className="privacy-panel"
-            >
-              <div className="privacy-panel__heading">
-                <HugeiconsIcon aria-hidden="true" icon={File02Icon} size={20} />
-                <div>
-                  <h2 id="privacy-references-title">Zugeordnete Daten</h2>
-                  <p>
-                    Nur Datensätze der exakt gefundenen Person werden
-                    aufgeführt.
-                  </p>
-                </div>
-              </div>
-              <ul className="privacy-reference-list">
-                {report.references.map((item) => (
-                  <li key={item.id}>
-                    <span>{referenceLabels[item.referenceType]}</span>
-                    <strong>{item.label}</strong>
-                    <small>{item.status ?? "Ohne Status"}</small>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-
-          <section
-            className="privacy-retention"
-            data-testid="privacy-retention"
-          >
-            <div className="privacy-panel__heading">
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Calendar03Icon}
-                size={20}
-              />
-              <div>
-                <h2>Aktive Aufbewahrungsregeln</h2>
-                <p>
-                  Freigegebene Rechtsgrundlage · Version{" "}
-                  {report.retention.legalConfigurationVersion}
-                </p>
-              </div>
-            </div>
-            <dl>
-              <div>
-                <dt>Rechnungen & PDFs</dt>
-                <dd>{report.retention.invoiceDays} Tage</dd>
-              </div>
-              <div>
-                <dt>Bestellungen</dt>
-                <dd>{report.retention.commitmentDays} Tage</dd>
-              </div>
-              <div>
-                <dt>Kontaktdaten</dt>
-                <dd>{report.retention.contactDays} Tage</dd>
-              </div>
-              <div>
-                <dt>Consent-Nachweise</dt>
-                <dd>{report.retention.consentEvidenceDays} Tage</dd>
-              </div>
-              <div>
-                <dt>Audit-Nachweise</dt>
-                <dd>{report.retention.auditDays} Tage</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="privacy-open-decisions">
-            <HugeiconsIcon aria-hidden="true" icon={Alert02Icon} size={21} />
-            <div>
-              <h2>Offene Entscheidungen – keine Rechtsannahmen</h2>
-              <ul>
-                {report.openLegalDecisions.map((decision) => (
-                  <li key={decision}>{decision}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section
-            aria-labelledby="privacy-erasure-title"
-            className="privacy-danger-zone"
-          >
-            <div>
-              <p className="privacy-eyebrow">3 · Kontrolliert abschließen</p>
-              <h2 id="privacy-erasure-title">Operative Daten anonymisieren</h2>
-              <p>
-                Bestell- und Kontaktdaten werden anonymisiert. Ausgestellte
-                Rechnungen und ihre erzeugten PDFs bleiben unverändert
-                zugeordnet.
-              </p>
-            </div>
-            <div className="privacy-erasure-control">
-              <FormField
-                description="Zur Bestätigung die gefundene E-Mail-Adresse exakt wiederholen."
-                label="Bestätigung"
-              >
-                <input
-                  autoComplete="off"
-                  data-testid="privacy-erasure-confirmation"
-                  onChange={(event) =>
-                    setErasureConfirmation(event.target.value)
-                  }
-                  placeholder={report.subjectEmail}
-                  type="email"
-                  value={erasureConfirmation}
-                />
-              </FormField>
-              <Button
-                disabled={
-                  erasureResult !== null ||
-                  erasureConfirmation !== report.subjectEmail
-                }
-                icon={
-                  <HugeiconsIcon
-                    aria-hidden="true"
-                    icon={Delete02Icon}
-                    size={18}
-                  />
-                }
-                onClick={() => setEraseDialogOpen(true)}
-                variant="danger"
-              >
-                {erasureResult
-                  ? "Bereits anonymisiert"
-                  : "Anonymisierung prüfen"}
-              </Button>
-            </div>
-          </section>
-        </>
-      ) : null}
-
       {erasureResult ? (
         <StatusMessage tone="success">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={CheckmarkCircle02Icon}
-            size={20}
-          />
           <strong>Anonymisierung abgeschlossen</strong>
           <p>
             {erasureResult.anonymizedCommitments} operative Bestellung(en)
@@ -461,26 +229,284 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
         </StatusMessage>
       ) : null}
 
+      {report === null ? (
+        <EmptyState
+          description="Geben Sie die exakte E-Mail-Adresse ein. Sie sehen dann Einwilligungen, Kontaktsperren und gespeicherte Bestellungen dieser Person."
+          icon={FileSearch}
+          title="Nach einer Person suchen"
+        />
+      ) : !report.found ? (
+        <EmptyState
+          description={
+            <>
+              Zu <strong>{report.subjectEmail || email}</strong> sind keine
+              Nachweise, Bestellungen oder Kontakte gespeichert. Die Suche
+              enthält bewusst keine unscharfen Treffer.
+            </>
+          }
+          icon={FileSearch}
+          title="Keine Daten zu dieser Adresse"
+        />
+      ) : (
+        <>
+          {!erasureResult ? (
+            <NextStep
+              action={
+                <Button
+                  disabled={busy}
+                  icon={Download}
+                  loading={exportSubject.isPending}
+                  onClick={() => exportSubject.mutate(report.subjectEmail)}
+                  variant="primary"
+                >
+                  Auskunft erstellen
+                </Button>
+              }
+              alternatives={
+                <Button
+                  disabled={busy}
+                  icon={UserX}
+                  onClick={() => {
+                    setErasureConfirmation("");
+                    setEraseOpen(true);
+                  }}
+                  variant="danger"
+                >
+                  Anonymisieren …
+                </Button>
+              }
+              consequence="Auskunft als JSON herunterladen, Kontakte sperren oder die operativen Daten anonymisieren. Rechnungen bleiben unverändert (gesetzliche Aufbewahrung)."
+              data-testid="privacy-next-step"
+            />
+          ) : null}
+
+          <div className="system-grid">
+            <section
+              aria-labelledby="privacy-subject-title"
+              className="panel"
+              data-testid="privacy-summary"
+            >
+              <header className="panel-header">
+                <h2 className="mono" id="privacy-subject-title">
+                  {report.subjectEmail}
+                </h2>
+                {erasureResult ? (
+                  <span className="stamp tone-neutral">Anonymisiert</span>
+                ) : (
+                  <Badge tone="info">
+                    {report.consents.length}{" "}
+                    {report.consents.length === 1 ? "Nachweis" : "Nachweise"}
+                  </Badge>
+                )}
+              </header>
+              <ul className="svc-list" aria-label="Nachweise und Sperren">
+                {report.consents.map((consent) => {
+                  const active = consent.revokedAt === null;
+                  return (
+                    <li
+                      className="svc-row"
+                      data-consent-id={consent.id}
+                      key={consent.id}
+                    >
+                      <Icon icon={active ? Info : ShieldAlert} size={16} />
+                      <span className="svc-name">
+                        {consent.evidenceKind === "notice_acknowledgement"
+                          ? "Datenschutzhinweis zur Kenntnis genommen"
+                          : "Einwilligung"}{" "}
+                        · {purposeLabels[consent.purpose]}
+                      </span>
+                      <span className="svc-state">
+                        {active ? (
+                          <Button
+                            disabled={busy}
+                            onClick={() => setRevokeTarget(consent)}
+                            size="sm"
+                          >
+                            Kontakt sperren
+                          </Button>
+                        ) : (
+                          <Badge tone="warn">Gesperrt</Badge>
+                        )}
+                      </span>
+                      <span className="svc-detail small muted">
+                        Textversion{" "}
+                        <span className="mono">{consent.textVersion}</span> ·{" "}
+                        {consent.source} · erfasst{" "}
+                        {formatDateTime(consent.grantedAt)}
+                        {consent.revokedAt
+                          ? ` · gesperrt ${formatDateTime(consent.revokedAt)}`
+                          : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="panel-pad stack">
+                {report.suppressions.length ? (
+                  <div className="callout tone-warn" role="status">
+                    <Icon icon={ShieldAlert} size={16} />
+                    <span>
+                      <strong>Folgendkontakt gesperrt:</strong>{" "}
+                      {report.suppressions
+                        .map(
+                          (item) =>
+                            `${purposeLabels[item.purpose]} per ${channelLabels[item.channel]}`,
+                        )
+                        .join(" · ")}
+                    </span>
+                  </div>
+                ) : null}
+                <DetailProps
+                  items={report.references.map((item) => ({
+                    label: referenceLabels[item.referenceType],
+                    value: (
+                      <span>
+                        <span className="mono">{item.label}</span>
+                        {item.status ? (
+                          <span className="subtle"> ({item.status})</span>
+                        ) : null}
+                      </span>
+                    ),
+                  }))}
+                />
+                <div className="callout">
+                  <Icon icon={Info} size={16} />
+                  <span>
+                    Rechnungen bleiben unverändert erhalten (gesetzliche
+                    Aufbewahrung). Eine Anonymisierung ersetzt nur Kontaktdaten
+                    außerhalb der Rechnungsbelege.
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="privacy-retention-title"
+              className="panel"
+              data-testid="privacy-retention"
+            >
+              <header className="panel-header">
+                <h2 id="privacy-retention-title">Aufbewahrung</h2>
+                <span className="small muted">
+                  Freigegebene Rechtsgrundlage · Version{" "}
+                  {report.retention.legalConfigurationVersion}
+                </span>
+              </header>
+              <div className="panel-pad">
+                <DetailProps
+                  items={[
+                    {
+                      label: "Rechnungen & PDFs",
+                      value: `${report.retention.invoiceDays} Tage`,
+                    },
+                    {
+                      label: "Bestellungen",
+                      value: `${report.retention.commitmentDays} Tage`,
+                    },
+                    {
+                      label: "Kontaktdaten",
+                      value: `${report.retention.contactDays} Tage`,
+                    },
+                    {
+                      label: "Einwilligungsnachweise",
+                      value: `${report.retention.consentEvidenceDays} Tage`,
+                    },
+                    {
+                      label: "Protokoll",
+                      value: `${report.retention.auditDays} Tage`,
+                    },
+                  ]}
+                />
+              </div>
+            </section>
+
+            <section aria-labelledby="open-title" className="panel">
+              <header className="panel-header">
+                <h2 id="open-title">Offene Entscheidungen</h2>
+              </header>
+              <ul className="panel-pad stack small">
+                {report.openLegalDecisions.map((decision) => (
+                  <li className="cluster" key={decision}>
+                    <Icon icon={Database} size={14} />
+                    {decision}
+                  </li>
+                ))}
+                <li className="cluster">
+                  <Icon icon={Database} size={14} />
+                  Löschung im CRM (Twenty) erfolgt noch manuell durch die
+                  Systemverwaltung.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </>
+      )}
+
       <ConfirmDialog
         confirmLabel="Kontakt jetzt sperren"
-        description="E-Mail-Akquise und Marketing werden gesperrt. Der Nachweis bleibt mit dem Sperrzeitpunkt nachvollziehbar."
+        description="Akquise und Marketing per E-Mail werden gesperrt. Der Nachweis bleibt mit dem Sperrzeitpunkt nachvollziehbar."
         onConfirm={() => revokeTarget && revoke.mutate(revokeTarget)}
-        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        onOpenChange={(open) =>
+          !open && !revoke.isPending && setRevokeTarget(null)
+        }
         open={revokeTarget !== null}
         pending={revoke.isPending}
         title="Folgendkontakt sperren?"
         tone="danger"
       />
-      <ConfirmDialog
-        confirmLabel="Operative Daten anonymisieren"
-        description="Dieser Vorgang entfernt operative personenbezogene Inhalte. Ausgestellte Rechnungen und Rechnungs-PDFs bleiben unverändert erhalten."
-        onConfirm={() => erase.mutate()}
-        onOpenChange={setEraseDialogOpen}
-        open={eraseDialogOpen}
-        pending={erase.isPending}
-        title="Anonymisierung verbindlich ausführen?"
-        tone="danger"
-      />
+      <Modal
+        description="Bestell- und Kontaktdaten werden unwiderruflich anonymisiert. Ausgestellte Rechnungen und ihre PDFs bleiben unverändert erhalten."
+        footer={
+          <>
+            <Button
+              disabled={erase.isPending}
+              onClick={() => setEraseOpen(false)}
+              variant="ghost"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              disabled={erasureConfirmation !== report?.subjectEmail}
+              form={eraseFormId}
+              icon={UserX}
+              loading={erase.isPending}
+              type="submit"
+              variant="danger"
+            >
+              Verbindlich anonymisieren
+            </Button>
+          </>
+        }
+        onClose={() => {
+          if (!erase.isPending) setEraseOpen(false);
+        }}
+        open={eraseOpen && Boolean(report?.found)}
+        role="alertdialog"
+        size="sm"
+        title="Operative Daten anonymisieren?"
+      >
+        <form
+          id={eraseFormId}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (erasureConfirmation === report?.subjectEmail) erase.mutate();
+          }}
+        >
+          <Field
+            hint="Zur Bestätigung die gefundene E-Mail-Adresse exakt wiederholen."
+            label="Bestätigung"
+          >
+            <Input
+              autoComplete="off"
+              data-testid="privacy-erasure-confirmation"
+              onChange={(event) => setErasureConfirmation(event.target.value)}
+              placeholder={report?.subjectEmail}
+              type="email"
+              value={erasureConfirmation}
+            />
+          </Field>
+        </form>
+      </Modal>
     </div>
   );
 }

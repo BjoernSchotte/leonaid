@@ -4,7 +4,9 @@
  *   (prototype pages/Invoices.css .inv-links), e.g. Rechnungen/Zahlungen/
  *   Dokumente or Mitglieder/Einladungen;
  * - .table-wrap/.table: the data table for dense non-list data
- *   (prototype styles/components.css).
+ *   (prototype styles/components.css);
+ * - .panel/.panel-header/.panel-pad: the bordered card of overview and
+ *   settings pages (prototype styles/components.css).
  */
 .section-links {
   display: inline-flex;
@@ -31,6 +33,28 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-1);
+}
+
+.panel {
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.panel-pad {
+  padding: var(--s-5);
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: var(--hair) solid var(--border);
+}
+.panel-header h2,
+.panel-header h3 {
+  margin: 0;
+  font-size: var(--fs-md);
 }
 
 .table-wrap {

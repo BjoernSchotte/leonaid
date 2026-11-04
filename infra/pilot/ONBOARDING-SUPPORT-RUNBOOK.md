@@ -87,8 +87,8 @@ login codes, cookies, tokens, screenshots with real data or documents.
 
 ## 5. Diagnose a request safely as system admin
 
-1. Open `System & Betrieb` (System & operations).
-2. Under `Anfrage sicher nachvollziehen` (Trace request safely), paste the
+1. Open `System` (tab `Betrieb`, operations).
+2. Under `Support-Code nachschlagen` (look up a support code), paste the
    full support code.
 3. Select `Sicher nachschlagen` (Look up safely).
 4. Check the result, impact, route, status, error code, release and next

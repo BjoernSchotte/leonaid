@@ -43,7 +43,9 @@ are shown in the admin interface only as a stable code.
 
 1. Sign in freshly as system admin.
 2. Open `/admin/system` and fix the dependency.
-3. Choose `Sicher wiederholen` (safe retry) on the affected job.
+3. Open the `Hintergrundaufgaben` (background jobs) tab
+   (`/admin/system/jobs`), choose `Erneut versuchen` (retry) on the affected
+   job and confirm it.
 4. Check that the job disappears from the failure backlog and that the
    `completed` count rises.
 

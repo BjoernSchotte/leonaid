@@ -9,8 +9,10 @@ LeonAid stores only their neutral evidence ID.
 
 ## Functional scope
 
-The admin page **Organisation & Recht** (Organization & legal) at
-`/admin/legal` contains:
+The admin page **Rechtliches** (legal) at `/admin/legal` shows the basis in
+six parts (Träger & Anschrift, Zahlung & Nummernkreis, Steuern, Datenschutz,
+Aufbewahrungsfristen, E-Rechnung), each at `/admin/legal/<part>`. Together
+they contain:
 
 1. legal entity and invoice issuer data, bank details, tax case,
    invoice number format and payment term;
@@ -47,12 +49,16 @@ email address, postal address or legal texts.
 
 1. The functionally responsible roles answer the questions from
    `specs/leonaid-pilot/DECISION-INTAKE.md` and store private evidence.
-2. A system admin opens `/admin/legal`, fills in all three guided steps and
-   checks the summary.
-3. They save the draft. The draft is not yet in effect.
-4. A second system admin compares the form with the private evidence, enters
-   its evidence ID and approves the draft.
-5. A system admin activates the approved version.
+2. A system admin opens `/admin/legal`, chooses `Neuen Entwurf beginnen`
+   (start a new draft) or `Entwurf bearbeiten` (edit draft), fills in every
+   part and checks the values.
+3. They choose `Als Entwurf speichern` (save as draft). The draft is not yet
+   in effect. The author sees a lock note instead of the approval.
+4. A second system admin compares the changes of each part (old and new value
+   side by side) with the private evidence, enters its evidence ID and
+   chooses `Entwurf freigeben` (approve draft).
+5. A system admin chooses `Version N aktivieren` (activate version N) and
+   confirms it.
 6. The responsible functional roles then check the real staging record, the
    public form, the privacy export and the erasure workflow.
 

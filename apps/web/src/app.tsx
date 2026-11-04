@@ -9,17 +9,17 @@ import {
   CommandPalette,
   CommitmentAdminPage,
   CreateActionPage,
-  FeatureFlagAdminPage,
   FeatureFlagProvider,
   InvoiceAdminPage,
   LegalConfigurationPage,
   ManageActionPage,
   MemberAdministrationPage,
-  PrivacyAdminPage,
   PreviewNotice,
   RoleDashboardPage,
+  SystemPage,
   UiSystemCatalogPage,
   useCurrentActionId,
+  useLocationHref,
   campaignEditorHref,
   CAMPAIGN_SCOPED_NAV_KEYS,
   openCommandPalette,
@@ -145,9 +145,12 @@ function route(available: readonly UiModule[]) {
   if (/^\/members(\/invitations)?$/.test(pathname)) {
     return { kind: "members" } as const;
   }
-  if (pathname === "/system") return { kind: "system" } as const;
-  if (pathname === "/privacy") return { kind: "privacy" } as const;
-  if (pathname === "/legal") return { kind: "legal" } as const;
+  if (/^\/(system(\/(jobs|flags))?|privacy)$/.test(pathname)) {
+    return { kind: "system" } as const;
+  }
+  if (/^\/legal(\/[a-z-]+)?$/.test(pathname)) {
+    return { kind: "legal" } as const;
+  }
   if (pathname === "/system/ui") return { kind: "system-ui" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
   if (/^\/invoices(\/(payments|documents))?$/.test(pathname)) {
@@ -190,13 +193,15 @@ export function App({ client }: AppProps) {
       storeCampaign(openedWithCampaign);
     }
   }, [identity.data, openedWithCampaign]);
+  // In-page tab switches (System ↔ Datenschutz) move the rail highlight.
+  useLocationHref();
 
   if (identity.isPending) {
     return (
       <div aria-live="polite" className="action-loading" role="status">
         <span aria-hidden="true" />
         <h1>Arbeitsbereich wird geladen</h1>
-        <p>Deine Rollen und Charity-Aktionen werden sicher abgerufen.</p>
+        <p>Ihre Rollen und Charity-Aktionen werden sicher abgerufen.</p>
       </div>
     );
   }
@@ -214,8 +219,8 @@ export function App({ client }: AppProps) {
           </h1>
           <p>
             {signedOut
-              ? "Deine Sitzung ist abgelaufen oder dein Zugang wurde gesperrt."
-              : "LeonAid konnte deine Rollen gerade nicht laden. Versuche es bitte noch einmal."}
+              ? "Ihre Sitzung ist abgelaufen oder Ihr Zugang wurde gesperrt."
+              : "LeonAid konnte Ihre Rollen gerade nicht laden. Bitte versuchen Sie es noch einmal."}
           </p>
           {signedOut ? (
             <a
@@ -366,9 +371,7 @@ export function App({ client }: AppProps) {
             ) : currentRoute.kind === "acquisition" ? (
               <AcquisitionAdminPage client={client} identity={identity.data} />
             ) : currentRoute.kind === "system" ? (
-              <FeatureFlagAdminPage client={client} />
-            ) : currentRoute.kind === "privacy" ? (
-              <PrivacyAdminPage client={client} />
+              <SystemPage client={client} identity={identity.data} />
             ) : currentRoute.kind === "legal" ? (
               <LegalConfigurationPage
                 client={client}
