@@ -16,6 +16,32 @@ export const WCAG_TAGS = Object.freeze([
   "wcag22aa",
 ]);
 
+const SCRIPT_PROBE_MS = 2000;
+
+/**
+ * axe-core needs the page's task queue. In a context with JavaScript
+ * disabled, evaluate still runs but timers never fire, so axe would hang
+ * until the test timeout. A zero-delay timer probe fails fast instead.
+ */
+export async function assertPageScriptsRun(page) {
+  let timer;
+  const ran = await Promise.race([
+    page.evaluate(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), 0)),
+    ),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(false), SCRIPT_PROBE_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+  if (!ran) {
+    throw new Error(
+      "analyzeAccessibility: page timers do not run (JavaScript disabled in " +
+        "this browser context?); axe-core cannot finish there. Scan in a " +
+        "context with JavaScript enabled.",
+    );
+  }
+}
+
 export async function settleAnimations(page) {
   await page.evaluate(() =>
     Promise.all(
@@ -36,6 +62,7 @@ export async function settleAnimations(page) {
  *   as `new AxeBuilder({ page }).analyze()` does.
  */
 export async function analyzeAccessibility(page, { include, tags } = {}) {
+  await assertPageScriptsRun(page);
   await settleAnimations(page);
   let builder = new AxeBuilder({ page });
   if (include) builder = builder.include(include);
