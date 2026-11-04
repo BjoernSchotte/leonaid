@@ -1,174 +1,393 @@
+/*
+ * Surveys: list, create form and survey page (prototype pages/Surveys.css).
+ * The page keeps all sections on one URL (Fragen, Antworten, Einstellungen);
+ * the section links jump between them.
+ */
 .surveys-module {
-  max-width: 92rem;
-  margin: 0 auto;
-  color: var(--text);
-}
-.surveys-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-.surveys-heading h1 {
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
-  line-height: 1.15;
-  margin: 0.7rem 0;
-}
-.surveys-heading p,
-.surveys-settings p {
-  max-width: 65ch;
-  line-height: 1.6;
-}
-.surveys-module input,
-.surveys-module select {
-  min-height: 44px;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
-  background: var(--bg);
-  color: inherit;
-  font: inherit;
-  max-width: 100%;
-}
-.surveys-module label {
   display: grid;
-  gap: 0.4rem;
-  font-weight: 600;
+  gap: var(--s-4);
+  min-width: 0;
+  color: var(--text);
+  /* Theme for the @leonaid/surveys editor. */
+  --survey-accent: var(--accent);
+  --survey-accent-hover: var(--accent-hover);
+  --survey-on-accent: var(--on-accent);
+  --survey-foreground: var(--text);
+  --survey-background: var(--bg);
+  --survey-muted: var(--text-2);
+  --survey-subtle: var(--text-3);
+  --survey-surface: var(--surface);
+  --survey-canvas: var(--surface-2);
+  --survey-border: var(--border);
+  --survey-control-border: var(--control-border);
+  --survey-selected: var(--zone-soft);
+  --survey-selected-line: var(--zone-line);
+  --survey-row-hover: var(--row-hover);
+  --survey-danger: var(--danger);
+  --survey-danger-soft: var(--danger-soft);
+  --survey-ok: var(--ok);
+  --survey-focus: var(--focus);
+  --survey-radius: var(--r-lg);
+  --survey-radius-sm: var(--r-sm);
+  --survey-shadow: var(--shadow-1);
+  --survey-shadow-menu: var(--shadow-2);
+  --survey-control-h: 36px;
+  --survey-gap: var(--s-4);
+  --survey-font: var(--font-sans);
+  --survey-font-size: var(--fs-sm);
+  --survey-input-size: var(--fs-md);
+  --survey-heading-size: var(--fs-md);
+  --survey-title-size: var(--fs-xl);
+  --survey-question-size: var(--fs-lg);
+  --survey-motion: var(--dur-1) var(--ease-out);
+  --survey-track: var(--surface-2);
 }
-.surveys-module .surveys-erasure-consent {
-  grid-template-columns: auto 1fr;
+/* Touch targets: 44 px on the mobile layout (shell breakpoint). */
+@media (max-width: 800px) {
+  .surveys-module {
+    --survey-control-h: var(--control-h-lg);
+  }
+}
+.surveys-module > .section-links {
+  justify-self: start;
+}
+@media (max-width: 720px) {
+  .surveys-module > .section-links {
+    justify-self: stretch;
+  }
+}
+.surveys-module > .page-header {
+  margin-bottom: 0;
+}
+.surveys-module .page-heading {
+  flex-wrap: wrap;
+}
+.surveys-module .page-heading h1 {
+  overflow-wrap: anywhere;
+}
+.surveys-module .crumbs {
+  margin-bottom: calc(-1 * var(--s-2));
+}
+.surveys-module .page-actions .btn .kbd {
+  margin-inline-start: var(--s-1);
+}
+.surveys-muted {
+  max-width: 70ch;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.surveys-notice,
+.surveys-loading {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.surveys-error {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.8rem;
-  min-height: 44px;
-  max-width: 65ch;
-  cursor: pointer;
+  justify-content: space-between;
+  gap: var(--s-3);
 }
-.surveys-module .surveys-erasure-consent input {
-  width: 1.25rem;
-  min-height: 1.25rem;
-  height: 1.25rem;
-}
-.surveys-filters,
 .surveys-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
-}
-.surveys-filters label:first-child {
-  flex: 1;
-}
-.surveys-filters {
-  margin-bottom: 1.5rem;
-}
-.surveys-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 2rem;
-}
-.surveys-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-  padding: 1.25rem 0;
-  border-bottom: 1px solid var(--border);
-}
-.surveys-list a {
-  font-weight: 650;
-  font-size: 1.1rem;
-  overflow-wrap: anywhere;
-}
-.surveys-list p {
-  font-size: 0.9rem;
-  margin: 0.35rem 0 0;
-}
-.surveys-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0.25rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.surveys-settings {
-  border-block: 1px solid var(--border);
-  padding: 1rem 0;
-  margin: 1.5rem 0;
-}
-.surveys-settings summary {
-  cursor: pointer;
-  min-height: 44px;
-  align-content: center;
-  font-weight: 650;
-}
-.surveys-settings form,
-.surveys-create {
-  display: grid;
-  gap: 1rem;
-  max-width: 38rem;
-}
-.surveys-settings button,
-.surveys-create button {
-  justify-self: start;
-}
-.surveys-create {
-  grid-template-columns: minmax(0, 1fr);
-}
-.surveys-create label,
-.surveys-create input,
-.surveys-create select {
-  min-width: 0;
-}
-.surveys-create input,
-.surveys-create select {
-  width: 100%;
-  box-sizing: border-box;
-}
-.surveys-management {
-  margin-bottom: 2rem;
-}
-.surveys-confirm,
-.surveys-error,
-.surveys-empty {
-  padding: 1rem 0;
-  line-height: 1.6;
-}
-.surveys-error {
-  color: var(--danger);
-}
-.surveys-module :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-@media (max-width: 600px) {
-  .surveys-heading {
-    flex-direction: column;
-  }
-  .surveys-filters {
-    display: grid;
-  }
-  .surveys-list li {
-    align-items: flex-start;
-  }
+  gap: var(--s-2);
 }
 
+/* List (prototype .survey-list / .survey-row) */
+.surveys-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.surveys-filters .search {
+  flex: 1 1 18rem;
+  max-width: 28rem;
+}
+.survey-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  list-style: none;
+}
+.survey-list li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.survey-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 110px;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 64px;
+  padding: var(--s-3) var(--s-5);
+}
+.survey-row:hover {
+  background: var(--row-hover);
+}
+.survey-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.survey-row-title {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+/* The whole row opens the survey; the title stays the link's name. */
+.survey-row-title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.survey-row-title:focus-visible {
+  outline: none;
+}
+.survey-row:has(.survey-row-title:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.survey-row-meta {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.survey-row-close {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+
+/* Create form */
+.surveys-panel {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 560px;
+  padding: var(--s-5);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.surveys-panel p {
+  margin: 0;
+}
+.surveys-deletion {
+  max-width: 720px;
+}
+
+/* Survey page */
+.surveys-management {
+  display: grid;
+  gap: var(--s-3);
+}
+.surveys-management:empty {
+  display: none;
+}
+.surveys-live {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.surveys-danger-ghost {
+  color: var(--danger);
+}
+.surveys-confirm {
+  display: grid;
+  gap: var(--s-3);
+  max-width: 720px;
+  padding: var(--s-4);
+  border: var(--hair) solid var(--danger);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.surveys-confirm p {
+  margin: 0;
+}
+.surveys-erasure-consent {
+  align-items: flex-start;
+  min-height: 44px;
+  max-width: 65ch;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.surveys-erasure-consent input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 1px;
+}
+.survey-section {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+  scroll-margin-top: calc(var(--topbar-h) + var(--s-4));
+}
+.survey-section-title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: var(--r-xs);
+}
+.survey-section-title {
+  margin-top: var(--s-4);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+/* Settings: one card per topic (prototype .settings panel) */
+.surveys-settings {
+  max-width: 760px;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.surveys-defaults {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.surveys-defaults h2 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.surveys-settings > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 48px;
+  padding: 0 var(--s-5);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  list-style: none;
+}
+.surveys-settings > summary::-webkit-details-marker {
+  display: none;
+}
+.surveys-settings > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-3);
+  border-bottom: 1.5px solid var(--text-3);
+  transform: rotate(-45deg);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.surveys-settings[open] > summary::before {
+  transform: rotate(45deg);
+}
+.surveys-settings > summary:hover {
+  background: var(--row-hover);
+}
+.surveys-settings-body {
+  display: grid;
+  gap: var(--s-4);
+  padding: 0 var(--s-5) var(--s-5);
+}
+.surveys-settings-body p {
+  max-width: 65ch;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+}
+.surveys-settings-body form {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 560px;
+}
+.surveys-settings-body form > .btn {
+  justify-self: start;
+}
+.surveys-settings-link {
+  border: 0;
+  background: none;
+}
+.surveys-settings-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.surveys-invitations {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.surveys-invitations li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-4);
+  padding: var(--s-3) 0;
+  border-top: var(--hair) solid var(--border);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.surveys-invitation-name {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.surveys-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  max-width: 760px;
+  padding: var(--s-3) var(--s-5);
+  border: var(--hair) dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.surveys-danger p {
+  margin: 0;
+}
+.surveys-danger .btn {
+  color: var(--danger);
+}
+
+/* Analysis (survey-analysis.tsx) inside the Antworten section */
+.surveys-analysis input,
+.surveys-analysis select {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 var(--s-3);
+  border: var(--hair) solid var(--control-border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+.surveys-analysis label {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
 .surveys-analysis {
   --survey-border: var(--border);
   --survey-accent: var(--accent);
   --survey-track: var(--surface-2);
 }
-.surveys-settings .surveys-analysis form {
-  max-width: none;
-}
 .surveys-analysis-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding: 1rem 0;
+  gap: var(--s-4);
+  padding: var(--s-4) 0;
   border: 0;
 }
 .surveys-analysis-filters > label {
@@ -181,37 +400,78 @@
 .surveys-analysis-statuses {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  border: 0;
-  padding: 0;
   flex-basis: 100%;
+  gap: var(--s-4);
+  padding: 0;
+  border: 0;
 }
 .surveys-analysis-statuses label {
   display: flex;
   align-items: center;
+  gap: var(--s-2);
   min-height: 44px;
 }
 .surveys-analysis-statuses input {
-  min-height: auto;
   width: 1.2rem;
   height: 1.2rem;
+  min-height: auto;
 }
 .surveys-analysis legend {
-  font-weight: 650;
-  padding-block: 0.5rem;
+  padding-block: var(--s-2);
+  font-weight: var(--fw-semibold);
 }
 .surveys-analysis-applied {
-  margin-block: 2rem 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--border);
+  margin-block: var(--s-6) var(--s-4);
+  padding-block: var(--s-4);
+  border-block: var(--hair) solid var(--border);
 }
 .surveys-analysis [role="alert"] {
   color: var(--danger);
 }
 
-.surveys-settings-link a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-weight: 650;
+/* Publication review for publishers without design rights */
+.surveys-review {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.surveys-review h2 {
+  font-size: var(--fs-lg);
+}
+.surveys-review p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.surveys-review > .btn {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .survey-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--s-3) var(--s-4);
+  }
+  .survey-row-close {
+    display: none;
+  }
+  .surveys-filters .search {
+    max-width: none;
+  }
+  .surveys-panel,
+  .surveys-settings > summary,
+  .surveys-danger {
+    padding-inline: var(--s-4);
+  }
+  .surveys-settings-body {
+    padding: 0 var(--s-4) var(--s-4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surveys-settings > summary::before {
+    transition: none;
+  }
 }

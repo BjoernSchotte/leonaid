@@ -36,10 +36,11 @@ test("visual page and question editing persists stable identities through the re
       "saved",
     );
   await editor
-    .getByRole("combobox", { name: "Fragetyp", exact: true })
-    .selectOption("radiogroup");
-  await editor
     .getByRole("button", { name: "Frage hinzufügen", exact: true })
+    .click();
+  await editor
+    .getByRole("menu", { name: "Fragetyp" })
+    .getByRole("menuitem", { name: "Einfachauswahl", exact: true })
     .click();
   await editor
     .getByLabel("Fragetitel", { exact: true })
@@ -48,6 +49,27 @@ test("visual page and question editing persists stable identities through the re
   await editor
     .getByLabel("Eintrag 2", { exact: true })
     .fill("Verbesserungsbedarf");
+  await editor.getByLabel("Hinweis", { exact: true }).fill("Bitte ehrlich");
+  await saved();
+  // The open card holds the fields; a mouse drag over their text selects
+  // it instead of dragging the card (only the card head is draggable).
+  // A wrapping label's name includes a filled textarea's text, hence /^…/.
+  for (const label of [/^Fragetitel$/, /^Hinweis/, /^Eintrag 1$/]) {
+    const field = editor.getByLabel(label);
+    await field.scrollIntoViewIfNeeded();
+    const box = await field.boundingBox();
+    const y = box.y + Math.min(box.height / 2, 18);
+    await page.mouse.move(box.x + 8, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 8, y, { steps: 8 });
+    await page.mouse.up();
+    expect(
+      await field.evaluate(
+        (element) => element.selectionEnd - element.selectionStart,
+      ),
+      `${label} text is selectable with the mouse`,
+    ).toBeGreaterThan(0);
+  }
   await saved();
   const sid = page.url().split("/").at(-1);
   const read = () =>
@@ -60,7 +82,11 @@ test("visual page and question editing persists stable identities through the re
   const items = editor
     .getByRole("list", { name: "Fragen auf dieser Seite" })
     .locator("li");
-  await items.nth(1).dragTo(items.nth(0));
+  // Drag by the card head: the open card's fields are not a drag handle.
+  await items
+    .nth(1)
+    .locator(".se-question-head")
+    .dragTo(items.nth(0).locator(".se-question-head"));
   await saved();
   expect((await read()).definition.pages[0].elements[0].name).toBe(choice.name);
   await editor

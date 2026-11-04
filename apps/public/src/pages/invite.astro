@@ -1,64 +1,60 @@
 ---
-import PublicMark from "../components/PublicMark.astro";
 import AuthLayout from "../layouts/AuthLayout.astro";
 
 Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 <AuthLayout title="Einladung annehmen">
-  <section class="auth-page">
-    <main class="auth-panel">
-      <PublicMark />
-      <p class="eyebrow">Sicherer Zugang</p>
-      <h1>Einladung annehmen</h1>
-      <p class="auth-panel__lead" id="invite-intro">
-        Bestätige deine Einladung per Magic Link oder mit dem sechsstelligen
-        Code aus deiner E-Mail.
+  <div class="login-card">
+    <h1>Einladung annehmen</h1>
+    <p class="login-lead" id="invite-intro">
+      Bestätige deine Einladung per Magic Link oder mit dem sechsstelligen Code
+      aus deiner E-Mail.
+    </p>
+    <form id="accept-form">
+      <div class="login-field code-field">
+        <label for="accept-email">E-Mail</label>
+        <small id="accept-email-help">
+          Die Adresse, an die deine Einladung gesendet wurde.
+        </small>
+        <input
+          id="accept-email"
+          aria-describedby="accept-email-help"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+        />
+      </div>
+      <div class="login-field code-field">
+        <label for="accept-code">Sechsstelliger Code</label>
+        <small id="accept-code-help">
+          Der Code aus der zuletzt versendeten Einladung.
+        </small>
+        <input
+          class="login-code"
+          id="accept-code"
+          aria-describedby="accept-code-help"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          required
+        />
+      </div>
+      <button class="login-submit" data-testid="accept-submit" type="submit">
+        Einladung bestätigen
+      </button>
+      <p
+        id="accept-status"
+        class="login-status"
+        role="status"
+        aria-live="polite"
+      >
       </p>
-      <form id="accept-form">
-        <div class="auth-field code-field">
-          <label for="accept-email">E-Mail</label>
-          <small id="accept-email-help">
-            Die Adresse, an die deine Einladung gesendet wurde.
-          </small>
-          <input
-            id="accept-email"
-            aria-describedby="accept-email-help"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-          />
-        </div>
-        <div class="auth-field code-field">
-          <label for="accept-code">Sechsstelliger Code</label>
-          <small id="accept-code-help">
-            Der Code aus der zuletzt versendeten Einladung.
-          </small>
-          <input
-            id="accept-code"
-            aria-describedby="accept-code-help"
-            name="code"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxlength="6"
-            required
-          />
-        </div>
-        <button data-testid="accept-submit" type="submit">
-          Einladung bestätigen
-        </button>
-        <p
-          id="accept-status"
-          class="auth-panel__status"
-          role="status"
-          aria-live="polite"
-        >
-        </p>
-      </form>
-    </main>
-  </section>
+    </form>
+  </div>
 </AuthLayout>
 
 <script>
@@ -119,9 +115,11 @@ Astro.response.headers.set("Cache-Control", "no-store");
       workspaceLink.textContent = "Zum Arbeitsbereich";
       status.append(workspaceLink);
       submit.hidden = true;
-      document.querySelectorAll<HTMLElement>(".auth-field").forEach((field) => {
-        field.hidden = true;
-      });
+      document
+        .querySelectorAll<HTMLElement>(".login-field")
+        .forEach((field) => {
+          field.hidden = true;
+        });
     } catch {
       status.dataset.state = "error";
       status.textContent =

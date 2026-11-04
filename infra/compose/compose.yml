@@ -402,6 +402,8 @@ services:
     pids_limit: 64
     environment:
       CORE_API_URL: http://api:8000
+      # Named on the sign-in pages' brand panel.
+      LEONAID_CLUB_NAME: ${LEONAID_CLUB_NAME:-Lions Club Musterstadt}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
       # Hides public forms of switched-off modules (inbox).
       LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}

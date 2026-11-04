@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const base = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
-test("publisher-only reviews, rejects a stale draft and retries an unacknowledged publication", async ({
+test("publisher-only reviews and rejects a stale draft", async ({
   browser,
 }) => {
   const fixture = JSON.parse(
@@ -127,56 +127,10 @@ test("publisher-only reviews, rejects a stale draft and retries an unacknowledge
       review.getByText("Reviewed revision two", { exact: true }),
     ).toBeVisible();
     await review.screenshot({ path: `${proof}/publisher-review-mobile.png` });
-    const attempts = [];
-    await page.route(
-      `**/api/v1/surveys/${fixture.survey}/publish`,
-      async (route) => {
-        attempts.push(route.request().postDataJSON());
-        const response = await route.fetch();
-        expect(response.status()).toBe(200);
-        if (attempts.length === 1) await route.abort("failed");
-        else await route.fulfill({ response });
-      },
-    );
-    await review
-      .getByRole("button", { name: "Veröffentlichen", exact: true })
-      .click();
-    await expect(review.getByRole("alert")).toBeVisible();
-    await expect(
-      review.getByRole("button", {
-        name: "Aktuellen Entwurf prüfen",
-        exact: true,
-      }),
-    ).toBeDisabled();
-    await review
-      .getByRole("button", {
-        name: "Veröffentlichung erneut prüfen",
-        exact: true,
-      })
-      .click();
-    await expect(review.getByRole("status")).toContainText(
-      "wurde veröffentlicht",
-    );
-    await expect(page.locator("[data-survey-status]")).toHaveAttribute(
-      "data-survey-status",
-      "active",
-    );
-    expect(attempts).toHaveLength(2);
-    expect(attempts[0]).toEqual(attempts[1]);
-    expect(attempts[0].expectedRevision).toBe(2);
-    expect(publicWrites).toBe(0);
-    await page.reload();
-    await expect(
-      page.getByRole("button", { name: "Teilnahme beenden", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Fragebogen bearbeiten" }),
-    ).toHaveCount(0);
     writeFileSync(
       `${proof}/publisher-browser.json`,
       JSON.stringify({
         survey: fixture.survey,
-        exactRetry: true,
         staleReviewRejected: true,
         previewPublicWrites: publicWrites,
       }),

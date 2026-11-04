@@ -17,14 +17,28 @@ from leonaid.adapters.storage.s3 import S3ObjectStorage
 PROOF = Path("/proof")
 
 
+COUNTS = ("relevant", "answered", "unanswered", "hidden", "invalid")
+
+
 def exports(state, stem):
     snapshot = state["snapshot"]
-    assert snapshot["versionNumber"] == 1 and snapshot["participationCount"] == 1
-    assert snapshot["statusCounts"] == {"completed": 1, "partial": 0, "in_progress": 0}
+    # One participation: below k = 5 the report withholds the size, every
+    # count and every statistic (Task 5.6b, R0); raw exports keep them.
+    assert snapshot["versionNumber"] == 1 and snapshot["participationCount"] is None
+    assert snapshot["suppressed"] is True
+    assert snapshot["statusCounts"] == {
+        "completed": None,
+        "partial": None,
+        "in_progress": None,
+    }
     metrics = {q["questionId"]: q for q in snapshot["questions"]}
+    assert all(
+        q["suppressed"] and all(q[key] is None for key in COUNTS)
+        for q in metrics.values()
+    )
     if state["template"] == "krapfentaxi":
-        assert metrics["delivery_rating"]["mean"] == 5
-        assert metrics["nps"]["nps"] == 100
+        assert metrics["delivery_rating"]["mean"] is None
+        assert metrics["nps"]["nps"] is None
     else:
         assert state["answers"]["event_rating"] == {
             "organization": 3,
@@ -57,29 +71,19 @@ def exports(state, stem):
     assert len(rows) == len(metrics) + 1
     for row in rows[1:]:
         actual = dict(zip(rows[0], row))
-        expected = metrics[row[0]]
-        for key in (
-            "relevant",
-            "answered",
-            "unanswered",
-            "hidden",
-            "invalid",
-            "mean",
-            "minimum",
-            "maximum",
-            "nps",
-        ):
-            assert actual[key] == expected[key], (row[0], key)
-    assert book["Charts"]._charts
+        assert row[0] in metrics
+        for key in COUNTS:
+            assert actual[key] == "–", (row[0], key)
+        for key in ("mean", "minimum", "maximum", "nps"):
+            assert actual[key] is None, (row[0], key)
+    # Nothing shown, so no chart.
+    assert not book["Charts"]._charts
     text = "\n".join(
         p.extract_text() for p in PdfReader(PROOF / f"{stem}-analysis_pdf.pdf").pages
     )
     assert snapshot["id"] in text
     for index, question in enumerate(snapshot["questions"], 1):
-        counts = " ".join(
-            str(question[key])
-            for key in ("relevant", "answered", "unanswered", "hidden", "invalid")
-        )
+        counts = " ".join("–" for _ in COUNTS)
         assert (
             f"{index}. {question['title']}\nRelevant Beantwortet Unbeantwortet Ausgeblendet Ungültig\n{counts}"
             in text

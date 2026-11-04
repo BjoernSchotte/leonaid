@@ -43,16 +43,39 @@ export async function assertPageScriptsRun(page) {
 }
 
 export async function settleAnimations(page) {
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((animation) =>
-          Number.isFinite(animation.effect?.getComputedTiming().endTime),
-        )
-        .map((animation) => animation.finished.catch(() => undefined)),
-    ),
-  );
+  // A page behind another one (axe analyzes in a temporary page) does not
+  // advance its animation clock, so a fade there never finishes.
+  await page.bringToFront();
+  const stuck = await page.evaluate(async () => {
+    const running = document.getAnimations().filter((animation) => {
+      const timing = animation.effect?.getComputedTiming();
+      // Paused or idle animations never finish; only running finite ones end.
+      return (
+        animation.playState === "running" && Number.isFinite(timing?.endTime)
+      );
+    });
+    const remaining = running.map((animation) => {
+      const timing = animation.effect.getComputedTiming();
+      const rate = Math.abs(animation.playbackRate) || 1;
+      return (timing.endTime - (timing.localTime ?? 0)) / rate;
+    });
+    const limit = Math.max(0, ...remaining) + 2000;
+    const settled = await Promise.race([
+      Promise.all(
+        running.map((animation) => animation.finished.catch(() => undefined)),
+      ).then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), limit)),
+    ]);
+    if (settled) return [];
+    return running
+      .filter((animation) => animation.playState === "running")
+      .map(
+        (animation) =>
+          `${animation.animationName || animation.constructor.name} on ${animation.effect?.target?.tagName?.toLowerCase() ?? "?"}.${animation.effect?.target?.className ?? ""}`,
+      );
+  });
+  if (stuck.length)
+    throw new Error(`Animations did not finish: ${stuck.join(", ")}`);
 }
 
 /**
@@ -62,6 +85,9 @@ export async function settleAnimations(page) {
  *   as `new AxeBuilder({ page }).analyze()` does.
  */
 export async function analyzeAccessibility(page, { include, tags } = {}) {
+  // A page behind another tab throttles its timers: front first, so the
+  // script probe below does not mistake throttling for disabled scripts.
+  await page.bringToFront();
   await assertPageScriptsRun(page);
   await settleAnimations(page);
   let builder = new AxeBuilder({ page });

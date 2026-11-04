@@ -50,13 +50,15 @@ browser() {
   docker run --rm --network "container:$project" --user "$(id -u):$(id -g)" --env HOME=/tmp --env CI=1 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-package.spec.mjs \
+    node_modules/.bin/playwright test "${3:-tests/e2e/surveys-package.spec.mjs}" \
     --grep "$1" --browser=chromium --output="/proof/$2" --reporter=line
 }
 ready
 docker cp "$project:/consumer/package-proof.json" "$proof/package-proof.json"
 docker cp "$project:/consumer/bun.lock" "$proof/consumer.lock"
 browser 'saves a multipage|editor host translates' first
+# The export fault needs the participation saved by the test above.
+browser 'lost export acknowledgement' first-faults tests/e2e/surveys-package-faults.spec.mjs
 docker restart "$project" >/dev/null
 ready
 browser 'restores after backend restart|editor restores' second
