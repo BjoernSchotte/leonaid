@@ -7,6 +7,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from leonaid.domain.commitments import Money
+from leonaid.domain.calendar import local_day
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import require_aware
 from leonaid.domain.invoices import ALLOWED_INVOICE_TRANSITIONS, InvoiceStatus
@@ -106,12 +107,12 @@ class PaymentRecord:
                 "invoice_payment_full_amount_required",
                 "Im PoC kann nur der vollständige Rechnungsbetrag verbucht werden.",
             )
-        if received_on < invoice.issued_at.date():
+        if received_on < local_day(invoice.issued_at):
             raise DomainInvariantError(
                 "invoice_payment_before_issue",
                 "Der Zahlungseingang darf nicht vor der Rechnungsfreigabe liegen.",
             )
-        if received_on > recorded_at.date():
+        if received_on > local_day(recorded_at):
             raise DomainInvariantError(
                 "invoice_payment_future_date",
                 "Ein zukünftiger Zahlungseingang kann nicht verbucht werden.",

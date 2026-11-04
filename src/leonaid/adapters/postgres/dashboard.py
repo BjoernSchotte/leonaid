@@ -7,11 +7,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 import asyncpg
 
 from leonaid.domain.action_templates import OfferingUnit
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
 from leonaid.domain.commitments import UnitQuantity
 from leonaid.application.dashboard import (
     AcquirerDashboard,
@@ -25,8 +25,6 @@ from leonaid.application.dashboard import (
     ReminderCounts,
     progress_basis_points,
 )
-
-BERLIN = ZoneInfo("Europe/Berlin")
 
 
 def _integer(row: asyncpg.Record, key: str) -> int:
@@ -96,15 +94,15 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         SELECT
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE 'Europe/Berlin')::date < $3
+                                  AND (due_at AT TIME ZONE $4)::date < $3
                             ) AS overdue,
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE 'Europe/Berlin')::date = $3
+                                  AND (due_at AT TIME ZONE $4)::date = $3
                             ) AS today,
                             count(*) FILTER (
                                 WHERE due_at IS NOT NULL
-                                  AND (due_at AT TIME ZONE 'Europe/Berlin')::date > $3
+                                  AND (due_at AT TIME ZONE $4)::date > $3
                             ) AS upcoming,
                             count(*) FILTER (WHERE due_at IS NULL) AS unscheduled
                         FROM acquisition_assignment
@@ -114,7 +112,8 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         """,
                         action_id,
                         actor_user_id,
-                        evaluated_at.astimezone(BERLIN).date(),
+                        local_day(evaluated_at),
+                        INSTALLATION_TIME_ZONE.key,
                     )
                     activity_count = await connection.fetchval(
                         """
