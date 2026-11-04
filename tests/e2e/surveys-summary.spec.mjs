@@ -78,27 +78,26 @@ test("reader: charts, withheld counts, quotes and answer columns", async ({
     await expect(gate.locator(".bars li").first()).toContainText("Ja");
     await expect(gate.locator(".bars li").first()).toContainText("18 (60 %)");
 
-    // NPS: score, segment bar with a values legend, distribution with "< 5".
+    // NPS: scores of 2-3 people are withheld, so is every score below 10,
+    // and with them the NPS score and the segments (disclosure R1, R3).
     const nps = panel(page, "Wie wahrscheinlich");
-    await expect(nps.locator(".answer-avg .num")).toHaveText("33");
-    const segments = nps.getByRole("list", { name: /^Legende/ });
-    await expect(segments).toContainText("Kritiker (0–6)6 (20 %)");
-    await expect(segments).toContainText("Förderer (9–10)16 (53 %)");
+    await expect(nps.locator(".answer-avg .num")).toHaveText("–");
+    await expect(nps.getByRole("list", { name: /^Legende/ })).toHaveCount(0);
     const canvases = nps.locator("canvas[role=img]");
-    await expect(canvases).toHaveCount(2);
-    await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: < 5/);
-    await expect(canvases.nth(1)).toHaveAttribute(
+    await expect(canvases).toHaveCount(1);
+    await expect(canvases.first()).toHaveAttribute("aria-label", /3: –/);
+    await expect(canvases.first()).toHaveAttribute(
       "aria-label",
       /10: 10 \(33 %\)/,
     );
     await nps.getByText("Als Tabelle anzeigen").click();
-    await expect(nps.getByRole("table")).toContainText("< 5");
+    await expect(nps.getByRole("table")).toContainText("–");
 
     // Matrix: a row whose cells would reveal each other shows both withheld.
     const matrix = panel(page, "Bewertung");
     await expect(matrix.locator("canvas[role=img]")).toHaveAttribute(
       "aria-label",
-      /Verpflegung Gut < 5, Verbesserungsbedarf < 5/,
+      /Verpflegung Gut –, Verbesserungsbedarf –/,
     );
     // Free text: quotes for readers, rendered as text.
     const quotes = panel(page, "Was sollten wir anders machen\\?");
@@ -153,7 +152,7 @@ test("reader: charts, withheld counts, quotes and answer columns", async ({
   }
 });
 
-test("aggregate-only: charts without quotes, no list, at least one day", async ({
+test("aggregate-only: charts without quotes, no list, whole past days", async ({
   browser,
 }) => {
   const context = await session(browser, fixture.analystToken);
@@ -195,7 +194,7 @@ test("aggregate-only: charts without quotes, no list, at least one day", async (
     await expect(page.locator("body")).not.toContainText("Packstation");
     await expect(
       panel(page, "Wie wahrscheinlich").locator("canvas"),
-    ).toHaveCount(2);
+    ).toHaveCount(1);
     await page.goto(`${baseURL}${surveyPath}/responses`);
     await expect(page.getByRole("alert")).toContainText(
       "Die Einzelantworten dieser Umfrage sind für Sie nicht zugänglich.",

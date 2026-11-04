@@ -321,6 +321,8 @@ async def main():
                                 "nps",
                             ):
                                 expected = question[key]
+                                if expected is None and key not in {"mean", "nps"}:
+                                    expected = "–"  # a withheld count
                                 actual = metrics[question["questionId"]][key]
                                 assert (
                                     actual == expected

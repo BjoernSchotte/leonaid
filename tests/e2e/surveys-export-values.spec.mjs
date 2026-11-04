@@ -85,7 +85,7 @@ test("populated snapshot exports match visible metrics and report-only access de
           .first()
           .locator("dd")
           .nth(index),
-      ).toHaveText(format(q[key]));
+      ).toHaveText(q[key] === null ? "–" : format(q[key]));
     }
     for (const [key, label] of [
       ["mean", "Durchschnitt"],
@@ -123,7 +123,9 @@ test("populated snapshot exports match visible metrics and report-only access de
   const member = await session(browser, seed.memberToken);
   // Without raw access only participations completed before the whole-day
   // end count (Task 5.6b): the partial one of the five is not in scope.
-  expect(member.snapshot.participationCount).toBe(4);
+  // 4 completed of 5: fewer than 5, so the size itself is withheld (R0).
+  expect(member.snapshot.participationCount).toBe(null);
+  expect(member.snapshot.suppressed).toBe(true);
   expect(member.snapshot.filter.statuses).toEqual(["completed"]);
   const panel = member.page.getByRole("region", {
     name: "Auswertung exportieren",

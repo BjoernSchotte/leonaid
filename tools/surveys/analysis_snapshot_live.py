@@ -268,7 +268,9 @@ async def main():
             "partial": None,
             "completed": None,
         }
-        assert [p["count"] for p in shown["lastPageCounts"]] == [None, 0, None]
+        # The follow-up page's condition reads a withheld answer: every last
+        # page count is withheld, zeros included (disclosure R5).
+        assert [p["count"] for p in shown["lastPageCounts"]] == [None, None, None]
         assert all(
             q["suppressed"] and q["counts"] == [] and q["mean"] is None
             for q in shown["questions"]
@@ -369,7 +371,9 @@ async def main():
         test_snapshot = await call(
             "POST", path, {"operationId": "test", "filter": {**filters, "isTest": True}}
         )
-        assert test_snapshot["participationCount"] == 1
+        # 1 participation: the size itself is withheld (R0).
+        assert test_snapshot["participationCount"] is None
+        assert (await stored(test_snapshot))["participationCount"] == 1
         await call("GET", path + "/" + test_snapshot["id"], auth=analyst, expected=404)
         await call(
             "POST",
@@ -495,7 +499,8 @@ async def main():
                 },
             },
         )
-        assert inclusive["participationCount"] == 4
+        assert inclusive["participationCount"] is None  # 4: withheld (R0)
+        assert (await stored(inclusive))["participationCount"] == 4
         assert inclusive["filter"]["createdFrom"] == boundary.isoformat()
         exclusive = await call(
             "POST",
@@ -505,7 +510,7 @@ async def main():
                 "filter": {**filters, "createdBefore": boundary.isoformat()},
             },
         )
-        assert exclusive["participationCount"] == 1
+        assert (await stored(exclusive))["participationCount"] == 1
         await conn.execute(
             "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2",
             sid,
@@ -595,7 +600,12 @@ async def main():
             {"operationId": "batch", "filter": {"versionId": str(foreign_version)}},
         )
         assert batched["participationCount"] == 101
-        batch_rating = next(q for q in batched["questions"] if q["questionId"] == "nps")
+        # One "10" among 100 "0": withheld, and with it the NPS and mean (R3).
+        shown_rating = next(q for q in batched["questions"] if q["questionId"] == "nps")
+        assert shown_rating["nps"] is None and shown_rating["mean"] is None
+        batch_rating = next(
+            q for q in (await stored(batched))["questions"] if q["questionId"] == "nps"
+        )
         assert math.isclose(batch_rating["nps"], -9900 / 101)
         assert math.isclose(batch_rating["mean"], 10 / 101)
         await call("GET", path + "/" + batched["id"], expected=404)

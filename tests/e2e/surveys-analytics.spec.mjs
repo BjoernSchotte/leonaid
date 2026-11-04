@@ -41,8 +41,8 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     .selectOption(frozen.filter.versionId);
   const format = (value) =>
     new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
-  // The API discloses with k = 5: a withheld count (null) reads "< 5".
-  const count = (value) => (value === null ? "< 5" : format(value));
+  // The API discloses with k = 5: a withheld count (null) reads "–".
+  const count = (value) => (value === null ? "–" : format(value));
   const tooFew = /Weniger als 5 gültige Antworten/;
   async function analyze() {
     const response = page.waitForResponse(
@@ -59,7 +59,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     await expect(result).toHaveAttribute("data-snapshot-id", snapshot.id);
     await expect(
       result.getByText(
-        `Ausgewählte Teilnahmen: ${snapshot.participationCount}`,
+        `Ausgewählte Teilnahmen: ${count(snapshot.participationCount)}`,
         { exact: true },
       ),
     ).toBeVisible();
@@ -76,7 +76,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
       );
     }
     if (snapshot.suppressed) {
-      if (snapshot.participationCount > 0)
+      if (snapshot.participationCount !== 0)
         await expect(result).toContainText(/Weniger als 5 Teilnahmen/);
       await expect(result.locator("[data-question-id]")).toHaveCount(0);
       return snapshot;
@@ -140,7 +140,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
   await expect(result).toHaveAttribute("data-snapshot-id", oldId);
   const complete = await analyze();
   // One participation: the API shows no results, not even the NPS.
-  expect(complete.participationCount).toBe(1);
+  expect(complete.participationCount).toBe(null); // 1: withheld (R0)
   expect(complete.suppressed).toBe(true);
   expect(complete.questions.find((q) => q.questionId === "nps").nps).toBe(null);
   await page.screenshot({
@@ -154,7 +154,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     .getByLabel("Fragebogen-Version")
     .selectOption({ label: "Version 2" });
   const second = await analyze();
-  expect(second.participationCount).toBe(1);
+  expect(second.participationCount).toBe(null);
   expect(second.suppressed).toBe(true);
   await filters.getByLabel("Teilnahme begonnen ab").fill("2099-01-01T00:00");
   const empty = await analyze();

@@ -208,10 +208,12 @@ async def main():
                 "maximum",
                 "nps",
             ):
+                # A withheld value (null in the API) reads "–" in the workbook.
+                want = "–" if expected[key] is None else expected[key]
                 assert (
-                    actual[key] == expected[key]
+                    actual[key] == want
                     or isinstance(actual[key], float)
-                    and abs(actual[key] - expected[key]) < 1e-10
+                    and abs(actual[key] - want) < 1e-10
                 ), key
         text = "\n".join(
             p.extract_text()

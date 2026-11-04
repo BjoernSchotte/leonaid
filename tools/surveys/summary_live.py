@@ -159,14 +159,12 @@ async def main():
         shown = await call("GET", base + "/aggregates", auth=reader)
         q = {item["questionId"]: item for item in shown["questions"]}
         assert shown["minimumGroupSize"] == 5 and not shown["suppressed"]
-        assert q["nps"]["npsSegments"] == {
-            "detractors": 6,
-            "passives": 8,
-            "promoters": 16,
-        }
-        # Scores 3, 5, 6 (2 people each) and 7 (3) are withheld.
+        # Scores 3, 5, 6 (2 people each) and 7 (3) are withheld; with them
+        # every cell below 10 (zeros too), the NPS and its segments (R1, R3).
         nps_counts = {c["value"]: c["count"] for c in q["nps"]["counts"]}
-        assert nps_counts[3] is None and nps_counts[10] == 10
+        assert [v for v, c in nps_counts.items() if c is not None] == [10]
+        assert nps_counts[10] == 10
+        assert q["nps"]["nps"] is None and q["nps"]["npsSegments"] is None
         rows = {row["rowId"]: row for row in q["matrix"]["matrixRows"]}
         assert [c["count"] for c in rows["r1"]["counts"]] == [22, 8]
         assert [c["count"] for c in rows["r2"]["counts"]] == [None, None]
@@ -175,8 +173,10 @@ async def main():
         )
         # The aggregate-only member reads the same disclosed numbers through
         # the analysis endpoint, but nothing raw.
-        assert shown == await call(
-            "GET", path + "/analysis/" + selection["id"], auth=analyst
+        # I1: the reader's selection was not made under the settled rule,
+        # so an account without raw access cannot read it, not even by id.
+        await call(
+            "GET", path + "/analysis/" + selection["id"], auth=analyst, expected=404
         )
         for suffix in ("/aggregates", "/responses", "/free-text/text"):
             await call("GET", base + suffix, auth=analyst, expected=404)
@@ -202,6 +202,27 @@ async def main():
             analyst,
         )
         assert whole["participationCount"] == 30  # seeded two days ago
+        # Its own settled snapshot it can read again, and export as a report;
+        # the reader's selection it cannot export either (I1).
+        assert (await call("GET", path + "/analysis/" + whole["id"], auth=analyst))[
+            "id"
+        ] == whole["id"]
+        await conn.execute(
+            "INSERT INTO survey_grant(survey_id,user_id,capability) SELECT survey_id,user_id,'export_reports' FROM survey_grant WHERE survey_id=$1 AND capability='view_aggregates'",
+            sid,
+        )
+        for snapshot_id, expected in ((selection["id"], 404), (whole["id"], 200)):
+            await call(
+                "POST",
+                path + "/exports",
+                {
+                    "operationId": f"report-{snapshot_id}",
+                    "snapshotId": snapshot_id,
+                    "product": "analysis_pdf",
+                },
+                analyst,
+                expected,
+            )
         assert whole["filter"]["createdBefore"] is not None
         assert whole["filter"]["statuses"] == ["completed"]
         # Differencing: two participations from the same past days that are
