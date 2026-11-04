@@ -455,6 +455,10 @@ for (const template of ["krapfentaxi", "golf"])
         await page
           .getByRole("button", { name: "Teilnahme beenden", exact: true })
           .click();
+        await page
+          .getByRole("alertdialog", { name: "Teilnahme beenden?" })
+          .getByRole("button", { name: "Teilnahme beenden", exact: true })
+          .click();
         await expect(page.locator("[data-survey-status]")).toHaveAttribute(
           "data-survey-status",
           "ended",

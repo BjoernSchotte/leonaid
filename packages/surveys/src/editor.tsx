@@ -60,6 +60,7 @@ function Glyph({ path }: { path: string }) {
 const up = "M12 19V5M5 12l7-7 7 7";
 const down = "M12 5v14M19 12l-7 7-7-7";
 const remove = "M18 6 6 18M6 6l12 12";
+const plus = "M12 5v14M5 12h14";
 const undoPath = "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11";
 const redoPath = "m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13";
 const grip = "M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01";
@@ -107,7 +108,10 @@ export function SurveyEditor({
   useEffect(() => setLoadedDraft(draft), [draft]);
   const [pageId, selectPage] = useState<string | null>(null);
   const [questionId, selectQuestion] = useState<string | null>(null);
-  const [kind, setKind] = useState<QuestionKind>("text");
+  const [addOpen, setAddOpen] = useState(false);
+  const addTrigger = useRef<HTMLButtonElement>(null);
+  const addMenu = useRef<HTMLDivElement>(null);
+  const addMenuId = useId();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -145,6 +149,20 @@ export function SurveyEditor({
       focusEditorTarget(target);
     }
   });
+  useEffect(() => {
+    if (!addOpen) return;
+    addMenu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !addMenu.current?.contains(target) &&
+        !addTrigger.current?.contains(target)
+      )
+        setAddOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [addOpen]);
   useEffect(() => {
     if (error)
       focusEditorTarget(
@@ -207,6 +225,55 @@ export function SurveyEditor({
     event.preventDefault();
     const position = index + (event.key === "ArrowUp" ? -1 : 1);
     if (position >= 0 && position < count) move(position);
+  }
+  /** Closes the question type menu; Escape and Tab return to the trigger. */
+  function closeAddMenu(returnFocus: boolean) {
+    setAddOpen(false);
+    if (returnFocus) addTrigger.current?.focus();
+  }
+  function addQuestion(pageName: string, value: QuestionKind) {
+    setAddOpen(false);
+    edit(() => {
+      const name = history.addQuestion(pageName, value);
+      selectQuestion(name);
+      // As in the prototype, typing starts in the new question's title.
+      pendingFocus.current = `[data-question-title="${CSS.escape(name)}"]`;
+    });
+  }
+  function menuKey(event: KeyboardEvent<HTMLElement>) {
+    const items = Array.from(
+      addMenu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [],
+    );
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const focusAt = (index: number) =>
+      items[(index + items.length) % items.length]?.focus();
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusAt(current + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusAt(current - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusAt(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusAt(items.length - 1);
+        break;
+      case "Escape":
+        event.preventDefault();
+        event.stopPropagation();
+        closeAddMenu(true);
+        break;
+      case "Tab":
+        event.preventDefault();
+        closeAddMenu(true);
+        break;
+    }
   }
   function edit(change: () => void): boolean {
     if (busy || publication.current) return false;
@@ -813,6 +880,7 @@ export function SurveyEditor({
                               <label>
                                 {t("Fragetitel")}
                                 <input
+                                  data-question-title={question.name}
                                   value={String(question.title ?? "")}
                                   onChange={(event) =>
                                     update({ title: event.target.value })
@@ -1049,32 +1117,51 @@ export function SurveyEditor({
                   )}
                 </p>
                 <div className="se-add">
-                  <label>
-                    {t("Fragetyp")}
-                    <select
-                      value={kind}
-                      onChange={(event) =>
-                        setKind(event.target.value as QuestionKind)
-                      }
-                    >
-                      {kinds.map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {t(label)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <button
+                    ref={addTrigger}
                     className="se-button"
                     type="button"
-                    onClick={() =>
-                      edit(() =>
-                        selectQuestion(history.addQuestion(page.name, kind)),
-                      )
-                    }
+                    aria-haspopup="menu"
+                    aria-expanded={addOpen}
+                    aria-controls={addOpen ? addMenuId : undefined}
+                    onClick={() => setAddOpen((open) => !open)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "ArrowDown" ||
+                        event.key === "ArrowUp"
+                      ) {
+                        event.preventDefault();
+                        setAddOpen(true);
+                      }
+                    }}
                   >
+                    <Glyph path={plus} />
                     {t("Frage hinzufügen")}
                   </button>
+                  {addOpen && (
+                    <div
+                      ref={addMenu}
+                      id={addMenuId}
+                      className="se-menu"
+                      role="menu"
+                      aria-label={t("Fragetyp")}
+                      onKeyDown={menuKey}
+                    >
+                      {kinds.map(([value, label]) => (
+                        <button
+                          key={value}
+                          className="se-menu-item"
+                          type="button"
+                          role="menuitem"
+                          tabIndex={-1}
+                          data-kind={value}
+                          onClick={() => addQuestion(page.name, value)}
+                        >
+                          {t(label)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="se-page-settings">
                   <label className="se-page-title">

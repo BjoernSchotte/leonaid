@@ -108,6 +108,10 @@ for (const kind of ["standalone", "action"])
           }),
         ).toBeVisible();
         await button(publisher, "Teilnahme beenden").click();
+        await publisher
+          .getByRole("alertdialog", { name: "Teilnahme beenden?" })
+          .getByRole("button", { name: "Teilnahme beenden", exact: true })
+          .click();
         await state(publisher, "ended");
         await expect(button(publisher, "Archivieren")).toHaveCount(0);
         const archivist = await as("archive");

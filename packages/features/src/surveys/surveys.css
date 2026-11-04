@@ -30,6 +30,7 @@
   --survey-radius: var(--r-lg);
   --survey-radius-sm: var(--r-sm);
   --survey-shadow: var(--shadow-1);
+  --survey-shadow-menu: var(--shadow-2);
   --survey-control-h: 36px;
   --survey-gap: var(--s-4);
   --survey-font: var(--font-sans);

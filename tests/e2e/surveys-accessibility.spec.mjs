@@ -179,12 +179,14 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
     await expect(button("Kurzer Text Weitere Hinweise")).toBeFocused();
     await activate("Seite hinzufügen");
     await enter("Seitentitel", "Zweite Seite");
-    await tabTo(page.getByRole("combobox", { name: "Fragetyp", exact: true }));
-    await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
+    // The type menu opens on its first entry; arrows move, Enter adds.
     await activate("Frage hinzufügen");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      page.getByRole("menuitem", { name: "Einfachauswahl", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
     await enter("Fragetitel", "Ihr Wunsch");
     await enter("Eintrag 1", "Ja");
     await enter("Eintrag 2", "Nein");
@@ -192,11 +194,17 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
       page.getByRole("checkbox", { name: "Antwort erforderlich", exact: true }),
     );
     await page.keyboard.press("Space");
-    await tabTo(page.getByRole("combobox", { name: "Fragetyp", exact: true }));
-    await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
+    // Escape closes the menu and returns to the trigger.
     await activate("Frage hinzufügen");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "Fragetyp" })).toHaveCount(0);
+    await expect(button("Frage hinzufügen")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      page.getByRole("menuitem", { name: "Langer Text", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
     await enter("Fragetitel", "Was wünschen Sie sich?");
     const rules = page
       .getByRole("complementary", { name: "Frageeigenschaften" })

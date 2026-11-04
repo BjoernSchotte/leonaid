@@ -36,10 +36,11 @@ test("visual page and question editing persists stable identities through the re
       "saved",
     );
   await editor
-    .getByRole("combobox", { name: "Fragetyp", exact: true })
-    .selectOption("radiogroup");
-  await editor
     .getByRole("button", { name: "Frage hinzufügen", exact: true })
+    .click();
+  await editor
+    .getByRole("menu", { name: "Fragetyp" })
+    .getByRole("menuitem", { name: "Einfachauswahl", exact: true })
     .click();
   await editor
     .getByLabel("Fragetitel", { exact: true })

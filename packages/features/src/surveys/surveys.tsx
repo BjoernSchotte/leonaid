@@ -197,6 +197,7 @@ export function SurveysPage({
   const [endedRetentionDays, setEndedRetentionDays] = useState("");
   const [trashRetentionDays, setTrashRetentionDays] = useState("");
   const [confirmTrash, setConfirmTrash] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmErasure, setConfirmErasure] = useState(false);
   const [understoodErasure, setUnderstoodErasure] = useState(false);
   const [deletion, setDeletion] = useState<SurveyDeletionResponse | null>(null);
@@ -407,8 +408,10 @@ export function SurveysPage({
         expectedRevision: summary.revision,
       });
       await refresh(summary.id);
-      setConfirmTrash(false);
     }, "Status wurde gespeichert.");
+    // A failed change shows its message on the page, not behind the dialog.
+    setConfirmTrash(false);
+    setConfirmEnd(false);
   }
   const allowed = (capability: string) =>
     summary?.capabilities?.includes(capability) ?? false;
@@ -1021,6 +1024,7 @@ export function SurveysPage({
               pending={pending}
               onMutate={(action) => void mutate(action)}
               onErase={() => setConfirmErasure(true)}
+              onEnd={() => setConfirmEnd(true)}
             />
             {confirmErasure &&
               summary.status === "deleted" &&
@@ -1076,6 +1080,20 @@ export function SurveysPage({
               pending={pending}
               tone="danger"
               onConfirm={() => void mutate("trash")}
+            />
+            <ConfirmDialog
+              open={confirmEnd}
+              onOpenChange={setConfirmEnd}
+              title="Teilnahme beenden?"
+              description={
+                summary.accessMode === "invitation"
+                  ? "Danach kann niemand mehr antworten, auch nicht mit einer offenen Einladung. Vorhandene Antworten bleiben erhalten und auswertbar."
+                  : "Danach kann niemand mehr antworten, der Link zur Umfrage schließt. Vorhandene Antworten bleiben erhalten und auswertbar."
+              }
+              confirmLabel="Teilnahme beenden"
+              pending={pending}
+              tone="danger"
+              onConfirm={() => void mutate("end")}
             />
           </section>
           <nav className="section-links" aria-label="Bereiche der Umfrage">
@@ -1629,12 +1647,14 @@ function SurveyNextStep({
   pending,
   onMutate,
   onErase,
+  onEnd,
 }: {
   summary: SurveySummaryResponse;
   allowed: (capability: string) => boolean;
   pending: boolean;
-  onMutate: (action: "end" | "archive" | "unarchive" | "restore") => void;
+  onMutate: (action: "archive" | "unarchive" | "restore") => void;
   onErase: () => void;
+  onEnd: () => void;
 }) {
   const closed = "Eine Wiederherstellung öffnet die Teilnahme nicht erneut.";
   switch (summary.status) {
@@ -1666,11 +1686,7 @@ function SurveyNextStep({
             data-testid="survey-next-step"
             consequence={`Antworten gehen ein${summary.endsAt ? ` bis ${formatDateTime(summary.endsAt)}` : ""}. Beenden Sie die Teilnahme, wenn genug Rückmeldungen da sind; danach kann niemand mehr antworten.`}
             action={
-              <Button
-                variant="danger"
-                disabled={pending}
-                onClick={() => onMutate("end")}
-              >
+              <Button variant="danger" disabled={pending} onClick={onEnd}>
                 Teilnahme beenden
               </Button>
             }
