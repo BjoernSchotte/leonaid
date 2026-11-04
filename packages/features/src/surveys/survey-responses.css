@@ -6,10 +6,17 @@
  */
 
 .svr-top {
-  padding: var(--s-4) var(--s-6) 0;
+  margin-bottom: var(--s-3);
 }
 .svr-top .crumbs {
   margin-bottom: 0;
+}
+/* The list page is full-bleed (fullBleedPage): it insets its own parts, as
+   the prototype's list pages and invoices do. The other states sit in the
+   shell's .page frame and need no padding of their own. */
+.svr-page[data-page-layout="full-bleed"] > .svr-top {
+  margin: 0;
+  padding: var(--s-4) var(--s-6) 0;
 }
 .svr-top + .listview .listview-main {
   padding-top: var(--s-3);
@@ -19,7 +26,6 @@
   display: grid;
   gap: var(--s-4);
   max-width: 720px;
-  padding: var(--s-3) var(--s-6) var(--s-6);
 }
 .svr-start {
   max-width: none;
@@ -180,12 +186,8 @@
 }
 
 @media (max-width: 720px) {
-  .svr-top {
+  .svr-page[data-page-layout="full-bleed"] > .svr-top {
     padding: var(--s-3) var(--s-4) 0;
-  }
-  .svr-start,
-  .svr-blocked {
-    padding: var(--s-3) var(--s-4) var(--s-5);
   }
   .svr-fields {
     grid-template-columns: minmax(0, 1fr);

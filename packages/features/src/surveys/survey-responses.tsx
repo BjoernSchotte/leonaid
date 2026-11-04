@@ -6,6 +6,7 @@ import {
   Undo2,
 } from "lucide-react";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -32,6 +33,7 @@ import {
   DetailSection,
   EmptyState,
   Field,
+  fullBleedPage,
   ListView,
   Modal,
   SkeletonRows,
@@ -213,6 +215,28 @@ export function SurveyResponsesPage({
     summary?.capabilities?.includes(capability) ?? false;
   const readable = summary !== null && summary.status !== "deleted";
   const surveyHref = `/admin/surveys/${encodeURIComponent(surveyId)}`;
+  const title = summary?.title ?? "Umfrage";
+  const frame = useCallback<PageFrame>(
+    (fullBleed, children) => (
+      <div
+        className="svr-page"
+        data-zone="surveys"
+        {...(fullBleed ? fullBleedPage : {})}
+      >
+        <div className="svr-top">
+          <nav aria-label="Brotkrumen" className="crumbs">
+            <a href="/admin/surveys">Umfragen</a>
+            <span aria-hidden="true">/</span>
+            <a href={surveyHref}>{title}</a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">Einzelantworten</span>
+          </nav>
+        </div>
+        {children}
+      </div>
+    ),
+    [surveyHref, title],
+  );
 
   let content;
   if (failure) {
@@ -243,31 +267,25 @@ export function SurveyResponsesPage({
       </div>
     );
   } else {
-    content = (
+    // The responses decide themselves whether the list fills the page.
+    return (
       <SurveyResponses
         canTest={allowed("design")}
         client={client}
+        frame={frame}
         surveyHref={surveyHref}
         surveyId={surveyId}
       />
     );
   }
-
-  return (
-    <div className="svr-page" data-zone="surveys">
-      <div className="svr-top">
-        <nav aria-label="Brotkrumen" className="crumbs">
-          <a href="/admin/surveys">Umfragen</a>
-          <span aria-hidden="true">/</span>
-          <a href={surveyHref}>{summary?.title ?? "Umfrage"}</a>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">Einzelantworten</span>
-        </nav>
-      </div>
-      {content}
-    </div>
-  );
+  return frame(false, content);
 }
+
+/**
+ * The page root with the crumbs. Only the list fills main edge to edge
+ * (shell contract `fullBleedPage`); the other states keep the page frame.
+ */
+type PageFrame = (fullBleed: boolean, children: ReactNode) => ReactNode;
 
 /* ---------------- selection ---------------- */
 
@@ -295,11 +313,13 @@ function SurveyResponses({
   surveyId,
   surveyHref,
   canTest,
+  frame,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   surveyHref: string;
   canTest: boolean;
+  frame: PageFrame;
 }) {
   const [versions, setVersions] = useState<
     readonly { id: string; number: number }[]
@@ -489,7 +509,8 @@ function SurveyResponses({
   );
 
   if (load.kind === "ready") {
-    return (
+    return frame(
+      true,
       <>
         <ResponseList
           client={client}
@@ -520,11 +541,12 @@ function SurveyResponses({
           selection={load.selection}
           surveyId={surveyId}
         />
-      </>
+      </>,
     );
   }
 
-  return (
+  return frame(
+    false,
     <div className="svr-start">
       <header className="page-header">
         <div className="page-heading">
@@ -570,7 +592,7 @@ function SurveyResponses({
           {form}
         </section>
       )}
-    </div>
+    </div>,
   );
 }
 
