@@ -275,7 +275,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     InstallationResponse,
     DashboardCommitmentResponse,
     DashboardGoalResponse,
+    DashboardDeliveryResponse,
+    DashboardDeliveryWindowResponse,
     DashboardInvoiceResponse,
+    DashboardOrderValueWeekResponse,
     DashboardMetricDefinitionResponse,
     DashboardPipelineResponse,
     DashboardReminderResponse,
@@ -992,6 +995,48 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     ),
                     href=f"/admin/invoices?action={action}&status=open",
                 ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.overdue",
+                    label="Überfällige Rechnungen",
+                    description=(
+                        "Offene Rechnungen, deren Fälligkeitstag nach "
+                        "Kalendertag des Clubs vorbei ist; Bruttosumme."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=overdue",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery_failed",
+                    label="Versand fehlgeschlagen",
+                    description=(
+                        "Nicht stornierte Rechnungen, deren letzter Versand "
+                        "endgültig gescheitert ist."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=all&f.sent=failed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.to_invoice",
+                    label="Rechnung erstellen",
+                    description="Bestätigte Bestellungen, noch ohne Rechnung.",
+                    href=f"/admin/orders?action={action}&view=all&f.status=confirmed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.order_value_weeks",
+                    label="Bestellwert pro Woche",
+                    description=(
+                        "Summe der nicht stornierten Bestellungen nach "
+                        "Eingangswoche (Montag bis Sonntag, Zeit des Clubs)."
+                    ),
+                    href=f"/admin/orders?action={action}&view=all",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery",
+                    label="Lieferfenster",
+                    description=(
+                        "Lieferfenster ab heute und die nicht stornierten "
+                        "Bestellungen darin."
+                    ),
+                    href=f"/admin/orders?action={action}&view=windows",
+                ),
             )
         )
         admin_response = CharityAdminDashboardResponse(
@@ -1019,7 +1064,31 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                 total=admin.invoices.total,
                 invoiced_amount_minor=admin.invoices.invoiced_amount_minor,
                 open_amount_minor=admin.invoices.open_amount_minor,
+                overdue=admin.invoices.overdue,
+                overdue_amount_minor=admin.invoices.overdue_amount_minor,
+                delivery_failed=admin.invoices.delivery_failed,
                 currency=snapshot.currency,
+            ),
+            order_value_weeks=[
+                DashboardOrderValueWeekResponse(
+                    week_start=week.week_start,
+                    iso_week=week.iso_week,
+                    total_minor=week.total_minor,
+                )
+                for week in admin.order_value_weeks
+            ],
+            delivery=DashboardDeliveryResponse(
+                enabled=admin.delivery.enabled,
+                windows=[
+                    DashboardDeliveryWindowResponse(
+                        id=window.id,
+                        starts_at=window.starts_at,
+                        ends_at=window.ends_at,
+                        commitments=window.commitments,
+                        quantities=unit_quantity_responses(window.quantities),
+                    )
+                    for window in admin.delivery.windows
+                ],
             ),
         )
 
