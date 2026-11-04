@@ -32,6 +32,7 @@ import { Button } from "../button";
 import { EmptyState } from "../empty-state";
 import { Kbd } from "../kbd";
 import { OptionMenu } from "../option-menu";
+import { fullBleedPage } from "../page-layout";
 import { Popover } from "../popover";
 import { SkeletonRows } from "../skeleton-rows";
 import { ErrorState } from "../status-message";
@@ -1171,6 +1172,7 @@ export function ListView<T>(props: ListViewProps<T>) {
   return (
     <div
       ref={rootRef}
+      {...fullBleedPage}
       className={cn(
         "listview",
         openRow && "has-pane",

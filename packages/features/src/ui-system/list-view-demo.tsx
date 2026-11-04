@@ -17,6 +17,7 @@ import {
   DetailProps,
   DetailSection,
   DetailTimeline,
+  fullBleedPage,
   HotkeyProvider,
   ListView,
   PrefixHint,
@@ -478,6 +479,7 @@ export function ListViewDemo() {
   const list = invoices ? <InvoiceDemoList /> : <DemoList />;
   return (
     <div
+      {...fullBleedPage}
       className="ui-list-demo"
       data-testid="ui-list-demo"
       data-zone={invoices ? "invoices" : "orders"}

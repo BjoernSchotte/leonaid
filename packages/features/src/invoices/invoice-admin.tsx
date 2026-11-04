@@ -18,6 +18,7 @@ import {
   Badge,
   EmptyState,
   Icon,
+  fullBleedPage,
   ListView,
   StatusIcon,
   StatusLabel,
@@ -359,7 +360,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
       ?.openMinor ?? 0;
 
   return (
-    <div className="inv-page" data-zone="invoices">
+    <div className="inv-page" data-zone="invoices" {...fullBleedPage}>
       <div className="inv-top">{top}</div>
       <InvoiceList
         canManageDelivery={Boolean(context.data?.mayIssue)}
