@@ -4,7 +4,13 @@
 -- old code printed and computed the due date from, not the Berlin day.
 CREATE TEMP TABLE night_commitment AS
 SELECT * FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';
-UPDATE night_commitment SET id = '80000000-0000-4000-8000-0000000000e1';
+UPDATE night_commitment
+SET id = '80000000-0000-4000-8000-0000000000e1',
+    idempotency_key = 'schema:night-commitment',
+    public_reference = CASE
+        WHEN public_reference IS NULL THEN NULL
+        ELSE public_reference || 'N'
+    END;
 INSERT INTO commitment SELECT * FROM night_commitment;
 
 CREATE TEMP TABLE night_invoice AS
