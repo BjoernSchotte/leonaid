@@ -235,6 +235,9 @@ function MatrixPanel({
     [question, k],
   );
   const hidden = question.matrixRows.filter((row) => row.suppressed);
+  const partly = shown.filter((row) =>
+    row.counts.some((bucket) => bucket.count === null),
+  );
   return (
     <>
       {shown.length ? (
@@ -268,6 +271,21 @@ function MatrixPanel({
             ])}
           />
         </figure>
+      ) : null}
+      {partly.length ? (
+        <p className="svs-note">
+          Ohne Anteil (unter {k} Personen oder daraus ableitbar):{" "}
+          {partly
+            .map(
+              (row) =>
+                `${row.label}: ${row.counts
+                  .filter((bucket) => bucket.count === null)
+                  .map((bucket) => bucket.label)
+                  .join(", ")}`,
+            )
+            .join("; ")}
+          .
+        </p>
       ) : null}
       {hidden.length ? (
         <p className="svs-note">

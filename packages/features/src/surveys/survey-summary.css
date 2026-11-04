@@ -11,6 +11,10 @@
 .svs-page .page-header {
   margin: 0;
 }
+/* Framed page: no list inset for the applied line. */
+.svs-page .svr-applied {
+  margin: 0;
+}
 .svs-page .answer-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

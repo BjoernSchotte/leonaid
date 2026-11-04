@@ -106,9 +106,7 @@ def test_single_choice_withholds_small_and_complementary_counts():
 
 
 def test_multiple_choice_withholds_only_small_counts():
-    shown = disclose(
-        snapshot(10, [question("q", "checkbox", [2, 6, 9], answered=10)])
-    )
+    shown = disclose(snapshot(10, [question("q", "checkbox", [2, 6, 9], answered=10)]))
     assert [c.count for c in shown.questions[0].counts] == [None, 6, 9]
 
 
@@ -180,6 +178,8 @@ def test_range_rule_bounds_the_width_from_the_start():
     assert not range_too_narrow(
         "2026-11-01T00:00:00+00:00", "2026-11-02T00:00:00+00:00", now
     )
+    # A future start selects no one: nothing to isolate.
+    assert not range_too_narrow("2099-01-01T00:00:00+00:00", None, now)
 
 
 def test_nps_segments_follow_the_same_rules():

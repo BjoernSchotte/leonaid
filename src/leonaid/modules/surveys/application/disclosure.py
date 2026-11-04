@@ -50,8 +50,11 @@ def range_too_narrow(
     """
     if created_from is None:
         return False
+    start = datetime.fromisoformat(created_from)
     end = datetime.fromisoformat(created_before) if created_before else now
-    return end - datetime.fromisoformat(created_from) < MIN_RANGE
+    # A range that starts after its end (e.g. a future start) selects no one.
+    return start < end and end - start < MIN_RANGE
+
 
 # Kinds whose counts add up to the number of valid answers (one value each).
 SINGLE_VALUE_KINDS = {"radiogroup", "dropdown", "rating"}
@@ -250,9 +253,7 @@ def _nps_segments(question: dict) -> NpsSegments | None:
     detractors, passives, promoters = (
         None if hide else count for count, hide in zip(groups, hidden, strict=True)
     )
-    return NpsSegments(
-        detractors=detractors, passives=passives, promoters=promoters
-    )
+    return NpsSegments(detractors=detractors, passives=passives, promoters=promoters)
 
 
 def disclose(snapshot: StoredSnapshot | dict) -> AnalysisSnapshot:

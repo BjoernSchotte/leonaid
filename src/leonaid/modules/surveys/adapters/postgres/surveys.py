@@ -539,7 +539,8 @@ class AsyncpgSurveyRepository:
                     raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
                 if (
                     operation == "analysis-create"
-                    and "read_responses" not in self._capabilities(actor, survey, grants)
+                    and "read_responses"
+                    not in self._capabilities(actor, survey, grants)
                     and range_too_narrow(
                         filters.createdFrom,
                         filters.createdBefore,
