@@ -27,6 +27,7 @@ export type ActionTemplateSnapshotResponse = { readonly copiedFromActionId: stri
 export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly description: string; readonly displayName: string; readonly hasOrderForm: boolean; readonly key: string; readonly offeringCount: number; readonly presentationTheme: string | null; readonly version: number; };
 export type ActivateLegalConfigurationRequest = { readonly expectedRevision: number; };
 export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly quantities: Array<UnitQuantityResponse>; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type ActivityFeedReadAllResponse = { readonly updated: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AddComment = { readonly body: string; readonly idempotencyKey: string; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
@@ -1247,6 +1248,16 @@ export class LeonAidApiClient {
     return this.request<ActivityFeedResponse>(
       requestPath,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async markActivityFeedRead(
+    options: RequestOptions = {},
+  ): Promise<ActivityFeedReadAllResponse> {
+    return this.request<ActivityFeedReadAllResponse>(
+      "/api/v1/activity-feed/read",
+      { method: "POST" },
       options,
     );
   }

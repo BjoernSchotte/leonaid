@@ -427,6 +427,37 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ):
             raise ContractFailure("Unread status was not restored")
 
+        # Mark all as read: only the caller's own visible entries change.
+        bernd_before = await get_feed(api, token=tokens[BERND_ID], label="bernd-2")
+        read_all = await authenticated_request(
+            api,
+            "POST",
+            "/api/v1/activity-feed/read",
+            tokens[ANNA_ID],
+            "poc082:read-all",
+            None,
+        )
+        read_all.raise_for_status()
+        if read_all.json().get("updated") != 2:
+            raise ContractFailure("Mark all as read did not update both entries")
+        anna_after = await get_feed(api, token=tokens[ANNA_ID], label="anna-all")
+        bernd_after = await get_feed(api, token=tokens[BERND_ID], label="bernd-3")
+        if anna_after.get("unreadCount") != 0 or bernd_after.get(
+            "unreadCount"
+        ) != bernd_before.get("unreadCount"):
+            raise ContractFailure("Mark all as read touched other recipients")
+        repeat = await authenticated_request(
+            api,
+            "POST",
+            "/api/v1/activity-feed/read",
+            tokens[ANNA_ID],
+            "poc082:read-all-again",
+            None,
+        )
+        repeat.raise_for_status()
+        if repeat.json().get("updated") != 0:
+            raise ContractFailure("Mark all as read is not idempotent")
+
         event_count = await connection.fetchval(
             """
             SELECT count(*)
@@ -446,7 +477,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     print(
         "activity-feed-contract: OK:",
         "exclusive, shared and unassigned addressing;",
-        "read/unread and foreign access proven for real",
+        "read/unread, mark-all and foreign access proven for real",
     )
 
 

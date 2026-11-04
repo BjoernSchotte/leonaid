@@ -1305,6 +1305,21 @@
         "title": "ActivityFeedItemResponse",
         "type": "object"
       },
+      "ActivityFeedReadAllResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "updated": {
+            "minimum": 0.0,
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "ActivityFeedReadAllResponse",
+        "type": "object"
+      },
       "ActivityFeedResponse": {
         "additionalProperties": false,
         "properties": {
@@ -21876,6 +21891,87 @@
           }
         },
         "summary": "Get Activity Feed",
+        "tags": [
+          "activity-feed"
+        ]
+      }
+    },
+    "/api/v1/activity-feed/read": {
+      "post": {
+        "operationId": "markActivityFeedRead",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedReadAllResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Mark Activity Feed Read",
         "tags": [
           "activity-feed"
         ]

@@ -220,6 +220,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateSummaryResponse,
     ActivityFeedItemResponse,
     ActivityFeedQuery,
+    ActivityFeedReadAllResponse,
     ActivityFeedResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityBoardResponse,
@@ -4487,6 +4488,23 @@ async def get_activity_feed(
         offset=page.offset,
         limit=page.limit,
     )
+
+
+@router.post(
+    "/api/v1/activity-feed/read",
+    operation_id="markActivityFeedRead",
+    response_model=ActivityFeedReadAllResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["activity-feed"],
+)
+async def mark_activity_feed_read(
+    request: Request,
+    response: Response,
+) -> ActivityFeedReadAllResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    updated = await activity_feed_service(request).mark_all_read(actor)
+    response.headers["Cache-Control"] = "private, no-store"
+    return ActivityFeedReadAllResponse(updated=updated)
 
 
 @router.patch(

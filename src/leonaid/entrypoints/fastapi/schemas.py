@@ -1972,6 +1972,10 @@ class UpdateActivityFeedItemRequest(TransportModel):
     read: bool
 
 
+class ActivityFeedReadAllResponse(TransportModel):
+    updated: int = Field(ge=0)
+
+
 class AcquisitionDocumentResponse(TransportModel):
     id: UUID
     action_id: UUID
