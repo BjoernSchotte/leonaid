@@ -630,5 +630,22 @@
         "RateLimitPolicy(\"inbox.public.submit\", 5, timedelta(minutes=10))"
       ]
     }
+  ],
+  "DOC-P046": [
+    {
+      "file": "packages/features/src/delivery/delivery-board.tsx",
+      "contains": [
+        "Fahrer zuweisen",
+        "Fahrer für alle",
+        "Ausfahrer einladen",
+        "Fahrdienst",
+        "Liefertag",
+        "Fenster abschließen",
+        "Wieder öffnen",
+        "Nachliefern",
+        "Rückgängig",
+        "Ohne Verbindung zeigen wir keine Lieferungen."
+      ]
+    }
   ]
 }
