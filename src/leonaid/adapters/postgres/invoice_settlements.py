@@ -103,7 +103,8 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_cancellation_concurrent_retry",
-                            "Das Storno wurde gleichzeitig bearbeitet. Bitte denselben Vorgang erneut ausführen.",
+                            "Das Storno wurde gleichzeitig bearbeitet. "
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Stornotransaktion wurde nicht ausgeführt.")
