@@ -2,6 +2,11 @@
   import { actions, isInputError } from "astro:actions";
   import { orderQuantitySummary } from "../lib/order-presentation";
 
+  const euro = (minor: number, currency: string) =>
+    new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
+      minor / 100,
+    );
+
   const orderForms =
     document.querySelectorAll<HTMLFormElement>("[data-order-form]");
 
@@ -23,11 +28,28 @@
     const previewQuantity = form.querySelector<HTMLElement>(
       "[data-order-preview-quantity]",
     );
+    const summaryTotal = form.querySelector<HTMLElement>(
+      "[data-order-summary-total]",
+    );
+    const summaryQuantity = form.querySelector<HTMLElement>(
+      "[data-order-summary-quantity]",
+    );
     const submitButton = form.querySelector<HTMLButtonElement>(
       "[data-order-submit]",
     );
     const submitLabel = form.querySelector<HTMLElement>("[data-submit-label]");
+    const idleSubmitLabel =
+      form.dataset.submitLabel ?? submitLabel?.textContent ?? "";
     const message = form.querySelector<HTMLElement>("[data-form-message]");
+    const messageTitle = message?.querySelector<HTMLElement>(
+      "[data-form-message-title]",
+    );
+    const messageText = message?.querySelector<HTMLElement>(
+      "[data-form-message-text]",
+    );
+    const messageList = message?.querySelector<HTMLElement>(
+      "[data-form-message-list]",
+    );
     const success = form.parentElement?.querySelector<HTMLElement>(
       "[data-order-success]",
     );
@@ -38,6 +60,8 @@
     const refreshStatus = form.querySelector<HTMLElement>(
       "[data-delivery-refresh-status]",
     );
+    // One request per submission, however often the button is pressed.
+    let submitting = false;
     const deliveryUnavailable = () =>
       Boolean(form.querySelector("[data-delivery-window-selection]")) &&
       !form.querySelector('input[name="deliveryWindowId"]');
@@ -90,15 +114,16 @@
         if (refreshStatus)
           refreshStatus.textContent =
             selected && !replacement.querySelector("input:checked")
-              ? "Das gewählte Lieferfenster ist nicht mehr verfügbar. Bitte wähle ein anderes. Deine übrigen Eingaben bleiben erhalten."
+              ? "Das gewählte Lieferfenster ist nicht mehr verfügbar. Bitte wählen Sie ein anderes. Ihre übrigen Eingaben bleiben erhalten."
               : "Die Lieferfenster sind aktuell.";
       } catch {
         if (refreshStatus)
           refreshStatus.textContent =
-            "Die Lieferfenster konnten nicht aktualisiert werden. Deine Eingaben bleiben erhalten. Bitte versuche es erneut.";
+            "Die Lieferfenster konnten nicht aktualisiert werden. Ihre Eingaben bleiben erhalten. Bitte versuchen Sie es erneut.";
       } finally {
         refreshButton.disabled = false;
-        if (submitButton) submitButton.disabled = deliveryUnavailable();
+        if (submitButton)
+          submitButton.disabled = submitting || deliveryUnavailable();
       }
     };
     if (refreshButton) {
@@ -110,15 +135,33 @@
       if (!billingSame || !billingFields || !billingInputs) return;
       const separateBilling = !billingSame.checked;
       billingFields.hidden = !separateBilling;
-      billingFields.setAttribute(
-        "aria-hidden",
-        separateBilling ? "false" : "true",
-      );
       for (const input of billingInputs) {
         input.required = separateBilling;
         input.disabled = !separateBilling;
       }
     };
+
+    // "Firma oder Verein / Privatperson": a private order sends no company.
+    const customerKind = form.querySelector<HTMLElement>(
+      "[data-customer-kind]",
+    );
+    const companyField = form.querySelector<HTMLElement>(
+      "[data-company-field]",
+    );
+    const companyInput =
+      companyField?.querySelector<HTMLInputElement>("input") ?? null;
+    const syncCustomerKind = () => {
+      if (!customerKind || !companyField || !companyInput) return;
+      const person =
+        customerKind.querySelector<HTMLInputElement>("input:checked")
+          ?.value === "person";
+      companyField.hidden = person;
+      companyInput.disabled = person;
+    };
+    if (customerKind) {
+      customerKind.hidden = false;
+      customerKind.addEventListener("change", syncCustomerKind);
+    }
 
     const syncOrderPreview = () => {
       let totalMinor = 0;
@@ -134,15 +177,62 @@
         lines.push({ unit: input.dataset.unit ?? "", piecesPerUnit, quantity });
         currency = input.dataset.currency || currency;
       }
-      if (previewTotal) {
-        previewTotal.textContent = new Intl.NumberFormat("de-DE", {
-          style: "currency",
-          currency,
-        }).format(totalMinor / 100);
+      const total = euro(totalMinor, currency);
+      const summary = orderQuantitySummary(lines);
+      if (previewTotal) previewTotal.textContent = total;
+      if (summaryTotal) summaryTotal.textContent = total;
+      if (previewQuantity) previewQuantity.textContent = summary;
+      if (summaryQuantity) summaryQuantity.textContent = summary;
+      for (const input of quantityInputs) {
+        const value = Number(input.value || "0");
+        for (const button of form.querySelectorAll<HTMLButtonElement>(
+          `[data-step-for="${CSS.escape(input.id)}"]`,
+        )) {
+          const step = Number(button.dataset.step);
+          button.disabled =
+            step < 0
+              ? value <= Number(input.min || "0")
+              : value >= Number(input.max || "5000");
+        }
       }
-      if (previewQuantity) {
-        previewQuantity.textContent = orderQuantitySummary(lines);
-      }
+    };
+
+    // Steppers (- / +) around each quantity; the number stays editable.
+    for (const button of form.querySelectorAll<HTMLButtonElement>(
+      "[data-step]",
+    )) {
+      const input = form.querySelector<HTMLInputElement>(
+        `#${CSS.escape(button.dataset.stepFor ?? "")}`,
+      );
+      if (!input) continue;
+      button.hidden = false;
+      button.addEventListener("click", () => {
+        const minimum = Number(input.min || "0");
+        const maximum = Number(input.max || "5000");
+        const next = Math.min(
+          maximum,
+          Math.max(
+            minimum,
+            Math.trunc(Number(input.value || "0")) + Number(button.dataset.step),
+          ),
+        );
+        input.value = String(next);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+
+    const labelFor = (control: HTMLElement): string => {
+      if (control.dataset.label) return control.dataset.label;
+      const label = control.id
+        ? form.querySelector<HTMLLabelElement>(
+            `label[for="${CSS.escape(control.id)}"]`,
+          )
+        : null;
+      return (
+        label?.textContent?.replace("(optional)", "").replace(/\s+/g, " ").trim() ??
+        control.getAttribute("name") ??
+        ""
+      );
     };
 
     const clearErrors = () => {
@@ -158,39 +248,79 @@
       }
       if (message) {
         message.hidden = true;
-        message.textContent = "";
         message.dataset.state = "idle";
         message.removeAttribute("role");
+        if (messageText) messageText.textContent = "";
+        if (messageList) messageList.replaceChildren();
+        for (const paragraph of message.querySelectorAll(
+          "p:not([data-form-message-text])",
+        ))
+          paragraph.remove();
       }
     };
 
+    // The error summary lists every problem with a link to its field and
+    // takes the focus (prototype: "Bitte prüfen Sie …").
     const showFailure = (
       text: string,
       fields?: Readonly<Record<string, readonly string[] | undefined>>,
     ) => {
-      if (message) {
-        message.textContent = text;
-        message.dataset.state = "error";
-        message.setAttribute("role", "alert");
-        message.hidden = false;
-      }
-      let firstInvalid: HTMLElement | null = null;
+      const items: { id: string; text: string }[] = [];
       if (fields) {
         for (const [name, errors] of Object.entries(fields)) {
-          const controls = form.querySelectorAll<HTMLElement>(
-            `[name="${CSS.escape(name)}"]`,
-          );
-          for (const control of controls) {
+          const controls = [
+            ...form.querySelectorAll<HTMLElement>(
+              `[name="${CSS.escape(name)}"]`,
+            ),
+          ].filter((control) => !(control as HTMLInputElement).disabled);
+          for (const control of controls)
             control.setAttribute("aria-invalid", "true");
-            firstInvalid ??= control;
-          }
+          const first = controls[0];
           const error = form.querySelector<HTMLElement>(
             `[data-error-for="${CSS.escape(name)}"]`,
           );
-          if (error) error.textContent = errors?.join(" ") ?? "";
+          const detail = errors?.join(" ") ?? "";
+          if (error) error.textContent = detail;
+          if (first?.id)
+            items.push({ id: first.id, text: `${labelFor(first)}: ${detail}` });
         }
       }
-      (firstInvalid ?? message)?.focus();
+      if (!message) return;
+      message.dataset.state = "error";
+      message.setAttribute("role", "alert");
+      if (messageTitle)
+        messageTitle.textContent = items.length
+          ? `Bitte prüfen Sie ${items.length === 1 ? "eine Angabe" : `${items.length} Angaben`}`
+          : "Die Bestellung wurde noch nicht gesendet";
+      if (messageText) messageText.textContent = text;
+      messageList?.replaceChildren(
+        ...items.map((item) => {
+          const entry = document.createElement("li");
+          const link = document.createElement("a");
+          link.href = `#${item.id}`;
+          link.textContent = item.text;
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            document.getElementById(item.id)?.focus();
+          });
+          entry.append(link);
+          return entry;
+        }),
+      );
+      message.hidden = false;
+      message.focus();
+    };
+
+    const validityMessage = (control: HTMLInputElement): string => {
+      const validity = control.validity;
+      if (control.type === "checkbox") return "Bitte bestätigen Sie diesen Punkt.";
+      if (control.type === "radio") return "Bitte wählen Sie ein Lieferfenster.";
+      if (validity.valueMissing) return "Bitte ausfüllen.";
+      if (validity.typeMismatch && control.type === "email")
+        return "Bitte geben Sie eine gültige E-Mail-Adresse an, z. B. name@firma.de.";
+      if (validity.rangeUnderflow || validity.rangeOverflow)
+        return `Bitte eine Zahl zwischen ${control.min || 0} und ${control.max} angeben.`;
+      return "Bitte prüfen Sie diese Angabe.";
     };
 
     billingSame?.addEventListener("change", syncBillingFields);
@@ -203,7 +333,7 @@
         if (refreshStatus) refreshStatus.textContent = "";
         if (
           message?.dataset.state === "error" &&
-          message.textContent?.includes("Lieferfenster")
+          messageText?.textContent?.includes("Lieferfenster")
         )
           clearErrors();
       }
@@ -224,36 +354,33 @@
     });
 
     syncBillingFields();
+    syncCustomerKind();
     syncOrderPreview();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (submitting) return;
       clearErrors();
       if (!form.checkValidity()) {
         const fields: Record<string, readonly string[]> = {};
         for (const control of form.querySelectorAll<HTMLInputElement>(
-          "input:invalid",
+          "input:invalid, textarea:invalid",
         )) {
-          if (!control.name) continue;
-          fields[control.name] = [
-            control.validity.valueMissing
-              ? "Diese Angabe fehlt."
-              : control.validity.typeMismatch
-                ? "Bitte prüfe das Format."
-                : "Bitte prüfe diese Angabe.",
-          ];
+          if (!control.name || fields[control.name]) continue;
+          fields[control.name] = [validityMessage(control)];
         }
         showFailure(
-          "Bestellung noch nicht gesendet. Bitte prüfe die markierten Felder und sende sie anschließend erneut.",
+          "Die Bestellung wurde noch nicht gesendet. Ihre Eingaben bleiben erhalten.",
           fields,
         );
         return;
       }
+      submitting = true;
       if (submitButton) {
         submitButton.disabled = true;
         submitButton.setAttribute("aria-busy", "true");
       }
-      if (submitLabel) submitLabel.textContent = "Wird sicher übermittelt …";
+      if (submitLabel) submitLabel.textContent = "Wird gesendet …";
 
       try {
         const result = await actions.createPublicOrder(new FormData(form));
@@ -262,7 +389,7 @@
             await refreshDeliveryWindows();
           showFailure(
             isInputError(result.error)
-              ? "Bitte prüfe die markierten Angaben."
+              ? "Die Bestellung wurde noch nicht gesendet. Ihre Eingaben bleiben erhalten."
               : result.error.message,
             isInputError(result.error) ? result.error.fields : undefined,
           );
@@ -277,29 +404,33 @@
           "[data-order-quantity]",
         );
         if (reference) reference.textContent = result.data.publicReference;
-        if (total) {
-          total.textContent = new Intl.NumberFormat("de-DE", {
-            style: "currency",
-            currency: result.data.currency,
-          }).format(result.data.totalMinor / 100);
-        }
-        if (quantity) {
+        if (total)
+          total.textContent = euro(
+            result.data.totalMinor,
+            result.data.currency,
+          );
+        if (quantity)
           quantity.textContent = orderQuantitySummary(result.data.quantities);
-        }
         form.hidden = true;
         success.hidden = false;
         success.focus();
-        success.scrollIntoView({ behavior: "smooth", block: "center" });
+        success.scrollIntoView({
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          block: "start",
+        });
       } catch {
         showFailure(
-          "Die Bestellung konnte gerade nicht übermittelt werden. Deine Eingaben bleiben erhalten.",
+          "Die Bestellung konnte gerade nicht übermittelt werden. Ihre Eingaben bleiben erhalten. Bitte versuchen Sie es erneut.",
         );
       } finally {
+        submitting = false;
         if (submitButton) {
           submitButton.disabled = deliveryUnavailable();
           submitButton.removeAttribute("aria-busy");
         }
-        if (submitLabel) submitLabel.textContent = "Verbindlich bestellen";
+        if (submitLabel) submitLabel.textContent = idleSubmitLabel;
       }
     });
   }

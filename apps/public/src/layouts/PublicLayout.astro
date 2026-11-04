@@ -1,6 +1,7 @@
 ---
-import "@fontsource-variable/instrument-sans/wght.css";
-import "@fontsource-variable/newsreader/wght.css";
+// Leitsystem tokens and self-hosted Barlow/JetBrains Mono (CSS only).
+import "@leonaid/ui/fonts.css";
+import "@leonaid/ui/leitsystem.css";
 import "../styles/global.css";
 // Theme modules own their scoped stylesheets; importing the registry here
 // keeps them after the global styles in the cascade.
@@ -104,7 +105,10 @@ const header = theme.header;
                 </>
               </>
             ) : (
-              <PublicMark />
+              <PublicMark
+                label={carrierName ?? "LeonAid"}
+                name={carrierName ?? "LeonAid"}
+              />
             )
           }
         </a>
@@ -115,6 +119,10 @@ const header = theme.header;
                 <a href={item.href}>{item.label}</a>
               ))}
             </nav>
+          ) : canOrder ? (
+            <a class="site-header__promise" href="#bestellen">
+              Bestellen
+            </a>
           ) : (
             <span class="site-header__promise">Lions helfen vor Ort</span>
           )

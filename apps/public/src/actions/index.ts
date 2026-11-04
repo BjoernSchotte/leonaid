@@ -38,7 +38,7 @@ function publicOrderActionError(error: unknown): ActionError {
   return new ActionError({
     code: "SERVICE_UNAVAILABLE",
     message:
-      "Die Bestellung konnte gerade nicht übermittelt werden. Deine Eingaben bleiben erhalten.",
+      "Die Bestellung konnte gerade nicht übermittelt werden. Ihre Eingaben bleiben erhalten.",
   });
 }
 
@@ -99,10 +99,10 @@ export const server = {
       quotedUnitPriceMinor: z.array(z.number().int().min(0)).min(1).max(20),
       message: optionalText(1_000),
       privacyAcknowledged: z.boolean().refine(Boolean, {
-        message: "Bitte bestätige die Hinweise zur Datenverarbeitung.",
+        message: "Bitte bestätigen Sie den Datenschutzhinweis.",
       }),
       bindingOrderConfirmed: z.boolean().refine(Boolean, {
-        message: "Bitte bestätige die verbindliche Bestellung.",
+        message: "Bitte bestätigen Sie die verbindliche Bestellung.",
       }),
       privacyNoticeVersion: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
       website: optionalText(300),
@@ -130,7 +130,7 @@ export const server = {
       if (lines.length === 0) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
-          message: "Wähle mindestens ein Angebot und eine Menge aus.",
+          message: "Bitte wählen Sie mindestens ein Angebot und eine Menge aus.",
         });
       }
       const deliveryFields = [
@@ -151,14 +151,14 @@ export const server = {
       if (!deliveryRecipient && deliveryFields.some(Boolean)) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
-          message: "Bitte vervollständige die Lieferadresse.",
+          message: "Bitte vervollständigen Sie die Lieferadresse.",
         });
       }
       if (input.billingSameAsDelivery && !deliveryRecipient) {
         throw new ActionError({
           code: "UNPROCESSABLE_CONTENT",
           message:
-            "Bitte gib eine Lieferadresse oder eine Rechnungsadresse an.",
+            "Bitte geben Sie eine Lieferadresse oder eine Rechnungsadresse an.",
         });
       }
       const invoiceRecipient =

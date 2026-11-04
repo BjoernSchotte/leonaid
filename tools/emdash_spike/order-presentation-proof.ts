@@ -44,12 +44,12 @@ assert.equal(orderQuantitySummary([]), "Noch keine Menge gewählt");
 for (const quantity of [-1, 0.5, 5001, NaN, Infinity]) {
   assert.equal(
     orderQuantitySummary([{ ...box, quantity }]),
-    "Bitte prüfe die Mengen.",
+    "Bitte prüfen Sie die Mengen.",
   );
 }
 assert.equal(
   orderQuantitySummary([{ ...box, unit: "unknown" }]),
-  "Bitte prüfe die Mengen.",
+  "Bitte prüfen Sie die Mengen.",
 );
 console.log(
   "order-presentation: heterogeneous units, piece counts, missing metadata, ordering, aggregation and invalid quantity checks passed",
