@@ -322,18 +322,17 @@ test("without JavaScript a refused order comes back focused with the entries kep
   });
   const page = await context.newPage();
   try {
-    // A stale price quote, as after a price change while the form was open:
-    // Core refuses the order and the page renders the form again.
-    await page.route(
-      (url) => url.searchParams.get("_action") === "createPublicOrder",
-      (route) => {
-        const body = new URLSearchParams(route.request().postData() ?? "");
-        body.set("quotedUnitPriceMinor", "1");
-        return route.continue({ postData: body.toString() });
-      },
-    );
     await page.goto(`${baseUrl}/krapfentaxi`, { waitUntil: "networkidle" });
     const form = page.locator("[data-order-form]");
+    // A stale price quote, as after a price change while the form was open:
+    // Core refuses the order and the page renders the form again. Playwright
+    // sets the hidden field; the page itself runs no script.
+    await form
+      .locator('input[name="quotedUnitPriceMinor"]')
+      .first()
+      .evaluate((input) => {
+        input.value = "1";
+      });
     await form.locator('input[name="quantity"]').first().fill("1");
     await form
       .locator('input[name="companyName"]')
