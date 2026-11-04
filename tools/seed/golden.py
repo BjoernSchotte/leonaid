@@ -24,6 +24,7 @@ import httpx
 from botocore.exceptions import ClientError
 
 from leonaid.adapters.typst import RENDER_VERSION
+from leonaid.domain.calendar import local_day
 
 DATASET_VERSION = "1.0.0"
 # Twenty 2.54 builds indexes and validates foreign keys of a schema change in
@@ -1592,12 +1593,12 @@ async def seed_operational_golden(
                 recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
-                document_version
+                document_version, issued_on
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $10,
                 $11::jsonb, $12::jsonb, $13::json, $14::json, $15, 0,
-                $16, $4, $17, 2
+                $16, $4, $17, 2, $18
             )
             """,
             invoice["id"],
@@ -1615,7 +1616,7 @@ async def seed_operational_golden(
                     )
                 )
             ),
-            issued_at.date() + timedelta(days=14),
+            local_day(issued_at) + timedelta(days=14),
             invoice["currency"],
             amount,
             json.dumps(issuer_snapshot, separators=(",", ":")),
@@ -1625,6 +1626,7 @@ async def seed_operational_golden(
             tax_treatment[str(profile["taxTreatment"])],
             profile["taxNote"],
             "10000000-0000-4000-8000-000000000002",
+            local_day(issued_at),
         )
         payment = invoice.get("payment")
         if isinstance(payment, dict):

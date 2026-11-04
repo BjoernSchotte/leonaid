@@ -57,7 +57,7 @@ def render_payload(snapshot: InvoiceDocumentSnapshot) -> dict[str, object]:
         "renderVersion": RENDER_VERSION,
         "number": snapshot.number,
         "title": f"Rechnung {snapshot.number}",
-        "issuedOn": _date_label(snapshot.issued_at.date()),
+        "issuedOn": _date_label(snapshot.issued_on),
         "serviceOn": _date_label(snapshot.service_on),
         "dueOn": _date_label(snapshot.due_on),
         "issuer": snapshot.issuer.payload(),

@@ -1,0 +1,213 @@
+/*
+ * Members (Mitglieder, Einladungen). Ported from the prototype's
+ * pages/Members.css and the helpers of styles/components.css, scoped to
+ * .members-page. The subnav (.section-links) and the data table come from
+ * packages/ui styles/components/page-sections.css.
+ */
+
+/* ---------- page top (subnav inset as the list) ---------- */
+.members-top {
+  padding: var(--s-4) var(--s-6) 0;
+}
+.members-top + .listview .listview-main {
+  padding-top: var(--s-3);
+}
+.members-notes {
+  display: grid;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+/* ---------- prototype pages/Members.css ---------- */
+.members-page .role-chips {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.members-page .role-list {
+  display: grid;
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+}
+.members-page .role-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: var(--s-1) 0;
+  border-bottom: var(--hair) solid var(--border);
+  font-size: var(--fs-sm);
+}
+.members-page .role-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.members-page .role-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+.members-page .role-add .select {
+  flex: 1 1 140px;
+  width: auto;
+  min-height: 32px;
+  font-size: var(--fs-sm);
+}
+/* Prototype layout: Aktion on its own row, then Rolle and the button. */
+.members-page .role-add .role-add-action {
+  flex-basis: 100%;
+}
+.members-page .member-guard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  color: var(--warn);
+}
+.members-page .member-guard svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ---------- pane body ---------- */
+.member-detail {
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.member-detail .member-hint {
+  margin-bottom: var(--s-3);
+}
+.member-detail .pane-section > .callout {
+  margin-bottom: var(--s-3);
+}
+.members-page .member-link {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.members-page .member-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* ---------- Einladungen (the prototype's .page padding) ---------- */
+/*
+ * The list page is full-bleed (fullBleedPage): its subnav and error state
+ * inset themselves as the list does. Einladungen keeps the shell's .page
+ * frame, so its parts need no padding of their own.
+ */
+.members-state {
+  padding: var(--s-4) var(--s-6) var(--s-12);
+}
+.members-ledger-page .members-top {
+  padding: 0 0 var(--s-4);
+}
+.members-ledger .page-header,
+.members-state .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+.members-ledger .page-heading,
+.members-state .page-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.members-ledger .page-heading h1,
+.members-state .page-heading h1 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.015em;
+}
+.members-ledger .page-count {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.members-ledger .page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.members-ledger .members-ledger-note {
+  margin-bottom: var(--s-4);
+}
+.members-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+}
+.members-filter .input {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding-block: 0;
+  font-size: var(--fs-sm);
+}
+.invitation-person {
+  display: grid;
+  min-width: 0;
+}
+.invitation-date {
+  white-space: nowrap;
+}
+.invitation-commands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-1);
+}
+
+/* ---------- prototype styles/components.css ---------- */
+.members-page .muted {
+  color: var(--text-2);
+}
+.members-page .subtle {
+  color: var(--text-3);
+}
+.members-page .small {
+  font-size: var(--fs-sm);
+}
+.members-page .stack {
+  display: grid;
+  gap: var(--s-3);
+}
+.members-page .cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.members-page .member-detail p,
+.members-ledger p {
+  margin: 0;
+}
+.members-page fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .members-top {
+    padding: var(--s-3) var(--s-4) 0;
+  }
+  .members-state {
+    padding: var(--s-4) var(--s-4) var(--s-10);
+  }
+  .members-ledger-page .members-top {
+    padding: 0 0 var(--s-3);
+  }
+}

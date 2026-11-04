@@ -1,8 +1,9 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "invoiceId": "90000000-0000-4000-8000-000000000002",
   "number": "KT26-0002",
   "issuedAt": "2026-06-30T12:00:00+00:00",
+  "issuedOn": "2026-06-30",
   "serviceOn": "2026-11-15",
   "dueOn": "2026-07-14",
   "issuer": {

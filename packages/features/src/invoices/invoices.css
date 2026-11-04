@@ -1,8 +1,9 @@
 /*
  * Invoices (Rechnungen, Zahlungen, Dokumente). Ported from the prototype's
  * pages/Invoices.css, the shared page bits of styles/pages.css and the
- * stamp and data table of styles/components.css. Generic helpers are
- * scoped to .inv-page so they do not leak into other screens.
+ * stamp of styles/components.css. Generic helpers are scoped to .inv-page
+ * so they do not leak into other screens. The subnav (.section-links) and
+ * the data table come from packages/ui styles/components/page-sections.css.
  */
 
 /* ---------- prototype pages/Invoices.css ---------- */
@@ -22,32 +23,6 @@
 }
 .inv-ledger-page > .inv-subnav {
   margin-bottom: var(--s-4);
-}
-.inv-links {
-  display: flex;
-  gap: var(--s-1);
-  padding: 2px;
-  border-radius: var(--r-md);
-  background: var(--surface-3);
-}
-.inv-links a {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  text-decoration: none;
-}
-.inv-links a:hover {
-  color: var(--text);
-}
-.inv-links a[aria-current="page"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-1);
 }
 .inv-readonly {
   margin-bottom: var(--s-3);
@@ -93,17 +68,6 @@
 @media (max-width: 720px) {
   .inv-top {
     padding: var(--s-3) var(--s-4) 0;
-  }
-  .inv-links {
-    width: 100%;
-  }
-  .inv-links a {
-    flex: 1;
-    justify-content: center;
-    height: 40px;
-  }
-  .inv-page .table-wrap {
-    font-size: var(--fs-xs);
   }
   .inv-top + .listview .row-chips {
     display: flex;
@@ -213,45 +177,6 @@
   margin: 0;
 }
 
-/* Data table (for dense non-list data) */
-.inv-page .table-wrap {
-  overflow-x: auto;
-  border: var(--hair) solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-.inv-page .table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
-}
-.inv-page .table th {
-  position: sticky;
-  top: 0;
-  padding: var(--s-2) var(--s-4);
-  border-bottom: var(--hair) solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-weight: var(--fw-semibold);
-  text-align: left;
-  white-space: nowrap;
-}
-.inv-page .table td {
-  padding: var(--s-2) var(--s-4);
-  border-bottom: var(--hair) solid var(--border);
-  vertical-align: middle;
-}
-.inv-page .table tr:last-child td {
-  border-bottom: 0;
-}
-.inv-page .table tbody tr:hover {
-  background: var(--row-hover);
-}
-.inv-page .table .num,
-.inv-page .table .right {
-  text-align: right;
-}
-
 /* Stamp for immutable/cancelled records ("nothing disappears, it cancels") */
 .inv-page .stamp {
   display: inline-flex;
@@ -332,14 +257,12 @@
   min-width: 0;
 }
 .inv-detail a:not(.btn),
-.inv-page .table a,
 .inv-empty-hint a {
   color: var(--accent-ink);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.inv-detail a:not(.btn):hover,
-.inv-page .table a:hover {
+.inv-detail a:not(.btn):hover {
   text-decoration-thickness: 2px;
 }

@@ -125,12 +125,16 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
+  tests/e2e/members-keyboard.spec.mjs \
   tests/e2e/y-role-management.spec.mjs \
   tests/e2e/z-account-status.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
+
+# Last system admin / last lead on every path, with races; own data, cleaned up.
+run_python tools/identity/last_admin_contract.py
 
 for screenshot in \
   charity-admin-desktop.png \
@@ -165,4 +169,4 @@ for screenshot in \
   chmod 600 "$artifact_directory/$screenshot"
 done
 
-echo "identity-test: OK: member overview, role offboarding, status workflow, concurrency, session revocation and persona navigation proven against real services"
+echo "identity-test: OK: member overview, role offboarding, status workflow, last-admin invariants under concurrency, session revocation and persona navigation proven against real services"

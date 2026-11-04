@@ -67,6 +67,7 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                     document.*,
                     invoice.number AS invoice_number,
                     invoice.issued_at AS invoice_issued_at,
+                    invoice.issued_on AS invoice_issued_on,
                     invoice.service_on AS invoice_service_on,
                     invoice.due_on AS invoice_due_on,
                     invoice.issuer_snapshot AS invoice_issuer_snapshot,
@@ -309,6 +310,7 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
             invoice_id=row["invoice_id"],
             number=str(row["invoice_number"]),
             issued_at=row["invoice_issued_at"],
+            issued_on=row["invoice_issued_on"],
             service_on=row["invoice_service_on"],
             due_on=row["invoice_due_on"],
             issuer=InvoiceIssuerSnapshot.from_payload(

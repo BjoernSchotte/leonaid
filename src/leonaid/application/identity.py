@@ -148,6 +148,9 @@ class MemberDirectoryAction:
     action_id: UUID
     action_name: str
     available_roles: tuple[ActionRole, ...]
+    # The server keeps the last charity admin of this action (409
+    # last_charity_admin_role_forbidden): draft, scheduled and active.
+    lead_required: bool
 
 
 @dataclass(frozen=True, slots=True)

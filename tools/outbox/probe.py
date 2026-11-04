@@ -521,7 +521,8 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                         payment_details_snapshot, recipient_snapshot,
                         line_snapshot, tax_treatment,
                         tax_rate_basis_points, tax_note, payment_reference,
-                        approved_by_user_id, document_version, idempotency_key
+                        approved_by_user_id, document_version, idempotency_key,
+                        issued_on
                     )
                     VALUES (
                         $1, $2, $3, $4, 'issued',
@@ -562,7 +563,7 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                         }]'::jsonb,
                         'small_business', 0,
                         'Kein Steuerausweis im synthetischen Nachweis.',
-                        $4, $5, 1, $6
+                        $4, $5, 1, $6, CURRENT_DATE
                     )
                     ON CONFLICT (idempotency_key) DO UPDATE
                     SET idempotency_key = EXCLUDED.idempotency_key

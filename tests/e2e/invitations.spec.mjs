@@ -1,4 +1,10 @@
 import { expect, test } from "./csp-guard.mjs";
+import {
+  memberPane,
+  openInviteDialog,
+  openMember,
+  toast,
+} from "./member-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -40,9 +46,17 @@ async function sessionPage(browser, token) {
   const page = await context.newPage();
   await page.goto(`${baseUrl}/admin/members`);
   await expect(page.locator('[data-testid="display-name"]')).toBeVisible();
-  await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
-  await expect(page.locator('[data-testid="invite-action"]')).toBeEnabled();
   return { context, page };
+}
+
+async function invitationsPage(browser, token) {
+  const session = await sessionPage(browser, token);
+  await session.page.getByTestId("member-section-invitations").click();
+  await session.page.waitForURL(`${baseUrl}/admin/members/invitations`);
+  await expect(
+    session.page.getByRole("heading", { level: 1, name: "Einladungen" }),
+  ).toBeVisible();
+  return session;
 }
 
 test("charity admin can select only an action they manage", async ({
@@ -50,7 +64,8 @@ test("charity admin can select only an action they manage", async ({
 }) => {
   const { context, page } = await sessionPage(browser, klaraSession);
   try {
-    const action = page.locator('[data-testid="invite-action"]');
+    const dialog = await openInviteDialog(page);
+    const action = dialog.getByTestId("invite-action");
     await expect(
       page.locator('[data-nav-key="members"][aria-current="page"]').first(),
     ).toBeVisible();
@@ -58,7 +73,7 @@ test("charity admin can select only an action they manage", async ({
     await expect(action).toContainText("Krapfentaxi 2026");
     await expect(action).not.toContainText("Krapfentaxi Nord 2026");
     await expect(
-      page.locator('[data-testid="invite-role"] option'),
+      dialog.getByTestId("invite-role").locator("option"),
     ).toHaveCount(4);
 
     const direct = await context.request.post(`${baseUrl}/api/v1/invitations`, {
@@ -88,7 +103,8 @@ test("system admin gets the globally invitable actions", async ({
 }) => {
   const { context, page } = await sessionPage(browser, systemSession);
   try {
-    const action = page.locator('[data-testid="invite-action"]');
+    const dialog = await openInviteDialog(page);
+    const action = dialog.getByTestId("invite-action");
     await expect(action.locator("option")).toHaveCount(2);
     await expect(action).toContainText("Krapfentaxi 2026");
     await expect(action).toContainText("Krapfentaxi Nord 2026");
@@ -101,56 +117,53 @@ test("system admin gets the globally invitable actions", async ({
 test("charity admin manages the full invitation history", async ({
   browser,
 }) => {
-  const { context, page } = await sessionPage(browser, klaraSession);
+  const { context, page } = await invitationsPage(browser, klaraSession);
   try {
     await expect(
-      page.getByRole("heading", { name: "Einladungen im Blick" }),
+      page.locator('[data-nav-key="members"][aria-current="page"]').first(),
     ).toBeVisible();
     await expect(page.getByText("Foreign Lifecycle Pilot")).toHaveCount(0);
-    await expect(page.locator(".invitation-card")).not.toHaveCount(0);
+    await expect(page.locator(".invitation-row")).not.toHaveCount(0);
 
-    const resendCard = page.locator(
-      `[data-testid="invitation-${uiResendInvitationId}"]`,
-    );
-    await resendCard.getByTestId("invitation-resend").click();
-    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
-      "Eine neue Einladung wurde versendet",
-    );
-    await expect(resendCard).toHaveAttribute("data-status", "revoked");
+    const resendRow = page.getByTestId(`invitation-${uiResendInvitationId}`);
+    await resendRow.getByTestId("invitation-resend").click();
+    await expect(
+      toast(page, "Eine neue Einladung wurde versendet"),
+    ).toBeVisible();
+    await expect(resendRow).toHaveAttribute("data-status", "revoked");
 
-    const correctCard = page.locator(
-      `[data-testid="invitation-${uiCorrectInvitationId}"]`,
-    );
-    await correctCard.getByTestId("invitation-correct-address").click();
+    const correctRow = page.getByTestId(`invitation-${uiCorrectInvitationId}`);
+    await correctRow.getByTestId("invitation-correct-address").click();
+    const correction = page.getByRole("dialog", {
+      name: "Adresse korrigieren",
+    });
     const correctedEmail = "ui-corrected-pilot@leonaid.invalid";
-    await correctCard.getByLabel("Neue Login-E-Mail").fill(correctedEmail);
-    await correctCard
-      .getByRole("button", {
-        name: "Korrigieren & senden",
-      })
+    await correction.getByLabel("Neue Login-E-Mail").fill(correctedEmail);
+    await correction
+      .getByRole("button", { name: "Korrigieren & senden" })
       .click();
-    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
-      "korrigierte Adresse",
-    );
-    await expect(page.getByText(correctedEmail)).toBeVisible();
-    await expect(correctCard).toHaveAttribute("data-status", "revoked");
+    await expect(correction).toBeHidden();
+    await expect(toast(page, "korrigierte Adresse")).toBeVisible();
+    await expect(
+      page.locator(".invitation-row", { hasText: correctedEmail }),
+    ).toBeVisible();
+    await expect(correctRow).toHaveAttribute("data-status", "revoked");
 
-    const revokeCard = page.locator(
-      `[data-testid="invitation-${uiRevokeInvitationId}"]`,
-    );
-    await revokeCard.getByTestId("invitation-revoke").click();
-    await expect(revokeCard).toContainText("Wirklich widerrufen?");
-    await revokeCard.getByRole("button", { name: "Jetzt widerrufen" }).click();
-    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
-      "wurde widerrufen",
-    );
-    await expect(revokeCard).toHaveAttribute("data-status", "revoked");
+    const revokeRow = page.getByTestId(`invitation-${uiRevokeInvitationId}`);
+    await revokeRow.getByTestId("invitation-revoke").click();
+    const confirmation = page.getByRole("alertdialog");
+    await expect(confirmation).toContainText("Einladung wirklich widerrufen?");
+    await confirmation
+      .getByRole("button", { name: "Jetzt widerrufen" })
+      .click();
+    await expect(toast(page, "wurde widerrufen")).toBeVisible();
+    await expect(revokeRow).toHaveAttribute("data-status", "revoked");
 
     await page.getByTestId("invitation-status-filter").selectOption("accepted");
-    await expect(page.locator(".invitation-card")).not.toHaveCount(0);
+    await expect(page.locator(".invitation-row")).not.toHaveCount(0);
     await expect(
-      page.locator('.invitation-card[data-status="accepted"]'),
-    ).not.toHaveCount(0);
+      page.locator('.invitation-row:not([data-status="accepted"])'),
+    ).toHaveCount(0);
 
     await page.screenshot({
       path: `${artifactDirectory}/invitation-lifecycle-admin.png`,
@@ -207,22 +220,17 @@ test("system admin requests an email correction clearly", async ({
   const page = await context.newPage();
   try {
     await page.goto(`${baseUrl}/admin/members`);
-    await page
-      .getByPlaceholder("Name oder Login-E-Mail")
-      .fill("E-Mail Korrektur UI");
-    const card = page
-      .getByTestId("member-card")
-      .filter({ hasText: "E-Mail Korrektur UI" });
-    await expect(card).toHaveCount(1);
-    await card.click();
-    await page.getByTestId("member-email-change-open").click();
-    await page
+    const pane = await openMember(page, "E-Mail Korrektur UI");
+    await pane.getByTestId("member-email-change-open").click();
+    const dialog = page.getByRole("dialog", { name: "Anmeldeadresse ändern" });
+    await dialog
       .getByTestId("member-email-change-input")
       .fill("ui-email-start-new@leonaid.invalid");
-    await page.getByTestId("member-email-change-submit").click();
-    await expect(page.getByTestId("member-email-change-success")).toContainText(
-      "wartet auf Bestätigung",
-    );
+    await dialog.getByTestId("member-email-change-submit").click();
+    await expect(dialog).toBeHidden();
+    await expect(
+      memberPane(page).getByTestId("member-email-change-success"),
+    ).toContainText("wartet auf Bestätigung");
     await page.screenshot({
       path: `${artifactDirectory}/email-change-admin.png`,
       fullPage: true,

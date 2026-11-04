@@ -253,7 +253,8 @@ class Fixture:
                 gross_minor, issuer_snapshot, payment_details_snapshot,
                 recipient_snapshot, line_snapshot, tax_treatment,
                 tax_rate_basis_points, tax_note, payment_reference,
-                approved_by_user_id, document_version, idempotency_key
+                approved_by_user_id, document_version, idempotency_key,
+                issued_on
             )
             VALUES (
                 $1, $2, $3, $4, 'issued', CURRENT_TIMESTAMP,
@@ -264,7 +265,7 @@ class Fixture:
                 '[{"description":"Krapfenbox","quantity":2,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":7200,"taxMinor":0,"grossMinor":7200,"currency":"EUR"}]'::jsonb,
                 'small_business', 0,
                 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-                $4, $6, 1, $7
+                $4, $6, 1, $7, '2026-11-15'
             )
             """,
             invoice_id,
@@ -365,7 +366,7 @@ async def assert_readable_where_it_points(
             record = "commitment" if kind == "order" else "invoice"
             assert item_id in {entry[record]["id"] for entry in listing.json()["items"]}
         elif kind == "member":
-            assert href == "/admin/members"
+            assert href == f"/admin/members?open={item_id}"
             member = await session.get(f"/api/v1/admin/members/{item_id}")
             assert member.status_code == 200, member.text
         else:

@@ -109,6 +109,11 @@ compose run --rm --no-deps --entrypoint alembic api upgrade 0011_public_orders
 compose exec -T core-postgres sh -ec \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   <"$root/tests/fixtures/schema/v0.sql"
+# A night-hour invoice from before 0045 proves the invoice-date backfill.
+compose run --rm --no-deps --entrypoint alembic api upgrade 0044_inbox
+compose exec -T core-postgres sh -ec \
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  <"$root/tests/fixtures/schema/night-invoice-0044.sql"
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \

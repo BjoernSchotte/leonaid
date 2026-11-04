@@ -22,6 +22,7 @@ from leonaid.application.delivery_completion import (
     DeliveryCompletionService,
     delivery_completion_version,
 )
+from leonaid.domain.calendar import local_day
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -241,6 +242,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     AssignedAcquirerResponse,
     ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    ACTION_CREATE_CONFLICT_RESPONSES,
+    MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
+    MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
+    MEMBER_STATUS_CONFLICT_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
@@ -2135,7 +2140,7 @@ async def get_member(
     "/api/v1/admin/members/{user_id}/status",
     operation_id="changeMemberStatus",
     response_model=MemberStatusChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_STATUS_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_status(
@@ -2203,7 +2208,7 @@ def member_role_change_response(
     "/api/v1/admin/members/{user_id}/global-roles/{role}",
     operation_id="changeMemberGlobalRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_global_role(
@@ -2231,7 +2236,7 @@ async def change_member_global_role(
     "/api/v1/admin/members/{user_id}/actions/{action_id}/roles/{role}",
     operation_id="changeMemberActionRole",
     response_model=MemberRoleChangeResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     tags=["identity"],
 )
 async def change_member_action_role(
@@ -2472,7 +2477,7 @@ async def pilot_daily_report(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Content-Disposition"] = (
         f'inline; filename="leonaid-pilot-daily-'
-        f'{report.generated_at.date().isoformat()}.json"'
+        f'{local_day(report.generated_at).isoformat()}.json"'
     )
     response.headers["X-Content-SHA256"] = checksum
     return transport.model_copy(update={"checksum_sha256": checksum})
@@ -3056,7 +3061,7 @@ async def list_action_templates(
     "/api/v1/actions/from-template",
     operation_id="createCharityActionFromTemplate",
     response_model=CharityActionConfigurationResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )
@@ -3091,7 +3096,7 @@ async def create_charity_action_from_template(
     "/api/v1/actions",
     operation_id="createCharityAction",
     response_model=CharityActionResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTION_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["actions"],
 )
