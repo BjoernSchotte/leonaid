@@ -89,6 +89,16 @@ class ActivityFeedRepository(Protocol):
         evaluated_at: datetime,
     ) -> StoredActivityFeedItem | None: ...
 
+    async def mark_all_read(
+        self,
+        *,
+        recipient_user_id: UUID,
+        read_at: datetime,
+        evaluated_at: datetime,
+    ) -> int:
+        """Marks every unread item the recipient may see; returns how many."""
+        ...
+
 
 class ActivityFeedService:
     def __init__(self, repository: ActivityFeedRepository) -> None:
@@ -139,6 +149,14 @@ class ActivityFeedService:
         if stored is None:
             raise concealed_resource()
         return self._present(actor, stored)
+
+    async def mark_all_read(self, actor: IdentityPrincipal) -> int:
+        evaluated_at = datetime.now(timezone.utc)
+        return await self._repository.mark_all_read(
+            recipient_user_id=actor.account.id,
+            read_at=evaluated_at,
+            evaluated_at=evaluated_at,
+        )
 
     @staticmethod
     def _present(

@@ -24,6 +24,7 @@ from leonaid.configuration import (
 from leonaid.domain.outbox import OutboxState
 from leonaid.entrypoints.worker.retention import (
     RetentionResult,
+    delivery_read_audits,
     sweep_operational_retention,
 )
 
@@ -71,6 +72,7 @@ async def retention_sweep() -> RetentionResult:
             rate_limits=AsyncpgSecurityRateLimitRepository(pool),
             settings=settings,
             now=datetime.now(timezone.utc),
+            read_audits=delivery_read_audits(pool),
         )
     finally:
         await pool.close()

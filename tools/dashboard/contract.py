@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -13,6 +13,7 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
+from leonaid.domain.calendar import local_day, local_day_bounds
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -295,6 +296,97 @@ async def assert_admin_aggregate(
     ):
         raise ContractFailure("API invoice aggregates differ from SQL")
 
+    # Overdue and failed dispatch, independently of the repository's SQL.
+    today = local_day(datetime.now(timezone.utc))
+    attention_sql = await connection.fetchrow(
+        """
+        SELECT
+            count(*) FILTER (
+                WHERE invoice.status IN ('issued', 'sent') AND invoice.due_on < $2
+            ) AS overdue,
+            coalesce(sum(invoice.gross_minor) FILTER (
+                WHERE invoice.status IN ('issued', 'sent') AND invoice.due_on < $2
+            ), 0) AS overdue_amount_minor,
+            count(*) FILTER (
+                WHERE invoice.status <> 'cancelled'
+                  AND (
+                    SELECT event.status = 'dead_letter' AND mail.sent_at IS NULL
+                    FROM invoice_delivery AS delivery
+                    JOIN outbox_event AS event ON event.id = delivery.outbox_event_id
+                    LEFT JOIN mail_delivery AS mail ON mail.outbox_event_id = event.id
+                    WHERE delivery.invoice_id = invoice.id
+                    ORDER BY delivery.requested_at DESC, delivery.created_at DESC,
+                             delivery.id DESC
+                    LIMIT 1
+                  )
+            ) AS delivery_failed
+        FROM invoice
+        WHERE invoice.action_id = $1
+        """,
+        ACTION_ID,
+        today,
+    )
+    if attention_sql is None or any(
+        int(api_invoices[api_key]) != integer(attention_sql, sql_key)
+        for api_key, sql_key in (
+            ("overdue", "overdue"),
+            ("overdueAmountMinor", "overdue_amount_minor"),
+            ("deliveryFailed", "delivery_failed"),
+        )
+    ):
+        raise ContractFailure("API overdue or failed-dispatch counts differ from SQL")
+
+    weeks = admin.get("orderValueWeeks")
+    if not isinstance(weeks, list) or len(weeks) != 8:
+        raise ContractFailure("Order value needs exactly eight weeks")
+    monday = today - timedelta(days=today.weekday())
+    first_monday = monday - timedelta(weeks=7)
+    if [week.get("weekStart") for week in weeks] != [
+        (first_monday + timedelta(weeks=index)).isoformat() for index in range(8)
+    ]:
+        raise ContractFailure("Order value weeks are not the last eight Mondays")
+    weekly_sql = await connection.fetchval(
+        """
+        SELECT coalesce(sum(total_minor), 0)
+        FROM commitment
+        WHERE action_id = $1
+          AND status <> 'cancelled'
+          AND created_at >= $2
+          AND created_at < $3
+        """,
+        ACTION_ID,
+        local_day_bounds(first_monday)[0],
+        local_day_bounds(monday + timedelta(days=7))[0],
+    )
+    if sum(int(week["totalMinor"]) for week in weeks) != int(weekly_sql or 0):
+        raise ContractFailure("Weekly order value differs from SQL")
+
+    delivery = as_object(admin.get("delivery"), "Delivery overview")
+    windows_sql = await connection.fetch(
+        """
+        SELECT
+            window_row.id,
+            count(commitment.id) FILTER (
+                WHERE commitment.status <> 'cancelled'
+            ) AS commitments
+        FROM action_delivery_window AS window_row
+        LEFT JOIN commitment ON commitment.delivery_window_id = window_row.id
+        WHERE window_row.action_id = $1
+          AND NOT window_row.retired
+          AND window_row.ends_at >= $2
+        GROUP BY window_row.id, window_row.starts_at
+        ORDER BY window_row.starts_at, window_row.id
+        LIMIT 8
+        """,
+        ACTION_ID,
+        local_day_bounds(today)[0],
+    )
+    api_windows = delivery.get("windows")
+    if not isinstance(api_windows, list) or [
+        (str(item["id"]), int(item["commitments"])) for item in api_windows
+    ] != [(str(row["id"]), integer(row, "commitments")) for row in windows_sql]:
+        raise ContractFailure("Delivery windows differ from SQL")
+
 
 def assert_definitions(payload: dict[str, Any], expected_keys: set[str]) -> None:
     definitions = payload.get("metricDefinitions")
@@ -451,6 +543,11 @@ async def run() -> None:
                     "admin.commitments",
                     "admin.invoiced",
                     "admin.open_receivables",
+                    "admin.overdue",
+                    "admin.delivery_failed",
+                    "admin.to_invoice",
+                    "admin.order_value_weeks",
+                    "admin.delivery",
                 },
             )
 

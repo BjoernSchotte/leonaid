@@ -16,6 +16,8 @@ RUN bun install --frozen-lockfile --ignore-scripts
 COPY apps/public ./apps/public
 COPY packages/api-client ./packages/api-client
 COPY packages/surveys ./packages/surveys
+# Leitsystem tokens and self-hosted fonts (CSS only; no React from ui).
+COPY packages/ui ./packages/ui
 RUN bun run typecheck:public
 RUN bun run build:public
 

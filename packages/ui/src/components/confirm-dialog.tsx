@@ -2,6 +2,8 @@ import { Button } from "./button";
 import { Modal } from "./modal";
 
 export interface ConfirmDialogProps {
+  /** Default "Abbrechen". */
+  readonly cancelLabel?: string;
   readonly confirmLabel: string;
   readonly description: string;
   readonly onConfirm: () => void;
@@ -14,6 +16,7 @@ export interface ConfirmDialogProps {
 
 /** A small alert dialog that names the consequence before a critical change. */
 export function ConfirmDialog({
+  cancelLabel = "Abbrechen",
   confirmLabel,
   description,
   onConfirm,
@@ -33,7 +36,7 @@ export function ConfirmDialog({
             onClick={() => onOpenChange(false)}
             variant="ghost"
           >
-            Abbrechen
+            {cancelLabel}
           </Button>
           <Button loading={pending} onClick={onConfirm} variant={tone}>
             {pending ? "Wird gespeichert …" : confirmLabel}

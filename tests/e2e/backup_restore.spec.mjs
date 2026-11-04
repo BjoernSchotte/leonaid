@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -39,16 +39,21 @@ test("restored instance works with an existing session", async ({
   try {
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toContainText("90 Prozent");
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
+    );
     await expect(page.getByTestId("admin-dashboard-metrics")).toContainText(
       "25 Boxen · 600 Stück",
     );
     await expect(page.getByTestId("admin-dashboard-metrics")).toContainText(
       "504,00 €",
     );
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) =>

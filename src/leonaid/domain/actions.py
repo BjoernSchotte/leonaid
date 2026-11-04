@@ -390,6 +390,11 @@ class CharityAction:
     def next_revision(self) -> CharityAction:
         return replace(self, revision=self.revision + 1)
 
+    def require_mutable(self) -> None:
+        """Archived actions stay as they are; every change is refused."""
+
+        self._require_mutable()
+
     def _require_mutable(self) -> None:
         if self.status is CharityActionStatus.ARCHIVED:
             raise DomainInvariantError(

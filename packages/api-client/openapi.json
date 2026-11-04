@@ -1305,6 +1305,21 @@
         "title": "ActivityFeedItemResponse",
         "type": "object"
       },
+      "ActivityFeedReadAllResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "updated": {
+            "minimum": 0.0,
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "ActivityFeedReadAllResponse",
+        "type": "object"
+      },
       "ActivityFeedResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2602,8 +2617,18 @@
           "commitments": {
             "$ref": "#/components/schemas/DashboardCommitmentResponse"
           },
+          "delivery": {
+            "$ref": "#/components/schemas/DashboardDeliveryResponse"
+          },
           "invoices": {
             "$ref": "#/components/schemas/DashboardInvoiceResponse"
+          },
+          "orderValueWeeks": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardOrderValueWeekResponse"
+            },
+            "title": "Ordervalueweeks",
+            "type": "array"
           },
           "pipeline": {
             "$ref": "#/components/schemas/DashboardPipelineResponse"
@@ -2612,7 +2637,9 @@
         "required": [
           "pipeline",
           "commitments",
-          "invoices"
+          "invoices",
+          "orderValueWeeks",
+          "delivery"
         ],
         "title": "CharityAdminDashboardResponse",
         "type": "object"
@@ -4858,6 +4885,69 @@
         "title": "DashboardCommitmentResponse",
         "type": "object"
       },
+      "DashboardDeliveryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardDeliveryWindowResponse"
+            },
+            "title": "Windows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "windows"
+        ],
+        "title": "DashboardDeliveryResponse",
+        "type": "object"
+      },
+      "DashboardDeliveryWindowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commitments": {
+            "minimum": 0.0,
+            "title": "Commitments",
+            "type": "integer"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "title": "Endsat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/UnitQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "title": "Startsat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt",
+          "commitments",
+          "quantities"
+        ],
+        "title": "DashboardDeliveryWindowResponse",
+        "type": "object"
+      },
       "DashboardGoalResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4930,6 +5020,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "deliveryFailed": {
+            "minimum": 0.0,
+            "title": "Deliveryfailed",
+            "type": "integer"
+          },
           "invoicedAmountMinor": {
             "minimum": 0.0,
             "title": "Invoicedamountminor",
@@ -4948,6 +5043,16 @@
           "openAmountMinor": {
             "minimum": 0.0,
             "title": "Openamountminor",
+            "type": "integer"
+          },
+          "overdue": {
+            "minimum": 0.0,
+            "title": "Overdue",
+            "type": "integer"
+          },
+          "overdueAmountMinor": {
+            "minimum": 0.0,
+            "title": "Overdueamountminor",
             "type": "integer"
           },
           "paid": {
@@ -4975,6 +5080,9 @@
           "total",
           "invoicedAmountMinor",
           "openAmountMinor",
+          "overdue",
+          "overdueAmountMinor",
+          "deliveryFailed",
           "currency"
         ],
         "title": "DashboardInvoiceResponse",
@@ -5007,6 +5115,34 @@
           "href"
         ],
         "title": "DashboardMetricDefinitionResponse",
+        "type": "object"
+      },
+      "DashboardOrderValueWeekResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "isoWeek": {
+            "maximum": 53.0,
+            "minimum": 1.0,
+            "title": "Isoweek",
+            "type": "integer"
+          },
+          "totalMinor": {
+            "minimum": 0.0,
+            "title": "Totalminor",
+            "type": "integer"
+          },
+          "weekStart": {
+            "format": "date",
+            "title": "Weekstart",
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "isoWeek",
+          "totalMinor"
+        ],
+        "title": "DashboardOrderValueWeekResponse",
         "type": "object"
       },
       "DashboardPipelineResponse": {
@@ -5161,6 +5297,150 @@
         "title": "DashboardResponse",
         "type": "object"
       },
+      "DeliveryBoardDriverResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName"
+        ],
+        "title": "DeliveryBoardDriverResponse",
+        "type": "object"
+      },
+      "DeliveryBoardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "days": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "drivers": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryBoardDriverResponse"
+            },
+            "title": "Drivers",
+            "type": "array"
+          },
+          "followUpTasks": {
+            "title": "Followuptasks",
+            "type": "boolean"
+          },
+          "manager": {
+            "title": "Manager",
+            "type": "boolean"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryBoardWindowResponse"
+            },
+            "title": "Windows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "timezone",
+          "day",
+          "days",
+          "manager",
+          "windows",
+          "drivers",
+          "followUpTasks"
+        ],
+        "title": "DeliveryBoardResponse",
+        "type": "object"
+      },
+      "DeliveryBoardWindowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "closure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryWindowClosureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryDropResponse"
+            },
+            "title": "Drops",
+            "type": "array"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "title": "Endsat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "retired": {
+            "title": "Retired",
+            "type": "boolean"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "title": "Startsat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt",
+          "retired",
+          "closure",
+          "drops"
+        ],
+        "title": "DeliveryBoardWindowResponse",
+        "type": "object"
+      },
       "DeliveryConfigurationRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5264,6 +5544,373 @@
           }
         },
         "title": "DeliveryContactRequest",
+        "type": "object"
+      },
+      "DeliveryDriverAssignmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commitmentIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Commitmentids",
+            "type": "array"
+          },
+          "driverUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driveruserid"
+          }
+        },
+        "required": [
+          "commitmentIds",
+          "driverUserId"
+        ],
+        "title": "DeliveryDriverAssignmentRequest",
+        "type": "object"
+      },
+      "DeliveryDriverAssignmentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changed"
+        ],
+        "title": "DeliveryDriverAssignmentResponse",
+        "type": "object"
+      },
+      "DeliveryDropAddressResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "recipientName": {
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientName",
+          "streetLine1",
+          "postalCode",
+          "city"
+        ],
+        "title": "DeliveryDropAddressResponse",
+        "type": "object"
+      },
+      "DeliveryDropContactResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "name",
+          "phone"
+        ],
+        "title": "DeliveryDropContactResponse",
+        "type": "object"
+      },
+      "DeliveryDropQuantityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "quantity"
+        ],
+        "title": "DeliveryDropQuantityResponse",
+        "type": "object"
+      },
+      "DeliveryDropResponse": {
+        "additionalProperties": false,
+        "description": "One order on the board. Never amounts, e-mail or the order message.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryDropAddressResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buyerName": {
+            "title": "Buyername",
+            "type": "string"
+          },
+          "commitmentId": {
+            "format": "uuid",
+            "title": "Commitmentid",
+            "type": "string"
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryDropContactResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "driverName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drivername"
+          },
+          "driverUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driveruserid"
+          },
+          "missedAtClosure": {
+            "title": "Missedatclosure",
+            "type": "boolean"
+          },
+          "orderStatus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "draft",
+                  "review_ready",
+                  "confirmed",
+                  "invoiced",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderstatus"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryDropQuantityResponse"
+            },
+            "title": "Quantities",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "delivered",
+              "missed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "stateChangedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statechangedat"
+          },
+          "stateChangedByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statechangedbyname"
+          },
+          "totalBoxes": {
+            "title": "Totalboxes",
+            "type": "integer"
+          },
+          "windowId": {
+            "format": "uuid",
+            "title": "Windowid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commitmentId",
+          "windowId",
+          "buyerName",
+          "quantities",
+          "totalBoxes",
+          "address",
+          "contact",
+          "state",
+          "stateChangedAt",
+          "stateChangedByName",
+          "driverUserId",
+          "driverName",
+          "revision",
+          "missedAtClosure",
+          "orderStatus"
+        ],
+        "title": "DeliveryDropResponse",
+        "type": "object"
+      },
+      "DeliveryStateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "delivered": {
+            "title": "Delivered",
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "minimum": 0.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delivered",
+          "expectedRevision"
+        ],
+        "title": "DeliveryStateRequest",
+        "type": "object"
+      },
+      "DeliveryWindowClosureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "closedAt": {
+            "format": "date-time",
+            "title": "Closedat",
+            "type": "string"
+          },
+          "closedByName": {
+            "title": "Closedbyname",
+            "type": "string"
+          },
+          "missedCount": {
+            "title": "Missedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "closedAt",
+          "closedByName",
+          "missedCount"
+        ],
+        "title": "DeliveryWindowClosureResponse",
+        "type": "object"
+      },
+      "DeliveryWindowClosureResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "followUp": {
+            "enum": [
+              "tasks",
+              "board"
+            ],
+            "title": "Followup",
+            "type": "string"
+          },
+          "missedCount": {
+            "title": "Missedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "missedCount",
+          "followUp"
+        ],
+        "title": "DeliveryWindowClosureResultResponse",
+        "type": "object"
+      },
+      "DeliveryWindowReopenResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "reopenedCount": {
+            "title": "Reopenedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reopenedCount"
+        ],
+        "title": "DeliveryWindowReopenResponse",
         "type": "object"
       },
       "DeliveryWindowRequest": {
@@ -18642,6 +19289,129 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-state": {
+      "put": {
+        "operationId": "setDeliveryState",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryDropResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Delivery State",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/documents": {
       "get": {
         "operationId": "listCommitmentDocuments",
@@ -19373,6 +20143,229 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/delivery-board": {
+      "get": {
+        "operationId": "getDeliveryBoard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryBoardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Delivery Board",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/delivery-board/drivers": {
+      "put": {
+        "operationId": "assignDeliveryDriver",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryDriverAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryDriverAssignmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Assign Delivery Driver",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/delivery-configuration": {
       "get": {
         "operationId": "getDeliveryConfiguration",
@@ -19572,6 +20565,230 @@
           }
         },
         "summary": "Save Delivery Configuration",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/delivery-windows/{window_id}/closure": {
+      "delete": {
+        "operationId": "reopenDeliveryWindow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "window_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Window Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryWindowReopenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Reopen Delivery Window",
+        "tags": [
+          "actions"
+        ]
+      },
+      "post": {
+        "operationId": "closeDeliveryWindow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "window_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Window Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryWindowClosureResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Close Delivery Window",
         "tags": [
           "actions"
         ]
@@ -21939,6 +23156,87 @@
           }
         },
         "summary": "Get Activity Feed",
+        "tags": [
+          "activity-feed"
+        ]
+      }
+    },
+    "/api/v1/activity-feed/read": {
+      "post": {
+        "operationId": "markActivityFeedRead",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedReadAllResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Mark Activity Feed Read",
         "tags": [
           "activity-feed"
         ]

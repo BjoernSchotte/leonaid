@@ -16,10 +16,10 @@ const dayLabel = (day: string) =>
 ---
 
 <fieldset class="delivery-windows" data-delivery-window-selection>
-  <legend>Lieferzeitfenster <small>Pflichtfeld</small></legend>
+  <legend>Lieferfenster</legend>
   <p>
-    Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
-    auswählen.
+    Wir liefern innerhalb des gewählten Zeitraums. Alle Uhrzeiten gelten in
+    {configuration.timezone}.
   </p>
   {
     days.map((day) => (
@@ -30,13 +30,15 @@ const dayLabel = (day: string) =>
             .filter((window) => window.deliveryOn === day)
             .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
             .map((window) => (
-              <label class="check-row">
+              <label class="public-toggle-option">
                 <input
+                  id={`deliveryWindow-${window.id}`}
                   type="radio"
                   name="deliveryWindowId"
                   value={window.id}
                   checked={selectedId === window.id}
                   required
+                  data-label="Lieferfenster"
                   aria-describedby="deliveryWindowId-error"
                 />
                 <span>
@@ -53,12 +55,14 @@ const dayLabel = (day: string) =>
     !windows.length && (
       <p role="status">
         Zurzeit ist kein Lieferfenster verfügbar. Sobald der Club neue Termine
-        freigibt, kannst du hier bestellen.
+        freigibt, können Sie hier bestellen.
       </p>
     )
   }
-  <span
+  <p
     id="deliveryWindowId-error"
     class="field-error"
-    data-error-for="deliveryWindowId"></span>
+    data-error-for="deliveryWindowId"
+  >
+  </p>
 </fieldset>

@@ -1,0 +1,116 @@
+---
+interface Props {
+  /** Required only when there is no delivery address to fall back on. */
+  required: boolean;
+  fields?: Readonly<Record<string, string | undefined>>;
+}
+const { required, fields = {} } = Astro.props;
+const value = (name: string) => fields[name] ?? "";
+---
+
+<div class="field">
+  <label class="field-label" for="invoiceRecipientName"
+    >Rechnungsempfänger</label
+  >
+  <input
+    id="invoiceRecipientName"
+    class="input"
+    name="invoiceRecipientName"
+    data-missing="Bitte geben Sie den Rechnungsempfänger an."
+    required={required}
+    value={value("invoiceRecipientName")}
+    autocomplete="billing name"
+    maxlength="300"
+    aria-describedby="invoiceRecipientName-help invoiceRecipientName-error"
+  />
+  <p id="invoiceRecipientName-help" class="field-hint">
+    Firma, Abteilung oder Person auf der Rechnung.
+  </p>
+  <p
+    id="invoiceRecipientName-error"
+    class="field-error"
+    data-error-for="invoiceRecipientName"
+  >
+  </p>
+</div>
+<div class="field">
+  <label class="field-label" for="invoiceStreetLine1"
+    >Straße und Hausnummer</label
+  >
+  <input
+    id="invoiceStreetLine1"
+    class="input"
+    name="invoiceStreetLine1"
+    data-missing="Bitte geben Sie Straße und Hausnummer der Rechnungsadresse an."
+    required={required}
+    value={value("invoiceStreetLine1")}
+    autocomplete="billing street-address"
+    maxlength="300"
+    aria-describedby="invoiceStreetLine1-error"
+  />
+  <p
+    id="invoiceStreetLine1-error"
+    class="field-error"
+    data-error-for="invoiceStreetLine1"
+  >
+  </p>
+</div>
+<div class="public-grid-zip">
+  <div class="field">
+    <label class="field-label" for="invoicePostalCode">PLZ</label>
+    <input
+      id="invoicePostalCode"
+      class="input"
+      name="invoicePostalCode"
+      data-missing="Bitte geben Sie die Postleitzahl der Rechnungsadresse an."
+      required={required}
+      value={value("invoicePostalCode")}
+      autocomplete="billing postal-code"
+      inputmode="numeric"
+      maxlength="24"
+      aria-describedby="invoicePostalCode-error"
+    />
+    <p
+      id="invoicePostalCode-error"
+      class="field-error"
+      data-error-for="invoicePostalCode"
+    >
+    </p>
+  </div>
+  <div class="field">
+    <label class="field-label" for="invoiceCity">Ort</label>
+    <input
+      id="invoiceCity"
+      class="input"
+      name="invoiceCity"
+      data-missing="Bitte geben Sie den Ort der Rechnungsadresse an."
+      required={required}
+      value={value("invoiceCity")}
+      autocomplete="billing address-level2"
+      maxlength="200"
+      aria-describedby="invoiceCity-error"
+    />
+    <p id="invoiceCity-error" class="field-error" data-error-for="invoiceCity">
+    </p>
+  </div>
+</div>
+<div class="field">
+  <label class="field-label" for="invoiceEmail">Rechnungs-E-Mail</label>
+  <input
+    id="invoiceEmail"
+    class="input"
+    name="invoiceEmail"
+    data-missing="Bitte geben Sie die E-Mail-Adresse für die Rechnung an."
+    required={required}
+    value={value("invoiceEmail")}
+    type="email"
+    autocomplete="billing email"
+    maxlength="320"
+    aria-describedby="invoiceEmail-help invoiceEmail-error"
+  />
+  <p id="invoiceEmail-help" class="field-hint">
+    An diese Adresse wird die Rechnung versendet.
+  </p>
+  <p id="invoiceEmail-error" class="field-error" data-error-for="invoiceEmail">
+  </p>
+</div>

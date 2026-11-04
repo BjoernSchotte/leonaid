@@ -172,10 +172,11 @@ export interface ListViewBaseProps<T> {
   readonly onStateChange?: (state: ListState) => void;
   /**
    * Asked before the pane closes or shows another row (Esc, close button,
-   * j/k, another row, Back). Return false to keep it, e.g. while a draft is
-   * unsaved.
+   * j/k, another row, Back). Return false (or resolve false) to keep it.
+   * Drafts need no guard: a dirty `useLeaveGuard` inside the pane makes the
+   * list ask the shared "Entwurf verwerfen?" question itself.
    */
-  readonly paneGuard?: () => boolean;
+  readonly paneGuard?: () => boolean | Promise<boolean>;
   /**
    * Form of address of the list's own copy (errors, empty states, toasts):
    * "Sie" in the back office (default), "du" in the PWA.

@@ -333,6 +333,47 @@ class AsyncpgIdentityRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
 
+    async def manages_delivery(self, principal: IdentityPrincipal) -> bool:
+        """Whether the principal manages an action with delivery planning on.
+
+        Gates the "Auslieferung" navigation entry: the action carries the
+        ``delivery`` capability, its delivery configuration is enabled and
+        it is not archived. System admins manage every action; charity
+        admins their own.
+        """
+        managed = (
+            None
+            if principal.is_system_admin
+            else [
+                membership.action_id
+                for membership in principal.action_memberships
+                if membership.role is ActionRole.CHARITY_ADMIN
+            ]
+        )
+        if managed is not None and not managed:
+            return False
+        async with self._pool.acquire() as connection:
+            return bool(
+                await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM action_delivery_configuration AS configuration
+                        JOIN charity_action_capability AS capability
+                          ON capability.action_id = configuration.action_id
+                         AND capability.capability = 'delivery'
+                        JOIN charity_action AS action
+                          ON action.id = configuration.action_id
+                        WHERE configuration.enabled
+                          AND action.status <> 'archived'
+                          AND ($1::uuid[] IS NULL
+                               OR configuration.action_id = ANY($1::uuid[]))
+                    )
+                    """,
+                    managed,
+                )
+            )
+
     async def principal_for_session(
         self,
         token_digest: str,

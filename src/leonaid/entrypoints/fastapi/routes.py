@@ -7,7 +7,7 @@ import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import fields, replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -17,6 +17,8 @@ from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
+from leonaid.application.delivery_board import DeliveryBoardService
+from leonaid.domain.delivery_board import DeliveryBoard, DeliveryDrop
 from leonaid.application.delivery_completion import (
     DeliveryCompletionDraft,
     DeliveryCompletionService,
@@ -30,7 +32,20 @@ from leonaid.domain.delivery import (
 )
 from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationRequest,
+    DeliveryBoardDriverResponse,
+    DeliveryBoardResponse,
+    DeliveryBoardWindowResponse,
     DeliveryConfigurationResponse,
+    DeliveryDriverAssignmentRequest,
+    DeliveryDriverAssignmentResponse,
+    DeliveryDropAddressResponse,
+    DeliveryDropContactResponse,
+    DeliveryDropQuantityResponse,
+    DeliveryDropResponse,
+    DeliveryStateRequest,
+    DeliveryWindowClosureResponse,
+    DeliveryWindowClosureResultResponse,
+    DeliveryWindowReopenResponse,
     DeliveryWindowResponse,
     DeliveryContactRequest,
     PublicOrderDeliveryRecipientRequest,
@@ -220,6 +235,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateSummaryResponse,
     ActivityFeedItemResponse,
     ActivityFeedQuery,
+    ActivityFeedReadAllResponse,
     ActivityFeedResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityBoardResponse,
@@ -275,7 +291,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     InstallationResponse,
     DashboardCommitmentResponse,
     DashboardGoalResponse,
+    DashboardDeliveryResponse,
+    DashboardDeliveryWindowResponse,
     DashboardInvoiceResponse,
+    DashboardOrderValueWeekResponse,
     DashboardMetricDefinitionResponse,
     DashboardPipelineResponse,
     DashboardReminderResponse,
@@ -992,6 +1011,48 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     ),
                     href=f"/admin/invoices?action={action}&status=open",
                 ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.overdue",
+                    label="Überfällige Rechnungen",
+                    description=(
+                        "Offene Rechnungen, deren Fälligkeitstag nach "
+                        "Kalendertag des Clubs vorbei ist; Bruttosumme."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=overdue",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery_failed",
+                    label="Versand fehlgeschlagen",
+                    description=(
+                        "Nicht stornierte Rechnungen, deren letzter Versand "
+                        "endgültig gescheitert ist."
+                    ),
+                    href=f"/admin/invoices?action={action}&view=all&f.sent=failed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.to_invoice",
+                    label="Rechnung erstellen",
+                    description="Bestätigte Bestellungen, noch ohne Rechnung.",
+                    href=f"/admin/orders?action={action}&view=all&f.status=confirmed",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.order_value_weeks",
+                    label="Bestellwert pro Woche",
+                    description=(
+                        "Summe der nicht stornierten Bestellungen nach "
+                        "Eingangswoche (Montag bis Sonntag, Zeit des Clubs)."
+                    ),
+                    href=f"/admin/orders?action={action}&view=all",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.delivery",
+                    label="Lieferfenster",
+                    description=(
+                        "Lieferfenster ab heute und die nicht stornierten "
+                        "Bestellungen darin."
+                    ),
+                    href=f"/admin/orders?action={action}&view=windows",
+                ),
             )
         )
         admin_response = CharityAdminDashboardResponse(
@@ -1019,7 +1080,31 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                 total=admin.invoices.total,
                 invoiced_amount_minor=admin.invoices.invoiced_amount_minor,
                 open_amount_minor=admin.invoices.open_amount_minor,
+                overdue=admin.invoices.overdue,
+                overdue_amount_minor=admin.invoices.overdue_amount_minor,
+                delivery_failed=admin.invoices.delivery_failed,
                 currency=snapshot.currency,
+            ),
+            order_value_weeks=[
+                DashboardOrderValueWeekResponse(
+                    week_start=week.week_start,
+                    iso_week=week.iso_week,
+                    total_minor=week.total_minor,
+                )
+                for week in admin.order_value_weeks
+            ],
+            delivery=DashboardDeliveryResponse(
+                enabled=admin.delivery.enabled,
+                windows=[
+                    DashboardDeliveryWindowResponse(
+                        id=window.id,
+                        starts_at=window.starts_at,
+                        ends_at=window.ends_at,
+                        commitments=window.commitments,
+                        quantities=unit_quantity_responses(window.quantities),
+                    )
+                    for window in admin.delivery.windows
+                ],
             ),
         )
 
@@ -2023,7 +2108,7 @@ async def create_public_order(
         # saved: keep the same command identity for deterministic recovery.
         raise DependencyUnavailable(
             "public_order_processing_timeout",
-            "Die Verarbeitung dauert gerade zu lange. Bitte versuche dieselbe "
+            "Die Verarbeitung dauert gerade zu lange. Bitte senden Sie dieselbe "
             "Bestellung erneut, ohne die Seite neu zu laden.",
         ) from None
     response.headers["Cache-Control"] = "no-store"
@@ -4420,6 +4505,23 @@ async def get_activity_feed(
     )
 
 
+@router.post(
+    "/api/v1/activity-feed/read",
+    operation_id="markActivityFeedRead",
+    response_model=ActivityFeedReadAllResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["activity-feed"],
+)
+async def mark_activity_feed_read(
+    request: Request,
+    response: Response,
+) -> ActivityFeedReadAllResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    updated = await activity_feed_service(request).mark_all_read(actor)
+    response.headers["Cache-Control"] = "private, no-store"
+    return ActivityFeedReadAllResponse(updated=updated)
+
+
 @router.patch(
     "/api/v1/activity-feed/{event_id}",
     operation_id="updateActivityFeedItem",
@@ -4889,3 +4991,205 @@ async def save_delivery_configuration(
     result = await service.save(actor, configuration)
     response.headers["Cache-Control"] = "private, no-store"
     return delivery_configuration_response(result)
+
+
+# ---------- Delivery day board ----------
+
+
+def delivery_board_service(request: Request) -> DeliveryBoardService:
+    return cast(DeliveryBoardService, request.app.state.delivery_board_service)
+
+
+def delivery_drop_response(drop: DeliveryDrop) -> DeliveryDropResponse:
+    return DeliveryDropResponse(
+        commitment_id=drop.commitment_id,
+        window_id=drop.window_id,
+        buyer_name=drop.buyer_name,
+        quantities=[
+            DeliveryDropQuantityResponse(unit=item.unit, quantity=item.quantity)  # type: ignore[arg-type]
+            for item in drop.quantities
+        ],
+        total_boxes=drop.total_boxes,
+        address=(
+            DeliveryDropAddressResponse(
+                recipient_name=drop.address.recipient_name,
+                street_line1=drop.address.street_line_1,
+                postal_code=drop.address.postal_code,
+                city=drop.address.city,
+            )
+            if drop.address
+            else None
+        ),
+        contact=(
+            DeliveryDropContactResponse(
+                name=drop.contact.name, phone=drop.contact.phone
+            )
+            if drop.contact
+            else None
+        ),
+        state=drop.state.value,
+        state_changed_at=drop.state_changed_at,
+        state_changed_by_name=drop.state_changed_by_name,
+        driver_user_id=drop.driver_user_id,
+        driver_name=drop.driver_name,
+        revision=drop.revision,
+        missed_at_closure=drop.missed_at_closure,
+        order_status=drop.order_status,  # type: ignore[arg-type]
+    )
+
+
+def delivery_board_response(board: DeliveryBoard) -> DeliveryBoardResponse:
+    return DeliveryBoardResponse(
+        action_id=board.action_id,
+        action_name=board.action_name,
+        timezone=board.timezone,
+        day=board.day,
+        days=list(board.days),
+        manager=board.manager,
+        windows=[
+            DeliveryBoardWindowResponse(
+                id=window.id,
+                starts_at=window.starts_at,
+                ends_at=window.ends_at,
+                retired=window.retired,
+                closure=(
+                    DeliveryWindowClosureResponse(
+                        closed_at=window.closure.closed_at,
+                        closed_by_name=window.closure.closed_by_name,
+                        missed_count=window.closure.missed_count,
+                    )
+                    if window.closure
+                    else None
+                ),
+                drops=[delivery_drop_response(drop) for drop in window.drops],
+            )
+            for window in board.windows
+        ],
+        drivers=[
+            DeliveryBoardDriverResponse(
+                user_id=driver.user_id, display_name=driver.display_name
+            )
+            for driver in board.drivers
+        ],
+        follow_up_tasks=board.follow_up_tasks,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery-board",
+    operation_id="getDeliveryBoard",
+    response_model=DeliveryBoardResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_delivery_board(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    day: date | None = None,
+) -> DeliveryBoardResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    board = await delivery_board_service(request).board(
+        actor, action_id, day=day, viewed_at=datetime.now(timezone.utc)
+    )
+    # Drivers' addresses and phones never land in any cache.
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_board_response(board)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-state",
+    operation_id="setDeliveryState",
+    response_model=DeliveryDropResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_delivery_state(
+    action_id: UUID,
+    commitment_id: UUID,
+    body: DeliveryStateRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryDropResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    drop = await delivery_board_service(request).set_state(
+        actor,
+        action_id,
+        commitment_id,
+        delivered=body.delivered,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_drop_response(drop)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-board/drivers",
+    operation_id="assignDeliveryDriver",
+    response_model=DeliveryDriverAssignmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def assign_delivery_driver(
+    action_id: UUID,
+    body: DeliveryDriverAssignmentRequest,
+    request: Request,
+) -> DeliveryDriverAssignmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    changed = await delivery_board_service(request).assign_driver(
+        actor,
+        action_id,
+        commitment_ids=tuple(body.commitment_ids),
+        driver_user_id=body.driver_user_id,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    return DeliveryDriverAssignmentResponse(changed=changed)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/delivery-windows/{window_id}/closure",
+    operation_id="closeDeliveryWindow",
+    response_model=DeliveryWindowClosureResultResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def close_delivery_window(
+    action_id: UUID, window_id: UUID, request: Request
+) -> DeliveryWindowClosureResultResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = delivery_board_service(request)
+    missed = await service.close_window(
+        actor,
+        action_id,
+        window_id,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    return DeliveryWindowClosureResultResponse(
+        missed_count=missed,
+        follow_up="tasks" if service.follow_up_tasks else "board",
+    )
+
+
+@router.delete(
+    "/api/v1/actions/{action_id}/delivery-windows/{window_id}/closure",
+    operation_id="reopenDeliveryWindow",
+    response_model=DeliveryWindowReopenResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def reopen_delivery_window(
+    action_id: UUID, window_id: UUID, request: Request
+) -> DeliveryWindowReopenResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    reopened = await delivery_board_service(request).reopen_window(
+        actor,
+        action_id,
+        window_id,
+        request_id=request_id(request),
+        occurred_at=datetime.now(timezone.utc),
+    )
+    return DeliveryWindowReopenResponse(reopened_count=reopened)

@@ -32,7 +32,7 @@ Astro.response.headers.set("Referrer-Policy", "no-referrer");
     scroll-behavior: auto;
   }
   .survey-shell {
-    --survey-font: "Instrument Sans Variable", sans-serif;
+    --survey-font: var(--font-sans);
     --survey-accent: #00338d;
     padding-block: clamp(2rem, 5vw, 4rem);
     min-height: 65vh;
@@ -49,7 +49,7 @@ Astro.response.headers.set("Referrer-Policy", "no-referrer");
     font-size: 0.8rem;
   }
   .survey-introduction h1 {
-    font-family: "Newsreader Variable", Georgia, serif;
+    font-family: var(--font-sans);
     font-size: clamp(2rem, 5vw, 3.5rem);
     line-height: 1.1;
     margin-block: 1rem 1.5rem;

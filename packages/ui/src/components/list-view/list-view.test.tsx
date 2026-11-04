@@ -21,6 +21,7 @@ import {
 
 import { HotkeyProvider } from "../../keyboard/use-hotkeys";
 import { installDialogPolyfill } from "../../test-utils/dialog-polyfill";
+import { useLeaveGuard } from "../leave-guard";
 import { ToastProvider } from "../toast";
 import { ListView } from "./list-view";
 import { STORAGE_PREFIX, type ListViewDefinition } from "./saved-views";
@@ -1241,5 +1242,165 @@ describe("form of address", () => {
     fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
     expect(await screen.findByText("Bitte versuche es erneut.")).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/\bSie\b|\bIhre\b/);
+  });
+});
+
+describe("drafts in the pane", () => {
+  function Draft({ number }: { number: string }) {
+    const [text, setText] = useState("");
+    useLeaveGuard(text.length > 0);
+    return (
+      <label>
+        Notiz {number}
+        <input onChange={(event) => setText(event.target.value)} value={text} />
+      </label>
+    );
+  }
+
+  function DraftList({
+    paneGuard,
+  }: {
+    paneGuard?: () => boolean | Promise<boolean>;
+  }) {
+    return (
+      <ToastProvider>
+        <HotkeyProvider>
+          <ListView<Order>
+            address="du"
+            columns={{ primary: (row) => row.number }}
+            detailTitle={(row) => row.number}
+            emptyIcon={ShoppingBasket}
+            entityLabel={{ one: "Bestellung", many: "Bestellungen" }}
+            getId={(row) => row.id}
+            id="orders"
+            paneGuard={paneGuard}
+            properties={[]}
+            renderDetail={(row) => <Draft key={row.id} number={row.number} />}
+            rows={fixture()}
+            searchText={(row) => row.number}
+            sorts={sorts}
+            title="Bestellungen"
+            views={views}
+          />
+        </HotkeyProvider>
+      </ToastProvider>
+    );
+  }
+
+  it("asks in the app before a draft is dropped; Weiter bearbeiten keeps it", async () => {
+    render(<DraftList />);
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.change(screen.getByLabelText("Notiz B-001"), {
+      target: { value: "Entwurf" },
+    });
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    press("j");
+    const question = await screen.findByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    expect(
+      within(question).getByText(
+        "Deine Änderungen sind noch nicht gespeichert. Wenn du fortfährst, gehen sie verloren.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(
+      within(question).getByRole("button", { name: "Weiter bearbeiten" }),
+    );
+    await act(async () => {});
+    expect(window.location.search).toBe("?open=o1");
+    expect(
+      (screen.getByLabelText("Notiz B-001") as HTMLInputElement).value,
+    ).toBe("Entwurf");
+
+    press("j");
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await act(async () => {});
+    expect(window.location.search).toBe("?open=o2");
+    expect(
+      (screen.getByLabelText("Notiz B-002") as HTMLInputElement).value,
+    ).toBe("");
+  });
+
+  it("asks once on Back and goes back after Verwerfen", async () => {
+    render(<DraftList />);
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.change(screen.getByLabelText("Notiz B-001"), {
+      target: { value: "Entwurf" },
+    });
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    act(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(window.location.search).toBe("?open=o1");
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await act(async () => {});
+    expect(back).toHaveBeenCalledOnce();
+    expect(window.location.search).toBe("");
+    expect(screen.queryByLabelText("Notiz B-001")).toBeNull();
+  });
+
+  it("goes back once, however often Back was pressed while asking", async () => {
+    render(<DraftList />);
+    fireEvent.click(rowLinks()[0]!);
+    fireEvent.change(screen.getByLabelText("Notiz B-001"), {
+      target: { value: "Entwurf" },
+    });
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {
+      window.history.replaceState(null, "", "/admin/orders");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    for (let index = 0; index < 3; index += 1) {
+      act(() => {
+        window.history.replaceState(null, "", "/admin/orders");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+    }
+    expect(window.location.search).toBe("?open=o1");
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await act(async () => {});
+    expect(back).toHaveBeenCalledOnce();
+    expect(window.location.search).toBe("");
+  });
+
+  it("keeps the pane when the page guard fails", async () => {
+    render(
+      <DraftList paneGuard={() => Promise.reject(new Error("offline"))} />,
+    );
+    fireEvent.click(rowLinks()[0]!);
+    press("Escape");
+    await act(async () => {});
+    expect(screen.getByLabelText("Notiz B-001")).toBeTruthy();
+  });
+
+  it("waits for an async page guard", async () => {
+    let answer: (allowed: boolean) => void = () => {};
+    const paneGuard = vi.fn(
+      () => new Promise<boolean>((resolve) => (answer = resolve)),
+    );
+    render(<DraftList paneGuard={paneGuard} />);
+    fireEvent.click(rowLinks()[0]!);
+    press("Escape");
+    expect(screen.getByLabelText("Notiz B-001")).toBeTruthy();
+    vi.useFakeTimers();
+    await act(async () => answer(true));
+    act(() => vi.runAllTimers());
+    vi.useRealTimers();
+    expect(screen.queryByLabelText("Notiz B-001")).toBeNull();
   });
 });

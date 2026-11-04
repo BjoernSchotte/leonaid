@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { openInvoice } from "./invoice-list.mjs";
 import { readFile } from "node:fs/promises";
@@ -149,7 +149,7 @@ test("charity admin finds, opens and downloads the Typst PDF byte-identical", as
       .filter({ hasText: "KT26-0001" });
     await expect(documentRow).toBeVisible();
     await expectByteIdenticalDownload(documentRow);
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) => violation.impact === "critical",
@@ -221,7 +221,9 @@ test("finance role sees the invoice on mobile; acquisition and foreign actions g
     await acquirerPage.goto(`${baseUrl}/admin/invoices`);
     await acquirerPage.waitForURL(`${baseUrl}/app/`);
     await expect(
-      acquirerPage.getByRole("heading", { name: "Guten Tag, Anna." }),
+      acquirerPage.getByRole("heading", {
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
     await expect(acquirerPage.getByTestId("invoice-document")).toHaveCount(0);
     const companyDocuments = await acquirerContext.request.get(

@@ -30,6 +30,8 @@ COPY --from=dependencies /workspace ./
 COPY apps/campaign-site ./apps/campaign-site
 COPY apps/public ./apps/public
 COPY packages/api-client ./packages/api-client
+# The shared public layout imports the Leitsystem tokens and fonts (CSS only).
+COPY packages/ui ./packages/ui
 WORKDIR /workspace/apps/campaign-site
 RUN node /workspace/node_modules/astro/bin/astro.mjs check
 RUN node /workspace/node_modules/astro/bin/astro.mjs build

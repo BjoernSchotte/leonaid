@@ -27,6 +27,7 @@ export type ActionTemplateSnapshotResponse = { readonly copiedFromActionId: stri
 export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly description: string; readonly displayName: string; readonly hasOrderForm: boolean; readonly key: string; readonly offeringCount: number; readonly presentationTheme: string | null; readonly version: number; };
 export type ActivateLegalConfigurationRequest = { readonly expectedRevision: number; };
 export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly quantities: Array<UnitQuantityResponse>; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type ActivityFeedReadAllResponse = { readonly updated: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AddComment = { readonly body: string; readonly idempotencyKey: string; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
@@ -59,7 +60,7 @@ export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expe
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
 export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly isPublished: boolean; readonly name: string; readonly presentationTheme: string | null; readonly publicationEndsAt: string | null; readonly publicationStartsAt: string | null; readonly purpose: string; readonly revision: number; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
-export type CharityAdminDashboardResponse = { readonly commitments: DashboardCommitmentResponse; readonly invoices: DashboardInvoiceResponse; readonly pipeline: DashboardPipelineResponse; };
+export type CharityAdminDashboardResponse = { readonly commitments: DashboardCommitmentResponse; readonly delivery: DashboardDeliveryResponse; readonly invoices: DashboardInvoiceResponse; readonly orderValueWeeks: Array<DashboardOrderValueWeekResponse>; readonly pipeline: DashboardPipelineResponse; };
 export type ChecklistItem = { readonly done: boolean; readonly id: string; readonly text: string; };
 export type Comment = { readonly authorUserId: string; readonly body: string; readonly caseId: string; readonly createdAt: string; readonly id: string; };
 export type Comments = { readonly items: Array<Comment>; readonly nextOffset: number | null; };
@@ -105,15 +106,31 @@ export type CreateTaskTag = { readonly idempotencyKey: string; readonly title: s
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly email: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly installation: InstallationResponse; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DashboardCommitmentResponse = { readonly activeTotal: number; readonly activeTotalMinor: number; readonly cancelled: number; readonly confirmed: number; readonly currency: string; readonly draft: number; readonly invoiced: number; readonly quantities: Array<UnitQuantityResponse>; readonly reviewReady: number; readonly total: number; readonly totalBoxes: number; readonly totalPieces: number; };
+export type DashboardDeliveryResponse = { readonly enabled: boolean; readonly windows: Array<DashboardDeliveryWindowResponse>; };
+export type DashboardDeliveryWindowResponse = { readonly commitments: number; readonly endsAt: string; readonly id: string; readonly quantities: Array<UnitQuantityResponse>; readonly startsAt: string; };
 export type DashboardGoalResponse = { readonly actualValue: string; readonly configured: boolean; readonly currency: string; readonly progressBasisPoints?: number | null; readonly targetValue: string | null; readonly unit: string | null; };
-export type DashboardInvoiceResponse = { readonly cancelled: number; readonly currency: string; readonly invoicedAmountMinor: number; readonly issued: number; readonly open: number; readonly openAmountMinor: number; readonly paid: number; readonly sent: number; readonly total: number; };
+export type DashboardInvoiceResponse = { readonly cancelled: number; readonly currency: string; readonly deliveryFailed: number; readonly invoicedAmountMinor: number; readonly issued: number; readonly open: number; readonly openAmountMinor: number; readonly overdue: number; readonly overdueAmountMinor: number; readonly paid: number; readonly sent: number; readonly total: number; };
 export type DashboardMetricDefinitionResponse = { readonly description: string; readonly href: string; readonly key: string; readonly label: string; };
+export type DashboardOrderValueWeekResponse = { readonly isoWeek: number; readonly totalMinor: number; readonly weekStart: string; };
 export type DashboardPipelineResponse = { readonly committed: number; readonly contacted: number; readonly declined: number; readonly handedOver: number; readonly open: number; readonly total: number; };
 export type DashboardReminderResponse = { readonly overdue: number; readonly today: number; readonly total: number; readonly unscheduled: number; readonly upcoming: number; };
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly beneficiaries: Array<string>; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
+export type DeliveryBoardDriverResponse = { readonly displayName: string; readonly userId: string; };
+export type DeliveryBoardResponse = { readonly actionId: string; readonly actionName: string; readonly day: string | null; readonly days: Array<string>; readonly drivers: Array<DeliveryBoardDriverResponse>; readonly followUpTasks: boolean; readonly manager: boolean; readonly timezone: string; readonly windows: Array<DeliveryBoardWindowResponse>; };
+export type DeliveryBoardWindowResponse = { readonly closure: DeliveryWindowClosureResponse | null; readonly drops: Array<DeliveryDropResponse>; readonly endsAt: string; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
 export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
 export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
 export type DeliveryContactRequest = { readonly name?: string | null; readonly phone?: string | null; };
+export type DeliveryDriverAssignmentRequest = { readonly commitmentIds: Array<string>; readonly driverUserId: string | null; };
+export type DeliveryDriverAssignmentResponse = { readonly changed: number; };
+export type DeliveryDropAddressResponse = { readonly city: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
+export type DeliveryDropContactResponse = { readonly name: string | null; readonly phone: string | null; };
+export type DeliveryDropQuantityResponse = { readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
+export type DeliveryDropResponse = { readonly address: DeliveryDropAddressResponse | null; readonly buyerName: string; readonly commitmentId: string; readonly contact: DeliveryDropContactResponse | null; readonly driverName: string | null; readonly driverUserId: string | null; readonly missedAtClosure: boolean; readonly orderStatus: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled" | null; readonly quantities: Array<DeliveryDropQuantityResponse>; readonly revision: number; readonly state: "open" | "delivered" | "missed"; readonly stateChangedAt: string | null; readonly stateChangedByName: string | null; readonly totalBoxes: number; readonly windowId: string; };
+export type DeliveryStateRequest = { readonly delivered: boolean; readonly expectedRevision: number; };
+export type DeliveryWindowClosureResponse = { readonly closedAt: string; readonly closedByName: string; readonly missedCount: number; };
+export type DeliveryWindowClosureResultResponse = { readonly followUp: "tasks" | "board"; readonly missedCount: number; };
+export type DeliveryWindowReopenResponse = { readonly reopenedCount: number; };
 export type DeliveryWindowRequest = { readonly deliveryOn: string; readonly endsAt: string; readonly id?: string | null; readonly retired?: boolean; readonly startsAt: string; };
 export type DeliveryWindowResponse = { readonly deliveryOn: string; readonly endsAt: string; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
@@ -816,6 +833,23 @@ export class LeonAidApiClient {
     );
   }
 
+  async setDeliveryState(
+    actionId: string,
+    commitmentId: string,
+    body: DeliveryStateRequest,
+    options: RequestOptions = {},
+  ): Promise<DeliveryDropResponse> {
+    return this.request<DeliveryDropResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/delivery-state`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async listCommitmentDocuments(
     actionId: string,
     commitmentId: string,
@@ -907,6 +941,40 @@ export class LeonAidApiClient {
     );
   }
 
+  async getDeliveryBoard(
+    actionId: string,
+    queryParameters: { readonly day?: string | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<DeliveryBoardResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.day !== undefined && queryParameters.day !== null) {
+      searchParameters.set("day", String(queryParameters.day));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-board` + (queryString ? `?${queryString}` : "");
+    return this.request<DeliveryBoardResponse>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async assignDeliveryDriver(
+    actionId: string,
+    body: DeliveryDriverAssignmentRequest,
+    options: RequestOptions = {},
+  ): Promise<DeliveryDriverAssignmentResponse> {
+    return this.request<DeliveryDriverAssignmentResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-board/drivers`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async getDeliveryConfiguration(
     actionId: string,
     options: RequestOptions = {},
@@ -930,6 +998,30 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async reopenDeliveryWindow(
+    actionId: string,
+    windowId: string,
+    options: RequestOptions = {},
+  ): Promise<DeliveryWindowReopenResponse> {
+    return this.request<DeliveryWindowReopenResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-windows/${encodeURIComponent(String(windowId))}/closure`,
+      { method: "DELETE" },
+      options,
+    );
+  }
+
+  async closeDeliveryWindow(
+    actionId: string,
+    windowId: string,
+    options: RequestOptions = {},
+  ): Promise<DeliveryWindowClosureResultResponse> {
+    return this.request<DeliveryWindowClosureResultResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-windows/${encodeURIComponent(String(windowId))}/closure`,
+      { method: "POST" },
       options,
     );
   }
@@ -1245,6 +1337,16 @@ export class LeonAidApiClient {
     return this.request<ActivityFeedResponse>(
       requestPath,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async markActivityFeedRead(
+    options: RequestOptions = {},
+  ): Promise<ActivityFeedReadAllResponse> {
+    return this.request<ActivityFeedReadAllResponse>(
+      "/api/v1/activity-feed/read",
+      { method: "POST" },
       options,
     );
   }

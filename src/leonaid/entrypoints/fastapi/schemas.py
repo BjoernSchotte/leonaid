@@ -1389,7 +1389,29 @@ class DashboardInvoiceResponse(TransportModel):
     total: int = Field(ge=0)
     invoiced_amount_minor: int = Field(ge=0)
     open_amount_minor: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+    overdue_amount_minor: int = Field(ge=0)
+    delivery_failed: int = Field(ge=0)
     currency: str
+
+
+class DashboardOrderValueWeekResponse(TransportModel):
+    week_start: date
+    iso_week: int = Field(ge=1, le=53)
+    total_minor: int = Field(ge=0)
+
+
+class DashboardDeliveryWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    commitments: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
+
+
+class DashboardDeliveryResponse(TransportModel):
+    enabled: bool
+    windows: list[DashboardDeliveryWindowResponse]
 
 
 class AcquirerDashboardResponse(TransportModel):
@@ -1402,6 +1424,8 @@ class CharityAdminDashboardResponse(TransportModel):
     pipeline: DashboardPipelineResponse
     commitments: DashboardCommitmentResponse
     invoices: DashboardInvoiceResponse
+    order_value_weeks: list[DashboardOrderValueWeekResponse]
+    delivery: DashboardDeliveryResponse
 
 
 class DashboardMetricDefinitionResponse(TransportModel):
@@ -1948,6 +1972,10 @@ class UpdateActivityFeedItemRequest(TransportModel):
     read: bool
 
 
+class ActivityFeedReadAllResponse(TransportModel):
+    updated: int = Field(ge=0)
+
+
 class AcquisitionDocumentResponse(TransportModel):
     id: UUID
     action_id: UUID
@@ -2193,3 +2221,103 @@ RequestIdHeader = Annotated[
         examples=["poc023:contract:golden-v1"],
     ),
 ]
+
+
+# ---------- Delivery day board ----------
+
+
+class DeliveryDropQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int
+
+
+class DeliveryDropAddressResponse(TransportModel):
+    recipient_name: str
+    street_line1: str
+    postal_code: str
+    city: str
+
+
+class DeliveryDropContactResponse(TransportModel):
+    name: str | None
+    phone: str | None
+
+
+class DeliveryDropResponse(TransportModel):
+    """One order on the board. Never amounts, e-mail or the order message."""
+
+    commitment_id: UUID
+    window_id: UUID
+    buyer_name: str
+    quantities: list[DeliveryDropQuantityResponse]
+    total_boxes: int
+    address: DeliveryDropAddressResponse | None
+    contact: DeliveryDropContactResponse | None
+    state: Literal["open", "delivered", "missed"]
+    state_changed_at: datetime | None
+    state_changed_by_name: str | None
+    driver_user_id: UUID | None
+    driver_name: str | None
+    revision: int
+    # Marked missed when its window was closed; only such a drop can return
+    # to "missed" while the window stays closed.
+    missed_at_closure: bool
+    # Managers only: the order status (cancelled drops stay struck through).
+    order_status: (
+        Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None
+    )
+
+
+class DeliveryWindowClosureResponse(TransportModel):
+    closed_at: datetime
+    closed_by_name: str
+    missed_count: int
+
+
+class DeliveryBoardWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    retired: bool
+    closure: DeliveryWindowClosureResponse | None
+    drops: list[DeliveryDropResponse]
+
+
+class DeliveryBoardDriverResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+
+
+class DeliveryBoardResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    day: date | None
+    days: list[date]
+    manager: bool
+    windows: list[DeliveryBoardWindowResponse]
+    drivers: list[DeliveryBoardDriverResponse]
+    follow_up_tasks: bool
+
+
+class DeliveryStateRequest(TransportModel):
+    delivered: bool
+    expected_revision: int = Field(ge=0)
+
+
+class DeliveryDriverAssignmentRequest(TransportModel):
+    commitment_ids: list[UUID] = Field(min_length=1, max_length=1000)
+    driver_user_id: UUID | None
+
+
+class DeliveryDriverAssignmentResponse(TransportModel):
+    changed: int
+
+
+class DeliveryWindowClosureResultResponse(TransportModel):
+    missed_count: int
+    follow_up: Literal["tasks", "board"]
+
+
+class DeliveryWindowReopenResponse(TransportModel):
+    reopened_count: int

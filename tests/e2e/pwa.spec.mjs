@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -26,9 +26,7 @@ async function authenticate(context, token) {
 }
 
 async function assertNoSeriousAxeFindings(page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );
@@ -137,7 +135,10 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
 
   await page.goto(`${baseUrl}/app/`);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+    }),
   ).toBeVisible();
   const actionSelector = page.getByRole("combobox", {
     name: "Charity-Aktion",

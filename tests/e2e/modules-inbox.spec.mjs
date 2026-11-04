@@ -1,6 +1,7 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { uploadMaterial } from "./material-list.mjs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const fixture = JSON.parse(
@@ -47,18 +48,10 @@ for (const [surface, shell, width] of [
     // A material version to link, uploaded through the real materials module.
     const title = `Inbox Material ${surface} ${randomUUID()}`;
     const original = Buffer.from("Ablaufplan für den Mittagstisch.\n");
-    await page.goto(`${baseURL}${shell}/materials`);
-    await page.getByText("Neues Material", { exact: true }).click();
-    await page.getByLabel("Materialtitel", { exact: true }).fill(title);
-    await page.getByLabel("Datei", { exact: true }).setInputFiles({
-      name: "ablauf.txt",
-      mimeType: "text/plain",
-      buffer: original,
+    await uploadMaterial(page, baseURL, shell, {
+      title,
+      file: { name: "ablauf.txt", mimeType: "text/plain", buffer: original },
     });
-    await page.getByRole("button", { name: "Hochladen", exact: true }).click();
-    await expect(
-      page.getByRole("heading", { name: title, exact: true }),
-    ).toBeVisible();
 
     await page.goto(`${baseURL}${shell}/inbox`);
     await expect(
