@@ -282,12 +282,18 @@ async def response_list(
     request: Request,
     response: Response,
     offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=5000,
+        description="Summaries per page; 5000 returns a whole selection in one request.",
+    ),
 ) -> ResponseItems:
     response.headers["Cache-Control"] = "no-store"
     return await service(request).list_responses(
         await principal(request),
         survey_id,
-        ResponsePage(snapshotId=snapshot_id, offset=offset),
+        ResponsePage(snapshotId=snapshot_id, offset=offset, limit=limit),
     )
 
 

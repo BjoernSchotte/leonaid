@@ -67,8 +67,14 @@ export const responseStatusLabels: Readonly<Record<ResponseStatus, string>> = {
 };
 const RESPONSE_STATUSES = Object.keys(responseStatusLabels) as ResponseStatus[];
 const TEXT_KINDS = new Set(["text", "comment"]);
-/** The server pages responses by 50 and accepts offsets up to 5000. */
+/** Free text is paged by 50 on the server. */
 const PAGE_SIZE = 50;
+/*
+ * Response summaries (no answers) come in pages of up to 5000. The server
+ * caps a selection at 5000 participations, so one request is the whole
+ * selection; the loop and the offset bound are guards for a changed cap.
+ */
+const SUMMARY_PAGE = 5000;
 const MAX_OFFSET = 5000;
 
 export interface ResponseRow extends ResponseItem {
@@ -151,12 +157,18 @@ function readError(cause: unknown, fallback: string): string {
     : fallback;
 }
 
-/** Loads every page of a selection the server lets this account read. */
-async function loadRows(
+export interface LoadProgress {
+  readonly loaded: number;
+  readonly total: number;
+}
+
+/** Loads the summaries of a selection the server lets this account read. */
+export async function loadRows(
   client: LeonAidApiClient,
   surveyId: string,
   snapshotId: string,
-  signal?: AbortSignal,
+  signal: AbortSignal,
+  onProgress?: (progress: LoadProgress) => void,
 ): Promise<{ rows: ResponseRow[]; total: number }> {
   const rows: ResponseRow[] = [];
   let offset = 0;
@@ -165,7 +177,7 @@ async function loadRows(
     const page = await client.listSurveyResponses(
       surveyId,
       snapshotId,
-      offset ? { offset } : {},
+      offset ? { offset, limit: SUMMARY_PAGE } : { limit: SUMMARY_PAGE },
       { signal },
     );
     total = page.total;
@@ -173,9 +185,31 @@ async function loadRows(
       rows.push({ ...item, number: page.offset + index + 1 }),
     );
     offset = page.offset + page.items.length;
+    onProgress?.({ loaded: rows.length, total });
     if (!page.items.length || offset >= total || offset > MAX_OFFSET) break;
   }
   return { rows, total };
+}
+
+function progressText(progress: LoadProgress | null): string {
+  if (!progress) return "Antworten werden geladen …";
+  return progress.loaded
+    ? `${progress.loaded} von ${progress.total} Antworten geladen …`
+    : `${progress.total} Antworten werden geladen …`;
+}
+
+/** Old `?response=` links open the response through `?open=`; runs once, before the list reads the URL. */
+function useLegacyResponseParam() {
+  useState(() => {
+    const next = migrateLegacyResponseParam(window.location.search);
+    if (next !== window.location.search)
+      history.replaceState(
+        history.state,
+        "",
+        `${window.location.pathname}${next}${window.location.hash}`,
+      );
+    return null;
+  });
 }
 
 /* ---------------- page ---------------- */
@@ -188,12 +222,15 @@ export function SurveyResponsesPage({
   surveyId: string;
 }) {
   const [summary, setSummary] = useState<SurveySummaryResponse | null>(null);
-  const [failure, setFailure] = useState("");
+  const [failure, setFailure] = useState<{
+    readonly message: string;
+    readonly transient: boolean;
+  } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    setFailure("");
+    setFailure(null);
     client
       .getSurvey(surveyId, { signal: controller.signal })
       .then((value) => {
@@ -201,12 +238,14 @@ export function SurveyResponsesPage({
       })
       .catch((cause) => {
         if (controller.signal.aborted) return;
-        setFailure(
-          readError(
+        setFailure({
+          message: readError(
             cause,
             "Die Umfrage konnte nicht geladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
           ),
-        );
+          // A refusal (e.g. 404) does not change on retry.
+          transient: !(cause instanceof ApiError) || cause.status >= 500,
+        });
       });
     return () => controller.abort();
   }, [client, surveyId, attempt]);
@@ -243,11 +282,15 @@ export function SurveyResponsesPage({
     content = (
       <div className="svr-blocked">
         <div className="callout tone-danger" role="alert">
-          <span>{failure}</span>
+          <span>{failure.message}</span>
         </div>
-        <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
-          Erneut versuchen
-        </Button>
+        {failure.transient ? (
+          <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+            Erneut versuchen
+          </Button>
+        ) : (
+          <a href="/admin/surveys">Zu allen Umfragen</a>
+        )}
       </div>
     );
   } else if (!summary) {
@@ -261,7 +304,13 @@ export function SurveyResponsesPage({
     content = (
       <div className="svr-blocked">
         <div className="callout tone-warn" role="alert">
-          <span>Dieser Antwortstand ist für Sie nicht zugänglich.</span>
+          <span>
+            {new URLSearchParams(window.location.search).has(
+              "responseSelection",
+            )
+              ? "Dieser Antwortstand ist für Sie nicht zugänglich."
+              : "Die Einzelantworten dieser Umfrage sind für Sie nicht zugänglich."}
+          </span>
         </div>
         <a href={surveyHref}>Zurück zur Umfrage</a>
       </div>
@@ -298,7 +347,7 @@ interface SelectionFilter {
 }
 
 type LoadState =
-  | { readonly kind: "loading" }
+  | { readonly kind: "loading"; readonly progress: LoadProgress | null }
   | { readonly kind: "none" }
   | { readonly kind: "error" }
   | {
@@ -331,7 +380,12 @@ function SurveyResponses({
     before: "",
     isTest: false,
   });
-  const [load, setLoad] = useState<LoadState>({ kind: "loading" });
+  const [load, setLoad] = useState<LoadState>({
+    kind: "loading",
+    progress: null,
+  });
+  /* Rows of a new selection while they load (shown in the form). */
+  const [creating, setCreating] = useState<LoadProgress | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
   const [choosing, setChoosing] = useState(false);
@@ -342,28 +396,21 @@ function SurveyResponses({
   const running = useRef(false);
   const pending = useRef<CreateAnalysisSnapshot | null>(null);
   const mounted = useRef(true);
+  /* Aborts a running create() when the page goes away. */
+  const createAbort = useRef<AbortController | null>(null);
   useEffect(
     () => () => {
       mounted.current = false;
+      createAbort.current?.abort();
     },
     [],
   );
-
-  // Old `?response=` links open the response through `?open=`.
-  useState(() => {
-    const next = migrateLegacyResponseParam(window.location.search);
-    if (next !== window.location.search)
-      history.replaceState(
-        history.state,
-        "",
-        `${window.location.pathname}${next}${window.location.hash}`,
-      );
-  });
+  useLegacyResponseParam();
 
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    setLoad({ kind: "loading" });
+    setLoad({ kind: "loading", progress: null });
     setNotice("");
     void (async () => {
       try {
@@ -401,11 +448,18 @@ function SurveyResponses({
           }
           throw cause;
         }
+        setLoad({
+          kind: "loading",
+          progress: { loaded: 0, total: selection.total },
+        });
         const { rows, total } = await loadRows(
           client,
           surveyId,
           snapshotId,
           signal,
+          (progress) => {
+            if (!signal.aborted) setLoad({ kind: "loading", progress });
+          },
         );
         if (signal.aborted) return;
         setFilter({
@@ -451,14 +505,27 @@ function SurveyResponses({
     running.current = true;
     setBusy(true);
     setError("");
+    const controller = new AbortController();
+    createAbort.current = controller;
+    const { signal } = controller;
     try {
       // Same operation id after an uncertain acknowledgement: the server
       // returns the selection it already stored.
       const selection = await client.createSurveyResponseSelection(
         surveyId,
         pending.current,
+        { signal },
       );
-      const { rows, total } = await loadRows(client, surveyId, selection.id);
+      setCreating({ loaded: 0, total: selection.total });
+      const { rows, total } = await loadRows(
+        client,
+        surveyId,
+        selection.id,
+        signal,
+        (progress) => {
+          if (!signal.aborted) setCreating(progress);
+        },
+      );
       if (!mounted.current) return;
       const url = new URL(window.location.href);
       url.searchParams.set("responseSelection", selection.id);
@@ -479,13 +546,22 @@ function SurveyResponses({
       );
       setRetry(Boolean(pending.current) && uncertain);
       if (!uncertain) {
-        // A refused selection leaves nothing readable on screen.
+        // A refused selection leaves nothing readable on screen, and a
+        // reload must not bring the old one back.
         pending.current = null;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("responseSelection");
+        url.searchParams.delete("open");
+        history.replaceState(history.state, "", url);
         setLoad({ kind: "none" });
       }
     } finally {
       running.current = false;
-      if (mounted.current) setBusy(false);
+      if (createAbort.current === controller) createAbort.current = null;
+      if (mounted.current) {
+        setBusy(false);
+        setCreating(null);
+      }
     }
   }
 
@@ -503,6 +579,7 @@ function SurveyResponses({
       }}
       onRetry={() => void create(true)}
       onSubmit={() => void create()}
+      progress={creating}
       retry={retry}
       versions={versions}
     />
@@ -554,8 +631,10 @@ function SurveyResponses({
         </div>
       </header>
       {load.kind === "loading" ? (
-        <div role="status" aria-busy="true">
-          <span className="sr-only">Antworten werden geladen …</span>
+        <div aria-busy="true" className="svr-loading">
+          <p className="svr-progress" role="status">
+            {progressText(load.progress)}
+          </p>
           <SkeletonRows rows={6} />
         </div>
       ) : load.kind === "error" ? (
@@ -607,6 +686,7 @@ function SelectionForm({
   onSubmit,
   onRetry,
   onDiscardRetry,
+  progress,
 }: {
   versions: readonly { id: string; number: number }[];
   filter: SelectionFilter;
@@ -618,6 +698,7 @@ function SelectionForm({
   onSubmit: () => void;
   onRetry: () => void;
   onDiscardRetry: () => void;
+  progress: LoadProgress | null;
 }) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
@@ -718,6 +799,11 @@ function SelectionForm({
             Antworten auswählen
           </Button>
         )}
+        {progress ? (
+          <span className="svr-progress" role="status">
+            {progressText(progress)}
+          </span>
+        ) : null}
       </div>
     </form>
   );
@@ -745,8 +831,6 @@ function ResponseList({
   onFreeText: () => void;
 }) {
   const hasFreeText = selection.questions.some((q) => TEXT_KINDS.has(q.kind));
-  // The selection is frozen, so a loaded answer stays valid while it is open.
-  const answers = useRef(new Map<string, IndividualResponse>());
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useContextCommands(
@@ -875,7 +959,6 @@ function ResponseList({
   const renderDetail = useCallback(
     (row: ResponseRow) => (
       <ResponseDetail
-        cache={answers.current}
         client={client}
         key={row.participationId}
         row={row}
@@ -910,6 +993,8 @@ function ResponseList({
       beforeList={
         <>
           {applied}
+          {/* Guard only: the server caps a selection at 5000 participations,
+              which loadRows always reaches. It shows if that cap changes. */}
           {rows.length < total ? (
             <div className="callout tone-warn">
               <span>
@@ -965,22 +1050,18 @@ function ResponseDetail({
   surveyId,
   selection,
   row,
-  cache,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   selection: ResponseSelection;
   row: ResponseRow;
-  cache: Map<string, IndividualResponse>;
 }) {
-  const [detail, setDetail] = useState<IndividualResponse | null>(
-    () => cache.get(row.participationId) ?? null,
-  );
+  // Only the open response is held; reopening one fetches it again.
+  const [detail, setDetail] = useState<IndividualResponse | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (detail) return;
     const controller = new AbortController();
     setError("");
     client
@@ -988,9 +1069,7 @@ function ResponseDetail({
         signal: controller.signal,
       })
       .then((value) => {
-        if (controller.signal.aborted) return;
-        cache.set(row.participationId, value);
-        setDetail(value);
+        if (!controller.signal.aborted) setDetail(value);
       })
       .catch((cause) => {
         if (controller.signal.aborted) return;
@@ -1002,15 +1081,7 @@ function ResponseDetail({
         );
       });
     return () => controller.abort();
-  }, [
-    cache,
-    client,
-    detail,
-    surveyId,
-    selection.id,
-    row.participationId,
-    attempt,
-  ]);
+  }, [client, surveyId, selection.id, row.participationId, attempt]);
 
   const status = detail?.status ?? row.status;
   return (

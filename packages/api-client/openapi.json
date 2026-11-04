@@ -34230,6 +34230,20 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Summaries per page; 5000 returns a whole selection in one request.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Summaries per page; 5000 returns a whole selection in one request.",
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
           }
         ],
         "responses": {

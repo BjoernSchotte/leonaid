@@ -66,6 +66,13 @@ async def test_direct_mutations_revalidate_changed_input_models() -> None:
     page.offset = 5001
     with pytest.raises(ValidationError, match="offset"):
         await service.list_responses(actor, survey_id, page)
+    assert ResponsePage(snapshotId=uuid4()).limit == 50
+    assert ResponsePage(snapshotId=uuid4(), limit=5000).limit == 5000
+    for limit in (0, 5001):
+        page = ResponsePage(snapshotId=uuid4())
+        page.limit = limit
+        with pytest.raises(ValidationError, match="limit"):
+            await service.list_responses(actor, survey_id, page)
 
     start = Start(operationId="start", resumeSecret="a" * 32)
     start.resumeSecret = "short"

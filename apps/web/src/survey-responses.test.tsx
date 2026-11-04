@@ -112,7 +112,7 @@ function summary(capabilities: string[]): SurveySummaryResponse {
   };
 }
 
-function fakeClient(capabilities = ["read_responses"]) {
+function fakeClient(capabilities = ["read_responses"], pageCap = 5000) {
   const all = Array.from({ length: 51 }, (_, index) => item(index + 1));
   return {
     getSurvey: vi.fn(async () => summary(capabilities)),
@@ -123,16 +123,28 @@ function fakeClient(capabilities = ["read_responses"]) {
     })),
     getSurveyResponseSelection: vi.fn(async () => selection),
     createSurveyResponseSelection: vi.fn(
-      async (_survey: string, _body: unknown) => selection,
+      async (
+        _survey: string,
+        _body: unknown,
+        _options?: { signal?: AbortSignal },
+      ) => selection,
     ),
     listSurveyResponses: vi.fn(
-      async (_s: string, _id: string, query: { offset?: number } = {}) => {
+      async (
+        _s: string,
+        _id: string,
+        query: { offset?: number; limit?: number } = {},
+        _options?: { signal?: AbortSignal },
+      ) => {
         const offset = query.offset ?? 0;
         return {
           snapshotId,
           offset,
           total: all.length,
-          items: all.slice(offset, offset + 50),
+          items: all.slice(
+            offset,
+            offset + Math.min(query.limit ?? 50, pageCap),
+          ),
         };
       },
     ),
@@ -228,6 +240,91 @@ describe("SurveyResponsesPage", () => {
     expect(client.listSurveyResponses).not.toHaveBeenCalled();
   });
 
+  it("names the survey's responses when no selection is linked", async () => {
+    await renderPage(base, fakeClient(["view_aggregates"]));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Die Einzelantworten dieser Umfrage sind für Sie nicht zugänglich.",
+    );
+  });
+
+  it("offers no retry when the survey is refused", async () => {
+    const client = fakeClient();
+    client.getSurvey.mockRejectedValueOnce(
+      new ApiError(404, {
+        code: "not_found",
+        message: "Umfrage nicht gefunden.",
+        requestId: "req-2",
+      } as never),
+    );
+    await renderPage(base, client);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Umfrage nicht gefunden.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Erneut versuchen" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Zu allen Umfragen" }),
+    ).toBeTruthy();
+  });
+
+  it("follows further pages when the server sends fewer rows", async () => {
+    const client = fakeClient(["read_responses"], 50);
+    await renderPage(`${base}?responseSelection=${snapshotId}`, client);
+    await screen.findByText("51 Antworten");
+    expect(
+      client.listSurveyResponses.mock.calls.map((call) => call[2]),
+    ).toEqual([{ limit: 5000 }, { offset: 50, limit: 5000 }]);
+  });
+
+  it("shows how many responses load", async () => {
+    const client = fakeClient();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const original = client.listSurveyResponses.getMockImplementation()!;
+    client.listSurveyResponses.mockImplementationOnce(async (...args) => {
+      await gate;
+      return original(...args);
+    });
+    await renderPage(`${base}?responseSelection=${snapshotId}`, client);
+    expect(
+      (await screen.findByText("51 Antworten werden geladen …")).textContent,
+    ).toBeTruthy();
+    await act(async () => release());
+    await screen.findByText("51 Antworten");
+  });
+
+  it("drops a refused new selection from the URL", async () => {
+    const client = fakeClient();
+    client.createSurveyResponseSelection.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "conflict",
+        message: "Diese Auswahl ist nicht möglich.",
+        requestId: "req-3",
+      } as never),
+    );
+    await renderPage(
+      `${base}?responseSelection=${snapshotId}&open=${participation(3)}`,
+      client,
+    );
+    await screen.findByText("51 Antworten");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Antwortstand wählen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Antwortstand wählen",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antworten auswählen" }),
+    );
+    await screen.findByText("Diese Auswahl ist nicht möglich.", {
+      exact: false,
+    });
+    const params = new URL(window.location.href).searchParams;
+    expect(params.has("responseSelection")).toBe(false);
+    expect(params.has("open")).toBe(false);
+  });
+
   it("asks for a selection first, then lists every page of it", async () => {
     const client = await renderPage(base);
     await screen.findByRole("heading", {
@@ -250,10 +347,17 @@ describe("SurveyResponsesPage", () => {
           createdBefore: null,
         },
       }),
+      { signal: expect.any(AbortSignal) },
     );
     expect(
       client.listSurveyResponses.mock.calls.map((call) => call[2]),
-    ).toEqual([{}, { offset: 50 }]);
+    ).toEqual([{ limit: 5000 }]);
+    // Every list request can be aborted.
+    expect(
+      client.listSurveyResponses.mock.calls.every(
+        (call) => call[3]?.signal instanceof AbortSignal,
+      ),
+    ).toBe(true);
     expect(screen.getByText("51 Antworten")).toBeTruthy();
     expect(row(51).textContent).toContain("Teilantwort");
     expect(

@@ -2945,12 +2945,15 @@ export class LeonAidApiClient {
   async listSurveyResponses(
     surveyId: string,
     snapshotId: string,
-    queryParameters: { readonly offset?: number; } = {},
+    queryParameters: { readonly offset?: number; readonly limit?: number; } = {},
     options: RequestOptions = {},
   ): Promise<ResponseItems> {
     const searchParameters = new URLSearchParams();
     if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
       searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
     }
     const queryString = searchParameters.toString();
     const requestPath = `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/${encodeURIComponent(String(snapshotId))}/responses` + (queryString ? `?${queryString}` : "");

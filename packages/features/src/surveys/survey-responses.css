@@ -144,6 +144,16 @@
   gap: var(--s-2);
   justify-items: start;
 }
+.svr-progress {
+  margin: 0;
+  align-self: center;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.svr-loading {
+  display: grid;
+  gap: var(--s-3);
+}
 .svr-muted {
   margin: 0;
   color: var(--text-3);
