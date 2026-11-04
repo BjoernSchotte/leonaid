@@ -285,7 +285,17 @@ async def main():
                         state["snapshot"]["id"] in text
                         and state["snapshot"]["filter"]["versionId"] in text
                     )
-                    assert "33,33" in text and "Mittelwert" in text
+                    # Report exports are disclosed like the screen (k = 5).
+                    nps = next(
+                        q
+                        for q in state["snapshot"]["questions"]
+                        if q["questionId"] == "nps"
+                    )
+                    assert (
+                        "33,33" in text and "Mittelwert" in text
+                        if nps["nps"] is not None
+                        else "Weniger als 5 gültige Antworten" in text
+                    )
                     assert "SENSITIVE_" not in text and len(reader.pages) >= 2
                     Path("/proof/survey-worker-report.pdf").write_bytes(content)
                 else:
@@ -317,7 +327,14 @@ async def main():
                                     or isinstance(actual, float)
                                     and abs(actual - expected) < 1e-10
                                 )
-                        assert len(workbook["Charts"]._charts) > 0
+                        # One chart per shown distribution (k = 5 may hide all).
+                        shown = sum(
+                            bool(q["counts"])
+                            + sum(1 for row in q["matrixRows"] if row["counts"])
+                            for q in state["snapshot"]["questions"]
+                        )
+                        assert len(workbook["Charts"]._charts) == shown
+                        assert meta["minimum_group_size"] == 5
                 stored = await conn.fetchrow(
                     "SELECT bucket,object_key,object_version,sha256 FROM survey_export_job WHERE id=$1",
                     UUID(jid),
