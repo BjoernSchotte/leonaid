@@ -15,6 +15,7 @@ import type {
 } from "@leonaid/api-client";
 import { ApiError } from "@leonaid/api-client";
 import { CompleteDraft } from "../../../packages/features/src/commitments/complete-draft";
+import { DeliveryCompletion } from "../../../packages/features/src/commitments/delivery-completion";
 import { fullWindowSelected } from "../../../packages/features/src/commitments/delivery-fields";
 
 const actionId = "20000000-0000-4000-8000-000000000001";
@@ -160,5 +161,71 @@ describe("booking a window marked ausgebucht", () => {
     );
     // The confirmation reuses the refused attempt's key.
     expect(new Set(keys).size).toBe(1);
+  });
+
+  it("asks when a manager completes a draft that carries a full window", async () => {
+    const draft = {
+      ...order,
+      buyer: { displayName: "Buyer", partyKind: "company", twentyId: "t1" },
+      deliveryCompletionVersion: "a".repeat(64),
+      deliveryWindowSnapshot: {
+        windowId: "w1",
+        startsAt: "2099-12-04T07:00:00+00:00",
+        endsAt: "2099-12-04T09:00:00+00:00",
+        timezone: "Europe/Berlin",
+      },
+      invoiceRecipient: {
+        city: "Test",
+        countryCode: "DE",
+        email: null,
+        postalCode: "12345",
+        recipientName: "Billing",
+        streetLine1: "Invoice 1",
+      },
+      lines: [],
+      status: "draft",
+    } as unknown as CommitmentResponse;
+    const completeCommitmentDelivery = vi.fn(async () => ({
+      ...draft,
+      status: "review_ready",
+    }));
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const onSaved = vi.fn();
+    render(
+      <QueryClientProvider client={queries}>
+        <DeliveryCompletion
+          client={
+            {
+              completeCommitmentDelivery,
+              getDeliveryConfiguration: vi.fn(async () => configuration(true)),
+            } as unknown as LeonAidApiClient
+          }
+          onSaved={onSaved}
+          order={draft}
+        />
+      </QueryClientProvider>,
+    );
+    const save = await screen.findByRole("button", {
+      name: "Angaben speichern",
+    });
+    await waitFor(() =>
+      expect((save as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(save);
+    const dialog = within(await screen.findByRole("alertdialog"));
+    expect(completeCommitmentDelivery).not.toHaveBeenCalled();
+    fireEvent.click(dialog.getByRole("button", { name: "Trotzdem eintragen" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(completeCommitmentDelivery).toHaveBeenCalledWith(
+      actionId,
+      "c1",
+      expect.objectContaining({
+        allowFullWindow: true,
+        deliveryWindowId: "w1",
+      }),
+      expect.anything(),
+    );
   });
 });

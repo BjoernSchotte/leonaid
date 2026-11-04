@@ -36,9 +36,15 @@ class DeliveryWindowRequest(TransportModel):
     retired: bool = False
     # Accepted so a client can send a loaded window back unchanged, but
     # ignored: the switch has its own command and the stored value stays.
+    # A new window (no id) with true is refused (delivery_window_full_new).
     fully_booked: bool | None = Field(
         default=None,
-        description='Ignored; use setDeliveryWindowFullyBooked for "ausgebucht".',
+        description=(
+            "Read-only echo, ignored for existing windows; use "
+            'setDeliveryWindowFullyBooked for "ausgebucht". True on a new '
+            "window is refused."
+        ),
+        json_schema_extra={"readOnly": True},
     )
 
 

@@ -190,7 +190,23 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 )
             snapshot = order.delivery_window_snapshot
             historical = False
-            full_window_booked = False
+            # A draft books its window only now, so the "ausgebucht" switch
+            # applies (as in draft completion); a review-ready order was
+            # booked before and a started window records what happened.
+            starts_at = (
+                datetime.fromisoformat(snapshot["startsAt"]) if snapshot else None
+            )
+            full_window_booked = (
+                await guard_window_booking(
+                    connection,
+                    window_id=order.delivery_window_id,
+                    allow_full_window=draft.allow_full_window,
+                )
+                if order.status is CommitmentStatus.DRAFT
+                and starts_at is not None
+                and starts_at > datetime.now(timezone.utc)
+                else False
+            )
         else:
             # Unlike capture, a manager may select a window that has already
             # started to record when the order was actually delivered.

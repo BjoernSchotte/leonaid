@@ -5944,7 +5944,8 @@
                 "type": "null"
               }
             ],
-            "description": "Ignored; use setDeliveryWindowFullyBooked for \"ausgebucht\".",
+            "description": "Read-only echo, ignored for existing windows; use setDeliveryWindowFullyBooked for \"ausgebucht\". True on a new window is refused.",
+            "readOnly": true,
             "title": "Fullybooked"
           },
           "id": {

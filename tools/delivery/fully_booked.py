@@ -232,6 +232,28 @@ async def prove_fully_booked(
             "fullyBooked"
         ]
 
+        # A new window cannot start full: refused, not silently dropped.
+        current = (await client.get(configuration_path)).json()
+        response = await client.put(
+            configuration_path,
+            json={
+                "expectedRevision": current["revision"],
+                "enabled": current["enabled"],
+                "timezone": current["timezone"],
+                "windows": [
+                    *current["windows"],
+                    {
+                        "deliveryOn": "2037-12-23",
+                        "startsAt": "08:00",
+                        "endsAt": "10:00",
+                        "fullyBooked": True,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "delivery_window_full_new"
+
         # Public: refused early and under lock; nothing is written; the
         # earlier order's replay still returns its result.
         configuration = await schedules.get(action_id)
@@ -334,6 +356,41 @@ async def prove_fully_booked(
         assert await _event(pool, UUID(draft_id), "commitment_completed") == {
             "previousStatus": "draft",
             "status": "review_ready",
+            "fullWindowBooked": True,
+        }
+
+        # Manager completion of a draft that already carries the full
+        # window: the draft books it only now, so it asks as well.
+        response = await client.post(
+            create_path, json={**capture, "readyForReview": False}, headers=headers()
+        )
+        assert response.status_code == 201, response.text
+        carried = response.json()
+        carried_path = f"{create_path}/{carried['id']}"
+        carried_body = {
+            "expectedVersion": carried["deliveryCompletionVersion"],
+            "invoiceRecipient": {**capture["invoiceRecipient"], "countryCode": "DE"},
+            "deliveryRecipient": capture["deliveryRecipient"],
+            "deliveryWindowId": str(full.id),
+        }
+        key = headers()
+        response = await client.post(
+            f"{carried_path}/delivery-completion", json=carried_body, headers=key
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "delivery_window_full"
+        response = await client.post(
+            f"{carried_path}/delivery-completion",
+            json={**carried_body, "allowFullWindow": True},
+            headers=key,
+        )
+        assert response.status_code == 200, response.text
+        assert await _event(
+            pool, UUID(carried["id"]), "commitment_delivery_completed"
+        ) == {
+            "previousStatus": "draft",
+            "status": "review_ready",
+            "historical": False,
             "fullWindowBooked": True,
         }
 
@@ -448,6 +505,62 @@ async def prove_fully_booked(
             "UPDATE action_delivery_window SET retired = true WHERE id = $1", past
         )
 
+    # The real public order path: the switch commits after the order command
+    # started (after its early check) and before the order is recorded. The
+    # guard in the same transaction refuses it; nothing is written.
+    async def other_count() -> int:
+        return int(
+            await pool.fetchval(
+                "SELECT count(*) FROM commitment WHERE delivery_window_id = $1",
+                other.id,
+            )
+        )
+
+    before = await other_count()
+    value = public_draft(other.id)
+    race_key = f"fully-booked:{uuid4()}"
+    request_hash = value.request_hash(action_id=action_id, public_alias=alias)
+    try:
+        async with public.order_command(
+            lock_key=f"fully-booked:{buyer.twenty_id}",
+            idempotency_key=race_key,
+            request_hash=request_hash,
+        ) as command:
+            assert command.existing_result is None
+            await schedules.set_fully_booked(
+                action_id=action_id,
+                window_id=other.id,
+                fully_booked=True,
+                actor_user_id=admin_id,
+                request_id="fully-booked-proof",
+            )
+            await command.record_order(
+                action_id=action_id,
+                public_alias=alias,
+                party=party,
+                draft=value,
+                idempotency_key=race_key,
+                request_hash=request_hash,
+                request_id="fully-booked-proof",
+                occurred_at=now,
+            )
+    except Conflict as error:
+        assert error.code == "delivery_window_full"
+    else:
+        raise AssertionError("Public order booked a window switched meanwhile")
+    assert await other_count() == before
+    assert not await pool.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM command_receipt WHERE idempotency_key = $1)",
+        race_key,
+    )
+    await schedules.set_fully_booked(
+        action_id=action_id,
+        window_id=other.id,
+        fully_booked=False,
+        actor_user_id=admin_id,
+        request_id="fully-booked-proof",
+    )
+
     # Lock order: a switch waits for a running booking, and a booking waits
     # for a pending switch and then sees its committed value.
     async with pool.acquire() as booking:
@@ -487,5 +600,5 @@ async def prove_fully_booked(
                 assert not waiting.done(), "Booking did not wait for the switch"
             assert await waiting is False
     print(
-        "KLF-065 fully-booked PASS: audited manager switch (no-op repeat, 403/404/409), stale form keeps it, public refusal early and under lock with replay intact, admin create/completion/manager completion with confirmation recorded, retire clears it, lock order both ways"
+        "KLF-065 fully-booked PASS: audited manager switch (no-op repeat, 403/404/409), stale form keeps it, new full window refused, public refusal early and under lock with replay intact, switch between check and record refused on the real path, admin create/completion/manager completion (also of a draft carrying the window) with confirmation recorded, retire clears it, lock order both ways"
     )

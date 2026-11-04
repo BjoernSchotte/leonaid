@@ -4976,6 +4976,13 @@ async def save_delivery_configuration(
             "delivery_window_action_mismatch",
             "Bitte nur bestehende Fenster dieser Aktion auswählen. Neue Fenster erhalten ihre ID beim Speichern.",
         )
+    # Existing windows may echo the stored switch (ignored); a new window
+    # cannot start full, so the client must not believe it created one.
+    if any(window.id is None and window.fully_booked for window in body.windows):
+        raise DomainInvariantError(
+            "delivery_window_full_new",
+            "Neue Fenster sind zunächst buchbar; „Ausgebucht“ danach im Tab setzen.",
+        )
     configuration = DeliveryConfiguration(
         action_id=action_id,
         enabled=body.enabled,

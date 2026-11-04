@@ -112,11 +112,13 @@ export function DeliveryCompletion({
     deliveryReady &&
     !hasPartialDeliveryAddress(delivery);
 
-  // Only a newly chosen, still bookable window asks; a booked or
-  // historical one records what happened.
-  const fullWindow = lockedWindow
-    ? undefined
-    : fullWindowSelected(configuration.data, delivery.windowId);
+  // A newly chosen window, or the window a draft carries, asks when it is
+  // still bookable and full: the order books it now. A review-ready order
+  // was booked before; a historical window records what happened.
+  const fullWindow =
+    lockedWindow && baseline.status !== "draft"
+      ? undefined
+      : fullWindowSelected(configuration.data, delivery.windowId);
 
   async function submit(allowFullWindow = false) {
     const payload = deliveryPayload(delivery);
