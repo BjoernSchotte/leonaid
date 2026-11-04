@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 // The Lieferfenster tab of the action detail (Leitsystem Task 6.1) against
@@ -27,7 +27,7 @@ async function expectNoSeriousAccessibilityViolations(page, label) {
         .map((animation) => animation.finished),
     ),
   );
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(
     accessibility.violations
       .filter((violation) =>

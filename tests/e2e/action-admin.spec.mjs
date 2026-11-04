@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -205,7 +205,7 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       path: `${artifactDirectory}/action-admin-desktop.png`,
       fullPage: false,
     });
-    const desktopAccessibility = await new AxeBuilder({ page }).analyze();
+    const desktopAccessibility = await analyzeAccessibility(page);
     expect(
       desktopAccessibility.violations.filter(
         (violation) => violation.impact === "critical",
@@ -337,7 +337,7 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await drawer.screenshot({
       path: `${artifactDirectory}/action-admin-mobile.png`,
     });
-    const mobileAccessibility = await new AxeBuilder({ page }).analyze();
+    const mobileAccessibility = await analyzeAccessibility(page);
     expect(
       mobileAccessibility.violations.filter(
         (violation) => violation.impact === "critical",
