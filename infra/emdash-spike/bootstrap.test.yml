@@ -11,6 +11,8 @@ services:
     volumes:
       - ../../tools:/workspace/tools:ro
       - ../../node_modules:/workspace/node_modules:ro
+      # Shared axe helper of the browser specs (analyzeAccessibility).
+      - ../../tests/e2e/axe.mjs:/workspace/tests/e2e/axe.mjs:ro
   campaign-site:
     environment:
       EMDASH_SITE_URL: https://proxy:8443

@@ -65,6 +65,10 @@ class CommitmentDraft:
 
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactSnapshot | None = None
+    # Confirms booking a window marked "ausgebucht". Not order content, so
+    # it stays out of the request hash: a refused attempt stores nothing and
+    # the confirmed resend may reuse its idempotency key.
+    allow_full_window: bool = False
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
@@ -145,6 +149,10 @@ class CommitmentCompletion:
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactSnapshot | None = None
+    # Confirms booking a window marked "ausgebucht". Not order content, so
+    # it stays out of the request hash: a refused attempt stores nothing and
+    # the confirmed resend may reuse its idempotency key.
+    allow_full_window: bool = False
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
@@ -260,7 +268,7 @@ class CommitmentService:
         ):
             raise PermissionDenied(
                 "commitment_capture_required",
-                "Für diese Aktion darfst du keine Bestellung erfassen.",
+                "Für diese Aktion fehlt die Berechtigung, Bestellungen zu erfassen.",
             )
 
     async def get_internal(

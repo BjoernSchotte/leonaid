@@ -48,8 +48,8 @@ completed and unreferenced outbox jobs and expired rate-limit attempts
 ## Dead Letter
 
 1. Restore the dependencies first.
-2. Check the stable error code in `/admin/system`.
-3. Sign in again and trigger `Sicher wiederholen` (safe retry).
+2. Check the stable error code in `/admin/system/jobs`.
+3. Sign in again and trigger `Erneut versuchen` (retry), then confirm.
 4. Confirm exactly one successful processing and the resolved alert.
 
 ## Disk

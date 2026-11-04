@@ -275,7 +275,7 @@ class GeneratedDocumentService:
             return
         raise PermissionDenied(
             "document_download_required",
-            "Du darfst Finanzdokumente dieser Charity-Aktion nicht einsehen.",
+            "Für die Finanzdokumente dieser Charity-Aktion fehlt die Leseberechtigung.",
         )
 
 

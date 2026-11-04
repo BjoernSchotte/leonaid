@@ -4,8 +4,8 @@ description: On the delivery day, assign drivers, tick off deliveries, close win
 docId: DOC-P046
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: a255af208a20325a525d9fa2f88f6e5642ad5c73
 reviewer: Björn Schotte
 ---
@@ -29,6 +29,9 @@ planning is active (see
 3. If the campaign has no drivers yet, **Nächster Schritt** shows **Ausfahrer
    einladen** (invite drivers). Invite someone with the **Ausfahrer** (driver)
    role there.
+
+An open window marked fully booked in the **Lieferfenster** tab carries the
+note **Ausgebucht** (fully booked) in its header; drivers do not see it.
 
 Drivers only see the deliveries assigned to them. Use **Fahrdienst** (driver
 service) to filter the board by driver or **Ohne Fahrer** (no driver).

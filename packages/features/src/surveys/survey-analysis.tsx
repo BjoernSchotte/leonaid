@@ -50,6 +50,12 @@ const messages: AnalyticsMessages = {
   matrixDenominator:
     "Die Anteile beziehen sich auf gültige Antworten in dieser Zeile.",
   lastPage: "Zuletzt gespeicherte Seite",
+  tooFewParticipants:
+    "Weniger als {k} Teilnahmen: Ergebnisse werden nicht gezeigt, damit niemand erkennbar wird.",
+  tooFewAnswers:
+    "Weniger als {k} gültige Antworten: Diese Frage wird nicht ausgewertet, damit niemand erkennbar wird.",
+  unreleasedCondition:
+    "Ausgeblendet: Frage hängt von einer Freitext- oder Zahlenantwort ab.",
 };
 const statuses: Record<ResponseStatus, string> = {
   completed: "Abgeschlossen",

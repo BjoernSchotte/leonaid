@@ -1619,6 +1619,72 @@ export function SurveysPage({
               </div>
             )}
           </section>
+||||||| 93cd1804
+          {summary.status !== "deleted" && allowed("view_aggregates") && (
+            <details className="surveys-settings">
+              <summary>Antworten auswerten</summary>
+              <SurveyAnalysis
+                key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
+                client={client}
+                surveyId={summary.id}
+                canTest={allowed("design")}
+                canExportRaw={allowed("export_raw")}
+                canExportReports={allowed("export_reports")}
+              />
+            </details>
+          )}
+          {summary.status !== "deleted" &&
+            !allowed("view_aggregates") &&
+            (allowed("export_raw") || allowed("export_reports")) && (
+              <details className="surveys-settings">
+                <summary>Antworten exportieren</summary>
+                <SurveyAnalysis
+                  key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
+                  client={client}
+                  surveyId={summary.id}
+                  canTest={allowed("design")}
+                  canExportRaw={allowed("export_raw")}
+                  canExportReports={allowed("export_reports")}
+                  exportOnly
+                />
+              </details>
+            )}
+          {summary.status !== "deleted" && allowed("read_responses") && (
+            <p className="surveys-settings surveys-settings-link">
+              <a href={surveyResponsesHref(summary.id, location.search)}>
+                Einzelantworten lesen
+              </a>
+            </p>
+          )}
+          {new URLSearchParams(location.search).has("responseSelection") &&
+            (!allowed("read_responses") || summary.status === "deleted") && (
+              <p role="alert">
+                Dieser Antwortstand ist für Sie nicht zugänglich.
+              </p>
+            )}
+          {["draft", "active"].includes(summary.status) &&
+            allowed("publish") &&
+            !allowed("design") && (
+              <PublicationReview
+                key={summary.id}
+                client={client}
+                surveyId={summary.id}
+                onPublished={() => refresh(summary.id)}
+              />
+            )}
+          {draft && (
+            <SurveyEditor
+              draft={draft}
+              adapter={adapter}
+              canPublish={allowed("publish")}
+              onSaveStateChange={setSaveState}
+              onPublished={() => {
+                void refresh(summary.id).catch((error) =>
+                  setMessage(errorMessage(error)),
+                );
+              }}
+            />
+          )}
         </>
       )}
       {discardDialog}

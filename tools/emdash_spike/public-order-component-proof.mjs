@@ -109,14 +109,14 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       const submission = await submitted;
       assert.equal(submission.request().redirectedFrom(), null);
       await page.locator('[data-form-message][data-state="error"]').waitFor();
+      // The error summary (task 7.1) holds the server message in its own
+      // element, next to the heading and the field list.
       assert.equal(
-        await page.locator("[data-form-message]").evaluate((element) =>
-          [...element.childNodes]
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent)
-            .join("")
-            .trim(),
-        ),
+        (
+          await page
+            .locator("[data-form-message] [data-form-message-text]")
+            .textContent()
+        ).trim(),
         "Das Bestellformular ist vorübergehend nicht verfügbar.",
       );
       for (const [field, value] of Object.entries(inputs))

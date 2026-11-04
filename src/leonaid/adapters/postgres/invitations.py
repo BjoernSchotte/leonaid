@@ -975,7 +975,7 @@ class AsyncpgInvitationRepository:
         if row is None:
             raise PermissionDenied(
                 "invitation_action_forbidden",
-                "Du darfst für diese Charity-Aktion keine Mitglieder einladen.",
+                "Für diese Charity-Aktion fehlt die Berechtigung, Mitglieder einzuladen.",
             )
         return InvitationContext(
             action=InviteableAction(

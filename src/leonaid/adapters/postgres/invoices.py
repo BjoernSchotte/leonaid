@@ -214,7 +214,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                         raise Conflict(
                             "invoice_concurrent_retry",
                             "Die Rechnung wurde gleichzeitig verarbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Rechnungstransaktion wurde nicht ausgeführt.")

@@ -17,12 +17,12 @@ from leonaid.modules.surveys.domain.validation import (
 )
 
 
-
 def cookie_header(cookies):
     """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
     if not cookies:
         return None
     return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 
 async def main() -> None:
     mode = sys.argv[1]

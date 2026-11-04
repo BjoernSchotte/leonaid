@@ -169,6 +169,8 @@ class BoardWindow:
     retired: bool
     closure: WindowClosure | None
     drops: tuple[DeliveryDrop, ...]
+    # Marked "ausgebucht" by a manager.
+    fully_booked: bool = False
 
 
 @dataclass(frozen=True, slots=True)

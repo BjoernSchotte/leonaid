@@ -18,7 +18,11 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
-from leonaid.adapters.postgres.delivery import lock_configuration, write_order_delivery
+from leonaid.adapters.postgres.delivery import (
+    guard_window_booking,
+    lock_configuration,
+    write_order_delivery,
+)
 from leonaid.application.delivery_completion import (
     DeliveryCompletionDraft,
     DeliveryCompletionRepository,
@@ -67,7 +71,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                         raise Conflict(
                             "commitment_concurrent_retry",
                             "Die Bestellung wurde gleichzeitig verarbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Liefervervollständigung wurde nicht ausgeführt.")
@@ -186,6 +190,23 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 )
             snapshot = order.delivery_window_snapshot
             historical = False
+            # A draft books its window only now, so the "ausgebucht" switch
+            # applies (as in draft completion); a review-ready order was
+            # booked before and a started window records what happened.
+            starts_at = (
+                datetime.fromisoformat(snapshot["startsAt"]) if snapshot else None
+            )
+            full_window_booked = (
+                await guard_window_booking(
+                    connection,
+                    window_id=order.delivery_window_id,
+                    allow_full_window=draft.allow_full_window,
+                )
+                if order.status is CommitmentStatus.DRAFT
+                and starts_at is not None
+                and starts_at > datetime.now(timezone.utc)
+                else False
+            )
         else:
             # Unlike capture, a manager may select a window that has already
             # started to record when the order was actually delivered.
@@ -194,6 +215,17 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 has_address=draft.delivery_recipient is not None,
                 contact=draft.delivery_contact,
                 now=datetime.now(timezone.utc),
+            )
+            # A historical window records what happened; only a still
+            # bookable window is subject to the "ausgebucht" switch.
+            full_window_booked = (
+                False
+                if historical
+                else await guard_window_booking(
+                    connection,
+                    window_id=draft.delivery_window_id,
+                    allow_full_window=draft.allow_full_window,
+                )
             )
         await connection.execute(
             """
@@ -236,6 +268,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                     "previousStatus": order.status.value,
                     "status": "review_ready",
                     "historical": historical,
+                    **({"fullWindowBooked": True} if full_window_booked else {}),
                 }
             ),
             occurred_at,

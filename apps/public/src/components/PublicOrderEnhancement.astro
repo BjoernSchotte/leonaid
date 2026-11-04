@@ -64,9 +64,11 @@
     let submitting = false;
     const deliveryUnavailable = () =>
       Boolean(form.querySelector("[data-delivery-window-selection]")) &&
-      !form.querySelector('input[name="deliveryWindowId"]');
-    const refreshDeliveryWindows = async () => {
-      if (!refreshButton) return;
+      !form.querySelector('input[name="deliveryWindowId"]:not(:disabled)');
+    /** True when the chosen window is no longer selectable afterwards. */
+    const refreshDeliveryWindows = async (): Promise<boolean> => {
+      if (!refreshButton) return false;
+      let dropped = false;
       refreshButton.disabled = true;
       if (refreshStatus)
         refreshStatus.textContent = "Lieferfenster werden aktualisiert …";
@@ -106,16 +108,19 @@
           throw new Error("Campaign changed");
         const selected =
           current.querySelector<HTMLInputElement>("input:checked")?.value;
+        // A window switched to "ausgebucht" meanwhile cannot stay chosen.
         for (const input of replacement.querySelectorAll<HTMLInputElement>(
           'input[name="deliveryWindowId"]',
         ))
-          input.checked = input.value === selected;
+          input.checked = !input.disabled && input.value === selected;
         current.replaceWith(replacement);
+        dropped = Boolean(
+          selected && !replacement.querySelector("input:checked"),
+        );
         if (refreshStatus)
-          refreshStatus.textContent =
-            selected && !replacement.querySelector("input:checked")
-              ? "Das gewählte Lieferfenster ist nicht mehr verfügbar. Bitte wählen Sie ein anderes. Ihre übrigen Eingaben bleiben erhalten."
-              : "Die Lieferfenster sind aktuell.";
+          refreshStatus.textContent = dropped
+            ? "Das gewählte Lieferfenster ist nicht mehr verfügbar. Bitte wählen Sie ein anderes. Ihre übrigen Eingaben bleiben erhalten."
+            : "Die Lieferfenster sind aktuell.";
       } catch {
         if (refreshStatus)
           refreshStatus.textContent =
@@ -125,10 +130,14 @@
         if (submitButton)
           submitButton.disabled = submitting || deliveryUnavailable();
       }
+      return dropped;
     };
     if (refreshButton) {
       refreshButton.hidden = false;
-      refreshButton.addEventListener("click", refreshDeliveryWindows);
+      refreshButton.addEventListener(
+        "click",
+        () => void refreshDeliveryWindows(),
+      );
     }
 
     const syncBillingFields = () => {
@@ -395,13 +404,21 @@
       try {
         const result = await actions.createPublicOrder(new FormData(form));
         if (result.error) {
-          if (refreshButton && !isInputError(result.error))
-            await refreshDeliveryWindows();
+          // A window retired or marked "ausgebucht" meanwhile: the summary
+          // links the refreshed window choice.
+          const dropped =
+            Boolean(refreshButton) &&
+            !isInputError(result.error) &&
+            (await refreshDeliveryWindows());
           showFailure(
             isInputError(result.error)
               ? "Die Bestellung wurde noch nicht gesendet. Ihre Eingaben bleiben erhalten."
               : result.error.message,
-            isInputError(result.error) ? result.error.fields : undefined,
+            isInputError(result.error)
+              ? result.error.fields
+              : dropped
+                ? { deliveryWindowId: [result.error.message] }
+                : undefined,
           );
           return;
         }

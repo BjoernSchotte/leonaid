@@ -210,6 +210,17 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             raise ContractFailure("First immutable version was not created")
 
         version_id = str(state["draft"]["id"])
+        unapproved = await api.post(
+            f"/api/v1/admin/legal/configuration/draft/{version_id}/activation",
+            headers=session_headers(tokens["klara"]),
+            json={"expectedRevision": 2},
+        )
+        if (
+            unapproved.status_code != 409
+            or error_code(unapproved) != "legal_configuration_approval_required"
+        ):
+            raise ContractFailure("A draft without approval was activated")
+
         own_approval = await api.post(
             f"/api/v1/admin/legal/configuration/draft/{version_id}/approval",
             headers=session_headers(tokens["simone"]),

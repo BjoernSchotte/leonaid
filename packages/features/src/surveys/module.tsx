@@ -48,10 +48,14 @@ export const surveysModule: UiModule = {
       ),
     },
     {
-      pattern: /^\/surveys\/([0-9a-f-]{36})\/responses$/,
+      pattern: /^\/surveys\/([0-9a-f-]{36})\/responses(\/summary)?$/,
       render: (context, match) => (
         <Suspense fallback={loading("Antworten werden geladen …")}>
-          <SurveyResponsesPage client={context.client} surveyId={match[1]!} />
+          <SurveyResponsesPage
+            client={context.client}
+            section={match[2] ? "summary" : "list"}
+            surveyId={match[1]!}
+          />
         </Suspense>
       ),
     },

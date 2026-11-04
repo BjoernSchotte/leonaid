@@ -77,6 +77,10 @@ keine Nullwerte. Mehrfachauswahlen können zusammen mehr als 100 % ergeben.
 Ausgeblendete und ungültige Antworten sind gesondert ausgewiesen. Prozentwerte
 und Kennzahlen sind auf höchstens zwei Nachkommastellen gerundet.
 Dieser Bericht enthält keine einzelnen Antworten und keine Freitexte.
+#if data.withheldLegend != none [
+
+#data.withheldLegend
+]
 
 #pagebreak()
 #for (index, q) in data.questions.enumerate() {
@@ -109,6 +113,7 @@ Dieser Bericht enthält keine einzelnen Antworten und keine Freitexte.
   v(6mm)
 }
 
+#if data.lastPages.len() > 0 [
 == Zuletzt gespeicherte Seite
 Diese Angaben beschreiben den letzten gespeicherten Stand der ausgewählten
 Teilnahmen. Sie sind kein Nachweis dafür, auf welcher Seite jemand abgebrochen hat.
@@ -116,3 +121,4 @@ Teilnahmen. Sie sind kein Nachweis dafür, auf welcher Seite jemand abgebrochen 
   header([Seite], [Teilnahmen]),
   ..data.lastPages.map(page => ([#page.label], [#page.count])).flatten(),
 )
+]

@@ -17,12 +17,14 @@ import {
 
 import {
   ApiError,
+  type AnalysisSnapshot,
   type CreateAnalysisSnapshot,
   type FreeTextItems,
   type IndividualResponse,
   type LeonAidApiClient,
   type ResponseItem,
   type ResponseQuestion,
+  type ResolvedAnalysisFilter,
   type ResponseSelection,
   type SurveySummaryResponse,
 } from "@leonaid/api-client";
@@ -48,6 +50,7 @@ import {
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
+import { SurveySummary } from "./survey-summary";
 import "./survey-responses.css";
 
 /*
@@ -67,6 +70,27 @@ export const responseStatusLabels: Readonly<Record<ResponseStatus, string>> = {
 };
 const RESPONSE_STATUSES = Object.keys(responseStatusLabels) as ResponseStatus[];
 const TEXT_KINDS = new Set(["text", "comment"]);
+const CHOICE_KINDS = new Set([
+  "radiogroup",
+  "dropdown",
+  "checkbox",
+  "rating",
+  "matrix",
+]);
+
+/** The chosen option labels of a row, question by question ("A · B"). */
+export function answerSummary(
+  row: Pick<ResponseItem, "choiceAnswers">,
+  questions: readonly Pick<ResponseQuestion, "id">[],
+  limit = Infinity,
+): string {
+  if (!row.choiceAnswers) return "";
+  return questions
+    .map((q) => row.choiceAnswers?.[q.id]?.join(", "))
+    .filter((text): text is string => Boolean(text))
+    .slice(0, limit)
+    .join(" · ");
+}
 /** Free text is paged by 50 on the server. */
 const PAGE_SIZE = 50;
 /*
@@ -157,6 +181,11 @@ const localInput = (value: string | null) =>
         .slice(0, 16)
     : "";
 
+/** A date or datetime-local value as an instant: a bare day means 00:00 local. */
+function localInstant(value: string): string {
+  return new Date(value.length === 10 ? `${value}T00:00` : value).toISOString();
+}
+
 /** ApiError text with support code; a read-specific fallback otherwise. */
 function readError(cause: unknown, fallback: string): string {
   return cause instanceof ApiError
@@ -184,7 +213,11 @@ export async function loadRows(
     const page = await client.listSurveyResponses(
       surveyId,
       snapshotId,
-      offset ? { offset, limit: SUMMARY_PAGE } : { limit: SUMMARY_PAGE },
+      // fields=choice: option labels of choice, rating and matrix answers
+      // (never free text), the prototype's answer columns.
+      offset
+        ? { offset, limit: SUMMARY_PAGE, fields: "choice" }
+        : { limit: SUMMARY_PAGE, fields: "choice" },
       { signal },
     );
     total = page.total;
@@ -221,12 +254,17 @@ function useLegacyResponseParam() {
 
 /* ---------------- page ---------------- */
 
+/** "list": the individual responses; "summary": the evaluation (charts). */
+export type ResponsesSection = "list" | "summary";
+
 export function SurveyResponsesPage({
   client,
   surveyId,
+  section = "list",
 }: {
   client: LeonAidApiClient;
   surveyId: string;
+  section?: ResponsesSection;
 }) {
   const [summary, setSummary] = useState<SurveySummaryResponse | null>(null);
   const [failure, setFailure] = useState<{
@@ -262,6 +300,12 @@ export function SurveyResponsesPage({
   const readable = summary !== null && summary.status !== "deleted";
   const surveyHref = `/admin/surveys/${encodeURIComponent(surveyId)}`;
   const title = summary?.title ?? "Umfrage";
+  const reader = allowed("read_responses");
+  // Charts: view_aggregates OR read_responses (Björn, 2026-11-04).
+  const mayEnter =
+    readable &&
+    (section === "list" ? reader : reader || allowed("view_aggregates"));
+  const sectionLabel = section === "list" ? "Einzelantworten" : "Auswertung";
   const frame = useCallback<PageFrame>(
     (fullBleed, children) => (
       <div
@@ -275,13 +319,16 @@ export function SurveyResponsesPage({
             <span aria-hidden="true">/</span>
             <a href={surveyHref}>{title}</a>
             <span aria-hidden="true">/</span>
-            <span aria-current="page">Einzelantworten</span>
+            <span aria-current="page">{sectionLabel}</span>
           </nav>
+          {reader && summary ? (
+            <SectionLinks section={section} surveyId={surveyId} />
+          ) : null}
         </div>
         {children}
       </div>
     ),
-    [surveyHref, title],
+    [surveyHref, title, sectionLabel, reader, summary, section, surveyId],
   );
 
   let content;
@@ -307,7 +354,7 @@ export function SurveyResponsesPage({
         <SkeletonRows rows={6} />
       </div>
     );
-  } else if (!readable || !allowed("read_responses")) {
+  } else if (!mayEnter) {
     content = (
       <div className="svr-blocked">
         <div className="callout tone-warn" role="alert">
@@ -316,7 +363,9 @@ export function SurveyResponsesPage({
               "responseSelection",
             )
               ? "Dieser Antwortstand ist für Sie nicht zugänglich."
-              : "Die Einzelantworten dieser Umfrage sind für Sie nicht zugänglich."}
+              : section === "list"
+                ? "Die Einzelantworten dieser Umfrage sind für Sie nicht zugänglich."
+                : "Die Auswertung dieser Umfrage ist für Sie nicht zugänglich."}
           </span>
         </div>
         <a href={surveyHref}>Zurück zur Umfrage</a>
@@ -329,6 +378,9 @@ export function SurveyResponsesPage({
         canTest={allowed("design")}
         client={client}
         frame={frame}
+        key={section}
+        mode={reader ? "reader" : "aggregates"}
+        section={section}
         surveyHref={surveyHref}
         surveyId={surveyId}
       />
@@ -343,7 +395,189 @@ export function SurveyResponsesPage({
  */
 type PageFrame = (fullBleed: boolean, children: ReactNode) => ReactNode;
 
+/** `/admin/surveys/<id>/responses[/summary]`, keeping the selection. */
+export function responsesSectionHref(
+  surveyId: string,
+  section: ResponsesSection,
+  search = window.location.search,
+): string {
+  const selection = new URLSearchParams(search).get("responseSelection");
+  const base = `/admin/surveys/${encodeURIComponent(surveyId)}/responses${section === "summary" ? "/summary" : ""}`;
+  return selection
+    ? `${base}?responseSelection=${encodeURIComponent(selection)}`
+    : base;
+}
+
+/** The prototype's subnav (shared `.section-links`), readers only. */
+function SectionLinks({
+  section,
+  surveyId,
+}: {
+  section: ResponsesSection;
+  surveyId: string;
+}) {
+  return (
+    <nav aria-label="Antworten" className="section-links svr-sections">
+      {(
+        [
+          ["list", "Einzelantworten"],
+          ["summary", "Auswertung"],
+        ] as const
+      ).map(([target, label]) => (
+        <a
+          aria-current={target === section ? "page" : undefined}
+          href={responsesSectionHref(surveyId, target)}
+          key={target}
+        >
+          {label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+/** The frozen selection in one line (both sections). */
+export function AppliedSelection({ info }: { info: SelectionInfo }) {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const { filter } = info;
+  return (
+    <p className="svr-applied" role="status">
+      Antwortstand: Version {info.versionNumber} ·{" "}
+      {filter.statuses.map((s) => responseStatusLabels[s]).join(", ")} ·{" "}
+      {filter.isTest ? "Testteilnahmen" : "Echte Teilnahmen"} ·{" "}
+      {info.total === null ? "weniger als 5" : info.total} Teilnahmen. Stand vom{" "}
+      {new Date(info.createdAt).toLocaleString("de-DE")} ({zone}). Zeitraum:{" "}
+      {filter.createdFrom
+        ? `ab ${new Date(filter.createdFrom).toLocaleString("de-DE")}`
+        : "offener Beginn"}{" "}
+      {filter.createdBefore
+        ? `bis vor ${new Date(filter.createdBefore).toLocaleString("de-DE")}`
+        : "bis offenes Ende"}
+      .
+    </p>
+  );
+}
+
 /* ---------------- selection ---------------- */
+
+/** What the applied-selection line needs, from either kind of snapshot. */
+export interface SelectionInfo {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly versionNumber: number;
+  readonly filter: ResolvedAnalysisFilter;
+  /** null: fewer than 5 (withheld). */
+  readonly total: number | null;
+}
+
+interface Loaded {
+  readonly info: SelectionInfo;
+  /** Readers: questions for the pane and free text. */
+  readonly selection: ResponseSelection | null;
+  /** List section. */
+  readonly rows: readonly ResponseRow[];
+  readonly total: number;
+  /** Summary section: the disclosed aggregates (k = 5). */
+  readonly aggregates: AnalysisSnapshot | null;
+}
+
+interface Source {
+  versions(
+    signal: AbortSignal,
+  ): Promise<{ items: { id: string; number: number }[] }>;
+  /** The selection's metadata; a 4xx here means "choose a new one". */
+  meta(id: string, signal: AbortSignal): Promise<Loaded>;
+  create(body: CreateAnalysisSnapshot, signal: AbortSignal): Promise<Loaded>;
+  /** The rest of a loaded selection (rows or aggregates). */
+  fill(
+    loaded: Loaded,
+    signal: AbortSignal,
+    onProgress: (progress: LoadProgress) => void,
+  ): Promise<Loaded>;
+}
+
+const infoOf = (
+  value: ResponseSelection | AnalysisSnapshot,
+): SelectionInfo => ({
+  id: value.id,
+  createdAt: value.createdAt,
+  versionNumber: value.versionNumber,
+  filter: value.filter,
+  // A disclosed size of 1-4 is withheld (null).
+  total: "total" in value ? value.total : value.participationCount,
+});
+
+const fromSelection = (selection: ResponseSelection): Loaded => ({
+  info: infoOf(selection),
+  selection,
+  rows: [],
+  total: selection.total,
+  aggregates: null,
+});
+
+/**
+ * Readers use the response-selection endpoints (read_responses); an
+ * aggregate-only account uses the analysis endpoints (view_aggregates).
+ * The server checks both; aggregates are disclosed with k = 5 either way.
+ */
+function sourceFor(
+  client: LeonAidApiClient,
+  surveyId: string,
+  mode: "reader" | "aggregates",
+  section: ResponsesSection,
+): Source {
+  if (mode === "aggregates") {
+    const loaded = (snapshot: AnalysisSnapshot): Loaded => ({
+      info: infoOf(snapshot),
+      selection: null,
+      rows: [],
+      total: snapshot.participationCount ?? 0,
+      aggregates: snapshot,
+    });
+    return {
+      versions: (signal) =>
+        client.listSurveyAnalysisVersions(surveyId, { signal }),
+      meta: async (id, signal) =>
+        loaded(await client.getSurveyAnalysis(surveyId, id, { signal })),
+      create: async (body, signal) =>
+        loaded(await client.createSurveyAnalysis(surveyId, body, { signal })),
+      fill: async (value) => value,
+    };
+  }
+  return {
+    versions: (signal) =>
+      client.listSurveyResponseVersions(surveyId, { signal }),
+    meta: async (id, signal) =>
+      fromSelection(
+        await client.getSurveyResponseSelection(surveyId, id, { signal }),
+      ),
+    create: async (body, signal) =>
+      fromSelection(
+        await client.createSurveyResponseSelection(surveyId, body, { signal }),
+      ),
+    fill: async (value, signal, onProgress) => {
+      if (section === "summary") {
+        return {
+          ...value,
+          aggregates: await client.getSurveyResponseAggregates(
+            surveyId,
+            value.info.id,
+            { signal },
+          ),
+        };
+      }
+      onProgress({ loaded: 0, total: value.info.total ?? 0 });
+      const { rows, total } = await loadRows(
+        client,
+        surveyId,
+        value.info.id,
+        signal,
+        onProgress,
+      );
+      return { ...value, rows, total };
+    },
+  };
+}
 
 interface SelectionFilter {
   readonly version: string;
@@ -357,12 +591,7 @@ type LoadState =
   | { readonly kind: "loading"; readonly progress: LoadProgress | null }
   | { readonly kind: "none" }
   | { readonly kind: "error" }
-  | {
-      readonly kind: "ready";
-      readonly selection: ResponseSelection;
-      readonly rows: readonly ResponseRow[];
-      readonly total: number;
-    };
+  | { readonly kind: "ready"; readonly data: Loaded };
 
 function SurveyResponses({
   client,
@@ -370,13 +599,21 @@ function SurveyResponses({
   surveyHref,
   canTest,
   frame,
+  mode,
+  section,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   surveyHref: string;
   canTest: boolean;
   frame: PageFrame;
+  mode: "reader" | "aggregates";
+  section: ResponsesSection;
 }) {
+  const source = useMemo(
+    () => sourceFor(client, surveyId, mode, section),
+    [client, surveyId, mode, section],
+  );
   const [versions, setVersions] = useState<
     readonly { id: string; number: number }[]
   >([]);
@@ -396,7 +633,12 @@ function SurveyResponses({
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
   const [choosing, setChoosing] = useState(false);
-  const [freeTextOpen, setFreeTextOpen] = useState(false);
+  // ?freeText=<questionId> (from the evaluation's quote panel) opens the
+  // free-text dialog on that question.
+  const [freeTextQuestion] = useState(() =>
+    new URLSearchParams(window.location.search).get("freeText"),
+  );
+  const [freeTextOpen, setFreeTextOpen] = useState(Boolean(freeTextQuestion));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(false);
@@ -421,9 +663,7 @@ function SurveyResponses({
     setNotice("");
     void (async () => {
       try {
-        const value = await client.listSurveyResponseVersions(surveyId, {
-          signal,
-        });
+        const value = await source.versions(signal);
         if (signal.aborted) return;
         setVersions(value.items);
         setFilter((current) =>
@@ -438,13 +678,9 @@ function SurveyResponses({
           setLoad({ kind: "none" });
           return;
         }
-        let selection: ResponseSelection;
+        let loaded: Loaded;
         try {
-          selection = await client.getSurveyResponseSelection(
-            surveyId,
-            snapshotId,
-            { signal },
-          );
+          loaded = await source.meta(snapshotId, signal);
         } catch (cause) {
           // A selection that is gone or not readable: choose a new one.
           if (cause instanceof ApiError && cause.status < 500) {
@@ -455,44 +691,31 @@ function SurveyResponses({
           }
           throw cause;
         }
-        setLoad({
-          kind: "loading",
-          progress: { loaded: 0, total: selection.total },
+        const data = await source.fill(loaded, signal, (progress) => {
+          if (!signal.aborted) setLoad({ kind: "loading", progress });
         });
-        const { rows, total } = await loadRows(
-          client,
-          surveyId,
-          snapshotId,
-          signal,
-          (progress) => {
-            if (!signal.aborted) setLoad({ kind: "loading", progress });
-          },
-        );
         if (signal.aborted) return;
+        const { filter: applied } = data.info;
         setFilter({
-          version: selection.filter.versionId,
-          statuses: selection.filter.statuses,
-          from: localInput(selection.filter.createdFrom),
-          before: localInput(selection.filter.createdBefore),
-          isTest: selection.filter.isTest,
+          version: applied.versionId,
+          statuses: applied.statuses,
+          from: localInput(applied.createdFrom),
+          before: localInput(applied.createdBefore),
+          isTest: applied.isTest,
         });
-        setLoad({ kind: "ready", selection, rows, total });
+        setLoad({ kind: "ready", data });
       } catch {
         if (!signal.aborted) setLoad({ kind: "error" });
       }
     })();
     return () => controller.abort();
-  }, [client, surveyId, attempt]);
+  }, [source, attempt]);
 
   async function create(repeat = false) {
     if (running.current) return;
     if (!repeat) {
-      const createdFrom = filter.from
-        ? new Date(filter.from).toISOString()
-        : null;
-      const createdBefore = filter.before
-        ? new Date(filter.before).toISOString()
-        : null;
+      const createdFrom = filter.from ? localInstant(filter.from) : null;
+      const createdBefore = filter.before ? localInstant(filter.before) : null;
       if (createdFrom && createdBefore && createdFrom >= createdBefore) {
         setError("Das Ende des Zeitraums muss nach seinem Beginn liegen.");
         return;
@@ -501,7 +724,9 @@ function SurveyResponses({
         operationId: crypto.randomUUID(),
         filter: {
           versionId: filter.version,
-          statuses: [...filter.statuses],
+          // Without raw access the server counts completed ones only.
+          statuses:
+            mode === "aggregates" ? ["completed"] : [...filter.statuses],
           isTest: canTest && filter.isTest,
           createdFrom,
           createdBefore,
@@ -518,31 +743,21 @@ function SurveyResponses({
     try {
       // Same operation id after an uncertain acknowledgement: the server
       // returns the selection it already stored.
-      const selection = await client.createSurveyResponseSelection(
-        surveyId,
-        pending.current,
-        { signal },
-      );
-      setCreating({ loaded: 0, total: selection.total });
-      const { rows, total } = await loadRows(
-        client,
-        surveyId,
-        selection.id,
-        signal,
-        (progress) => {
-          if (!signal.aborted) setCreating(progress);
-        },
-      );
+      const created = await source.create(pending.current, signal);
+      setCreating({ loaded: 0, total: created.info.total ?? 0 });
+      const data = await source.fill(created, signal, (progress) => {
+        if (!signal.aborted) setCreating(progress);
+      });
       if (!mounted.current) return;
       const url = new URL(window.location.href);
-      url.searchParams.set("responseSelection", selection.id);
+      url.searchParams.set("responseSelection", data.info.id);
       url.searchParams.delete("open");
       history.replaceState(history.state, "", url);
       pending.current = null;
       setRetry(false);
       setNotice("");
       setChoosing(false);
-      setLoad({ kind: "ready", selection, rows, total });
+      setLoad({ kind: "ready", data });
     } catch (cause) {
       if (!mounted.current) return;
       const uncertain = !(cause instanceof ApiError) || cause.status >= 500;
@@ -587,42 +802,80 @@ function SurveyResponses({
       onRetry={() => void create(true)}
       onSubmit={() => void create()}
       progress={creating}
+      daysOnly={mode === "aggregates"}
+      rangeHint={
+        mode === "aggregates"
+          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern und nur abgeschlossene Teilnahmen, damit niemand einzeln erkennbar wird. Zwei Zeiträume, die sich um einen Tag unterscheiden, zeigen zusammen, wie an diesem Tag geantwortet wurde."
+          : undefined
+      }
       retry={retry}
       versions={versions}
     />
   );
 
-  if (load.kind === "ready") {
+  const chooser = (
+    <Modal
+      description="Neue Antworten und spätere Änderungen erscheinen erst in einem neuen Antwortstand."
+      onClose={() => {
+        if (!busy) setChoosing(false);
+      }}
+      open={choosing}
+      size="md"
+      title="Antwortstand wählen"
+    >
+      {form}
+    </Modal>
+  );
+
+  if (load.kind === "ready" && section === "summary" && load.data.aggregates) {
+    return frame(
+      false,
+      <>
+        <SurveySummary
+          aggregates={load.data.aggregates}
+          applied={<AppliedSelection info={load.data.info} />}
+          client={client}
+          key={load.data.info.id}
+          onChoose={() => setChoosing(true)}
+          selection={load.data.selection}
+          surveyId={surveyId}
+        />
+        {chooser}
+      </>,
+    );
+  }
+
+  if (load.kind === "ready" && load.data.selection) {
+    const { data } = load;
+    const selection = data.selection!;
     return frame(
       true,
       <>
         <ResponseList
           client={client}
-          key={load.selection.id}
+          key={data.info.id}
           onChoose={() => setChoosing(true)}
           onFreeText={() => setFreeTextOpen(true)}
-          rows={load.rows}
-          selection={load.selection}
+          rows={data.rows}
+          selection={selection}
           surveyHref={surveyHref}
           surveyId={surveyId}
-          total={load.total}
+          total={data.total}
         />
-        <Modal
-          description="Neue Antworten und spätere Änderungen erscheinen erst in einem neuen Antwortstand."
-          onClose={() => {
-            if (!busy) setChoosing(false);
-          }}
-          open={choosing}
-          size="md"
-          title="Antwortstand wählen"
-        >
-          {form}
-        </Modal>
+        {chooser}
         <FreeTextDialog
           client={client}
-          onClose={() => setFreeTextOpen(false)}
+          initialQuestion={freeTextQuestion}
+          onClose={() => {
+            setFreeTextOpen(false);
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("freeText")) {
+              url.searchParams.delete("freeText");
+              history.replaceState(history.state, "", url);
+            }
+          }}
           open={freeTextOpen}
-          selection={load.selection}
+          selection={selection}
           surveyId={surveyId}
         />
       </>,
@@ -634,7 +887,7 @@ function SurveyResponses({
     <div className="svr-start">
       <header className="page-header">
         <div className="page-heading">
-          <h1>Einzelantworten</h1>
+          <h1>{section === "list" ? "Einzelantworten" : "Auswertung"}</h1>
         </div>
       </header>
       {load.kind === "loading" ? (
@@ -694,6 +947,8 @@ function SelectionForm({
   onRetry,
   onDiscardRetry,
   progress,
+  rangeHint,
+  daysOnly = false,
 }: {
   versions: readonly { id: string; number: number }[];
   filter: SelectionFilter;
@@ -706,6 +961,9 @@ function SelectionForm({
   onRetry: () => void;
   onDiscardRetry: () => void;
   progress: LoadProgress | null;
+  rangeHint?: string;
+  /** Accounts without raw access pick whole days (the server snaps anyway). */
+  daysOnly?: boolean;
 }) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
@@ -748,42 +1006,50 @@ function SelectionForm({
             </select>
           </Field>
         ) : null}
-        <fieldset className="svr-statuses">
-          <legend className="field-label">Teilnahmestatus</legend>
-          {RESPONSE_STATUSES.map((key) => (
-            <label className="checkbox" key={key}>
-              <input
-                checked={filter.statuses.includes(key)}
-                onChange={(e) =>
-                  onChange({
-                    ...filter,
-                    statuses: e.target.checked
-                      ? [...filter.statuses, key]
-                      : filter.statuses.filter((s) => s !== key),
-                  })
-                }
-                type="checkbox"
-              />
-              {responseStatusLabels[key]}
-            </label>
-          ))}
-        </fieldset>
+        {daysOnly ? (
+          <p className="field-hint svr-zone">
+            Teilnahmestatus: nur abgeschlossene Teilnahmen, die vor dem Ende des
+            Zeitraums abgeschlossen wurden.
+          </p>
+        ) : (
+          <fieldset className="svr-statuses">
+            <legend className="field-label">Teilnahmestatus</legend>
+            {RESPONSE_STATUSES.map((key) => (
+              <label className="checkbox" key={key}>
+                <input
+                  checked={filter.statuses.includes(key)}
+                  onChange={(e) =>
+                    onChange({
+                      ...filter,
+                      statuses: e.target.checked
+                        ? [...filter.statuses, key]
+                        : filter.statuses.filter((s) => s !== key),
+                    })
+                  }
+                  type="checkbox"
+                />
+                {responseStatusLabels[key]}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <Field label="Begonnen ab">
           <input
-            type="datetime-local"
-            value={filter.from}
+            type={daysOnly ? "date" : "datetime-local"}
+            value={daysOnly ? filter.from.slice(0, 10) : filter.from}
             onChange={(e) => onChange({ ...filter, from: e.target.value })}
           />
         </Field>
         <Field label="Begonnen vor">
           <input
-            type="datetime-local"
-            value={filter.before}
+            type={daysOnly ? "date" : "datetime-local"}
+            value={daysOnly ? filter.before.slice(0, 10) : filter.before}
             onChange={(e) => onChange({ ...filter, before: e.target.value })}
           />
         </Field>
         <p className="field-hint svr-zone">
           Zeitzone: {zone}. Der Beginn zählt mit, der Endzeitpunkt nicht.
+          {rangeHint ? ` ${rangeHint}` : null}
         </p>
       </fieldset>
       <div className="svr-form-actions">
@@ -838,7 +1104,11 @@ function ResponseList({
   onFreeText: () => void;
 }) {
   const hasFreeText = selection.questions.some((q) => TEXT_KINDS.has(q.kind));
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  /** Questions whose chosen options show in the row (answer columns). */
+  const choiceQuestions = useMemo(
+    () => selection.questions.filter((q) => CHOICE_KINDS.has(q.kind)),
+    [selection],
+  );
 
   useContextCommands(
     useMemo(
@@ -946,13 +1216,14 @@ function ResponseList({
           Antwort <span className="mono">{row.number}</span>
         </span>
       ),
+      secondary: (row) => answerSummary(row, choiceQuestions, 3),
       trailing: (row) => (
         <time dateTime={row.createdAt}>
           {receivedLabel(row.createdAt, now)}
         </time>
       ),
     };
-  }, []);
+  }, [choiceQuestions]);
   const getId = useCallback((row: ResponseRow) => row.participationId, []);
   // Built once per selection, not per keystroke and row.
   const searchIndex = useMemo(
@@ -960,10 +1231,10 @@ function ResponseList({
       new Map(
         rows.map((row) => [
           row.participationId,
-          `Antwort ${row.number} ${responseStatusLabels[row.status]} ${dateTime(row.createdAt)}`,
+          `Antwort ${row.number} ${responseStatusLabels[row.status]} ${dateTime(row.createdAt)} ${answerSummary(row, choiceQuestions)}`,
         ]),
       ),
-    [rows],
+    [rows, choiceQuestions],
   );
   const searchText = useCallback(
     (row: ResponseRow) => searchIndex.get(row.participationId) ?? "",
@@ -986,24 +1257,7 @@ function ResponseList({
     [client, selection, surveyId],
   );
 
-  const { filter } = selection;
-  const applied = (
-    <p className="svr-applied" role="status">
-      Antwortstand: Version {selection.versionNumber} ·{" "}
-      {filter.statuses.map((s) => responseStatusLabels[s]).join(", ")} ·{" "}
-      {filter.isTest ? "Testteilnahmen" : "Echte Teilnahmen"} ·{" "}
-      {selection.total} Teilnahmen. Stand vom{" "}
-      {new Date(selection.createdAt).toLocaleString("de-DE")} ({zone}).
-      Zeitraum:{" "}
-      {filter.createdFrom
-        ? `ab ${new Date(filter.createdFrom).toLocaleString("de-DE")}`
-        : "offener Beginn"}{" "}
-      {filter.createdBefore
-        ? `bis vor ${new Date(filter.createdBefore).toLocaleString("de-DE")}`
-        : "bis offenes Ende"}
-      .
-    </p>
-  );
+  const applied = <AppliedSelection info={infoOf(selection)} />;
 
   return (
     <ListView<ResponseRow>
@@ -1170,15 +1424,21 @@ function FreeTextDialog({
   selection,
   open,
   onClose,
+  initialQuestion,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   selection: ResponseSelection;
   open: boolean;
   onClose: () => void;
+  initialQuestion?: string | null;
 }) {
   const questions = selection.questions.filter((q) => TEXT_KINDS.has(q.kind));
-  const [questionId, setQuestionId] = useState(questions[0]?.id ?? "");
+  const [questionId, setQuestionId] = useState(
+    questions.find((q) => q.id === initialQuestion)?.id ??
+      questions[0]?.id ??
+      "",
+  );
   const [offset, setOffset] = useState(0);
   const [texts, setTexts] = useState<FreeTextItems | null>(null);
   const [error, setError] = useState("");

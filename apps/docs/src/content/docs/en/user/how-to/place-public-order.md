@@ -4,8 +4,8 @@ description: Submit a binding order from a published campaign page without a Leo
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 4
+reviewedRevision: 4
 verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
 reviewer: Björn Schotte
 ---
@@ -22,7 +22,8 @@ form addresses customers formally ("Sie").
    the company field disappears unless the specific form requires a company.
    Enter first name, family name, and email.
 4. Under **Lieferung**, enter recipient, street, postal code, and city. When
-   delivery planning is active, also select an available delivery window. The
+   delivery planning is active, also select an available delivery window.
+   Windows with the note **ausgebucht** (fully booked) cannot be selected. The
    delivery contact name and phone are independently optional.
 5. Keep **Rechnungsadresse entspricht der Lieferadresse** selected or complete
    every separate billing field.
@@ -35,6 +36,11 @@ above the form with a link to each affected field. Your entries stay.
 The confirmation displays **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** and a reference in the form `LA-…`. Keep it for questions. The
 invoice follows separately after the club reviews the order.
+
+If the selected delivery window becomes fully booked or is retired while you
+fill the form, the form does not accept the order, refreshes the windows and
+links the choice in the **Bitte prüfen Sie …** list. Select another window and
+send again.
 
 If the offering or delivery window changes while you fill the form, LeonAid
 retains your fields, shows the current total, and asks for confirmation again.

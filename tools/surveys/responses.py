@@ -11,12 +11,12 @@ import asyncpg
 import httpx
 
 
-
 def cookie_header(cookies):
     """Explicit per-identity Cookie header: httpx deprecates per-request cookies=."""
     if not cookies:
         return None
     return {"Cookie": "; ".join(f"{name}={value}" for name, value in cookies.items())}
+
 
 async def main():
     survey = uuid4()

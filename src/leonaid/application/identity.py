@@ -262,7 +262,7 @@ def decode_member_cursor(value: str) -> UUID:
     except (binascii.Error, ValueError) as error:
         raise ApplicationError(
             "member_cursor_invalid",
-            "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+            "Die Mitgliederseite ist nicht mehr gültig. Bitte die Suche neu starten.",
         ) from error
 
 
@@ -310,7 +310,7 @@ def paginate_member_directory(
         else:
             raise ApplicationError(
                 "member_cursor_invalid",
-                "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+                "Die Mitgliederseite ist nicht mehr gültig. Bitte die Suche neu starten.",
             )
     page = filtered[start : start + query.limit]
     has_more = start + len(page) < len(filtered)
@@ -462,7 +462,7 @@ class IdentityQueryService:
         if session_token is None or not session_token.strip():
             raise AuthenticationRequired(
                 "authentication_required",
-                "Bitte melde dich an, um LeonAid zu verwenden.",
+                "Bitte anmelden, um LeonAid zu verwenden.",
             )
         digest = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
         identity = await self._repository.principal_for_session(
@@ -472,7 +472,7 @@ class IdentityQueryService:
         if identity is None:
             raise AuthenticationRequired(
                 "session_invalid",
-                "Deine Sitzung ist nicht mehr gültig. Bitte melde dich erneut an.",
+                "Die Sitzung ist nicht mehr gültig. Bitte erneut anmelden.",
             )
         return identity
 
@@ -494,7 +494,7 @@ class IdentityQueryService:
         if not identity.session.fresh_at(now, self._fresh_login_window):
             raise AuthenticationRequired(
                 "fresh_login_required",
-                "Bitte bestätige deine Anmeldung erneut, um diese Änderung auszuführen.",
+                "Für diese Änderung muss die Anmeldung erneut bestätigt werden.",
             )
         return identity
 
@@ -553,7 +553,7 @@ class IdentityQueryService:
         ):
             raise PermissionDenied(
                 "member_action_scope_forbidden",
-                "Du darfst Mitglieder nur in selbst verwalteten Aktionen einsehen.",
+                "Mitglieder dürfen nur in selbst verwalteten Aktionen eingesehen werden.",
             )
         snapshot = await self._repository.member_directory_snapshot(
             visible_action_ids=visible_action_ids,
@@ -643,7 +643,7 @@ class IdentityAdministrationService:
         }:
             raise Conflict(
                 "account_self_status_change_forbidden",
-                "Du kannst deinen eigenen Zugang nicht sperren oder archivieren.",
+                "Der eigene Zugang kann nicht gesperrt oder archiviert werden.",
             )
         if expected_revision < 1:
             raise ApplicationError(
@@ -736,7 +736,7 @@ class IdentityAdministrationService:
         if not can_manage_action_roles(actor, action_id):
             raise PermissionDenied(
                 "role_action_scope_forbidden",
-                "Du darfst Rollen nur in selbst verwalteten Aktionen ändern.",
+                "Rollen dürfen nur in selbst verwalteten Aktionen geändert werden.",
             )
         self._validate_role_command(
             expected_revision=expected_revision,

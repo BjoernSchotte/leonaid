@@ -18,17 +18,23 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.page import PageMargins
 
-from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
-from leonaid.modules.surveys.application.analysis import AggregateCount
 from leonaid.modules.surveys.application.export_rendering import (
     ExportProduct,
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    UNRELEASED_CONDITION_NOTE,
+    shown_count,
+    withheld_legend,
+)
+from leonaid.modules.surveys.application.disclosure import (
+    AnalysisSnapshot as DisclosedSnapshot,
 )
 
-RENDER_VERSION = "survey-tabular-v2"
+# v8: report workbooks under the disclosure rules of review round 5 (Task
+# 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
+RENDER_VERSION = "survey-tabular-v8"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [
@@ -143,13 +149,22 @@ def metadata(source: SurveyExportSource) -> dict[str, Any]:
         "test_data": s.filter.isTest,
         "created_from_inclusive": s.filter.createdFrom,
         "created_before_exclusive": s.filter.createdBefore,
-        "selected_participations": s.participationCount,
-        "scope_in_progress": s.statusCounts.in_progress,
-        "scope_partial": s.statusCounts.partial,
-        "scope_completed": s.statusCounts.completed,
+        "selected_participations": shown_count(s.participationCount),
+        "scope_in_progress": shown_count(s.statusCounts.in_progress),
+        "scope_partial": shown_count(s.statusCounts.partial),
+        "scope_completed": shown_count(s.statusCounts.completed),
         "denominators": "Valid answered participants per question; valid cells per matrix row. Missing is not zero. Multiselect totals can exceed 100%.",
         "raw_encoding": "Structured values use canonical JSON. Each q:ID:type preserves missing/null/string/number/boolean/array/object, including empty strings and exact high-precision numeric text. Matrix row columns supplement the full JSON value.",
         "text_safety": "CSV prefixes formula-like and apostrophe-leading text with one apostrophe; remove that one prefix when decoding strings. XLSX uses explicit strings; unrepresentable cells fail without truncation.",
+        **(
+            {
+                "minimum_group_size": s.minimumGroupSize,
+                "withheld": withheld_legend(s.minimumGroupSize)
+                + f" Fragen mit weniger als {s.minimumGroupSize} gültigen Antworten haben keine Verteilung und keine Kennzahlen.",
+            }
+            if isinstance(s, DisclosedSnapshot)
+            else {}
+        ),
     }
 
 
@@ -242,6 +257,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             "minimum",
             "maximum",
             "nps",
+            "note",
         ],
     )
     distributions = workbook.create_sheet("Distributions")
@@ -280,19 +296,24 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 q.questionId,
                 q.title,
                 q.kind,
-                q.relevant,
-                q.answered,
-                q.unanswered,
-                q.hidden,
-                q.invalid,
-                q.sum,
+                shown_count(q.relevant),
+                shown_count(q.answered),
+                shown_count(q.unanswered),
+                shown_count(q.hidden),
+                shown_count(q.invalid),
+                # Not in the disclosed model (R3); stored snapshots keep it.
+                getattr(q, "sum", None),
                 q.mean,
                 q.minimum,
                 q.maximum,
                 q.nps,
+                UNRELEASED_CONDITION_NOTE
+                if getattr(q, "withheldReason", None) == "unreleasedCondition"
+                else None,
             ],
         )
-        groups: list[tuple[str | None, str | None, int, list[AggregateCount]]] = (
+        # Stored (raw exports) or disclosed (report exports) buckets.
+        groups: list[tuple[str | None, str | None, int | None, list[Any]]] = (
             [(None, None, q.answered, q.counts)] if q.counts else []
         )
         for row in q.matrixRows:
@@ -302,9 +323,9 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                     q.questionId,
                     row.rowId,
                     row.label,
-                    row.answered,
-                    row.unanswered,
-                    row.invalid,
+                    shown_count(row.answered),
+                    shown_count(row.unanswered),
+                    shown_count(row.invalid),
                 ],
             )
             groups.append((row.rowId, row.label, row.answered, row.counts))
@@ -320,14 +341,15 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                         row_label,
                         json_value(bucket.value),
                         bucket.label,
-                        bucket.count,
-                        denominator,
+                        shown_count(bucket.count),
+                        shown_count(denominator),
                         bucket.percentage,
                         f"{ordinal}. {bucket.label[:55]}"
                         + ("…" if len(bucket.label) > 55 else ""),
                     ],
                 )
-            if not counts:
+            # No chart without a shown share (every cell withheld, k = 5).
+            if not counts or all(bucket.percentage is None for bucket in counts):
                 continue
             chart = BarChart()
             chart.type = "bar"
@@ -374,21 +396,24 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
     if anchor == 3:
         append(charts, ["No response distributions for this selection."])
     charts.print_area = f"A1:D{max(2, anchor - 3)}"
+    # Accounts without raw access get no last pages (an empty list).
     pages = workbook.create_sheet("Last page")
     append(
         pages,
         ["page_id", "page_title", "count", "selected_participations", "percentage"],
     )
+    if not source.snapshot.lastPageCounts:
+        append(pages, ["Not shown without raw access."])
     for page in source.snapshot.lastPageCounts:
         append(
             pages,
             [
                 page.pageId,
                 page.title,
-                page.count,
-                source.snapshot.participationCount,
+                shown_count(page.count),
+                shown_count(source.snapshot.participationCount),
                 page.count / source.snapshot.participationCount * 100
-                if source.snapshot.participationCount
+                if source.snapshot.participationCount and page.count is not None
                 else None,
             ],
         )
@@ -505,7 +530,8 @@ def workbook_bytes(workbook: Any, timestamp: str) -> bytes:
 def render_tabular(
     product: ExportProduct, source: SurveyExportSource
 ) -> SurveyExportArtifact:
-    s = AnalysisSnapshot.model_validate(source.snapshot.model_dump())
+    # Re-validate with the snapshot's own model (stored or disclosed).
+    s = type(source.snapshot).model_validate(source.snapshot.model_dump())
     info = metadata(source)
     if product == "responses_csv":
         columns, rows = response_rows(source)

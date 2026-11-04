@@ -9,7 +9,7 @@ decisions on legal entity, tax, privacy or operations.
 A named system admin runs the check on every pilot day before the usage
 window starts, and after every P0/P1 incident:
 
-1. open `System & Betrieb` (System & operations) in the portal;
+1. open `System` in the portal (tab `Betrieb`, operations);
 2. select `Tagesreport erstellen` (Create daily report);
 3. read the status, the six operations areas, the stop reasons and the next
    step;
