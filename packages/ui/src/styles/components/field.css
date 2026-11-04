@@ -86,7 +86,8 @@ input[type="radio"] {
 
 /* Product touch targets (README): controls are at least 44 px on <= 800 px. */
 @media (max-width: 800px) {
-  .input {
+  /* Textareas keep their 96 px; 44 px would shrink them on phones. */
+  .input:not(.textarea) {
     min-height: 44px;
   }
 }

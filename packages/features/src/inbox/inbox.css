@@ -1,172 +1,287 @@
-.inbox-workspace {
+/*
+ * Inbox ("Eingang") on the list view. Ported from the prototype's
+ * pages/Inbox.css, pages/modules/refs.css and the pages.css/components.css
+ * helpers the pane uses. Helpers are scoped to .inbox-page so they do not
+ * leak into other screens.
+ */
+
+/* ---------- prototype styles/pages.css ---------- */
+.inbox-page .order-no {
+  color: var(--text-3);
+  font-size: 0.82em;
+  margin-inline-end: var(--s-1);
+}
+.inbox-page .next-step {
   display: grid;
-  gap: 1.5rem;
-  min-width: 0;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  font-size: var(--fs-sm);
 }
-.inbox-workspace h1 {
-  margin: 0;
-  font-size: clamp(1.5rem, 2.5vw, 2rem);
-  font-weight: 700;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+
+/* ---------- prototype styles/components.css ---------- */
+.inbox-page .muted {
+  color: var(--text-2);
 }
-.inbox-workspace p {
-  line-height: 1.6;
-  max-width: 70ch;
-  overflow-wrap: anywhere;
+.inbox-page .subtle {
+  color: var(--text-3);
 }
-.inbox-workspace h2 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  margin-block: 0 0.75rem;
-  overflow-wrap: anywhere;
+.inbox-page .small {
+  font-size: var(--fs-sm);
 }
-.inbox-filters {
+.inbox-page .stack {
+  display: grid;
+  gap: var(--s-3);
+}
+.inbox-page .cluster {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  align-items: end;
+  align-items: center;
+  gap: var(--s-2);
 }
-.inbox-filters label {
+.inbox-page :is(.inbox-detail, .inbox-dialog) p {
+  margin: 0;
+}
+.inbox-page .avatar-empty {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 50%;
+}
+
+/* ---------- prototype pages/Inbox.css ---------- */
+.case-message {
   display: grid;
-  gap: 0.5rem;
-  flex: 1 1 14rem;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+}
+.case-subject {
+  font-weight: var(--fw-semibold);
+}
+.case-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.case-privacy svg {
+  flex: none;
+  margin-top: 3px;
+}
+.case-gap {
+  margin-top: var(--s-3);
+}
+.match-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-2);
+  color: var(--text-3);
+}
+.match-search .field {
+  flex: 1 1 9rem;
   min-width: 0;
 }
-.inbox-filters :is(input:not([type="checkbox"]), select) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--control-height);
-  padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
+.match-results {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
-.inbox-filters .inbox-check {
+.match-results li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.match-option {
   display: flex;
   align-items: center;
-  min-height: var(--control-height);
-  flex: 0 1 auto;
-}
-.inbox-results {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.inbox-results li {
-  padding-block: 1rem;
-  border-bottom: 1px solid var(--border);
-}
-.inbox-results h2 {
-  margin: 0;
-}
-.inbox-results p {
-  margin-block: 0.5rem 0;
-}
-.inbox-paging {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.inbox-workspace a {
-  color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-.inbox-workspace :is(a, input, select):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
-.inbox-message {
-  white-space: pre-wrap;
-}
-
-.inbox-form {
-  display: grid;
-  gap: 1rem;
-  max-width: 42rem;
-}
-.inbox-form label {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-}
-.inbox-form fieldset {
-  display: grid;
-  gap: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  min-width: 0;
-}
-.inbox-form :is(input, select, textarea) {
+  gap: var(--s-3);
   width: 100%;
-  min-width: 0;
-  min-height: var(--control-height);
-  padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
-}
-.inbox-form textarea {
-  resize: vertical;
-}
-.inbox-form textarea:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
-
-.inbox-contact-resolution {
-  display: grid;
-  gap: 1rem;
-}
-.inbox-contact-options {
-  display: grid;
-  gap: 1rem;
+  min-height: 48px;
+  padding: var(--s-2) var(--s-3);
   border: 0;
-  padding: 0;
-  min-width: 0;
-}
-.inbox-contact-options legend {
-  margin-bottom: 0.75rem;
-}
-.inbox-contact-options label {
-  display: flex;
-  align-items: start;
-  gap: 0.75rem;
-  padding-block: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: start;
   cursor: pointer;
 }
-.inbox-contact-options label > span {
+.match-option:hover {
+  background: var(--row-hover);
+}
+.match-option:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.match-option > span {
   display: grid;
-  gap: 0.25rem;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+.match-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.case-notes {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+}
+.case-notes li {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--warn-soft);
+  font-size: var(--fs-sm);
+}
+.case-note-form {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+.case-note-form .input {
+  flex: 1;
   min-width: 0;
 }
-.inbox-contact-options input {
-  flex-shrink: 0;
-  margin-top: 0.3rem;
+@media (min-width: 721px) {
+  .case-note-form .input {
+    min-height: 32px;
+    font-size: var(--fs-sm);
+  }
 }
 
-.inbox-picker {
+/* ---------- prototype pages/modules/refs.css ---------- */
+.ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--s-2);
+  border: var(--hair) solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ref-chip:hover {
+  background: var(--row-hover);
+}
+.ref-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- product parts the prototype has no data for ---------- */
+/* The pane body's own grid gap, kept through the wrapper. */
+.inbox-detail {
+  display: grid;
+  gap: var(--s-5);
   min-width: 0;
-  padding: 1rem;
-  margin-top: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
 }
-
-.inbox-results .btn {
+.case-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+.case-gap-bottom {
+  margin-bottom: var(--s-3);
+}
+.case-notes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+}
+.case-notes li > svg {
+  flex: none;
+  align-self: center;
+}
+.case-note-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.case-notes time {
+  font-size: var(--fs-xs);
+}
+.case-older {
+  justify-self: start;
+  margin-bottom: var(--s-2);
+}
+/* Chips first, then the link buttons on their own line, then pickers. */
+.case-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.case-links-break {
+  order: 1;
+  flex-basis: 100%;
+  height: 0;
+}
+.case-links > .case-link-button {
+  order: 2;
+}
+.case-links > :is(.inbox-picker, .callout) {
+  order: 3;
+  flex-basis: 100%;
+}
+.ref-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   max-width: 100%;
+}
+.ref-item .ref-chip {
+  min-width: 0;
   overflow-wrap: anywhere;
   text-align: start;
 }
-
-.inbox-workspace .btn {
-  justify-self: start;
+.ref-chip.is-missing {
+  color: var(--text-3);
+  cursor: default;
+}
+.inbox-picker {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-3);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+}
+.inbox-picker legend {
+  padding: 0 var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.inbox-callout {
+  margin: 0 var(--s-6) var(--s-3);
+}
+@media (max-width: 720px) {
+  .inbox-callout {
+    margin-inline: var(--s-4);
+  }
 }

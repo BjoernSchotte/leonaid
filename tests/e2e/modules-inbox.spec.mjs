@@ -61,51 +61,67 @@ for (const [surface, shell, width] of [
     ).toBeVisible();
 
     await page.goto(`${baseURL}${shell}/inbox`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Eingang" }),
+    ).toBeVisible();
     await page
       .getByRole("link", { name: new RegExp(`Mittagstisch \\(${surface}\\)`) })
       .click();
-    await expect(page).toHaveURL(caseURL);
+    await expect(page).toHaveURL(
+      new RegExp(`${shell}/inbox\\?(?:.*&)?open=${fixture.cases[surface]}`),
+    );
+    // The desktop pane is an aside; at 390 px it is a modal sheet.
+    const pane =
+      width <= 720
+        ? page.getByRole("dialog", { name: /Rückfrage zum Mittagstisch/ })
+        : page.getByRole("complementary", {
+            name: /Details: Rückfrage zum Mittagstisch/,
+          });
+    await expect(pane).toBeVisible();
     await expect(
-      page.getByText("Guten Tag,", { exact: false }).first(),
+      pane.getByText("Guten Tag,", { exact: false }).first(),
     ).toBeVisible();
+    await expect(pane.getByText(/mit Einwilligung/)).toBeVisible();
 
     const note = `Termin am Donnerstag prüfen ${randomUUID()}`;
-    await page.getByLabel("Neue Notiz", { exact: true }).fill(note);
-    await page
-      .getByRole("button", { name: "Notiz speichern", exact: true })
-      .click();
-    await expect(page.getByText(note, { exact: true })).toBeVisible();
+    await pane.getByLabel("Interne Notiz", { exact: true }).fill(note);
+    await pane.getByRole("button", { name: "Hinzufügen", exact: true }).click();
+    await expect(pane.getByText(note, { exact: true })).toBeVisible();
 
-    await page
-      .getByRole("combobox", { name: /^Status/ })
-      .selectOption("in_progress");
-    await page
-      .getByRole("button", { name: "Bearbeitung speichern", exact: true })
+    await pane
+      .getByRole("group", { name: "Eigenschaften" })
+      .getByRole("button", { name: /^Status/ })
       .click();
-    await expect(page.getByText("Bearbeitung gespeichert.")).toBeVisible();
+    await page.getByRole("option", { name: /In Bearbeitung/ }).click();
+    await expect(
+      pane
+        .getByRole("group", { name: "Eigenschaften" })
+        .getByRole("button", { name: /^Status/ }),
+    ).toContainText("In Bearbeitung");
 
-    const linkMaterialButton = page.getByRole("button", {
+    const linkMaterialButton = pane.getByRole("button", {
       name: "Material verknüpfen",
       exact: true,
     });
     const linkBox = await linkMaterialButton.boundingBox();
-    expect(linkBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
-    expect(linkBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
+    // Compact 28 px on desktop (prototype), 44 px touch target at 390 px.
+    expect(linkBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 28);
+    expect(linkBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 32);
     await linkMaterialButton.click();
-    await page
+    await pane
       .getByLabel("Materialien zum Verknüpfen suchen", { exact: true })
       .fill(title);
-    await page.getByRole("button", { name: title, exact: true }).click();
-    await page
+    await pane.getByRole("button", { name: title, exact: true }).click();
+    await pane
       .getByRole("button", { name: "Dateiversion einfügen", exact: true })
       .click();
-    await expect(
-      page.getByText("ablauf.txt · Dateiversion 1", { exact: true }),
-    ).toBeVisible();
+    const fileChip = pane.getByRole("button", {
+      name: "ablauf.txt · Dateiversion 1",
+      exact: true,
+    });
+    await expect(fileChip).toBeVisible();
     const download = page.waitForEvent("download");
-    await page
-      .getByRole("button", { name: "Dateiversion herunterladen", exact: true })
-      .click();
+    await fileChip.click();
     expect(readFileSync(await (await download).path())).toEqual(original);
     await expectNoHorizontalScroll(page);
     await page.screenshot({
@@ -113,18 +129,50 @@ for (const [surface, shell, width] of [
       fullPage: false,
     });
 
-    // The state survives a reload from the server.
-    await page.reload();
-    await expect(page.getByRole("combobox", { name: /^Status/ })).toHaveValue(
-      "in_progress",
-    );
-    await expect(page.getByText(note, { exact: true })).toBeVisible();
-    await page
-      .getByRole("button", { name: "Verweis entfernen", exact: true })
+    // The state survives a reload from the server; the old case path still
+    // opens the case.
+    await page.goto(caseURL);
+    await expect(
+      pane
+        .getByRole("group", { name: "Eigenschaften" })
+        .getByRole("button", { name: /^Status/ }),
+    ).toContainText("In Bearbeitung");
+    await expect(pane.getByText(note, { exact: true })).toBeVisible();
+    await pane
+      .getByRole("button", {
+        name: "Verweis entfernen: ablauf.txt · Dateiversion 1",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByText("Noch keine Materialien verknüpft.", { exact: true }),
+      pane.getByText("Nichts verknüpft.", { exact: true }),
     ).toBeVisible();
+
+    // Closing asks for an internal note first.
+    await pane
+      .getByRole("button", { name: "Abschließen …", exact: true })
+      .click();
+    const closeDialog = page.getByRole("dialog", {
+      name: "Anfrage abschließen",
+    });
+    await expect(closeDialog).toBeVisible();
+    await closeDialog
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(closeDialog.getByText(/mindestens 10 Zeichen/)).toBeVisible();
+    await closeDialog
+      .getByLabel(/Abschlussnotiz/)
+      .fill("Termin telefonisch vereinbart.");
+    await closeDialog
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(closeDialog).toHaveCount(0);
+    await expect(
+      pane.getByText("Abschlussnotiz: Termin telefonisch vereinbart.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expectNoHorizontalScroll(page);
     await context.close();
 
     // An unrelated account neither lists nor opens the case.
@@ -133,9 +181,14 @@ for (const [surface, shell, width] of [
     await denied.goto(caseURL);
     await expect(
       denied.getByText(
-        "Dieser Eingang ist nicht mehr verfügbar oder du hast keinen Zugriff.",
+        surface === "web"
+          ? "Dieser Eingang ist nicht mehr verfügbar oder Sie haben keinen Zugriff."
+          : "Dieser Eingang ist nicht mehr verfügbar oder du hast keinen Zugriff.",
       ),
     ).toBeVisible();
+    await expect(
+      denied.getByRole("link", { name: /Mittagstisch/ }),
+    ).toHaveCount(0);
     await expect(denied.getByText(note, { exact: true })).toHaveCount(0);
     await foreign.close();
   });

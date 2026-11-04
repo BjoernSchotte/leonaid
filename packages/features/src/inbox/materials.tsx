@@ -1,39 +1,55 @@
-import {
-  Download01Icon,
-  Link01Icon,
-  RefreshIcon,
-  Unlink01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Paperclip, RefreshCw, Unlink } from "lucide-react";
 import { useRef, useState } from "react";
+
 import {
   ApiError,
   type Case,
   type LeonAidApiClient,
   type MaterialVersion,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
-import { MaterialPicker } from "../materials/picker";
-import { downloadMaterial } from "../materials/download";
+import { Button, IconButton, StatusMessage } from "@leonaid/ui";
 
-export function InboxMaterials({
-  client,
-  item,
-}: {
-  client: LeonAidApiClient;
-  item: Case;
-}) {
-  const cache = useQueryClient();
-  const [picking, setPicking] = useState(false);
-  const [notice, setNotice] = useState("");
-  const pending = useRef<{ key: string; signature: string } | null>(null);
-  const references = useQuery({
-    queryKey: ["inbox-materials", item.id],
-    queryFn: () => client.listInboxMaterialReferences(item.id),
+import { downloadMaterial } from "../materials/download";
+import { MaterialPicker } from "../materials/picker";
+import { acceptCases, type Address } from "./inbox-model";
+import { InboxLinkButton } from "./tasks";
+
+export const materialReferencesKey = (caseId: string) => [
+  "inbox-materials",
+  caseId,
+];
+
+export function useMaterialReferences(
+  client: LeonAidApiClient,
+  caseId: string,
+) {
+  return useQuery({
+    queryKey: materialReferencesKey(caseId),
+    queryFn: () => client.listInboxMaterialReferences(caseId),
     retry: false,
     refetchInterval: 30000,
   });
+}
+
+/**
+ * Linked file versions as reference chips (a click downloads that version),
+ * plus the picker. Removing a reference deletes no file.
+ */
+export function InboxMaterials({
+  address,
+  client,
+  item,
+}: {
+  readonly address: Address;
+  readonly client: LeonAidApiClient;
+  readonly item: Case;
+}) {
+  const cache = useQueryClient();
+  const [picking, setPicking] = useState(false);
+  const pending = useRef<{ key: string; signature: string } | null>(null);
+  const references = useMaterialReferences(client, item.id);
+  const sie = address === "Sie";
   const change = useMutation({
     mutationFn: ({
       materialId,
@@ -61,127 +77,88 @@ export function InboxMaterials({
       });
     },
     onSuccess: (value) => {
-      cache.setQueryData(["inbox-case", item.id], value);
-      void cache.invalidateQueries({ queryKey: ["inbox-materials", item.id] });
-      void cache.invalidateQueries({ queryKey: ["inbox-cases"] });
+      acceptCases(cache, [value]);
+      void cache.invalidateQueries({
+        queryKey: materialReferencesKey(item.id),
+      });
       pending.current = null;
       setPicking(false);
-      setNotice("Materialverweise aktualisiert.");
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409)
-        void cache.invalidateQueries({ queryKey: ["inbox-case", item.id] });
+        void cache.invalidateQueries({ queryKey: ["inbox-cases"] });
     },
   });
   const download = useMutation({
     mutationFn: (file: MaterialVersion) => downloadMaterial(client, file),
   });
   return (
-    <section aria-labelledby="inbox-materials-heading">
-      <h2 id="inbox-materials-heading">Materialien</h2>
-      <p>
-        Verknüpfte Dateiversionen bleiben erhalten. Das Entfernen eines
-        Verweises löscht keine Datei.
-      </p>
-      {references.isPending && (
-        <p role="status">Materialverweise werden geladen …</p>
-      )}
-      {references.error && (
+    <>
+      {references.error ? (
         <StatusMessage tone="error">
           <p>Materialverweise konnten nicht geladen werden.</p>
           <Button
-            icon={
-              <HugeiconsIcon
-                icon={RefreshIcon}
-                size={16}
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            }
-            variant="secondary"
+            icon={RefreshCw}
             onClick={() => void references.refetch()}
+            size="sm"
+            variant="secondary"
           >
             Materialverweise erneut laden
           </Button>
         </StatusMessage>
-      )}
-      {!references.error && references.data && (
-        <ul className="inbox-results">
-          {references.data.items.map((reference) => (
-            <li key={`${reference.materialId}:${reference.materialVersion}`}>
-              <p>
-                {reference.file
-                  ? `${reference.file.filename} · Dateiversion ${reference.materialVersion}`
-                  : "Material nicht verfügbar"}
-              </p>
-              <div className="inbox-paging">
-                {reference.file && (
-                  <Button
-                    icon={
-                      <HugeiconsIcon
-                        icon={Download01Icon}
-                        size={16}
-                        strokeWidth={1.7}
-                        aria-hidden="true"
-                      />
-                    }
-                    variant="secondary"
-                    disabled={download.isPending}
-                    onClick={() => download.mutate(reference.file!)}
-                  >
-                    Dateiversion herunterladen
-                  </Button>
-                )}
-                <Button
-                  icon={
-                    <HugeiconsIcon
-                      icon={Unlink01Icon}
-                      size={16}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  }
-                  variant="secondary"
-                  disabled={change.isPending}
-                  onClick={() => {
-                    setNotice("");
-                    change.mutate({
-                      materialId: reference.materialId,
-                      materialVersion: reference.materialVersion,
-                      present: false,
-                    });
-                  }}
-                >
-                  Verweis entfernen
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      {!references.error && references.data?.items.length === 0 && (
-        <p>Noch keine Materialien verknüpft.</p>
-      )}
-      <Button
-        icon={
-          <HugeiconsIcon
-            icon={Link01Icon}
-            size={16}
-            strokeWidth={1.7}
-            aria-hidden="true"
-          />
-        }
-        variant="secondary"
+      ) : null}
+      {references.data?.items.map((reference) => {
+        const name = reference.file
+          ? `${reference.file.filename} · Dateiversion ${reference.materialVersion}`
+          : "Material nicht verfügbar";
+        return (
+          <span
+            className="ref-item"
+            key={`${reference.materialId}:${reference.materialVersion}`}
+          >
+            {reference.file ? (
+              <button
+                className="ref-chip"
+                disabled={download.isPending}
+                onClick={() => download.mutate(reference.file!)}
+                title="Dateiversion herunterladen"
+                type="button"
+              >
+                <Paperclip aria-hidden="true" size={13} />
+                {name}
+              </button>
+            ) : (
+              <span className="ref-chip is-missing">
+                <Paperclip aria-hidden="true" size={13} />
+                {name}
+              </span>
+            )}
+            <IconButton
+              disabled={change.isPending}
+              icon={Unlink}
+              label={`Verweis entfernen: ${name}`}
+              onClick={() =>
+                change.mutate({
+                  materialId: reference.materialId,
+                  materialVersion: reference.materialVersion,
+                  present: false,
+                })
+              }
+              size="sm"
+              variant="ghost"
+            />
+          </span>
+        );
+      })}
+      <InboxLinkButton
         disabled={change.isPending || picking}
+        label="Material verknüpfen"
         onClick={() => {
           setPicking(true);
           change.reset();
-          setNotice("");
         }}
-      >
-        Material verknüpfen
-      </Button>
-      {picking && (
+      />
+      {picking ? (
         <fieldset className="inbox-picker" disabled={change.isPending}>
           <legend>Dateiversion auswählen</legend>
           <MaterialPicker
@@ -192,25 +169,25 @@ export function InboxMaterials({
             }
           />
         </fieldset>
-      )}
-      {change.error && (
+      ) : null}
+      {change.error ? (
         <StatusMessage tone="error">
-          <p>
-            {change.error instanceof ApiError && change.error.status === 409
-              ? "Der Fall wurde inzwischen geändert. Prüfe die aktuellen Verweise und wiederhole deine Auswahl."
+          {change.error instanceof ApiError && change.error.status === 409
+            ? sie
+              ? "Die Anfrage wurde inzwischen geändert. Prüfen Sie die aktuellen Verweise und wiederholen Sie Ihre Auswahl."
+              : "Die Anfrage wurde inzwischen geändert. Prüfe die aktuellen Verweise und wiederhole deine Auswahl."
+            : sie
+              ? "Der Materialverweis konnte nicht geändert werden. Prüfen Sie Ihren Zugriff und versuchen Sie es erneut."
               : "Der Materialverweis konnte nicht geändert werden. Prüfe deinen Zugriff und versuche es erneut."}
-          </p>
         </StatusMessage>
-      )}
-      {download.error && (
+      ) : null}
+      {download.error ? (
         <StatusMessage tone="error">
-          <p>
-            Download fehlgeschlagen. Prüfe deinen Zugriff und versuche es
-            erneut.
-          </p>
+          {sie
+            ? "Download fehlgeschlagen. Prüfen Sie Ihren Zugriff und versuchen Sie es erneut."
+            : "Download fehlgeschlagen. Prüfe deinen Zugriff und versuche es erneut."}
         </StatusMessage>
-      )}
-      {notice && <p role="status">{notice}</p>}
-    </section>
+      ) : null}
+    </>
   );
 }
