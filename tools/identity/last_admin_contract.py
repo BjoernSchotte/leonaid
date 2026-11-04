@@ -95,6 +95,9 @@ async def cleanup(connection: asyncpg.Connection[Any]) -> None:
         "DELETE FROM user_account WHERE id = ANY($1::uuid[])", list(USERS)
     )
     await connection.execute(
+        "DELETE FROM beneficiary WHERE action_id = ANY($1::uuid[])", list(ACTIONS)
+    )
+    await connection.execute(
         "DELETE FROM charity_action WHERE id = ANY($1::uuid[])", list(ACTIONS)
     )
 
@@ -137,6 +140,19 @@ async def seed(connection: asyncpg.Connection[Any], now: datetime) -> None:
             """,
             action_id,
             slug,
+            FOREIGN_ACTION_ID,
+        )
+        await connection.execute(
+            """
+            INSERT INTO beneficiary (
+                id, action_id, organization_name, public_description, sort_order
+            )
+            SELECT gen_random_uuid(), $1, organization_name, public_description,
+                   sort_order
+            FROM beneficiary
+            WHERE action_id = $2
+            """,
+            action_id,
             FOREIGN_ACTION_ID,
         )
     # Solo: only LEAD_ONE. Shared: LEAD_ONE and LEAD_TWO.
