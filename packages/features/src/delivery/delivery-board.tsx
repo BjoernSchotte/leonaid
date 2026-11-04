@@ -136,7 +136,16 @@ export function DeliveryBoardPage({
   const text = copy[surface];
   const queries = useQueryClient();
   const toast = useOptionalToast();
-  const [day, setDay] = useState<string | null>(null);
+  // The chosen day lives in the URL (?day=), so a reload keeps it.
+  const [day, setDayState] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("day"),
+  );
+  const setDay = (value: string) => {
+    setDayState(value);
+    const url = new URL(window.location.href);
+    url.searchParams.set("day", value);
+    window.history.replaceState(window.history.state, "", url);
+  };
   const [driver, setDriver] = useState(ALL_DRIVERS);
   const [activeWindow, setActiveWindow] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
