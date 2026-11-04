@@ -1,0 +1,67 @@
+/*
+ * Chart.js canvases (components/chart). The canvas follows its container:
+ * the host is relative with min-width 0, and every grid/flex parent of a
+ * chart must allow shrinking (min-width: 0), or the canvas holds the column
+ * open on resize.
+ */
+.chart-canvas {
+  position: relative;
+  min-width: 0;
+  height: var(--chart-h, 160px);
+}
+.chart-canvas canvas {
+  max-width: 100%;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.chart-legend-label {
+  color: var(--text-2);
+}
+.chart-legend-value {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.chart-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.chart-swatch-pos {
+  background: var(--chart-pos);
+}
+.chart-swatch-pos-soft {
+  background: var(--chart-pos-soft);
+}
+.chart-swatch-mid {
+  background: var(--chart-mid);
+}
+.chart-swatch-neg-soft {
+  background: var(--chart-neg-soft);
+}
+.chart-swatch-neg {
+  background: var(--chart-neg);
+}
+
+.chart-table summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.chart-table .table-wrap {
+  margin-top: var(--s-2);
+}
