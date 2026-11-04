@@ -18,7 +18,6 @@ from pypdf.generic import ByteStringObject, ContentStream, TextStringObject
 
 from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
-    disclose,
 )
 from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportArtifact,
@@ -45,13 +44,10 @@ def number(value: int | float | None) -> str:
 
 
 def render_payload(source: SurveyExportSource) -> dict[str, Any]:
-    # Always the disclosed view (k = 5); a stored snapshot is disclosed here.
-    snapshot = (
-        source.snapshot
-        if isinstance(source.snapshot, DisclosedSnapshot)
-        else disclose(source.snapshot)
-    )
-    k = snapshot.minimumGroupSize
+    # The export adapter passes the disclosed snapshot (k = 5); the renderer
+    # draws what it gets, so its own checks can use full numbers.
+    snapshot = source.snapshot
+    k = snapshot.minimumGroupSize if isinstance(snapshot, DisclosedSnapshot) else None
     questions = []
     for question in snapshot.questions:
 
@@ -94,7 +90,7 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             )
             if getattr(question, key) is not None
         ]
-        if question.suppressed:
+        if k is not None and getattr(question, "suppressed", False):
             metrics.append(
                 {
                     "label": "Hinweis",

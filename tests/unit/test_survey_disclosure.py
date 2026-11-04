@@ -232,8 +232,14 @@ def test_report_exports_show_withheld_counts():
     few = question("few", "rating", [2, 2], stats={"mean": 1.5})
     few["hidden"] = 16
     stored = snapshot(20, [question("q", "radiogroup", [2, 6, 12]), few])
-    # The PDF payload discloses even a stored snapshot.
-    pdf = render_payload(SurveyExportSource("T", Stored.model_validate(stored)))
+    # The export adapter passes the disclosed snapshot to the PDF renderer.
+    pdf = render_payload(SurveyExportSource("T", disclose(stored)))
+    full = render_payload(SurveyExportSource("T", Stored.model_validate(stored)))
+    assert [r["count"] for r in full["questions"][0]["groups"][0]["rows"]] == [
+        2,
+        6,
+        12,
+    ]
     rows = pdf["questions"][0]["groups"][0]["rows"]
     assert [row["count"] for row in rows] == ["< 5", "< 5", 12]
     assert pdf["questions"][1]["groups"] == []
