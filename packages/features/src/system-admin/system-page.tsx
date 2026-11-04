@@ -54,7 +54,11 @@ export function SystemPage({ client, identity }: SystemPageProps) {
   const go = useCallback((next: SystemSection) => {
     const tab = TABS.find((item) => item.id === next)!;
     if (window.location.pathname !== tab.path) {
-      navigateInPage(`${tab.path}${window.location.search}`);
+      // Like the prototype: a tab switch replaces the entry, so Back
+      // leaves the System page instead of walking through its tabs.
+      navigateInPage(`${tab.path}${window.location.search}`, {
+        replace: true,
+      });
     }
   }, []);
 

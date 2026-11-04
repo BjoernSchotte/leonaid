@@ -240,10 +240,10 @@ describe("SystemPage", () => {
     expect(window.location.pathname).toBe("/admin/privacy");
     expect(screen.getByText("Nach einer Person suchen")).toBeTruthy();
 
-    window.history.back();
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/admin/system/jobs"),
-    );
+    // Tabs replace the history entry (prototype behaviour); Back or
+    // Forward still re-renders the tab of the current URL.
+    window.history.pushState(null, "", "/admin/system/jobs");
+    window.dispatchEvent(new PopStateEvent("popstate"));
     expect(await screen.findByTestId("operations-jobs")).toBeTruthy();
   });
 

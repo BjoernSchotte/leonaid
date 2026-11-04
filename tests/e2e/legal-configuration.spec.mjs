@@ -136,7 +136,10 @@ test("two system admins activate a legal basis", async ({ browser }) => {
       .getByRole("alertdialog", { name: "Version 2 aktivieren?" })
       .getByRole("button", { name: "Jetzt aktivieren" })
       .click();
-    await expect(simonePage.getByText("Version 2 aktiv")).toBeVisible();
+    await expect(simonePage.getByRole("alertdialog")).toHaveCount(0);
+    await expect(
+      simonePage.getByText("Version 2 aktiv", { exact: true }),
+    ).toBeVisible();
     await expect(simonePage.getByText("Kein offener Entwurf")).toBeVisible();
 
     await simonePage.setViewportSize({ width: 390, height: 844 });
