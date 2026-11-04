@@ -41,8 +41,17 @@
         "Aktueller Bestellwert",
         "Rechnungsadresse entspricht der Lieferadresse",
         "Ich bestelle die gewählte Menge verbindlich.",
-        "Bestellung eingegangen"
+        "Bestellung eingegangen",
+        "Ihre Auswahl",
+        "Wer bestellt?",
+        "Firma oder Verein",
+        "Privatperson",
+        "Danke für Ihre Bestellung!"
       ]
+    },
+    {
+      "file": "apps/public/src/components/PublicOrderEnhancement.astro",
+      "contains": ["Bitte prüfen Sie"]
     }
   ],
   "DOC-P014": [
