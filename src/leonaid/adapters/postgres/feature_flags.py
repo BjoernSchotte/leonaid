@@ -62,7 +62,7 @@ class AsyncpgFeatureFlagRepository(FeatureFlagRepository):
                     raise Conflict(
                         "feature_flag_revision_conflict",
                         "Das Feature-Flag wurde zwischenzeitlich geändert. "
-                        "Lade den aktuellen Stand neu.",
+                        "Bitte laden Sie den aktuellen Stand neu.",
                     )
                 if current.enabled == enabled:
                     return current
