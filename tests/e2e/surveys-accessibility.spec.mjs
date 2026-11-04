@@ -130,11 +130,23 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
     ).toBeVisible();
     await scan("initial editor");
     const controlColors = await textbox("Titel des Fragebogens").evaluate(
-      (element) => ({
-        border: getComputedStyle(element).borderTopColor,
-        background: getComputedStyle(element.closest(".survey-editor"))
-          .backgroundColor,
-      }),
+      (element) => {
+        // Computed colours may be oklch(); a canvas pixel gives sRGB.
+        const context = document.createElement("canvas").getContext("2d");
+        const rgb = (color) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+          return `rgb(${r}, ${g}, ${b})`;
+        };
+        return {
+          border: rgb(getComputedStyle(element).borderTopColor),
+          background: rgb(
+            getComputedStyle(element.closest(".survey-editor")).backgroundColor,
+          ),
+        };
+      },
     );
     const luminance = (color) => {
       const rgb = color

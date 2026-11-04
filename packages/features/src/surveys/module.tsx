@@ -1,3 +1,4 @@
+import { ClipboardList } from "lucide-react";
 import { lazy, Suspense } from "react";
 
 import type { UiModule } from "../modules";
@@ -24,6 +25,14 @@ export const surveysModule: UiModule = {
   id: "surveys",
   label: "Umfragen",
   surfaces: ["web"],
+  creates: [
+    {
+      id: "create:survey",
+      label: "Umfrage anlegen",
+      icon: ClipboardList,
+      href: () => "/admin/surveys/new",
+    },
+  ],
   routes: [
     {
       pattern: /^\/surveys(?:\/(new|[0-9a-f-]{36}))?$/,
