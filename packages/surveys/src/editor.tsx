@@ -6,6 +6,7 @@ import {
   useRef,
   useLayoutEffect,
   useId,
+  type KeyboardEvent,
 } from "react";
 import type {
   AuthoringAdapter,
@@ -107,6 +108,7 @@ export function SurveyEditor({
   const [kind, setKind] = useState<QuestionKind>("text");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [announcement, setAnnouncement] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<Model | null>(null);
   const publication = useRef<Mutation | null>(null);
@@ -129,7 +131,9 @@ export function SurveyEditor({
   const doc = history.document;
   const issues = compatibilityIssues(doc);
   const page = doc.pages.find((p) => p.name === pageId) ?? doc.pages[0];
-  const question = page?.elements.find((q) => q.name === questionId);
+  // As in the prototype, the first card is open until another is chosen.
+  const question =
+    page?.elements.find((q) => q.name === questionId) ?? page?.elements[0];
   useLayoutEffect(() => {
     if (pendingFocus.current) {
       const target = root.current?.querySelector<HTMLElement>(
@@ -167,22 +171,53 @@ export function SurveyEditor({
   }, [preview]);
   function movePage(name: string, position: number) {
     pendingFocus.current = `[data-page-id="${CSS.escape(name)}"]`;
-    edit(() => history.movePage(name, position));
+    if (edit(() => history.movePage(name, position)))
+      setAnnouncement(
+        t("Seite jetzt an Position {number} von {total}.", {
+          number: position + 1,
+          total: history.document.pages.length,
+        }),
+      );
   }
   function moveQuestion(name: string, pageName: string, position: number) {
     pendingFocus.current = `[data-question-id="${CSS.escape(name)}"]`;
-    edit(() => history.moveQuestion(name, pageName, position));
+    if (edit(() => history.moveQuestion(name, pageName, position)))
+      setAnnouncement(
+        t("Frage jetzt an Position {number} von {total}.", {
+          number: position + 1,
+          total:
+            history.document.pages.find((p) => p.name === pageName)?.elements
+              .length ?? position + 1,
+        }),
+      );
   }
-  function edit(change: () => void) {
-    if (busy || publication.current) return;
+  /** Alt+↑/↓ on a card or page moves it, as the buttons do. */
+  function altMove(
+    event: KeyboardEvent<HTMLElement>,
+    index: number,
+    count: number,
+    move: (position: number) => void,
+  ) {
+    if (!event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    const target = event.target as HTMLElement;
+    if (!target.matches("[data-question-id], [data-page-id]")) return;
+    event.preventDefault();
+    const position = index + (event.key === "ArrowUp" ? -1 : 1);
+    if (position >= 0 && position < count) move(position);
+  }
+  function edit(change: () => void): boolean {
+    if (busy || publication.current) return false;
     try {
       change();
       setError("");
       saves.changed();
+      return true;
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Änderung nicht möglich.",
       );
+      return false;
     }
   }
   useEffect(() => {
@@ -566,6 +601,9 @@ export function SurveyEditor({
           </button>
         </div>
       )}
+      <p className="se-sr" aria-live="polite">
+        {announcement}
+      </p>
       <fieldset className="se-editing" disabled={busy || !!publication.current}>
         {issues.length > 0 && (
           <section
@@ -587,65 +625,6 @@ export function SurveyEditor({
             </ul>
           </section>
         )}
-        <div className="se-meta">
-          <label className="se-title">
-            {t("Titel des Fragebogens")}
-            <input
-              value={String(doc.title ?? "")}
-              onChange={(event) =>
-                edit(() =>
-                  history.change((next) => {
-                    next.title = event.target.value;
-                  }),
-                )
-              }
-            />
-          </label>
-          <label>
-            {t("Beschreibung")}
-            <textarea
-              value={String(doc.description ?? "")}
-              onChange={(event) =>
-                edit(() =>
-                  history.change((next) => {
-                    next.description = event.target.value;
-                  }),
-                )
-              }
-            />
-          </label>
-          <label>
-            {t("Fortschritt anzeigen")}
-            <select
-              value={String(doc.showProgressBar ?? "off")}
-              onChange={(event) =>
-                edit(() =>
-                  history.change((next) => {
-                    next.showProgressBar = event.target.value;
-                  }),
-                )
-              }
-            >
-              <option value="off">{t("Aus")}</option>
-              <option value="top">{t("Oben")}</option>
-              <option value="bottom">{t("Unten")}</option>
-              <option value="both">{t("Oben und unten")}</option>
-            </select>
-          </label>
-          <label>
-            {t("Text nach dem Abschluss")}
-            <textarea
-              value={String(doc.completedHtml ?? "")}
-              onChange={(event) =>
-                edit(() =>
-                  history.change((next) => {
-                    next.completedHtml = event.target.value;
-                  }),
-                )
-              }
-            />
-          </label>
-        </div>
         <div className="se-workspace">
           <nav className="se-pages" aria-label={t("Fragebogenseiten")}>
             <h2>{t("Seiten")}</h2>
@@ -654,6 +633,11 @@ export function SurveyEditor({
                 <li
                   key={p.name}
                   className="se-page"
+                  onKeyDown={(event) =>
+                    altMove(event, index, doc.pages.length, (to) =>
+                      movePage(p.name, to),
+                    )
+                  }
                   draggable
                   onDragStart={(event) =>
                     event.dataTransfer.setData(
@@ -674,6 +658,7 @@ export function SurveyEditor({
                     className="se-page-select"
                     type="button"
                     data-page-id={p.name}
+                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                     aria-current={page?.name === p.name ? "step" : undefined}
                     onClick={() => {
                       selectPage(p.name);
@@ -732,6 +717,11 @@ export function SurveyEditor({
                       key={q.name}
                       className="se-question"
                       data-selected={question?.name === q.name || undefined}
+                      onKeyDown={(event) =>
+                        altMove(event, index, page.elements.length, (to) =>
+                          moveQuestion(q.name, page.name, to),
+                        )
+                      }
                       draggable
                       onDragStart={(event) =>
                         event.dataTransfer.setData(
@@ -751,58 +741,304 @@ export function SurveyEditor({
                           );
                       }}
                     >
-                      <span className="se-grip" aria-hidden="true">
-                        <Glyph path={grip} />
-                      </span>
-                      <button
-                        className="se-question-select"
-                        type="button"
-                        data-question-id={q.name}
-                        aria-pressed={question?.name === q.name}
-                        onClick={() => selectQuestion(q.name)}
-                      >
-                        <span className="se-question-no" aria-hidden="true">
-                          {index + 1}
+                      <div className="se-question-head">
+                        <span className="se-grip" aria-hidden="true">
+                          <Glyph path={grip} />
                         </span>
-                        <small className="se-badge">
-                          {t(
-                            kinds.find(([type]) => type === q.type)?.[1] ??
-                              "Nicht unterstützte Frage",
-                          )}
-                        </small>
-                        <strong>
-                          {String(q.title ?? t("Frage ohne Titel"))}
-                        </strong>
-                      </button>
-                      <div className="se-move">
                         <button
+                          className="se-question-select"
                           type="button"
-                          disabled={index === 0}
-                          aria-label={t("Frage {number} nach oben", {
-                            number: index + 1,
-                          })}
-                          onClick={() =>
-                            moveQuestion(q.name, page.name, index - 1)
-                          }
+                          data-question-id={q.name}
+                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                          aria-pressed={question?.name === q.name}
+                          onClick={() => selectQuestion(q.name)}
                         >
-                          <Glyph path={up} />
+                          <span className="se-question-no" aria-hidden="true">
+                            {index + 1}
+                          </span>
+                          <small className="se-badge">
+                            {t(
+                              kinds.find(([type]) => type === q.type)?.[1] ??
+                                "Nicht unterstützte Frage",
+                            )}
+                          </small>
+                          <strong>
+                            {String(q.title ?? t("Frage ohne Titel"))}
+                          </strong>
                         </button>
-                        <button
-                          type="button"
-                          disabled={index === page.elements.length - 1}
-                          aria-label={t("Frage {number} nach unten", {
-                            number: index + 1,
-                          })}
-                          onClick={() =>
-                            moveQuestion(q.name, page.name, index + 1)
-                          }
-                        >
-                          <Glyph path={down} />
-                        </button>
+                        <div className="se-move">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            aria-label={t("Frage {number} nach oben", {
+                              number: index + 1,
+                            })}
+                            onClick={() =>
+                              moveQuestion(q.name, page.name, index - 1)
+                            }
+                          >
+                            <Glyph path={up} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === page.elements.length - 1}
+                            aria-label={t("Frage {number} nach unten", {
+                              number: index + 1,
+                            })}
+                            onClick={() =>
+                              moveQuestion(q.name, page.name, index + 1)
+                            }
+                          >
+                            <Glyph path={down} />
+                          </button>
+                        </div>
                       </div>
+                      {question?.name === q.name && (
+                        <aside
+                          className="se-properties"
+                          aria-label={t("Frageeigenschaften")}
+                        >
+                          <h2 className="se-sr">{t("Eigenschaften")}</h2>
+                          {question && questionIssues(question).length === 0 ? (
+                            <>
+                              <label>
+                                {t("Fragetitel")}
+                                <input
+                                  value={String(question.title ?? "")}
+                                  onChange={(event) =>
+                                    update({ title: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                {t("Hinweis")}
+                                <textarea
+                                  value={String(question.description ?? "")}
+                                  onChange={(event) =>
+                                    update({ description: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label className="se-check">
+                                <input
+                                  type="checkbox"
+                                  checked={question.isRequired === true}
+                                  onChange={(event) =>
+                                    update({ isRequired: event.target.checked })
+                                  }
+                                />
+                                {t("Antwort erforderlich")}
+                              </label>
+                              {question.type === "text" && (
+                                <label>
+                                  {t("Eingabe")}
+                                  <select
+                                    value={String(question.inputType ?? "text")}
+                                    onChange={(event) =>
+                                      update({
+                                        inputType: event.target.value,
+                                        min: undefined,
+                                        max: undefined,
+                                        minLength: undefined,
+                                        maxLength: undefined,
+                                      })
+                                    }
+                                  >
+                                    <option value="text">{t("Text")}</option>
+                                    <option value="number">{t("Zahl")}</option>
+                                    <option value="date">{t("Datum")}</option>
+                                  </select>
+                                </label>
+                              )}
+                              {((question.type === "text" &&
+                                (!question.inputType ||
+                                  question.inputType === "text")) ||
+                                question.type === "comment") && (
+                                <>
+                                  {["minLength", "maxLength"].map(
+                                    (property) => (
+                                      <label key={property}>
+                                        {property === "minLength"
+                                          ? t("Mindestlänge")
+                                          : t("Höchstlänge")}
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={String(
+                                            question[property] ?? "",
+                                          )}
+                                          onChange={(event) =>
+                                            update({
+                                              [property]:
+                                                event.target.value === ""
+                                                  ? undefined
+                                                  : Number(event.target.value),
+                                            })
+                                          }
+                                        />
+                                      </label>
+                                    ),
+                                  )}
+                                </>
+                              )}
+                              {["radiogroup", "dropdown", "checkbox"].includes(
+                                question.type,
+                              ) && choices("choices", question)}
+                              {question.type === "matrix" && (
+                                <>
+                                  {choices("rows", question)}
+                                  {choices("columns", question)}
+                                  <label className="se-check">
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        question.isAllRowRequired === true
+                                      }
+                                      onChange={(event) =>
+                                        update({
+                                          isAllRowRequired:
+                                            event.target.checked,
+                                        })
+                                      }
+                                    />
+                                    {t("Alle Zeilen erforderlich")}
+                                  </label>
+                                </>
+                              )}
+                              {((question.type === "text" &&
+                                ["number", "date"].includes(
+                                  String(question.inputType),
+                                )) ||
+                                question.type === "rating" ||
+                                question.type === "checkbox") && (
+                                <fieldset>
+                                  <legend>{t("Grenzen")}</legend>
+                                  {(question.type === "rating"
+                                    ? [
+                                        ["rateMin", "Skalenanfang"],
+                                        ["rateMax", "Skalenende"],
+                                        ["rateStep", "Schrittweite"],
+                                      ]
+                                    : question.type === "checkbox"
+                                      ? [
+                                          [
+                                            "minSelectedChoices",
+                                            "Mindestens auswählen",
+                                          ],
+                                          [
+                                            "maxSelectedChoices",
+                                            "Höchstens auswählen",
+                                          ],
+                                        ]
+                                      : [
+                                          ["min", "Minimum"],
+                                          ["max", "Maximum"],
+                                        ]
+                                  ).map(([property, label]) => (
+                                    <label key={property}>
+                                      {t(label)}
+                                      <input
+                                        type={
+                                          question.inputType === "date"
+                                            ? "date"
+                                            : "number"
+                                        }
+                                        step="any"
+                                        value={String(question[property] ?? "")}
+                                        onChange={(event) =>
+                                          update({
+                                            [property]:
+                                              event.target.value === ""
+                                                ? undefined
+                                                : question.inputType === "date"
+                                                  ? event.target.value
+                                                  : Number(event.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  ))}
+                                </fieldset>
+                              )}
+                              <ConditionBuilder
+                                translate={t}
+                                expression={String(question.visibleIf ?? "")}
+                                questions={precedingQuestions}
+                                onChange={(visibleIf) => update({ visibleIf })}
+                              />
+                              <label>
+                                {t("Auf Seite verschieben")}
+                                <select
+                                  value={page.name}
+                                  onChange={(event) =>
+                                    edit(() => {
+                                      history.moveQuestion(
+                                        question.name,
+                                        event.target.value,
+                                        0,
+                                      );
+                                      selectPage(event.target.value);
+                                    })
+                                  }
+                                >
+                                  {doc.pages.map((p, index) => (
+                                    <option key={p.name} value={p.name}>
+                                      {index + 1}.{" "}
+                                      {String(p.title ?? t("Seite"))}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <div className="se-actions">
+                                <button
+                                  className="se-button"
+                                  type="button"
+                                  onClick={() =>
+                                    edit(() =>
+                                      selectQuestion(
+                                        history.duplicateQuestion(
+                                          question.name,
+                                        ),
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {t("Frage duplizieren")}
+                                </button>
+                                <button
+                                  className="se-button se-button-danger"
+                                  type="button"
+                                  onClick={() =>
+                                    edit(() =>
+                                      history.removeQuestion(question.name),
+                                    )
+                                  }
+                                >
+                                  {t("Frage entfernen")}
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="se-empty">
+                              {question
+                                ? t(
+                                    "Diese Frage enthält nicht unterstützte Eigenschaften und bleibt unverändert erhalten. Korrigieren Sie die angezeigten Felder über den JSON-Import.",
+                                  )
+                                : t(
+                                    "Wählen Sie eine Frage, um Titel und Antworten zu bearbeiten.",
+                                  )}
+                            </p>
+                          )}
+                        </aside>
+                      )}
                     </li>
                   ))}
                 </ol>
+                <p className="se-hint">
+                  {t(
+                    "Fragen mit der Maus ziehen oder mit Alt + ↑/↓ verschieben.",
+                  )}
+                </p>
                 <div className="se-add">
                   <label>
                     {t("Fragetyp")}
@@ -889,212 +1125,65 @@ export function SurveyEditor({
               </p>
             )}
           </div>
-          <aside className="se-properties" aria-label={t("Frageeigenschaften")}>
-            <h2>{t("Eigenschaften")}</h2>
-            {question && questionIssues(question).length === 0 ? (
-              <>
-                <label>
-                  {t("Fragetitel")}
-                  <input
-                    value={String(question.title ?? "")}
-                    onChange={(event) => update({ title: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {t("Hinweis")}
-                  <textarea
-                    value={String(question.description ?? "")}
-                    onChange={(event) =>
-                      update({ description: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="se-check">
-                  <input
-                    type="checkbox"
-                    checked={question.isRequired === true}
-                    onChange={(event) =>
-                      update({ isRequired: event.target.checked })
-                    }
-                  />
-                  {t("Antwort erforderlich")}
-                </label>
-                {question.type === "text" && (
-                  <label>
-                    {t("Eingabe")}
-                    <select
-                      value={String(question.inputType ?? "text")}
-                      onChange={(event) =>
-                        update({
-                          inputType: event.target.value,
-                          min: undefined,
-                          max: undefined,
-                          minLength: undefined,
-                          maxLength: undefined,
-                        })
-                      }
-                    >
-                      <option value="text">{t("Text")}</option>
-                      <option value="number">{t("Zahl")}</option>
-                      <option value="date">{t("Datum")}</option>
-                    </select>
-                  </label>
-                )}
-                {((question.type === "text" &&
-                  (!question.inputType || question.inputType === "text")) ||
-                  question.type === "comment") && (
-                  <>
-                    {["minLength", "maxLength"].map((property) => (
-                      <label key={property}>
-                        {property === "minLength"
-                          ? t("Mindestlänge")
-                          : t("Höchstlänge")}
-                        <input
-                          type="number"
-                          min="0"
-                          value={String(question[property] ?? "")}
-                          onChange={(event) =>
-                            update({
-                              [property]:
-                                event.target.value === ""
-                                  ? undefined
-                                  : Number(event.target.value),
-                            })
-                          }
-                        />
-                      </label>
-                    ))}
-                  </>
-                )}
-                {["radiogroup", "dropdown", "checkbox"].includes(
-                  question.type,
-                ) && choices("choices", question)}
-                {question.type === "matrix" && (
-                  <>
-                    {choices("rows", question)}
-                    {choices("columns", question)}
-                    <label className="se-check">
-                      <input
-                        type="checkbox"
-                        checked={question.isAllRowRequired === true}
-                        onChange={(event) =>
-                          update({ isAllRowRequired: event.target.checked })
-                        }
-                      />
-                      {t("Alle Zeilen erforderlich")}
-                    </label>
-                  </>
-                )}
-                {((question.type === "text" &&
-                  ["number", "date"].includes(String(question.inputType))) ||
-                  question.type === "rating" ||
-                  question.type === "checkbox") && (
-                  <fieldset>
-                    <legend>{t("Grenzen")}</legend>
-                    {(question.type === "rating"
-                      ? [
-                          ["rateMin", "Skalenanfang"],
-                          ["rateMax", "Skalenende"],
-                          ["rateStep", "Schrittweite"],
-                        ]
-                      : question.type === "checkbox"
-                        ? [
-                            ["minSelectedChoices", "Mindestens auswählen"],
-                            ["maxSelectedChoices", "Höchstens auswählen"],
-                          ]
-                        : [
-                            ["min", "Minimum"],
-                            ["max", "Maximum"],
-                          ]
-                    ).map(([property, label]) => (
-                      <label key={property}>
-                        {t(label)}
-                        <input
-                          type={
-                            question.inputType === "date" ? "date" : "number"
-                          }
-                          step="any"
-                          value={String(question[property] ?? "")}
-                          onChange={(event) =>
-                            update({
-                              [property]:
-                                event.target.value === ""
-                                  ? undefined
-                                  : question.inputType === "date"
-                                    ? event.target.value
-                                    : Number(event.target.value),
-                            })
-                          }
-                        />
-                      </label>
-                    ))}
-                  </fieldset>
-                )}
-                <ConditionBuilder
-                  translate={t}
-                  expression={String(question.visibleIf ?? "")}
-                  questions={precedingQuestions}
-                  onChange={(visibleIf) => update({ visibleIf })}
-                />
-                <label>
-                  {t("Auf Seite verschieben")}
-                  <select
-                    value={page.name}
-                    onChange={(event) =>
-                      edit(() => {
-                        history.moveQuestion(
-                          question.name,
-                          event.target.value,
-                          0,
-                        );
-                        selectPage(event.target.value);
-                      })
-                    }
-                  >
-                    {doc.pages.map((p, index) => (
-                      <option key={p.name} value={p.name}>
-                        {index + 1}. {String(p.title ?? t("Seite"))}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="se-actions">
-                  <button
-                    className="se-button"
-                    type="button"
-                    onClick={() =>
-                      edit(() =>
-                        selectQuestion(
-                          history.duplicateQuestion(question.name),
-                        ),
-                      )
-                    }
-                  >
-                    {t("Frage duplizieren")}
-                  </button>
-                  <button
-                    className="se-button se-button-danger"
-                    type="button"
-                    onClick={() =>
-                      edit(() => history.removeQuestion(question.name))
-                    }
-                  >
-                    {t("Frage entfernen")}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <p className="se-empty">
-                {question
-                  ? t(
-                      "Diese Frage enthält nicht unterstützte Eigenschaften und bleibt unverändert erhalten. Korrigieren Sie die angezeigten Felder über den JSON-Import.",
-                    )
-                  : t(
-                      "Wählen Sie eine Frage, um Titel und Antworten zu bearbeiten.",
-                    )}
-              </p>
-            )}
-          </aside>
+        </div>
+        <div className="se-meta">
+          <label className="se-title">
+            {t("Titel des Fragebogens")}
+            <input
+              value={String(doc.title ?? "")}
+              onChange={(event) =>
+                edit(() =>
+                  history.change((next) => {
+                    next.title = event.target.value;
+                  }),
+                )
+              }
+            />
+          </label>
+          <label>
+            {t("Beschreibung")}
+            <textarea
+              value={String(doc.description ?? "")}
+              onChange={(event) =>
+                edit(() =>
+                  history.change((next) => {
+                    next.description = event.target.value;
+                  }),
+                )
+              }
+            />
+          </label>
+          <label>
+            {t("Fortschritt anzeigen")}
+            <select
+              value={String(doc.showProgressBar ?? "off")}
+              onChange={(event) =>
+                edit(() =>
+                  history.change((next) => {
+                    next.showProgressBar = event.target.value;
+                  }),
+                )
+              }
+            >
+              <option value="off">{t("Aus")}</option>
+              <option value="top">{t("Oben")}</option>
+              <option value="bottom">{t("Unten")}</option>
+              <option value="both">{t("Oben und unten")}</option>
+            </select>
+          </label>
+          <label>
+            {t("Text nach dem Abschluss")}
+            <textarea
+              value={String(doc.completedHtml ?? "")}
+              onChange={(event) =>
+                edit(() =>
+                  history.change((next) => {
+                    next.completedHtml = event.target.value;
+                  }),
+                )
+              }
+            />
+          </label>
         </div>
         <details className="se-json">
           <summary>{t("JSON importieren / exportieren")}</summary>

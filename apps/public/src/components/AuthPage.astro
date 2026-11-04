@@ -255,12 +255,12 @@ const signIn =
   function startResendCooldown(): void {
     let remaining = RESEND_SECONDS;
     resend.disabled = true;
-    resend.textContent = `Neuen Code anfordern in ${remaining} s`;
+    resend.textContent = `Neuen Code senden in ${remaining} s`;
     clearInterval(resendTimer);
     resendTimer = setInterval(() => {
       remaining -= 1;
       if (remaining > 0) {
-        resend.textContent = `Neuen Code anfordern in ${remaining} s`;
+        resend.textContent = `Neuen Code senden in ${remaining} s`;
         return;
       }
       clearInterval(resendTimer);

@@ -64,8 +64,8 @@
 .login-brand-club {
   color: var(--rail-text-2);
 }
-.login-brand-line {
-  margin-top: var(--s-6) !important;
+.login-brand .login-brand-line {
+  margin-top: var(--s-6);
   font-size: var(--fs-lg);
   line-height: var(--lh-prose);
 }
@@ -124,8 +124,8 @@
   font-weight: var(--fw-semibold);
 }
 .login-field small {
-  color: var(--text-2);
-  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
 }
 .login-field input {
   width: 100%;

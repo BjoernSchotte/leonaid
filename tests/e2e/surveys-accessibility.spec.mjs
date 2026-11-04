@@ -142,8 +142,11 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
         };
         return {
           border: rgb(getComputedStyle(element).borderTopColor),
+          // The field sits on the questionnaire card, not on the page.
           background: rgb(
-            getComputedStyle(element.closest(".survey-editor")).backgroundColor,
+            getComputedStyle(
+              element.closest(".se-meta") ?? element.closest(".survey-editor"),
+            ).backgroundColor,
           ),
         };
       },

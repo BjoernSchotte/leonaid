@@ -40,7 +40,6 @@
   --survey-question-size: var(--fs-lg);
   --survey-motion: var(--dur-1) var(--ease-out);
   --survey-sticky-top: calc(var(--topbar-h) + var(--s-4));
-  --survey-properties-max-height: calc(100dvh - var(--topbar-h) - var(--s-8));
   --survey-track: var(--surface-2);
 }
 /* Touch targets: 44 px on the mobile layout (shell breakpoint). */
@@ -132,9 +131,6 @@
 }
 .survey-row:hover {
   background: var(--row-hover);
-}
-.survey-row:focus-within {
-  background: var(--row-active);
 }
 .survey-row-main {
   display: grid;

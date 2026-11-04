@@ -504,6 +504,19 @@ export function SurveysPage({
             when: () => !isTypingTarget(document.activeElement),
             run: () => void leaveToList(),
           },
+          // Prototype: digits switch the survey's tabs; here they jump to
+          // the sections of the one survey page.
+          ...sections.map(([section, label], index) => ({
+            keys: String(index + 1),
+            label: `Abschnitt ${label}`,
+            group: "Umfrage",
+            when: () => !!document.getElementById(`${section}-title`),
+            run: () => {
+              const heading = document.getElementById(`${section}-title`);
+              heading?.scrollIntoView({ block: "start" });
+              heading?.focus({ preventScroll: true });
+            },
+          })),
         ],
     [onList, items.length, focus, leaveToList],
   );
@@ -786,14 +799,20 @@ export function SurveysPage({
               <Button
                 variant="secondary"
                 disabled={offset === 0}
-                onClick={() => setOffset(offset - 50)}
+                onClick={() => {
+                  setOffset(offset - 50);
+                  setFocus(0);
+                }}
               >
                 Vorherige Seite
               </Button>
               <Button
                 variant="secondary"
                 disabled={offset + 50 >= list.total}
-                onClick={() => setOffset(offset + 50)}
+                onClick={() => {
+                  setOffset(offset + 50);
+                  setFocus(0);
+                }}
               >
                 Nächste Seite
               </Button>
@@ -1054,7 +1073,7 @@ export function SurveysPage({
               title="Umfrage in den Papierkorb verschieben?"
               description="Die Umfrage wird geschlossen und aus der normalen Bearbeitung entfernt. Sie können sie später wiederherstellen."
               confirmLabel="Jetzt in Papierkorb verschieben"
-              pending={busy}
+              pending={pending}
               tone="danger"
               onConfirm={() => void mutate("trash")}
             />
@@ -1063,22 +1082,35 @@ export function SurveysPage({
             {draft ||
             (["draft", "active"].includes(summary.status) &&
               allowed("publish")) ? (
-              <a href="#survey-questions">Fragen</a>
+              <a href="#survey-questions" aria-keyshortcuts="1">
+                Fragen
+              </a>
             ) : null}
             {summary.status !== "deleted" &&
             (allowed("view_aggregates") ||
               allowed("read_responses") ||
               allowed("export_raw") ||
               allowed("export_reports")) ? (
-              <a href="#survey-answers">Antworten</a>
+              <a href="#survey-answers" aria-keyshortcuts="2">
+                Antworten
+              </a>
             ) : null}
-            <a href="#survey-settings">Einstellungen</a>
+            <a href="#survey-settings" aria-keyshortcuts="3">
+              Einstellungen
+            </a>
           </nav>
           {(draft ||
             (["draft", "active"].includes(summary.status) &&
               allowed("publish") &&
               !allowed("design"))) && (
             <div className="survey-section" id="survey-questions">
+              <h2
+                className="survey-section-title sr-only"
+                id="survey-questions-title"
+                tabIndex={-1}
+              >
+                Fragen
+              </h2>
               {["draft", "active"].includes(summary.status) &&
                 allowed("publish") &&
                 !allowed("design") && (
@@ -1113,7 +1145,13 @@ export function SurveysPage({
                 className="survey-section survey-answers"
                 id="survey-answers"
               >
-                <h2 className="survey-section-title">Antworten</h2>
+                <h2
+                  className="survey-section-title"
+                  id="survey-answers-title"
+                  tabIndex={-1}
+                >
+                  Antworten
+                </h2>
                 {allowed("view_aggregates") && (
                   <details className="surveys-settings">
                     <summary>Antworten auswerten</summary>
@@ -1175,7 +1213,11 @@ export function SurveysPage({
             id="survey-settings"
             aria-labelledby="survey-settings-title"
           >
-            <h2 className="survey-section-title" id="survey-settings-title">
+            <h2
+              className="survey-section-title"
+              id="survey-settings-title"
+              tabIndex={-1}
+            >
               Einstellungen
             </h2>
             <p className="surveys-muted">
@@ -1565,6 +1607,12 @@ export function SurveysPage({
     </section>
   );
 }
+
+const sections = [
+  ["survey-questions", "Fragen"],
+  ["survey-answers", "Antworten"],
+  ["survey-settings", "Einstellungen"],
+] as const;
 
 const shapes: Record<Status, StatusShape> = {
   draft: "draft",

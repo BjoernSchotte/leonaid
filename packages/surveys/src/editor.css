@@ -121,10 +121,16 @@
   min-height: 4.5rem;
   resize: vertical;
 }
-/* Questionnaire texts start as one line and grow with their content. */
-.se-meta textarea {
-  min-height: var(--se-control-h) !important;
+/* Questionnaire texts start as one line and grow with their content;
+   browsers without field-sizing keep a two-line box. */
+.survey-editor:not(.survey-preview) .se-meta textarea {
+  min-height: var(--se-control-h);
   field-sizing: content;
+}
+@supports not (field-sizing: content) {
+  .survey-editor:not(.survey-preview) .se-meta textarea {
+    min-height: 3.75rem;
+  }
 }
 .survey-editor:not(.survey-preview) input[type="file"] {
   padding-block: 0.6rem;
@@ -135,12 +141,12 @@
   margin: 0;
   accent-color: var(--se-accent);
 }
-.survey-editor .se-check {
-  display: flex !important;
+.survey-editor:not(.survey-preview) .se-check {
+  display: flex;
   align-items: center;
-  gap: 0.6rem !important;
+  gap: 0.6rem;
   min-height: var(--se-control-h);
-  font-weight: 500 !important;
+  font-weight: 500;
 }
 .survey-editor:not(.survey-preview) button,
 .survey-preview > .se-toolbar button {
@@ -297,12 +303,10 @@
   justify-self: start;
 }
 
-/* Workspace: pages | question cards | properties */
+/* Workspace: pages | question cards (the open card holds its fields) */
 .se-workspace {
   display: grid;
-  grid-template-columns:
-    minmax(11rem, 14rem) minmax(0, 1fr)
-    minmax(17rem, 22rem);
+  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -382,9 +386,9 @@
   justify-content: flex-end;
 }
 .se-question {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
   padding: 0.5rem 0.5rem 0.5rem 0.75rem;
   border: 1px solid var(--se-border);
   border-radius: var(--se-radius);
@@ -394,8 +398,23 @@
     box-shadow var(--se-motion);
 }
 .se-question[data-selected] {
+  padding-bottom: 1rem;
   border-color: var(--se-selected-line);
   box-shadow: var(--se-shadow);
+}
+.se-question-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* The open card shows the title as its editable field below. */
+.se-question[data-selected] .se-question-select strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .se-grip {
   display: inline-flex;
@@ -450,16 +469,28 @@
 }
 
 .se-properties {
-  position: sticky;
-  top: var(--survey-sticky-top, 0);
   display: grid;
   gap: 0.875rem;
-  max-height: var(--survey-properties-max-height, none);
-  overflow: auto;
-  padding: 1.25rem;
-  border: 1px solid var(--se-border);
-  border-radius: var(--se-radius);
-  background: var(--se-surface-2);
+  padding: 0 0.5rem 0 2.25rem;
+}
+/* The question title reads as the card's heading (prototype .question-title). */
+.survey-editor:not(.survey-preview) .se-properties > label:first-of-type input {
+  font-size: var(--survey-question-size, 1.0625rem);
+  font-weight: 600;
+}
+.se-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.se-hint {
+  margin: 0;
+  color: var(--se-text-3);
+  font-size: 0.8125rem;
 }
 .se-properties > .se-actions {
   padding-top: 0.25rem;
@@ -522,11 +553,6 @@
   .se-workspace {
     grid-template-columns: 12rem minmax(0, 1fr);
   }
-  .se-properties {
-    position: static;
-    grid-column: 2;
-    max-height: none;
-  }
 }
 @media (max-width: 720px) {
   .se-meta {
@@ -536,7 +562,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .se-properties {
-    grid-column: auto;
+    padding-left: 0.25rem;
   }
   .se-pages ol {
     display: flex;
