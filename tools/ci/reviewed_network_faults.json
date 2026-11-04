@@ -70,8 +70,8 @@
     "reason": "Drop only the real committed Inbox response; exhaust the real server rate limit and verify the browser retains and repeats the identical command after HTTP 429."
   },
   {
-    "path": "tests/e2e/command-palette.spec.mjs",
-    "sha256": "37432d8039bcb745e206c4eb93e46ef973601acd5b686887c33c7bb38d710894",
+    "path": "tests/e2e/command-palette-faults.spec.mjs",
+    "sha256": "f62745cd1dd9d827c2c719cf254983d6745b19ddddd5e6015967a97cf1a596ea",
     "reason": "Hold one real search request for 3 s, then forward it unchanged, so the next keystroke must abort it in flight; every response comes from the real API."
   },
   {

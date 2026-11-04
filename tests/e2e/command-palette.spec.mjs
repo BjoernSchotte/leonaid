@@ -151,50 +151,6 @@ test.describe("enabled modules", () => {
     }
   });
 
-  test("typing aborts the request in flight", async ({ browser }) => {
-    const context = await signedIn(browser, klaraSession);
-    const page = await context.newPage();
-    try {
-      await page.route("**/api/v1/search?*", async (route) => {
-        const query = new URL(route.request().url()).searchParams.get("q");
-        if (query === "Kr") await new Promise((done) => setTimeout(done, 3000));
-        try {
-          await route.continue();
-        } catch {
-          // The page aborted the request while it was held.
-        }
-      });
-      await page.goto(`${baseUrl}/admin/?action=${actionId}`);
-      await shellReady(page);
-      await openPalette(page);
-      const sent = page.waitForRequest(
-        (request) =>
-          request.url().includes("/api/v1/search?") &&
-          new URL(request.url()).searchParams.get("q") === "Kr",
-      );
-      await paletteInput(page).fill("Kr");
-      const first = await sent;
-      await expect(palette(page).getByRole("status")).toHaveText(
-        "Wird gesucht …",
-      );
-      const aborted = page.waitForEvent(
-        "requestfailed",
-        (request) => request === first,
-      );
-      const latest = searchResponse(page, "Kra");
-      await paletteInput(page).press("a");
-      expect((await aborted).failure()?.errorText).toMatch(/abort/i);
-      await latest;
-      await expect(
-        palette(page)
-          .getByRole("group", { name: "Charity-Aktionen" })
-          .getByRole("option", { name: /Krapfentaxi 2026/ }),
-      ).toBeVisible();
-    } finally {
-      await context.close();
-    }
-  });
-
   test("Anlegen opens the create form; the page offers it in place", async ({
     browser,
   }) => {
