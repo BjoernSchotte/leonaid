@@ -158,8 +158,16 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(await page.locator("[data-order-form]").count(), 1);
         }
         // The campaign page (Leitsystem tokens, theme on top) stays free of
-        // serious and critical WCAG findings, with and without JavaScript.
-        if (engineName === "chromium" && scenario === "new-company") {
+        // serious and critical WCAG findings. axe-core needs page scripts
+        // (it never resolves in a context with JavaScript disabled), and the
+        // deadline runs hand off to SQL operators on a clock, so the scan
+        // runs once, in the plain enhanced Chromium run.
+        if (
+          !controlledDeadline &&
+          javaScriptEnabled &&
+          engineName === "chromium" &&
+          scenario === "new-company"
+        ) {
           const accessibility = await analyzeAccessibility(page, {
             tags: WCAG_TAGS,
           });
