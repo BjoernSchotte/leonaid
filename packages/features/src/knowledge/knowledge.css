@@ -232,21 +232,14 @@
   padding: 0;
   border: 0;
 }
-/* The page is 920 px wide (prototype): one row of tools, the rest under
-   "Weitere Formate". */
-.format-bar .knowledge-primary-controls {
-  display: none;
+/* The page is 920 px wide (prototype): the tools stay one row and scroll
+   sideways when they do not fit (the groups inside the primary controls
+   would wrap otherwise). */
+.format-bar .knowledge-formatting-row {
+  overflow-x: auto;
 }
-.format-bar .knowledge-formatting .knowledge-more-trigger {
-  display: inline-flex;
-}
-/* Touch targets on phones, also in the selection menu. */
-@media (max-width: 720px) {
-  .knowledge-tool,
-  .knowledge-formatting select {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-  }
+.knowledge-formatting-row .knowledge-tool-group {
+  flex-wrap: nowrap;
 }
 .knowledge-formatting-row,
 .knowledge-tool-group {
@@ -489,4 +482,14 @@ img.ProseMirror-separator {
 }
 .ProseMirror-focused .ProseMirror-gapcursor {
   display: block;
+}
+
+/* Touch targets on phones, also in the selection menu (after the base
+   tool rules, so it wins). */
+@media (max-width: 720px) {
+  .knowledge-tool,
+  .knowledge-formatting select {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }
