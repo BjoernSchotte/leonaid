@@ -504,16 +504,16 @@
     {
       "file": "packages/features/src/materials/materials.tsx",
       "contains": [
-        "Neues Material",
+        "Material hochladen",
         "Materialtitel",
         "Kontext des Materials",
-        "Material hochladen",
         "Neue Version hochladen",
-        "Aktuelle Dateiversion",
-        "Dateiversion herunterladen",
+        "Neue Version",
+        "Aktuell",
+        "Zugriff verwalten",
         "Materialfreigaben",
         "Materialzugriff",
-        "Eine Datei bis 25 MiB."
+        "Höchstens 25 MiB."
       ]
     },
     {
@@ -534,8 +534,10 @@
         "Einfügen",
         "Aufgabe aus dieser Seite",
         "Freigaben verwalten",
-        "Seitenfreigaben",
-        "Seitenzugriff"
+        "Bearbeiten",
+        "Meine Fassung behalten",
+        "Andere übernehmen",
+        "Material aus Ablage verknüpfen"
       ]
     },
     {

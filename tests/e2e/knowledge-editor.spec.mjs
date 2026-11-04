@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { uploadMaterial } from "./material-list.mjs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const fixture = JSON.parse(
@@ -28,13 +29,30 @@ async function session(browser, width, user = 0) {
 async function createPage(page, surface) {
   const title = `Redaktionsprobe ${randomUUID()}`;
   await page.goto(`${baseURL}/${surface}/knowledge`);
-  await page.getByText("Neue Seite", { exact: true }).click();
-  await page.getByLabel("Seitentitel", { exact: true }).fill(title);
   await page
     .getByRole("button", { name: "Seite anlegen", exact: true })
+    .first()
     .click();
-  await page.getByRole("link", { name: title, exact: true }).click();
-  return page.getByRole("textbox", { name: "Seiteninhalt", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Neue Seite" });
+  await dialog.getByLabel("Seitentitel").fill(title);
+  await dialog
+    .getByRole("button", { name: "Seite anlegen", exact: true })
+    .click();
+  // A new page opens for writing.
+  const editor = page.getByRole("textbox", {
+    name: "Seiteninhalt",
+    exact: true,
+  });
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  return editor;
+}
+
+/** Back into writing after a save ("Bearbeiten", key E). */
+async function edit(page) {
+  await page.getByRole("button", { name: /^Bearbeiten/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Seiteninhalt", exact: true }),
+  ).toHaveAttribute("contenteditable", "true");
 }
 
 for (const [surface, width] of [
@@ -134,11 +152,12 @@ for (const [surface, width] of [
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
       "Aus Word eingefügt",
     );
-    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.getByRole("button", { name: /^Speichern/ }).click();
     await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
     await page.reload();
     await expect(editor).toContainText("Aus Word eingefügt");
     await expect(editor.locator("strong")).toHaveText("bleibt fett");
+    await edit(page);
 
     await editor.press("ControlOrMeta+End");
     await editor.press("Enter");
@@ -205,7 +224,7 @@ for (const [surface, width] of [
     await page.screenshot({
       path: testInfo.outputPath(`${surface}-editor-acceptance.png`),
     });
-    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.getByRole("button", { name: /^Speichern/ }).click();
     await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
     await page.reload();
     await expect(editor.locator("ol > li")).toHaveCount(2);
@@ -235,23 +254,20 @@ test("insert task/material and preserve viewer permissions", async ({
   await expect(
     page.getByRole("button", { name: /^Aufgabe anlegen/ }).first(),
   ).toBeVisible();
-  await page.goto(`${baseURL}/admin/materials`);
-  await page.getByText("Neues Material", { exact: true }).click();
   const materialTitle = `Redaktionsmaterial ${suffix}`;
-  await page.getByLabel("Materialtitel", { exact: true }).fill(materialTitle);
-  await page.getByLabel("Datei", { exact: true }).setInputFiles({
-    name: "redaktion.txt",
-    mimeType: "text/plain",
-    buffer: Buffer.from("Redaktionsmaterial\n"),
+  await uploadMaterial(page, baseURL, "/admin", {
+    title: materialTitle,
+    file: {
+      name: "redaktion.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Redaktionsmaterial\n"),
+    },
   });
-  await page.getByRole("button", { name: "Hochladen", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: materialTitle, exact: true }),
-  ).toBeVisible();
   const editor = await createPage(page, "admin");
   await editor.fill("Planung mit Aufgabe und Material");
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: /^Speichern/ }).click();
   await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
+  await edit(page);
   await page.getByText("Einfügen", { exact: true }).click();
   await page
     .getByRole("button", {
@@ -267,7 +283,7 @@ test("insert task/material and preserve viewer permissions", async ({
     .getByRole("button", { name: "Dateiversion einfügen", exact: true })
     .click();
   await expect(editor).toContainText("redaktion.txt · Dateiversion 1");
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: /^Speichern/ }).click();
   await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Aufgabe aus dieser Seite", exact: true })
@@ -299,7 +315,7 @@ test("insert task/material and preserve viewer permissions", async ({
   const identity = await reader.request.get(`${baseURL}/api/v1/identity/me`);
   expect(identity.ok()).toBe(true);
   const { email } = await identity.json();
-  await page.getByText("Freigaben verwalten", { exact: true }).click();
+  await page.getByRole("button", { name: "Freigaben verwalten" }).click();
   await page
     .getByRole("button", { name: "Seitenfreigaben", exact: true })
     .click();
@@ -371,7 +387,7 @@ test("alignment, font and size render as classes under the strict CSP", async ({
   await expect(editor.locator("[style]")).toHaveCount(0);
   const styled = editor.locator("span.knowledge-font-serif.knowledge-size-20");
   await expect(styled).toHaveCSS("font-size", "20px");
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: /^Speichern/ }).click();
   await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
   await page.reload();
   const reloaded = page.getByRole("textbox", {

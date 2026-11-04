@@ -31,18 +31,25 @@ for (const [surface, width] of [
     page.on("pageerror", (error) => pageErrors.push(error.message));
     const title = `Wissen Browsernachweis ${randomUUID()}`;
     await page.goto(`${baseURL}/${surface}/knowledge`);
-    await page.getByText("Neue Seite", { exact: true }).click();
-    await page.getByLabel("Seitentitel", { exact: true }).fill(title);
-    const createPageButton = page.getByRole("button", {
+    await page
+      .getByRole("button", { name: "Seite anlegen", exact: true })
+      .first()
+      .click();
+    const createDialog = page.getByRole("dialog", { name: "Neue Seite" });
+    await createDialog.getByLabel("Seitentitel").fill(title);
+    const createPageButton = createDialog.getByRole("button", {
       name: "Seite anlegen",
       exact: true,
     });
     const createPageBox = await createPageButton.boundingBox();
-    expect(createPageBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
-    expect(createPageBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
+    expect(createPageBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 32);
+    expect(createPageBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 40);
     await expect(createPageButton).toHaveCSS("font-weight", "600");
+    // A new page opens for writing.
     await createPageButton.click();
-    await page.getByRole("link", { name: title, exact: true }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: title, exact: true }),
+    ).toBeVisible();
     const editor = page.getByRole("textbox", {
       name: "Seiteninhalt",
       exact: true,
@@ -164,7 +171,7 @@ for (const [surface, width] of [
       fullPage: true,
     });
 
-    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.getByRole("button", { name: /^Speichern/ }).click();
     await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
     const second = await context.newPage();
     await second.goto(
@@ -175,6 +182,8 @@ for (const [surface, width] of [
     await expect(
       second.getByRole("textbox", { name: "Seiteninhalt", exact: true }),
     ).toHaveText("Erster gemeinsamer Inhalt.");
+    // Saving ends writing; both sessions read until "Bearbeiten".
+    await expect(editor).toHaveAttribute("contenteditable", "false");
     const reopened = second.getByRole("textbox", {
       name: "Seiteninhalt",
       exact: true,
@@ -191,20 +200,21 @@ for (const [surface, width] of [
       "href",
       "https://example.org/planung",
     );
+    await page.getByRole("button", { name: /^Bearbeiten/ }).click();
     await editor.fill("Lokaler Entwurf bleibt erhalten.");
+    await second.getByRole("button", { name: /^Bearbeiten/ }).click();
     await second
       .getByRole("textbox", { name: "Seiteninhalt", exact: true })
       .fill("Andere Sitzung hat gespeichert.");
-    await second
-      .getByRole("button", { name: "Speichern", exact: true })
-      .click();
+    await second.getByRole("button", { name: /^Speichern/ }).click();
     await expect(
       second.getByText("Gespeichert.", { exact: true }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Speichern", exact: true }).click();
-    await expect(
-      page.getByText(/Die Seite wurde inzwischen geändert/),
-    ).toBeVisible();
+    await page.getByRole("button", { name: /^Speichern/ }).click();
+    const conflict = page.getByRole("alert").filter({
+      hasText: /Die Seite wurde inzwischen geändert/,
+    });
+    await expect(conflict).toBeVisible();
     await expect(editor).toHaveText("Lokaler Entwurf bleibt erhalten.");
     expect(
       await page.evaluate(
@@ -215,16 +225,12 @@ for (const [surface, width] of [
       path: testInfo.outputPath(`${surface}-knowledge-conflict.png`),
       fullPage: false,
     });
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page
-      .getByRole("button", { name: "Aktuelle Version laden", exact: true })
-      .click();
-    await expect(editor).toHaveText("Lokaler Entwurf bleibt erhalten.");
-    page.once("dialog", (dialog) => dialog.accept());
-    await page
-      .getByRole("button", { name: "Aktuelle Version laden", exact: true })
+    // The person chooses: here they take the other session's revision.
+    await conflict
+      .getByRole("button", { name: "Andere übernehmen", exact: true })
       .click();
     await expect(editor).toHaveText("Andere Sitzung hat gespeichert.");
+    await expect(conflict).toHaveCount(0);
     expect(pageErrors).toEqual([]);
     await context.close();
   });

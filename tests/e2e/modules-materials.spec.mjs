@@ -1,6 +1,7 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { materialRow, uploadMaterial } from "./material-list.mjs";
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const fixture = JSON.parse(
@@ -32,27 +33,17 @@ for (const [surface, route, width] of [
     const title = `Material Browsernachweis ${surface} ${randomUUID()}`;
     const original = Buffer.from("Erste Version bleibt erhalten.\n");
     await page.goto(`${baseURL}${route}`);
-    await page.getByText("Neues Material", { exact: true }).click();
-    await page.getByLabel("Materialtitel", { exact: true }).fill(title);
-    await page.getByLabel("Datei", { exact: true }).setInputFiles({
-      name: "original.txt",
-      mimeType: "text/plain",
-      buffer: original,
-    });
-    const uploadButton = page.getByRole("button", {
-      name: "Hochladen",
-      exact: true,
-    });
-    const uploadBox = await uploadButton.boundingBox();
-    expect(uploadBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
-    expect(uploadBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
-    await expect(uploadButton).toHaveCSS("font-weight", "600");
+    const create = page
+      .getByRole("button", { name: "Material hochladen", exact: true })
+      .first();
+    const createBox = await create.boundingBox();
+    expect(createBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 32);
+    expect(createBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 40);
+    await expect(create).toHaveCSS("font-weight", "600");
     // Touch targets are 44 px on phones; desktop shell controls are 32 px.
     const iconTarget = width <= 760 ? 44 : 32;
     const iconButtonBox = await page
-      .locator(
-        ".ui-icon-button:visible, .topbar .btn-icon:visible, .pwa-bar button:visible",
-      )
+      .locator(".topbar .btn-icon:visible, .pwa-bar button:visible")
       .first()
       .boundingBox();
     expect(iconButtonBox.width).toBeGreaterThanOrEqual(iconTarget);
@@ -68,26 +59,62 @@ for (const [surface, route, width] of [
       expect(logoutBox.height).toBeGreaterThanOrEqual(24);
       await page.setViewportSize({ width, height: 844 });
     }
-    await uploadButton.click();
+    // The upload dialog checks the 25 MiB limit before anything is sent.
+    await create.click();
+    const dialog = page.getByRole("dialog", { name: "Material hochladen" });
+    await dialog.getByLabel("Datei").setInputFiles({
+      name: "zu-gross.bin",
+      mimeType: "application/octet-stream",
+      buffer: Buffer.alloc(25 * 1024 * 1024 + 1),
+    });
     await expect(
-      page.getByRole("heading", { name: title, exact: true }),
+      dialog.getByText(/Erlaubt sind höchstens 25 MiB/),
     ).toBeVisible();
-    const detailURL = page.url();
-    await page.goto(detailURL);
-    await page.getByLabel("Datei", { exact: true }).setInputFiles({
+    await expect(
+      dialog.getByRole("button", { name: "Hochladen", exact: true }),
+    ).toBeDisabled();
+    await dialog.getByRole("button", { name: "Abbrechen" }).click();
+    await expect(dialog).toBeHidden();
+
+    const row = await uploadMaterial(
+      page,
+      baseURL,
+      route.replace(/\/materials$/, ""),
+      {
+        title,
+        file: {
+          name: "original.txt",
+          mimeType: "text/plain",
+          buffer: original,
+        },
+      },
+    );
+    // A new version keeps the earlier one downloadable.
+    await row
+      .getByRole("button", { name: `Neue Version von ${title}` })
+      .click();
+    const version = page.getByRole("dialog", {
+      name: "Neue Version hochladen",
+    });
+    await expect(version).toContainText(title);
+    await version.getByLabel("Datei").setInputFiles({
       name: "updated.txt",
       mimeType: "text/plain",
       buffer: Buffer.from("Zweite Version.\n"),
     });
-    await page
-      .getByRole("button", { name: "Neue Version hochladen", exact: true })
+    await version
+      .getByRole("button", { name: "Hochladen", exact: true })
       .click();
-    await expect(page.getByText(/Aktuelle Dateiversion 2/)).toBeVisible();
-    await page.getByLabel("Dateiversion", { exact: true }).fill("1");
-    await expect(page.getByText(/original.txt/)).toBeVisible();
+    await expect(
+      page.getByText("Version „updated.txt“ hochgeladen.", { exact: true }),
+    ).toBeVisible();
+    await expect(row).toContainText("2 Versionen");
+    const versions = row.getByRole("table", { name: `Versionen von ${title}` });
+    await expect(versions).toContainText("updated.txt");
+    await expect(versions).toContainText("original.txt");
     const downloadPromise = page.waitForEvent("download");
-    await page
-      .getByRole("button", { name: "Dateiversion herunterladen", exact: true })
+    await versions
+      .getByRole("button", { name: "original.txt herunterladen", exact: true })
       .click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe("original.txt");
@@ -101,8 +128,14 @@ for (const [surface, route, width] of [
       path: testInfo.outputPath(`${surface}-retained-version.png`),
       fullPage: false,
     });
+    // The deep link (search hits) opens that material.
+    const materialId = await row.getAttribute("data-material-id");
+    const detailURL = `${baseURL}${route}/${materialId}`;
     await page.goto(detailURL);
-    await expect(page.getByText(/Aktuelle Dateiversion 2/)).toBeVisible();
+    await expect(
+      materialRow(page, title).getByRole("button", { expanded: true }),
+    ).toBeVisible();
+    await expect(materialRow(page, title)).toContainText("2 Versionen");
     await context.close();
 
     const foreign = await browser.newContext({
@@ -123,19 +156,13 @@ for (const [surface, route, width] of [
     await denied.goto(detailURL);
     await expect(
       denied.getByText(
-        "Das Material ist nicht verfügbar oder dein Zugriff wurde geändert.",
-        { exact: false },
+        surface === "pwa"
+          ? "Das Material ist nicht verfügbar oder dein Zugriff wurde geändert."
+          : "Das Material ist nicht verfügbar oder Ihr Zugriff wurde geändert.",
+        { exact: true },
       ),
     ).toBeVisible();
-    await expect(
-      denied.getByRole("heading", { name: title, exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      denied.getByRole("button", {
-        name: "Dateiversion herunterladen",
-        exact: true,
-      }),
-    ).toHaveCount(0);
+    await expect(materialRow(denied, title)).toHaveCount(0);
     await foreign.close();
   });
 }
