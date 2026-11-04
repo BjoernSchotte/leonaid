@@ -239,11 +239,12 @@
   padding: 0;
   border: 0;
 }
-/* The page is 920 px wide (prototype): the tools stay one row and scroll
-   sideways when they do not fit (the groups inside the primary controls
-   would wrap otherwise). */
+/* The page is 856 px wide (prototype): the tool groups wrap as whole
+   groups onto a second row instead of scrolling out of sight (scrollbars
+   are invisible). */
 .format-bar .knowledge-formatting-row {
-  overflow-x: auto;
+  flex-wrap: wrap;
+  row-gap: var(--s-1);
 }
 .knowledge-formatting-row .knowledge-tool-group {
   flex-wrap: nowrap;

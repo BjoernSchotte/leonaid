@@ -180,14 +180,18 @@ for (const [surface, width] of [
       (await more.getAttribute("aria-expanded")) === "true"
     )
       await more.click();
-    const toolbarPositions = await toolbar
-      .getByRole("button")
-      .evaluateAll((buttons) =>
-        buttons
-          .filter((button) => button.getClientRects().length)
-          .map((button) => Math.round(button.getBoundingClientRect().y)),
-      );
-    expect(new Set(toolbarPositions).size).toBe(1);
+    // Every tool sits inside the format bar (whole groups wrap at the
+    // prototype's 856 px page width); none is cut off.
+    const overflow = await toolbar.evaluate((bar) => {
+      const frame = bar.getBoundingClientRect();
+      return [...bar.querySelectorAll("button, select")]
+        .filter((tool) => tool.getClientRects().length)
+        .filter((tool) => {
+          const box = tool.getBoundingClientRect();
+          return box.right > frame.right + 1 || box.left < frame.left - 1;
+        }).length;
+    });
+    expect(overflow).toBe(0);
     // Target the rendered word, not the whitespace in the full-width list row.
     const firstItem = editor.locator("ol > li").first();
     await firstItem.scrollIntoViewIfNeeded();
