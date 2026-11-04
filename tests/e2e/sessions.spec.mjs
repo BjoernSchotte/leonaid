@@ -235,9 +235,10 @@ test("finance read access starts directly in the invoice journal", async ({
     await expect(page.locator('[data-testid="roles"]')).toContainText(
       "Finanzen",
     );
-    await expect(
-      page.getByText("Nur Lesezugriff", { exact: true }),
-    ).toBeVisible();
+    // The list view's read-only callout (Leitsystem invoices list).
+    await expect(page.getByTestId("invoice-read-only")).toContainText(
+      "Nur lesen.",
+    );
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
