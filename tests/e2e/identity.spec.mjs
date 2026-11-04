@@ -73,12 +73,19 @@ test("charity admin sees only own actions and no system navigation", async ({
       page.locator('[data-nav-key="invoices"]').first(),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
-    const actionSelector = page.getByRole("combobox", {
-      name: "Charity-Aktion",
-    });
-    await expect(actionSelector).toContainText("Krapfentaxi 2026");
-    await expect(actionSelector).toContainText("Krapfentaxi 2025");
-    await expect(actionSelector).not.toContainText("Krapfentaxi Nord 2026");
+    // The rail switcher lists only Klara's own campaigns.
+    await page.getByTestId("campaign-switcher").click();
+    const switcher = page.getByRole("dialog", { name: "Aktion wechseln" });
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2026/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2025/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi Nord/ }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await page.screenshot({
       path: `${artifactDirectory}/charity-admin-desktop.png`,
       fullPage: true,
@@ -100,7 +107,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
   try {
     const mobileNavigation = page.locator(".pwa-tabs");
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
@@ -142,7 +149,7 @@ test("acquirer-only member is redirected from the back office to the PWA", async
   try {
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
@@ -152,7 +159,7 @@ test("acquirer-only member is redirected from the back office to the PWA", async
     await page.goto(`${baseUrl}/admin/members`);
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-admin-redirect.png`,

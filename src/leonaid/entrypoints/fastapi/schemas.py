@@ -1389,7 +1389,29 @@ class DashboardInvoiceResponse(TransportModel):
     total: int = Field(ge=0)
     invoiced_amount_minor: int = Field(ge=0)
     open_amount_minor: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+    overdue_amount_minor: int = Field(ge=0)
+    delivery_failed: int = Field(ge=0)
     currency: str
+
+
+class DashboardOrderValueWeekResponse(TransportModel):
+    week_start: date
+    iso_week: int = Field(ge=1, le=53)
+    total_minor: int = Field(ge=0)
+
+
+class DashboardDeliveryWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    commitments: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
+
+
+class DashboardDeliveryResponse(TransportModel):
+    enabled: bool
+    windows: list[DashboardDeliveryWindowResponse]
 
 
 class AcquirerDashboardResponse(TransportModel):
@@ -1402,6 +1424,8 @@ class CharityAdminDashboardResponse(TransportModel):
     pipeline: DashboardPipelineResponse
     commitments: DashboardCommitmentResponse
     invoices: DashboardInvoiceResponse
+    order_value_weeks: list[DashboardOrderValueWeekResponse]
+    delivery: DashboardDeliveryResponse
 
 
 class DashboardMetricDefinitionResponse(TransportModel):
@@ -1946,6 +1970,10 @@ class ActivityFeedResponse(TransportModel):
 
 class UpdateActivityFeedItemRequest(TransportModel):
     read: bool
+
+
+class ActivityFeedReadAllResponse(TransportModel):
+    updated: int = Field(ge=0)
 
 
 class AcquisitionDocumentResponse(TransportModel):
