@@ -1105,7 +1105,7 @@ export function SurveysPage({
               !allowed("design"))) && (
             <div className="survey-section" id="survey-questions">
               <h2
-                className="survey-section-title sr-only"
+                className="survey-section-title"
                 id="survey-questions-title"
                 tabIndex={-1}
               >

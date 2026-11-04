@@ -39,7 +39,6 @@
   --survey-title-size: var(--fs-xl);
   --survey-question-size: var(--fs-lg);
   --survey-motion: var(--dur-1) var(--ease-out);
-  --survey-sticky-top: calc(var(--topbar-h) + var(--s-4));
   --survey-track: var(--surface-2);
 }
 /* Touch targets: 44 px on the mobile layout (shell breakpoint). */
@@ -230,6 +229,11 @@
   gap: var(--s-3);
   min-width: 0;
   scroll-margin-top: calc(var(--topbar-h) + var(--s-4));
+}
+.survey-section-title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: var(--r-xs);
 }
 .survey-section-title {
   margin-top: var(--s-4);

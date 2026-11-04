@@ -48,6 +48,25 @@ test("visual page and question editing persists stable identities through the re
   await editor
     .getByLabel("Eintrag 2", { exact: true })
     .fill("Verbesserungsbedarf");
+  await editor.getByLabel("Hinweis", { exact: true }).fill("Bitte ehrlich");
+  await saved();
+  // The open card holds the fields; a mouse drag over their text selects
+  // it instead of dragging the card (only the card head is draggable).
+  for (const label of ["Fragetitel", "Hinweis", "Eintrag 1"]) {
+    const field = editor.getByLabel(label, { exact: true });
+    const box = await field.boundingBox();
+    const y = box.y + Math.min(box.height / 2, 18);
+    await page.mouse.move(box.x + 8, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 8, y, { steps: 8 });
+    await page.mouse.up();
+    expect(
+      await field.evaluate(
+        (element) => element.selectionEnd - element.selectionStart,
+      ),
+      `${label} text is selectable with the mouse`,
+    ).toBeGreaterThan(0);
+  }
   await saved();
   const sid = page.url().split("/").at(-1);
   const read = () =>

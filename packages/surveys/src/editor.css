@@ -411,6 +411,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  cursor: grab;
 }
 /* The open card shows the title as its editable field below. */
 .se-question[data-selected] .se-question-select strong {
@@ -557,6 +558,56 @@
   }
   .se-workspace {
     grid-template-columns: 12rem minmax(0, 1fr);
+  }
+}
+/* Undo and redo name themselves in text on wide screens, as icons on
+   narrow ones (the label stays the accessible name). */
+.se-undo .se-glyph,
+.se-redo .se-glyph {
+  display: none;
+}
+@media (max-width: 800px) {
+  .se-toolbar {
+    display: grid;
+    grid-template-columns:
+      var(--se-control-h) var(--se-control-h) minmax(0, 1fr)
+      minmax(0, 1fr);
+    grid-template-areas:
+      "state state state state"
+      "undo redo flush flush"
+      "preview preview preview publish";
+  }
+  .se-toolbar .se-save {
+    grid-area: state;
+  }
+  .se-toolbar .se-undo {
+    grid-area: undo;
+  }
+  .se-toolbar .se-redo {
+    grid-area: redo;
+  }
+  .se-toolbar .se-flush {
+    grid-area: flush;
+    justify-self: start;
+  }
+  .se-toolbar [data-preview-trigger] {
+    grid-area: preview;
+  }
+  .se-toolbar .se-button-primary {
+    grid-area: publish;
+  }
+  .se-undo .se-glyph,
+  .se-redo .se-glyph {
+    display: block;
+  }
+  .se-undo .se-button-label,
+  .se-redo .se-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 @media (max-width: 720px) {

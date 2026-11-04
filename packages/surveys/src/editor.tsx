@@ -60,6 +60,8 @@ function Glyph({ path }: { path: string }) {
 const up = "M12 19V5M5 12l7-7 7 7";
 const down = "M12 5v14M19 12l-7 7-7-7";
 const remove = "M18 6 6 18M6 6l12 12";
+const undoPath = "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11";
+const redoPath = "m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13";
 const grip = "M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01";
 function focusEditorTarget(target: HTMLElement | null | undefined) {
   if (!target) return;
@@ -523,23 +525,25 @@ export function SurveyEditor({
           {t(saves.message)}
         </div>
         <button
-          className="se-button se-button-ghost"
+          className="se-button se-button-ghost se-undo"
           type="button"
           disabled={!history.canUndo || busy || !!publication.current}
           onClick={() => edit(() => history.undo())}
         >
-          {t("Rückgängig")}
+          <Glyph path={undoPath} />
+          <span className="se-button-label">{t("Rückgängig")}</span>
         </button>
         <button
-          className="se-button se-button-ghost"
+          className="se-button se-button-ghost se-redo"
           type="button"
           disabled={!history.canRedo || busy || !!publication.current}
           onClick={() => edit(() => history.redo())}
         >
-          {t("Wiederholen")}
+          <Glyph path={redoPath} />
+          <span className="se-button-label">{t("Wiederholen")}</span>
         </button>
         <button
-          className="se-button se-button-ghost"
+          className="se-button se-button-ghost se-flush"
           type="button"
           onClick={() => void saves.flush()}
         >
@@ -722,13 +726,6 @@ export function SurveyEditor({
                           moveQuestion(q.name, page.name, to),
                         )
                       }
-                      draggable
-                      onDragStart={(event) =>
-                        event.dataTransfer.setData(
-                          "application/x-survey-question",
-                          q.name,
-                        )
-                      }
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => {
                         event.preventDefault();
@@ -741,7 +738,19 @@ export function SurveyEditor({
                           );
                       }}
                     >
-                      <div className="se-question-head">
+                      {/* Only the head drags: text in the card's fields stays
+                          selectable with the mouse (Firefox blocks selection
+                          inside a draggable ancestor). */}
+                      <div
+                        className="se-question-head"
+                        draggable
+                        onDragStart={(event) =>
+                          event.dataTransfer.setData(
+                            "application/x-survey-question",
+                            q.name,
+                          )
+                        }
+                      >
                         <span className="se-grip" aria-hidden="true">
                           <Glyph path={grip} />
                         </span>
