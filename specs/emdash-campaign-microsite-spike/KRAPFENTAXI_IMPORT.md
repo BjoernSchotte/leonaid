@@ -66,6 +66,25 @@ content, journal reset, or cross-campaign media deduplication is performed.
 Conflicts and drift require operator review; do not delete the journal to bypass
 them. Concurrent apply calls are rejected instead of racing to create records.
 
+## Versions
+
+`krapfentaxiImportVersion` in `tools/emdash_spike/krapfentaxi-source.mjs` is
+part of the manifest, so it is part of the fingerprint. Each version pins
+`apps/public/src/components/KrapfentaxiIntro.astro` by sha256.
+
+- Version 1: copy transcribed from lions-krapfentaxi.de, which addresses
+  visitors with "du".
+- Version 2 (current): the same copy addressed with "Sie" (public pages use
+  "Sie"). New pin
+  `757f10dd40a2837e2f0fdf52edd8148dde147413039bc13b8b580d9c77d02c56`.
+
+A fresh CMS database imports version 2. A database whose journal was written
+by version 1 fails with `krapfentaxi_import_journal_conflict` on `dry-run` and
+`apply`, because the fingerprint differs: the importer neither resumes nor
+overwrites. Content imported by version 1 belongs to its editors; change the
+text in the CMS editor. Do not delete the journal to re-import.
+`tools/emdash_spike/krapfentaxi-source-proof.mjs` pins this refusal.
+
 Include this journal and the corresponding CMS media/attempt tables and private
 objects in the forthcoming CMS backup/restore contract. Never roll back the
 whole Core database to undo an import: subsequently accepted orders must survive.
