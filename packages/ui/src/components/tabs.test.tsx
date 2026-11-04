@@ -50,6 +50,8 @@ describe("Tabs", () => {
     ]);
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(tabs[0]?.getAttribute("aria-controls")).toBe("orders-panel-open");
+    // Only the shown panel exists, so only its tab points at it.
+    expect(tabs[1]?.hasAttribute("aria-controls")).toBe(false);
     expect(tabs[0]?.querySelector(".tab-count")?.textContent).toBe("12");
     const panel = screen.getByRole("tabpanel", { name: /Offen/ });
     expect(panel.id).toBe("orders-panel-open");

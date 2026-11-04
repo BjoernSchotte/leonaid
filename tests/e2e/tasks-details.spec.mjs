@@ -2,6 +2,7 @@ import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
+  discardQuestion,
   openTask,
   taskPane,
   taskRow,
@@ -288,28 +289,33 @@ for (const [surface, width] of [
       );
       await other.close();
     }
-    // Back with a draft asks first; dismissing keeps pane and draft.
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("verwerfen");
-      await dialog.dismiss();
-    });
+    // Drafts are guarded by the in-app "Entwurf verwerfen?" question; no
+    // native browser dialog appears.
+    const native = [];
+    const onNative = (dialog) => {
+      native.push(dialog.message());
+      void dialog.dismiss();
+    };
+    page.on("dialog", onNative);
+    const keepDraft = async () => {
+      const question = discardQuestion(page);
+      await expect(question).toBeVisible();
+      await question.getByRole("button", { name: "Weiter bearbeiten" }).click();
+      await expect(question).toHaveCount(0);
+      await expect(description).toHaveValue(
+        "Dieser Entwurf muss erhalten bleiben",
+      );
+    };
+    // Back with a draft asks first; keeping the draft keeps the pane.
     await page.goBack();
+    await keepDraft();
     await expect(page).toHaveURL(/open=/);
-    await expect(description).toHaveValue(
-      "Dieser Entwurf muss erhalten bleiben",
-    );
     if (width > 720) {
       // Esc leaves the field first, then asks before closing the pane.
       await description.press("Escape");
       await expect(description).not.toBeFocused();
-      page.once("dialog", async (dialog) => {
-        expect(dialog.message()).toContain("verwerfen");
-        await dialog.dismiss();
-      });
       await page.keyboard.press("Escape");
-      await expect(description).toHaveValue(
-        "Dieser Entwurf muss erhalten bleiben",
-      );
+      await keepDraft();
     }
 
     if (surface === "app") {
@@ -323,25 +329,19 @@ for (const [surface, width] of [
     }
 
     if (width <= 720) {
-      // Phone: closing the sheet with a draft asks first; dismissing keeps
-      // sheet and draft.
+      // Phone: closing the sheet with a draft asks in the app as well.
       const sheet = page.locator("dialog.pane-sheet");
-      const asked = [];
-      page.once("dialog", async (dialog) => {
-        asked.push(dialog.message());
-        await dialog.dismiss();
-      });
       await sheet.getByRole("button", { name: "Schließen (Esc)" }).click();
-      await expect.poll(() => asked.length).toBe(1);
-      expect(asked[0]).toContain("verwerfen");
+      await keepDraft();
       await expect(sheet).toBeVisible();
-      await expect(description).toHaveValue(
-        "Dieser Entwurf muss erhalten bleiben",
-      );
     }
 
-    page.once("dialog", async (dialog) => dialog.accept());
     await editor.getByRole("button", { name: "Abbrechen" }).click();
+    await discardQuestion(page)
+      .getByRole("button", { name: "Verwerfen" })
+      .click();
+    page.off("dialog", onNative);
+    expect(native).toEqual([]);
     await expect(taskPane(page)).toHaveCount(0);
     await expect(page).not.toHaveURL(/open=/);
     await expect(page).toHaveURL(/q=Detail/);

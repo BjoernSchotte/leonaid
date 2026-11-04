@@ -300,7 +300,11 @@ RULES: tuple[Rule, ...] = (
         ("tests/e2e/public-orders.spec.mjs",), e2e("public-orders"), "public order spec"
     ),
     Rule(
-        ("tools/action_admin/**", "tests/e2e/action-admin.spec.mjs"),
+        (
+            "tools/action_admin/**",
+            "tests/e2e/action-admin.spec.mjs",
+            "tests/e2e/delivery-windows.spec.mjs",
+        ),
         e2e("action-admin"),
         "action admin proofs",
     ),

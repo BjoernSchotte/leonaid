@@ -100,3 +100,8 @@ export function horizontalOverflow(page) {
       );
   });
 }
+
+/** The shared in-app "Entwurf verwerfen?" question. */
+export function discardQuestion(page) {
+  return page.getByRole("alertdialog", { name: "Entwurf verwerfen?" });
+}

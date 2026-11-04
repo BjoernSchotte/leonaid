@@ -148,9 +148,12 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(page.getByTestId("current-action")).toHaveText(
       "Krapfentaxi Golden UI 2028",
     );
-    await expect(page.getByTestId("management-tab-basics")).toHaveAttribute(
-      "aria-selected",
-      "true",
+    const tab = (name) => page.getByRole("tab", { name: new RegExp(name) });
+    await expect(tab("Überblick")).toHaveAttribute("aria-selected", "true");
+    // No delivery capability: no Lieferfenster tab.
+    await expect(tab("Lieferfenster")).toHaveCount(0);
+    await expect(page.getByTestId("action-next-step")).toContainText(
+      "Nächster Schritt:",
     );
     await expect(
       page.locator('a[data-nav-key="invoices"]').first(),
@@ -159,22 +162,24 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       // Campaign-scoped rail links carry the campaign on screen.
       `/admin/invoices?action=${actionId}`,
     );
-    await expect(page.locator("#manage-name-help")).toContainText(
+    await page.getByTestId("action-edit").click();
+    await expect(page).toHaveURL(/#overview\/edit$/);
+    await expect(page.locator("#manage-name-hint")).toContainText(
       "öffentliche Titel",
     );
-    await expect(page.locator("#manage-carrier-help")).toContainText(
+    await expect(page.locator("#manage-carrier-hint")).toContainText(
       "Organisation",
     );
-    await expect(page.locator("#manage-archive-slug-help")).toContainText(
+    await expect(page.locator("#manage-archive-slug-hint")).toContainText(
       "nicht geändert",
     );
     await expect(page.getByTestId("manage-name")).toHaveAttribute(
       "aria-describedby",
-      "manage-name-help",
+      "manage-name-hint",
     );
     await expect(page.getByTestId("manage-archive-slug")).toHaveAttribute(
       "aria-describedby",
-      "manage-archive-slug-help",
+      "manage-archive-slug-hint",
     );
 
     await page.getByTestId("manage-name").fill("Krapfentaxi Golden 2028");
@@ -207,15 +212,6 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       ),
     ).toEqual([]);
 
-    await page.getByTestId("management-tab-basics").focus();
-    await page.keyboard.press("ArrowRight");
-    await expect(
-      page.getByTestId("management-tab-beneficiaries"),
-    ).toBeFocused();
-    await expect(
-      page.getByTestId("management-tab-beneficiaries"),
-    ).toHaveAttribute("aria-selected", "true");
-
     await page
       .getByTestId("manage-beneficiary-name-0")
       .fill("Bildungshafen und Lerninsel Beispielstadt");
@@ -224,7 +220,6 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       page.getByText("Die Begünstigten wurden gespeichert."),
     ).toBeVisible();
 
-    await page.getByTestId("management-tab-team").click();
     await page.locator('#capabilities input[value="invoicing"]').uncheck();
     await page.getByTestId("save-capabilities").click();
     await expect(
@@ -238,8 +233,26 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(
       page.getByText("Die verantwortlichen Admins wurden gespeichert."),
     ).toBeVisible();
+    await page.getByTestId("action-edit-done").click();
+    await expect(page.getByTestId("manage-name")).toHaveCount(0);
 
-    await page.getByTestId("management-tab-public").click();
+    // Tabs: arrow keys move between them; the number keys pick one.
+    await tab("Überblick").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(tab("Aliase")).toBeFocused();
+    await expect(tab("Aliase")).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/#aliases$/);
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("3");
+    await expect(tab("Vorlagen")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("template-snapshot")).toBeVisible();
+    await page.keyboard.press("4");
+    await expect(tab("Angebote")).toHaveAttribute("aria-selected", "true");
+    // An action without a template has no offerings yet.
+    await expect(
+      page.getByRole("heading", { name: "Keine Angebote" }),
+    ).toBeVisible();
+    await page.keyboard.press("2");
     await page.getByTestId("publication-start").fill("2028-08-01T08:00");
     await page.getByTestId("publication-end").fill("2028-11-15T23:00");
     await page.getByTestId("publication-alias").fill("krapfentaxi-golden-ui");
@@ -266,7 +279,8 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     });
     await page.getByTestId("theme-toggle").click();
 
-    await page.getByTestId("management-tab-status").click();
+    await page.keyboard.press("1");
+    await expect(tab("Überblick")).toHaveAttribute("aria-selected", "true");
     await confirmTransition(page, "transition-scheduled", "Aktion einplanen");
     await expect(page.getByTestId("management-status")).toHaveText("Geplant");
     await expect(page.getByTestId("transition-active")).toBeVisible();
@@ -289,10 +303,10 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await expect(page.getByTestId("management-status")).toHaveText(
       "Archiviert",
     );
-    await expect(page.getByTestId("manage-name")).toBeDisabled();
-    await expect(
-      page.getByText(/vollständig nachvollziehbar/).first(),
-    ).toBeVisible();
+    await expect(page.getByTestId("action-edit")).toHaveCount(0);
+    await expect(page.getByTestId("action-read-only")).toContainText(
+      "vollständig nachvollziehbar",
+    );
 
     const persisted = await page.evaluate(async (id) => {
       const response = await fetch(`/api/v1/actions/${id}/management`, {
@@ -331,7 +345,12 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     ).toEqual([]);
 
     await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.goto(`${baseUrl}/admin/actions`);
+    await page.goto(`${baseUrl}/admin/actions/${actionId}`);
+    await expect(page.getByTestId("management-title")).toBeVisible();
+    // Esc goes back to the action list (prototype).
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Escape");
+    await page.waitForURL(`${baseUrl}/admin/actions`);
     await expect(
       page.getByRole("heading", { name: "Aktionen verwalten" }),
     ).toBeVisible();

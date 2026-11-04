@@ -121,6 +121,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/action-admin.spec.mjs \
+  tests/e2e/delivery-windows.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \

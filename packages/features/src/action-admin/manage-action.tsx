@@ -1,14 +1,6 @@
-import {
-  ArrowLeft01Icon,
-  Calendar03Icon,
-  CharityIcon,
-  Megaphone02Icon,
-  Target01Icon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { ExternalLink, Pencil, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -16,9 +8,29 @@ import {
   type CharityActionResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  DetailProps,
+  ErrorState,
+  Icon,
+  ReadOnlyNotice,
+  SkeletonRows,
+  StatusIcon,
+  StatusLabel,
+  TabPanel,
+  Tabs,
+  isTypingTarget,
+  useDiscardDialog,
+  useHotkeys,
+} from "@leonaid/ui";
 
-import { actionErrorMessage } from "./errors";
+import { shortDate } from "../shared/dates";
+import {
+  OffersTab,
+  TemplatesTab,
+  useActionConfiguration,
+} from "./action-templates";
 import { CampaignAliasesSection } from "./campaign-aliases";
 import { DeliverySection } from "./delivery-section";
 import {
@@ -27,82 +39,180 @@ import {
   CapabilitiesSection,
   DetailsSection,
   GoalSection,
-  LifecycleSection,
+  LifecycleNextStep,
   PublicationSection,
+  capabilityOptions,
+  statusLabels,
+  type SharedSectionProps,
 } from "./manage-sections";
+import { useActionErrorMessage } from "./use-action-error";
 
-const statusLabels: Record<CharityActionResponse["status"], string> = {
-  active: "Aktiv",
-  archived: "Archiviert",
-  completed: "Abgeschlossen",
-  draft: "Entwurf",
-  scheduled: "Geplant",
-};
-
-const panels = [
-  {
-    description: "Name, Zeitraum und Aktionsziel",
-    icon: Target01Icon,
-    id: "basics",
-    label: "Grundlagen",
-    legacyHashes: ["details", "goal"],
-  },
-  {
-    description: "Organisationen, denen die Aktion hilft",
-    icon: CharityIcon,
-    id: "beneficiaries",
-    label: "Begünstigte",
-    legacyHashes: ["beneficiaries"],
-  },
-  {
-    description: "Aktive Bereiche und verantwortliche Mitglieder",
-    icon: UserGroupIcon,
-    id: "team",
-    label: "Funktionen & Team",
-    legacyHashes: ["capabilities", "administrators"],
-  },
-  {
-    description: "Zeitraum und Kurzadresse der öffentlichen Seite",
-    icon: Megaphone02Icon,
-    id: "public",
-    label: "Öffentliche Seite",
-    legacyHashes: ["publication"],
-  },
-  {
-    description: "Tage und Zeitfenster für die Auslieferung",
-    icon: Calendar03Icon,
-    id: "delivery",
-    label: "Lieferung",
-    legacyHashes: ["delivery"],
-  },
-  {
-    description: "Aktion planen, starten und abschließen",
-    icon: Calendar03Icon,
-    id: "status",
-    label: "Status",
-    legacyHashes: ["lifecycle"],
-  },
+const TABS = [
+  { id: "overview", label: "Überblick" },
+  { id: "delivery", label: "Lieferfenster" },
+  { id: "aliases", label: "Aliase" },
+  { id: "templates", label: "Vorlagen" },
+  { id: "offers", label: "Angebote" },
 ] as const;
 
-type PanelId = (typeof panels)[number]["id"];
+export type ActionTab = (typeof TABS)[number]["id"];
 
-function initialPanel(): PanelId {
-  const hash = window.location.hash.slice(1);
-  return (
-    panels.find(
-      (panel) =>
-        panel.id === hash ||
-        (panel.legacyHashes as readonly string[]).includes(hash),
-    )?.id ?? "basics"
-  );
+interface Location {
+  readonly tab: ActionTab;
+  readonly editing: boolean;
 }
 
-function displayDate(value: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(`${value}T12:00:00Z`));
+/**
+ * The tab lives in the hash (`#delivery`, `#overview/edit`). Old panel
+ * hashes keep working: the edit forms of the former panels open the
+ * overview in edit mode, "public" opens the aliases.
+ */
+export function actionLocation(hash: string): Location {
+  const [head = "", mode] = hash.replace(/^#/, "").split("/");
+  if (TABS.some((tab) => tab.id === head)) {
+    return {
+      tab: head as ActionTab,
+      editing: head === "overview" && mode === "edit",
+    };
+  }
+  if (
+    [
+      "basics",
+      "details",
+      "goal",
+      "beneficiaries",
+      "team",
+      "capabilities",
+      "administrators",
+    ].includes(head)
+  ) {
+    return { tab: "overview", editing: true };
+  }
+  if (head === "public" || head === "publication") {
+    return { tab: "aliases", editing: false };
+  }
+  return { tab: "overview", editing: false };
+}
+
+function locationHash({ editing, tab }: Location) {
+  return editing ? "#overview/edit" : `#${tab}`;
+}
+
+function period(action: CharityActionResponse) {
+  return `${shortDate(action.startsOn)} – ${shortDate(action.endsOn)}`;
+}
+
+function goalText(action: CharityActionResponse, value: string | null) {
+  if (value === null || value === "") return null;
+  const number = Number(value);
+  if (action.goal.currency) {
+    return Number.isFinite(number)
+      ? new Intl.NumberFormat("de-DE", {
+          currency: action.goal.currency,
+          style: "currency",
+        }).format(number)
+      : `${value} ${action.goal.currency}`;
+  }
+  const formatted = Number.isFinite(number)
+    ? new Intl.NumberFormat("de-DE").format(number)
+    : value;
+  return action.goal.unit ? `${formatted} ${action.goal.unit}` : formatted;
+}
+
+/** Überblick, read view (prototype Campaigns.tsx Overview). */
+function Overview({ state }: { readonly state: ActionManagementResponse }) {
+  const action = state.action;
+  const leads = state.administratorOptions
+    .filter((option) => option.isResponsible)
+    .map((option) => option.displayName);
+  const goal = goalText(action, action.goal.goalValue);
+  return (
+    <div className="overview" data-testid="action-overview">
+      <section aria-labelledby="overview-purpose">
+        <h2 className="tab-h2" id="overview-purpose">
+          Zweck
+        </h2>
+        <p className="overview-purpose">{action.purpose}</p>
+        <DetailProps
+          items={[
+            { label: "Zeitraum", value: period(action) },
+            { label: "Träger", value: action.carrierName },
+            {
+              label: "Ziel",
+              value: goal ? (
+                <span className="num">{goal}</span>
+              ) : (
+                <span className="subtle">Kein Ziel</span>
+              ),
+            },
+            {
+              label: "Bisher erreicht",
+              value: (
+                <span className="num">
+                  {goalText(action, action.goal.actualValue) ?? "–"}
+                </span>
+              ),
+            },
+            {
+              label: "Begünstigte",
+              value: action.beneficiaries.length ? (
+                action.beneficiaries
+                  .map((item) => item.organizationName)
+                  .join(", ")
+              ) : (
+                <span className="subtle">Keine</span>
+              ),
+            },
+            {
+              label: "Leitung",
+              value: leads.length ? (
+                leads.join(", ")
+              ) : (
+                <span className="subtle">Niemand</span>
+              ),
+            },
+            {
+              label: "Öffentliche Adresse",
+              value: state.publicAlias ? (
+                <span className="mono">/{state.publicAlias}</span>
+              ) : (
+                <span className="subtle">Noch keine</span>
+              ),
+            },
+            {
+              label: "Archiv-Adresse",
+              value: (
+                <span className="mono">/archive/{action.archiveSlug}</span>
+              ),
+            },
+          ]}
+        />
+      </section>
+      <section aria-labelledby="overview-capabilities">
+        <h2 className="tab-h2" id="overview-capabilities">
+          Funktionen dieser Aktion
+        </h2>
+        {action.capabilities.length ? (
+          <ul className="capabilities">
+            {capabilityOptions
+              .filter((option) => action.capabilities.includes(option.value))
+              .map((option) => (
+                <li key={option.value}>
+                  <StatusIcon label="Aktiv" status="done" />
+                  {option.label}
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="small subtle">Keine Funktionen gewählt.</p>
+        )}
+        <p className="small muted">
+          Funktionen kommen aus der Vorlage. Rollen wie „Ausfahrer“ gibt es nur,
+          wenn die Auslieferung aktiv ist.
+        </p>
+      </section>
+    </div>
+  );
 }
 
 export interface ManageActionPageProps {
@@ -110,11 +220,21 @@ export interface ManageActionPageProps {
   readonly client: LeonAidApiClient;
 }
 
+/**
+ * Aktion im Detail (prototype Campaigns.tsx CampaignDetail): header with
+ * status, tabs Überblick, Lieferfenster, Aliase, Vorlagen and Angebote.
+ * "Bearbeiten" shows the edit forms on the overview; every change goes to
+ * the server with the action's revision.
+ */
 export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
-  const [activePanel, setActivePanel] = useState<PanelId>(initialPanel);
-  const tabRefs = useRef(new Map<PanelId, HTMLButtonElement>());
+  const [location, setLocation] = useState<Location>(() =>
+    actionLocation(window.location.hash),
+  );
   const queryClient = useQueryClient();
-  const queryKey = ["action-management", actionId] as const;
+  const queryKey = useMemo(
+    () => ["action-management", actionId] as const,
+    [actionId],
+  );
   const query = useQuery({
     queryFn: () => client.getCharityActionManagement(actionId),
     queryKey,
@@ -123,268 +243,336 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     retryDelay: (attempt) => 150 * (attempt + 1),
     staleTime: 0,
   });
-  // Delivery planning follows the action's capability, not its template name.
+  const configuration = useActionConfiguration(client, actionId);
+  // Same keys as the tabs' own queries: the counts cost no extra request.
+  const deliveryCount = useQuery({
+    enabled: query.data?.action.capabilities.includes("delivery") ?? false,
+    queryKey: ["delivery-configuration", actionId],
+    queryFn: () => client.getDeliveryConfiguration(actionId),
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const aliasCount = useQuery({
+    queryKey: ["campaign-aliases", actionId],
+    queryFn: () => client.listCampaignAliases(actionId),
+    retry: false,
+    staleTime: 0,
+  });
+  const errorMessage = useActionErrorMessage(query.error);
+
   const hasDelivery =
     query.data?.action.capabilities.includes("delivery") ?? false;
-  const visiblePanels = panels.filter(
-    (panel) => panel.id !== "delivery" || hasDelivery,
-  );
-  const selectedPanel =
-    activePanel === "delivery" && !hasDelivery ? "basics" : activePanel;
+  const tabs = TABS.filter((tab) => tab.id !== "delivery" || hasDelivery);
+  const current: ActionTab =
+    location.tab === "delivery" && query.isSuccess && !hasDelivery
+      ? "overview"
+      : location.tab;
+  const archived = query.data?.action.status === "archived";
+  const editing = location.editing && !archived;
 
-  function updateAction(action: CharityActionResponse) {
-    queryClient.setQueryData<ActionManagementResponse>(
-      queryKey,
-      (current) => current && { ...current, action },
-    );
-    void queryClient.invalidateQueries({ queryKey });
-  }
-
-  function updateState(state: ActionManagementResponse) {
-    queryClient.setQueryData<ActionManagementResponse>(queryKey, state);
-  }
-
-  useEffect(() => {
-    function useLocationHash() {
-      setActivePanel(initialPanel());
-    }
-
-    window.addEventListener("hashchange", useLocationHash);
-    return () => window.removeEventListener("hashchange", useLocationHash);
+  // Revisions this page saved itself; a draft begun before them is current.
+  const ownRevisions = useRef(new Set<number>());
+  const revisionFor = useCallback((base: number) => {
+    let revision = base;
+    while (ownRevisions.current.has(revision + 1)) revision += 1;
+    return revision;
   }, []);
+  // Forms with unsaved input; leaving them asks first.
+  const [dirtyForms, setDirtyForms] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onDirty = useCallback((form: string, dirty: boolean) => {
+    setDirtyForms((current) => {
+      if (current.has(form) === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(form);
+      else next.delete(form);
+      return next;
+    });
+  }, []);
+  const discard = useDiscardDialog("Sie");
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const dirtyRef = useRef(dirtyForms);
+  dirtyRef.current = dirtyForms;
+
+  /** Whether leaving `from` for `to` unmounts a form with unsaved input. */
+  const losesInput = (from: Location, to: Location) => {
+    if (dirtyRef.current.size === 0) return false;
+    if (from.tab === to.tab && from.editing === to.editing) return false;
+    return true;
+  };
+
+  const go = useCallback(
+    async (next: Location) => {
+      const from = locationRef.current;
+      if (losesInput(from, next) && !(await discard.confirmDiscard())) return;
+      setLocation(next);
+      // One history entry per tab, so Back steps through the tabs.
+      if (locationHash(next) !== window.location.hash) {
+        window.history.pushState(window.history.state, "", locationHash(next));
+      }
+    },
+    // losesInput reads refs only.
+    [discard],
+  );
+
+  const leaveToList = useCallback(async () => {
+    if (dirtyRef.current.size > 0 && !(await discard.confirmDiscard())) return;
+    window.location.assign("/admin/actions");
+  }, [discard]);
 
   useEffect(() => {
-    function keepSelectedTabVisible() {
-      const tab = tabRefs.current.get(selectedPanel);
-      const strip = tab?.parentElement;
-      if (tab && strip && strip.scrollWidth > strip.clientWidth) {
-        strip.scrollTo({
-          left: Math.max(
-            0,
-            tab.offsetLeft -
-              strip.offsetLeft -
-              (strip.clientWidth - tab.offsetWidth) / 2,
-          ),
-          behavior: "instant",
-        });
+    // Back/Forward and hash links: ask before a draft goes away; on
+    // "Weiter bearbeiten" the previous hash comes back.
+    const onHash = () => {
+      const from = locationRef.current;
+      const next = actionLocation(window.location.hash);
+      if (!losesInput(from, next)) {
+        setLocation(next);
+        return;
       }
-    }
-    keepSelectedTabVisible();
-    window.addEventListener("resize", keepSelectedTabVisible);
-    return () => window.removeEventListener("resize", keepSelectedTabVisible);
-  }, [selectedPanel, query.data?.action.id]);
+      void discard.confirmDiscard().then((ok) => {
+        if (ok) setLocation(next);
+        else
+          window.history.replaceState(
+            window.history.state,
+            "",
+            locationHash(from),
+          );
+      });
+    };
+    window.addEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onHash);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onHash);
+    };
+  }, [discard]);
 
-  function selectPanel(panelId: PanelId, focus = false) {
-    setActivePanel(panelId);
-    window.history.replaceState(null, "", `#${panelId}`);
-    if (focus) tabRefs.current.get(panelId)?.focus();
-  }
-
-  function movePanel(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    panelId: PanelId,
-  ) {
-    const current = visiblePanels.findIndex((panel) => panel.id === panelId);
-    let next = current;
-    if (event.key === "ArrowRight") next = (current + 1) % visiblePanels.length;
-    if (event.key === "ArrowLeft") {
-      next = (current - 1 + visiblePanels.length) % visiblePanels.length;
+  // #delivery without the delivery capability: show and name the overview.
+  useEffect(() => {
+    if (location.tab === "delivery" && query.isSuccess && !hasDelivery) {
+      const next = { tab: "overview", editing: false } as const;
+      setLocation(next);
+      window.history.replaceState(window.history.state, "", locationHash(next));
     }
-    if (event.key === "Home") next = 0;
-    if (event.key === "End") next = visiblePanels.length - 1;
-    if (next === current) return;
-    event.preventDefault();
-    selectPanel(visiblePanels[next].id, true);
-  }
+  }, [location.tab, query.isSuccess, hasDelivery]);
+
+  useHotkeys(
+    [
+      {
+        keys: "escape",
+        label: "Zurück zur Aktionsliste",
+        group: "Aktion",
+        // Esc in a field stays with the field (prototype: cancel typing).
+        when: () => !editing && !isTypingTarget(document.activeElement),
+        run: () => void leaveToList(),
+      },
+      ...tabs.map((tab, index) => ({
+        keys: String(index + 1),
+        label: `Reiter ${tab.label}`,
+        group: "Aktion",
+        run: () => void go({ tab: tab.id, editing: false }),
+      })),
+    ],
+    [editing, tabs.length, go, leaveToList],
+  );
 
   if (query.isPending) {
     return (
-      <div aria-live="polite" className="action-loading" role="status">
-        <span aria-hidden="true" />
-        <h1>Aktionsverwaltung wird geladen</h1>
-        <p>Grunddaten, Rollen und Publikation werden sicher abgerufen.</p>
+      <div className="campaign" aria-busy="true">
+        <h1 className="sr-only">Aktion wird geladen</h1>
+        <SkeletonRows rows={6} />
       </div>
     );
   }
 
   if (query.isError) {
-    const details = actionErrorMessage(query.error);
     return (
-      <div className="action-page action-page--state">
-        <StatusMessage tone="error">
-          <h1>Aktion konnte nicht geladen werden</h1>
-          <p>{details.message}</p>
-          <Button onClick={() => void query.refetch()} variant="secondary">
-            Erneut versuchen
-          </Button>
-        </StatusMessage>
+      <div className="campaign">
+        <nav aria-label="Brotkrumen" className="crumbs">
+          <a href="/admin/actions">Aktionen</a>
+        </nav>
+        <h1 className="sr-only">Aktion konnte nicht geladen werden</h1>
+        <ErrorState
+          onRetry={() => void query.refetch()}
+          title="Aktion konnte nicht geladen werden"
+        >
+          {errorMessage?.message}
+        </ErrorState>
       </div>
     );
   }
 
   const state = query.data;
   const action = state.action;
-  const archived = action.status === "archived";
-  const shared = {
+
+  function updateAction(next: CharityActionResponse) {
+    queryClient.setQueryData<ActionManagementResponse>(
+      queryKey,
+      (existing) => existing && { ...existing, action: next },
+    );
+    void queryClient.invalidateQueries({ queryKey });
+    ownRevisions.current.add(next.revision);
+    void queryClient.invalidateQueries({
+      queryKey: ["action-configuration", actionId],
+    });
+    // Completing or archiving removes the action's aliases on the server.
+    void queryClient.invalidateQueries({
+      queryKey: ["campaign-aliases", actionId],
+    });
+  }
+
+  function updateState(next: ActionManagementResponse) {
+    ownRevisions.current.add(next.action.revision);
+    queryClient.setQueryData<ActionManagementResponse>(queryKey, next);
+    // The publication sets the active alias.
+    void queryClient.invalidateQueries({
+      queryKey: ["campaign-aliases", actionId],
+    });
+  }
+
+  const shared: SharedSectionProps = {
     client,
     disabled: archived,
     state,
     updateAction,
     updateState,
+    revisionFor,
+    onDirty,
+  };
+  const leads = state.administratorOptions
+    .filter((option) => option.isResponsible)
+    .map((option) => option.displayName);
+  const counts: Partial<Record<ActionTab, number>> = {
+    delivery: deliveryCount.data?.windows.filter((window) => !window.retired)
+      .length,
+    aliases: aliasCount.data?.items.length,
+    offers: configuration.data?.offerings.length,
   };
 
   return (
-    <div className="action-page action-page--manage">
-      <a className="action-back" href="/admin/actions">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={ArrowLeft01Icon}
-          size={18}
-          strokeWidth={1.8}
-        />
-        Alle Aktionen
-      </a>
-      <header className="action-page__header action-page__header--management">
+    <div className="campaign" data-testid="action-detail">
+      <nav aria-label="Brotkrumen" className="crumbs">
+        <a href="/admin/actions">Aktionen</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{action.name}</span>
+      </nav>
+      <header className="page-header">
         <div>
-          <p className="action-page__eyebrow">Charity-Aktion verwalten</p>
-          <h1 data-testid="management-title">{action.name}</h1>
-          <p>
-            {action.carrierName} · {displayDate(action.startsOn)} bis{" "}
-            {displayDate(action.endsOn)}
+          <div className="page-heading">
+            <h1 data-testid="management-title">{action.name}</h1>
+            <span data-testid="management-status">
+              <StatusLabel status={statusLabels[action.status]} />
+            </span>
+          </div>
+          <p className="page-sub">
+            {action.carrierName} · {period(action)}
+            {leads.length ? ` · Leitung ${leads.join(", ")}` : ""}
           </p>
         </div>
-        <span
-          className="action-status-badge"
-          data-status={action.status}
-          data-testid="management-status"
-        >
-          {statusLabels[action.status]}
-        </span>
-        <a
-          className={buttonClassName({ variant: "secondary" })}
-          href={`/_emdash/admin/campaigns/${action.id}`}
-        >
-          Microsite bearbeiten
-        </a>
+        <div className="page-actions">
+          <a
+            className={buttonClassName({ variant: "ghost" })}
+            href={`/_emdash/admin/campaigns/${action.id}`}
+          >
+            <Icon icon={ExternalLink} size={16} />
+            <span className="btn-label">Microsite bearbeiten</span>
+          </a>
+          {!archived ? (
+            editing ? (
+              <Button
+                data-testid="action-edit-done"
+                icon={X}
+                onClick={() => void go({ tab: "overview", editing: false })}
+                variant="secondary"
+              >
+                Bearbeiten beenden
+              </Button>
+            ) : (
+              <Button
+                data-testid="action-edit"
+                icon={Pencil}
+                onClick={() => void go({ tab: "overview", editing: true })}
+                variant="secondary"
+              >
+                Bearbeiten
+              </Button>
+            )
+          ) : null}
+        </div>
       </header>
 
-      {archived ? (
-        <StatusMessage>
-          Die archivierte Aktion bleibt vollständig nachvollziehbar. Alle
-          Bearbeitungsfelder sind schreibgeschützt.
-        </StatusMessage>
-      ) : null}
-
-      <div className="action-workspace-nav">
-        <div
-          aria-label="Bereich der Aktion wählen"
-          className="action-workspace-tabs"
-          role="tablist"
-        >
-          {visiblePanels.map((panel) => (
-            <button
-              aria-controls={`panel-${panel.id}`}
-              aria-selected={selectedPanel === panel.id}
-              className="action-workspace-tab"
-              data-testid={`management-tab-${panel.id}`}
-              id={`tab-${panel.id}`}
-              key={panel.id}
-              onClick={() => selectPanel(panel.id)}
-              onKeyDown={(event) => movePanel(event, panel.id)}
-              ref={(element) => {
-                if (element) tabRefs.current.set(panel.id, element);
-                else tabRefs.current.delete(panel.id);
-              }}
-              role="tab"
-              tabIndex={selectedPanel === panel.id ? 0 : -1}
-              type="button"
-            >
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={panel.icon}
-                size={18}
-                strokeWidth={1.7}
-              />
-              <span>
-                <strong>{panel.label}</strong>
-                <small>{panel.description}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="action-edit-stack">
-        <div
-          aria-labelledby="tab-basics"
-          className="action-edit-panel"
-          hidden={selectedPanel !== "basics"}
-          id="panel-basics"
-          role="tabpanel"
-        >
-          <DetailsSection {...shared} />
-          <GoalSection {...shared} />
-        </div>
-        <div
-          aria-labelledby="tab-beneficiaries"
-          className="action-edit-panel"
-          hidden={selectedPanel !== "beneficiaries"}
-          id="panel-beneficiaries"
-          role="tabpanel"
-        >
-          <BeneficiariesSection {...shared} />
-        </div>
-        <div
-          aria-labelledby="tab-team"
-          className="action-edit-panel"
-          hidden={selectedPanel !== "team"}
-          id="panel-team"
-          role="tabpanel"
-        >
-          <CapabilitiesSection {...shared} />
-          <AdministratorsSection {...shared} />
-        </div>
-        <div
-          aria-labelledby="tab-public"
-          className="action-edit-panel"
-          hidden={selectedPanel !== "public"}
-          id="panel-public"
-          role="tabpanel"
-        >
-          <PublicationSection {...shared} />
-          <CampaignAliasesSection
-            actionId={actionId}
-            client={client}
-            disabled={archived || action.status === "completed"}
-          />
-        </div>
-        <div
-          aria-labelledby="tab-status"
-          className="action-edit-panel"
-          hidden={selectedPanel !== "status"}
-          id="panel-status"
-          role="tabpanel"
-        >
-          <LifecycleSection {...shared} />
-        </div>
-        {hasDelivery && (
-          <div
-            aria-labelledby="tab-delivery"
-            className="action-edit-panel"
-            hidden={selectedPanel !== "delivery"}
-            id="panel-delivery"
-            role="tabpanel"
-          >
-            <DeliverySection
-              client={client}
-              actionId={actionId}
-              startsOn={action.startsOn}
-              endsOn={action.endsOn}
-              disabled={archived || !action.capabilities.includes("ordering")}
-            />
+      <Tabs
+        idPrefix="action"
+        items={tabs.map((tab) => ({ ...tab, count: counts[tab.id] }))}
+        label="Bereiche der Aktion"
+        onChange={(tab) => void go({ tab, editing: false })}
+        value={current}
+      />
+      <TabPanel className="tab-panel" idPrefix="action" tabId={current}>
+        {current === "overview" ? (
+          <div className="stack">
+            {archived ? (
+              <ReadOnlyNotice data-testid="action-read-only">
+                Die archivierte Aktion bleibt vollständig nachvollziehbar. Alle
+                Felder sind schreibgeschützt.
+              </ReadOnlyNotice>
+            ) : (
+              <LifecycleNextStep {...shared} />
+            )}
+            {editing ? (
+              <div className="edit-stack" data-testid="action-edit-forms">
+                <DetailsSection {...shared} />
+                <GoalSection {...shared} />
+                <BeneficiariesSection {...shared} />
+                <CapabilitiesSection {...shared} />
+                <AdministratorsSection {...shared} />
+              </div>
+            ) : (
+              <Overview state={state} />
+            )}
           </div>
+        ) : current === "delivery" ? (
+          <DeliverySection
+            actionId={actionId}
+            actionName={action.name}
+            client={client}
+            disabled={archived || !action.capabilities.includes("ordering")}
+            disabledReason={archived ? "archived" : "no-ordering"}
+            endsOn={action.endsOn}
+            ordering={action.capabilities.includes("ordering")}
+            startsOn={action.startsOn}
+          />
+        ) : current === "aliases" ? (
+          <div className="stack">
+            {archived || action.status === "completed" ? (
+              <ReadOnlyNotice data-testid="aliases-read-only">
+                {archived
+                  ? "Die archivierte Aktion hat keine Aliase mehr; ihre dauerhafte Adresse bleibt erreichbar."
+                  : "Nach dem Abschluss lassen sich die Aliase nicht mehr ändern; die dauerhafte Adresse bleibt erreichbar."}
+              </ReadOnlyNotice>
+            ) : null}
+            <CampaignAliasesSection
+              actionId={actionId}
+              client={client}
+              disabled={archived || action.status === "completed"}
+            />
+            {!archived ? <PublicationSection {...shared} /> : null}
+          </div>
+        ) : current === "templates" ? (
+          <TemplatesTab
+            action={action}
+            client={client}
+            configuration={configuration}
+            disabled={false}
+          />
+        ) : (
+          <OffersTab configuration={configuration} />
         )}
-      </div>
+      </TabPanel>
+      {discard.dialog}
     </div>
   );
 }
