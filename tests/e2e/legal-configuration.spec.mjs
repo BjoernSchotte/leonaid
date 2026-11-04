@@ -56,7 +56,20 @@ test("two system admins activate a legal basis", async ({ browser }) => {
     await expect(
       klaraPage.getByRole("heading", { level: 1, name: "Rechtliches" }),
     ).toBeVisible();
-    await expect(klaraPage.getByText("Keine offenen Entwürfe")).toBeVisible();
+    // Seeded: draft version 1 is approved, but the open e-invoice decision
+    // blocks its activation (tools/legal_configuration/contract.py).
+    await expect(
+      klaraPage.getByText("Entwurf Version 1 freigegeben, Aktivierung offen"),
+    ).toBeVisible();
+    await expect(
+      klaraPage.getByText("Noch keine aktive Version"),
+    ).toBeVisible();
+    await expect(klaraPage.getByTestId("legal-blockers")).toContainText(
+      "Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+    );
+    await expect(
+      klaraPage.getByRole("button", { name: /aktivieren/ }),
+    ).toHaveCount(0);
     await expect(
       klaraPage.getByRole("heading", { level: 2, name: "Träger & Anschrift" }),
     ).toBeVisible();
@@ -75,7 +88,8 @@ test("two system admins activate a legal basis", async ({ browser }) => {
     await parts.getByRole("link", { name: /E-Rechnung/ }).click();
     await expect(klaraPage).toHaveURL(/\/admin\/legal\/e-invoice$/);
     await klaraPage
-      .getByRole("button", { name: "Neuen Entwurf beginnen" })
+      .getByTestId("legal-next-step")
+      .getByRole("button", { name: "Entwurf bearbeiten" })
       .click();
     const editor = klaraPage.getByTestId("legal-editor");
     await editor.getByLabel(/^E-Rechnung/).selectOption("not_required");
@@ -86,6 +100,7 @@ test("two system admins activate a legal basis", async ({ browser }) => {
 
     // The author never gets the approval; the server refuses it as well.
     const klaraDraft = klaraPage.getByTestId("legal-draft");
+    await expect(klaraDraft).toContainText("Entwurf Version 2");
     await expect(klaraDraft).toContainText("Wartet auf zweite Freigabe");
     await expect(klaraPage.getByTestId("legal-author-lock")).toContainText(
       "Sie haben diesen Entwurf erstellt. Freigeben muss eine andere Person",
