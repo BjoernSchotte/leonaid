@@ -30,8 +30,9 @@ from leonaid.modules.surveys.application.export_rendering import (
 )
 
 TYPST_VERSION = "0.13.1"
-# v2: disclosed numbers (k = 5, Task 5.6b).
-RENDER_VERSION = f"survey-analysis-v3+typst-{TYPST_VERSION}"
+# v4: report PDFs under the disclosure rules of review round 2 (Task
+# 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
+RENDER_VERSION = f"survey-analysis-v4+typst-{TYPST_VERSION}"
 DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "survey-analysis-v1.typ"
 STATUSES = {
     "in_progress": "In Bearbeitung",

@@ -582,6 +582,16 @@ class AsyncpgSurveyRepository:
                 scope = f"author:{actor.account.id}:{operation}"
                 replay = await self._replay(conn, survey_id, scope, body)
                 if replay is not None:
+                    if settled:
+                        # An account that lost raw access must not get a
+                        # reader snapshot back by replaying its operation (N5).
+                        stored = await read_snapshot(
+                            conn, survey_id, UUID(replay["id"]), can_test=can_test
+                        )
+                        if stored["disclosurePolicy"] != "settled":
+                            raise ResourceNotFound(
+                                "not_found", "Auswertung nicht gefunden."
+                            )
                     return replay
                 result = await create_snapshot(conn, survey, filters, settled=settled)
                 if operation == "response-create":

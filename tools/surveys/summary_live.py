@@ -202,6 +202,30 @@ async def main():
             analyst,
         )
         assert whole["participationCount"] == 30  # seeded two days ago
+        # N5: an operation replayed after losing raw access does not hand a
+        # reader snapshot back. With read_responses for a moment, the
+        # analyst's snapshot is a reader one (statuses as asked, not settled).
+        analyst_id = await conn.fetchval(
+            "SELECT user_id FROM survey_grant WHERE survey_id=$1 AND capability='view_aggregates'",
+            sid,
+        )
+        await conn.execute(
+            "INSERT INTO survey_grant(survey_id,user_id,capability) VALUES($1,$2,'read_responses')",
+            sid,
+            analyst_id,
+        )
+        replay_body = {"operationId": "replay", "filter": {"versionId": version["id"]}}
+        while_raw = await call("POST", path + "/analysis", replay_body, analyst)
+        await conn.execute(
+            "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2 AND capability='read_responses'",
+            sid,
+            analyst_id,
+        )
+        assert while_raw["participationCount"] is not None
+        await call("POST", path + "/analysis", replay_body, analyst, 404)
+        await call(
+            "GET", path + "/analysis/" + while_raw["id"], auth=analyst, expected=404
+        )
         # Its own settled snapshot it can read again, and export as a report;
         # the reader's selection it cannot export either (I1).
         assert (await call("GET", path + "/analysis/" + whole["id"], auth=analyst))[

@@ -300,9 +300,9 @@ async def main():
                         UUID(jid),
                     )
                     previous = (
-                        "survey-analysis-v2+typst-0.14.2"
+                        "survey-analysis-v3+typst-0.13.1"
                         if product == "analysis_pdf"
-                        else "survey-tabular-v3"
+                        else "survey-tabular-v4"
                     )
                     await conn.execute(
                         "UPDATE survey_export_job SET render_version=$2 WHERE id=$1",

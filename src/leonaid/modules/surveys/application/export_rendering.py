@@ -37,8 +37,8 @@ and in future, renders from the disclosed snapshot (fails closed, M3)."""
 
 
 DISCLOSED_SINCE: dict[str, tuple[str, int]] = {
-    "analysis_pdf": ("survey-analysis-v", 3),
-    "analysis_xlsx": ("survey-tabular-v", 4),
+    "analysis_pdf": ("survey-analysis-v", 4),
+    "analysis_xlsx": ("survey-tabular-v", 5),
 }
 """First render version of each report product under the current disclosure
 rules (review 5.6b, M4). Whenever ``disclose()`` changes, bump both
