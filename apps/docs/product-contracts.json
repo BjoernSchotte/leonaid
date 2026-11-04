@@ -90,7 +90,9 @@
       "contains": [
         "Login-Code anfordern",
         "Sechsstelliger Code",
-        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten"
+        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten",
+        "Neuen Code senden",
+        "Andere E-Mail-Adresse"
       ]
     },
     {

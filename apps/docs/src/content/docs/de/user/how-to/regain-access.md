@@ -4,9 +4,9 @@ description: Neuen Login-Code anfordern, eine Einladung erneut erhalten oder ein
 docId: DOC-P015
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 11720893881db3a1ebc4374a04d57e09a4fc61ec
 reviewer: Björn Schotte
 ---
 
@@ -20,6 +20,10 @@ Passworts.
    wähle **Login-Code anfordern**.
 3. Öffne die zuletzt versendete LeonAid-E-Mail. Verwende den Magic Link oder
    trage den **Sechsstelligen Code** ein und wähle **Anmelden**.
+
+Kommt kein Code an, wähle nach 30 Sekunden **Neuen Code senden**. Mit
+**Andere E-Mail-Adresse** kehrst du zum ersten Schritt zurück und korrigierst
+die Adresse.
 
 Die Antwort beim Anfordern ist absichtlich auch für unbekannte Adressen gleich.
 Erhältst du keine Nachricht, prüfe Schreibweise und Spamordner und frage danach

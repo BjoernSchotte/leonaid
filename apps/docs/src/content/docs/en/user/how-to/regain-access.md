@@ -4,9 +4,9 @@ description: Request a new login code, receive a replacement invitation, or have
 docId: DOC-P015
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 11720893881db3a1ebc4374a04d57e09a4fc61ec
 reviewer: Björn Schotte
 ---
 
@@ -19,6 +19,9 @@ LeonAid uses magic links and six-digit one-time codes instead of passwords.
    **Login-Code anfordern**.
 3. Open the most recent LeonAid email. Follow the magic link or enter its
    **Sechsstelliger Code**, then select **Anmelden**.
+
+If no code arrives, select **Neuen Code senden** after 30 seconds. **Andere
+E-Mail-Adresse** returns to the first step so you can correct the address.
 
 The request response is deliberately the same for unknown addresses. If no
 message arrives, check the spelling and spam folder, then contact the relevant
