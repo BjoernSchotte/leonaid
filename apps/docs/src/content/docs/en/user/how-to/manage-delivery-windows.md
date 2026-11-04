@@ -4,8 +4,8 @@ description: Enable campaign delivery planning, add time windows, and retire exi
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 7
+reviewedRevision: 7
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
@@ -28,8 +28,29 @@ enable it; for other campaigns, enable it with **Bearbeiten** under
    **Lieferplanung aktivieren**. Confirm the dialog. From then on, new binding
    orders require a delivery address and an available window.
 
-The table lists each window with its status (**Buchbar** or **Stillgelegt**)
-and, for campaigns that take orders, the booked boxes without cancelled orders.
+The table lists each window with its status (**Buchbar**, **Ausgebucht** or
+**Stillgelegt**: bookable, fully booked or retired) and, for campaigns that take
+orders, the booked boxes without cancelled orders.
+
+## Mark a window as fully booked
+
+When a window is full, switch on **Ausgebucht** (fully booked) in its row. The
+change applies at once, the message **… ist als ausgebucht markiert.** confirms
+it, and the log records who made it and when. LeonAid counts no quantities for
+this; you decide when a window is full.
+
+- In the public order form, the window appears with the note **ausgebucht**
+  and cannot be selected. If it becomes full while someone fills in the form,
+  LeonAid refuses the order and asks for another window; the other entries are
+  kept.
+- The back office and acquisition show the window with **(ausgebucht)**. If you
+  select it anyway, the dialog **Lieferfenster ist ausgebucht** asks first;
+  **Trotzdem eintragen** (book anyway) books the order and notes it in the log.
+- Switch **Ausgebucht** off to offer the window again (**… ist wieder
+  buchbar.**). Existing orders do not change.
+
+The switch exists only for open windows that have not started yet. Retiring a
+window clears **Ausgebucht**.
 
 Stored windows are not edited. Select **Stilllegen** on the old window,
 confirm **Fenster stilllegen**, and add the new time. Existing orders retain
@@ -46,11 +67,12 @@ or window. While delivery planning is active, such an order cannot be invoiced:
 **Rechnung prüfen** shows **Lieferangaben fehlen** and the approval stays
 disabled.
 
-1. Open **Bestellungen prüfen**, then the order's **Liefer- und
-   Rechnungsangaben ergänzen** section.
+1. Open **Bestellungen** (orders) and select the order. The side pane shows the
+   **Nächster Schritt** (next step) block; select **Angaben ergänzen** there.
 2. Enter the delivery address, select a window and, if needed, correct the
    billing address.
-3. Select **Angaben speichern**.
+3. Select **Angaben speichern**. If the window is marked fully booked, also for
+   a draft that already has its window, confirm **Trotzdem eintragen**.
 
 The confirmation says **Angaben gespeichert. Die Bestellung ist prüfbereit.**
 Buyer, items and prices stay unchanged. A booked window stays fixed, even if it
@@ -79,3 +101,9 @@ If another administrator saved the order in the meantime, your inputs stay in
 the form. Select **Aktuellen Stand laden und vergleichen**, check the stored
 details, then select **Meine Eingaben auf diesen Stand anwenden** and save
 again.
+
+## On the delivery day
+
+Booked orders appear per window on the **Auslieferung** (delivery) page. There
+you assign drivers, tick off deliveries and close windows; see
+[Work the delivery board](/en/user/how-to/work-delivery-board/).

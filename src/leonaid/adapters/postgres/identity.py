@@ -333,6 +333,47 @@ class AsyncpgIdentityRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
 
+    async def manages_delivery(self, principal: IdentityPrincipal) -> bool:
+        """Whether the principal manages an action with delivery planning on.
+
+        Gates the "Auslieferung" navigation entry: the action carries the
+        ``delivery`` capability, its delivery configuration is enabled and
+        it is not archived. System admins manage every action; charity
+        admins their own.
+        """
+        managed = (
+            None
+            if principal.is_system_admin
+            else [
+                membership.action_id
+                for membership in principal.action_memberships
+                if membership.role is ActionRole.CHARITY_ADMIN
+            ]
+        )
+        if managed is not None and not managed:
+            return False
+        async with self._pool.acquire() as connection:
+            return bool(
+                await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM action_delivery_configuration AS configuration
+                        JOIN charity_action_capability AS capability
+                          ON capability.action_id = configuration.action_id
+                         AND capability.capability = 'delivery'
+                        JOIN charity_action AS action
+                          ON action.id = configuration.action_id
+                        WHERE configuration.enabled
+                          AND action.status <> 'archived'
+                          AND ($1::uuid[] IS NULL
+                               OR configuration.action_id = ANY($1::uuid[]))
+                    )
+                    """,
+                    managed,
+                )
+            )
+
     async def principal_for_session(
         self,
         token_digest: str,
@@ -708,7 +749,7 @@ class AsyncpgIdentityRepository:
                         raise Conflict(
                             "idempotency_incomplete",
                             "Die vorherige Statusänderung ist noch nicht "
-                            "abgeschlossen. Bitte versuche es erneut.",
+                            "abgeschlossen. Bitte erneut versuchen.",
                         )
                     return replayed_status_change(receipt["result"])
                 if not await actor_still_manages(
@@ -742,7 +783,7 @@ class AsyncpgIdentityRepository:
                     raise Conflict(
                         "account_revision_conflict",
                         "Der Zugang wurde zwischenzeitlich geändert. "
-                        "Bitte lade den aktuellen Stand.",
+                        "Bitte den aktuellen Stand laden.",
                     )
                 if current.status is AccountStatus.INVITED:
                     raise Conflict(
@@ -784,7 +825,7 @@ class AsyncpgIdentityRepository:
                     raise Conflict(
                         "account_revision_conflict",
                         "Der Zugang wurde zwischenzeitlich geändert. "
-                        "Bitte lade den aktuellen Stand.",
+                        "Bitte den aktuellen Stand laden.",
                     )
                 if int(revision) != changed.revision:
                     raise RuntimeError(
@@ -898,7 +939,7 @@ class AsyncpgIdentityRepository:
                     raise Conflict(
                         "account_revision_conflict",
                         "Die Rollen wurden zwischenzeitlich geändert. "
-                        "Bitte lade den aktuellen Stand.",
+                        "Bitte den aktuellen Stand laden.",
                     )
                 currently_enabled = bool(
                     await connection.fetchval(
@@ -1038,7 +1079,7 @@ class AsyncpgIdentityRepository:
                     raise Conflict(
                         "account_revision_conflict",
                         "Die Rollen wurden zwischenzeitlich geändert. "
-                        "Bitte lade den aktuellen Stand.",
+                        "Bitte den aktuellen Stand laden.",
                     )
                 if not await actor_still_manages(
                     connection, actor_user_id, now=occurred_at, action_id=action_id
@@ -1273,7 +1314,7 @@ class AsyncpgIdentityRepository:
             raise Conflict(
                 "account_revision_conflict",
                 "Die Rollen wurden zwischenzeitlich geändert. "
-                "Bitte lade den aktuellen Stand.",
+                "Bitte den aktuellen Stand laden.",
             )
         return int(revision)
 

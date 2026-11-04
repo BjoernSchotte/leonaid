@@ -1,74 +1,66 @@
 import {
-  Alert02Icon,
-  CheckmarkCircle02Icon,
-  Clock01Icon,
-  Download04Icon,
-  File02Icon,
-  RefreshIcon,
-  ServerStack01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+  useMutation,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+import {
+  Copy,
+  Download,
+  FileCheck,
+  RefreshCw,
+  RotateCw,
+  TriangleAlert,
+} from "lucide-react";
+import { useState } from "react";
+
+import type {
+  LeonAidApiClient,
+  OperationalCheckResponse,
+  OperationalFailedJobResponse,
+  OperationsOverviewResponse,
+  PilotDailyReportResponse,
+} from "@leonaid/api-client";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DetailProps,
+  EmptyState,
+  ErrorState,
+  Icon,
+  NextStep,
+  SkeletonRows,
+  StatusIcon,
+  StatusLabel,
+  StatusMessage,
+  useOptionalToast,
+} from "@leonaid/ui";
 
 import {
-  type LeonAidApiClient,
-  type OperationalAlertResponse,
-  type OperationalCheckResponse,
-  type OperationalDependencyResponse,
-  type OperationalFailedJobResponse,
-  type PilotDailyReportResponse,
-} from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+  actionErrorMessage,
+  type ActionErrorMessage,
+} from "../action-admin/errors";
+import { useActionErrorMessage } from "../action-admin/use-action-error";
+import { formatDateTime } from "../shared/dates";
+import { SupportDiagnosticsPanel } from "./support-diagnostics";
 
-import { actionErrorMessage } from "../action-admin/errors";
+type Overview = UseQueryResult<OperationsOverviewResponse>;
 
-const DEPENDENCY_LABELS: Record<string, string> = {
+const DEPENDENCY_LABELS: Readonly<Record<string, string>> = {
   mail: "E-Mail",
   rustfs: "Dateiablage",
   twenty: "CRM",
   worker: "Hintergrundjobs",
 };
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(new Date(value));
-}
+const CHECK_LABELS: Readonly<Record<OperationalCheckResponse["key"], string>> =
+  {
+    backup: "Datensicherung",
+    disk: "Speicherplatz",
+    tls: "HTTPS-Zertifikat",
+  };
 
-function DependencyCard({
-  dependency,
-}: {
-  readonly dependency: OperationalDependencyResponse;
-}) {
-  const ready = dependency.status === "ready";
-  return (
-    <article
-      className={`operations-dependency ${ready ? "is-ready" : "is-down"}`}
-      data-dependency={dependency.dependency}
-    >
-      <HugeiconsIcon
-        aria-hidden="true"
-        icon={ready ? CheckmarkCircle02Icon : Alert02Icon}
-        size={22}
-        strokeWidth={1.8}
-      />
-      <div>
-        <span>{DEPENDENCY_LABELS[dependency.dependency]}</span>
-        <strong>{ready ? "Bereit" : "Nicht erreichbar"}</strong>
-      </div>
-      <small>{dependency.latencyMs.toLocaleString("de-DE")} ms</small>
-    </article>
-  );
-}
-
-const CHECK_LABELS: Record<OperationalCheckResponse["key"], string> = {
-  backup: "Datensicherung",
-  disk: "Speicherplatz",
-  tls: "HTTPS-Zertifikat",
-};
-
-function formatCheckValue(check: OperationalCheckResponse) {
+function checkValue(check: OperationalCheckResponse) {
   if (check.key === "backup") {
     const hours = check.value / 3_600;
     return hours < 1
@@ -82,91 +74,25 @@ function formatCheckValue(check: OperationalCheckResponse) {
   return `Noch ${days.toLocaleString("de-DE")} Tage gültig`;
 }
 
-function MonitoringCheckCard({
-  check,
-}: {
-  readonly check: OperationalCheckResponse;
-}) {
-  const ready = check.status === "ready";
-  return (
-    <article
-      className={`operations-monitoring-check ${
-        ready ? "is-ready" : "is-critical"
-      }`}
-      data-testid={`monitoring-check-${check.key}`}
-    >
-      <div className="operations-monitoring-check__icon" aria-hidden="true">
-        <HugeiconsIcon
-          icon={ready ? CheckmarkCircle02Icon : Alert02Icon}
-          size={20}
-          strokeWidth={1.8}
-        />
-      </div>
-      <div>
-        <span>{CHECK_LABELS[check.key]}</span>
-        <strong>{ready ? "In Ordnung" : "Handlung nötig"}</strong>
-        <small>{formatCheckValue(check)}</small>
-      </div>
-    </article>
-  );
-}
+const MONITORING_TEXT: Readonly<
+  Record<OperationsOverviewResponse["monitoring"]["status"], [string, string]>
+> = {
+  ready: [
+    "Geschützt",
+    "Sicherung, Speicherplatz und HTTPS-Zertifikat sind in Ordnung.",
+  ],
+  attention: ["Prüfen", ""],
+  unavailable: [
+    "Nicht erreichbar",
+    "Der Monitoringstatus ist gerade nicht erreichbar. Prüfen Sie den separaten Alarmkanal.",
+  ],
+  inactive: [
+    "Nicht aktiv",
+    "Das optionale Monitoring-Profil ist in dieser Umgebung nicht gestartet.",
+  ],
+};
 
-function ActiveAlert({ alert }: { readonly alert: OperationalAlertResponse }) {
-  return (
-    <article className="operations-active-alert">
-      <span>{alert.severity}</span>
-      <div>
-        <strong>{alert.summary}</strong>
-        <small>{alert.category}</small>
-      </div>
-      <a href={alert.runbookUrl} rel="noreferrer" target="_blank">
-        Runbook öffnen
-      </a>
-    </article>
-  );
-}
-
-function FailedJobCard({
-  job,
-  pending,
-  onRetry,
-}: {
-  readonly job: OperationalFailedJobResponse;
-  readonly pending: boolean;
-  readonly onRetry: (job: OperationalFailedJobResponse) => void;
-}) {
-  return (
-    <article className="operations-job" data-job-id={job.id}>
-      <div className="operations-job__status" aria-hidden="true">
-        <HugeiconsIcon icon={Alert02Icon} size={20} strokeWidth={1.8} />
-      </div>
-      <div className="operations-job__copy">
-        <p>{job.eventType}</p>
-        <h3>{job.lastErrorCode}</h3>
-        <small>
-          {job.aggregateType} · Versuch {job.attempts} ·{" "}
-          {formatDate(job.failedAt)}
-        </small>
-      </div>
-      <Button
-        data-testid={`retry-job-${job.id}`}
-        disabled={pending}
-        onClick={() => onRetry(job)}
-        variant="secondary"
-      >
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={RefreshIcon}
-          size={17}
-          strokeWidth={1.8}
-        />
-        {pending ? "Wird gestartet …" : "Sicher wiederholen"}
-      </Button>
-    </article>
-  );
-}
-
-const PILOT_STOP_REASON_LABELS: Record<string, string> = {
+const PILOT_STOP_REASON_LABELS: Readonly<Record<string, string>> = {
   active_p0_alert: "Aktiver P0-Alarm",
   active_p1_alert: "Aktiver P1-Alarm",
   active_p2_alert: "Aktiver P2-Hinweis",
@@ -186,6 +112,19 @@ const PILOT_STOP_REASON_LABELS: Record<string, string> = {
   tls_unavailable: "HTTPS-Zertifikat kann nicht geprüft werden",
 };
 
+function OverviewState({ overview }: { readonly overview: Overview }) {
+  const error = useActionErrorMessage(overview.error);
+  if (overview.isPending) return <SkeletonRows rows={5} />;
+  return (
+    <ErrorState
+      onRetry={() => void overview.refetch()}
+      title="Betriebsstatus nicht erreichbar"
+    >
+      {error?.message ?? "Der Server hat nicht geantwortet."}
+    </ErrorState>
+  );
+}
+
 function downloadPilotDailyReport(report: PilotDailyReportResponse) {
   const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], {
     type: "application/json",
@@ -200,434 +139,579 @@ function downloadPilotDailyReport(report: PilotDailyReportResponse) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function PilotDailyReportCard({
+const REPORT_STATUS: Readonly<
+  Record<PilotDailyReportResponse["technicalStatus"], string>
+> = {
+  ready: "Technische Signale sind bereit",
+  attention: "Befunde benötigen Aufmerksamkeit",
+  blocked: "Pilot technisch nicht freigeben",
+};
+
+/** "Tagesreport": the technical daily check without personal data. */
+function PilotDailyReportPanel({
   client,
 }: {
   readonly client: LeonAidApiClient;
 }) {
+  const [error, setError] = useState<ActionErrorMessage>();
   const report = useMutation({
     mutationFn: () => client.getPilotDailyReport(),
+    onMutate: () => setError(undefined),
+    onError: (cause) => setError(actionErrorMessage(cause)),
   });
-  const error = report.error ? actionErrorMessage(report.error) : null;
+  const data = report.data;
 
   return (
     <section
       aria-labelledby="pilot-daily-report-title"
-      className="pilot-daily-report"
+      className="panel"
       data-testid="pilot-daily-report"
     >
-      <header className="pilot-daily-report__header">
-        <div className="pilot-daily-report__heading-icon" aria-hidden="true">
-          <HugeiconsIcon icon={File02Icon} size={21} strokeWidth={1.8} />
-        </div>
-        <div>
-          <p className="feature-admin-header__eyebrow">
-            Pilotbetrieb · täglicher Nachweis
-          </p>
-          <h3 id="pilot-daily-report-title">
-            Technischen Tagesreport erstellen
-          </h3>
-          <p>
-            Prüft Abhängigkeiten, Backup, Alarme, Outbox, Speicher und
-            HTTPS-Zertifikat. Der Report enthält keine fachlichen oder
-            personenbezogenen Daten.
-          </p>
-        </div>
+      <header className="panel-header">
+        <h2 id="pilot-daily-report-title">Tagesreport</h2>
         <Button
-          disabled={report.isPending}
+          icon={RefreshCw}
+          loading={report.isPending}
           onClick={() => report.mutate()}
+          size="sm"
           variant="secondary"
         >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={RefreshIcon}
-            size={17}
-            strokeWidth={1.8}
-          />
-          {report.isPending ? "Wird geprüft …" : "Tagesreport erstellen"}
+          Tagesreport erstellen
         </Button>
       </header>
-
-      {error && (
-        <StatusMessage tone="error">
-          <h3>Tagesreport konnte nicht erstellt werden</h3>
-          <p>{error.message}</p>
-        </StatusMessage>
-      )}
-
-      {report.data && (
-        <article
-          aria-live="polite"
-          className={`pilot-daily-report__result is-${report.data.technicalStatus}`}
-          data-testid="pilot-daily-report-result"
-        >
-          <div className="pilot-daily-report__result-header">
-            <div>
-              <span>Technische Tagesprüfung</span>
-              <h4>
-                {report.data.technicalStatus === "ready"
-                  ? "Technische Signale sind bereit"
-                  : report.data.technicalStatus === "attention"
-                    ? "Befunde benötigen Aufmerksamkeit"
-                    : "Pilot technisch nicht freigeben"}
-              </h4>
-            </div>
-            <strong>
-              {report.data.dependencies.ready}/{report.data.dependencies.total}{" "}
-              Dienste
-            </strong>
-          </div>
-
-          <dl className="pilot-daily-report__coverage">
-            <div>
-              <dt>Backup</dt>
-              <dd>{report.data.monitoring.backupStatus}</dd>
-            </div>
-            <div>
-              <dt>Alarmierung</dt>
-              <dd>{report.data.monitoring.status}</dd>
-            </div>
-            <div>
-              <dt>Outbox</dt>
-              <dd>{report.data.outbox.deadLetter} fehlgeschlagen</dd>
-            </div>
-            <div>
-              <dt>Speicher</dt>
-              <dd>{report.data.monitoring.diskStatus}</dd>
-            </div>
-            <div>
-              <dt>HTTPS</dt>
-              <dd>{report.data.monitoring.tlsStatus}</dd>
-            </div>
-            <div>
-              <dt>Release</dt>
-              <dd>{report.data.release}</dd>
-            </div>
-          </dl>
-
-          {report.data.stopReasons.length > 0 && (
-            <div className="pilot-daily-report__reasons">
-              <strong>Stopgründe und Hinweise</strong>
-              <ul>
-                {report.data.stopReasons.map((reason) => (
-                  <li key={reason}>
-                    {PILOT_STOP_REASON_LABELS[reason] ?? reason}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="pilot-daily-report__next">
-            <div>
-              <strong>Nächster Schritt</strong>
-              <p>{report.data.nextStep}</p>
-              <small title={report.data.checksumSha256}>
-                SHA-256 {report.data.checksumSha256.slice(0, 16)}… ·{" "}
-                {formatDate(report.data.generatedAt)}
-              </small>
-            </div>
-            <Button
-              onClick={() => downloadPilotDailyReport(report.data)}
-              variant="secondary"
-            >
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Download04Icon}
-                size={17}
-                strokeWidth={1.8}
+      <div className="panel-pad stack">
+        <p className="small muted">
+          Prüft Dienste, Sicherung, Alarme, Hintergrundaufgaben, Speicher und
+          HTTPS-Zertifikat. Der Report enthält keine fachlichen oder
+          personenbezogenen Daten.
+        </p>
+        {error ? (
+          <StatusMessage tone="error">
+            <strong>Tagesreport konnte nicht erstellt werden</strong>
+            <p>{error.message}</p>
+          </StatusMessage>
+        ) : null}
+        {data ? (
+          <div
+            aria-live="polite"
+            className="stack"
+            data-testid="pilot-daily-report-result"
+          >
+            <p className="cluster">
+              <StatusLabel
+                shape={
+                  data.technicalStatus === "ready"
+                    ? "done"
+                    : data.technicalStatus === "attention"
+                      ? "review"
+                      : "alert"
+                }
+                status={REPORT_STATUS[data.technicalStatus]}
               />
-              JSON herunterladen
-            </Button>
+              <span className="small muted num">
+                {data.dependencies.ready}/{data.dependencies.total} Dienste
+              </span>
+            </p>
+            <DetailProps
+              items={[
+                { label: "Sicherung", value: data.monitoring.backupStatus },
+                { label: "Alarmierung", value: data.monitoring.status },
+                {
+                  label: "Hintergrundaufgaben",
+                  value: `${data.outbox.deadLetter} fehlgeschlagen`,
+                },
+                { label: "Speicher", value: data.monitoring.diskStatus },
+                { label: "HTTPS", value: data.monitoring.tlsStatus },
+                {
+                  label: "Release",
+                  value: <span className="mono">{data.release}</span>,
+                },
+              ]}
+            />
+            {data.stopReasons.length ? (
+              <div>
+                <h3 className="tab-h2">Stoppgründe und Hinweise</h3>
+                <ul className="reason-list small">
+                  {data.stopReasons.map((reason) => (
+                    <li key={reason}>
+                      <Icon icon={TriangleAlert} size={14} />
+                      {PILOT_STOP_REASON_LABELS[reason] ?? reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <NextStep
+              action={
+                <Button
+                  icon={Download}
+                  onClick={() => downloadPilotDailyReport(data)}
+                  variant="primary"
+                >
+                  JSON herunterladen
+                </Button>
+              }
+              consequence={data.nextStep}
+            />
+            <p className="small subtle">
+              <span className="mono" title={data.checksumSha256}>
+                SHA-256 {data.checksumSha256.slice(0, 16)}…
+              </span>{" "}
+              · {formatDateTime(data.generatedAt)}
+            </p>
           </div>
-        </article>
-      )}
+        ) : null}
+      </div>
     </section>
   );
 }
 
-export function OperationsAdminPanel({
+/** Betrieb (prototype System.tsx Operations). */
+export function OperationsTab({
   client,
+  onShowJobs,
+  overview,
 }: {
   readonly client: LeonAidApiClient;
+  readonly onShowJobs: () => void;
+  readonly overview: Overview;
+}) {
+  if (!overview.isSuccess) return <OverviewState overview={overview} />;
+  const data = overview.data;
+  const down = data.dependencies.filter((item) => item.status !== "ready");
+  const monitoring = data.monitoring;
+  const [monitoringLabel, monitoringText] = MONITORING_TEXT[monitoring.status];
+
+  return (
+    <div className="system-grid" data-testid="operations-panel">
+      <section aria-labelledby="svc-title" className="panel">
+        <header className="panel-header">
+          <h2 id="svc-title">Dienste</h2>
+          <span className="small muted">
+            {down.length
+              ? `${down.length} nicht erreichbar`
+              : `${data.dependencies.length}/${data.dependencies.length} Dienste bereit`}{" "}
+            · geprüft {formatDateTime(data.generatedAt)}
+          </span>
+        </header>
+        <ul className="svc-list">
+          {data.dependencies.map((dependency) => {
+            const ready = dependency.status === "ready";
+            return (
+              <li
+                className="svc-row"
+                data-dependency={dependency.dependency}
+                key={dependency.dependency}
+              >
+                <StatusIcon
+                  label={ready ? "Bereit" : "Nicht erreichbar"}
+                  size={16}
+                  status={ready ? "done" : "alert"}
+                />
+                <span className="svc-name">
+                  {DEPENDENCY_LABELS[dependency.dependency] ??
+                    dependency.dependency}
+                </span>
+                <span className="svc-state">
+                  {ready ? "Bereit" : "Nicht erreichbar"}
+                </span>
+                <span className="svc-detail small muted num">
+                  {dependency.latencyMs.toLocaleString("de-DE")} ms
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {down.length || data.failedJobs.length ? (
+          <div className="callout tone-warn svc-callout">
+            <Icon icon={TriangleAlert} size={16} />
+            <div>
+              <strong>
+                {down.length
+                  ? `${down
+                      .map(
+                        (item) =>
+                          DEPENDENCY_LABELS[item.dependency] ?? item.dependency,
+                      )
+                      .join(", ")} nicht erreichbar.`
+                  : `${data.failedJobs.length} Hintergrundaufgabe${data.failedJobs.length === 1 ? "" : "n"} fehlgeschlagen.`}
+              </strong>{" "}
+              LeonAid versucht wartende Aufgaben automatisch erneut;
+              fehlgeschlagene starten Sie unter „Hintergrundaufgaben“.
+              <div className="cluster svc-actions">
+                <Button onClick={onShowJobs} size="sm" variant="secondary">
+                  Betroffene Aufgaben ansehen
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section
+        aria-labelledby="monitoring-title"
+        className="panel"
+        data-testid="monitoring-summary"
+      >
+        <header className="panel-header">
+          <h2 id="monitoring-title">Pilot-Schutz</h2>
+          <Badge
+            tone={
+              monitoring.status === "ready"
+                ? "ok"
+                : monitoring.status === "attention"
+                  ? "warn"
+                  : "neutral"
+            }
+          >
+            {monitoringLabel}
+          </Badge>
+        </header>
+        <p className="panel-pad small muted panel-intro">
+          {monitoring.status === "attention"
+            ? `${monitoring.activeAlerts.length} aktive ${
+                monitoring.activeAlerts.length === 1
+                  ? "Meldung benötigt"
+                  : "Meldungen benötigen"
+              } Aufmerksamkeit.`
+            : monitoringText}
+        </p>
+        {monitoring.checks.length ? (
+          <ul className="svc-list">
+            {monitoring.checks.map((check) => {
+              const ready = check.status === "ready";
+              return (
+                <li
+                  className="svc-row"
+                  data-testid={`monitoring-check-${check.key}`}
+                  key={check.key}
+                >
+                  <StatusIcon
+                    label={ready ? "In Ordnung" : "Handlung nötig"}
+                    size={16}
+                    status={ready ? "done" : "alert"}
+                  />
+                  <span className="svc-name">{CHECK_LABELS[check.key]}</span>
+                  <span className="svc-state">
+                    {ready ? "In Ordnung" : "Handlung nötig"}
+                  </span>
+                  <span className="svc-detail small muted">
+                    {checkValue(check)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        {monitoring.activeAlerts.length ? (
+          <ul
+            aria-label="Aktive Alarme"
+            className="svc-list"
+            data-testid="active-alerts"
+          >
+            {monitoring.activeAlerts.map((alert) => (
+              <li className="svc-row" key={alert.name}>
+                <StatusIcon label={alert.severity} size={16} status="alert" />
+                <span className="svc-name">{alert.summary}</span>
+                <span className="svc-state">{alert.severity}</span>
+                <span className="svc-detail small muted">
+                  {alert.category} ·{" "}
+                  <a href={alert.runbookUrl} rel="noreferrer" target="_blank">
+                    Runbook öffnen
+                  </a>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="ver-title" className="panel">
+        <header className="panel-header">
+          <h2 id="ver-title">Installation</h2>
+          <Button
+            icon={RefreshCw}
+            onClick={() => void overview.refetch()}
+            size="sm"
+            variant="ghost"
+          >
+            Aktualisieren
+          </Button>
+        </header>
+        <div className="panel-pad">
+          <DetailProps
+            items={[
+              {
+                label: "Letzte Prüfung",
+                value: (
+                  <span className="num">
+                    {formatDateTime(data.generatedAt)}
+                  </span>
+                ),
+              },
+              {
+                label: "Korrelations-ID",
+                value: (
+                  <code className="mono" title="Korrelations-ID dieser Prüfung">
+                    {data.requestId}
+                  </code>
+                ),
+              },
+              {
+                label: "API Ø-Latenz",
+                value: (
+                  <span className="num">
+                    {data.api.averageLatencyMs.toLocaleString("de-DE")} ms ·{" "}
+                    {data.api.requests} Anfragen · {data.api.errors}{" "}
+                    Serverfehler
+                  </span>
+                ),
+              },
+              {
+                label: "E-Mail-Aufgaben",
+                value: (
+                  <span className="num">
+                    {data.mail.completed} erledigt · {data.mail.deadLetter}{" "}
+                    fehlgeschlagen
+                  </span>
+                ),
+              },
+              {
+                label: "Anmeldungen 24 h",
+                value: (
+                  <span className="num">
+                    {data.login.completionsLast24h} erfolgreich ·{" "}
+                    {data.login.challengesLast24h} Codes angefordert
+                  </span>
+                ),
+              },
+            ]}
+          />
+        </div>
+      </section>
+
+      <PilotDailyReportPanel client={client} />
+      <SupportDiagnosticsPanel client={client} />
+    </div>
+  );
+}
+
+function CopyId({ value }: { readonly value: string }) {
+  const toast = useOptionalToast();
+  return (
+    <button
+      aria-label={`Job-ID ${value} kopieren`}
+      className="copy-id"
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(
+          () => toast?.show({ title: "Job-ID kopiert.", tone: "success" }),
+          () =>
+            toast?.show({
+              title: "Kopieren nicht möglich. Bitte manuell markieren.",
+              tone: "error",
+            }),
+        );
+      }}
+      type="button"
+    >
+      <span className="mono">{value.slice(0, 8)}</span>
+      <Icon icon={Copy} size={12} />
+    </button>
+  );
+}
+
+/** "12 s", "4 min", "3 h": how long the oldest due job has waited. */
+export function waitedFor(seconds: number): string {
+  const value = Math.max(0, Math.floor(seconds));
+  if (value < 120) return `${value.toLocaleString("de-DE")} s`;
+  if (value < 7_200)
+    return `${Math.floor(value / 60).toLocaleString("de-DE")} min`;
+  return `${Math.floor(value / 3_600).toLocaleString("de-DE")} h`;
+}
+
+/** Hintergrundaufgaben (prototype System.tsx Jobs): queue and dead letters. */
+export function JobsTab({
+  client,
+  overview,
+}: {
+  readonly client: LeonAidApiClient;
+  readonly overview: Overview;
 }) {
   const queryClient = useQueryClient();
-  const overview = useQuery({
-    queryFn: () => client.getOperationsOverview(),
-    queryKey: ["operations-overview"],
-    refetchInterval: 15_000,
-    retry: false,
-  });
+  const toast = useOptionalToast();
+  const [asking, setAsking] = useState<OperationalFailedJobResponse>();
+  const [error, setError] = useState<ActionErrorMessage>();
   const retry = useMutation({
     mutationFn: (job: OperationalFailedJobResponse) =>
       client.retryOperationalJob(job.id),
     onSuccess: async () => {
+      setAsking(undefined);
+      setError(undefined);
+      toast?.show({ title: "Aufgabe neu eingeplant.", tone: "success" });
       await queryClient.invalidateQueries({
         queryKey: ["operations-overview"],
       });
     },
+    onError: (cause) => {
+      setAsking(undefined);
+      setError(actionErrorMessage(cause));
+    },
   });
 
-  if (overview.isPending) {
-    return (
-      <section
-        aria-label="Betriebsstatus wird geladen"
-        className="operations-panel"
-      >
-        <div aria-live="polite" className="action-loading" role="status">
-          <span aria-hidden="true" />
-          <h2>Betriebsstatus wird geprüft</h2>
-          <p>LeonAid fragt CRM, Dateiablage und E-Mail direkt ab.</p>
-        </div>
-      </section>
-    );
-  }
-
-  if (overview.isError) {
-    return (
-      <section className="operations-panel">
-        <StatusMessage tone="error">
-          <h2>Betriebsstatus nicht erreichbar</h2>
-          <p>{actionErrorMessage(overview.error).message}</p>
-          <Button onClick={() => void overview.refetch()} variant="secondary">
-            Erneut prüfen
-          </Button>
-        </StatusMessage>
-      </section>
-    );
-  }
-
-  const readyCount = overview.data.dependencies.filter(
-    (item) => item.status === "ready",
-  ).length;
-  const failedJobs = overview.data.failedJobs;
-  const monitoring = overview.data.monitoring;
-  const retryError = retry.error ? actionErrorMessage(retry.error) : null;
+  if (!overview.isSuccess) return <OverviewState overview={overview} />;
+  const data = overview.data;
+  const jobs = data.failedJobs;
 
   return (
-    <section
-      aria-labelledby="operations-title"
-      className="operations-panel"
-      data-testid="operations-panel"
-      id="betrieb"
-    >
-      <header className="operations-panel__header">
-        <div>
-          <p className="feature-admin-header__eyebrow">
-            Live · direkt aus den Systemen
-          </p>
-          <h2 id="operations-title">Betrieb & fehlgeschlagene Jobs</h2>
-          <p>
-            Erkenne Störungen getrennt nach Dienst und starte ausschließlich
-            sicher wiederholbare Dead-Letter-Jobs erneut.
-          </p>
-        </div>
-        <Button onClick={() => void overview.refetch()} variant="secondary">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={RefreshIcon}
-            size={17}
-            strokeWidth={1.8}
-          />
-          Aktualisieren
-        </Button>
-      </header>
-
-      <div className="operations-summary">
-        <div className="operations-summary__state">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={
-              readyCount === overview.data.dependencies.length
-                ? CheckmarkCircle02Icon
-                : Alert02Icon
-            }
-            size={24}
-            strokeWidth={1.8}
-          />
-          <div>
-            <strong>
-              {readyCount}/{overview.data.dependencies.length} Dienste bereit
-            </strong>
-            <span>Letzte Prüfung {formatDate(overview.data.generatedAt)}</span>
-          </div>
-        </div>
-        <code title="Korrelations-ID dieser Prüfung">
-          {overview.data.requestId}
-        </code>
-      </div>
-
-      <div className="operations-dependencies">
-        {overview.data.dependencies.map((dependency) => (
-          <DependencyCard dependency={dependency} key={dependency.dependency} />
-        ))}
-      </div>
-
+    <section aria-labelledby="jobs-title" className="stack">
+      <h2 className="sr-only" id="jobs-title">
+        Hintergrundaufgaben
+      </h2>
+      <p className="small muted system-intro">
+        Aufgaben, die LeonAid im Hintergrund erledigt: Rechnungen versenden,
+        PDFs erzeugen, CRM abgleichen. Fehlgeschlagene Aufgaben starten Sie hier
+        erneut. Fehlertexte enthalten keine personenbezogenen Daten.
+      </p>
       <section
-        aria-labelledby="monitoring-title"
-        className={`operations-monitoring is-${monitoring.status}`}
-        data-testid="monitoring-summary"
+        aria-labelledby="queue-title"
+        className="panel"
+        data-testid="operations-outbox"
       >
-        <div className="operations-monitoring__heading">
-          <div>
-            <p className="feature-admin-header__eyebrow">
-              Alarmierung · unabhängiger Kanal
-            </p>
-            <h3 id="monitoring-title">Pilot-Schutz</h3>
-            <p>
-              {monitoring.status === "ready"
-                ? "Backup, Speicherplatz und HTTPS-Zertifikat sind in Ordnung."
-                : monitoring.status === "attention"
-                  ? `${monitoring.activeAlerts.length} aktive ${
-                      monitoring.activeAlerts.length === 1
-                        ? "Meldung"
-                        : "Meldungen"
-                    } benötigen Aufmerksamkeit.`
-                  : monitoring.status === "unavailable"
-                    ? "Der Monitoringstatus ist gerade nicht erreichbar. Prüfe den separaten Alarmkanal."
-                    : "Das optionale Monitoring-Profil ist in dieser Umgebung nicht gestartet."}
-            </p>
-          </div>
-          <span>
-            {monitoring.status === "ready"
-              ? "Geschützt"
-              : monitoring.status === "attention"
-                ? "Prüfen"
-                : monitoring.status === "unavailable"
-                  ? "Nicht erreichbar"
-                  : "Nicht aktiv"}
+        <header className="panel-header">
+          <h3 id="queue-title">Warteschlange</h3>
+          <span className="small muted num">
+            geprüft {formatDateTime(data.generatedAt)}
           </span>
+        </header>
+        <div className="panel-pad">
+          <DetailProps
+            items={[
+              {
+                label: "Erledigt",
+                value: <span className="num">{data.outbox.completed}</span>,
+              },
+              {
+                label: "Wartend",
+                value: <span className="num">{data.outbox.pending}</span>,
+              },
+              {
+                label: "In Arbeit",
+                value: <span className="num">{data.outbox.processing}</span>,
+              },
+              {
+                label: "Fehlgeschlagen",
+                value: <span className="num">{data.outbox.deadLetter}</span>,
+              },
+              {
+                label: "Nächster Versuch",
+                value: data.nextPendingAttemptAt
+                  ? formatDateTime(data.nextPendingAttemptAt)
+                  : "Keine wartenden Aufgaben",
+              },
+              {
+                label: "Ältester fälliger",
+                value:
+                  data.oldestDuePendingAgeSeconds != null
+                    ? `wartet seit ${waitedFor(data.oldestDuePendingAgeSeconds)}`
+                    : "Keine fällige Aufgabe wartet",
+              },
+            ]}
+          />
         </div>
-
-        {monitoring.checks.length > 0 && (
-          <div className="operations-monitoring-checks">
-            {monitoring.checks.map((check) => (
-              <MonitoringCheckCard check={check} key={check.key} />
-            ))}
-          </div>
-        )}
-
-        {monitoring.activeAlerts.length > 0 && (
-          <div
-            aria-label="Aktive Alarme"
-            className="operations-active-alerts"
-            data-testid="active-alerts"
-          >
-            {monitoring.activeAlerts.map((alert) => (
-              <ActiveAlert alert={alert} key={alert.name} />
-            ))}
-          </div>
-        )}
       </section>
-
-      <div aria-label="Betriebskennzahlen" className="operations-metrics">
-        <article>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={Clock01Icon}
-            size={19}
-            strokeWidth={1.8}
+      {error ? (
+        <StatusMessage tone="error">
+          <p>{error.message}</p>
+        </StatusMessage>
+      ) : null}
+      {jobs.length === 0 ? (
+        <div data-testid="operations-no-jobs">
+          <EmptyState
+            description="Es gibt keine Aufgaben, die wiederholt werden müssen."
+            icon={FileCheck}
+            title="Keine fehlgeschlagenen Aufgaben"
           />
-          <span>API Ø-Latenz</span>
-          <strong>
-            {overview.data.api.averageLatencyMs.toLocaleString("de-DE")} ms
-          </strong>
-          <small>
-            {overview.data.api.requests} Requests · {overview.data.api.errors}{" "}
-            Serverfehler
-          </small>
-        </article>
-        <article>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ServerStack01Icon}
-            size={19}
-            strokeWidth={1.8}
-          />
-          <span>Outbox</span>
-          <strong>{overview.data.outbox.pending} wartend</strong>
-          <small>{overview.data.outbox.deadLetter} fehlgeschlagen</small>
-          <small>
-            Nächster Versuch:{" "}
-            {overview.data.nextPendingAttemptAt
-              ? formatDate(overview.data.nextPendingAttemptAt)
-              : "keine wartenden Jobs"}
-          </small>
-          <small>
-            {overview.data.oldestDuePendingAgeSeconds != null
-              ? `Ältester fälliger Job wartet seit ${Math.floor(
-                  overview.data.oldestDuePendingAgeSeconds,
-                ).toLocaleString("de-DE")} s`
-              : "Kein fälliger Job wartet"}
-          </small>
-        </article>
-        <article>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ServerStack01Icon}
-            size={19}
-            strokeWidth={1.8}
-          />
-          <span>E-Mail-Jobs</span>
-          <strong>{overview.data.mail.completed} erledigt</strong>
-          <small>{overview.data.mail.deadLetter} fehlgeschlagen</small>
-        </article>
-        <article>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={CheckmarkCircle02Icon}
-            size={19}
-            strokeWidth={1.8}
-          />
-          <span>Login · 24 Stunden</span>
-          <strong>{overview.data.login.completionsLast24h} erfolgreich</strong>
-          <small>
-            {overview.data.login.challengesLast24h} Codes angefordert
-          </small>
-        </article>
-      </div>
-
-      <PilotDailyReportCard client={client} />
-
-      <div className="operations-jobs">
-        <div className="operations-jobs__heading">
-          <div>
-            <p className="feature-admin-header__eyebrow">Arbeitsvorrat</p>
-            <h3>Fehlgeschlagene Jobs</h3>
-          </div>
-          <span>{failedJobs.length}</span>
         </div>
-        {retryError && (
-          <StatusMessage tone="error">
-            <p>{retryError.message}</p>
-          </StatusMessage>
-        )}
-        {failedJobs.length === 0 ? (
-          <div className="operations-empty" data-testid="operations-no-jobs">
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={CheckmarkCircle02Icon}
-              size={22}
-              strokeWidth={1.8}
-            />
-            <div>
-              <strong>Keine fehlgeschlagenen Jobs</strong>
-              <p>Der Dead-Letter-Arbeitsvorrat ist leer.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="operations-job-list">
-            {failedJobs.map((job) => (
-              <FailedJobCard
-                job={job}
-                key={job.id}
-                onRetry={(selected) => retry.mutate(selected)}
-                pending={retry.isPending && retry.variables?.id === job.id}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <div
+          aria-label="Fehlgeschlagene Aufgaben"
+          className="table-wrap"
+          role="region"
+          tabIndex={0}
+        >
+          <table className="table" data-testid="operations-jobs">
+            <caption className="sr-only">Fehlgeschlagene Aufgaben</caption>
+            <thead>
+              <tr>
+                <th scope="col">Status</th>
+                <th scope="col">Aufgabe</th>
+                <th scope="col">Versuche</th>
+                <th scope="col">Fehler</th>
+                <th scope="col">Job-ID</th>
+                <th scope="col">
+                  <span className="sr-only">Befehle</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr data-job-id={job.id} key={job.id}>
+                  <td>
+                    <StatusLabel shape="alert" status="Fehlgeschlagen" />
+                  </td>
+                  <td>
+                    <div className="job-kind">{job.eventType}</div>
+                    <div className="small muted">
+                      {job.aggregateType} · {formatDateTime(job.failedAt)}
+                    </div>
+                  </td>
+                  <td className="num">
+                    {job.attempts}
+                    {job.manualRetryCount ? (
+                      <div className="small muted">
+                        {job.manualRetryCount}× manuell
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="job-error mono small">{job.lastErrorCode}</td>
+                  <td>
+                    <CopyId value={job.id} />
+                  </td>
+                  <td className="right">
+                    <Button
+                      data-testid={`retry-job-${job.id}`}
+                      disabled={retry.isPending}
+                      icon={RotateCw}
+                      onClick={() => setAsking(job)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      Erneut versuchen
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <ConfirmDialog
+        confirmLabel="Erneut versuchen"
+        description={
+          asking
+            ? `„${asking.eventType}“ wird sofort erneut ausgeführt. LeonAid wiederholt nur sicher wiederholbare Aufgaben; der Versuch wird protokolliert.`
+            : ""
+        }
+        onConfirm={() => {
+          if (asking) retry.mutate(asking);
+        }}
+        onOpenChange={(open) => {
+          if (!open && !retry.isPending) setAsking(undefined);
+        }}
+        open={Boolean(asking)}
+        pending={retry.isPending}
+        title="Aufgabe erneut versuchen?"
+      />
     </section>
   );
 }

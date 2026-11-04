@@ -214,3 +214,8 @@ async def prove_orders(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> N
     from tools.delivery.manager_completion import prove_manager_completion
 
     await prove_manager_completion(pool, action_id, admin_id, draft)
+    from tools.delivery.fully_booked import prove_fully_booked
+
+    await prove_fully_booked(
+        pool, action_id=action_id, admin_id=admin_id, draft=draft, alias=alias
+    )

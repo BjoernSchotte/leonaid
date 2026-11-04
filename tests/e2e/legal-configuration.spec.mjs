@@ -54,62 +54,97 @@ test("two system admins activate a legal basis", async ({ browser }) => {
   try {
     await klaraPage.goto(`${baseUrl}/admin/legal`);
     await expect(
-      klaraPage.getByRole("heading", { name: "Organisation & Recht" }),
+      klaraPage.getByRole("heading", { level: 1, name: "Rechtliches" }),
+    ).toBeVisible();
+    // Seeded: draft version 1 is approved, but the open e-invoice decision
+    // blocks its activation (tools/legal_configuration/contract.py).
+    await expect(
+      klaraPage.getByText("Entwurf Version 1 freigegeben, Aktivierung offen"),
     ).toBeVisible();
     await expect(
+      klaraPage.getByText("Noch keine aktive Version"),
+    ).toBeVisible();
+    await expect(klaraPage.getByTestId("legal-blockers")).toContainText(
+      "Die E-Rechnungs-Pflicht ist noch nicht entschieden.",
+    );
+    await expect(
+      klaraPage.getByRole("button", { name: /aktivieren/ }),
+    ).toHaveCount(0);
+    await expect(
+      klaraPage.getByRole("heading", { level: 2, name: "Träger & Anschrift" }),
+    ).toBeVisible();
+
+    const parts = klaraPage.getByRole("navigation", {
+      name: "Bereiche der rechtlichen Angaben",
+    });
+    await parts.getByRole("link", { name: /Datenschutz/ }).click();
+    await expect(klaraPage).toHaveURL(/\/admin\/legal\/privacy$/);
+    await expect(
       klaraPage.getByText(
-        "Der vollständige juristische Name des Vereins oder Trägers",
+        "Auskunft, Sperre und Anonymisierung einzelner Personen",
       ),
     ).toBeVisible();
 
+    await parts.getByRole("link", { name: /E-Rechnung/ }).click();
+    await expect(klaraPage).toHaveURL(/\/admin\/legal\/e-invoice$/);
     await klaraPage
-      .getByRole("button", { name: /Datenschutz & Fristen/ })
+      .getByTestId("legal-next-step")
+      .getByRole("button", { name: "Entwurf bearbeiten" })
       .click();
-    await expect(
-      klaraPage.getByText(
-        "Dieser verständliche Text wird im öffentlichen Bestellformular angezeigt",
-      ),
-    ).toBeVisible();
-
-    await klaraPage.getByRole("button", { name: /Prüfen & freigeben/ }).click();
-    await expect(
-      klaraPage.getByText("E-Rechnungs-Grenze des Piloten"),
-    ).toBeVisible();
-    await klaraPage.getByLabel("E-Rechnung").selectOption("not_required");
-    await klaraPage
-      .getByLabel("Nachweis-ID", { exact: false })
+    const editor = klaraPage.getByTestId("legal-editor");
+    await editor.getByLabel(/^E-Rechnung/).selectOption("not_required");
+    await editor
+      .getByLabel(/Nachweis-ID der Entscheidung/)
       .fill("ERECHNUNG-PILOT-044");
-    await klaraPage.getByRole("button", { name: "Entwurf speichern" }).click();
+    await editor.getByRole("button", { name: "Als Entwurf speichern" }).click();
+
+    // The author never gets the approval; the server refuses it as well.
+    const klaraDraft = klaraPage.getByTestId("legal-draft");
+    await expect(klaraDraft).toContainText("Entwurf Version 2");
+    await expect(klaraDraft).toContainText("Wartet auf zweite Freigabe");
+    await expect(klaraPage.getByTestId("legal-author-lock")).toContainText(
+      "Sie haben diesen Entwurf erstellt. Freigeben muss eine andere Person",
+    );
     await expect(
-      klaraPage.getByText(
-        "Eine andere System-Administration muss diesen Entwurf freigeben.",
-      ),
-    ).toBeVisible();
+      klaraPage.getByRole("button", { name: "Entwurf freigeben" }),
+    ).toHaveCount(0);
+    await expect(
+      klaraPage.getByRole("button", { name: /aktivieren/ }),
+    ).toHaveCount(0);
     await klaraPage.screenshot({
       path: `${artifactDirectory}/legal-draft-desktop.png`,
       fullPage: true,
     });
 
-    await simonePage.goto(`${baseUrl}/admin/legal`);
-    await simonePage
-      .getByRole("button", { name: /Prüfen & freigeben/ })
-      .click();
+    await simonePage.goto(`${baseUrl}/admin/legal/e-invoice`);
+    const draft = simonePage.getByTestId("legal-draft");
+    await expect(draft).toContainText("Nicht erforderlich");
+    await expect(
+      simonePage.getByRole("button", { name: /aktivieren/ }),
+    ).toHaveCount(0);
     await simonePage
       .getByLabel("Nachweis-ID der Freigabe")
       .fill("UI-FREIGABE-PILOT-044");
     await simonePage.getByRole("button", { name: "Entwurf freigeben" }).click();
-    await expect(
-      simonePage.getByText("Freigegeben von Simone System"),
-    ).toBeVisible();
+    await expect(simonePage.getByTestId("legal-approvals")).toContainText(
+      "Freigegeben von Simone System",
+    );
     await simonePage
-      .getByRole("button", { name: "Version verbindlich aktivieren" })
+      .getByRole("button", { name: "Version 2 aktivieren" })
       .click();
-    await expect(simonePage.getByText("Version 2")).toBeVisible();
-    await expect(simonePage.getByText("aktiv", { exact: true })).toBeVisible();
+    await simonePage
+      .getByRole("alertdialog", { name: "Version 2 aktivieren?" })
+      .getByRole("button", { name: "Jetzt aktivieren" })
+      .click();
+    await expect(simonePage.getByRole("alertdialog")).toHaveCount(0);
+    await expect(
+      simonePage.getByText("Version 2 aktiv", { exact: true }),
+    ).toBeVisible();
+    await expect(simonePage.getByText("Kein offener Entwurf")).toBeVisible();
 
     await simonePage.setViewportSize({ width: 390, height: 844 });
     await expect(
-      simonePage.getByRole("heading", { name: "Organisation & Recht" }),
+      simonePage.getByRole("heading", { level: 1, name: "Rechtliches" }),
     ).toBeVisible();
     await simonePage.screenshot({
       path: `${artifactDirectory}/legal-active-mobile.png`,

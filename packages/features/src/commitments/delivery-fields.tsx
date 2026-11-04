@@ -4,7 +4,8 @@ import type {
   DeliveryConfigurationResponse,
   PublicOrderDeliveryRecipientRequest,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { ApiError } from "@leonaid/api-client";
+import { Button, ConfirmDialog, StatusMessage } from "@leonaid/ui";
 
 export interface DeliveryDraft {
   readonly recipientName: string;
@@ -135,6 +136,59 @@ export function selectableWindows(
   return { upcoming, past };
 }
 
+/**
+ * The selected window when a manager marked it "ausgebucht" and the order
+ * would newly book it; such a booking needs a confirmation first.
+ */
+export function fullWindowSelected(
+  configuration: DeliveryConfigurationResponse | null | undefined,
+  windowId: string,
+) {
+  if (!configuration?.enabled || !windowId) return undefined;
+  return selectableWindows(configuration).upcoming.find(
+    (item) => item.id === windowId && item.fullyBooked,
+  );
+}
+
+/** The server refused a window that was switched to "ausgebucht" meanwhile. */
+export function isFullWindowError(error: unknown) {
+  return (
+    error instanceof ApiError && error.detail.code === "delivery_window_full"
+  );
+}
+
+/** Asks before booking a window marked "ausgebucht" (admin and PWA). */
+export function FullWindowConfirm({
+  window,
+  onCancel,
+  onConfirm,
+  pending = false,
+}: {
+  readonly window: DeliveryWindowOption | undefined;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+  readonly pending?: boolean;
+}) {
+  return (
+    <ConfirmDialog
+      confirmLabel="Trotzdem eintragen"
+      description={
+        window
+          ? `${dayLabel(window.deliveryOn)}, ${window.startsAt.slice(0, 5)}–${window.endsAt.slice(0, 5)} Uhr ist als ausgebucht markiert. Das öffentliche Bestellformular bietet es nicht mehr an. Die Bestellung wird trotzdem in diesem Fenster eingetragen; das wird im Verlauf vermerkt.`
+          : ""
+      }
+      onConfirm={onConfirm}
+      onOpenChange={(next) => {
+        if (!next && !pending) onCancel();
+      }}
+      open={Boolean(window)}
+      pending={pending}
+      title="Lieferfenster ist ausgebucht"
+      tone="primary"
+    />
+  );
+}
+
 export function DeliveryFields({
   configuration,
   value,
@@ -184,7 +238,11 @@ export function DeliveryFields({
                   />
                   <span>
                     {item.startsAt.slice(0, 5)}–{item.endsAt.slice(0, 5)} Uhr
-                    {item.retired ? " (stillgelegt)" : ""}
+                    {item.retired
+                      ? " (stillgelegt)"
+                      : item.fullyBooked
+                        ? " (ausgebucht)"
+                        : ""}
                     <span className="sr-only"> am {dayLabel(day)}</span>
                   </span>
                 </label>
@@ -310,7 +368,7 @@ export function DeliveryFields({
           ) : past.length ? (
             <StatusMessage tone="info">
               Zurzeit ist kein künftiges Lieferfenster verfügbar. Eine bereits
-              erfolgte Lieferung kannst du unten nachträglich erfassen.
+              erfolgte Lieferung können Sie unten nachträglich erfassen.
             </StatusMessage>
           ) : (
             <StatusMessage tone="info">

@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -262,7 +262,7 @@ def decode_member_cursor(value: str) -> UUID:
     except (binascii.Error, ValueError) as error:
         raise ApplicationError(
             "member_cursor_invalid",
-            "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+            "Die Mitgliederseite ist nicht mehr gültig. Bitte die Suche neu starten.",
         ) from error
 
 
@@ -310,7 +310,7 @@ def paginate_member_directory(
         else:
             raise ApplicationError(
                 "member_cursor_invalid",
-                "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+                "Die Mitgliederseite ist nicht mehr gültig. Bitte die Suche neu starten.",
             )
     page = filtered[start : start + query.limit]
     has_more = start + len(page) < len(filtered)
@@ -321,6 +321,8 @@ def paginate_member_directory(
 def navigation_for(
     principal: IdentityPrincipal,
     module_items: tuple[NavigationItem, ...] = (),
+    *,
+    delivery: bool = False,
 ) -> tuple[NavigationItem, ...]:
     """Core navigation plus registered module items, filtered by the server.
 
@@ -372,6 +374,14 @@ def navigation_for(
                 NavigationItem("activities", "Neues", "/admin/activities", "web"),
                 NavigationItem("acquisition-pwa", "Akquise", "/app/acquisition", "pwa"),
             )
+        )
+    # Only where a managed action actually delivers (``delivery``: the
+    # capability is on and delivery planning is enabled).
+    if delivery and (
+        principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles
+    ):
+        items.append(
+            NavigationItem("delivery", "Auslieferung", "/admin/delivery", "web")
         )
     if (
         GlobalRole.FINANCE_READER in principal.global_roles
@@ -433,12 +443,15 @@ class IdentityQueryService:
         fresh_login_window: timedelta = timedelta(minutes=15),
         module_navigation: Callable[[IdentityPrincipal], tuple[NavigationItem, ...]]
         | None = None,
+        delivery_navigation: Callable[[IdentityPrincipal], Awaitable[bool]]
+        | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if fresh_login_window <= timedelta(0):
             raise ValueError("Das Fresh-Login-Fenster muss positiv sein.")
         self._repository = repository
         self._module_navigation = module_navigation
+        self._delivery_navigation = delivery_navigation
         self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -449,7 +462,7 @@ class IdentityQueryService:
         if session_token is None or not session_token.strip():
             raise AuthenticationRequired(
                 "authentication_required",
-                "Bitte melde dich an, um LeonAid zu verwenden.",
+                "Bitte anmelden, um LeonAid zu verwenden.",
             )
         digest = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
         identity = await self._repository.principal_for_session(
@@ -459,7 +472,7 @@ class IdentityQueryService:
         if identity is None:
             raise AuthenticationRequired(
                 "session_invalid",
-                "Deine Sitzung ist nicht mehr gültig. Bitte melde dich erneut an.",
+                "Die Sitzung ist nicht mehr gültig. Bitte erneut anmelden.",
             )
         return identity
 
@@ -481,7 +494,7 @@ class IdentityQueryService:
         if not identity.session.fresh_at(now, self._fresh_login_window):
             raise AuthenticationRequired(
                 "fresh_login_required",
-                "Bitte bestätige deine Anmeldung erneut, um diese Änderung auszuführen.",
+                "Für diese Änderung muss die Anmeldung erneut bestätigt werden.",
             )
         return identity
 
@@ -515,6 +528,11 @@ class IdentityQueryService:
                 self._module_navigation(principal)
                 if self._module_navigation is not None
                 else (),
+                delivery=(
+                    await self._delivery_navigation(principal)
+                    if self._delivery_navigation is not None
+                    else False
+                ),
             ),
             session_expires_at=identity.session.expires_at,
             session_last_seen_at=identity.session.last_seen_at,
@@ -535,7 +553,7 @@ class IdentityQueryService:
         ):
             raise PermissionDenied(
                 "member_action_scope_forbidden",
-                "Du darfst Mitglieder nur in selbst verwalteten Aktionen einsehen.",
+                "Mitglieder dürfen nur in selbst verwalteten Aktionen eingesehen werden.",
             )
         snapshot = await self._repository.member_directory_snapshot(
             visible_action_ids=visible_action_ids,
@@ -625,7 +643,7 @@ class IdentityAdministrationService:
         }:
             raise Conflict(
                 "account_self_status_change_forbidden",
-                "Du kannst deinen eigenen Zugang nicht sperren oder archivieren.",
+                "Der eigene Zugang kann nicht gesperrt oder archiviert werden.",
             )
         if expected_revision < 1:
             raise ApplicationError(
@@ -718,7 +736,7 @@ class IdentityAdministrationService:
         if not can_manage_action_roles(actor, action_id):
             raise PermissionDenied(
                 "role_action_scope_forbidden",
-                "Du darfst Rollen nur in selbst verwalteten Aktionen ändern.",
+                "Rollen dürfen nur in selbst verwalteten Aktionen geändert werden.",
             )
         self._validate_role_command(
             expected_revision=expected_revision,

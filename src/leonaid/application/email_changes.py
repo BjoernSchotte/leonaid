@@ -186,7 +186,7 @@ class EmailChangeService:
             )
         raise Conflict(
             "email_change_context_changed",
-            "Der Kontostand hat sich geändert. Lade das Mitglied neu und versuche es erneut.",
+            "Der Kontostand hat sich geändert. Bitte das Mitglied neu laden und erneut versuchen.",
         )
 
     async def confirm_magic(
@@ -249,7 +249,7 @@ class EmailChangeService:
         if result is EmailChangeConfirmResult.ADDRESS_IN_USE:
             raise Conflict(
                 "email_change_address_in_use",
-                "Diese E-Mail-Adresse kann nicht mehr verwendet werden. Bitte fordere eine neue Korrektur an.",
+                "Diese E-Mail-Adresse kann nicht mehr verwendet werden. Bitte eine neue Korrektur anfordern.",
             )
         if result is not EmailChangeConfirmResult.CONFIRMED or confirmation is None:
             self._reject()

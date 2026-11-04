@@ -889,7 +889,7 @@ class CharityActionService:
             raise Conflict(
                 "action_revision_conflict",
                 "Die Charity-Aktion wurde zwischenzeitlich geändert. "
-                "Lade den aktuellen Stand und prüfe deine Eingaben erneut.",
+                "Bitte den aktuellen Stand laden und die Eingaben erneut prüfen.",
             )
 
     @staticmethod

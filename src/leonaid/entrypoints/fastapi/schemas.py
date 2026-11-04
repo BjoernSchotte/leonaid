@@ -34,6 +34,18 @@ class DeliveryWindowRequest(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Accepted so a client can send a loaded window back unchanged, but
+    # ignored: the switch has its own command and the stored value stays.
+    # A new window (no id) with true is refused (delivery_window_full_new).
+    fully_booked: bool | None = Field(
+        default=None,
+        description=(
+            "Read-only echo, ignored for existing windows; use "
+            'setDeliveryWindowFullyBooked for "ausgebucht". True on a new '
+            "window is refused."
+        ),
+        json_schema_extra={"readOnly": True},
+    )
 
 
 class DeliveryWindowResponse(TransportModel):
@@ -42,6 +54,13 @@ class DeliveryWindowResponse(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool
+    # "Ausgebucht": closed for public orders; admin and acquisition capture
+    # may still book it with allowFullWindow.
+    fully_booked: bool
+
+
+class DeliveryWindowFullyBookedRequest(TransportModel):
+    fully_booked: bool
 
 
 class DeliveryConfigurationRequest(TransportModel):
@@ -1074,6 +1093,8 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    # Confirms booking a window marked "ausgebucht" (otherwise 409).
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1083,6 +1104,7 @@ class CreateCommitmentRequest(TransportModel):
 
 
 class CompleteCommitmentRequest(TransportModel):
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1090,6 +1112,7 @@ class CompleteCommitmentRequest(TransportModel):
 
 class CompleteCommitmentDeliveryRequest(TransportModel):
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    allow_full_window: bool = False
     invoice_recipient: CommitmentInvoiceRecipientRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
@@ -1407,6 +1430,7 @@ class DashboardDeliveryWindowResponse(TransportModel):
     ends_at: datetime
     commitments: int = Field(ge=0)
     quantities: list[UnitQuantityResponse]
+    fully_booked: bool
 
 
 class DashboardDeliveryResponse(TransportModel):
@@ -1662,14 +1686,14 @@ class SponsorDraftRequest(TransportModel):
         family_name = (self.family_name or "").strip()
         email = (self.email or "").strip()
         if not company_name and (not given_name or not family_name):
-            raise ValueError("Gib einen Firmennamen oder Vorname und Nachname an.")
+            raise ValueError("Bitte einen Firmennamen oder Vor- und Nachnamen angeben.")
         if (
             company_name
             and (given_name or family_name or email)
             and (not given_name or not family_name)
         ):
             raise ValueError(
-                "Gib für einen Firmenkontakt Vorname und Nachname gemeinsam an."
+                "Für einen Firmenkontakt bitte Vor- und Nachnamen gemeinsam angeben."
             )
         return self
 
@@ -2221,3 +2245,104 @@ RequestIdHeader = Annotated[
         examples=["poc023:contract:golden-v1"],
     ),
 ]
+
+
+# ---------- Delivery day board ----------
+
+
+class DeliveryDropQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int
+
+
+class DeliveryDropAddressResponse(TransportModel):
+    recipient_name: str
+    street_line1: str
+    postal_code: str
+    city: str
+
+
+class DeliveryDropContactResponse(TransportModel):
+    name: str | None
+    phone: str | None
+
+
+class DeliveryDropResponse(TransportModel):
+    """One order on the board. Never amounts, e-mail or the order message."""
+
+    commitment_id: UUID
+    window_id: UUID
+    buyer_name: str
+    quantities: list[DeliveryDropQuantityResponse]
+    total_boxes: int
+    address: DeliveryDropAddressResponse | None
+    contact: DeliveryDropContactResponse | None
+    state: Literal["open", "delivered", "missed"]
+    state_changed_at: datetime | None
+    state_changed_by_name: str | None
+    driver_user_id: UUID | None
+    driver_name: str | None
+    revision: int
+    # Marked missed when its window was closed; only such a drop can return
+    # to "missed" while the window stays closed.
+    missed_at_closure: bool
+    # Managers only: the order status (cancelled drops stay struck through).
+    order_status: (
+        Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None
+    )
+
+
+class DeliveryWindowClosureResponse(TransportModel):
+    closed_at: datetime
+    closed_by_name: str
+    missed_count: int
+
+
+class DeliveryBoardWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    retired: bool
+    fully_booked: bool
+    closure: DeliveryWindowClosureResponse | None
+    drops: list[DeliveryDropResponse]
+
+
+class DeliveryBoardDriverResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+
+
+class DeliveryBoardResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    day: date | None
+    days: list[date]
+    manager: bool
+    windows: list[DeliveryBoardWindowResponse]
+    drivers: list[DeliveryBoardDriverResponse]
+    follow_up_tasks: bool
+
+
+class DeliveryStateRequest(TransportModel):
+    delivered: bool
+    expected_revision: int = Field(ge=0)
+
+
+class DeliveryDriverAssignmentRequest(TransportModel):
+    commitment_ids: list[UUID] = Field(min_length=1, max_length=1000)
+    driver_user_id: UUID | None
+
+
+class DeliveryDriverAssignmentResponse(TransportModel):
+    changed: int
+
+
+class DeliveryWindowClosureResultResponse(TransportModel):
+    missed_count: int
+    follow_up: Literal["tasks", "board"]
+
+
+class DeliveryWindowReopenResponse(TransportModel):
+    reopened_count: int

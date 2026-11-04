@@ -97,11 +97,21 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
       "data-theme-preference",
       "dark",
     );
-    await page.keyboard.press("Shift+T");
-    await expect(page.locator("html")).toHaveAttribute(
-      "data-theme-preference",
-      "light",
-    );
+    // The pre-paint script sets the preference before React registers the
+    // hotkey; press again only while the switch has not happened yet.
+    await expect(page.getByTestId("desktop-sidebar")).toBeVisible();
+    await expect(async () => {
+      if (
+        (await page.locator("html").getAttribute("data-theme-preference")) !==
+        "light"
+      )
+        await page.keyboard.press("Shift+T");
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-theme-preference",
+        "light",
+        { timeout: 1000 },
+      );
+    }).toPass({ timeout: 15000 });
 
     await page.getByTestId("action-name").fill("Krapfentaxi Golden UI 2028");
     await page

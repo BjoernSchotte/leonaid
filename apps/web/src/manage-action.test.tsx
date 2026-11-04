@@ -137,6 +137,7 @@ const delivery: DeliveryConfigurationResponse = {
     {
       deliveryOn: "2099-11-12",
       endsAt: "11:00:00",
+      fullyBooked: false,
       id: "w1",
       retired: false,
       startsAt: "09:00:00",
@@ -164,6 +165,10 @@ function fakeClient(state: ActionManagementResponse = management()) {
     })),
     getDeliveryConfiguration: vi.fn(async () => delivery),
     saveDeliveryConfiguration: vi.fn(async () => delivery),
+    setDeliveryWindowFullyBooked: vi.fn(async () => ({
+      ...delivery,
+      windows: delivery.windows.map((item) => ({ ...item, fullyBooked: true })),
+    })),
     listCommitments: vi.fn(async () => ({
       actionId,
       currencyTotals: [],
@@ -601,6 +606,34 @@ describe("action detail", () => {
     await waitFor(() =>
       expect(client.getDeliveryConfiguration).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("switches a window to ausgebucht at once, outside the form", async () => {
+    const client = await renderPage("#delivery");
+    const table = await screen.findByTestId("delivery-windows");
+    expect(within(table).getByText("Buchbar")).toBeTruthy();
+    const toggle = screen.getByRole("switch", {
+      name: /ausgebucht$/,
+    }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(client.setDeliveryWindowFullyBooked).toHaveBeenCalledWith(
+        actionId,
+        "w1",
+        { fullyBooked: true },
+      ),
+    );
+    // The status badge follows; the column header also reads "Ausgebucht".
+    await waitFor(() =>
+      expect(within(table).queryByText("Buchbar")).toBeNull(),
+    );
+    expect(within(table).getAllByText("Ausgebucht")).toHaveLength(2);
+    expect(
+      (screen.getByRole("switch", { name: /ausgebucht$/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    expect(client.saveDeliveryConfiguration).not.toHaveBeenCalled();
   });
 
   it("retires a window only after the confirmation", async () => {

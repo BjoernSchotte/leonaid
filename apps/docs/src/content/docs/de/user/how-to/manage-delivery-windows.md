@@ -4,8 +4,8 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 7
+reviewedRevision: 7
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
 reviewer: Björn Schotte
 ---
@@ -28,9 +28,30 @@ den Reiter **Lieferfenster**.
    müssen neue verbindliche Bestellungen eine Lieferadresse und ein freies
    Fenster enthalten.
 
-Die Tabelle zeigt jedes Fenster mit Status (**Buchbar** oder **Stillgelegt**)
-und, bei Aktionen mit Bestellungen, die gebuchten Boxen ohne stornierte
-Bestellungen.
+Die Tabelle zeigt jedes Fenster mit Status (**Buchbar**, **Ausgebucht** oder
+**Stillgelegt**) und, bei Aktionen mit Bestellungen, die gebuchten Boxen ohne
+stornierte Bestellungen.
+
+## Fenster als ausgebucht markieren
+
+Ist ein Fenster voll, schalte in seiner Zeile **Ausgebucht** ein. Die Änderung
+gilt sofort, die Meldung **… ist als ausgebucht markiert.** bestätigt sie, und
+das Protokoll hält fest, wer sie wann gemacht hat. LeonAid zählt dafür keine
+Mengen; du entscheidest, wann ein Fenster voll ist.
+
+- Im öffentlichen Bestellformular erscheint das Fenster mit dem Hinweis
+  **ausgebucht** und lässt sich nicht wählen. Wird es voll, während jemand das
+  Formular ausfüllt, lehnt LeonAid die Bestellung ab und bittet um ein anderes
+  Fenster; die übrigen Eingaben bleiben erhalten.
+- Backoffice und Akquise zeigen das Fenster mit **(ausgebucht)**. Wählst du es
+  trotzdem, fragt der Dialog **Lieferfenster ist ausgebucht** nach; mit
+  **Trotzdem eintragen** wird die Bestellung gebucht und der Vorgang im
+  Protokoll vermerkt.
+- Schalte **Ausgebucht** wieder aus, um das Fenster erneut anzubieten
+  (**… ist wieder buchbar.**). Bestehende Bestellungen ändern sich dabei nicht.
+
+Den Schalter gibt es nur für offene Fenster, die noch nicht begonnen haben.
+Stilllegen hebt **Ausgebucht** auf.
 
 Gespeicherte Fenster werden nicht editiert. Wähle beim alten Fenster
 **Stilllegen**, bestätige **Fenster stilllegen** und lege den neuen Termin an.
@@ -49,11 +70,13 @@ keine Lieferadresse und kein Fenster. Solange die Lieferplanung aktiv ist, kann
 für sie keine Rechnung freigegeben werden: **Rechnung prüfen** zeigt
 **Lieferangaben fehlen**, und die Freigabe bleibt gesperrt.
 
-1. Öffne **Bestellungen prüfen** und bei der Bestellung den Abschnitt **Liefer-
-   und Rechnungsangaben ergänzen**.
+1. Öffne **Bestellungen** und wähle die Bestellung. Die Seitenansicht zeigt den
+   Block **Nächster Schritt**; wähle dort **Angaben ergänzen**.
 2. Trage die Lieferadresse ein, wähle ein Fenster und korrigiere bei Bedarf die
    Rechnungsadresse.
-3. Wähle **Angaben speichern**.
+3. Wähle **Angaben speichern**. Ist das Fenster als ausgebucht markiert, auch
+   bei einem Entwurf mit bereits gewähltem Fenster, bestätige **Trotzdem
+   eintragen**.
 
 Die Bestätigung lautet **Angaben gespeichert. Die Bestellung ist prüfbereit.**
 Besteller, Positionen und Preise bleiben unverändert. Ein gebuchtes Fenster
@@ -83,3 +106,9 @@ Hat inzwischen eine andere Person die Bestellung gespeichert, bleiben deine
 Eingaben im Formular erhalten. Wähle **Aktuellen Stand laden und vergleichen**,
 prüfe die gespeicherten Angaben, wähle **Meine Eingaben auf diesen Stand
 anwenden** und speichere erneut.
+
+## Am Liefertag
+
+Gebuchte Bestellungen erscheinen pro Fenster auf der Seite **Auslieferung**.
+Dort weist du Ausfahrer zu, hakst Lieferungen ab und schließt Fenster ab; siehe
+[Auslieferung abhaken](/de/user/how-to/work-delivery-board/).

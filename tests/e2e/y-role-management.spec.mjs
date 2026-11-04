@@ -242,9 +242,10 @@ test("system admin performs a role change and full offboarding through the UI", 
     ).toBeTruthy();
     await annaPage.getByTestId("pwa-menu").click();
     const annaPwaSheet = annaPage.getByRole("dialog", { name: "Mehr" });
-    await expect(
-      annaPwaSheet.locator('[data-nav-key="delivery"]'),
-    ).toHaveAttribute("aria-disabled", "true");
+    // The driver role opens the delivery board in the app (Task 6.2).
+    const deliveryTile = annaPwaSheet.locator('[data-nav-key="delivery"]');
+    await expect(deliveryTile).toHaveAttribute("href", "/app/delivery");
+    await expect(deliveryTile).not.toHaveAttribute("aria-disabled", "true");
     await annaPwaSheet.getByRole("button", { name: "Schließen" }).click();
     await annaWebPage.goto(`${baseUrl}/admin/`);
     await annaWebPage.getByTestId("mobile-menu").click();

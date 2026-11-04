@@ -352,7 +352,7 @@ class AcquisitionActivityService:
         if previous.revision != expected_revision:
             raise Conflict(
                 "assignment_revision_conflict",
-                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte lade sie neu.",
+                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte neu laden.",
             )
         if channel in (ActivityChannel.EMAIL, ActivityChannel.PHONE):
             details = await self._party_details(

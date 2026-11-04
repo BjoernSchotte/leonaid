@@ -26,6 +26,7 @@ from leonaid.configuration import (
 from leonaid.entrypoints.worker.outbox import configuration_problems
 from leonaid.entrypoints.worker.retention import (
     RetentionResult,
+    delivery_read_audits,
     sweep_operational_retention,
 )
 from leonaid.platform.background import BackgroundLoop
@@ -74,18 +75,28 @@ MODULE_LOOP_HEALTH = tuple(
 LOOPS = (postgres_health, outbox_health, *MODULE_LOOP_HEALTH, retention_health)
 if len({loop.name for loop in LOOPS}) != len(LOOPS):
     raise RuntimeError("Worker loop names must be unique.")
-RETENTION_DELETED = {"outbox_event": 0, "security_rate_attempt": 0}
+RETENTION_DELETED = {
+    "outbox_event": 0,
+    "security_rate_attempt": 0,
+    "delivery_read_audit": 0,
+}
 
 
 def record_retention(result: RetentionResult) -> None:
     RETENTION_DELETED["outbox_event"] += result.outbox_events_deleted
     RETENTION_DELETED["security_rate_attempt"] += result.rate_attempts_deleted
-    if result.outbox_events_deleted or result.rate_attempts_deleted:
+    RETENTION_DELETED["delivery_read_audit"] += result.read_audits_deleted
+    if (
+        result.outbox_events_deleted
+        or result.rate_attempts_deleted
+        or result.read_audits_deleted
+    ):
         print(
             structured_event(
                 "worker.retention.swept",
                 outboxEventsDeleted=result.outbox_events_deleted,
                 rateAttemptsDeleted=result.rate_attempts_deleted,
+                readAuditsDeleted=result.read_audits_deleted,
                 complete=result.complete,
             ),
             flush=True,
@@ -285,6 +296,7 @@ async def retention_loop() -> None:
                     rate_limits=rate_limits,
                     settings=settings,
                     now=datetime.now(timezone.utc),
+                    read_audits=delivery_read_audits(pool),
                 )
                 record_retention(result)
                 record_success(retention_health)

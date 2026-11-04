@@ -272,6 +272,9 @@ async def prove() -> None:
         from tools.delivery.completion import prove_completion
 
         await prove_completion(pool, action.id, admin_id)
+        from tools.delivery.board import prove_board
+
+        await prove_board(pool, action.id, admin_id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)
@@ -345,10 +348,13 @@ def main() -> None:
             ).fetchall()
             == baseline_order
         )
-        assert (
-            db.execute("SELECT to_jsonb(invoice) FROM invoice").fetchone()
-            == baseline_invoice
-        )
+        # 0045 adds issued_on: the UTC day of issued_at for existing invoices.
+        assert baseline_invoice is not None
+        assert db.execute(
+            """SELECT to_jsonb(invoice) - 'issued_on',
+                issued_on = (issued_at AT TIME ZONE 'UTC')::date
+            FROM invoice"""
+        ).fetchone() == (baseline_invoice[0], True)
         assert db.execute(
             "SELECT enabled FROM action_delivery_configuration WHERE action_id=%s",
             (historical_action,),
