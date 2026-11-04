@@ -25,6 +25,7 @@ import { ToastProvider } from "../toast";
 import { ListView } from "./list-view";
 import { STORAGE_PREFIX, type ListViewDefinition } from "./saved-views";
 import type {
+  ListAddress,
   ListCommand,
   ListEditOutcome,
   ListProperty,
@@ -124,11 +125,15 @@ function runCommand(label: string) {
 }
 
 function Harness({
+  address,
   apply,
   editOptions,
   onOpen,
   hooks,
+  status,
 }: {
+  address?: ListAddress;
+  status?: "ready" | "loading" | "error";
   apply?: (
     ids: readonly string[],
     value: string,
@@ -178,6 +183,7 @@ function Harness({
     <ToastProvider>
       <HotkeyProvider>
         <ListView<Order>
+          address={address}
           columns={{
             primary: (row) => `${row.number} ${row.sponsor}`,
             trailing: (row) => `${row.cents / 100} €`,
@@ -193,6 +199,7 @@ function Harness({
           rows={rows}
           searchText={(row) => `${row.number} ${row.sponsor}`}
           sorts={sorts}
+          status={status}
           title="Bestellungen"
           useCommands={useCaptureCommands}
           views={views}
@@ -1116,5 +1123,54 @@ describe("page hooks", () => {
     expect(published.map((command) => command.id)).not.toContain(
       "list:orders:create",
     );
+  });
+});
+
+describe("form of address", () => {
+  function noMatch() {
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "zzz" },
+    });
+  }
+
+  it("addresses back-office users with Sie by default", () => {
+    const { unmount } = render(<Harness />);
+    noMatch();
+    expect(
+      screen.getByText(
+        "Entfernen Sie einen Filter oder ändern Sie den Suchbegriff.",
+      ),
+    ).toBeTruthy();
+    unmount();
+    render(<Harness status="error" />);
+    expect(
+      screen.getByText(/Ihre Filter bleiben erhalten\. Prüfen Sie/),
+    ).toBeTruthy();
+  });
+
+  it("addresses PWA users with du: empty state, load error, edit error", async () => {
+    const { unmount } = render(<Harness address="du" />);
+    noMatch();
+    expect(
+      screen.getByText("Entferne einen Filter oder ändere den Suchbegriff."),
+    ).toBeTruthy();
+    unmount();
+    const errored = render(<Harness address="du" status="error" />);
+    expect(
+      screen.getByText(
+        "Der Server hat nicht geantwortet. Deine Filter bleiben erhalten. Prüfe die Verbindung und versuche es erneut.",
+      ),
+    ).toBeTruthy();
+    errored.unmount();
+    // The no-match search above is still in the URL.
+    setUrl("");
+    render(
+      <Harness address="du" apply={() => Promise.reject(new Error("403"))} />,
+    );
+    press("j");
+    press("s");
+    fireEvent.click(screen.getByRole("option", { name: /Geliefert/ }));
+    expect(await screen.findByText("Bitte versuche es erneut.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/\bSie\b|\bIhre\b/);
   });
 });

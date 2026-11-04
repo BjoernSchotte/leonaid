@@ -561,33 +561,50 @@
     {
       "file": "packages/features/src/inbox/inbox.tsx",
       "contains": [
-        "Alle Eingänge",
+        "title=\"Eingang\"",
+        "Mir zugewiesen",
+        "Kontakt klären",
+        "Zuständigkeit",
+        "key: \"s\"",
+        "key: \"a\""
+      ]
+    },
+    {
+      "file": "packages/features/src/inbox/inbox-model.ts",
+      "contains": [
         "Kontakt zugeordnet",
         "Kontaktzuordnung benötigt Klärung",
-        "Abschlussnotiz"
+        "Kontaktzuordnung fehlgeschlagen",
+        "Neu",
+        "In Bearbeitung",
+        "Abgeschlossen",
+        "MIN_CLOSURE_NOTE = 10"
       ]
     },
     {
       "file": "packages/features/src/inbox/case-editor.tsx",
+      "contains": ["Anfrage abschließen", "Abschlussnotiz", "Abbrechen"]
+    },
+    {
+      "file": "packages/features/src/inbox/case-detail.tsx",
       "contains": [
-        "Bearbeitung speichern",
-        "Zuständigkeit",
-        "Neu",
-        "In Bearbeitung",
-        "Abgeschlossen"
+        "Abschließen …",
+        "Übernehmen",
+        "Kontakt in Twenty",
+        "Interne Notizen",
+        "Verknüpft"
       ]
     },
     {
       "file": "packages/features/src/inbox/comments.tsx",
-      "contains": ["Interne Notizen", "Notiz speichern"]
+      "contains": ["Interne Notiz", "Hinzufügen"]
     },
     {
       "file": "packages/features/src/inbox/contact.tsx",
       "contains": [
-        "Bestehenden Kontakt suchen",
         "In Twenty suchen",
-        "Kontakt auswählen",
-        "Kontaktzuordnung bestätigen"
+        "Begründung der Zuordnung",
+        "Zuordnung bestätigen"
       ]
     },
     {

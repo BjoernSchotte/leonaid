@@ -56,17 +56,25 @@ import {
   type ListViewDefinition,
 } from "./saved-views";
 import type {
+  ListAddress,
   ListColumns,
   ListCommand,
   ListProperty,
   ListViewProps,
 } from "./types";
 
-/** Help overlay section of every list binding. */
-export const LIST_HOTKEY_GROUP = "Liste";
-
-/** Built-in copy that addresses the person: admin "Sie", app "Du". */
-const COPY = {
+/** The list's own copy in both forms of address. */
+const listCopy: Readonly<
+  Record<
+    ListAddress,
+    {
+      readonly retry: string;
+      readonly storage: string;
+      readonly loadError: string;
+      readonly noMatch: string;
+    }
+  >
+> = {
   Sie: {
     retry: "Bitte versuchen Sie es erneut.",
     storage:
@@ -83,7 +91,10 @@ const COPY = {
       "Der Server hat nicht geantwortet. Deine Filter bleiben erhalten. Prüfe die Verbindung und versuche es erneut.",
     noMatch: "Entferne einen Filter oder ändere den Suchbegriff.",
   },
-} as const;
+};
+
+/** Help overlay section of every list binding. */
+export const LIST_HOTKEY_GROUP = "Liste";
 
 type Menu =
   | { readonly kind: "filter-prop" }
@@ -291,7 +302,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     title,
   } = props;
   const toast = useOptionalToast();
-  const copy = COPY[props.address ?? "Sie"];
+  const copy = listCopy[props.address ?? "Sie"];
   const headingId = useId();
   const viewNameId = useId();
 
