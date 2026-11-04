@@ -73,7 +73,12 @@ for (const [surface, route, width] of [
     await expect(
       dialog.getByRole("button", { name: "Hochladen", exact: true }),
     ).toBeDisabled();
+    // The chosen file is a draft: cancelling asks first.
     await dialog.getByRole("button", { name: "Abbrechen" }).click();
+    await page
+      .getByRole("alertdialog", { name: "Entwurf verwerfen?" })
+      .getByRole("button", { name: "Verwerfen" })
+      .click();
     await expect(dialog).toBeHidden();
 
     const row = await uploadMaterial(

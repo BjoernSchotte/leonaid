@@ -229,6 +229,11 @@ for (const [surface, width] of [
     await conflict
       .getByRole("button", { name: "Andere übernehmen", exact: true })
       .click();
+    // Taking the other revision drops the draft: asked first.
+    await page
+      .getByRole("alertdialog", { name: "Entwurf verwerfen?" })
+      .getByRole("button", { name: "Verwerfen" })
+      .click();
     await expect(editor).toHaveText("Andere Sitzung hat gespeichert.");
     await expect(conflict).toHaveCount(0);
     expect(pageErrors).toEqual([]);
