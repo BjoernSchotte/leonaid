@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { changeRole, memberPane, openMember } from "./member-list.mjs";
 
@@ -164,7 +164,7 @@ test("charity admin manages only action roles in their own scope", async ({
     await changeRole(page, { ...finance, enabled: false });
     await expect(pane.getByTestId("member-membership")).toHaveCount(1);
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),
@@ -288,9 +288,7 @@ test("system admin performs a role change and full offboarding through the UI", 
       0,
     );
 
-    const accessibility = await new AxeBuilder({
-      page: systemPage,
-    }).analyze();
+    const accessibility = await analyzeAccessibility(systemPage);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),

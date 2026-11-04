@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { invoiceRows, openInvoice, showInvoiceView } from "./invoice-list.mjs";
 
@@ -185,9 +185,9 @@ test("manager records past delivery details historically and recovers from a com
     ).toHaveValue("Bäckerei Sonnenseite KG");
     await fillDelivery(mobile.form, "Lager Süd");
     // The past-window group is accessible and fits 390 px.
-    const historicalAccessibility = await new AxeBuilder({ page })
-      .include(`[data-commitment-id="${commitmentId}"]`)
-      .analyze();
+    const historicalAccessibility = await analyzeAccessibility(page, {
+      include: `[data-commitment-id="${commitmentId}"]`,
+    });
     expect(
       historicalAccessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact),
@@ -257,9 +257,9 @@ test("manager records past delivery details historically and recovers from a com
       path: `${artifactDirectory}/invoice-delivery-completion-mobile.png`,
       fullPage: true,
     });
-    const accessibility = await new AxeBuilder({ page })
-      .include(`[data-commitment-id="${commitmentId}"]`)
-      .analyze();
+    const accessibility = await analyzeAccessibility(page, {
+      include: `[data-commitment-id="${commitmentId}"]`,
+    });
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact),
@@ -360,7 +360,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
       fullPage: true,
     });
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) => violation.impact === "critical",
@@ -401,9 +401,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
       path: `${artifactDirectory}/invoice-finance-mobile.png`,
       fullPage: true,
     });
-    const mobileAccessibility = await new AxeBuilder({
-      page: financePage,
-    }).analyze();
+    const mobileAccessibility = await analyzeAccessibility(financePage);
     expect(
       mobileAccessibility.violations.filter(
         (violation) => violation.impact === "critical",
@@ -478,9 +476,9 @@ test("bulk release issues several invoices with one service date and never twice
     const serviceOn = await dateField.inputValue();
     const firstDay = await dateField.getAttribute("min");
     expect(serviceOn).not.toBe(firstDay);
-    const accessibility = await new AxeBuilder({ page })
-      .include(".bulk-release")
-      .analyze();
+    const accessibility = await analyzeAccessibility(page, {
+      include: ".bulk-release",
+    });
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact),

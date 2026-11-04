@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { invoiceRows } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
@@ -40,9 +40,7 @@ async function contextFor(browser, session, viewport) {
 }
 
 async function expectNoSeriousAxeFindings(page, label) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );
