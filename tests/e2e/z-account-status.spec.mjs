@@ -158,7 +158,9 @@ test("fresh login revokes all old sessions and reactivation requires a new sign-
   try {
     await oldAnnaPage.goto(`${baseUrl}/app/`);
     await expect(
-      oldAnnaPage.getByRole("heading", { name: "Guten Tag, Anna." }),
+      oldAnnaPage.getByRole("heading", {
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
 
     await systemPage.goto(`${baseUrl}/admin/members`);

@@ -363,9 +363,17 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
                       onClick={() => {
                         // Opening an entry reads it; the link still navigates.
                         if (!item.isRead) {
-                          void client.updateActivityFeedItem(item.id, {
-                            read: true,
-                          });
+                          // Navigation may cut it short; the next visit
+                          // refetches either way.
+                          void client
+                            .updateActivityFeedItem(item.id, { read: true })
+                            .catch(() => undefined)
+                            .finally(
+                              () =>
+                                void queryClient.invalidateQueries({
+                                  queryKey: ["activity-feed"],
+                                }),
+                            );
                         }
                       }}
                       onFocus={() => setFocusId(item.id)}

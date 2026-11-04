@@ -254,25 +254,32 @@ function MetricDefinitions({
   figures,
   items,
 }: {
-  /** Key figures listed above their definitions (admin). */
+  /** Key figures in their own disclosure before the definitions (admin). */
   readonly figures?: ReactNode;
   readonly items: ReadonlyArray<DashboardMetricDefinitionResponse>;
 }) {
   return (
-    <details className="dashboard-definitions">
-      <summary>So werden die Kennzahlen berechnet</summary>
-      {figures}
-      <dl>
-        {items.map((item) => (
-          <div key={item.key}>
-            <dt>
-              <a href={item.href}>{item.label}</a>
-            </dt>
-            <dd>{item.description}</dd>
-          </div>
-        ))}
-      </dl>
-    </details>
+    <>
+      {figures ? (
+        <details className="dashboard-definitions">
+          <summary>Weitere Kennzahlen</summary>
+          {figures}
+        </details>
+      ) : null}
+      <details className="dashboard-definitions">
+        <summary>So werden die Kennzahlen berechnet</summary>
+        <dl>
+          {items.map((item) => (
+            <div key={item.key}>
+              <dt>
+                <a href={item.href}>{item.label}</a>
+              </dt>
+              <dd>{item.description}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </>
   );
 }
 
@@ -311,6 +318,10 @@ function AcquirerDashboard({
             data.reminders.today === 1 ? "Wiedervorlage" : "Wiedervorlagen"
           } öffnen`
         : "Mit offenen Sponsoren weiterarbeiten";
+  const actionLabel =
+    data.reminders.overdue > 0 || data.reminders.today > 0
+      ? "Wiedervorlagen öffnen"
+      : "Offene Sponsoren öffnen";
 
   return (
     <>
@@ -320,7 +331,7 @@ function AcquirerDashboard({
             className={buttonClassName({ variant: "primary" })}
             href={nextHref}
           >
-            <span className="btn-label">Jetzt öffnen</span>
+            <span className="btn-label">{actionLabel}</span>
             <Icon icon={ArrowRight} size={16} />
           </a>
         }
@@ -768,7 +779,7 @@ function AdminDashboard({
       <MetricDefinitions
         figures={
           <dl
-            aria-label="Kennzahlen der Aktion"
+            aria-label="Kennzahlen im Detail"
             className="dashboard-figures"
             data-testid="admin-dashboard-metrics"
           >
@@ -929,7 +940,7 @@ export function RoleDashboardPage({
       <header className="dashboard-header">
         <div>
           <p>Dein Akquise-Tag</p>
-          <h1>{`Guten Tag, ${identity.displayName.split(" ")[0]}.`}</h1>
+          <h1>{`${greeting()}, ${identity.displayName.split(" ")[0]}.`}</h1>
           <span>Wiedervorlagen zuerst, Fortschritt immer im Blick.</span>
         </div>
         <label className="dashboard-action-picker">

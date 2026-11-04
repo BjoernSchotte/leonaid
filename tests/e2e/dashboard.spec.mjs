@@ -79,7 +79,10 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
   try {
     await page.goto(`${baseUrl}/app/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
     await expect(page.getByTestId("dashboard-action")).toHaveValue(actionId);
     await expect(page.getByTestId("goal-status")).toContainText(

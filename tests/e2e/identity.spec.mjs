@@ -100,7 +100,7 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
   try {
     const mobileNavigation = page.locator(".pwa-tabs");
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
@@ -142,7 +142,7 @@ test("acquirer-only member is redirected from the back office to the PWA", async
   try {
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
@@ -152,7 +152,7 @@ test("acquirer-only member is redirected from the back office to the PWA", async
     await page.goto(`${baseUrl}/admin/members`);
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-admin-redirect.png`,

@@ -153,9 +153,7 @@ test("charity admin completes the desktop review path without losing context", a
       }),
     ).toBeVisible();
 
-    await page
-      .locator("summary", { hasText: "So werden die Kennzahlen berechnet" })
-      .click();
+    await page.locator("summary", { hasText: "Weitere Kennzahlen" }).click();
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
     // The dashboard's ?status=open link lands in the "Offen" list view.
@@ -312,7 +310,10 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
   try {
     await page.goto(`${baseUrl}/app/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
     await expect(page.getByTestId("dashboard-next-step")).toContainText(
       "Mit offenen Sponsoren weiterarbeiten",
@@ -327,13 +328,13 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
     );
     await expectTouchTarget(
       page.getByTestId("dashboard-next-step").getByRole("link", {
-        name: "Jetzt öffnen",
+        name: /^(Wiedervorlagen|Offene Sponsoren) öffnen$/,
       }),
       "Dashboard-Hauptaktion",
     );
     await page
       .getByTestId("dashboard-next-step")
-      .getByRole("link", { name: "Jetzt öffnen" })
+      .getByRole("link", { name: /^(Wiedervorlagen|Offene Sponsoren) öffnen$/ })
       .click();
     await expect(page).toHaveURL(/\/app\/sponsors\?.*status=open/);
     await expect(page.getByTestId("sponsor-row")).toHaveCount(2);
@@ -563,7 +564,10 @@ test("three core surfaces meet reproducible mobile performance budgets", async (
       path: `/app/?action=${actionId}`,
       ready: (page) =>
         page
-          .getByRole("heading", { level: 1, name: "Guten Tag, Anna." })
+          .getByRole("heading", {
+            level: 1,
+            name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+          })
           .waitFor(),
       session: annaSession,
     },
