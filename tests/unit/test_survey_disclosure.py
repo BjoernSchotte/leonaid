@@ -145,9 +145,19 @@ def test_conditional_denominators_follow_their_condition():
     assert (q.relevant, q.hidden) == (None, None)
 
 
-def test_multiple_choice_withholds_only_small_counts():
+def test_multiple_choice_is_protected_like_a_known_total():
+    """N2: everyone who answers picks at least one option, so the cells are
+    bounded by "answered"; a lone small cell would follow from the others."""
     shown = disclose(snapshot(10, [question("q", "checkbox", [2, 6, 9], answered=10)]))
-    assert [c.count for c in shown.questions[0].counts] == [None, 6, 9]
+    assert [c.count for c in shown.questions[0].counts] == [None, None, None]
+    shown = disclose(
+        snapshot(30, [question("q", "checkbox", [2, 16, 29, 12], answered=30)])
+    )
+    # 2 is small, and 29 of 30 leaves 1 who did not tick it (complement).
+    assert [c.count for c in shown.questions[0].counts] == [None, 16, None, 12]
+    # Reviewer case: answered 9, A=5, B=4, C=0 -> B was pinned at 4.
+    shown = disclose(snapshot(9, [question("q", "checkbox", [5, 4, 0], answered=9)]))
+    assert [c.count for c in shown.questions[0].counts] == [None, None, None]
 
 
 def test_matrix_rows_follow_the_same_rules():
@@ -365,8 +375,10 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         assert disclosed_render(product, current)
     assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
     # Older, unknown or foreign versions are refused (fails closed). The
-    # previous versions predate the neutral marker, I3/C2/C3 and R6.
+    # previous versions predate review round 2 (N1, N2, N3).
     for product, version in [
+        ("analysis_pdf", "survey-analysis-v3+typst-0.14.2"),
+        ("analysis_xlsx", "survey-tabular-v4"),
         ("analysis_pdf", "survey-analysis-v2+typst-0.14.2"),
         ("analysis_xlsx", "survey-tabular-v3"),
         ("analysis_pdf", "survey-analysis-v1+typst-0.14.2"),
@@ -393,3 +405,38 @@ def test_a_number_never_shows_its_extremes():
     q = disclose(snapshot(30, [hours])).questions[0]
     assert (q.minimum, q.maximum) == (None, None)
     assert q.mean == 15.5
+
+
+def test_conditions_are_recorded_by_structure():
+    """N1: each comparison of a visibleIf, with its page's, in the snapshot."""
+    from leonaid.modules.surveys.adapters.postgres.survey_analysis import (
+        dependencies,
+    )
+
+    definition = {
+        "pages": [
+            {
+                "name": "p1",
+                "elements": [
+                    {"name": "g1"},
+                    {"name": "g2"},
+                    {"name": "f", "visibleIf": "({g1} = 'yes' and {g2} = 'yes')"},
+                    {"name": "h", "visibleIf": "{g1} notempty"},
+                ],
+            },
+            {
+                "name": "p2",
+                "visibleIf": "{g2} = 'no'",
+                "elements": [{"name": "x"}, {"name": "y", "visibleIf": "{g1} != 'a'"}],
+            },
+        ]
+    }
+    recorded = dependencies(definition)
+    assert recorded["questionLeaves"] == {
+        "f": [["g1", "=", "'yes'"], ["g2", "=", "'yes'"]],
+        "h": [["g1", "notempty", ""]],
+        "x": [["g2", "=", "'no'"]],
+        "y": [["g2", "=", "'no'"], ["g1", "!=", "'a'"]],
+    }
+    assert recorded["pageLeaves"] == {"p2": [["g2", "=", "'no'"]]}
+    assert recorded["questions"]["y"] == ["g1", "g2"]

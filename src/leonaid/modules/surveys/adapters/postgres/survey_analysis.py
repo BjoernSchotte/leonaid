@@ -16,7 +16,7 @@ from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisSnapshot,
 )
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.modules.surveys.domain.validation import json_size
+from leonaid.modules.surveys.domain.validation import LEAF, clauses, json_size
 
 
 async def aggregate_selection(
@@ -124,8 +124,27 @@ async def read_snapshot(
 REFERENCE = re.compile(r"\{([^}]+)\}")
 
 
-def dependencies(definition: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
-    """Which answers each question's and page's visibleIf reads (R4/R5).
+def leaves(expression: Any) -> list[list[str]]:
+    """The comparisons of a visibleIf, as [name, operator, literal].
+
+    Splits and/or like the validator does. A part the leaf grammar does not
+    match is kept as an opaque leaf, which disclose never treats as simple.
+    """
+    if not isinstance(expression, str):
+        return []
+    operator, parts = clauses(expression)
+    if operator:
+        return [leaf for part in parts for leaf in leaves(part)]
+    match = LEAF.fullmatch(parts[0].strip())
+    if not match:
+        return [["", "opaque", parts[0].strip()]]
+    name, op, literal = match.groups()
+    return [[name, op, literal.strip()]]
+
+
+def dependencies(definition: dict[str, Any]) -> dict[str, Any]:
+    """Which answers each question's and page's visibleIf reads (R4/R5),
+    with the structure of each condition (its leaves).
 
     A reference like ``{matrix.r1}`` names the question ``matrix``.
     """
@@ -139,15 +158,26 @@ def dependencies(definition: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
 
     questions: dict[str, list[str]] = {}
     pages: dict[str, list[str]] = {}
+    question_leaves: dict[str, list[list[str]]] = {}
+    page_leaves: dict[str, list[list[str]]] = {}
     for page in definition.get("pages", []):
         page_refs = names(page.get("visibleIf"))
-        if page_refs:
+        page_conditions = leaves(page.get("visibleIf"))
+        if page_refs or page_conditions:
             pages[page["name"]] = page_refs
+            page_leaves[page["name"]] = page_conditions
         for element in page.get("elements", []):
             refs = sorted({*page_refs, *names(element.get("visibleIf"))})
-            if refs:
+            conditions = [*page_conditions, *leaves(element.get("visibleIf"))]
+            if refs or conditions:
                 questions[element["name"]] = refs
-    return {"questions": questions, "pages": pages}
+                question_leaves[element["name"]] = conditions
+    return {
+        "questions": questions,
+        "pages": pages,
+        "questionLeaves": question_leaves,
+        "pageLeaves": page_leaves,
+    }
 
 
 async def create_snapshot(
