@@ -583,7 +583,8 @@ describe("evaluation (summary)", () => {
 
   it("reader: disclosed aggregates with withheld counts, no list request", async () => {
     const client = await renderPage(summaryUrl, fakeClient(), "summary");
-    await screen.findByRole("heading", { level: 1, name: "Auswertung" });
+    // The loading view has the same h1: wait for the loaded count.
+    await screen.findByText("51 Teilnahmen");
     expect(client.getSurveyResponseAggregates).toHaveBeenCalledTimes(1);
     expect(client.listSurveyResponses).not.toHaveBeenCalled();
     const panel = screen.getByRole("region", { name: "1. Auswahl" });
@@ -600,7 +601,8 @@ describe("evaluation (summary)", () => {
   it("aggregate-only: analysis endpoints, no raw requests, no quotes", async () => {
     const client = fakeClient(["view_aggregates"]);
     await renderPage(summaryUrl, client, "summary");
-    await screen.findByRole("heading", { level: 1, name: "Auswertung" });
+    // The loading view has the same h1: wait for the loaded count.
+    await screen.findByText("51 Teilnahmen");
     expect(client.getSurveyAnalysis).toHaveBeenCalledTimes(1);
     expect(client.getSurveyResponseSelection).not.toHaveBeenCalled();
     expect(client.getSurveyResponseAggregates).not.toHaveBeenCalled();
