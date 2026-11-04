@@ -2614,9 +2614,7 @@ async def support_request_diagnostic(
     if diagnostic.status_code >= 500:
         outcome = "failed"
         impact = "Die Anfrage konnte nicht abgeschlossen werden."
-        next_step = (
-            "Betriebsstatus und Runbook zum genannten Fehlercode prüfen. Erst danach die betroffene Aktion wiederholen."
-        )
+        next_step = "Betriebsstatus und Runbook zum genannten Fehlercode prüfen. Erst danach die betroffene Aktion wiederholen."
     elif diagnostic.status_code >= 400:
         outcome = "rejected"
         impact = "Die Anfrage wurde kontrolliert abgelehnt."
