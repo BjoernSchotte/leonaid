@@ -185,7 +185,7 @@ test("task list: j/k, Enter, Esc, x, property keys, quick add, filter and palett
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("c");
   const quick = page.getByRole("form", { name: "Aufgabe schnell erfassen" });
-  const field = quick.getByLabel("Titel", { exact: true });
+  const field = quick.getByLabel("Neue Aufgabe", { exact: true });
   await expect(field).toBeFocused();
   await field.pressSequentially("jx Neue Tastaturaufgabe");
   await expect(taskPane(page)).toHaveCount(0);

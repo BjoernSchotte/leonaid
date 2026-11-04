@@ -84,7 +84,7 @@ test("S2 quick capture requires a visible editable list and keeps URL filters", 
     .click();
   const quick = page.getByRole("form", { name: "Aufgabe schnell erfassen" });
   await expect(quick).toBeVisible();
-  const field = quick.getByLabel("Titel", { exact: true });
+  const field = quick.getByLabel("Neue Aufgabe", { exact: true });
   await expect(field).toBeFocused();
   let writes = 0;
   page.on("request", (request) => {
@@ -171,7 +171,7 @@ for (const [surface, width] of [
     if (width <= 720) {
       expect(quickBox.height).toBeGreaterThanOrEqual(44);
     }
-    await quickForm.getByLabel("Titel", { exact: true }).press("Escape");
+    await quickForm.getByLabel("Neue Aufgabe", { exact: true }).press("Escape");
     await expect(quickForm).toHaveCount(0);
     if (surface === "app") {
       // Tasks live in the "Mehr" sheet; the tab bar stays in the viewport.

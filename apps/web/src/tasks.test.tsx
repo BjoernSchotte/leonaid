@@ -485,7 +485,7 @@ describe("tasks page", () => {
   it("opens the quick add for the palette's create request", async () => {
     const client = harness({});
     renderPage(client, { path: "/admin/tasks?create=task", strict: true });
-    const field = await screen.findByRole("textbox", { name: "Titel" });
+    const field = await screen.findByRole("textbox", { name: "Neue Aufgabe" });
     await act(async () => {});
     expect(document.activeElement).toBe(field);
     expect(window.location.search).not.toContain("create");

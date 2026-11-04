@@ -64,18 +64,18 @@ for (const [surface, width] of [
       name: "Aufgabe schnell erfassen",
       exact: true,
     });
-    await quick.getByLabel("Titel", { exact: true }).fill(title);
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).fill(title);
     const createdResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         /\/task-lists\/[^/]+\/tasks$/.test(response.url()) &&
         response.ok(),
     );
-    await quick.getByLabel("Titel", { exact: true }).press("Enter");
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).press("Enter");
     const createdTask = await (await createdResponse).json();
     await expect(taskRow(page, createdTask.id)).toBeVisible();
     // Esc leaves the quick add; the list keys work again.
-    await quick.getByLabel("Titel", { exact: true }).press("Escape");
+    await quick.getByLabel("Neue Aufgabe", { exact: true }).press("Escape");
     await expect(quick).toHaveCount(0);
 
     let pane = await openTask(page, { id: createdTask.id });

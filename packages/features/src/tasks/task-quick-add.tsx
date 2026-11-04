@@ -237,7 +237,7 @@ export function TaskQuickAdd({
       ref={form}
     >
       <label className="sr-only" htmlFor="quick-add-input">
-        Titel
+        Neue Aufgabe
       </label>
       <ListChecks aria-hidden="true" size={15} />
       <input
