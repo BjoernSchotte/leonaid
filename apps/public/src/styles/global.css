@@ -340,6 +340,10 @@ input[type="radio"] {
   padding-block: var(--s-3);
 }
 
+.site-header a {
+  color: inherit;
+}
+
 .site-header__home {
   display: inline-flex;
   align-items: center;
@@ -350,13 +354,18 @@ input[type="radio"] {
   text-decoration: none;
 }
 
-.site-header__promise {
+.site-header .site-header__promise {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 0 var(--s-2);
   color: var(--accent-ink);
   font-weight: var(--fw-semibold);
+}
+
+a.site-header__promise {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .public-brand {

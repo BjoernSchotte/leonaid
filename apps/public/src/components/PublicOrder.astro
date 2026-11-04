@@ -755,10 +755,11 @@ const checkIcon = "M20 6 9 17l-5-5";
 
             <div class="public-submit">
               <p class="small muted" data-order-submit-summary>
-                Mit „{orderForm.submitLabel}“ bestellen Sie
-                <span data-order-summary-quantity>{quantitySummary}</span> für
-                <span data-order-summary-total>{money(totalMinor, currency)}</span>.
-                Kein Kundenkonto nötig; die Rechnung kommt per E-Mail.
+                {`Mit „${orderForm.submitLabel}“ bestellen Sie `}
+                <span data-order-summary-quantity>{quantitySummary}</span>
+                {" für "}
+                <span data-order-summary-total>{money(totalMinor, currency)}</span>
+                {". Kein Kundenkonto nötig; die Rechnung kommt per E-Mail."}
               </p>
               <button
                 type="submit"

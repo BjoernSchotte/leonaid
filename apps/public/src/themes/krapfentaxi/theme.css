@@ -272,8 +272,7 @@
   box-shadow: none;
 }
 
-.taxi-site .order-form .input,
-.taxi-site .quantity-control input {
+.taxi-site .order-form .input {
   border-radius: 0.3rem;
   font-size: 1rem;
 }
