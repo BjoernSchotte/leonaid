@@ -29,15 +29,17 @@ for (const [template, width] of [
         new URL(`../fixtures/surveys/${template}.json`, import.meta.url),
       ),
     );
+    // The first copy of the original loop, the one that lost its acknowledgement.
+    const copy = 0;
     try {
       await page.goto(`${baseURL}/admin/surveys/new`);
       await page
         .getByLabel("Titel der Umfrage", { exact: true })
-        .fill(`Vorlage ${template} lost acknowledgement`);
+        .fill(`Vorlage ${template} ${copy}`);
       await page
         .getByLabel("Fragebogenvorlage", { exact: true })
         .selectOption(template);
-      // The creation loses only the acknowledgement after the actual commit.
+      // First creation loses only the acknowledgement after the actual commit.
       await page.route(
         "**/api/v1/surveys/*",
         async (route) => {
@@ -74,7 +76,7 @@ for (const [template, width] of [
       expect(draft.revision).toBe(1);
       expect(draft.definition).toEqual({
         ...expected,
-        title: `Vorlage ${template} lost acknowledgement`,
+        title: `Vorlage ${template} ${copy}`,
       });
     } finally {
       await context.close();

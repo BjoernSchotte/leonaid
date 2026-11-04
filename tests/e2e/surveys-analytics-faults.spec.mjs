@@ -41,6 +41,19 @@ test("analysis request retries a lost acknowledgement with the same filter", asy
     .selectOption(frozen.filter.versionId);
   await filters.getByLabel("Teilantworten", { exact: true }).check();
   await filters.getByLabel("In Bearbeitung", { exact: true }).check();
+  // Same precondition as in surveys-analytics.spec.mjs: a result for these
+  // filters is shown when the next request loses its acknowledgement.
+  const shown = page.waitForResponse(
+    (r) =>
+      r.url().endsWith(`/surveys/${frozen.surveyId}/analysis`) &&
+      r.request().method() === "POST",
+  );
+  await filters
+    .getByRole("button", { name: "Auswertung erstellen", exact: true })
+    .click();
+  const all = await (await shown).json();
+  expect(all.participationCount).toBe(6);
+  await expect(result).toHaveAttribute("data-snapshot-id", all.id);
   // Forward a real successful write, then lose its HTTP acknowledgement.
   let requestBody;
   let committed;
