@@ -203,6 +203,7 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   "Zuordnung fehlgeschlagen": "alert",
   "Kontaktzuordnung fehlgeschlagen": "alert",
   // surveys / campaigns / pages
+  Teilantwort: "review",
   Live: "progress",
   Geschlossen: "done",
   Aktiv: "progress",

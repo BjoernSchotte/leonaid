@@ -462,7 +462,7 @@ if [ "$mode" = exports ]; then
   export_verifier_pid=$!
 fi
 if [ "$mode" = analysis ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs tests/e2e/surveys-responses-faults.spec.mjs tests/e2e/surveys-responses-keyboard.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare

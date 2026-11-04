@@ -69,8 +69,15 @@
 .listview-main > .views,
 .listview-main > .toolbar,
 .listview-main > .bulkbar,
-.listview-main > .list-hint {
+.listview-main > .list-hint,
+.listview-main > .list-cap {
   margin-inline: var(--s-6);
+}
+/* renderLimit hint under the rows. */
+.list-cap {
+  margin-block: var(--s-3) 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 
 /* Saved views */
@@ -654,7 +661,8 @@
   .listview-main > .views,
   .listview-main > .toolbar,
   .listview-main > .bulkbar,
-  .listview-main > .list-hint {
+  .listview-main > .list-hint,
+  .listview-main > .list-cap {
     margin-inline: var(--s-4);
   }
   .list-hint {
