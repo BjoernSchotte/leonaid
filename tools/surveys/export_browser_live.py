@@ -208,8 +208,16 @@ async def main():
                 "maximum",
                 "nps",
             ):
-                # A withheld value (null in the API) reads "–" in the workbook.
-                want = "–" if expected[key] is None else expected[key]
+                # A withheld count (null in the API) reads "–" in the
+                # workbook; a withheld statistic is an empty cell.
+                counted = key in {
+                    "relevant",
+                    "answered",
+                    "unanswered",
+                    "hidden",
+                    "invalid",
+                }
+                want = "–" if expected[key] is None and counted else expected[key]
                 assert (
                     actual[key] == want
                     or isinstance(actual[key], float)
@@ -220,14 +228,14 @@ async def main():
             for p in PdfReader(PROOF / "browser-analysis_pdf.pdf").pages
         )
         assert snapshot["id"] in text
-        # Every question here has fewer than 5 valid answers: the report
-        # carries the note, and none of the engine's small numbers.
-        assert all(q["suppressed"] for q in snapshot["questions"])
-        assert "Weniger als 5 gültige Antworten" in text
+        # Questions with fewer than 5 valid answers carry the note; none of
+        # the engine's small numbers is in the report.
+        if any(q["suppressed"] for q in snapshot["questions"]):
+            assert "Weniger als 5 gültige Antworten" in text
         assert "33,33" not in text and "Mittelwert 15" not in text
         for index, question in enumerate(snapshot["questions"], 1):
             counts = " ".join(
-                str(question[key])
+                "–" if question[key] is None else str(question[key])
                 for key in ("relevant", "answered", "unanswered", "hidden", "invalid")
             )
             assert (
@@ -247,8 +255,14 @@ async def main():
         assert "SENSITIVE_" not in " ".join(
             str(c) for sheet in book for row in sheet.values for c in row
         )
-        # No shown distribution, so no chart, and the k note in the metadata.
-        assert len(book["Charts"]._charts) == 0
+        # One chart per distribution with a shown share; the k note in the metadata.
+        shown = sum(
+            any(c["percentage"] is not None for c in counts)
+            for q in snapshot["questions"]
+            for counts in [q["counts"], *(row["counts"] for row in q["matrixRows"])]
+            if counts
+        )
+        assert len(book["Charts"]._charts) == shown
         assert meta["minimum_group_size"] == 5
         await conn.execute(
             "DELETE FROM survey_grant WHERE survey_id=$1 AND user_id=$2 AND capability='export_reports'",

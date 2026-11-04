@@ -355,9 +355,13 @@ async def main():
                                 )
                         # One chart per shown distribution (k = 5 may hide all).
                         shown = sum(
-                            bool(q["counts"])
-                            + sum(1 for row in q["matrixRows"] if row["counts"])
+                            any(c["percentage"] is not None for c in counts)
                             for q in state["snapshot"]["questions"]
+                            for counts in [
+                                q["counts"],
+                                *(row["counts"] for row in q["matrixRows"]),
+                            ]
+                            if counts
                         )
                         assert len(workbook["Charts"]._charts) == shown
                         assert meta["minimum_group_size"] == 5

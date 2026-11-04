@@ -54,6 +54,10 @@ cleanup() {
     # The only background mutation belongs to this invocation's private project.
     docker rm -f "${project}-export-verifier" >/dev/null 2>&1 || true
     wait "$export_verifier_pid" || true
+    # A failed run shows why the background verifier failed (local log only).
+    if [ "$status" -ne 0 ] && [ -f "$proof/export-verifier.log" ]; then
+      tail -n 40 "$proof/export-verifier.log" >&2 || true
+    fi
   fi
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     compose ps >&2 || true

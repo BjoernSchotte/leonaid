@@ -7,7 +7,6 @@ from uuid import UUID
 
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
 from leonaid.modules.surveys.application.disclosure import (
-    K,
     AnalysisSnapshot as DisclosedSnapshot,
 )
 from leonaid.modules.surveys.application.response_selection import IndividualResponse

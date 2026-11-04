@@ -340,7 +340,8 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                         + ("…" if len(bucket.label) > 55 else ""),
                     ],
                 )
-            if not counts:
+            # No chart without a shown share (every cell withheld, k = 5).
+            if not counts or all(bucket.percentage is None for bucket in counts):
                 continue
             chart = BarChart()
             chart.type = "bar"

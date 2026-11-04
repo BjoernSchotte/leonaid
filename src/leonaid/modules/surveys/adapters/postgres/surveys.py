@@ -533,7 +533,9 @@ class AsyncpgSurveyRepository:
                         and "export_raw" not in access
                         and snapshot.get("disclosurePolicy") != "settled"
                     ):
-                        raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
+                        raise ResourceNotFound(
+                            "not_found", "Auswertung nicht gefunden."
+                        )
                     return snapshot
                 if operation.startswith("response-") and operation != "response-create":
                     return await read_responses(
