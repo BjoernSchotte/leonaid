@@ -174,6 +174,7 @@ function PilotDailyReportPanel({
           loading={report.isPending}
           onClick={() => report.mutate()}
           size="sm"
+          variant="secondary"
         >
           Tagesreport erstellen
         </Button>
@@ -338,7 +339,7 @@ export function OperationsTab({
               LeonAid versucht wartende Aufgaben automatisch erneut;
               fehlgeschlagene starten Sie unter „Hintergrundaufgaben“.
               <div className="cluster svc-actions">
-                <Button onClick={onShowJobs} size="sm">
+                <Button onClick={onShowJobs} size="sm" variant="secondary">
                   Betroffene Aufgaben ansehen
                 </Button>
               </div>
@@ -683,6 +684,7 @@ export function JobsTab({
                       icon={RotateCw}
                       onClick={() => setAsking(job)}
                       size="sm"
+                      variant="secondary"
                     >
                       Erneut versuchen
                     </Button>

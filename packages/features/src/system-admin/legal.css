@@ -66,6 +66,7 @@
 .legal-detail-header h2 {
   margin: 0;
   font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
 .legal-detail > .muted {
   max-width: 72ch;

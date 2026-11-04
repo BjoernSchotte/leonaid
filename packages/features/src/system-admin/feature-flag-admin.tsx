@@ -168,9 +168,8 @@ export function FlagsTab({ client }: FeatureFlagAdminPageProps) {
                   {flag.title}
                 </label>
                 <p className="small muted" id={`flag-${flag.key}-desc`}>
-                  {flag.description} {flag.effect}
+                  {flag.description}
                 </p>
-                <p className="small subtle mono">{flag.key}</p>
               </div>
               <span className="small muted num">Rev. {flag.revision}</span>
               <Badge tone={flag.enabled ? "ok" : "neutral"}>
@@ -207,8 +206,8 @@ export function FlagsTab({ client }: FeatureFlagAdminPageProps) {
         description={
           asking
             ? asking.enabled
-              ? `${asking.title} verschwindet für alle Mitglieder beim nächsten Seitenaufruf.`
-              : `${asking.title} erscheint für alle berechtigten Mitglieder beim nächsten Seitenaufruf.`
+              ? `${asking.title} verschwindet für alle Mitglieder beim nächsten Seitenaufruf. ${asking.effect}`
+              : `${asking.title} erscheint für alle berechtigten Mitglieder beim nächsten Seitenaufruf. ${asking.effect}`
             : ""
         }
         onConfirm={() => {

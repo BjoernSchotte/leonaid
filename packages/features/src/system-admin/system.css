@@ -21,7 +21,7 @@
   align-items: center;
   gap: var(--s-2);
 }
-:is(.system, .legal) p {
+:where(.system, .legal) p {
   margin: 0;
 }
 .system .stamp {

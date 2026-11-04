@@ -321,6 +321,7 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
                             disabled={busy}
                             onClick={() => setRevokeTarget(consent)}
                             size="sm"
+                            variant="secondary"
                           >
                             Kontakt sperren
                           </Button>

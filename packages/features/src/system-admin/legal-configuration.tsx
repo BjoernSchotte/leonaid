@@ -869,7 +869,7 @@ export function LegalConfigurationPage({
                   >
                     Abbrechen
                   </Button>
-                  <Button icon={Save} loading={save.isPending} type="submit">
+                  <Button icon={Save} loading={save.isPending} type="submit" variant="primary">
                     Als Entwurf speichern
                   </Button>
                 </div>

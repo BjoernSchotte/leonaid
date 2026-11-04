@@ -112,7 +112,7 @@ export function SystemPage({ client, identity }: SystemPageProps) {
         items={TABS.map((tab) => ({
           id: tab.id,
           label: tab.label,
-          count: tab.id === "jobs" ? failed : undefined,
+          count: tab.id === "jobs" && failed ? failed : undefined,
         }))}
         label="Systembereiche"
         onChange={go}
