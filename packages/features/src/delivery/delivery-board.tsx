@@ -378,7 +378,7 @@ export function DeliveryBoardPage({
 
   if (!actionId) {
     return (
-      <div className="page delivery">
+      <div className="delivery">
         <EmptyState
           headingLevel={2}
           icon={Truck}
@@ -398,7 +398,7 @@ export function DeliveryBoardPage({
     board.error.detail.code === "delivery_not_enabled";
 
   return (
-    <div className="page delivery" data-zone="delivery">
+    <div className="delivery" data-zone="delivery">
       <header className="page-header">
         <div>
           <div className="page-heading">
@@ -613,6 +613,7 @@ export function DeliveryBoardPage({
                           icon={CheckCheck}
                           onClick={() => setClosing(window.id)}
                           size="sm"
+                          variant="secondary"
                         >
                           Fenster abschließen
                         </Button>

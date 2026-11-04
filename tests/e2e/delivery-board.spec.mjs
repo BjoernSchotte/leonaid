@@ -93,6 +93,21 @@ test("managers assign, tick and close; drivers tick only their drops", async ({
     await page.screenshot({
       path: `${artifactDirectory}/delivery-board-desktop.png`,
     });
+    // Fidelity set: 1440 and 390, light and dark (theme follows the system).
+    for (const [width, height] of [
+      [1440, 900],
+      [390, 844],
+    ]) {
+      await page.setViewportSize({ width, height });
+      for (const scheme of ["light", "dark"]) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.screenshot({
+          path: `${artifactDirectory}/delivery-board-fidelity-${width}-${scheme}.png`,
+        });
+      }
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
 
     // Anna, in the PWA: her drops, no amounts, no planning controls.
     await mobile.goto(`${baseUrl}/app/delivery?action=${actionId}`);
