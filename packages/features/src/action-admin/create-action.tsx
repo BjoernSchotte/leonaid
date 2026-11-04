@@ -83,7 +83,7 @@ function templateHelp(template: ActionTemplateSummaryResponse): string {
   ];
   if (template.capabilities.includes("delivery")) {
     sentences.push(
-      "Die Liefertermine legst du nach dem Speichern des Entwurfs fest.",
+      "Die Liefertermine legen Sie nach dem Speichern des Entwurfs fest.",
     );
   }
   return sentences.join(" ");
@@ -245,8 +245,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <p className="action-page__eyebrow">Neue Charity-Aktion</p>
           <h1>Neue Aktion anlegen</h1>
           <p>
-            Lege die gemeinsamen Eckdaten fest. Bis zur Archivierung kannst du
-            alle Angaben wieder bearbeiten.
+            Legen Sie die gemeinsamen Eckdaten fest. Bis zur Archivierung können
+            Sie alle Angaben wieder bearbeiten.
           </p>
         </div>
       </header>
@@ -298,8 +298,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
                 {template
                   ? templateHelp(template)
                   : templates.isError
-                    ? "Die Vorlagen konnten nicht geladen werden. Du kannst eine individuelle Aktion anlegen."
-                    : "Wähle die benötigten Funktionen selbst."}
+                    ? "Die Vorlagen konnten nicht geladen werden. Sie können eine individuelle Aktion anlegen."
+                    : "Wählen Sie die benötigten Funktionen selbst."}
               </small>
             </label>
             <label className="action-field action-field--wide">
