@@ -183,6 +183,14 @@ OPEN_ACTION_STATUSES: frozenset[CharityActionStatus] = frozenset(
 )
 
 
+def charity_admin_required(status: CharityActionStatus) -> bool:
+    """Whether an action in this status must keep an active lead. The only
+    rule for it: server guard, directory flag and client all derive from
+    :data:`OPEN_ACTION_STATUSES`."""
+
+    return status in OPEN_ACTION_STATUSES
+
+
 @dataclass(frozen=True, slots=True)
 class AdminCoverage:
     """Who keeps the installation and its open actions manageable.

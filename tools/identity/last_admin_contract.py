@@ -17,7 +17,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -32,6 +33,7 @@ from leonaid.adapters.postgres.identity import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.application.errors import Conflict
+from leonaid.domain.actions import CharityAction
 from leonaid.domain.identity import (
     AccountStatus,
     ActionRole,
@@ -55,8 +57,10 @@ ADMIN_ONE = UUID("19000000-0000-4000-8000-000000000011")
 ADMIN_TWO = UUID("19000000-0000-4000-8000-000000000012")
 SOLO_ACTION = UUID("29000000-0000-4000-8000-000000000001")
 SHARED_ACTION = UUID("29000000-0000-4000-8000-000000000002")
+CREATED_ACTION = UUID("29000000-0000-4000-8000-000000000003")
+REFUSED_ACTION = UUID("29000000-0000-4000-8000-000000000004")
 USERS = (LEAD_ONE, LEAD_TWO, ADMIN_ONE, ADMIN_TWO)
-ACTIONS = (SOLO_ACTION, SHARED_ACTION)
+ACTIONS = (SOLO_ACTION, SHARED_ACTION, CREATED_ACTION, REFUSED_ACTION)
 RACE_ROUNDS = 12
 
 
@@ -70,6 +74,13 @@ def command(name: str) -> dict[str, str]:
 
 
 async def cleanup(connection: asyncpg.Connection[Any]) -> None:
+    # The golden system admin is active; a killed earlier run may have left
+    # it suspended (see prove_repository).
+    await connection.execute(
+        "UPDATE user_account SET status = 'active' WHERE id = $1"
+        " AND status = 'suspended'",
+        SYSTEM_ID,
+    )
     await connection.execute(
         "DELETE FROM command_receipt WHERE idempotency_key LIKE $1", f"{PREFIX}:%"
     )
@@ -94,9 +105,14 @@ async def cleanup(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         "DELETE FROM user_account WHERE id = ANY($1::uuid[])", list(USERS)
     )
-    await connection.execute(
-        "DELETE FROM beneficiary WHERE action_id = ANY($1::uuid[])", list(ACTIONS)
-    )
+    for table in (
+        "beneficiary",
+        "charity_action_capability",
+        "action_delivery_configuration",
+    ):
+        await connection.execute(
+            f"DELETE FROM {table} WHERE action_id = ANY($1::uuid[])", list(ACTIONS)
+        )
     await connection.execute(
         "DELETE FROM charity_action WHERE id = ANY($1::uuid[])", list(ACTIONS)
     )
@@ -375,7 +391,7 @@ async def prove_repository(
             identity.transition_account_status(
                 ADMIN_ONE,
                 target,
-                actor_user_id=ADMIN_TWO,
+                actor_user_id=ADMIN_ONE,
                 expected_revision=admin_revision,
                 occurred_at=now,
                 **command(f"last-system-{target.value}"),
@@ -388,13 +404,124 @@ async def prove_repository(
             ADMIN_ONE,
             GlobalRole.SYSTEM_ADMIN,
             enabled=False,
-            actor_user_id=ADMIN_TWO,
+            actor_user_id=ADMIN_ONE,
             expected_revision=admin_revision,
             occurred_at=now,
             **command("last-system-role"),
         ),
         "last_system_admin_role_forbidden",
         "revoking the last active system admin role",
+    )
+
+    # The actor's authority is re-read under the lock: ADMIN_TWO, suspended
+    # meanwhile, cannot finish a queued command.
+    async with pool.acquire() as connection:
+        lead_one_revision = await revision(connection, LEAD_ONE)
+    await expect_conflict(
+        identity.transition_account_status(
+            LEAD_ONE,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_TWO,
+            expected_revision=lead_one_revision,
+            occurred_at=now,
+            **command("stale-actor-status"),
+        ),
+        "admin_scope_changed",
+        "status change by a suspended system admin",
+    )
+    await expect_conflict(
+        identity.grant_global_role(
+            LEAD_ONE,
+            GlobalRole.FINANCE_READER,
+            enabled=True,
+            actor_user_id=ADMIN_TWO,
+            expected_revision=lead_one_revision,
+            occurred_at=now,
+            **command("stale-actor-global"),
+        ),
+        "admin_scope_changed",
+        "global role change by a suspended system admin",
+    )
+    await expect_conflict(
+        identity.grant_action_membership(
+            LEAD_ONE,
+            SHARED_ACTION,
+            ActionRole.ACQUIRER,
+            enabled=True,
+            actor=system_principal(ADMIN_TWO),
+            actor_user_id=ADMIN_TWO,
+            expected_revision=lead_one_revision,
+            occurred_at=now,
+            **command("stale-actor-membership"),
+        ),
+        "role_action_scope_changed",
+        "action role change by a suspended system admin",
+    )
+
+    # Action creation: the creator becomes the only lead, so it must be
+    # active (LEAD_TWO is suspended for this step).
+    template = await actions.get(SOLO_ACTION)
+    if template is None:
+        raise ContractFailure("solo action disappeared")
+    async with pool.acquire() as connection:
+        await connection.execute(
+            "UPDATE user_account SET status = 'suspended' WHERE id = $1", LEAD_TWO
+        )
+    await expect_conflict(
+        actions.create(
+            copy_action(template, REFUSED_ACTION),
+            responsible_admin_user_id=LEAD_TWO,
+            request_id=f"{PREFIX}:create-refused",
+            occurred_at=now,
+        ),
+        "action_responsible_administrator_unavailable",
+        "creating an action whose only lead is suspended",
+    )
+    async with pool.acquire() as connection:
+        await connection.execute(
+            "UPDATE user_account SET status = 'active' WHERE id = $1", LEAD_TWO
+        )
+
+    # Deterministic lock proof for every guarded path: while the lock is
+    # held, the command waits; after the holder rolls back, it finishes.
+    async with pool.acquire() as connection:
+        await reset_admins(connection)
+        two = await revision(connection, ADMIN_TWO)
+        lead_one_revision = await revision(connection, LEAD_ONE)
+    await expect_waits(
+        pool,
+        lambda: identity.transition_account_status(
+            ADMIN_TWO,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=two,
+            occurred_at=datetime.now(timezone.utc),
+            **command("lock-wait-status"),
+        ),
+        "account status change",
+    )
+    await expect_waits(
+        pool,
+        lambda: identity.grant_global_role(
+            LEAD_ONE,
+            GlobalRole.FINANCE_READER,
+            enabled=True,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=lead_one_revision,
+            occurred_at=datetime.now(timezone.utc),
+            **command("lock-wait-global"),
+        ),
+        "global role change",
+    )
+    await expect_waits(
+        pool,
+        lambda: actions.create(
+            copy_action(template, CREATED_ACTION),
+            responsible_admin_user_id=ADMIN_ONE,
+            request_id=f"{PREFIX}:create",
+            occurred_at=datetime.now(timezone.utc),
+        ),
+        "action creation",
     )
 
     # One lock: while it is held, status and role commands wait.
@@ -569,6 +696,40 @@ async def prove_repository(
             )
         await transaction.rollback()
     await asyncio.wait_for(replacing, timeout=10)
+
+
+def copy_action(template: CharityAction, action_id: UUID) -> CharityAction:
+    return replace(
+        template,
+        id=action_id,
+        name=f"{PREFIX}-{action_id}",
+        archive_slug=f"{PREFIX}-{str(action_id)[-4:]}",
+        revision=1,
+        beneficiaries=tuple(
+            replace(beneficiary, id=uuid4(), action_id=action_id)
+            for beneficiary in template.beneficiaries
+        ),
+    )
+
+
+async def expect_waits(
+    pool: asyncpg.Pool[Any],
+    start: Callable[[], Awaitable[object]],
+    what: str,
+) -> None:
+    """Hold the admin lock, start the command, see it wait, then release."""
+
+    async with pool.acquire() as holder:
+        transaction = holder.transaction()
+        await transaction.start()
+        await lock_admin_access(holder)
+        task = asyncio.ensure_future(start())
+        await asyncio.sleep(0.5)
+        if task.done():
+            await transaction.rollback()
+            raise ContractFailure(f"{what} did not wait for the admin lock")
+        await transaction.rollback()
+    await asyncio.wait_for(task, timeout=10)
 
 
 def system_principal(user_id: UUID) -> IdentityPrincipal:

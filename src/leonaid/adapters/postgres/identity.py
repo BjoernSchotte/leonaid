@@ -131,13 +131,70 @@ async def guard_admin_access(
         raise Conflict(code, message)
 
 
+async def actor_still_manages(
+    connection: asyncpg.Connection[Any],
+    actor_user_id: UUID,
+    *,
+    now: datetime,
+    action_id: UUID | None = None,
+) -> bool:
+    """Whether the actor is still an active system admin, or (with
+    ``action_id``) an active lead of that action. The request was authorized
+    before the lock; this re-reads it under :func:`lock_admin_access`."""
+
+    return bool(
+        await connection.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM user_account AS account
+                WHERE account.id = $1
+                  AND account.status = 'active'
+                  AND (
+                    EXISTS (
+                        SELECT 1 FROM user_global_role AS role
+                        WHERE role.user_id = account.id
+                          AND role.role = 'system_admin'
+                    )
+                    OR (
+                        $2::uuid IS NOT NULL
+                        AND EXISTS (
+                            SELECT 1 FROM action_membership AS membership
+                            WHERE membership.user_id = account.id
+                              AND membership.action_id = $2
+                              AND membership.role = 'charity_admin'
+                              AND membership.active_from <= $3
+                              AND (
+                                membership.active_until IS NULL
+                                OR membership.active_until > $3
+                              )
+                        )
+                    )
+                  )
+            )
+            """,
+            actor_user_id,
+            action_id,
+            now,
+        )
+    )
+
+
+_ADMIN_SCOPE_CHANGED = (
+    "admin_scope_changed",
+    "Ihre Verwaltungsrolle wurde zwischenzeitlich geändert. Bitte laden Sie "
+    "den aktuellen Stand.",
+)
+
+
 _LAST_SYSTEM_ADMIN_ROLE = (
     "last_system_admin_role_forbidden",
     "Die Rolle des letzten aktiven System-Admins kann nicht entfernt werden.",
 )
 _LAST_CHARITY_ADMIN_ROLE = (
     "last_charity_admin_role_forbidden",
-    "Die letzte Charity-Admin-Rolle einer laufenden Aktion kann nicht entfernt werden.",
+    "Die letzte aktive Charity-Admin-Rolle einer offenen Aktion kann nicht "
+    "entfernt werden. Bestimmen Sie zuerst eine weitere aktive Aktionsleitung.",
 )
 _STATUS_CODES: dict[AccountStatus, dict[AdminInvariant, tuple[str, str]]] = {
     AccountStatus.SUSPENDED: {
@@ -147,8 +204,8 @@ _STATUS_CODES: dict[AccountStatus, dict[AdminInvariant, tuple[str, str]]] = {
         ),
         AdminInvariant.LAST_CHARITY_ADMIN: (
             "last_charity_admin_suspension_forbidden",
-            "Der letzte aktive Charity-Admin einer laufenden Aktion kann "
-            "nicht gesperrt werden. Bestimmen Sie zuerst eine weitere "
+            "Der letzte aktive Charity-Admin einer offenen Aktion kann "
+            "nicht gesperrt werden. Bestimmen Sie zuerst eine weitere aktive "
             "Aktionsleitung.",
         ),
     },
@@ -159,8 +216,8 @@ _STATUS_CODES: dict[AccountStatus, dict[AdminInvariant, tuple[str, str]]] = {
         ),
         AdminInvariant.LAST_CHARITY_ADMIN: (
             "last_charity_admin_archival_forbidden",
-            "Der letzte aktive Charity-Admin einer laufenden Aktion kann "
-            "nicht archiviert werden. Bestimmen Sie zuerst eine weitere "
+            "Der letzte aktive Charity-Admin einer offenen Aktion kann "
+            "nicht archiviert werden. Bestimmen Sie zuerst eine weitere aktive "
             "Aktionsleitung.",
         ),
     },
@@ -647,6 +704,10 @@ class AsyncpgIdentityRepository:
                             "abgeschlossen. Bitte versuche es erneut.",
                         )
                     return replayed_status_change(receipt["result"])
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at
+                ):
+                    raise Conflict(*_ADMIN_SCOPE_CHANGED)
                 row = await connection.fetchrow(
                     """
                     SELECT
@@ -654,7 +715,7 @@ class AsyncpgIdentityRepository:
                         revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -810,12 +871,16 @@ class AsyncpgIdentityRepository:
                 )
                 if replayed is not None:
                     return replayed
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at
+                ):
+                    raise Conflict(*_ADMIN_SCOPE_CHANGED)
                 account = await connection.fetchrow(
                     """
                     SELECT revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -946,7 +1011,7 @@ class AsyncpgIdentityRepository:
                     SELECT revision
                     FROM user_account
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     user_id,
                 )
@@ -955,7 +1020,7 @@ class AsyncpgIdentityRepository:
                     SELECT id, name, status
                     FROM charity_action
                     WHERE id = $1
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     action_id,
                 )
@@ -968,33 +1033,14 @@ class AsyncpgIdentityRepository:
                         "Die Rollen wurden zwischenzeitlich geändert. "
                         "Bitte lade den aktuellen Stand.",
                     )
-                if not actor.is_system_admin:
-                    actor_still_manages = bool(
-                        await connection.fetchval(
-                            """
-                            SELECT EXISTS (
-                                SELECT 1
-                                FROM action_membership
-                                WHERE action_id = $1
-                                  AND user_id = $2
-                                  AND role = 'charity_admin'
-                                  AND active_from <= $3
-                                  AND (
-                                    active_until IS NULL OR active_until > $3
-                                  )
-                            )
-                            """,
-                            action_id,
-                            actor_user_id,
-                            occurred_at,
-                        )
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at, action_id=action_id
+                ):
+                    raise Conflict(
+                        "role_action_scope_changed",
+                        "Deine Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte lade den aktuellen Stand.",
                     )
-                    if not actor_still_manages:
-                        raise Conflict(
-                            "role_action_scope_changed",
-                            "Deine Verwaltungsrolle wurde zwischenzeitlich "
-                            "geändert. Bitte lade den aktuellen Stand.",
-                        )
                 if role is ActionRole.DRIVER and not bool(
                     await connection.fetchval(
                         """
@@ -1017,7 +1063,7 @@ class AsyncpgIdentityRepository:
                     SELECT id, active_from, active_until
                     FROM action_membership
                     WHERE action_id = $1 AND user_id = $2 AND role = $3
-                    FOR UPDATE
+                    FOR NO KEY UPDATE
                     """,
                     action_id,
                     user_id,

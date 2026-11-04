@@ -42,6 +42,7 @@ from leonaid.domain.identity import (
     AdminCoverage,
     AdminInvariant,
     admin_invariant_violation,
+    charity_admin_required,
 )
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
@@ -390,6 +391,8 @@ def test_open_actions_need_a_lead() -> None:
         CharityActionStatus.SCHEDULED,
         CharityActionStatus.ACTIVE,
     }
+    for status in CharityActionStatus:
+        assert charity_admin_required(status) is (status in OPEN_ACTION_STATUSES)
 
 
 _ADMIN_A = UUID("90000000-0000-4000-8000-00000000000a")

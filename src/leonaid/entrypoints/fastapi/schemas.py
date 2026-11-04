@@ -2126,6 +2126,53 @@ AUTHENTICATED_CONFLICT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
 }
 
+
+def _conflicts(*codes: str) -> dict[int | str, dict[str, object]]:
+    """Authenticated responses whose 409 lists the command's stable codes."""
+
+    return {
+        **AUTHENTICATED_ERROR_RESPONSES,
+        409: {
+            "model": ApiErrorResponse,
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. "
+            "Stabile Codes: " + ", ".join(f"`{code}`" for code in codes) + ".",
+        },
+    }
+
+
+# The admin-access invariants: at least one active system admin and one
+# active lead (charity admin) per open action; only active accounts count.
+MEMBER_STATUS_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "account_status_unchanged",
+    "account_invitation_activation_forbidden",
+    "account_self_status_change_forbidden",
+    "admin_scope_changed",
+    "last_system_admin_suspension_forbidden",
+    "last_system_admin_archival_forbidden",
+    "last_charity_admin_suspension_forbidden",
+    "last_charity_admin_archival_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "admin_scope_changed",
+    "last_system_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "role_action_scope_changed",
+    "driver_role_capability_missing",
+    "last_charity_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+
 RequestIdHeader = Annotated[
     str | None,
     Field(
