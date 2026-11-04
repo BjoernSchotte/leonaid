@@ -587,7 +587,11 @@ async def prove_repository(
         ]
         if unexpected:
             raise ContractFailure(f"race round {round_number}: {unexpected[0]!r}")
+        # The loser is refused either because its actor lost the system-admin
+        # authority to the winner (re-read under the lock), or by the
+        # invariant itself.
         if len(refused) != 1 or refused[0].code not in {
+            "admin_scope_changed",
             "last_system_admin_suspension_forbidden",
             "last_system_admin_role_forbidden",
         }:
