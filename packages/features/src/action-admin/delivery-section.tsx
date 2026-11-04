@@ -36,6 +36,8 @@ interface Props {
   readonly endsOn: string;
   /** Read-only (archived action, or no ordering): no changes offered. */
   readonly disabled?: boolean;
+  /** Why it is read-only; picks the "Nur lesen." text. */
+  readonly disabledReason?: "archived" | "no-ordering";
   /** Read the booked boxes per window (the action takes orders). */
   readonly ordering?: boolean;
   /** Standalone use (new action): an own heading above the windows. */
@@ -157,6 +159,7 @@ function DeliveryWindows({
   client,
   config,
   disabled = false,
+  disabledReason = "archived",
   endsOn,
   heading,
   queryKey,
@@ -235,8 +238,9 @@ function DeliveryWindows({
       {heading}
       {disabled ? (
         <ReadOnlyNotice data-testid="delivery-read-only">
-          Die Lieferfenster bleiben nachvollziehbar, lassen sich hier aber nicht
-          mehr ändern.
+          {disabledReason === "no-ordering"
+            ? "Lieferfenster gibt es nur für Aktionen mit Bestellungen. Aktivieren Sie unter „Bearbeiten“ die Funktion Bestellungen."
+            : "Die Lieferfenster der archivierten Aktion bleiben nachvollziehbar, lassen sich aber nicht mehr ändern."}
         </ReadOnlyNotice>
       ) : open.length === 0 ? (
         <NextStep
@@ -397,7 +401,7 @@ function DeliveryWindows({
         confirmLabel="Fenster stilllegen"
         description={
           pausing
-            ? `${windowLabel(pausing)} wird im Bestellformular und in der Akquise nicht mehr angeboten. Bestehende Bestellungen behalten ihren Zeitraum. Das lässt sich nicht rückgängig machen; legen Sie bei Bedarf ein neues Fenster an.`
+            ? `${windowLabel(pausing)} wird im Bestellformular und in der Akquise nicht mehr angeboten. Bestehende Bestellungen${booked?.get(pausing.id) ? ` (${booked.get(pausing.id)} gebuchte Boxen)` : ""} behalten ihren Zeitraum. Das lässt sich nicht rückgängig machen; legen Sie bei Bedarf ein neues Fenster an.`
             : ""
         }
         onConfirm={() => {

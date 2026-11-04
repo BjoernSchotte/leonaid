@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Plus, Save } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type {
   ActionManagementResponse,
@@ -17,6 +17,7 @@ import {
   NextStep,
   StatusMessage,
   Textarea,
+  useLeaveGuard,
   useOptionalToast,
 } from "@leonaid/ui";
 
@@ -32,6 +33,14 @@ export interface SharedSectionProps {
   readonly state: ActionManagementResponse;
   readonly updateAction: (action: CharityActionResponse) => void;
   readonly updateState: (state: ActionManagementResponse) => void;
+  /**
+   * The revision to send for a draft begun at `base`: later revisions this
+   * page saved itself count as known, any other change keeps `base`, so the
+   * server answers with a conflict instead of a silent overwrite.
+   */
+  readonly revisionFor: (base: number) => number;
+  /** A form reports unsaved input (for the page's discard question). */
+  readonly onDirty?: (form: string, dirty: boolean) => void;
 }
 
 export const statusLabels: Readonly<Record<ActionStatus, string>> = {
@@ -42,15 +51,35 @@ export const statusLabels: Readonly<Record<ActionStatus, string>> = {
   scheduled: "Geplant",
 };
 
-/** Error under a form; a stale revision links to the current state. */
-function SectionError({ error }: { readonly error?: ActionErrorMessage }) {
+/**
+ * Error under a form. After a stale revision the person can load the
+ * current state into the form (their input is replaced) or compare it in
+ * a new tab first.
+ */
+function SectionError({
+  error,
+  onReload,
+}: {
+  readonly error?: ActionErrorMessage;
+  readonly onReload?: () => void;
+}) {
   if (!error) return null;
+  const conflict = isRevisionConflict(error) || error.conflict;
   return (
     <StatusMessage tone="error">
       <span>{error.message}</span>
-      {isRevisionConflict(error) || error.conflict ? (
-        <>
-          {" "}
+      {conflict ? (
+        <span className="section-error-actions">
+          {onReload ? (
+            <Button
+              data-testid="section-reload"
+              onClick={onReload}
+              size="sm"
+              variant="secondary"
+            >
+              Aktuellen Stand laden
+            </Button>
+          ) : null}
           <a
             href={`${window.location.pathname}${window.location.search}${window.location.hash}`}
             rel="noreferrer"
@@ -58,10 +87,51 @@ function SectionError({ error }: { readonly error?: ActionErrorMessage }) {
           >
             Aktuellen Stand in neuem Tab öffnen
           </a>
-        </>
+        </span>
       ) : null}
     </StatusMessage>
   );
+}
+
+/**
+ * A form's draft with the revision it was begun from. The draft is dirty
+ * while it differs from what was last loaded or saved; that guards the
+ * page against leaving and is reported to it.
+ */
+export function useSectionDraft<T>(
+  form: string,
+  fromAction: () => T,
+  props: Pick<SharedSectionProps, "state" | "revisionFor" | "onDirty">,
+) {
+  const [draft, setDraft] = useState<T>(fromAction);
+  const [baseline, setBaseline] = useState<T>(fromAction);
+  const [base, setBase] = useState(props.state.action.revision);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+  useLeaveGuard(dirty);
+  const onDirty = props.onDirty;
+  useEffect(() => {
+    onDirty?.(form, dirty);
+    return () => onDirty?.(form, false);
+  }, [dirty, form, onDirty]);
+  return {
+    draft,
+    setDraft,
+    dirty,
+    /** The revision to send with this draft. */
+    revision: props.revisionFor(base),
+    /** After a save: the saved draft is the new baseline. */
+    saved(next: T, revision: number) {
+      setBaseline(next);
+      setBase(revision);
+    },
+    /** Load the current state into the form. */
+    reset() {
+      const fresh = fromAction();
+      setDraft(fresh);
+      setBaseline(fresh);
+      setBase(props.state.action.revision);
+    },
+  };
 }
 
 /** A titled form block of the edit mode (prototype .tab-h2 heading). */
@@ -135,27 +205,31 @@ function SaveButton({
   );
 }
 
-export function DetailsSection({
-  client,
-  disabled,
-  state,
-  updateAction,
-}: SharedSectionProps) {
+export function DetailsSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateAction } = props;
   const action = state.action;
-  const [draft, setDraft] = useState(() => ({
-    carrierName: action.carrierName,
-    endsOn: action.endsOn,
-    name: action.name,
-    purpose: action.purpose,
-    startsOn: action.startsOn,
-  }));
-  const { error, mutation } = useSectionSave(
+  const form = useSectionDraft(
+    "details",
+    () => ({
+      carrierName: state.action.carrierName,
+      endsOn: state.action.endsOn,
+      name: state.action.name,
+      purpose: state.action.purpose,
+      startsOn: state.action.startsOn,
+    }),
+    props,
+  );
+  const { draft, setDraft } = form;
+  const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionDetails(action.id, {
         ...draft,
-        revision: action.revision,
+        revision: form.revision,
       }),
-    updateAction,
+    (updated) => {
+      form.saved(draft, updated.revision);
+      updateAction(updated);
+    },
     "Grunddaten und Zeitraum wurden gespeichert.",
   );
 
@@ -278,34 +352,44 @@ export function DetailsSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }
 
-export function GoalSection({
-  client,
-  disabled,
-  state,
-  updateAction,
-}: SharedSectionProps) {
+export function GoalSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateAction } = props;
   const action = state.action;
-  const [draft, setDraft] = useState(() => ({
-    actualValue: action.goal.actualValue,
-    currency: action.goal.currency ?? "",
-    goalValue: action.goal.goalValue ?? "",
-    unit: action.goal.unit ?? "",
-  }));
-  const { error, mutation } = useSectionSave(
+  const form = useSectionDraft(
+    "goal",
+    () => ({
+      actualValue: state.action.goal.actualValue,
+      currency: state.action.goal.currency ?? "",
+      goalValue: state.action.goal.goalValue ?? "",
+      unit: state.action.goal.unit ?? "",
+    }),
+    props,
+  );
+  const { draft, setDraft } = form;
+  const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionGoal(action.id, {
         actualValue: draft.actualValue,
         currency: draft.currency || null,
         goalValue: draft.goalValue || null,
-        revision: action.revision,
+        revision: form.revision,
         unit: draft.unit || null,
       }),
-    updateAction,
+    (updated) => {
+      form.saved(draft, updated.revision);
+      updateAction(updated);
+    },
     "Aktionsziel und Fortschritt wurden gespeichert.",
   );
 
@@ -402,7 +486,13 @@ export function GoalSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }
@@ -413,30 +503,33 @@ interface BeneficiaryDraft {
   readonly publicDescription: string;
 }
 
-export function BeneficiariesSection({
-  client,
-  disabled,
-  state,
-  updateAction,
-}: SharedSectionProps) {
+export function BeneficiariesSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateAction } = props;
   const action = state.action;
-  const [draft, setDraft] = useState<BeneficiaryDraft[]>(() =>
-    action.beneficiaries.map((item, index) => ({
-      key: index,
-      organizationName: item.organizationName,
-      publicDescription: item.publicDescription,
-    })),
+  const form = useSectionDraft<BeneficiaryDraft[]>(
+    "beneficiaries",
+    () =>
+      state.action.beneficiaries.map((item, index) => ({
+        key: index,
+        organizationName: item.organizationName,
+        publicDescription: item.publicDescription,
+      })),
+    props,
   );
-  const { error, mutation } = useSectionSave(
+  const { draft, setDraft } = form;
+  const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionBeneficiaries(action.id, {
         beneficiaries: draft.map(({ organizationName, publicDescription }) => ({
           organizationName,
           publicDescription,
         })),
-        revision: action.revision,
+        revision: form.revision,
       }),
-    updateAction,
+    (updated) => {
+      form.saved(draft, updated.revision);
+      updateAction(updated);
+    },
     "Die Begünstigten wurden gespeichert.",
   );
 
@@ -552,7 +645,13 @@ export function BeneficiariesSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }
@@ -590,23 +689,25 @@ export const capabilityOptions: ReadonlyArray<{
   },
 ];
 
-export function CapabilitiesSection({
-  client,
-  disabled,
-  state,
-  updateAction,
-}: SharedSectionProps) {
+export function CapabilitiesSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateAction } = props;
   const action = state.action;
-  const [selected, setSelected] = useState<Capability[]>(() => [
-    ...action.capabilities,
-  ]);
-  const { error, mutation } = useSectionSave(
+  const form = useSectionDraft<Capability[]>(
+    "capabilities",
+    () => [...state.action.capabilities],
+    props,
+  );
+  const { draft: selected, setDraft: setSelected } = form;
+  const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionCapabilities(action.id, {
         capabilities: selected,
-        revision: action.revision,
+        revision: form.revision,
       }),
-    updateAction,
+    (updated) => {
+      form.saved(selected, updated.revision);
+      updateAction(updated);
+    },
     "Die Funktionen der Aktion wurden gespeichert.",
   );
 
@@ -661,30 +762,39 @@ export function CapabilitiesSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }
 
-export function AdministratorsSection({
-  client,
-  disabled,
-  state,
-  updateState,
-}: SharedSectionProps) {
+export function AdministratorsSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateState } = props;
   const action = state.action;
-  const [selected, setSelected] = useState<string[]>(() =>
-    state.administratorOptions
-      .filter((option) => option.isResponsible)
-      .map((option) => option.userId),
+  const form = useSectionDraft<string[]>(
+    "administrators",
+    () =>
+      state.administratorOptions
+        .filter((option) => option.isResponsible)
+        .map((option) => option.userId),
+    props,
   );
+  const { draft: selected, setDraft: setSelected } = form;
   const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionResponsibleAdministrators(action.id, {
-        revision: action.revision,
+        revision: form.revision,
         userIds: selected,
       }),
-    updateState,
+    (updated) => {
+      form.saved(selected, updated.action.revision);
+      updateState(updated);
+    },
     "Die verantwortlichen Admins wurden gespeichert.",
   );
 
@@ -759,7 +869,13 @@ export function AdministratorsSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }
@@ -775,18 +891,19 @@ function isoDateTime(value: string): string {
   return new Date(value).toISOString();
 }
 
-export function PublicationSection({
-  client,
-  disabled,
-  state,
-  updateState,
-}: SharedSectionProps) {
+export function PublicationSection(props: SharedSectionProps) {
+  const { client, disabled, state, updateState } = props;
   const action = state.action;
-  const [draft, setDraft] = useState(() => ({
-    alias: state.publicAlias ?? "",
-    endsAt: localDateTime(action.publicationEndsAt),
-    startsAt: localDateTime(action.publicationStartsAt),
-  }));
+  const form = useSectionDraft(
+    "publication",
+    () => ({
+      alias: state.publicAlias ?? "",
+      endsAt: localDateTime(state.action.publicationEndsAt),
+      startsAt: localDateTime(state.action.publicationStartsAt),
+    }),
+    props,
+  );
+  const { draft, setDraft } = form;
   const { error, mutation, setError } = useSectionSave(
     () =>
       client.setCharityActionPublication(action.id, {
@@ -795,9 +912,12 @@ export function PublicationSection({
         publicationStartsAt: draft.startsAt
           ? isoDateTime(draft.startsAt)
           : null,
-        revision: action.revision,
+        revision: form.revision,
       }),
-    updateState,
+    (updated) => {
+      form.saved(draft, updated.action.revision);
+      updateState(updated);
+    },
     "Die Einstellungen der öffentlichen Seite wurden gespeichert.",
   );
   const partialWindow = Boolean(draft.startsAt) !== Boolean(draft.endsAt);
@@ -886,7 +1006,13 @@ export function PublicationSection({
           </div>
         </fieldset>
       </form>
-      <SectionError error={error} />
+      <SectionError
+        error={error}
+        onReload={() => {
+          setError(undefined);
+          form.reset();
+        }}
+      />
     </EditSection>
   );
 }

@@ -226,8 +226,16 @@ function fakeClient(state: ActionManagementResponse = management()) {
       ...configuration,
       action: action({ id: "new-id" }),
     })),
-    setCharityActionDetails: vi.fn(),
+    setCharityActionDetails: vi.fn(
+      async (_id: string, body: { revision: number; name: string }) =>
+        action({ name: body.name, revision: body.revision + 1 }),
+    ),
+    setCharityActionGoal: vi.fn(
+      async (_id: string, body: { revision: number }) =>
+        action({ revision: body.revision + 1 }),
+    ),
     setCharityActionPublication: vi.fn(),
+    updateCampaignAlias: vi.fn(),
   };
 }
 
@@ -252,8 +260,193 @@ async function renderPage(
     </QueryClientProvider>,
   );
   await screen.findByTestId("management-title");
+  lastQueryClient = queryClient;
   return client;
 }
+
+let lastQueryClient: QueryClient | undefined;
+
+describe("action detail: drafts and revisions", () => {
+  it("keeps Esc in a form field: no navigation", async () => {
+    const assign = vi.fn();
+    await renderPage("#aliases");
+    const field = await screen.findByTestId("publication-alias");
+    const { pathname, search, hash } = window.location;
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+      pathname,
+      search,
+      hash,
+    } as Location);
+    field.focus();
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(assign).not.toHaveBeenCalled();
+    field.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/admin/actions"));
+  });
+
+  it("asks before leaving the edit mode with unsaved input", async () => {
+    await renderPage("#overview/edit");
+    fireEvent.change(screen.getByTestId("manage-name"), {
+      target: { value: "Neuer Name" },
+    });
+    fireEvent.click(screen.getByTestId("action-edit-done"));
+    const ask = within(
+      await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+    );
+    fireEvent.click(ask.getByRole("button", { name: "Weiter bearbeiten" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect((screen.getByTestId("manage-name") as HTMLInputElement).value).toBe(
+      "Neuer Name",
+    );
+    // A number key asks too; "Verwerfen" leaves.
+    fireEvent.keyDown(document.body, { key: "3" });
+    fireEvent.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Entwurf verwerfen?" }),
+      ).getByRole("button", { name: "Verwerfen" }),
+    );
+    await screen.findByTestId("alias-list");
+    expect(screen.queryByTestId("manage-name")).toBeNull();
+  });
+
+  it("sends the page's own newer revision after its own save", async () => {
+    const client = await renderPage("#overview/edit");
+    fireEvent.change(screen.getByTestId("manage-name"), {
+      target: { value: "Neuer Name" },
+    });
+    fireEvent.click(screen.getByTestId("save-details"));
+    await waitFor(() =>
+      expect(client.setCharityActionDetails).toHaveBeenCalledWith(
+        actionId,
+        expect.objectContaining({ revision: 7 }),
+      ),
+    );
+    fireEvent.change(screen.getByTestId("manage-actual"), {
+      target: { value: "950" },
+    });
+    fireEvent.click(screen.getByTestId("save-goal"));
+    await waitFor(() =>
+      expect(client.setCharityActionGoal).toHaveBeenCalledWith(
+        actionId,
+        expect.objectContaining({ revision: 8 }),
+      ),
+    );
+  });
+
+  it("keeps the draft's revision when someone else changed the action", async () => {
+    const client = fakeClient();
+    await renderPage("#overview/edit", client);
+    fireEvent.change(screen.getByTestId("manage-name"), {
+      target: { value: "Meine Änderung" },
+    });
+    // A refetch (window focus) brings another admin's revision 9.
+    client.getCharityActionManagement.mockResolvedValue(
+      management({ revision: 9, name: "Fremde Änderung" }),
+    );
+    await lastQueryClient!.invalidateQueries();
+    await waitFor(() =>
+      expect(client.getCharityActionManagement).toHaveBeenCalledTimes(2),
+    );
+    client.setCharityActionDetails.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "action_revision_conflict",
+        message: "Konflikt",
+        requestId: "r9",
+      }),
+    );
+    fireEvent.click(screen.getByTestId("save-details"));
+    await waitFor(() =>
+      expect(client.setCharityActionDetails).toHaveBeenCalledWith(
+        actionId,
+        expect.objectContaining({ name: "Meine Änderung", revision: 7 }),
+      ),
+    );
+    // "Aktuellen Stand laden" replaces the draft with the current state.
+    fireEvent.click(await screen.findByTestId("section-reload"));
+    expect((screen.getByTestId("manage-name") as HTMLInputElement).value).toBe(
+      "Fremde Änderung",
+    );
+  });
+
+  it("retries an alias change with the fresh revision after a conflict", async () => {
+    const client = fakeClient();
+    client.updateCampaignAlias
+      .mockRejectedValueOnce(
+        new ApiError(409, {
+          code: "campaign_alias_revision_conflict",
+          message: "Konflikt",
+          requestId: "r2",
+        }),
+      )
+      .mockResolvedValueOnce({
+        actionId,
+        alias: "krapfen-flyer",
+        aliasId: "a2",
+        enabled: false,
+        removed: false,
+        revision: 4,
+      });
+    await renderPage("#aliases", client);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "/krapfen-flyer bearbeiten" }),
+    );
+    const dialog = within(
+      screen.getByRole("dialog", { name: "/krapfen-flyer bearbeiten" }),
+    );
+    fireEvent.change(dialog.getByTestId("alias-enabled"), {
+      target: { value: "disabled" },
+    });
+    // Meanwhile the alias has revision 3 on the server.
+    const fresh = await client.listCampaignAliases();
+    client.listCampaignAliases.mockResolvedValue({
+      ...fresh,
+      items: fresh.items.map((item) =>
+        item.aliasId === "a2" ? { ...item, revision: 3 } : item,
+      ),
+    });
+    const loads = client.listCampaignAliases.mock.calls.length;
+    fireEvent.click(dialog.getByTestId("alias-save"));
+    expect(
+      await dialog.findByText(/Ihre Eingaben bleiben erhalten/),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(client.listCampaignAliases.mock.calls.length).toBeGreaterThan(
+        loads,
+      ),
+    );
+    fireEvent.click(dialog.getByTestId("alias-save"));
+    await waitFor(() =>
+      expect(client.updateCampaignAlias).toHaveBeenLastCalledWith(
+        actionId,
+        "a2",
+        expect.objectContaining({ revision: 3, enabled: false }),
+      ),
+    );
+  });
+
+  it("shows the overview for #delivery without delivery and names it", async () => {
+    await renderPage(
+      "#delivery",
+      fakeClient(management({ capabilities: ["ordering"] })),
+    );
+    await waitFor(() => expect(window.location.hash).toBe("#overview"));
+    expect(screen.getByTestId("action-overview")).toBeTruthy();
+  });
+
+  it("marks the aliases of an archived action as read-only", async () => {
+    await renderPage(
+      "#aliases",
+      fakeClient(management({ status: "archived" }, [])),
+    );
+    expect(
+      (await screen.findByTestId("aliases-read-only")).textContent,
+    ).toContain("Nur lesen.");
+    expect(screen.queryByTestId("alias-add")).toBeNull();
+  });
+});
 
 describe("action location", () => {
   it("maps tabs, edit mode and the former panel hashes", () => {

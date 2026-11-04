@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Pencil, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -20,6 +20,8 @@ import {
   StatusLabel,
   TabPanel,
   Tabs,
+  isTypingTarget,
+  useDiscardDialog,
   useHotkeys,
 } from "@leonaid/ui";
 
@@ -268,16 +270,94 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
   const archived = query.data?.action.status === "archived";
   const editing = location.editing && !archived;
 
-  const go = useCallback((next: Location) => {
-    setLocation(next);
-    window.history.replaceState(window.history.state, "", locationHash(next));
+  // Revisions this page saved itself; a draft begun before them is current.
+  const ownRevisions = useRef(new Set<number>());
+  const revisionFor = useCallback((base: number) => {
+    let revision = base;
+    while (ownRevisions.current.has(revision + 1)) revision += 1;
+    return revision;
   }, []);
+  // Forms with unsaved input; leaving them asks first.
+  const [dirtyForms, setDirtyForms] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onDirty = useCallback((form: string, dirty: boolean) => {
+    setDirtyForms((current) => {
+      if (current.has(form) === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(form);
+      else next.delete(form);
+      return next;
+    });
+  }, []);
+  const discard = useDiscardDialog("Sie");
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const dirtyRef = useRef(dirtyForms);
+  dirtyRef.current = dirtyForms;
+
+  /** Whether leaving `from` for `to` unmounts a form with unsaved input. */
+  const losesInput = (from: Location, to: Location) => {
+    if (dirtyRef.current.size === 0) return false;
+    if (from.tab === to.tab && from.editing === to.editing) return false;
+    return true;
+  };
+
+  const go = useCallback(
+    async (next: Location) => {
+      const from = locationRef.current;
+      if (losesInput(from, next) && !(await discard.confirmDiscard())) return;
+      setLocation(next);
+      // One history entry per tab, so Back steps through the tabs.
+      if (locationHash(next) !== window.location.hash) {
+        window.history.pushState(window.history.state, "", locationHash(next));
+      }
+    },
+    // losesInput reads refs only.
+    [discard],
+  );
+
+  const leaveToList = useCallback(async () => {
+    if (dirtyRef.current.size > 0 && !(await discard.confirmDiscard())) return;
+    window.location.assign("/admin/actions");
+  }, [discard]);
 
   useEffect(() => {
-    const onHash = () => setLocation(actionLocation(window.location.hash));
+    // Back/Forward and hash links: ask before a draft goes away; on
+    // "Weiter bearbeiten" the previous hash comes back.
+    const onHash = () => {
+      const from = locationRef.current;
+      const next = actionLocation(window.location.hash);
+      if (!losesInput(from, next)) {
+        setLocation(next);
+        return;
+      }
+      void discard.confirmDiscard().then((ok) => {
+        if (ok) setLocation(next);
+        else
+          window.history.replaceState(
+            window.history.state,
+            "",
+            locationHash(from),
+          );
+      });
+    };
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+    window.addEventListener("popstate", onHash);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onHash);
+    };
+  }, [discard]);
+
+  // #delivery without the delivery capability: show and name the overview.
+  useEffect(() => {
+    if (location.tab === "delivery" && query.isSuccess && !hasDelivery) {
+      const next = { tab: "overview", editing: false } as const;
+      setLocation(next);
+      window.history.replaceState(window.history.state, "", locationHash(next));
+    }
+  }, [location.tab, query.isSuccess, hasDelivery]);
 
   useHotkeys(
     [
@@ -285,17 +365,18 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         keys: "escape",
         label: "Zurück zur Aktionsliste",
         group: "Aktion",
-        when: () => !editing,
-        run: () => window.location.assign("/admin/actions"),
+        // Esc in a field stays with the field (prototype: cancel typing).
+        when: () => !editing && !isTypingTarget(document.activeElement),
+        run: () => void leaveToList(),
       },
       ...tabs.map((tab, index) => ({
         keys: String(index + 1),
         label: `Reiter ${tab.label}`,
         group: "Aktion",
-        run: () => go({ tab: tab.id, editing: false }),
+        run: () => void go({ tab: tab.id, editing: false }),
       })),
     ],
-    [editing, tabs.length, go],
+    [editing, tabs.length, go, leaveToList],
   );
 
   if (query.isPending) {
@@ -333,12 +414,18 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
       (existing) => existing && { ...existing, action: next },
     );
     void queryClient.invalidateQueries({ queryKey });
+    ownRevisions.current.add(next.revision);
     void queryClient.invalidateQueries({
       queryKey: ["action-configuration", actionId],
+    });
+    // Completing or archiving removes the action's aliases on the server.
+    void queryClient.invalidateQueries({
+      queryKey: ["campaign-aliases", actionId],
     });
   }
 
   function updateState(next: ActionManagementResponse) {
+    ownRevisions.current.add(next.action.revision);
     queryClient.setQueryData<ActionManagementResponse>(queryKey, next);
     // The publication sets the active alias.
     void queryClient.invalidateQueries({
@@ -352,6 +439,8 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     state,
     updateAction,
     updateState,
+    revisionFor,
+    onDirty,
   };
   const leads = state.administratorOptions
     .filter((option) => option.isResponsible)
@@ -396,7 +485,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
               <Button
                 data-testid="action-edit-done"
                 icon={X}
-                onClick={() => go({ tab: "overview", editing: false })}
+                onClick={() => void go({ tab: "overview", editing: false })}
                 variant="secondary"
               >
                 Bearbeiten beenden
@@ -405,7 +494,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
               <Button
                 data-testid="action-edit"
                 icon={Pencil}
-                onClick={() => go({ tab: "overview", editing: true })}
+                onClick={() => void go({ tab: "overview", editing: true })}
                 variant="secondary"
               >
                 Bearbeiten
@@ -419,7 +508,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         idPrefix="action"
         items={tabs.map((tab) => ({ ...tab, count: counts[tab.id] }))}
         label="Bereiche der Aktion"
-        onChange={(tab) => go({ tab, editing: false })}
+        onChange={(tab) => void go({ tab, editing: false })}
         value={current}
       />
       <TabPanel className="tab-panel" idPrefix="action" tabId={current}>
@@ -451,12 +540,20 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
             actionName={action.name}
             client={client}
             disabled={archived || !action.capabilities.includes("ordering")}
+            disabledReason={archived ? "archived" : "no-ordering"}
             endsOn={action.endsOn}
             ordering={action.capabilities.includes("ordering")}
             startsOn={action.startsOn}
           />
         ) : current === "aliases" ? (
           <div className="stack">
+            {archived || action.status === "completed" ? (
+              <ReadOnlyNotice data-testid="aliases-read-only">
+                {archived
+                  ? "Die archivierte Aktion hat keine Aliase mehr; ihre dauerhafte Adresse bleibt erreichbar."
+                  : "Nach dem Abschluss lassen sich die Aliase nicht mehr ändern; die dauerhafte Adresse bleibt erreichbar."}
+              </ReadOnlyNotice>
+            ) : null}
             <CampaignAliasesSection
               actionId={actionId}
               client={client}
@@ -475,6 +572,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           <OffersTab configuration={configuration} />
         )}
       </TabPanel>
+      {discard.dialog}
     </div>
   );
 }

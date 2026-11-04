@@ -87,6 +87,7 @@ function useAliasCommand(
   client: LeonAidApiClient,
   onDone: () => Promise<void>,
   onRemoveFailed: () => void,
+  onStale: () => void,
 ) {
   const toast = useOptionalToast();
   const [error, setError] = useState<ActionErrorMessage>();
@@ -145,7 +146,10 @@ function useAliasCommand(
       await onDone();
     },
     onError(cause, operation) {
-      setError(actionErrorMessage(cause));
+      const message = actionErrorMessage(cause);
+      setError(message);
+      // Load the current revision; the next try sends it with the input.
+      if (isRevisionConflict(message)) onStale();
       // The confirmation closes; the error shows under the list.
       if (operation.kind === "remove") onRemoveFailed();
     },
@@ -351,6 +355,7 @@ export function CampaignAliasesSection(props: Props) {
     props.client,
     saved,
     () => setRemoving(undefined),
+    () => void queryClient.invalidateQueries({ queryKey }),
   );
 
   if (query.isPending) return <SkeletonRows rows={3} />;
@@ -484,7 +489,27 @@ export function CampaignAliasesSection(props: Props) {
           item={editing === "new" ? undefined : editing}
           key={editing === "new" ? "new" : editing.aliasId}
           onClose={() => setEditing(null)}
-          onSubmit={(operation) => mutation.mutate(operation)}
+          onSubmit={(operation) => {
+            if (operation.kind === "create") {
+              mutation.mutate(operation);
+              return;
+            }
+            // The latest revision of this alias, e.g. after a conflict.
+            const fresh = data.items.find(
+              (entry) => entry.aliasId === operation.item.aliasId,
+            );
+            if (!fresh) {
+              setEditing(null);
+              setError({
+                code: null,
+                conflict: false,
+                message: `/${operation.item.alias} wurde inzwischen entfernt.`,
+                requestId: null,
+              });
+              return;
+            }
+            mutation.mutate({ ...operation, item: fresh });
+          }}
           open
           pending={mutation.isPending}
           targets={data.targets}
