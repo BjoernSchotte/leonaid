@@ -179,6 +179,22 @@ for (const [engineName, engine] of Object.entries({
               .map((violation) => `${label}: ${violation.id}`),
             [],
           );
+          // Fidelity shots of the campaign page for the task review.
+          for (const [width, height] of [
+            [1440, 900],
+            [390, 844],
+          ]) {
+            for (const colorScheme of ["light", "dark"]) {
+              await page.setViewportSize({ width, height });
+              await page.emulateMedia({ colorScheme });
+              await page.screenshot({
+                path: `/visual-proof/campaign-page-${width}-${colorScheme}.png`,
+                fullPage: true,
+              });
+            }
+          }
+          await page.setViewportSize({ width: 1280, height: 900 });
+          await page.emulateMedia({ colorScheme: null });
         }
         const form = page.locator("[data-order-form]");
         const quantity =
