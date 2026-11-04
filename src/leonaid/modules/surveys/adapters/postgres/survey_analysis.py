@@ -19,56 +19,39 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.modules.surveys.domain.validation import LEAF, clauses, json_size
 
 
-async def aggregate_selection(
-    definition: dict[str, Any], responses: list[dict[str, Any]]
+def merge_aggregates(
+    result: list[QuestionAggregate], values: list[QuestionAggregate]
 ) -> list[QuestionAggregate]:
-    """Combine bounded batches from counts/sums, never from averaged percentages."""
-    batches: list[list[dict[str, Any]]] = []
-    batch: list[dict[str, Any]] = []
-    size = json_size(
-        {"profile": "initial-v1", "definition": definition, "responses": []}
-    )
-    used = size
-    for answers in responses:
-        added = json_size(answers) + 1
-        if batch and (len(batch) == 100 or used + added > 550_000):
-            batches.append(batch)
-            batch, used = [], size
-        batch.append(answers)
-        used += added
-    if batch or not batches:
-        batches.append(batch)
-    result: list[QuestionAggregate] | None = None
-    for part in batches:
-        values = await aggregate_batch(definition, part)
-        if result is None:
-            result = values
-            continue
-        for total, addition in zip(result, values, strict=True):
-            for field in ("relevant", "answered", "unanswered", "hidden", "invalid"):
-                setattr(total, field, getattr(total, field) + getattr(addition, field))
-            if addition.sum is not None:
-                total.sum = (total.sum or 0) + addition.sum
-                assert addition.minimum is not None and addition.maximum is not None
-                total.minimum = min(
-                    total.minimum if total.minimum is not None else addition.minimum,
-                    addition.minimum,
-                )
-                total.maximum = max(
-                    total.maximum if total.maximum is not None else addition.maximum,
-                    addition.maximum,
-                )
-            for bucket, other in zip(total.counts, addition.counts, strict=True):
+    """Add one batch's counts and sums to the running totals (in place)."""
+    for total, addition in zip(result, values, strict=True):
+        for field in ("relevant", "answered", "unanswered", "hidden", "invalid"):
+            setattr(total, field, getattr(total, field) + getattr(addition, field))
+        if addition.sum is not None:
+            total.sum = (total.sum or 0) + addition.sum
+            assert addition.minimum is not None and addition.maximum is not None
+            total.minimum = min(
+                total.minimum if total.minimum is not None else addition.minimum,
+                addition.minimum,
+            )
+            total.maximum = max(
+                total.maximum if total.maximum is not None else addition.maximum,
+                addition.maximum,
+            )
+        for bucket, other in zip(total.counts, addition.counts, strict=True):
+            bucket.count += other.count
+        for row, other_row in zip(total.matrixRows, addition.matrixRows, strict=True):
+            row.answered += other_row.answered
+            row.unanswered += other_row.unanswered
+            row.invalid += other_row.invalid
+            for bucket, other in zip(row.counts, other_row.counts, strict=True):
                 bucket.count += other.count
-            for row, other_row in zip(
-                total.matrixRows, addition.matrixRows, strict=True
-            ):
-                row.answered += other_row.answered
-                row.unanswered += other_row.unanswered
-                row.invalid += other_row.invalid
-                for bucket, other in zip(row.counts, other_row.counts, strict=True):
-                    bucket.count += other.count
-    assert result is not None
+    return result
+
+
+def finish_aggregates(
+    definition: dict[str, Any], result: list[QuestionAggregate]
+) -> list[QuestionAggregate]:
+    """Means, shares and NPS from the merged counts and sums."""
     sources = [q for page in definition["pages"] for q in page["elements"]]
     for question, source in zip(result, sources, strict=True):
         question.mean = (
@@ -103,6 +86,51 @@ async def aggregate_selection(
                 else None
             )
     return [QuestionAggregate.model_validate(q.model_dump()) for q in result]
+
+
+def last_page_counts(
+    definition: dict[str, Any], current_pages: list[str | None]
+) -> list[dict[str, Any]]:
+    """Where each selected participation stopped (its saved current page)."""
+    pages: dict[str | None, dict[str, Any]] = {
+        page["name"]: {
+            "pageId": page["name"],
+            "title": page.get("title", page["name"]),
+            "count": 0,
+        }
+        for page in definition["pages"]
+    }
+    pages[None] = {"pageId": None, "title": "Keine bekannte Seite", "count": 0}
+    for current in current_pages:
+        pages[current if current in pages else None]["count"] += 1
+    return list(pages.values())
+
+
+async def aggregate_selection(
+    definition: dict[str, Any], responses: list[dict[str, Any]]
+) -> list[QuestionAggregate]:
+    """Combine bounded batches from counts/sums, never from averaged percentages."""
+    batches: list[list[dict[str, Any]]] = []
+    batch: list[dict[str, Any]] = []
+    size = json_size(
+        {"profile": "initial-v1", "definition": definition, "responses": []}
+    )
+    used = size
+    for answers in responses:
+        added = json_size(answers) + 1
+        if batch and (len(batch) == 100 or used + added > 550_000):
+            batches.append(batch)
+            batch, used = [], size
+        batch.append(answers)
+        used += added
+    if batch or not batches:
+        batches.append(batch)
+    result: list[QuestionAggregate] | None = None
+    for part in batches:
+        values = await aggregate_batch(definition, part)
+        result = values if result is None else merge_aggregates(result, values)
+    assert result is not None
+    return finish_aggregates(definition, result)
 
 
 async def read_snapshot(
@@ -273,18 +301,7 @@ async def create_snapshot(
     questions = await aggregate_selection(
         definition, [row["answers"] for row in private]
     )
-    pages: dict[str | None, dict[str, Any]] = {
-        page["name"]: {
-            "pageId": page["name"],
-            "title": page.get("title", page["name"]),
-            "count": 0,
-        }
-        for page in definition["pages"]
-    }
-    pages[None] = {"pageId": None, "title": "Keine bekannte Seite", "count": 0}
-    for row in rows:
-        page = row["current_page"] if row["current_page"] in pages else None
-        pages[page]["count"] += 1
+    pages = last_page_counts(definition, [row["current_page"] for row in rows])
     snapshot_id = uuid4()
     result = AnalysisSnapshot.model_validate(
         {
@@ -297,7 +314,7 @@ async def create_snapshot(
             "capabilityProfile": version["capability_profile"],
             "participationCount": selected_count,
             "statusCounts": status_counts,
-            "lastPageCounts": list(pages.values()),
+            "lastPageCounts": pages,
             "questions": [question.model_dump() for question in questions],
             "dependencies": dependencies(definition),
             "disclosurePolicy": "settled" if settled else "reader",
