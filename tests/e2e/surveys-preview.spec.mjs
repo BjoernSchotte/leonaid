@@ -137,11 +137,16 @@ test("backend timeout changes preserve existing participation and preview stays 
     expect(result.status()).toBe(200);
     return result.json();
   };
+  // 2 real and 1 test participation: below k = 5 the size is withheld
+  // (Task 5.6b, R0), so the two sources are told apart by the filter.
   const real = await runAnalysis(false);
   expect(real.filter.isTest).toBe(false);
-  expect(real.participationCount).toBe(2);
+  expect([real.participationCount, real.suppressed]).toEqual([null, true]);
   const simulated = await runAnalysis(true);
   expect(simulated.filter.isTest).toBe(true);
-  expect(simulated.participationCount).toBe(1);
+  expect([simulated.participationCount, simulated.suppressed]).toEqual([
+    null,
+    true,
+  ]);
   await context.close();
 });
