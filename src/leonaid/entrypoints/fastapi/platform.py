@@ -52,6 +52,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
+    build_delivery_board_service,
     build_inbox_service,
     build_knowledge_service,
     build_material_service,
@@ -267,6 +268,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.identity_service = IdentityQueryService(
             identity_repository,
             module_navigation=module_navigation(disabled_modules),
+            delivery_navigation=identity_repository.manages_delivery,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
         application.state.identity_administration_service = (
@@ -286,6 +288,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.delivery_service = DeliveryService(
             AsyncpgDeliveryRepository(pool)
+        )
+        application.state.delivery_board_service = build_delivery_board_service(
+            pool, disabled_modules
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)

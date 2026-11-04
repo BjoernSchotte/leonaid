@@ -368,7 +368,7 @@ export function DeliveryFields({
           ) : past.length ? (
             <StatusMessage tone="info">
               Zurzeit ist kein künftiges Lieferfenster verfügbar. Eine bereits
-              erfolgte Lieferung kannst du unten nachträglich erfassen.
+              erfolgte Lieferung können Sie unten nachträglich erfassen.
             </StatusMessage>
           ) : (
             <StatusMessage tone="info">
