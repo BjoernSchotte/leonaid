@@ -4,8 +4,8 @@ description: Am Liefertag Ausfahrer zuweisen, Lieferungen abhaken, Fenster absch
 docId: DOC-P046
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: a255af208a20325a525d9fa2f88f6e5642ad5c73
 reviewer: Björn Schotte
 ---
@@ -26,6 +26,9 @@ aktiv ist (siehe [Lieferfenster pflegen](/de/user/how-to/manage-delivery-windows
    Zeilenende, ein ganzes Fenster über **Fahrer für alle**.
 3. Hat die Aktion noch keine Ausfahrer, zeigt **Nächster Schritt** **Ausfahrer
    einladen**. Lade dort jemanden mit der Rolle **Ausfahrer** ein.
+
+Ein offenes Fenster, das im Reiter **Lieferfenster** als ausgebucht markiert
+ist, trägt im Kopf den Hinweis **Ausgebucht**; Ausfahrer sehen ihn nicht.
 
 Ausfahrer sehen nur die Lieferungen, die ihnen zugewiesen sind. Mit
 **Fahrdienst** filterst du die Tafel nach Fahrer oder **Ohne Fahrer**.

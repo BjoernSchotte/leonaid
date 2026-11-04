@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -96,6 +97,7 @@ function board(
           drop("c2", "Autohaus Nord", { revision: 2 }),
         ],
         endsAt: "2026-11-11T08:00:00Z",
+        fullyBooked: false,
         id: windowId,
         retired: false,
         startsAt: "2026-11-11T06:00:00Z",
@@ -237,6 +239,28 @@ describe("delivery board", () => {
         expectedRevision: 3,
       }),
     );
+  });
+
+  it("marks a window that is ausgebucht for managers only", async () => {
+    const full = (manager: boolean) => {
+      const value = board({ manager });
+      return {
+        ...value,
+        windows: value.windows.map((window) => ({
+          ...window,
+          fullyBooked: true,
+        })),
+      };
+    };
+    await renderBoard(fakeClient(full(true)));
+    expect(
+      within(screen.getByTestId("delivery-window")).getByText("Ausgebucht"),
+    ).toBeTruthy();
+    cleanup();
+    await renderBoard(fakeClient(full(false)), "pwa");
+    expect(
+      within(screen.getByTestId("delivery-window")).queryByText("Ausgebucht"),
+    ).toBeNull();
   });
 
   it("filters by driver", async () => {

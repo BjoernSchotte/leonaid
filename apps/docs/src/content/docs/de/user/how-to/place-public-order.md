@@ -23,8 +23,9 @@ spricht Bestellende mit „Sie“ an.
    konkrete Formular die Firma nicht verlangt. Ergänze Vorname, Nachname und
    E-Mail.
 4. Trage unter **Lieferung** Empfänger, Straße, PLZ und Ort ein. Bei aktiver
-   Lieferplanung wählst du zusätzlich ein verfügbares Lieferfenster; Name und
-   Telefon des Lieferkontakts sind unabhängig voneinander optional.
+   Lieferplanung wählst du zusätzlich ein verfügbares Lieferfenster. Fenster mit
+   dem Hinweis **ausgebucht** lassen sich nicht wählen. Name und Telefon des
+   Lieferkontakts sind unabhängig voneinander optional.
 5. Lasse **Rechnungsadresse entspricht der Lieferadresse** aktiviert oder
    ergänze die abweichenden Rechnungsfelder vollständig.
 6. Bestätige unter **Datenschutz** die Hinweise zur Datenverarbeitung und **Ich bestelle
@@ -37,6 +38,11 @@ mit einem Link zu jedem betroffenen Feld. Die Eingaben bleiben erhalten.
 Die Bestätigung zeigt **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** und eine Referenz im Format `LA-…`. Bewahre sie für Rückfragen
 auf. Die Rechnung folgt separat nach Prüfung durch den Club.
+
+Wird das gewählte Lieferfenster während der Eingabe ausgebucht oder
+stillgelegt, nimmt das Formular die Bestellung nicht an, aktualisiert die
+Fenster und verlinkt die Auswahl in der Liste **Bitte prüfen Sie …**. Wähle
+ein anderes Fenster und sende erneut.
 
 Wenn sich Angebot oder Lieferfenster während der Eingabe ändern, übernimmt das
 Formular deine Eingaben, zeigt den aktuellen Bestellwert und verlangt eine neue

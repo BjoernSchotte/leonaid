@@ -21,6 +21,7 @@ import {
 } from "@leonaid/api-client";
 import {
   Avatar,
+  Badge,
   Button,
   buttonClassName,
   EmptyState,
@@ -761,7 +762,15 @@ export function DeliveryBoardPage({
                 >
                   <header className="window-head">
                     <div className="window-title">
-                      <h2 id={`win-${window.id}`}>{label}</h2>
+                      <h2 id={`win-${window.id}`}>
+                        {label}
+                        {manager && window.fullyBooked && !closed ? (
+                          <>
+                            {" "}
+                            <Badge tone="warn">Ausgebucht</Badge>
+                          </>
+                        ) : null}
+                      </h2>
                       <span className="small muted num">
                         {delivered} von {active.length} geliefert ·{" "}
                         {boxes(boxCount)}

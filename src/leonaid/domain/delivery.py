@@ -99,8 +99,15 @@ class DeliveryWindow:
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Manual "ausgebucht" switch: closes the window for public orders only.
+    fully_booked: bool = False
 
     def __post_init__(self) -> None:
+        if self.retired and self.fully_booked:
+            raise DomainInvariantError(
+                "delivery_window_full_retired",
+                "Ein stillgelegtes Lieferfenster kann nicht ausgebucht sein.",
+            )
         if (
             self.starts_at.tzinfo is not None
             or self.ends_at.tzinfo is not None

@@ -23,6 +23,7 @@ import {
   ReadOnlyNotice,
   SkeletonRows,
   StatusMessage,
+  Switch,
   useOptionalToast,
 } from "@leonaid/ui";
 
@@ -71,6 +72,29 @@ function windowRequest(window: DeliveryWindowResponse): DeliveryWindowRequest {
     endsAt: window.endsAt,
     retired: window.retired,
   };
+}
+
+/** Whether the window has begun, compared in the action's time zone. */
+export function windowStarted(
+  window: Pick<DeliveryWindowResponse, "deliveryOn" | "startsAt">,
+  timezone: string,
+  now: Date = new Date(),
+) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+  const local = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+  return `${window.deliveryOn} ${window.startsAt.slice(0, 5)}` <= local;
 }
 
 function sorted(windows: readonly DeliveryWindowResponse[]) {
@@ -179,6 +203,38 @@ function DeliveryWindows({
   const [error, setError] = useState<string>();
   const windows = sorted(config.windows);
   const open = windows.filter((window) => !window.retired);
+
+  /** The "ausgebucht" switch saves at once and keeps the form revision. */
+  async function setFullyBooked(
+    window: DeliveryWindowResponse,
+    fullyBooked: boolean,
+  ) {
+    setPending(true);
+    setError(undefined);
+    try {
+      const result = await client.setDeliveryWindowFullyBooked(
+        actionId,
+        window.id,
+        { fullyBooked },
+      );
+      cache.setQueryData(queryKey, result);
+      await cache.invalidateQueries({
+        queryKey: ["commitment-capture-context", actionId],
+      });
+      toast?.show({
+        title: fullyBooked
+          ? `${windowLabel(window)} ist als ausgebucht markiert.`
+          : `${windowLabel(window)} ist wieder buchbar.`,
+        tone: "success",
+      });
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 409)
+        await cache.invalidateQueries({ queryKey });
+      setError(actionErrorMessage(cause).message);
+    } finally {
+      setPending(false);
+    }
+  }
 
   /** Saves the configuration; false when it failed (message shown). */
   async function save(
@@ -321,6 +377,7 @@ function DeliveryWindows({
               <tr>
                 <th scope="col">Zeitraum</th>
                 <th scope="col">Status</th>
+                {!disabled ? <th scope="col">Ausgebucht</th> : null}
                 {booked ? (
                   <th className="right" scope="col">
                     Gebuchte Boxen
@@ -344,10 +401,28 @@ function DeliveryWindows({
                   <td>
                     {window.retired ? (
                       <Badge tone="neutral">Stillgelegt</Badge>
+                    ) : window.fullyBooked ? (
+                      <Badge tone="warn">Ausgebucht</Badge>
                     ) : (
                       <Badge tone="ok">Buchbar</Badge>
                     )}
                   </td>
+                  {!disabled ? (
+                    <td>
+                      {!window.retired &&
+                      !windowStarted(window, config.timezone) ? (
+                        <Switch
+                          aria-label={`${windowLabel(window)} ausgebucht`}
+                          checked={window.fullyBooked}
+                          data-testid={`delivery-window-full-${window.id}`}
+                          disabled={pending}
+                          onChange={(event) =>
+                            void setFullyBooked(window, event.target.checked)
+                          }
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
                   {booked ? (
                     <td className="right num">{booked.get(window.id) ?? 0}</td>
                   ) : null}
@@ -374,6 +449,13 @@ function DeliveryWindows({
             Bestellungen ihren Zeitraum behalten. Für einen anderen Termin legen
             Sie das Fenster still und legen ein neues an.
           </p>
+          {!disabled ? (
+            <p className="small subtle table-note">
+              Ein ausgebuchtes Fenster ist im öffentlichen Bestellformular
+              gesperrt. Admin und Akquise können es nach einer Rückfrage
+              trotzdem buchen. Stilllegen hebt „Ausgebucht“ auf.
+            </p>
+          ) : null}
         </div>
       )}
 

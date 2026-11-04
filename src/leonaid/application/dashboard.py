@@ -116,6 +116,8 @@ class DeliveryWindowLoad:
     ends_at: datetime
     commitments: int
     quantities: tuple[UnitQuantity, ...] = ()
+    # Marked "ausgebucht" by a manager (no capacity is computed).
+    fully_booked: bool = False
 
 
 @dataclass(frozen=True, slots=True)

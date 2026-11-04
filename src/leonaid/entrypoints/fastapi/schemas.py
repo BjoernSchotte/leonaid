@@ -34,6 +34,18 @@ class DeliveryWindowRequest(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Accepted so a client can send a loaded window back unchanged, but
+    # ignored: the switch has its own command and the stored value stays.
+    # A new window (no id) with true is refused (delivery_window_full_new).
+    fully_booked: bool | None = Field(
+        default=None,
+        description=(
+            "Read-only echo, ignored for existing windows; use "
+            'setDeliveryWindowFullyBooked for "ausgebucht". True on a new '
+            "window is refused."
+        ),
+        json_schema_extra={"readOnly": True},
+    )
 
 
 class DeliveryWindowResponse(TransportModel):
@@ -42,6 +54,13 @@ class DeliveryWindowResponse(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool
+    # "Ausgebucht": closed for public orders; admin and acquisition capture
+    # may still book it with allowFullWindow.
+    fully_booked: bool
+
+
+class DeliveryWindowFullyBookedRequest(TransportModel):
+    fully_booked: bool
 
 
 class DeliveryConfigurationRequest(TransportModel):
@@ -1074,6 +1093,8 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    # Confirms booking a window marked "ausgebucht" (otherwise 409).
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1083,6 +1104,7 @@ class CreateCommitmentRequest(TransportModel):
 
 
 class CompleteCommitmentRequest(TransportModel):
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1090,6 +1112,7 @@ class CompleteCommitmentRequest(TransportModel):
 
 class CompleteCommitmentDeliveryRequest(TransportModel):
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    allow_full_window: bool = False
     invoice_recipient: CommitmentInvoiceRecipientRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
@@ -1407,6 +1430,7 @@ class DashboardDeliveryWindowResponse(TransportModel):
     ends_at: datetime
     commitments: int = Field(ge=0)
     quantities: list[UnitQuantityResponse]
+    fully_booked: bool
 
 
 class DashboardDeliveryResponse(TransportModel):
@@ -2279,6 +2303,7 @@ class DeliveryBoardWindowResponse(TransportModel):
     starts_at: datetime
     ends_at: datetime
     retired: bool
+    fully_booked: bool
     closure: DeliveryWindowClosureResponse | None
     drops: list[DeliveryDropResponse]
 

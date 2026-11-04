@@ -1072,6 +1072,20 @@ main {
   gap: var(--s-2);
 }
 
+/* Marked "ausgebucht" by the club: shown, but not selectable. */
+.public-toggle-option[data-fully-booked] {
+  border-style: dashed;
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+  cursor: not-allowed;
+}
+
+.delivery-full {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 .delivery-refresh {
   justify-self: start;
 }

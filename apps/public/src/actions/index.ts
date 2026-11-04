@@ -23,6 +23,8 @@ const requiredText = (maximum: number) => z.string().trim().min(1).max(maximum);
 // worded for the public order by their stable code; the codes stay as they are.
 const publicMessages: Readonly<Record<string, string>> = {
   privacy_email_invalid: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+  delivery_window_full:
+    "Dieses Lieferfenster ist inzwischen ausgebucht. Bitte wählen Sie ein anderes.",
   csrf_rejected:
     "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
 };
