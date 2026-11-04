@@ -40,6 +40,7 @@ import {
   Avatar,
   Button,
   ErrorState,
+  fullBleedPage,
   HotkeyProvider,
   Icon,
   IconButton,
@@ -1393,9 +1394,8 @@ function TasksWorkspace({
   );
 
   return (
-    // Full-bleed page contract of the admin shell (ls-4a, 4c): the list
-    // brings its own gutters. Spread `fullBleedPage` once it is in @leonaid/ui.
-    <div className="tasks-page" data-page-layout="full-bleed" data-zone="tasks">
+    // The list fills the shell's main edge to edge; it has its own gutters.
+    <div className="tasks-page" data-zone="tasks" {...fullBleedPage}>
       <TaskOrdering
         ids={movableIds}
         onCancel={() => setMoveMessage("Verschieben abgebrochen.")}
