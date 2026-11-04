@@ -52,6 +52,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
+    build_delivery_board_service,
     build_inbox_service,
     build_knowledge_service,
     build_material_service,
@@ -286,6 +287,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.delivery_service = DeliveryService(
             AsyncpgDeliveryRepository(pool)
+        )
+        application.state.delivery_board_service = build_delivery_board_service(
+            pool, disabled_modules
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)

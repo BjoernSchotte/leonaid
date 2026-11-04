@@ -1,0 +1,134 @@
+"""Delivery day board rules: who may tick which drop and what follows."""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pytest
+
+from leonaid.domain.delivery_board import (
+    DeliveryBoardError,
+    DropState,
+    StateChange,
+    board_day,
+    decide_state_change,
+)
+
+OPEN, DELIVERED, MISSED = DropState.OPEN, DropState.DELIVERED, DropState.MISSED
+
+
+def change(**overrides: object) -> StateChange | None:
+    arguments: dict[str, object] = {
+        "current": OPEN,
+        "delivered": True,
+        "window_closed": False,
+        "manager": False,
+        "assigned_driver": True,
+    }
+    arguments.update(overrides)
+    return decide_state_change(**arguments)  # type: ignore[arg-type]
+
+
+def test_assigned_driver_ticks_and_undoes_in_an_open_window() -> None:
+    assert change() == StateChange(new_state=DELIVERED, follow_up_needed=None)
+    assert change(current=DELIVERED, delivered=False) == StateChange(
+        new_state=OPEN, follow_up_needed=None
+    )
+
+
+def test_the_same_target_twice_is_a_no_op() -> None:
+    assert change(current=DELIVERED, delivered=True) is None
+    assert change(current=OPEN, delivered=False) is None
+    assert (
+        change(
+            current=MISSED,
+            delivered=False,
+            window_closed=True,
+            manager=True,
+            assigned_driver=False,
+        )
+        is None
+    )
+
+
+def test_others_may_not_tick_a_drop_that_is_not_theirs() -> None:
+    with pytest.raises(DeliveryBoardError) as refused:
+        change(assigned_driver=False)
+    assert refused.value.code == "delivery_not_assigned"
+    assert refused.value.status == 403
+
+
+def test_managers_tick_any_drop() -> None:
+    assert change(manager=True, assigned_driver=False) == StateChange(
+        new_state=DELIVERED, follow_up_needed=None
+    )
+
+
+def test_drivers_cannot_change_a_closed_window() -> None:
+    with pytest.raises(DeliveryBoardError) as refused:
+        change(current=MISSED, window_closed=True)
+    assert refused.value.code == "delivery_window_closed"
+    assert refused.value.status == 409
+
+
+def test_a_later_delivery_closes_the_follow_up_and_its_undo_reopens_it() -> None:
+    later = change(
+        current=MISSED, window_closed=True, manager=True, assigned_driver=False
+    )
+    assert later == StateChange(new_state=DELIVERED, follow_up_needed=False)
+    undone = change(
+        current=DELIVERED,
+        delivered=False,
+        window_closed=True,
+        manager=True,
+        assigned_driver=False,
+    )
+    assert undone == StateChange(new_state=MISSED, follow_up_needed=True)
+
+
+def test_missed_only_exists_in_closed_windows() -> None:
+    with pytest.raises(DeliveryBoardError) as refused:
+        change(current=MISSED, manager=True)
+    assert refused.value.code == "delivery_state_invalid"
+
+
+@pytest.mark.parametrize(
+    ("days", "requested", "today", "expected"),
+    [
+        ((), None, date(2026, 11, 4), None),
+        (
+            (date(2026, 11, 4), date(2026, 11, 5)),
+            None,
+            date(2026, 11, 4),
+            date(2026, 11, 4),
+        ),
+        (
+            (date(2026, 11, 6), date(2026, 11, 9)),
+            None,
+            date(2026, 11, 4),
+            date(2026, 11, 6),
+        ),
+        (
+            (date(2026, 11, 1), date(2026, 11, 2)),
+            None,
+            date(2026, 11, 4),
+            date(2026, 11, 2),
+        ),
+        (
+            (date(2026, 11, 1), date(2026, 11, 2)),
+            date(2026, 11, 1),
+            date(2026, 11, 4),
+            date(2026, 11, 1),
+        ),
+        (
+            (date(2026, 11, 1),),
+            date(2026, 12, 24),
+            date(2026, 11, 4),
+            date(2026, 11, 1),
+        ),
+    ],
+)
+def test_board_day_prefers_the_requested_then_today_then_the_next_day(
+    days: tuple[date, ...], requested: date | None, today: date, expected: date | None
+) -> None:
+    assert board_day(days, requested, today) == expected

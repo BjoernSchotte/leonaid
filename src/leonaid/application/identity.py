@@ -367,6 +367,7 @@ def navigation_for(
                     "acquisition-web", "Akquise", "/admin/acquisition", "web"
                 ),
                 NavigationItem("orders", "Bestellungen", "/admin/orders", "web"),
+                NavigationItem("delivery", "Auslieferung", "/admin/delivery", "web"),
                 NavigationItem("invoices", "Rechnungen", "/admin/invoices", "web"),
                 NavigationItem("members", "Mitglieder", "/admin/members", "web"),
                 NavigationItem("activities", "Neues", "/admin/activities", "web"),

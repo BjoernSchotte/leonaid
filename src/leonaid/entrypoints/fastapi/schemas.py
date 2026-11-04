@@ -2193,3 +2193,100 @@ RequestIdHeader = Annotated[
         examples=["poc023:contract:golden-v1"],
     ),
 ]
+
+
+# ---------- Delivery day board ----------
+
+
+class DeliveryDropQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int
+
+
+class DeliveryDropAddressResponse(TransportModel):
+    recipient_name: str
+    street_line1: str
+    postal_code: str
+    city: str
+
+
+class DeliveryDropContactResponse(TransportModel):
+    name: str | None
+    phone: str | None
+
+
+class DeliveryDropResponse(TransportModel):
+    """One order on the board. Never amounts, e-mail or the order message."""
+
+    commitment_id: UUID
+    window_id: UUID
+    buyer_name: str
+    quantities: list[DeliveryDropQuantityResponse]
+    total_boxes: int
+    address: DeliveryDropAddressResponse | None
+    contact: DeliveryDropContactResponse | None
+    state: Literal["open", "delivered", "missed"]
+    state_changed_at: datetime | None
+    state_changed_by_name: str | None
+    driver_user_id: UUID | None
+    driver_name: str | None
+    revision: int
+    # Managers only: the order status (cancelled drops stay struck through).
+    order_status: (
+        Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None
+    )
+
+
+class DeliveryWindowClosureResponse(TransportModel):
+    closed_at: datetime
+    closed_by_name: str
+    missed_count: int
+
+
+class DeliveryBoardWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    retired: bool
+    closure: DeliveryWindowClosureResponse | None
+    drops: list[DeliveryDropResponse]
+
+
+class DeliveryBoardDriverResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+
+
+class DeliveryBoardResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    day: date | None
+    days: list[date]
+    manager: bool
+    windows: list[DeliveryBoardWindowResponse]
+    drivers: list[DeliveryBoardDriverResponse]
+    follow_up_tasks: bool
+
+
+class DeliveryStateRequest(TransportModel):
+    delivered: bool
+    expected_revision: int = Field(ge=0)
+
+
+class DeliveryDriverAssignmentRequest(TransportModel):
+    commitment_ids: list[UUID] = Field(min_length=1, max_length=1000)
+    driver_user_id: UUID | None
+
+
+class DeliveryDriverAssignmentResponse(TransportModel):
+    changed: int
+
+
+class DeliveryWindowClosureResultResponse(TransportModel):
+    missed_count: int
+    follow_up: Literal["tasks", "board"]
+
+
+class DeliveryWindowReopenResponse(TransportModel):
+    reopened_count: int
