@@ -59,6 +59,7 @@ import {
 } from "@leonaid/ui";
 
 import { navigationZones } from "../navigation/zones";
+import { ChartsDemo } from "./charts-demo";
 import { ListViewDemo } from "./list-view-demo";
 
 export interface UiSystemCatalogPageProps {
@@ -830,6 +831,16 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           icon={PackageOpen}
           title="Keine passenden Bestellungen"
         />
+      </section>
+
+      <section aria-labelledby="charts" className="ui-catalog-section">
+        <PatternHeading
+          description="Chart.js mit Farben aus den Leitsystem-Tokens, Legende mit Werten und Tabelle; Werte unter 5 Personen als „< 5“."
+          id="charts"
+        >
+          Diagramme
+        </PatternHeading>
+        <ChartsDemo />
       </section>
 
       <section aria-labelledby="lists" className="ui-catalog-section">

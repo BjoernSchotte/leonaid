@@ -499,6 +499,61 @@ test("list view: detail is a full-screen sheet at 390 px", async ({
   }
 });
 
+test("charts: token colours under the strict CSP, theme redraw, resize", async ({
+  browser,
+}) => {
+  const { context, page, pageErrors } = await createCatalogPage(browser, {
+    width: 1440,
+    height: 1000,
+  });
+  try {
+    const charts = page.getByTestId("ui-catalog-charts");
+    await charts.scrollIntoViewIfNeeded();
+    const canvases = charts.locator("canvas[role=img]");
+    await expect(canvases).toHaveCount(3);
+    await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: < 5/);
+    await expect(
+      charts.getByRole("list", { name: "Legende: Empfehlung" }),
+    ).toContainText("Förderer (9–10)16 (53 %)");
+    // The first matrix segment uses --chart-pos, read from canvas pixels.
+    const pixel = () =>
+      canvases.nth(2).evaluate((canvas) => {
+        const ctx = canvas.getContext("2d");
+        const ratio = canvas.width / canvas.clientWidth;
+        const [r, g, b] = ctx.getImageData(
+          Math.round(canvas.width * 0.35),
+          Math.round(18 * ratio),
+          1,
+          1,
+        ).data;
+        return `${r},${g},${b}`;
+      });
+    const light = await pixel();
+    await charts.getByText("Als Tabelle anzeigen").click();
+    await expect(charts.getByRole("table")).toContainText("< 5");
+    await expect(charts).toHaveScreenshot("ui-system-charts.png", {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.001,
+    });
+    await expectNoSeriousAccessibilityViolations(page, "Diagramme hell");
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+    await expect.poll(pixel).not.toBe(light);
+    await expectNoSeriousAccessibilityViolations(page, "Diagramme dunkel");
+    // The canvas follows its container.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(() => canvases.nth(0).evaluate((canvas) => canvas.clientWidth))
+      .toBeLessThan(360);
+    expect(await page.locator("style").count()).toBe(0);
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
 test("uses self-hosted Leitsystem fonts", async ({ browser }) => {
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
