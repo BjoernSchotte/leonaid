@@ -5,6 +5,7 @@ import { deserializeActionResult } from "../../node_modules/astro/dist/actions/r
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 import { guardCsp } from "./csp-guard.mjs";
+import { WCAG_TAGS, analyzeAccessibility } from "../../tests/e2e/axe.mjs";
 import {
   deadlineSignal,
   deadlineWait,
@@ -155,6 +156,21 @@ for (const [engineName, engine] of Object.entries({
             ),
           );
           assert.equal(await page.locator("[data-order-form]").count(), 1);
+        }
+        // The campaign page (Leitsystem tokens, theme on top) stays free of
+        // serious and critical WCAG findings, with and without JavaScript.
+        if (engineName === "chromium" && scenario === "new-company") {
+          const accessibility = await analyzeAccessibility(page, {
+            tags: WCAG_TAGS,
+          });
+          assert.deepEqual(
+            accessibility.violations
+              .filter((violation) =>
+                ["serious", "critical"].includes(violation.impact),
+              )
+              .map((violation) => `${label}: ${violation.id}`),
+            [],
+          );
         }
         const form = page.locator("[data-order-form]");
         const quantity =
