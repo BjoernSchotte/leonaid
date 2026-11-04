@@ -1,0 +1,269 @@
+/*
+ * Delivery day board: prototype pages/Delivery.css, scoped to .delivery.
+ * Product additions: day switcher, driver avatars as buttons, missed and
+ * cancelled drops, the reopen action and the stamp (prototype components.css).
+ */
+.delivery-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.delivery .driver-filter {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.delivery .segmented {
+  display: none;
+}
+.delivery .windows-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: var(--s-5);
+  align-items: start;
+}
+.delivery .next-step {
+  margin-bottom: var(--s-5);
+}
+.delivery .window-section {
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.delivery .window-section.is-closed {
+  background: var(--surface-2);
+}
+.delivery .window-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-4);
+  border-bottom: var(--hair) solid var(--border);
+}
+.delivery .window-title h2 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+.delivery .window-progress {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.delivery .window-actions,
+.delivery .window-closed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.delivery .drops li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.delivery .drop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) var(--s-3) var(--s-2);
+}
+.delivery .drop.is-focused {
+  background: var(--row-active);
+}
+.delivery .drop.is-done .drop-name {
+  color: var(--text-2);
+}
+.delivery .drop-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+}
+.delivery .drop-check:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+.delivery .drop-check:disabled {
+  cursor: default;
+}
+.delivery .drop-check:focus-visible,
+.delivery .drop-driver:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.delivery .drop-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.delivery .drop-name {
+  font-weight: var(--fw-semibold);
+}
+.delivery .drop-boxes {
+  margin-inline-start: var(--s-1);
+  color: var(--text-2);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+}
+.delivery .drop-flag {
+  margin-inline-start: var(--s-2);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+.delivery .drop-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.delivery .drop-meta > svg {
+  flex: none;
+}
+.delivery .drop-meta a {
+  color: var(--accent-ink);
+}
+.delivery .drop-driver {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+}
+.delivery .drop-driver:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+.delivery .drop-driver-empty {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: var(--hair) dashed var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-3);
+}
+.delivery .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.delivery .open-list {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--fs-sm);
+}
+.delivery .open-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.delivery .list-hint {
+  margin-top: var(--s-4);
+}
+.delivery .stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px var(--s-2);
+  border: 1.5px solid currentColor;
+  border-radius: var(--r-xs);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.delivery .stamp.tone-ok {
+  color: var(--ok);
+}
+.delivery .small {
+  font-size: var(--fs-sm);
+}
+.delivery .muted {
+  color: var(--text-2);
+}
+.delivery .stack {
+  display: grid;
+  gap: var(--s-3);
+}
+
+@media (max-width: 720px) {
+  .delivery .page-header {
+    align-items: stretch;
+  }
+  .delivery-filters,
+  .delivery .driver-filter {
+    width: 100%;
+  }
+  .delivery .driver-filter .input {
+    min-height: 44px;
+  }
+  .delivery .segmented {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    margin-bottom: var(--s-4);
+    padding: 2px;
+    border-radius: var(--r-md);
+    background: var(--surface-3);
+  }
+  .delivery .segment {
+    display: grid;
+    min-height: 48px;
+    padding: var(--s-1);
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+  }
+  .delivery .segment-day {
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-medium);
+  }
+  .delivery .segment.is-active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-1);
+  }
+  .delivery .windows-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .delivery .window-head {
+    grid-template-columns: 1fr;
+  }
+  .delivery .window-head .btn {
+    height: var(--control-h-lg);
+  }
+  /* Prototype 390: the close button spans the card under the meter;
+     "Fahrer für alle" sits on its own row above it. */
+  .delivery .window-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-row: 3;
+  }
+  .delivery .window-actions .btn {
+    width: 100%;
+  }
+  .delivery .window-closed {
+    justify-content: flex-start;
+  }
+}

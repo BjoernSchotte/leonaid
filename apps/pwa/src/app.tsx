@@ -11,6 +11,7 @@ import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
+  DeliveryBoardPage,
   ModuleSearch,
   resolveModuleRoute,
   RoleDashboardPage,
@@ -38,7 +39,13 @@ interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-type PwaRoute = "overview" | "sponsors" | "commitment" | "follow-ups" | "news";
+type PwaRoute =
+  | "overview"
+  | "sponsors"
+  | "commitment"
+  | "follow-ups"
+  | "news"
+  | "delivery";
 
 function currentRoute(): PwaRoute {
   const { pathname, search } = window.location;
@@ -49,6 +56,7 @@ function currentRoute(): PwaRoute {
       : "news";
   }
   if (pathname.startsWith("/app/sponsors")) return "sponsors";
+  if (pathname.startsWith("/app/delivery")) return "delivery";
   return "overview";
 }
 
@@ -58,6 +66,7 @@ const corePwaNavigation = [
   "sponsors",
   "commitment",
   "activities",
+  "delivery",
 ];
 
 interface PwaLifecycle {
@@ -320,6 +329,15 @@ export function App({ client }: AppProps) {
   const memberships = identity.data.actionMemberships.filter(
     (membership) => membership.role === "acquirer",
   );
+  // Drivers work in the actions they drive for; ?action= picks one.
+  const driverActions = identity.data.actionMemberships.filter(
+    (membership) => membership.role === "driver",
+  );
+  const driverActionId =
+    driverActions.find((membership) => membership.actionId === currentActionId)
+      ?.actionId ??
+    driverActions[0]?.actionId ??
+    "";
   const currentAction =
     memberships.find((membership) => membership.actionId === currentActionId)
       ?.actionName ??
@@ -358,6 +376,14 @@ export function App({ client }: AppProps) {
         <ActivityWorkspace client={client} identity={identity.data} />
       ) : route === "news" ? (
         <ActivityFeedPage client={client} surface="pwa" />
+      ) : route === "delivery" ? (
+        <DeliveryBoardPage
+          actionId={driverActionId}
+          actions={driverActions}
+          client={client}
+          offline={!lifecycle.online}
+          surface="pwa"
+        />
       ) : (
         <RoleDashboardPage
           client={client}
