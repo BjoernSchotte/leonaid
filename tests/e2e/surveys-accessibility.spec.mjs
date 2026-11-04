@@ -199,6 +199,17 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
     await page.keyboard.press("Escape");
     await expect(page.getByRole("menu", { name: "Fragetyp" })).toHaveCount(0);
     await expect(button("Frage hinzufügen")).toBeFocused();
+    // ArrowUp opens on the last type; typing filters the list.
+    await page.keyboard.press("ArrowUp");
+    await expect(
+      page.getByRole("menuitem", { name: "Matrix", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.type("lang");
+    await expect(
+      page.getByRole("menu", { name: "Fragetyp" }).getByRole("menuitem"),
+    ).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(button("Frage hinzufügen")).toBeFocused();
     await page.keyboard.press("Enter");
     await page.keyboard.press("ArrowDown");
     await expect(

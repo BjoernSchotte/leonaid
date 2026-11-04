@@ -113,6 +113,8 @@ for (const kind of ["standalone", "action"])
           .getByRole("button", { name: "Teilnahme beenden", exact: true })
           .click();
         await state(publisher, "ended");
+        // Without archive rights the next focus is the page heading.
+        await expect(publisher.locator("#survey-heading")).toBeFocused();
         await expect(button(publisher, "Archivieren")).toHaveCount(0);
         const archivist = await as("archive");
         await button(archivist, "Archivieren").click();

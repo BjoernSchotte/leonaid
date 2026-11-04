@@ -198,6 +198,8 @@ export function SurveysPage({
   const [trashRetentionDays, setTrashRetentionDays] = useState("");
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  // After a status change the button that was pressed is gone.
+  const focusAfterTransition = useRef(false);
   const [confirmErasure, setConfirmErasure] = useState(false);
   const [understoodErasure, setUnderstoodErasure] = useState(false);
   const [deletion, setDeletion] = useState<SurveyDeletionResponse | null>(null);
@@ -408,11 +410,23 @@ export function SurveysPage({
         expectedRevision: summary.revision,
       });
       await refresh(summary.id);
+      focusAfterTransition.current = true;
     }, "Status wurde gespeichert.");
     // A failed change shows its message on the page, not behind the dialog.
     setConfirmTrash(false);
     setConfirmEnd(false);
   }
+  // Runs after the dialog handed focus back (its layout effect): move on to
+  // the next step's action, or to the page heading without one.
+  useEffect(() => {
+    if (!focusAfterTransition.current || confirmEnd || confirmTrash) return;
+    focusAfterTransition.current = false;
+    const target =
+      document.querySelector<HTMLElement>(
+        '[data-testid="survey-next-step"] .next-step-actions .btn',
+      ) ?? document.getElementById("survey-heading");
+    target?.focus();
+  }, [summary, confirmEnd, confirmTrash]);
   const allowed = (capability: string) =>
     summary?.capabilities?.includes(capability) ?? false;
   const pending = busy || (draft !== null && saveState !== "saved");
@@ -575,7 +589,9 @@ export function SurveysPage({
       <header className="page-header">
         <div>
           <div className="page-heading">
-            <h1>{heading}</h1>
+            <h1 id="survey-heading" tabIndex={-1}>
+              {heading}
+            </h1>
             {onList && list ? (
               <span className="page-count num" aria-live="polite">
                 {list.total} {list.total === 1 ? "Umfrage" : "Umfragen"}

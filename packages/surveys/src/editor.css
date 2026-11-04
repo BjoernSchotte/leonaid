@@ -484,16 +484,47 @@
   background: var(--se-surface);
   box-shadow: var(--survey-shadow-menu, 0 8px 24px rgb(16 24 40 / 0.16));
 }
+.se-menu > [role="menu"] {
+  display: grid;
+}
+.survey-editor:not(.survey-preview) .se-menu-filter {
+  min-height: var(--se-control-h);
+  margin-bottom: 0.25rem;
+  border-color: transparent;
+  border-bottom-color: var(--se-border);
+  border-radius: 0;
+}
 .survey-editor:not(.survey-preview) .se-menu-item {
-  justify-content: flex-start;
+  justify-content: space-between;
   border-color: transparent;
   background: transparent;
   font-weight: 500;
 }
-.survey-editor:not(.survey-preview) .se-menu-item:focus-visible,
+/* The active item shows also when the menu was opened with the mouse. */
+.survey-editor:not(.survey-preview) .se-menu-item:focus,
 .survey-editor:not(.survey-preview) .se-menu-item:hover {
   background: var(--se-selected);
+}
+.survey-editor:not(.survey-preview) .se-menu-item:focus:not(:focus-visible) {
+  outline: none;
+}
+.survey-editor:not(.survey-preview) .se-menu-item:focus-visible {
   outline-offset: -3px;
+}
+.se-menu-key {
+  min-width: 1.25rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--se-border);
+  border-radius: 4px;
+  color: var(--se-text-3);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.se-menu-empty {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  color: var(--se-text-2);
 }
 
 .se-properties {

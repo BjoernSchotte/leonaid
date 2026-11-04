@@ -108,7 +108,9 @@ export function SurveyEditor({
   useEffect(() => setLoadedDraft(draft), [draft]);
   const [pageId, selectPage] = useState<string | null>(null);
   const [questionId, selectQuestion] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  // Which item takes the focus when the type menu opens (ArrowUp: the last).
+  const [addOpen, setAddOpen] = useState<false | "first" | "last">(false);
+  const [addFilter, setAddFilter] = useState("");
   const addTrigger = useRef<HTMLButtonElement>(null);
   const addMenu = useRef<HTMLDivElement>(null);
   const addMenuId = useId();
@@ -151,14 +153,18 @@ export function SurveyEditor({
   });
   useEffect(() => {
     if (!addOpen) return;
-    addMenu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    const items =
+      addMenu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [];
+    items[addOpen === "last" ? items.length - 1 : 0]?.focus();
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
       if (
         !addMenu.current?.contains(target) &&
         !addTrigger.current?.contains(target)
-      )
+      ) {
         setAddOpen(false);
+        setAddFilter("");
+      }
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
@@ -229,10 +235,12 @@ export function SurveyEditor({
   /** Closes the question type menu; Escape and Tab return to the trigger. */
   function closeAddMenu(returnFocus: boolean) {
     setAddOpen(false);
+    setAddFilter("");
     if (returnFocus) addTrigger.current?.focus();
   }
   function addQuestion(pageName: string, value: QuestionKind) {
     setAddOpen(false);
+    setAddFilter("");
     edit(() => {
       const name = history.addQuestion(pageName, value);
       selectQuestion(name);
@@ -240,21 +248,53 @@ export function SurveyEditor({
       pendingFocus.current = `[data-question-title="${CSS.escape(name)}"]`;
     });
   }
-  function menuKey(event: KeyboardEvent<HTMLElement>) {
+  function menuKey(event: KeyboardEvent<HTMLElement>, pageName: string) {
     const items = Array.from(
       addMenu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [],
     );
+    const filterField =
+      addMenu.current?.querySelector<HTMLInputElement>("[data-type-filter]");
+    const inFilter = document.activeElement === filterField;
     const current = items.indexOf(document.activeElement as HTMLElement);
     const focusAt = (index: number) =>
       items[(index + items.length) % items.length]?.focus();
+    // Prototype option menu: 1–9 pick a type while the filter is empty.
+    if (/^[1-9]$/.test(event.key) && !addFilter && !event.altKey) {
+      const kind = shownKinds[Number(event.key) - 1];
+      event.preventDefault();
+      if (kind) addQuestion(pageName, kind[0]);
+      return;
+    }
+    // Typing on an item continues in the filter field.
+    if (
+      !inFilter &&
+      event.key.length === 1 &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      event.key !== " "
+    ) {
+      event.preventDefault();
+      setAddFilter((value) => value + event.key);
+      filterField?.focus();
+      return;
+    }
+    if (inFilter && event.key === "Enter") {
+      event.preventDefault();
+      const first = shownKinds[0];
+      if (first) addQuestion(pageName, first[0]);
+      return;
+    }
+    if (inFilter && (event.key === "Home" || event.key === "End")) return;
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        focusAt(current + 1);
+        focusAt(inFilter ? 0 : current + 1);
         break;
       case "ArrowUp":
         event.preventDefault();
-        focusAt(current - 1);
+        if (current === 0) filterField?.focus();
+        else focusAt(inFilter ? items.length - 1 : current - 1);
         break;
       case "Home":
         event.preventDefault();
@@ -427,6 +467,12 @@ export function SurveyEditor({
       setBusy(false);
     }
   }
+  const typeQuery = addFilter.trim().toLocaleLowerCase(locale);
+  const shownKinds = typeQuery
+    ? kinds.filter(([, label]) =>
+        t(label).toLocaleLowerCase(locale).includes(typeQuery),
+      )
+    : kinds;
   const precedingPages = doc.pages
     .slice(0, doc.pages.indexOf(page))
     .flatMap((p) => p.elements);
@@ -1122,16 +1168,18 @@ export function SurveyEditor({
                     className="se-button"
                     type="button"
                     aria-haspopup="menu"
-                    aria-expanded={addOpen}
+                    aria-expanded={!!addOpen}
                     aria-controls={addOpen ? addMenuId : undefined}
-                    onClick={() => setAddOpen((open) => !open)}
+                    onClick={() =>
+                      addOpen ? closeAddMenu(false) : setAddOpen("first")
+                    }
                     onKeyDown={(event) => {
                       if (
                         event.key === "ArrowDown" ||
                         event.key === "ArrowUp"
                       ) {
                         event.preventDefault();
-                        setAddOpen(true);
+                        setAddOpen(event.key === "ArrowUp" ? "last" : "first");
                       }
                     }}
                   >
@@ -1141,25 +1189,48 @@ export function SurveyEditor({
                   {addOpen && (
                     <div
                       ref={addMenu}
-                      id={addMenuId}
                       className="se-menu"
-                      role="menu"
-                      aria-label={t("Fragetyp")}
-                      onKeyDown={menuKey}
+                      onKeyDown={(event) => menuKey(event, page.name)}
                     >
-                      {kinds.map(([value, label]) => (
-                        <button
-                          key={value}
-                          className="se-menu-item"
-                          type="button"
-                          role="menuitem"
-                          tabIndex={-1}
-                          data-kind={value}
-                          onClick={() => addQuestion(page.name, value)}
-                        >
-                          {t(label)}
-                        </button>
-                      ))}
+                      <input
+                        className="se-menu-filter"
+                        data-type-filter
+                        type="search"
+                        aria-label={t("Fragetyp filtern")}
+                        aria-controls={addMenuId}
+                        placeholder={t("Fragetyp …")}
+                        value={addFilter}
+                        onChange={(event) => setAddFilter(event.target.value)}
+                      />
+                      <div
+                        id={addMenuId}
+                        role="menu"
+                        aria-label={t("Fragetyp")}
+                      >
+                        {shownKinds.map(([value, label], index) => (
+                          <button
+                            key={value}
+                            className="se-menu-item"
+                            type="button"
+                            role="menuitem"
+                            tabIndex={-1}
+                            data-kind={value}
+                            onClick={() => addQuestion(page.name, value)}
+                          >
+                            <span>{t(label)}</span>
+                            {!addFilter && (
+                              <kbd className="se-menu-key" aria-hidden="true">
+                                {index + 1}
+                              </kbd>
+                            )}
+                          </button>
+                        ))}
+                        {shownKinds.length === 0 && (
+                          <p className="se-menu-empty">
+                            {t("Kein passender Fragetyp.")}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
