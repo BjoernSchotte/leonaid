@@ -347,7 +347,7 @@ describe("theme switch", () => {
   });
 });
 
-describe("aliases for existing token names", () => {
+describe("old token aliases are gone", () => {
   const aliasRules = parseRules(tokensCss);
   const aliases = Object.assign(
     {},
@@ -356,7 +356,8 @@ describe("aliases for existing token names", () => {
       .map((candidate) => candidate.declarations),
   ) as Declarations;
 
-  const expected: Record<string, string> = {
+  // The pre-Leitsystem names; components use the Leitsystem tokens now.
+  const removed: Record<string, string> = {
     "--background": "--bg",
     "--foreground": "--text",
     "--primary": "--accent",
@@ -382,11 +383,14 @@ describe("aliases for existing token names", () => {
     "--sidebar-accent": "--rail-marker",
   };
 
-  test.each(Object.entries(expected))("%s points to %s", (alias, target) => {
-    expect(aliases[alias]).toBe(`var(${target})`);
-  });
+  test.each(Object.entries(removed))(
+    "%s is no longer defined (use %s)",
+    (alias) => {
+      expect(aliases[alias]).toBeUndefined();
+    },
+  );
 
-  test("aliases are theme independent", () => {
+  test("tokens.css stays theme independent", () => {
     expect(
       aliasRules.filter(
         (candidate) =>
@@ -398,7 +402,8 @@ describe("aliases for existing token names", () => {
     ).toEqual([]);
   });
 
-  // Pairs the existing components render with the old names.
+  // The pairs components rendered with the old names, now checked under the
+  // Leitsystem names they resolved to.
   const aliasPairs: [string, string, number][] = [
     ["--foreground", "--background", TEXT],
     ["--primary-foreground", "--primary", TEXT],
@@ -421,9 +426,12 @@ describe("aliases for existing token names", () => {
 
   describe.each(Object.entries(themes))("%s theme", (_, theme) => {
     test.each(aliasPairs)("%s on %s", (foreground, background, target) => {
-      const scope = { ...theme, ...aliases };
+      const resolve = (name: string) => removed[name] ?? name;
       expect(
-        contrast(oklch(foreground, scope), oklch(background, scope)),
+        contrast(
+          oklch(resolve(foreground), theme),
+          oklch(resolve(background), theme),
+        ),
       ).toBeGreaterThanOrEqual(target);
     });
   });

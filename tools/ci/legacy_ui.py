@@ -5,9 +5,7 @@ The Leitsystem uses Lucide through @leonaid/ui's Icon adapter, native
 dialogs/popovers and the token names of packages/ui/src/styles/leitsystem.css.
 The names below are the old aliases from packages/ui/src/styles/tokens.css.
 
-Not enabled yet: it joins ./leonaid check once the last open Leitsystem
-branch has landed and the aliases are removed from tokens.css. Until then,
-``--report`` lists the remaining findings without failing.
+Runs in ./leonaid check. ``--report`` lists findings without failing.
 """
 
 from __future__ import annotations

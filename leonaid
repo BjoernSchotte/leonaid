@@ -769,12 +769,13 @@ check_all() {
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/axe_helper.py /workspace
-  # Prepared Leitsystem cleanup gate: only its self-test runs for now. After
-  # the last open Leitsystem branch lands, add the repository check:
-  #   python /workspace/tools/ci/legacy_ui.py /workspace
+  # Leitsystem only: no Hugeicons, Base UI or old token aliases.
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/legacy_ui_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/legacy_ui.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/core_oneoff_user.py /workspace
