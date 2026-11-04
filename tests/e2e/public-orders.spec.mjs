@@ -503,3 +503,125 @@ test("an unselected delivery window is listed and linked in the error summary", 
     }));
   }
 });
+
+test("a window marked ausgebucht is shown but cannot be chosen, also when it fills while the form is open", async ({
+  browser,
+}) => {
+  const session = process.env.KLARA_SESSION;
+  expect(session, "KLARA_SESSION for the delivery configuration").toBeTruthy();
+  // An own user agent: the public rate limit counts per address and agent,
+  // and the earlier cases already sent several orders.
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 390, height: 844 },
+    userAgent: "LeonAid public-order proof (ausgebucht)",
+  });
+  await context.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: session,
+      url: baseUrl,
+      secure: true,
+      httpOnly: true,
+      sameSite: "Lax",
+    },
+  ]);
+  const page = await context.newPage();
+  let form = await openOrderForm(page);
+  const actionId = await form.getAttribute("data-action-id");
+  const configured = await deliveryConfiguration(
+    page.request,
+    actionId,
+    (configuration) => ({
+      expectedRevision: configuration.revision,
+      enabled: true,
+      timezone: configuration.timezone,
+      windows: [
+        ...configuration.windows.map(windowRequest),
+        { deliveryOn: "2026-11-12", startsAt: "08:00", endsAt: "10:00" },
+        { deliveryOn: "2026-11-12", startsAt: "10:00", endsAt: "12:00" },
+      ],
+    }),
+  );
+  const [first, second] = configured.windows
+    .filter((window) => window.deliveryOn === "2026-11-12" && !window.retired)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const markFull = async (window, fullyBooked) => {
+    const response = await page.request.put(
+      `${baseUrl}/api/v1/actions/${actionId}/delivery-windows/${window.id}/fully-booked`,
+      { headers: { Origin: new URL(baseUrl).origin }, data: { fullyBooked } },
+    );
+    expect(response.status(), await response.text()).toBe(200);
+  };
+  const radio = (window) =>
+    form.locator(`input[name="deliveryWindowId"][value="${window.id}"]`);
+  try {
+    // A full window is listed, marked and not selectable.
+    await markFull(first, true);
+    form = await openOrderForm(page);
+    await expect(radio(first)).toBeDisabled();
+    await expect(radio(first).locator("xpath=..")).toContainText("ausgebucht");
+    await expect(radio(second)).toBeEnabled();
+    await page.screenshot({
+      path: `${artifactDirectory}/public-order-window-full-mobile.png`,
+      fullPage: true,
+    });
+
+    // All full: the form says so.
+    await markFull(second, true);
+    form = await openOrderForm(page);
+    await expect(
+      form.getByText("Alle Lieferfenster sind ausgebucht."),
+    ).toBeVisible();
+
+    // Stale form: the chosen window fills before the order is sent.
+    await markFull(first, false);
+    await markFull(second, false);
+    form = await openOrderForm(page);
+    await form.locator('input[name="givenName"]').fill("Agnes");
+    await form.locator('input[name="familyName"]').fill("Ausgebucht");
+    await form.locator('input[name="email"]').fill("agnes@leonaid.invalid");
+    await form.locator('input[name="deliveryRecipientName"]').fill("Agnes");
+    await form
+      .locator('input[name="deliveryStreetLine1"]')
+      .fill("Fensterweg 2");
+    await form.locator('input[name="deliveryPostalCode"]').fill("86150");
+    await form.locator('input[name="deliveryCity"]').fill("Augsburg");
+    await radio(first).check();
+    await form.locator('input[name="privacyAcknowledged"]').check();
+    await form.locator('input[name="bindingOrderConfirmed"]').check();
+    await markFull(first, true);
+    await form.locator('button[type="submit"]').click();
+    const summary = form.locator("[data-form-message]");
+    await expect(summary).toBeFocused();
+    await expect(summary).toContainText(
+      "Dieses Lieferfenster ist inzwischen ausgebucht. Bitte wählen Sie ein anderes.",
+    );
+    await expect(form.locator("[data-delivery-refresh-status]")).toContainText(
+      "Das gewählte Lieferfenster ist nicht mehr verfügbar",
+    );
+    await expect(radio(first)).toBeDisabled();
+    await expect(radio(first)).not.toBeChecked();
+    await expect(form.locator('input[name="givenName"]')).toHaveValue("Agnes");
+    await expect(form.locator('input[name="deliveryCity"]')).toHaveValue(
+      "Augsburg",
+    );
+    // The summary links the window choice; the open window takes the focus.
+    await summary.getByRole("link", { name: /^Lieferfenster: / }).click();
+    await expect(radio(second)).toBeFocused();
+    await expect(radio(second)).toBeEnabled();
+  } finally {
+    // Retiring also clears "ausgebucht"; delivery_cleanup.py then restores
+    // the golden state.
+    await deliveryConfiguration(page.request, actionId, (configuration) => ({
+      expectedRevision: configuration.revision,
+      enabled: true,
+      timezone: configuration.timezone,
+      windows: configuration.windows.map((window) => ({
+        ...windowRequest(window),
+        retired: true,
+      })),
+    }));
+    await context.close();
+  }
+});
