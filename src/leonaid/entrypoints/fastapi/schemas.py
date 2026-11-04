@@ -42,6 +42,13 @@ class DeliveryWindowResponse(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool
+    # "Ausgebucht": closed for public orders; admin and acquisition capture
+    # may still book it with allowFullWindow.
+    fully_booked: bool
+
+
+class DeliveryWindowFullyBookedRequest(TransportModel):
+    fully_booked: bool
 
 
 class DeliveryConfigurationRequest(TransportModel):
@@ -1074,6 +1081,8 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    # Confirms booking a window marked "ausgebucht" (otherwise 409).
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1083,6 +1092,7 @@ class CreateCommitmentRequest(TransportModel):
 
 
 class CompleteCommitmentRequest(TransportModel):
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1090,6 +1100,7 @@ class CompleteCommitmentRequest(TransportModel):
 
 class CompleteCommitmentDeliveryRequest(TransportModel):
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    allow_full_window: bool = False
     invoice_recipient: CommitmentInvoiceRecipientRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None

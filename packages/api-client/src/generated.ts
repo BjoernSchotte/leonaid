@@ -75,8 +75,8 @@ export type CommitmentLineResponse = { readonly boxCount: number; readonly curre
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
 export type CommitmentRecordResponse = { readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; };
 export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
-export type CompleteCommitmentDeliveryRequest = { readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; };
-export type CompleteCommitmentRequest = { readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; };
+export type CompleteCommitmentDeliveryRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; };
+export type CompleteCommitmentRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
@@ -92,7 +92,7 @@ export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; re
 export type CreateAnalysisSnapshot = { readonly filter: AnalysisFilter; readonly operationId: string; };
 export type CreateCampaignAliasRequest = { readonly alias: string; readonly aliasId: string; readonly commandId: string; readonly enabled?: boolean; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
-export type CreateCommitmentRequest = { readonly buyer: CommitmentBuyerRequest; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly invoiceRecipient?: CommitmentInvoiceRecipientRequest | null; readonly lines: Array<CommitmentLineRequest>; readonly readyForReview?: boolean; readonly source: "acquisition" | "admin"; };
+export type CreateCommitmentRequest = { readonly allowFullWindow?: boolean; readonly buyer: CommitmentBuyerRequest; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly invoiceRecipient?: CommitmentInvoiceRecipientRequest | null; readonly lines: Array<CommitmentLineRequest>; readonly readyForReview?: boolean; readonly source: "acquisition" | "admin"; };
 export type CreateEmailChangeRequest = { readonly newEmail: string; };
 export type CreateEpic = { readonly idempotencyKey: string; readonly title: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
@@ -118,8 +118,9 @@ export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse |
 export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
 export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
 export type DeliveryContactRequest = { readonly name?: string | null; readonly phone?: string | null; };
+export type DeliveryWindowFullyBookedRequest = { readonly fullyBooked: boolean; };
 export type DeliveryWindowRequest = { readonly deliveryOn: string; readonly endsAt: string; readonly id?: string | null; readonly retired?: boolean; readonly startsAt: string; };
-export type DeliveryWindowResponse = { readonly deliveryOn: string; readonly endsAt: string; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
+export type DeliveryWindowResponse = { readonly deliveryOn: string; readonly endsAt: string; readonly fullyBooked: boolean; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
 export type DraftValidation = { readonly expectedRevision: number; };
@@ -928,6 +929,23 @@ export class LeonAidApiClient {
   ): Promise<DeliveryConfigurationResponse> {
     return this.request<DeliveryConfigurationResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-configuration`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setDeliveryWindowFullyBooked(
+    actionId: string,
+    windowId: string,
+    body: DeliveryWindowFullyBookedRequest,
+    options: RequestOptions = {},
+  ): Promise<DeliveryConfigurationResponse> {
+    return this.request<DeliveryConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-windows/${encodeURIComponent(String(windowId))}/fully-booked`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

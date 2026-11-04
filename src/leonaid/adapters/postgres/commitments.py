@@ -13,6 +13,7 @@ from leonaid.adapters.postgres.retry import (
     serialization_pause,
 )
 from leonaid.adapters.postgres.delivery import (
+    guard_window_booking,
     read_configuration,
     lock_configuration,
     decode_window_snapshot,
@@ -234,6 +235,11 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             complete=True,
             now=datetime.now(timezone.utc),
         )
+        full_window_booked = await guard_window_booking(
+            connection,
+            window_id=completion.delivery_window_id,
+            allow_full_window=completion.allow_full_window,
+        )
         # Buyer, prices, lines and invoice recipient remain the stored draft values.
         await connection.execute(
             """
@@ -260,13 +266,21 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 id, action_id, actor_user_id, event_type, entity_type, entity_id,
                 request_id, payload, occurred_at
             ) VALUES ($1,$2,$3,'commitment_completed','commitment',$4,$5,
-                '{"previousStatus":"draft","status":"review_ready"}'::jsonb,$6)
+                $6::jsonb,$7)
             """,
             uuid4(),
             action_id,
             actor_user_id,
             commitment_id,
             request_id,
+            json.dumps(
+                {
+                    "previousStatus": "draft",
+                    "status": "review_ready",
+                    **({"fullWindowBooked": True} if full_window_booked else {}),
+                },
+                separators=(",", ":"),
+            ),
             occurred_at,
         )
         await connection.execute(
@@ -532,6 +546,16 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             complete=status is not CommitmentStatus.DRAFT,
             now=datetime.now(timezone.utc),
         )
+        # A draft books nothing yet; its completion applies the switch.
+        full_window_booked = (
+            await guard_window_booking(
+                connection,
+                window_id=draft.delivery_window_id,
+                allow_full_window=draft.allow_full_window,
+            )
+            if status is not CommitmentStatus.DRAFT
+            else False
+        )
         offerings = await self._offerings(
             connection,
             action_id=action_id,
@@ -572,6 +596,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             request_id=request_id,
             request_hash=request_hash,
             occurred_at=occurred_at,
+            full_window_booked=full_window_booked,
         )
         return commitment
 
@@ -809,6 +834,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         request_id: str,
         request_hash: str,
         occurred_at: datetime,
+        full_window_booked: bool = False,
     ) -> None:
         await connection.execute(
             """
@@ -911,6 +937,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     "lineCount": len(commitment.lines),
                     "totalMinor": commitment.total.amount_minor,
                     "currency": commitment.total.currency,
+                    **({"fullWindowBooked": True} if full_window_booked else {}),
                 },
                 separators=(",", ":"),
             ),

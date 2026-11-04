@@ -15,6 +15,7 @@ from typing import Protocol
 from uuid import UUID, uuid5
 
 from leonaid.application.commitments import CommitmentLineDraft
+from leonaid.application.delivery import require_publicly_bookable
 from leonaid.application.crm import (
     CompanyData,
     CompanyRecord,
@@ -609,6 +610,9 @@ class PublicOrderService:
                     contact=draft.delivery_contact,
                     complete=True,
                     now=datetime.now(timezone.utc),
+                )
+                require_publicly_bookable(
+                    context.delivery_configuration, draft.delivery_window_id
                 )
             party = await self._resolve_party(
                 draft.party,

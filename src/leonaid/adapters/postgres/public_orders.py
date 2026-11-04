@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 from leonaid.adapters.postgres.delivery import (
+    guard_window_booking,
     lock_configuration,
     decode_window_snapshot,
     decode_contact_snapshot,
@@ -400,6 +401,12 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             contact=draft.delivery_contact,
             complete=True,
             now=datetime.now(timezone.utc),
+        )
+        # The public form never overrides "ausgebucht".
+        await guard_window_booking(
+            connection,
+            window_id=draft.delivery_window_id,
+            allow_full_window=False,
         )
         offerings = await self._offerings(
             connection,

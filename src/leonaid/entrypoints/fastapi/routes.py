@@ -30,6 +30,7 @@ from leonaid.domain.delivery import (
 )
 from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationRequest,
+    DeliveryWindowFullyBookedRequest,
     DeliveryConfigurationResponse,
     DeliveryWindowResponse,
     DeliveryContactRequest,
@@ -1756,6 +1757,7 @@ def generated_document_list_response(
 def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     recipient = body.invoice_recipient
     return CommitmentDraft(
+        allow_full_window=body.allow_full_window,
         delivery_window_id=body.delivery_window_id,
         delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
         if body.delivery_contact
@@ -3598,6 +3600,7 @@ async def complete_commitment(
     address = body.delivery_recipient
     contact = body.delivery_contact
     completion = CommitmentCompletion(
+        allow_full_window=body.allow_full_window,
         delivery_recipient=DeliveryRecipientSnapshot(
             address.recipient_name,
             address.street_line_1,
@@ -3645,6 +3648,7 @@ async def complete_commitment_delivery(
     recipient = body.invoice_recipient
     draft = DeliveryCompletionDraft(
         expected_version=body.expected_version,
+        allow_full_window=body.allow_full_window,
         invoice_recipient=InvoiceRecipientSnapshot(
             recipient_name=recipient.recipient_name,
             street_line_1=recipient.street_line_1,
@@ -4973,6 +4977,34 @@ async def save_delivery_configuration(
             for window in body.windows
         ),
     )
-    result = await service.save(actor, configuration)
+    result = await service.save(actor, configuration, request_id=request_id(request))
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-windows/{window_id}/fully-booked",
+    operation_id="setDeliveryWindowFullyBooked",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_delivery_window_fully_booked(
+    action_id: UUID,
+    window_id: UUID,
+    body: DeliveryWindowFullyBookedRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryConfigurationResponse:
+    """Mark a delivery window as "ausgebucht" or open it again."""
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    result = await service.set_fully_booked(
+        actor,
+        action_id,
+        window_id,
+        fully_booked=body.fully_booked,
+        request_id=request_id(request),
+    )
     response.headers["Cache-Control"] = "private, no-store"
     return delivery_configuration_response(result)

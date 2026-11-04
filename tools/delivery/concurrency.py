@@ -410,10 +410,23 @@ async def prove_booking_races(
 
     # Negative control: without the configuration row lock, a SERIALIZABLE
     # acquisition booking that waited on the action lock keeps its stale
-    # snapshot and persists a booking against the just-retired window.
+    # snapshot and persists a booking against the just-retired window. The
+    # "ausgebucht" guard's window row lock would also catch it, so the
+    # control replaces it with an unlocked read of the same flag.
     window = next(window_iter)
     original = getattr(commitment_adapter, "lock_configuration")
+    original_guard = getattr(commitment_adapter, "guard_window_booking")
+
+    async def unlocked_guard(
+        connection: asyncpg.Connection[Any],
+        *,
+        window_id: UUID | None,
+        allow_full_window: bool,
+    ) -> bool:
+        return False
+
     setattr(commitment_adapter, "lock_configuration", read_configuration)
+    setattr(commitment_adapter, "guard_window_booking", unlocked_guard)
     try:
         key = f"race:{uuid4()}"
 
@@ -430,6 +443,7 @@ async def prove_booking_races(
         )
     finally:
         setattr(commitment_adapter, "lock_configuration", original)
+        setattr(commitment_adapter, "guard_window_booking", original_guard)
     assert isinstance(result, Commitment), (
         "Negative control did not reproduce the stale booking",
         result,

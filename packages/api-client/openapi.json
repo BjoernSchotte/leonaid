@@ -3324,6 +3324,11 @@
       "CompleteCommitmentDeliveryRequest": {
         "additionalProperties": false,
         "properties": {
+          "allowFullWindow": {
+            "default": false,
+            "title": "Allowfullwindow",
+            "type": "boolean"
+          },
           "deliveryContact": {
             "anyOf": [
               {
@@ -3375,6 +3380,11 @@
       "CompleteCommitmentRequest": {
         "additionalProperties": false,
         "properties": {
+          "allowFullWindow": {
+            "default": false,
+            "title": "Allowfullwindow",
+            "type": "boolean"
+          },
           "deliveryContact": {
             "anyOf": [
               {
@@ -4113,6 +4123,11 @@
       "CreateCommitmentRequest": {
         "additionalProperties": false,
         "properties": {
+          "allowFullWindow": {
+            "default": false,
+            "title": "Allowfullwindow",
+            "type": "boolean"
+          },
           "buyer": {
             "$ref": "#/components/schemas/CommitmentBuyerRequest"
           },
@@ -5372,6 +5387,20 @@
         "title": "DeliveryContactRequest",
         "type": "object"
       },
+      "DeliveryWindowFullyBookedRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fullyBooked": {
+            "title": "Fullybooked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fullyBooked"
+        ],
+        "title": "DeliveryWindowFullyBookedRequest",
+        "type": "object"
+      },
       "DeliveryWindowRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5429,6 +5458,10 @@
             "title": "Endsat",
             "type": "string"
           },
+          "fullyBooked": {
+            "title": "Fullybooked",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5449,7 +5482,8 @@
           "deliveryOn",
           "startsAt",
           "endsAt",
-          "retired"
+          "retired",
+          "fullyBooked"
         ],
         "title": "DeliveryWindowResponse",
         "type": "object"
@@ -19524,6 +19558,130 @@
           }
         },
         "summary": "Save Delivery Configuration",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/delivery-windows/{window_id}/fully-booked": {
+      "put": {
+        "description": "Mark a delivery window as \"ausgebucht\" or open it again.",
+        "operationId": "setDeliveryWindowFullyBooked",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "window_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Window Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryWindowFullyBookedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Delivery Window Fully Booked",
         "tags": [
           "actions"
         ]
