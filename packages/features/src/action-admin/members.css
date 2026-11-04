@@ -139,7 +139,7 @@
   flex-wrap: wrap;
   gap: var(--s-2);
 }
-.members-ledger-note {
+.members-ledger .members-ledger-note {
   margin-bottom: var(--s-4);
 }
 .members-filter {
