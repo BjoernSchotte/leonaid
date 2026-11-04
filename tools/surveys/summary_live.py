@@ -203,6 +203,56 @@ async def main():
         )
         assert whole["participationCount"] == 30  # seeded two days ago
         assert whole["filter"]["createdBefore"] is not None
+        assert whole["filter"]["statuses"] == ["completed"]
+        # Differencing: two participations from the same past days that are
+        # not settled before the cut-off (today 00:00): one partial, one
+        # completed only today. Neither counts, and changing them later
+        # leaves the aggregate of that range identical.
+        late = [uuid4(), uuid4()]
+        for pid, status in zip(late, ("partial", "completed"), strict=True):
+            await conn.execute(
+                "INSERT INTO survey_participation(id,survey_id,version_id,resume_digest,status,answers,current_page,inactivity_timeout_seconds,is_test,created_at,last_answer_changed_at,completed_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,'main',3600,false,$7,$8,$9)",
+                pid,
+                sid,
+                UUID(version["id"]),
+                hashlib.sha256(secrets.token_bytes(16)).hexdigest(),
+                status,
+                json.dumps({"gate": "no", "nps": 0, "multi": ["b"]}),
+                now - timedelta(days=2),
+                now,
+                now if status == "completed" else None,
+            )
+        settled = {
+            "operationId": "settled-a",
+            "filter": {"versionId": version["id"]},
+        }
+        first = await call("POST", path + "/analysis", settled, analyst)
+        # The partial one completes now with different answers.
+        await conn.execute(
+            "UPDATE survey_participation SET status='completed',answers=$2::jsonb,last_answer_changed_at=clock_timestamp(),completed_at=clock_timestamp() WHERE id=$1",
+            late[0],
+            json.dumps({"gate": "yes", "nps": 10, "multi": ["a"]}),
+        )
+        second = await call(
+            "POST", path + "/analysis", {**settled, "operationId": "settled-b"}, analyst
+        )
+        assert first["id"] != second["id"]
+        for key in (
+            "participationCount",
+            "statusCounts",
+            "lastPageCounts",
+            "questions",
+        ):
+            assert first[key] == second[key], key
+        assert first["participationCount"] == 30
+        # A raw reader's selection is not settled and sees both.
+        raw = await call(
+            "POST",
+            path + "/response-selections",
+            {"operationId": "raw-late", "filter": {"versionId": version["id"]}},
+            reader,
+        )
+        assert raw["total"] == 32
         # fields=choice: option labels only, never free text.
         listing = await call(
             "GET",

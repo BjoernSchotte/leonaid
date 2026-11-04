@@ -121,7 +121,10 @@ test("populated snapshot exports match visible metrics and report-only access de
     await download.saveAs(`${proof}/browser-${product}.${extension}`);
   }
   const member = await session(browser, seed.memberToken);
-  expect(member.snapshot.participationCount).toBe(5);
+  // Without raw access only participations completed before the whole-day
+  // end count (Task 5.6b): the partial one of the five is not in scope.
+  expect(member.snapshot.participationCount).toBe(4);
+  expect(member.snapshot.filter.statuses).toEqual(["completed"]);
   const panel = member.page.getByRole("region", {
     name: "Auswertung exportieren",
     exact: true,

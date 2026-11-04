@@ -554,18 +554,24 @@ class AsyncpgSurveyRepository:
                             "range_whole_days",
                             "Ohne Leserecht umfasst eine Auswertung nur ganze Tage bis gestern. Wählen Sie einen Beginn vor heute.",
                         )
+                    # Only participations completed before the end: they can
+                    # no longer change, so a past range reads the same forever.
                     filters = AnalysisFilter.model_validate(
                         {
                             **filters.model_dump(),
+                            "statuses": ["completed"],
                             "createdFrom": created_from,
                             "createdBefore": created_before,
                         }
                     )
+                    settled = True
+                else:
+                    settled = False
                 scope = f"author:{actor.account.id}:{operation}"
                 replay = await self._replay(conn, survey_id, scope, body)
                 if replay is not None:
                     return replay
-                result = await create_snapshot(conn, survey, filters)
+                result = await create_snapshot(conn, survey, filters, settled=settled)
                 if operation == "response-create":
                     result = selection_metadata(result)
                 elif operation == "export-selection-create":

@@ -121,9 +121,18 @@ async def read_snapshot(
 
 
 async def create_snapshot(
-    conn: Any, survey: Any, filters: AnalysisFilter
+    conn: Any, survey: Any, filters: AnalysisFilter, *, settled: bool = False
 ) -> dict[str, Any]:
-    """Caller holds the survey lock, so response/lifecycle writes cannot change selection."""
+    """Caller holds the survey lock, so response/lifecycle writes cannot change selection.
+
+    ``settled`` (accounts without raw access, with a whole-day end): only
+    participations completed before the end are in scope. A completed
+    participation can no longer change and its completion time never
+    moves, so the result for a past range is the same on every read; later
+    answers, completions or edits cannot be told apart by comparing reads.
+    """
+    if settled and (filters.createdBefore is None or filters.statuses != ["completed"]):
+        raise ValueError("a settled selection needs an end and completed only")
     version = await conn.fetchrow(
         "SELECT * FROM survey_version WHERE survey_id=$1 AND id=$2",
         survey["id"],
@@ -152,6 +161,7 @@ async def create_snapshot(
         else None,
         captured_at,
         closed,
+        settled,
     )
     scoped = """WITH scoped AS (
         SELECT p.*, CASE WHEN status='completed' THEN 'completed'
@@ -161,6 +171,7 @@ async def create_snapshot(
         FROM survey_participation p WHERE survey_id=$1 AND version_id=$2 AND is_test=$3
           AND ($4::timestamptz IS NULL OR created_at >= $4)
           AND ($5::timestamptz IS NULL OR created_at < $5)
+          AND (NOT $8::boolean OR (status='completed' AND completed_at < $5))
     ) """
     counts = await conn.fetch(
         scoped
@@ -180,7 +191,7 @@ async def create_snapshot(
         )
     rows = await conn.fetch(
         scoped
-        + "SELECT id,revision,answers,current_page,created_at,completed_at,effective_status FROM scoped WHERE effective_status=ANY($8::text[]) ORDER BY created_at,id",
+        + "SELECT id,revision,answers,current_page,created_at,completed_at,effective_status FROM scoped WHERE effective_status=ANY($9::text[]) ORDER BY created_at,id",
         *args,
         filters.statuses,
     )

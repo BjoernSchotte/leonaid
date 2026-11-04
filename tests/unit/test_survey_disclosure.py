@@ -256,3 +256,28 @@ def test_report_exports_show_withheld_counts():
     assert cells.count("< 5") == 2 and 12 in cells
     meta = [c.value for row in workbook.worksheets[0].iter_rows() for c in row]
     assert "minimum_group_size" in meta
+
+
+def test_settled_selection_needs_an_end_and_completed_only():
+    import asyncio
+
+    import pytest
+
+    from leonaid.modules.surveys.adapters.postgres.survey_analysis import (
+        create_snapshot,
+    )
+    from leonaid.modules.surveys.application.analysis_snapshot import (
+        AnalysisFilter,
+    )
+
+    version = str(uuid4())
+    for unsettled in (
+        AnalysisFilter(versionId=version, statuses=["completed"]),
+        AnalysisFilter(
+            versionId=version,
+            statuses=["partial", "completed"],
+            createdBefore="2026-11-03T23:00:00+00:00",
+        ),
+    ):
+        with pytest.raises(ValueError, match="settled"):
+            asyncio.run(create_snapshot(None, None, unsettled, settled=True))

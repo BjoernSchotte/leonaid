@@ -722,7 +722,9 @@ function SurveyResponses({
         operationId: crypto.randomUUID(),
         filter: {
           versionId: filter.version,
-          statuses: [...filter.statuses],
+          // Without raw access the server counts completed ones only.
+          statuses:
+            mode === "aggregates" ? ["completed"] : [...filter.statuses],
           isTest: canTest && filter.isTest,
           createdFrom,
           createdBefore,
@@ -801,7 +803,7 @@ function SurveyResponses({
       daysOnly={mode === "aggregates"}
       rangeHint={
         mode === "aggregates"
-          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern, damit niemand einzeln erkennbar wird."
+          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern und nur abgeschlossene Teilnahmen, damit niemand einzeln erkennbar wird."
           : undefined
       }
       retry={retry}
@@ -1002,26 +1004,33 @@ function SelectionForm({
             </select>
           </Field>
         ) : null}
-        <fieldset className="svr-statuses">
-          <legend className="field-label">Teilnahmestatus</legend>
-          {RESPONSE_STATUSES.map((key) => (
-            <label className="checkbox" key={key}>
-              <input
-                checked={filter.statuses.includes(key)}
-                onChange={(e) =>
-                  onChange({
-                    ...filter,
-                    statuses: e.target.checked
-                      ? [...filter.statuses, key]
-                      : filter.statuses.filter((s) => s !== key),
-                  })
-                }
-                type="checkbox"
-              />
-              {responseStatusLabels[key]}
-            </label>
-          ))}
-        </fieldset>
+        {daysOnly ? (
+          <p className="field-hint svr-zone">
+            Teilnahmestatus: nur abgeschlossene Teilnahmen, die vor dem Ende des
+            Zeitraums abgeschlossen wurden.
+          </p>
+        ) : (
+          <fieldset className="svr-statuses">
+            <legend className="field-label">Teilnahmestatus</legend>
+            {RESPONSE_STATUSES.map((key) => (
+              <label className="checkbox" key={key}>
+                <input
+                  checked={filter.statuses.includes(key)}
+                  onChange={(e) =>
+                    onChange({
+                      ...filter,
+                      statuses: e.target.checked
+                        ? [...filter.statuses, key]
+                        : filter.statuses.filter((s) => s !== key),
+                    })
+                  }
+                  type="checkbox"
+                />
+                {responseStatusLabels[key]}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <Field label="Begonnen ab">
           <input
             type={daysOnly ? "date" : "datetime-local"}
