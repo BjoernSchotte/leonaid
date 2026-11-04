@@ -536,8 +536,8 @@ export function SurveySummary({
       ) : (
         <>
           <p className="small muted">
-            Auswertung ohne Namen. „{withheldText(k)}“ steht für einen
-            verborgenen Wert: weniger als {k} Personen oder daraus ableitbar.
+            Auswertung ohne Namen. „{withheldText(k)}“ verborgen: unter {k}{" "}
+            Personen oder daraus ableitbar.
           </p>
           <div className="answer-grid">
             {aggregates.questions.map((question, index) => (

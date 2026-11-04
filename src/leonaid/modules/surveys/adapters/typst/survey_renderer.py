@@ -25,6 +25,7 @@ from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportSource,
     export_filename,
     shown_count,
+    withheld_legend,
     withheld_note,
 )
 
@@ -158,6 +159,7 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             for p in snapshot.lastPageCounts
         ],
         "questions": questions,
+        "withheldLegend": withheld_legend(k) if k else None,
     }
 
 

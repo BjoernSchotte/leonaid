@@ -25,6 +25,7 @@ from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportSource,
     export_filename,
     shown_count,
+    withheld_legend,
 )
 from leonaid.modules.surveys.application.disclosure import (
     AnalysisSnapshot as DisclosedSnapshot,
@@ -156,7 +157,8 @@ def metadata(source: SurveyExportSource) -> dict[str, Any]:
         **(
             {
                 "minimum_group_size": s.minimumGroupSize,
-                "withheld": f"Counts of 1 to {s.minimumGroupSize - 1} people, and counts that would reveal them, read '< {s.minimumGroupSize}'; questions with fewer valid answers have no distribution or statistics.",
+                "withheld": withheld_legend(s.minimumGroupSize)
+                + f" Fragen mit weniger als {s.minimumGroupSize} gültigen Antworten haben keine Verteilung und keine Kennzahlen.",
             }
             if isinstance(s, DisclosedSnapshot)
             else {}

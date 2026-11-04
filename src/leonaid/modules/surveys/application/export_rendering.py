@@ -69,6 +69,11 @@ def shown_count(value: int | None) -> int | str:
     return WITHHELD if value is None else value
 
 
+def withheld_legend(k: int) -> str:
+    """The marker's legend, worded by Björn (2026-11-04); the UI uses it too."""
+    return f"„{WITHHELD}“ verborgen: unter {k} Personen oder daraus ableitbar."
+
+
 def withheld_note(k: int) -> str:
     return f"Weniger als {k} gültige Antworten oder daraus ableitbar: nicht ausgewertet, damit niemand erkennbar wird."
 

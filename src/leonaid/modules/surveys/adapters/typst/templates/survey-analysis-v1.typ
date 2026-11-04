@@ -77,6 +77,10 @@ keine Nullwerte. Mehrfachauswahlen können zusammen mehr als 100 % ergeben.
 Ausgeblendete und ungültige Antworten sind gesondert ausgewiesen. Prozentwerte
 und Kennzahlen sind auf höchstens zwei Nachkommastellen gerundet.
 Dieser Bericht enthält keine einzelnen Antworten und keine Freitexte.
+#if data.withheldLegend != none [
+
+#data.withheldLegend
+]
 
 #pagebreak()
 #for (index, q) in data.questions.enumerate() {
