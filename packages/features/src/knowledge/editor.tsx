@@ -383,7 +383,12 @@ function PageEditor({
     editor?.setEditable(writable, false);
     if (writable && focusOnEdit.current) {
       focusOnEdit.current = false;
-      editor?.commands.focus("end");
+      // Synchronously: Tiptap's focus command waits a frame, long enough
+      // for a click into the text to be moved to the end afterwards.
+      if (editor) {
+        editor.commands.setTextSelection(editor.state.doc.content.size);
+        editor.view.focus();
+      }
     }
   }, [editor, canEdit, editing, save.isPending, invalid, taskOpen]);
   useLeaveGuard(dirty || taskOpen);
