@@ -37,8 +37,10 @@ RAW_PRODUCTS: frozenset[str] = frozenset({"responses_csv", "responses_xlsx"})
 and in future, renders from the disclosed snapshot (fails closed, M3)."""
 
 
-WITHHELD = f"< {K}"
-"""How reports show a withheld count (one place; the UI uses the same)."""
+WITHHELD = "–"
+"""How reports show a withheld count: one neutral marker, since some are
+1 to K - 1 people and others are withheld because they would reveal those
+(review 5.6b, option A). The UI uses the same marker."""
 
 
 def shown_count(value: int | None) -> int | str:

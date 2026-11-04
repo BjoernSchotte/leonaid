@@ -4,7 +4,7 @@ The stored snapshot (``analysis_snapshot.AnalysisSnapshot``) keeps every
 computed number. Everything that leaves the API as an aggregate passes
 ``disclose`` first (Björn, 2026-11-04; review rulings for Task 5.6b):
 
-R0  A selection with fewer than K participations shows nothing, not even
+R0  A selection with 1 to K - 1 participations shows nothing, not even
     its exact size.
 R1  A count of 1 to K - 1 people is withheld. Where the counts of a
     distribution add up to a known total, every cell below 2K (zeros
@@ -424,7 +424,7 @@ def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
     ).model_dump()
     total = stored["participationCount"]
     status_keys = ["in_progress", "partial", "completed"]
-    everything_hidden = total < K  # R0
+    everything_hidden = 0 < total < K  # R0 (0: nothing to hide)
 
     questions: list[QuestionAggregate] = []
     if everything_hidden:

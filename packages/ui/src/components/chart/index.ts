@@ -4,6 +4,7 @@ export {
   divergingColors,
   divergingSteps,
   resolveTheme,
+  themeFor,
   type ChartTheme,
   type DivergingStep,
 } from "./theme";

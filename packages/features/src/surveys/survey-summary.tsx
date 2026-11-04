@@ -44,9 +44,16 @@ const numberFormat = new Intl.NumberFormat("de-DE", {
 });
 const n = (value: number) => numberFormat.format(value);
 
-function withheldText(k: number) {
-  return `< ${k}`;
+/**
+ * One neutral marker for every withheld count: some are 1–4 people, others
+ * are withheld because they would reveal those (review 5.6b, option A).
+ */
+const WITHHELD = "–";
+function withheldText(_k: number) {
+  return WITHHELD;
 }
+const shown = (value: number | null | undefined) =>
+  value === null || value === undefined ? WITHHELD : n(value);
 
 function countText(bucket: AggregateCount, k: number) {
   if (bucket.count === null) return withheldText(k);
@@ -384,7 +391,9 @@ function QuestionPanel({
     );
   } else if (TEXT_KINDS.has(question.kind)) {
     body = quotes ?? (
-      <p className="svs-note">{n(question.answered)} Antworten (Freitext).</p>
+      <p className="svs-note">
+        {shown(question.answered)} Antworten (Freitext).
+      </p>
     );
   } else if (question.kind === "matrix") {
     body = <MatrixPanel k={k} question={question} />;
@@ -404,7 +413,7 @@ function QuestionPanel({
         <Bars
           buckets={[...question.counts].reverse()}
           k={k}
-          max={question.answered}
+          max={question.answered ?? 0}
           title={question.title}
         />
       </>
@@ -427,7 +436,7 @@ function QuestionPanel({
       </dl>
     );
   } else if (question.kind === "date") {
-    body = <p className="svs-note">{n(question.answered)} Antworten.</p>;
+    body = <p className="svs-note">{shown(question.answered)} Antworten.</p>;
   } else {
     // Single and multiple choice: largest first (prototype).
     const buckets = [...question.counts].sort(
@@ -437,14 +446,14 @@ function QuestionPanel({
       <>
         {question.kind === "checkbox" ? (
           <p className="svs-note">
-            Mehrfachauswahl: Anteile beziehen sich auf {n(question.answered)}{" "}
-            Antwortende.
+            Mehrfachauswahl: Anteile beziehen sich auf{" "}
+            {shown(question.answered)} Antwortende.
           </p>
         ) : null}
         <Bars
           buckets={buckets}
           k={k}
-          max={question.answered}
+          max={question.answered ?? 0}
           title={question.title}
         />
       </>
@@ -501,7 +510,9 @@ export function SurveySummary({
         <div className="page-heading">
           <h1>Auswertung</h1>
           <span className="page-count num">
-            {aggregates.participationCount} Teilnahmen
+            {aggregates.participationCount === null
+              ? "Weniger als 5 Teilnahmen"
+              : `${aggregates.participationCount} Teilnahmen`}
           </span>
         </div>
         <div className="page-actions">
@@ -525,8 +536,8 @@ export function SurveySummary({
       ) : (
         <>
           <p className="small muted">
-            Auswertung ohne Namen. Werte unter {k} Personen erscheinen als „
-            {withheldText(k)}“.
+            Auswertung ohne Namen. „{withheldText(k)}“ steht für einen
+            verborgenen Wert: weniger als {k} Personen oder daraus ableitbar.
           </p>
           <div className="answer-grid">
             {aggregates.questions.map((question, index) => (

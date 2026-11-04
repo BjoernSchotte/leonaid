@@ -157,8 +157,9 @@ export function SurveyAnalytics({
   const n = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
   const k = snapshot.minimumGroupSize ?? 1;
-  /** A withheld count (null) stands for 1 to k − 1 people. */
-  const c = (value: number | null) => (value === null ? `< ${k}` : n(value));
+  // A withheld count (null): fewer than k people or derivable from one.
+  // One neutral marker for both, so it gives no bound away.
+  const c = (value: number | null) => (value === null ? "–" : n(value));
   const fill = (text: string) => text.replaceAll("{k}", String(k));
   return (
     <section
@@ -184,10 +185,10 @@ export function SurveyAnalytics({
         </dl>
       </section>
       <p className="survey-analytics-total">
-        {m.participants}: <strong>{n(snapshot.participationCount)}</strong>
+        {m.participants}: <strong>{c(snapshot.participationCount)}</strong>
       </p>
       {snapshot.participationCount === 0 && <p role="status">{m.empty}</p>}
-      {snapshot.suppressed && snapshot.participationCount > 0 && (
+      {snapshot.suppressed && snapshot.participationCount !== 0 && (
         <p className="survey-analytics-withheld" role="status">
           {fill(m.tooFewParticipants)}
         </p>
@@ -213,7 +214,7 @@ export function SurveyAnalytics({
               ).map(([key, label]) => (
                 <div key={key}>
                   <dt>{label}</dt>
-                  <dd>{n(q[key])}</dd>
+                  <dd>{c(q[key])}</dd>
                 </div>
               ))}
             </dl>
@@ -263,9 +264,9 @@ export function SurveyAnalytics({
               <section key={row.rowId} aria-label={row.label}>
                 <h4>{row.label}</h4>
                 <p>
-                  {m.matrixDenominator} {m.answered}: {n(row.answered)} ·{" "}
-                  {m.unanswered}: {n(row.unanswered)} · {m.invalid}:{" "}
-                  {n(row.invalid)}
+                  {m.matrixDenominator} {m.answered}: {c(row.answered)} ·{" "}
+                  {m.unanswered}: {c(row.unanswered)} · {m.invalid}:{" "}
+                  {c(row.invalid)}
                 </p>
                 {row.suppressed ? (
                   <p className="survey-analytics-withheld">

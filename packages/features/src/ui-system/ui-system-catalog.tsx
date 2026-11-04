@@ -835,7 +835,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
 
       <section aria-labelledby="charts" className="ui-catalog-section">
         <PatternHeading
-          description="Chart.js mit Farben aus den Leitsystem-Tokens, Legende mit Werten und Tabelle; Werte unter 5 Personen als „< 5“."
+          description="Chart.js mit Farben aus den Leitsystem-Tokens, Legende mit Werten und Tabelle; verborgene Werte (unter 5 Personen oder daraus ableitbar) als „–“."
           id="charts"
         >
           Diagramme

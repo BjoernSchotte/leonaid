@@ -146,7 +146,6 @@ function aggregates(suppressed = false): AnalysisSnapshot {
         hidden: 0,
         invalid: 0,
         counts: [choice("a", "Alpha", 47), choice("b", "Beta", null)],
-        sum: null,
         mean: null,
         minimum: null,
         maximum: null,
@@ -164,7 +163,6 @@ function aggregates(suppressed = false): AnalysisSnapshot {
         hidden: 0,
         invalid: 0,
         counts: [],
-        sum: null,
         mean: null,
         minimum: null,
         maximum: null,
@@ -589,7 +587,7 @@ describe("evaluation (summary)", () => {
     expect(client.listSurveyResponses).not.toHaveBeenCalled();
     const panel = screen.getByRole("region", { name: "1. Auswahl" });
     expect(panel.textContent).toContain("Alpha");
-    expect(panel.textContent).toContain("< 5");
+    expect(panel.textContent).toContain("–");
     expect(
       screen.getByRole("region", { name: "2. Rückmeldung" }).textContent,
     ).toContain("Weniger als 5 gültige Antworten");

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { Chart, valueLabels } from "./register";
 import {
   type DivergingStep,
-  resolveTheme,
+  themeFor,
   useThemeVersion,
   type ChartTheme,
 } from "./theme";
@@ -44,7 +44,7 @@ export function ChartCanvas({
 
   useEffect(() => {
     if (!canvas.current || !host.current) return;
-    const next = config(resolveTheme(host.current));
+    const next = config(themeFor(host.current));
     if (chart.current) {
       chart.current.data = next.data;
       chart.current.options = next.options ?? {};

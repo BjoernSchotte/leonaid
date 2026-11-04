@@ -300,10 +300,10 @@ def test_report_exports_show_withheld_counts():
         12,
     ]
     rows = pdf["questions"][0]["groups"][0]["rows"]
-    assert [row["count"] for row in rows] == ["< 5", "< 5", 12]
+    assert [row["count"] for row in rows] == ["–", "–", 12]
     assert pdf["questions"][1]["groups"] == []
     assert any(m["label"] == "Hinweis" for m in pdf["questions"][1]["metrics"])
-    # Report workbook: the same "< 5" and the k note in the metadata.
+    # Report workbook: the same "–" and the k note in the metadata.
     workbook = load_workbook(
         io.BytesIO(
             render_tabular(
@@ -312,7 +312,7 @@ def test_report_exports_show_withheld_counts():
         )
     )
     cells = [c.value for row in workbook["Distributions"].iter_rows() for c in row]
-    assert cells.count("< 5") == 2 and 12 in cells
+    assert cells.count("–") == 2 and 12 in cells
     meta = [c.value for row in workbook.worksheets[0].iter_rows() for c in row]
     assert "minimum_group_size" in meta
 

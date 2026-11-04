@@ -18,6 +18,28 @@ export interface ChartTheme {
   readonly font: string;
 }
 
+const cache = new Map<string, ChartTheme>();
+
+/**
+ * The theme for a chart host, resolved once per theme and zone (M9): the
+ * key is <html data-theme>, the OS scheme and the host's data-zone.
+ */
+export function themeFor(host: HTMLElement): ChartTheme {
+  const key = [
+    document.documentElement.getAttribute("data-theme") ?? "",
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light",
+    host.closest("[data-zone]")?.getAttribute("data-zone") ?? "",
+  ].join("|");
+  let theme = cache.get(key);
+  if (!theme) {
+    theme = resolveTheme(host);
+    cache.set(key, theme);
+  }
+  return theme;
+}
+
 export function resolveTheme(host: HTMLElement): ChartTheme {
   /*
    * One fresh probe per token, transitions off: reusing one probe would

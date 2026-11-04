@@ -1556,9 +1556,16 @@
             "type": "integer"
           },
           "participationCount": {
-            "minimum": 0.0,
-            "title": "Participationcount",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participationcount"
           },
           "questions": {
             "items": {
@@ -8221,9 +8228,16 @@
         "additionalProperties": false,
         "properties": {
           "answered": {
-            "minimum": 0.0,
-            "title": "Answered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
           },
           "counts": {
             "items": {
@@ -8233,9 +8247,16 @@
             "type": "array"
           },
           "invalid": {
-            "minimum": 0.0,
-            "title": "Invalid",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid"
           },
           "label": {
             "title": "Label",
@@ -8251,9 +8272,16 @@
             "type": "boolean"
           },
           "unanswered": {
-            "minimum": 0.0,
-            "title": "Unanswered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unanswered"
           }
         },
         "required": [
@@ -8820,43 +8848,22 @@
       },
       "NpsSegments": {
         "additionalProperties": false,
-        "description": "People per NPS group (0–6, 7–8, 9–10); None = withheld (1 to K − 1).",
+        "description": "People per NPS group (0–6, 7–8, 9–10); only when no score is withheld.",
         "properties": {
           "detractors": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detractors"
+            "minimum": 0.0,
+            "title": "Detractors",
+            "type": "integer"
           },
           "passives": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Passives"
+            "minimum": 0.0,
+            "title": "Passives",
+            "type": "integer"
           },
           "promoters": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promoters"
+            "minimum": 0.0,
+            "title": "Promoters",
+            "type": "integer"
           }
         },
         "required": [
@@ -11389,9 +11396,16 @@
         "additionalProperties": false,
         "properties": {
           "answered": {
-            "minimum": 0.0,
-            "title": "Answered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
           },
           "counts": {
             "items": {
@@ -11401,14 +11415,28 @@
             "type": "array"
           },
           "hidden": {
-            "minimum": 0.0,
-            "title": "Hidden",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden"
           },
           "invalid": {
-            "minimum": 0.0,
-            "title": "Invalid",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid"
           },
           "kind": {
             "enum": [
@@ -11493,20 +11521,16 @@
             "type": "string"
           },
           "relevant": {
-            "minimum": 0.0,
-            "title": "Relevant",
-            "type": "integer"
-          },
-          "sum": {
             "anyOf": [
               {
-                "type": "number"
+                "minimum": 0.0,
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Sum"
+            "title": "Relevant"
           },
           "suppressed": {
             "default": false,
@@ -11518,9 +11542,16 @@
             "type": "string"
           },
           "unanswered": {
-            "minimum": 0.0,
-            "title": "Unanswered",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unanswered"
           }
         },
         "required": [
@@ -11533,7 +11564,6 @@
           "hidden",
           "invalid",
           "counts",
-          "sum",
           "mean",
           "minimum",
           "maximum",

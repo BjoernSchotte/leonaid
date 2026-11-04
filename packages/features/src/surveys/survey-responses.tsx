@@ -444,9 +444,9 @@ export function AppliedSelection({ info }: { info: SelectionInfo }) {
     <p className="svr-applied" role="status">
       Antwortstand: Version {info.versionNumber} ·{" "}
       {filter.statuses.map((s) => responseStatusLabels[s]).join(", ")} ·{" "}
-      {filter.isTest ? "Testteilnahmen" : "Echte Teilnahmen"} · {info.total}{" "}
-      Teilnahmen. Stand vom {new Date(info.createdAt).toLocaleString("de-DE")} (
-      {zone}). Zeitraum:{" "}
+      {filter.isTest ? "Testteilnahmen" : "Echte Teilnahmen"} ·{" "}
+      {info.total === null ? "weniger als 5" : info.total} Teilnahmen. Stand vom{" "}
+      {new Date(info.createdAt).toLocaleString("de-DE")} ({zone}). Zeitraum:{" "}
       {filter.createdFrom
         ? `ab ${new Date(filter.createdFrom).toLocaleString("de-DE")}`
         : "offener Beginn"}{" "}
@@ -466,7 +466,8 @@ export interface SelectionInfo {
   readonly createdAt: string;
   readonly versionNumber: number;
   readonly filter: ResolvedAnalysisFilter;
-  readonly total: number;
+  /** null: fewer than 5 (withheld). */
+  readonly total: number | null;
 }
 
 interface Loaded {
@@ -502,6 +503,7 @@ const infoOf = (
   createdAt: value.createdAt,
   versionNumber: value.versionNumber,
   filter: value.filter,
+  // A disclosed size of 1-4 is withheld (null).
   total: "total" in value ? value.total : value.participationCount,
 });
 
@@ -529,7 +531,7 @@ function sourceFor(
       info: infoOf(snapshot),
       selection: null,
       rows: [],
-      total: snapshot.participationCount,
+      total: snapshot.participationCount ?? 0,
       aggregates: snapshot,
     });
     return {
@@ -564,7 +566,7 @@ function sourceFor(
           ),
         };
       }
-      onProgress({ loaded: 0, total: value.info.total });
+      onProgress({ loaded: 0, total: value.info.total ?? 0 });
       const { rows, total } = await loadRows(
         client,
         surveyId,
@@ -742,7 +744,7 @@ function SurveyResponses({
       // Same operation id after an uncertain acknowledgement: the server
       // returns the selection it already stored.
       const created = await source.create(pending.current, signal);
-      setCreating({ loaded: 0, total: created.info.total });
+      setCreating({ loaded: 0, total: created.info.total ?? 0 });
       const data = await source.fill(created, signal, (progress) => {
         if (!signal.aborted) setCreating(progress);
       });
@@ -803,7 +805,7 @@ function SurveyResponses({
       daysOnly={mode === "aggregates"}
       rangeHint={
         mode === "aggregates"
-          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern und nur abgeschlossene Teilnahmen, damit niemand einzeln erkennbar wird."
+          ? "Ohne Leserecht zählen ganze Tage (Europe/Berlin) bis einschließlich gestern und nur abgeschlossene Teilnahmen, damit niemand einzeln erkennbar wird. Zwei Zeiträume, die sich um einen Tag unterscheiden, zeigen zusammen, wie an diesem Tag geantwortet wurde."
           : undefined
       }
       retry={retry}

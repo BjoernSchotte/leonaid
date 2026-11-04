@@ -42,7 +42,7 @@ export function ChartsDemo() {
           },
         ],
         theme,
-        { withheldLabel: "< 5", showRowLabels: false, negativeFirst: true },
+        { withheldLabel: "–", showRowLabels: false, negativeFirst: true },
       ),
     [],
   );
@@ -51,7 +51,7 @@ export function ChartsDemo() {
       distributionConfig(
         scores.map((count, index) => ({ label: String(index), count })),
         theme,
-        { withheldLabel: "< 5", unit: "Antworten" },
+        { withheldLabel: "–", unit: "Antworten" },
       ),
     [],
   );
@@ -66,7 +66,7 @@ export function ChartsDemo() {
           })),
         })),
         theme,
-        { withheldLabel: "< 5" },
+        { withheldLabel: "–" },
       ),
     [],
   );
@@ -96,7 +96,7 @@ export function ChartsDemo() {
           config={distribution}
           height={140}
           label={`Verteilung: ${scores
-            .map((count, index) => `${index}: ${count ?? "< 5"}`)
+            .map((count, index) => `${index}: ${count ?? "–"}`)
             .join(", ")}.`}
         />
         <ChartTable
@@ -104,7 +104,7 @@ export function ChartsDemo() {
           columns={["Wert", "Anzahl"]}
           rows={scores.map((count, index) => [
             String(index),
-            count === null ? "< 5" : String(count),
+            count === null ? "–" : String(count),
           ])}
         />
       </figure>
