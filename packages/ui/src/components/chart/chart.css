@@ -75,3 +75,6 @@
 .chart-table .table tr:last-child th {
   border-bottom: 0;
 }
+.chart-table .table td {
+  white-space: nowrap;
+}
