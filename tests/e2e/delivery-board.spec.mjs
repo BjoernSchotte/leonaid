@@ -102,7 +102,10 @@ test("managers assign, tick and close; drivers tick only their drops", async ({
       await page.setViewportSize({ width, height });
       for (const scheme of ["light", "dark"]) {
         await page.emulateMedia({ colorScheme: scheme });
+        // Finish colour transitions: a theme switch would otherwise be
+        // caught mid-fade (buttons look grey).
         await page.screenshot({
+          animations: "disabled",
           path: `${artifactDirectory}/delivery-board-fidelity-${width}-${scheme}.png`,
         });
       }
