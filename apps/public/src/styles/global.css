@@ -159,6 +159,10 @@ textarea {
   left: var(--s-2);
   top: -100px;
   z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  /* Touch target: public pages keep 44 px for every link and button. */
+  min-height: 44px;
   padding: var(--s-2) var(--s-3);
   background: var(--accent);
   color: var(--on-accent);
