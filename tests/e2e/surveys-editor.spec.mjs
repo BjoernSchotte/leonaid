@@ -60,7 +60,11 @@ test("visual page and question editing persists stable identities through the re
   const items = editor
     .getByRole("list", { name: "Fragen auf dieser Seite" })
     .locator("li");
-  await items.nth(1).dragTo(items.nth(0));
+  // Drag by the card head: the open card's fields are not a drag handle.
+  await items
+    .nth(1)
+    .locator(".se-question-head")
+    .dragTo(items.nth(0).locator(".se-question-head"));
   await saved();
   expect((await read()).definition.pages[0].elements[0].name).toBe(choice.name);
   await editor
