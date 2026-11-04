@@ -22,7 +22,6 @@ import {
   type Tone,
 } from "@leonaid/ui";
 
-import { shortDate } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
 
 export function useActionConfiguration(
@@ -254,71 +253,76 @@ export function TemplatesTab({
           data-testid="templates-next-step"
         />
       ) : null}
-      <section aria-labelledby="template-used" className="stack">
-        <h2 className="tab-h2" id="template-used">
-          Vorlage dieser Aktion
-        </h2>
-        <ul className="template-list">
-          <li className="template-row" data-testid="template-snapshot">
-            <div>
-              <p className="template-name">
-                {snapshot.displayName}{" "}
-                <Badge tone="neutral">Version {snapshot.version}</Badge>
-              </p>
-              <p className="small muted">
-                {snapshot.copiedFromActionId
-                  ? "Aus einer früheren Aktion kopiert; Änderungen an der Vorlage wirken nicht rückwirkend."
-                  : "Beim Anlegen übernommen; Änderungen an der Vorlage wirken nicht rückwirkend."}
-              </p>
-            </div>
-            {snapshot.copiedFromActionId ? (
-              <a
-                className="small"
-                href={`/admin/actions/${snapshot.copiedFromActionId}`}
-              >
-                Ursprüngliche Aktion öffnen
-              </a>
-            ) : null}
-          </li>
-        </ul>
-      </section>
-      <section aria-labelledby="template-catalog" className="stack">
-        <h2 className="tab-h2" id="template-catalog">
-          Vorlagen im Club
-        </h2>
-        {templates.isPending ? (
-          <SkeletonRows rows={2} />
-        ) : templates.isError ? (
-          <p className="small subtle">
-            Die Vorlagen konnten nicht geladen werden.
-          </p>
-        ) : (
-          <ul className="template-list" data-testid="template-catalog">
-            {templates.data.items.map((template) => (
+      {templates.isPending ? (
+        <SkeletonRows rows={2} />
+      ) : (
+        <ul className="template-list" data-testid="template-catalog">
+          {/* The action keeps its template snapshot even when the club's
+              catalog no longer lists that version. */}
+          {[
+            ...(templates.data?.items.some(
+              (item) =>
+                item.key === snapshot.key && item.version === snapshot.version,
+            )
+              ? []
+              : [
+                  {
+                    key: snapshot.key,
+                    version: snapshot.version,
+                    displayName: snapshot.displayName,
+                    description: "",
+                    offeringCount: configuration.data.offerings.length,
+                    hasOrderForm: Boolean(configuration.data.orderForm),
+                  },
+                ]),
+            ...(templates.data?.items ?? []),
+          ].map((template) => {
+            const own =
+              template.key === snapshot.key &&
+              template.version === snapshot.version;
+            return (
               <li
                 className="template-row"
+                data-testid={own ? "template-snapshot" : undefined}
                 key={`${template.key}:${template.version}`}
               >
                 <div>
                   <p className="template-name">
                     {template.displayName}{" "}
                     <Badge tone="neutral">Version {template.version}</Badge>
-                    {template.key === snapshot.key ? (
-                      <Badge tone="zone">Diese Aktion</Badge>
-                    ) : null}
+                    {own ? <Badge tone="zone">Diese Aktion</Badge> : null}
                   </p>
-                  <p className="small muted">{template.description}</p>
+                  <p className="small muted">
+                    {own
+                      ? snapshot.copiedFromActionId
+                        ? "Aus einer früheren Aktion kopiert. Änderungen an der Vorlage wirken nicht rückwirkend."
+                        : `${template.description ? `${template.description} ` : ""}Änderungen an der Vorlage wirken nicht rückwirkend.`
+                      : template.description}
+                  </p>
                 </div>
                 <span className="small subtle">
-                  {template.offeringCount}{" "}
-                  {template.offeringCount === 1 ? "Angebot" : "Angebote"}
-                  {template.hasOrderForm ? " · Bestellformular" : ""}
+                  {own && snapshot.copiedFromActionId ? (
+                    <a href={`/admin/actions/${snapshot.copiedFromActionId}`}>
+                      Ursprüngliche Aktion
+                    </a>
+                  ) : (
+                    <>
+                      {template.offeringCount}{" "}
+                      {template.offeringCount === 1 ? "Angebot" : "Angebote"}
+                      {template.hasOrderForm ? " · Bestellformular" : ""}
+                    </>
+                  )}
                 </span>
               </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            );
+          })}
+        </ul>
+      )}
+      {templates.isError ? (
+        <p className="small subtle">
+          Die Vorlagen des Clubs konnten nicht geladen werden.
+        </p>
+      ) : null}
       {copying ? (
         <CopyModal
           action={action}
@@ -339,29 +343,10 @@ const offeringStatus: Readonly<
   inactive: { label: "Ausgeblendet", tone: "neutral" },
 };
 
-const unitLabels: Readonly<
-  Record<ConfiguredOfferingResponse["unit"], [string, string]>
-> = {
-  box: ["Box", "Boxen"],
-  piece: ["Stück", "Stück"],
-  package: ["Paket", "Pakete"],
-  sponsoring: ["Sponsoring", "Sponsorings"],
-};
-
 function money(minor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", { currency, style: "currency" }).format(
     minor / 100,
   );
-}
-
-function availability(offering: ConfiguredOfferingResponse) {
-  if (!offering.availableFrom && !offering.availableUntil) return "Immer";
-  return [
-    offering.availableFrom ? `ab ${shortDate(offering.availableFrom)}` : "",
-    offering.availableUntil ? `bis ${shortDate(offering.availableUntil)}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
 }
 
 /** Angebote (prototype Campaigns.tsx Offers), read from the configuration. */
@@ -401,26 +386,17 @@ export function OffersTab({
             <th className="right" scope="col">
               Preis
             </th>
-            <th scope="col">Verfügbar</th>
             <th scope="col">Im Formular</th>
           </tr>
         </thead>
         <tbody>
           {offerings.map((offering) => (
             <tr data-testid={`offering-${offering.code}`} key={offering.id}>
-              <td>
-                {offering.name}{" "}
-                <span className="mono subtle small">{offering.code}</span>
-              </td>
+              <td>{offering.name}</td>
               <td className="right num">{offering.piecesPerUnit ?? "–"}</td>
               <td className="right num">
                 {money(offering.unitPriceMinor, offering.currency)}
-                <span className="subtle">
-                  {" "}
-                  / {unitLabels[offering.unit][0]}
-                </span>
               </td>
-              <td className="small">{availability(offering)}</td>
               <td>
                 <Badge tone={offeringStatus[offering.status].tone}>
                   {offeringStatus[offering.status].label}

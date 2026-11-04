@@ -397,6 +397,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
                 data-testid="action-edit-done"
                 icon={X}
                 onClick={() => go({ tab: "overview", editing: false })}
+                variant="secondary"
               >
                 Bearbeiten beenden
               </Button>
@@ -405,6 +406,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
                 data-testid="action-edit"
                 icon={Pencil}
                 onClick={() => go({ tab: "overview", editing: true })}
+                variant="secondary"
               >
                 Bearbeiten
               </Button>

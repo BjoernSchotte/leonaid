@@ -392,7 +392,7 @@ export function CampaignAliasesSection(props: Props) {
               setError(undefined);
               setEditing("new");
             }}
-            variant="primary"
+            variant="secondary"
           >
             Alias hinzufügen
           </Button>
