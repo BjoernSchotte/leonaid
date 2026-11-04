@@ -21,6 +21,7 @@ from leonaid.application.identity import (
     MemberDirectorySnapshot,
     RoleAssignmentChange,
 )
+from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.identity import (
     OPEN_ACTION_STATUSES,
     AccessRemoval,
