@@ -52,8 +52,9 @@ test("visual page and question editing persists stable identities through the re
   await saved();
   // The open card holds the fields; a mouse drag over their text selects
   // it instead of dragging the card (only the card head is draggable).
-  for (const label of ["Fragetitel", "Hinweis", "Eintrag 1"]) {
-    const field = editor.getByLabel(label, { exact: true });
+  // A wrapping label's name includes a filled textarea's text, hence /^…/.
+  for (const label of [/^Fragetitel$/, /^Hinweis/, /^Eintrag 1$/]) {
+    const field = editor.getByLabel(label);
     await field.scrollIntoViewIfNeeded();
     const box = await field.boundingBox();
     const y = box.y + Math.min(box.height / 2, 18);
