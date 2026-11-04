@@ -23,6 +23,7 @@ from leonaid.application.object_storage import (
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
 from leonaid.modules.surveys.application.disclosure import disclose
 from leonaid.modules.surveys.application.export_rendering import (
+    disclosed_render,
     RAW_PRODUCTS,
     SurveyExportArtifact,
     SurveyExportSource,
@@ -315,6 +316,13 @@ class AsyncpgSurveyExports:
             if row["status"] != "available":
                 raise Conflict(
                     "export_not_ready", "Die Exportdatei ist noch nicht verfügbar."
+                )
+            if not disclosed_render(row["product"], row["render_version"]):
+                # Rendered before the minimum group size: never delivered.
+                raise Conflict(
+                    "export_outdated",
+                    "Dieser Bericht wurde vor dem Schutz kleiner Gruppen erstellt. "
+                    "Bitte erstellen Sie ihn neu.",
                 )
             retrieved = await self.storage.get(
                 ObjectLocation(row["bucket"], row["object_key"], row["object_version"])

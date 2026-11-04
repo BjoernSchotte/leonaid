@@ -340,3 +340,29 @@ def test_settled_selection_needs_an_end_and_completed_only():
     ):
         with pytest.raises(ValueError, match="settled"):
             asyncio.run(create_snapshot(None, None, unsettled, settled=True))
+
+
+def test_reports_rendered_before_the_k_rule_are_never_delivered():
+    """M4: a stored report from before k = 5 may hold counts 1 to 4."""
+    from leonaid.modules.surveys.adapters import survey_tabular_exports
+    from leonaid.modules.surveys.adapters.typst import survey_renderer
+    from leonaid.modules.surveys.application.export_rendering import (
+        disclosed_render,
+    )
+
+    # The current renderers pass their own guard.
+    assert disclosed_render("analysis_pdf", survey_renderer.RENDER_VERSION)
+    assert disclosed_render("analysis_xlsx", survey_tabular_exports.RENDER_VERSION)
+    assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
+    # Older, unknown or foreign versions are refused (fails closed).
+    for product, version in [
+        ("analysis_pdf", "survey-analysis-v1+typst-0.14.2"),
+        ("analysis_pdf", "survey-analysis-vX+typst"),
+        ("analysis_pdf", "survey-tabular-v3"),
+        ("analysis_xlsx", "survey-tabular-v2"),
+        ("analysis_xlsx", ""),
+        ("analysis_docx", "survey-tabular-v3"),
+    ]:
+        assert not disclosed_render(product, version), (product, version)
+    # Raw exports are raw by design.
+    assert disclosed_render("responses_csv", "survey-tabular-v1")

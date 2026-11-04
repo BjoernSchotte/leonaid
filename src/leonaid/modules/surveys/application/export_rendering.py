@@ -36,6 +36,28 @@ RAW_PRODUCTS: frozenset[str] = frozenset({"responses_csv", "responses_xlsx"})
 and in future, renders from the disclosed snapshot (fails closed, M3)."""
 
 
+DISCLOSED_SINCE: dict[str, tuple[str, int]] = {
+    "analysis_pdf": ("survey-analysis-v", 2),
+    "analysis_xlsx": ("survey-tabular-v", 3),
+}
+"""First render version of each report product that applies the minimum
+group size (review 5.6b, M4)."""
+
+
+def disclosed_render(product: str, render_version: str) -> bool:
+    """Whether a stored artifact may be delivered under the k rule.
+
+    Raw products are raw by design. A report rendered before the k rule,
+    or with an unknown version, is refused (fails closed)."""
+    if product in RAW_PRODUCTS:
+        return True
+    since = DISCLOSED_SINCE.get(product)
+    if since is None or not render_version.startswith(since[0]):
+        return False
+    number = render_version[len(since[0]) :].split("+", 1)[0]
+    return number.isdigit() and int(number) >= since[1]
+
+
 WITHHELD = "–"
 """How reports show a withheld count: one neutral marker, since some are
 1 to K - 1 people and others are withheld because they would reveal those
