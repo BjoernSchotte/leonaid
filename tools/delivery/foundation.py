@@ -272,6 +272,9 @@ async def prove() -> None:
         from tools.delivery.completion import prove_completion
 
         await prove_completion(pool, action.id, admin_id)
+        from tools.delivery.board import prove_board
+
+        await prove_board(pool, action.id, admin_id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)
@@ -346,7 +349,8 @@ def main() -> None:
             == baseline_order
         )
         assert (
-            db.execute("SELECT to_jsonb(invoice) FROM invoice").fetchone()
+            # 0045 adds the stored invoice date; everything else is unchanged.
+            db.execute("SELECT to_jsonb(invoice) - 'issued_on' FROM invoice").fetchone()
             == baseline_invoice
         )
         assert db.execute(
