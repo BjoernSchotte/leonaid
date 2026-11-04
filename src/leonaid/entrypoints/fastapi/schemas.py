@@ -34,6 +34,12 @@ class DeliveryWindowRequest(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Accepted so a client can send a loaded window back unchanged, but
+    # ignored: the switch has its own command and the stored value stays.
+    fully_booked: bool | None = Field(
+        default=None,
+        description='Ignored; use setDeliveryWindowFullyBooked for "ausgebucht".',
+    )
 
 
 class DeliveryWindowResponse(TransportModel):
@@ -2291,6 +2297,7 @@ class DeliveryBoardWindowResponse(TransportModel):
     starts_at: datetime
     ends_at: datetime
     retired: bool
+    fully_booked: bool
     closure: DeliveryWindowClosureResponse | None
     drops: list[DeliveryDropResponse]
 

@@ -98,16 +98,17 @@ def test_wire_shape() -> None:
     assert DeliveryWindowResponse.model_validate(full).model_dump(by_alias=True)[
         "fullyBooked"
     ]
-    # The window form cannot set the switch; it has its own command.
-    with pytest.raises(ValueError):
-        DeliveryWindowRequest.model_validate(
-            {
-                "deliveryOn": "2037-12-04",
-                "startsAt": "08:00",
-                "endsAt": "10:00",
-                "fullyBooked": True,
-            }
-        )
+    # A loaded window may be sent back as it is; the switch has its own
+    # command, so the form never builds a window that is full.
+    echoed = DeliveryWindowRequest.model_validate(
+        {
+            "deliveryOn": "2037-12-04",
+            "startsAt": "08:00",
+            "endsAt": "10:00",
+            "fullyBooked": True,
+        }
+    )
+    assert echoed.fully_booked is True
     request = CreateCommitmentRequest.model_validate(
         {
             "source": "admin",

@@ -215,15 +215,15 @@ async def prove_fully_booked(
             {"fullyBooked": True, "previousFullyBooked": False}
         ]
 
-        # A stale form save keeps the switch: the form never writes it.
+        # A stale form save keeps the switch: the form never writes it,
+        # even when it echoes the windows with a different fullyBooked.
         current = (await client.get(configuration_path)).json()
         form = {
             "expectedRevision": current["revision"],
             "enabled": current["enabled"],
             "timezone": current["timezone"],
             "windows": [
-                {k: v for k, v in window.items() if k != "fullyBooked"}
-                for window in current["windows"]
+                {**window, "fullyBooked": False} for window in current["windows"]
             ],
         }
         response = await client.put(configuration_path, json=form)
