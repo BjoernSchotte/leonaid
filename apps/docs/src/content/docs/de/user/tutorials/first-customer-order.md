@@ -4,8 +4,8 @@ description: Lernweg für Akquisiteure von einem zugeordneten Sponsor bis zur pr
 docId: DOC-P011
 audience: [user]
 diataxis: tutorial
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -19,8 +19,8 @@ aktiven Aktion, einem bestellbaren Angebot und – falls Lieferung aktiviert ist
 
 1. Öffne `/login` deiner LeonAid-Installation.
 2. Trage deine **Login-E-Mail** ein und wähle **Login-Code anfordern**.
-3. Gib den **Sechsstelligen Code** aus der zuletzt versendeten E-Mail ein und
-   wähle **Anmelden**.
+3. Gib unter **Sechsstelliger Code** den Code aus der zuletzt versendeten
+   E-Mail ein und wähle **Anmelden**.
 4. Öffne **Meine Sponsoren** und beim synthetischen Sponsor die Aktion
    **Bestellung**.
 

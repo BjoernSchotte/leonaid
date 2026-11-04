@@ -4,8 +4,8 @@ description: Ohne LeonAid-Konto eine verbindliche Bestellung auf einer veröffen
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
 reviewer: Björn Schotte
 ---
@@ -17,7 +17,7 @@ spricht Bestellende mit „Sie“ an.
 
 1. Öffne die Aktionsseite und wähle **Jetzt bestellen**.
 2. Stelle unter **Ihre Auswahl** die Menge mit **−** und **+** ein oder tippe
-   sie ein, und prüfe den **Aktuellen Bestellwert**.
+   sie ein, und prüfe den Betrag unter **Aktueller Bestellwert**.
 3. Wähle unter **Wer bestellt?** zwischen **Firma oder Verein** und
    **Privatperson**. Bei einer Privatperson entfällt das Feld Firma, sofern das
    konkrete Formular die Firma nicht verlangt. Ergänze Vorname, Nachname und
