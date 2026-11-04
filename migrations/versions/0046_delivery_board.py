@@ -22,9 +22,12 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
+        -- Lets the delivery row reference the order within its action.
+        ALTER TABLE commitment
+            ADD CONSTRAINT uq_commitment_action_id UNIQUE (action_id, id);
+
         CREATE TABLE commitment_delivery (
-            commitment_id uuid PRIMARY KEY
-                REFERENCES commitment(id) ON DELETE CASCADE,
+            commitment_id uuid PRIMARY KEY,
             action_id uuid NOT NULL REFERENCES charity_action(id),
             driver_user_id uuid REFERENCES user_account(id),
             driver_assigned_by_user_id uuid REFERENCES user_account(id),
@@ -32,7 +35,12 @@ def upgrade() -> None:
             state text CHECK (state IN ('delivered', 'missed')),
             state_changed_at timestamptz,
             state_changed_by_user_id uuid REFERENCES user_account(id),
+            -- Set when a closure marked the drop missed; only such a drop may
+            -- go back to missed after a later delivery in a closed window.
+            missed_at_closure boolean NOT NULL DEFAULT false,
             revision integer NOT NULL DEFAULT 1 CHECK (revision > 0),
+            FOREIGN KEY (action_id, commitment_id)
+                REFERENCES commitment(action_id, id) ON DELETE CASCADE,
             CONSTRAINT ck_commitment_delivery_driver_complete CHECK (
                 (driver_user_id IS NULL)
                 = (driver_assigned_at IS NULL)
@@ -82,5 +90,6 @@ def downgrade() -> None:
         DROP TABLE delivery_read_audit;
         DROP TABLE delivery_window_closure;
         DROP TABLE commitment_delivery;
+        ALTER TABLE commitment DROP CONSTRAINT uq_commitment_action_id;
         """
     )

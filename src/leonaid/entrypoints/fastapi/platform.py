@@ -268,6 +268,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.identity_service = IdentityQueryService(
             identity_repository,
             module_navigation=module_navigation(disabled_modules),
+            delivery_navigation=identity_repository.manages_delivery,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
         application.state.identity_administration_service = (

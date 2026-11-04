@@ -5570,6 +5570,10 @@
             ],
             "title": "Driveruserid"
           },
+          "missedAtClosure": {
+            "title": "Missedatclosure",
+            "type": "boolean"
+          },
           "orderStatus": {
             "anyOf": [
               {
@@ -5655,6 +5659,7 @@
           "driverUserId",
           "driverName",
           "revision",
+          "missedAtClosure",
           "orderStatus"
         ],
         "title": "DeliveryDropResponse",

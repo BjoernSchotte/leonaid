@@ -108,7 +108,8 @@ class TaskDeliveryFollowUp:
     ) -> None:
         current = await connection.fetchrow(
             """
-            SELECT follow_up.task_id, task.status, task.list_id
+            SELECT follow_up.task_id, task.status, task.list_id,
+                task.assignee_user_id
             FROM task_delivery_follow_up AS follow_up
             JOIN task ON task.id = follow_up.task_id
             WHERE follow_up.commitment_id = $1
@@ -172,17 +173,41 @@ class TaskDeliveryFollowUp:
             )
             return
         target = "open" if needed else "done"
-        if current["status"] == target:
+        if needed and current["assignee_user_id"] != assignee_user_id:
+            # Reopened by another closer: the task moves to that person
+            # (Q-T1: it belongs to whoever closed the window).
+            list_id = await self._list(
+                connection, action_id=action_id, owner_user_id=assignee_user_id
+            )
+            await connection.execute(
+                """
+                UPDATE task SET status = 'open', assignee_user_id = $2,
+                    list_id = $3, epic_id = NULL,
+                    manual_position = (
+                        SELECT coalesce(max(manual_position), 0) + $4
+                        FROM task WHERE list_id = $3 AND epic_id IS NULL
+                    ),
+                    revision = revision + 1, updated_at = $5
+                WHERE id = $1
+                """,
+                current["task_id"],
+                assignee_user_id,
+                list_id,
+                POSITION_STEP,
+                occurred_at,
+            )
+        elif current["status"] == target:
             return
-        await connection.execute(
-            """
-            UPDATE task SET status = $2, revision = revision + 1, updated_at = $3
-            WHERE id = $1
-            """,
-            current["task_id"],
-            target,
-            occurred_at,
-        )
+        else:
+            await connection.execute(
+                """
+                UPDATE task SET status = $2, revision = revision + 1, updated_at = $3
+                WHERE id = $1
+                """,
+                current["task_id"],
+                target,
+                occurred_at,
+            )
         await self._audit(
             connection,
             action_id=action_id,

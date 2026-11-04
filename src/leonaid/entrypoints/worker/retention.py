@@ -2,9 +2,10 @@
 
 Deletes successfully completed, unreferenced outbox jobs older than the
 configured retention, expired rate-limit attempts and drivers' delivery-board
-read audits older than 90 days. Every batch is its own
-short transaction with ``FOR UPDATE SKIP LOCKED``, so the sweep never holds
-long locks and never waits for a worker claim.
+read audits older than 90 days. Every batch is its own short transaction, so
+the sweep never holds long locks. Outbox and rate-limit batches select with
+``FOR UPDATE SKIP LOCKED`` and never wait for a worker claim; read audits are
+never locked by anyone, so their batches delete without it.
 """
 
 from __future__ import annotations

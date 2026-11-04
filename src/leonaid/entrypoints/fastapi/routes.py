@@ -4946,6 +4946,7 @@ def delivery_drop_response(drop: DeliveryDrop) -> DeliveryDropResponse:
         driver_user_id=drop.driver_user_id,
         driver_name=drop.driver_name,
         revision=drop.revision,
+        missed_at_closure=drop.missed_at_closure,
         order_status=drop.order_status,  # type: ignore[arg-type]
     )
 

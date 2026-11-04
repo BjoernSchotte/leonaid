@@ -2231,6 +2231,9 @@ class DeliveryDropResponse(TransportModel):
     driver_user_id: UUID | None
     driver_name: str | None
     revision: int
+    # Marked missed when its window was closed; only such a drop can return
+    # to "missed" while the window stays closed.
+    missed_at_closure: bool
     # Managers only: the order status (cancelled drops stay struck through).
     order_status: (
         Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None

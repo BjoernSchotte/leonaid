@@ -82,8 +82,45 @@ def test_a_later_delivery_closes_the_follow_up_and_its_undo_reopens_it() -> None
         window_closed=True,
         manager=True,
         assigned_driver=False,
+        missed_at_closure=True,
     )
     assert undone == StateChange(new_state=MISSED, follow_up_needed=True)
+
+
+def test_a_regular_delivery_in_a_closed_window_needs_a_reopen_to_undo() -> None:
+    with pytest.raises(DeliveryBoardError) as refused:
+        change(
+            current=DELIVERED,
+            delivered=False,
+            window_closed=True,
+            manager=True,
+            assigned_driver=False,
+            missed_at_closure=False,
+        )
+    assert refused.value.code == "delivery_window_closed"
+    assert refused.value.status == 409
+
+
+def test_managers_tick_an_open_drop_in_a_closed_window_without_follow_up() -> None:
+    # Booked into the window after it was closed (historical completion).
+    assert change(
+        current=OPEN, window_closed=True, manager=True, assigned_driver=False
+    ) == StateChange(new_state=DELIVERED, follow_up_needed=None)
+    # Drivers still cannot.
+    with pytest.raises(DeliveryBoardError) as refused:
+        change(current=OPEN, window_closed=True)
+    assert refused.value.code == "delivery_window_closed"
+    # Taking an open drop "back" is a no-op.
+    assert (
+        change(
+            current=OPEN,
+            delivered=False,
+            window_closed=True,
+            manager=True,
+            assigned_driver=False,
+        )
+        is None
+    )
 
 
 def test_missed_only_exists_in_closed_windows() -> None:

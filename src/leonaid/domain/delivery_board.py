@@ -53,11 +53,22 @@ def decide_state_change(
     window_closed: bool,
     manager: bool,
     assigned_driver: bool,
+    missed_at_closure: bool = False,
 ) -> StateChange | None:
     """The transition for "mark delivered" (``delivered``) or its undo.
 
     Returns None when the drop already is in the target state (idempotent).
     Raises a ``DeliveryBoardError`` when the viewer may not make the change.
+
+    Open window: the assigned driver or a manager ticks and undoes freely.
+    Closed window, managers only:
+
+    - a drop missed at closure may be delivered later, which closes its
+      "Nachliefern" follow-up; undoing that later delivery makes it missed
+      again and reopens the follow-up (``missed_at_closure``);
+    - an open drop (booked into the window after it was closed) may be
+      ticked, audited, without a follow-up; that cannot be undone;
+    - every other undo needs the window reopened.
     """
 
     if not (manager or assigned_driver):
@@ -77,23 +88,26 @@ def decide_state_change(
         if target is current:
             return None
         return StateChange(new_state=target, follow_up_needed=None)
-    # Closed window: only managers deliver later ("Nachliefern") or undo that.
     if not manager:
         raise DeliveryBoardError(
             "delivery_window_closed",
             "Dieses Lieferfenster ist abgeschlossen.",
         )
-    target = DropState.DELIVERED if delivered else DropState.MISSED
-    if target is current:
+    if delivered:
+        if current is DropState.DELIVERED:
+            return None
+        if current is DropState.MISSED:
+            return StateChange(new_state=DropState.DELIVERED, follow_up_needed=False)
+        # Open in a closed window: booked after the closure.
+        return StateChange(new_state=DropState.DELIVERED, follow_up_needed=None)
+    if current is not DropState.DELIVERED:
         return None
-    if current is DropState.OPEN:
-        raise DeliveryBoardError(
-            "delivery_state_invalid",
-            "In einem abgeschlossenen Fenster gibt es keine offenen Lieferungen.",
-        )
-    return StateChange(
-        new_state=target,
-        follow_up_needed=target is DropState.MISSED,
+    if missed_at_closure:
+        return StateChange(new_state=DropState.MISSED, follow_up_needed=True)
+    raise DeliveryBoardError(
+        "delivery_window_closed",
+        "Dieses Lieferfenster ist abgeschlossen. Zum Zurücknehmen bitte das "
+        "Fenster wieder öffnen.",
     )
 
 
@@ -136,6 +150,8 @@ class DeliveryDrop:
     revision: int
     # Manager view only: the order status (to strike cancelled drops).
     order_status: str | None
+    # Missed when the window closed (its later delivery may be undone).
+    missed_at_closure: bool = False
 
 
 @dataclass(frozen=True, slots=True)

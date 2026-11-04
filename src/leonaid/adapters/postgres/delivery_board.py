@@ -64,6 +64,18 @@ def window_label(starts_at: datetime, ends_at: datetime, zone: ZoneInfo) -> str:
     )
 
 
+def order_reference(commitment_id: UUID, public_reference: str | None) -> str:
+    """A reference without personal data: the public one or the id's tail."""
+
+    return public_reference or f"…{str(commitment_id)[-8:]}"
+
+
+def order_link(action_id: UUID, commitment_id: UUID) -> str:
+    """The order in the orders list pane (Task 5.1 URL contract)."""
+
+    return f"/admin/orders?action={action_id}&view=all&open={commitment_id}"
+
+
 def _json(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -181,7 +193,7 @@ class AsyncpgDeliveryBoardRepository:
                             (
                                 driver_user_id,
                                 row["id"],
-                                local_day(viewed_at),
+                                local_day(viewed_at, zone),
                                 action_id,
                                 viewed_at,
                             )
@@ -263,6 +275,7 @@ class AsyncpgDeliveryBoardRepository:
                 delivery.state, delivery.state_changed_at,
                 changer.display_name AS changed_by_name,
                 COALESCE(delivery.revision, 0) AS revision,
+                COALESCE(delivery.missed_at_closure, false) AS missed_at_closure,
                 COALESCE((
                     SELECT jsonb_agg(
                         jsonb_build_object('unit', unit, 'quantity', quantity)
@@ -345,20 +358,23 @@ class AsyncpgDeliveryBoardRepository:
                         else None
                     ),
                     state=_state(row["state"]),
-                    state_changed_at=row["state_changed_at"],
+                    # Drivers get the state only, not who changed it when
+                    # (Björn P3); their own name they know.
+                    state_changed_at=row["state_changed_at"] if manager else None,
                     state_changed_by_name=(
                         str(row["changed_by_name"])
-                        if row["changed_by_name"] is not None
+                        if manager and row["changed_by_name"] is not None
                         else None
                     ),
                     driver_user_id=row["driver_user_id"],
                     driver_name=(
                         str(row["driver_name"])
-                        if row["driver_name"] is not None
+                        if manager and row["driver_name"] is not None
                         else None
                     ),
                     revision=int(row["revision"]),
                     order_status=str(row["status"]) if manager else None,
+                    missed_at_closure=bool(row["missed_at_closure"]),
                 )
             )
         return drops
@@ -435,21 +451,21 @@ class AsyncpgDeliveryBoardRepository:
     ) -> None:
         if self._follow_up is None:
             return
-        address = drop.address
-        where = (
-            f"{address.street_line_1}, {address.postal_code} {address.city}"
-            if address
-            else "Keine Lieferadresse erfasst"
+        # No personal data in the task (it would outlive the order's
+        # erasure): the order reference, the window and a link to the order,
+        # whose pane shows the address to those allowed to see it.
+        reference = await connection.fetchval(
+            "SELECT public_reference FROM commitment WHERE id = $1",
+            drop.commitment_id,
         )
         await self._follow_up(connection).sync(
             connection,
             action_id=action_id,
             commitment_id=drop.commitment_id,
-            title=f"Nachliefern: {drop.buyer_name}"[:240],
+            title=f"Nachliefern: Bestellung {order_reference(drop.commitment_id, reference)}",
             description=(
                 f"Nicht geliefert im Fenster {label}.\n"
-                f"Lieferadresse: {where}\n"
-                f"Menge: {drop.total_boxes} Boxen"
+                f"Bestellung öffnen: {order_link(action_id, drop.commitment_id)}"
             ),
             needed=needed,
             assignee_user_id=assignee_user_id,
@@ -473,6 +489,25 @@ class AsyncpgDeliveryBoardRepository:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 _, zone = await self._context(connection, action_id)
+                if not manager and not await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM commitment_delivery
+                        WHERE commitment_id = $1 AND action_id = $2
+                          AND driver_user_id = $3
+                    )
+                    """,
+                    commitment_id,
+                    action_id,
+                    actor_user_id,
+                ):
+                    # Before anything else: a driver learns nothing about
+                    # orders that are not theirs (existence, status).
+                    raise DeliveryBoardError(
+                        "delivery_not_assigned",
+                        "Diese Lieferung ist Ihnen nicht zugewiesen.",
+                        status=403,
+                    )
                 window_id = await connection.fetchval(
                     """
                     SELECT delivery_window_id FROM commitment
@@ -501,12 +536,18 @@ class AsyncpgDeliveryBoardRepository:
                         "Diese Bestellung wird nicht ausgeliefert.",
                     )
                 drop = current[0]
+                if drop.order_status == "cancelled":
+                    raise DeliveryBoardError(
+                        "delivery_order_not_deliverable",
+                        "Diese Bestellung ist storniert.",
+                    )
                 change = decide_state_change(
                     current=drop.state,
                     delivered=delivered,
                     window_closed=bool(window["closed"]),
                     manager=manager,
                     assigned_driver=drop.driver_user_id == actor_user_id,
+                    missed_at_closure=drop.missed_at_closure,
                 )
                 if change is None:
                     return self._for_viewer(drop, manager)
@@ -539,6 +580,8 @@ class AsyncpgDeliveryBoardRepository:
                     occurred_at if stored_state else None,
                     actor_user_id if stored_state else None,
                 )
+                # missed_at_closure stays as the closure set it: a later
+                # delivery of a missed drop may still be undone to missed.
                 await self._audit(
                     connection,
                     action_id=action_id,
@@ -591,8 +634,19 @@ class AsyncpgDeliveryBoardRepository:
 
     @staticmethod
     def _for_viewer(drop: DeliveryDrop, manager: bool) -> DeliveryDrop:
-        # Drivers never see the order status.
-        return drop if manager else replace(drop, order_status=None)
+        # Drivers get the P3 fields only: no order status, no who or when
+        # of changes, no driver name.
+        return (
+            drop
+            if manager
+            else replace(
+                drop,
+                order_status=None,
+                state_changed_at=None,
+                state_changed_by_name=None,
+                driver_name=None,
+            )
+        )
 
     async def assign_driver(
         self,
@@ -713,11 +767,13 @@ class AsyncpgDeliveryBoardRepository:
                         """
                         INSERT INTO commitment_delivery (
                             commitment_id, action_id, state, state_changed_at,
-                            state_changed_by_user_id
+                            state_changed_by_user_id, missed_at_closure
                         )
-                        SELECT id, $2, 'missed', $3, $4 FROM unnest($1::uuid[]) AS id
+                        SELECT id, $2, 'missed', $3, $4, true
+                        FROM unnest($1::uuid[]) AS id
                         ON CONFLICT (commitment_id) DO UPDATE SET
                             state = 'missed',
+                            missed_at_closure = true,
                             state_changed_at = EXCLUDED.state_changed_at,
                             state_changed_by_user_id = EXCLUDED.state_changed_by_user_id,
                             revision = commitment_delivery.revision + 1
@@ -795,12 +851,22 @@ class AsyncpgDeliveryBoardRepository:
                     manager=True,
                 )
                 missed = [drop for drop in drops if drop.state is DropState.MISSED]
+                # Later deliveries stay delivered; reopening makes their
+                # window an ordinary open window again.
+                await connection.execute(
+                    """
+                    UPDATE commitment_delivery SET missed_at_closure = false
+                    WHERE missed_at_closure AND commitment_id = ANY($1::uuid[])
+                    """,
+                    [drop.commitment_id for drop in drops],
+                )
                 if missed:
                     await connection.execute(
                         """
                         UPDATE commitment_delivery
                         SET state = NULL, state_changed_at = NULL,
                             state_changed_by_user_id = NULL,
+                            missed_at_closure = false,
                             revision = revision + 1
                         WHERE commitment_id = ANY($1::uuid[])
                         """,
