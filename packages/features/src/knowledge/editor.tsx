@@ -374,11 +374,17 @@ function PageEditor({
     setTitle(page.title);
     setEmpty(isEmptyContent(page.content));
   }, [dirty, editing, editor, page, revision]);
+  // Into the text when writing starts, in the same task that makes the
+  // document editable (nothing can put a cursor in between).
+  const focusOnEdit = useRef(editing);
   useEffect(() => {
-    editor?.setEditable(
-      canEdit && editing && !save.isPending && !invalid && !taskOpen,
-      false,
-    );
+    const writable =
+      canEdit && editing && !save.isPending && !invalid && !taskOpen;
+    editor?.setEditable(writable, false);
+    if (writable && focusOnEdit.current) {
+      focusOnEdit.current = false;
+      editor?.commands.focus("end");
+    }
   }, [editor, canEdit, editing, save.isPending, invalid, taskOpen]);
   useLeaveGuard(dirty || taskOpen);
 
@@ -386,10 +392,7 @@ function PageEditor({
     if (!canEdit) return;
     setEditing(true);
     setSaved(false);
-    // Into the text, unless the person already put the cursor there.
-    requestAnimationFrame(() => {
-      if (editor && !editor.isFocused) editor.commands.focus("end");
-    });
+    focusOnEdit.current = true;
   };
   const resetDraft = () => {
     editor?.commands.setContent(savedContent.current, { emitUpdate: false });
