@@ -76,6 +76,12 @@
   background: var(--surface);
   box-shadow: var(--shadow-1);
 }
+/* Grid items default to their content width; the one-row toolbar would
+   widen the whole page beyond the prototype's 856 px. */
+.format-bar > *,
+.knowledge-page-editor > * {
+  min-width: 0;
+}
 .knowledge-title-field .input {
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
