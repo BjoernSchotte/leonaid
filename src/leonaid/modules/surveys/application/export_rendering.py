@@ -37,11 +37,13 @@ and in future, renders from the disclosed snapshot (fails closed, M3)."""
 
 
 DISCLOSED_SINCE: dict[str, tuple[str, int]] = {
-    "analysis_pdf": ("survey-analysis-v", 2),
-    "analysis_xlsx": ("survey-tabular-v", 3),
+    "analysis_pdf": ("survey-analysis-v", 3),
+    "analysis_xlsx": ("survey-tabular-v", 4),
 }
-"""First render version of each report product that applies the minimum
-group size (review 5.6b, M4)."""
+"""First render version of each report product under the current disclosure
+rules (review 5.6b, M4). Whenever ``disclose()`` changes, bump both
+renderers' RENDER_VERSION and raise these to match, so every older stored
+report fails closed (409 export_outdated). A unit test keeps them equal."""
 
 
 def disclosed_render(product: str, render_version: str) -> bool:

@@ -419,6 +419,9 @@ def _conservative(
     return questions, pages_hidden
 
 
+# Changing what disclose() releases? Bump RENDER_VERSION of both report
+# renderers and DISCLOSED_SINCE (export_rendering.py), so stored reports
+# rendered under the old rules are never delivered again.
 def disclose(snapshot: StoredSnapshot | dict[str, Any]) -> AnalysisSnapshot:
     """The shown form of a stored snapshot (pure; the stored one is unchanged)."""
     stored = (

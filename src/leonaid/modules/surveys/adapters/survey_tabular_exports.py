@@ -32,7 +32,7 @@ from leonaid.modules.surveys.application.disclosure import (
 )
 
 # v3: report workbooks with disclosed numbers (k = 5, Task 5.6b).
-RENDER_VERSION = "survey-tabular-v3"
+RENDER_VERSION = "survey-tabular-v4"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [

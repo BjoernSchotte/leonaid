@@ -350,12 +350,25 @@ def test_reports_rendered_before_the_k_rule_are_never_delivered():
         disclosed_render,
     )
 
-    # The current renderers pass their own guard.
-    assert disclosed_render("analysis_pdf", survey_renderer.RENDER_VERSION)
-    assert disclosed_render("analysis_xlsx", survey_tabular_exports.RENDER_VERSION)
+    from leonaid.modules.surveys.application.export_rendering import (
+        DISCLOSED_SINCE,
+    )
+
+    # The guard tracks the current renderers exactly: a version bump for
+    # new disclosure rules must raise DISCLOSED_SINCE with it.
+    for product, current in [
+        ("analysis_pdf", survey_renderer.RENDER_VERSION),
+        ("analysis_xlsx", survey_tabular_exports.RENDER_VERSION),
+    ]:
+        prefix, since = DISCLOSED_SINCE[product]
+        assert current.startswith(f"{prefix}{since}"), (product, current)
+        assert disclosed_render(product, current)
     assert disclosed_render("analysis_pdf", "survey-analysis-v10+typst-0.14.2")
-    # Older, unknown or foreign versions are refused (fails closed).
+    # Older, unknown or foreign versions are refused (fails closed). The
+    # previous versions predate the neutral marker, I3/C2/C3 and R6.
     for product, version in [
+        ("analysis_pdf", "survey-analysis-v2+typst-0.14.2"),
+        ("analysis_xlsx", "survey-tabular-v3"),
         ("analysis_pdf", "survey-analysis-v1+typst-0.14.2"),
         ("analysis_pdf", "survey-analysis-vX+typst"),
         ("analysis_pdf", "survey-tabular-v3"),

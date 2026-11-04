@@ -31,7 +31,7 @@ from leonaid.modules.surveys.application.export_rendering import (
 
 TYPST_VERSION = "0.13.1"
 # v2: disclosed numbers (k = 5, Task 5.6b).
-RENDER_VERSION = f"survey-analysis-v2+typst-{TYPST_VERSION}"
+RENDER_VERSION = f"survey-analysis-v3+typst-{TYPST_VERSION}"
 DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "survey-analysis-v1.typ"
 STATUSES = {
     "in_progress": "In Bearbeitung",

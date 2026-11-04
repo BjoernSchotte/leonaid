@@ -292,6 +292,32 @@ async def main():
                     token.encode() not in content
                     and state["memberToken"].encode() not in content
                 )
+                if product.startswith("analysis_"):
+                    # A report rendered under older disclosure rules (the
+                    # previous render version) is never delivered (M4).
+                    current = await conn.fetchval(
+                        "SELECT render_version FROM survey_export_job WHERE id=$1",
+                        UUID(jid),
+                    )
+                    previous = (
+                        "survey-analysis-v2+typst-0.14.2"
+                        if product == "analysis_pdf"
+                        else "survey-tabular-v3"
+                    )
+                    await conn.execute(
+                        "UPDATE survey_export_job SET render_version=$2 WHERE id=$1",
+                        UUID(jid),
+                        previous,
+                    )
+                    outdated = await call(
+                        "GET", path + f"/exports/{jid}/download", expected=409
+                    )
+                    assert outdated.json()["error"]["code"] == "export_outdated"
+                    await conn.execute(
+                        "UPDATE survey_export_job SET render_version=$2 WHERE id=$1",
+                        UUID(jid),
+                        current,
+                    )
                 if product == "responses_csv":
                     records = list(
                         csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
