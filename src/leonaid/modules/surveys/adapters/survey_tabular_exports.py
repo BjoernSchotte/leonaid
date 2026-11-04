@@ -18,14 +18,16 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.page import PageMargins
 
-from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
-from leonaid.modules.surveys.application.analysis import AggregateCount
 from leonaid.modules.surveys.application.export_rendering import (
     ExportProduct,
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    shown_count,
+)
+from leonaid.modules.surveys.application.disclosure import (
+    AnalysisSnapshot as DisclosedSnapshot,
 )
 
 RENDER_VERSION = "survey-tabular-v2"
@@ -144,12 +146,20 @@ def metadata(source: SurveyExportSource) -> dict[str, Any]:
         "created_from_inclusive": s.filter.createdFrom,
         "created_before_exclusive": s.filter.createdBefore,
         "selected_participations": s.participationCount,
-        "scope_in_progress": s.statusCounts.in_progress,
-        "scope_partial": s.statusCounts.partial,
-        "scope_completed": s.statusCounts.completed,
+        "scope_in_progress": shown_count(s.statusCounts.in_progress),
+        "scope_partial": shown_count(s.statusCounts.partial),
+        "scope_completed": shown_count(s.statusCounts.completed),
         "denominators": "Valid answered participants per question; valid cells per matrix row. Missing is not zero. Multiselect totals can exceed 100%.",
         "raw_encoding": "Structured values use canonical JSON. Each q:ID:type preserves missing/null/string/number/boolean/array/object, including empty strings and exact high-precision numeric text. Matrix row columns supplement the full JSON value.",
         "text_safety": "CSV prefixes formula-like and apostrophe-leading text with one apostrophe; remove that one prefix when decoding strings. XLSX uses explicit strings; unrepresentable cells fail without truncation.",
+        **(
+            {
+                "minimum_group_size": s.minimumGroupSize,
+                "withheld": f"Counts of 1 to {s.minimumGroupSize - 1} people, and counts that would reveal them, read '< {s.minimumGroupSize}'; questions with fewer valid answers have no distribution or statistics.",
+            }
+            if isinstance(s, DisclosedSnapshot)
+            else {}
+        ),
     }
 
 
@@ -292,7 +302,8 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 q.nps,
             ],
         )
-        groups: list[tuple[str | None, str | None, int, list[AggregateCount]]] = (
+        # Stored (raw exports) or disclosed (report exports) buckets.
+        groups: list[tuple[str | None, str | None, int, list[Any]]] = (
             [(None, None, q.answered, q.counts)] if q.counts else []
         )
         for row in q.matrixRows:
@@ -320,7 +331,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                         row_label,
                         json_value(bucket.value),
                         bucket.label,
-                        bucket.count,
+                        shown_count(bucket.count),
                         denominator,
                         bucket.percentage,
                         f"{ordinal}. {bucket.label[:55]}"
@@ -385,10 +396,10 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             [
                 page.pageId,
                 page.title,
-                page.count,
+                shown_count(page.count),
                 source.snapshot.participationCount,
                 page.count / source.snapshot.participationCount * 100
-                if source.snapshot.participationCount
+                if source.snapshot.participationCount and page.count is not None
                 else None,
             ],
         )
@@ -505,7 +516,8 @@ def workbook_bytes(workbook: Any, timestamp: str) -> bytes:
 def render_tabular(
     product: ExportProduct, source: SurveyExportSource
 ) -> SurveyExportArtifact:
-    s = AnalysisSnapshot.model_validate(source.snapshot.model_dump())
+    # Re-validate with the snapshot's own model (stored or disclosed).
+    s = type(source.snapshot).model_validate(source.snapshot.model_dump())
     info = metadata(source)
     if product == "responses_csv":
         columns, rows = response_rows(source)

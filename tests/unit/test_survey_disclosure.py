@@ -193,3 +193,44 @@ def test_nps_segments_follow_the_same_rules():
     assert q.nps == 40.0
     plain = question("r", "rating", [5, 5])
     assert disclose(snapshot(10, [plain])).questions[0].npsSegments is None
+
+
+def test_report_exports_show_withheld_counts():
+    import io
+
+    from openpyxl import load_workbook
+
+    from leonaid.modules.surveys.adapters.survey_tabular_exports import (
+        render_tabular,
+    )
+    from leonaid.modules.surveys.adapters.typst.survey_renderer import (
+        render_payload,
+    )
+    from leonaid.modules.surveys.application.analysis_snapshot import (
+        AnalysisSnapshot as Stored,
+    )
+    from leonaid.modules.surveys.application.export_rendering import (
+        SurveyExportSource,
+    )
+
+    few = question("few", "rating", [2, 2], stats={"mean": 1.5})
+    few["hidden"] = 16
+    stored = snapshot(20, [question("q", "radiogroup", [2, 6, 12]), few])
+    # The PDF payload discloses even a stored snapshot.
+    pdf = render_payload(SurveyExportSource("T", Stored.model_validate(stored)))
+    rows = pdf["questions"][0]["groups"][0]["rows"]
+    assert [row["count"] for row in rows] == ["< 5", "< 5", 12]
+    assert pdf["questions"][1]["groups"] == []
+    assert any(m["label"] == "Hinweis" for m in pdf["questions"][1]["metrics"])
+    # Report workbook: the same "< 5" and the k note in the metadata.
+    workbook = load_workbook(
+        io.BytesIO(
+            render_tabular(
+                "analysis_xlsx", SurveyExportSource("T", disclose(stored))
+            ).content
+        )
+    )
+    cells = [c.value for row in workbook["Distributions"].iter_rows() for c in row]
+    assert cells.count("< 5") == 2 and 12 in cells
+    meta = [c.value for row in workbook.worksheets[0].iter_rows() for c in row]
+    assert "minimum_group_size" in meta

@@ -21,7 +21,9 @@ from leonaid.application.object_storage import (
     ObjectWrite,
 )
 from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.disclosure import disclose
 from leonaid.modules.surveys.application.export_rendering import (
+    AGGREGATE_PRODUCTS,
     SurveyExportArtifact,
     SurveyExportSource,
     export_filename,
@@ -362,8 +364,14 @@ class AsyncpgSurveyExports:
                 responses = tuple(
                     IndividualResponse.model_validate(r) for r in json.loads(raw)
                 )
+            # Report exports show what the screen shows (k = 5); raw
+            # exports need the raw permissions and stay raw.
             source = SurveyExportSource(
-                row["title"], AnalysisSnapshot.model_validate(payload), responses
+                row["title"],
+                disclose(payload)
+                if row["product"] in AGGREGATE_PRODUCTS
+                else AnalysisSnapshot.model_validate(payload),
+                responses,
             )
             artifact = (
                 await asyncio.to_thread(TypstSurveyRenderer().render, source)

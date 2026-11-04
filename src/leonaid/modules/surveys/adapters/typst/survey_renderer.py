@@ -16,12 +16,16 @@ from typing import Any
 from pypdf import PdfReader
 from pypdf.generic import ByteStringObject, ContentStream, TextStringObject
 
-from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.disclosure import (
+    AnalysisSnapshot as DisclosedSnapshot,
+    disclose,
+)
 from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    shown_count,
 )
 
 TYPST_VERSION = "0.13.1"
@@ -41,7 +45,13 @@ def number(value: int | float | None) -> str:
 
 
 def render_payload(source: SurveyExportSource) -> dict[str, Any]:
-    snapshot = AnalysisSnapshot.model_validate(source.snapshot.model_dump())
+    # Always the disclosed view (k = 5); a stored snapshot is disclosed here.
+    snapshot = (
+        source.snapshot
+        if isinstance(source.snapshot, DisclosedSnapshot)
+        else disclose(source.snapshot)
+    )
+    k = snapshot.minimumGroupSize
     questions = []
     for question in snapshot.questions:
 
@@ -52,7 +62,7 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
                 "rows": [
                     {
                         "label": bucket.label,
-                        "count": bucket.count,
+                        "count": shown_count(bucket.count),
                         "denominator": denominator,
                         "percentage": bucket.percentage or 0,
                         "percentageLabel": number(bucket.percentage) + " %"
@@ -84,6 +94,13 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             )
             if getattr(question, key) is not None
         ]
+        if question.suppressed:
+            metrics.append(
+                {
+                    "label": "Hinweis",
+                    "value": f"Weniger als {k} gültige Antworten: nicht ausgewertet, damit niemand erkennbar wird.",
+                }
+            )
         questions.append(
             {
                 "id": question.questionId,
@@ -123,11 +140,12 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
         "createdBefore": snapshot.filter.createdBefore or "Ohne Obergrenze",
         "participationCount": snapshot.participationCount,
         "statusCounts": [
-            {"label": STATUSES[k], "count": v}
-            for k, v in snapshot.statusCounts.model_dump().items()
+            {"label": STATUSES[key], "count": shown_count(v)}
+            for key, v in snapshot.statusCounts.model_dump().items()
         ],
         "lastPages": [
-            {"label": p.title, "count": p.count} for p in snapshot.lastPageCounts
+            {"label": p.title, "count": shown_count(p.count)}
+            for p in snapshot.lastPageCounts
         ],
         "questions": questions,
     }
