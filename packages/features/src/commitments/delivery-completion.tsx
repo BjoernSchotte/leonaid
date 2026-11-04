@@ -155,8 +155,8 @@ export function DeliveryCompletion({
         void configuration.refetch();
       setError(
         known
-          ? `${cause.detail.message} Deine Eingaben bleiben erhalten.`
-          : "Die Angaben konnten nicht gespeichert werden. Deine Eingaben bleiben erhalten. Bitte sende sie unverändert erneut.",
+          ? `${cause.detail.message} Ihre Eingaben bleiben erhalten.`
+          : "Die Angaben konnten nicht gespeichert werden. Ihre Eingaben bleiben erhalten. Bitte senden Sie sie unverändert erneut.",
       );
     } finally {
       setPending(false);
@@ -169,7 +169,7 @@ export function DeliveryCompletion({
       setComparison(await client.getCommitment(order.actionId, order.id));
     } catch {
       setError(
-        "Der aktuelle Stand konnte nicht geladen werden. Deine Eingaben bleiben erhalten.",
+        "Der aktuelle Stand konnte nicht geladen werden. Ihre Eingaben bleiben erhalten.",
       );
     } finally {
       setLoadingComparison(false);
@@ -257,8 +257,8 @@ export function DeliveryCompletion({
       ) : configuration.isError ? (
         <StatusMessage tone="error">
           <p>
-            Die Lieferplanung konnte nicht geladen werden. Deine Eingaben
-            bleiben erhalten.
+            Die Lieferplanung konnte nicht geladen werden. Ihre Eingaben bleiben
+            erhalten.
           </p>
           <Button
             disabled={configuration.isFetching}
