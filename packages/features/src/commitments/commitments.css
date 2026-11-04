@@ -23,7 +23,7 @@
 
 .commitment-page__header h1,
 .commitment-success h1 {
-  color: var(--foreground);
+  color: var(--text);
   font-size: clamp(2rem, 5vw, 3.4rem);
   line-height: 1;
   letter-spacing: -0.048em;
@@ -33,13 +33,13 @@
 .commitment-page__header > div > p:not(.commitment-eyebrow),
 .commitment-success > p:not(.commitment-eyebrow) {
   max-width: 49rem;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: clamp(0.94rem, 2vw, 1.05rem);
   line-height: 1.65;
 }
 
 .commitment-eyebrow {
-  color: var(--accent-foreground);
+  color: var(--accent-ink);
   font-size: 0.72rem !important;
   font-weight: 820;
   letter-spacing: 0.11em;
@@ -53,14 +53,14 @@
   align-items: center;
   gap: 0.35rem;
   margin-bottom: 0.35rem;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.82rem;
   font-weight: 720;
   text-decoration: none;
 }
 
 .commitment-back-link:hover {
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .commitment-capture {
@@ -96,7 +96,7 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0;
-  color: var(--foreground);
+  color: var(--text);
   font-size: 1rem;
   font-weight: 790;
   overflow-wrap: anywhere;
@@ -108,8 +108,8 @@
   height: 1.75rem;
   place-items: center;
   border-radius: 50%;
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: var(--on-accent);
+  background: var(--accent);
   font-size: 0.73rem;
   font-variant-numeric: tabular-nums;
 }
@@ -117,7 +117,7 @@
 .commitment-step__intro {
   max-width: 43rem;
   margin: -0.35rem 0 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.8rem;
   line-height: 1.55;
 }
@@ -130,13 +130,13 @@
 }
 
 .commitment-field label {
-  color: var(--foreground);
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 760;
 }
 
 .commitment-field small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -146,14 +146,14 @@
   width: 100%;
   min-height: 2.95rem;
   padding: 0.68rem 0.76rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  color: var(--foreground);
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-md);
+  color: var(--text);
   background: var(--surface);
 }
 
 .commitment-field input::placeholder {
-  color: color-mix(in oklch, var(--muted) 82%, var(--foreground));
+  color: color-mix(in oklch, var(--text-2) 82%, var(--text));
 }
 
 .commitment-field input:focus,
@@ -174,19 +174,18 @@
   gap: 0.65rem;
   padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
 }
 
 .commitment-party > span,
-.commitment-summary__heading > span,
-.commitment-ledger-row__buyer > span {
+.commitment-summary__heading > span {
   display: grid;
   width: 2.35rem;
   height: 2.35rem;
   place-items: center;
-  border-radius: var(--radius-md);
-  color: var(--accent-foreground);
+  border-radius: var(--r-md);
+  color: var(--accent-ink);
   background: var(--accent-soft);
 }
 
@@ -204,7 +203,7 @@
 }
 
 .commitment-party small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.75rem;
 }
 
@@ -222,9 +221,9 @@
   min-width: 0;
   padding: clamp(1.1rem, 3vw, 1.5rem);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-1);
 }
 
 .commitment-summary__heading {
@@ -239,7 +238,7 @@
 }
 
 .commitment-summary__heading p {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.78rem;
   line-height: 1.5;
 }
@@ -263,14 +262,14 @@
 
 .commitment-summary__facts dt,
 .commitment-success__facts dt {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.75rem;
 }
 
 .commitment-summary__facts dd,
 .commitment-success__facts dd {
   margin: 0;
-  color: var(--foreground);
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 720;
   text-align: right;
@@ -285,13 +284,13 @@
 
 .commitment-summary__total > span,
 .commitment-summary__total > small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.72rem;
   line-height: 1.45;
 }
 
 .commitment-summary__total > strong {
-  color: var(--foreground);
+  color: var(--text);
   font-size: clamp(1.65rem, 5vw, 2.2rem);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
@@ -314,7 +313,7 @@
 }
 
 .commitment-submit-choices small {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -327,8 +326,8 @@
   padding: 0.28rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--muted);
-  background: var(--surface-muted);
+  color: var(--text-2);
+  background: var(--surface-2);
   font-size: 0.7rem;
   font-weight: 760;
   white-space: nowrap;
@@ -344,7 +343,7 @@
 
 .commitment-status[data-status="review_ready"] {
   border-color: color-mix(in oklch, var(--info) 38%, var(--border));
-  color: var(--info-text);
+  color: var(--info);
   background: color-mix(in oklch, var(--info) 11%, var(--surface));
 }
 
@@ -354,13 +353,13 @@
 
 .commitment-status[data-status="confirmed"],
 .commitment-status[data-status="invoiced"] {
-  border-color: color-mix(in oklch, var(--success) 34%, var(--border));
-  color: var(--success-text);
-  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+  border-color: color-mix(in oklch, var(--ok) 34%, var(--border));
+  color: var(--ok);
+  background: color-mix(in oklch, var(--ok) 10%, var(--surface));
 }
 
 .commitment-status[data-status="cancelled"] {
-  color: var(--danger-text);
+  color: var(--danger);
   background: color-mix(in oklch, var(--danger) 9%, var(--surface));
 }
 
@@ -379,8 +378,8 @@
   height: 3.25rem;
   place-items: center;
   border-radius: 50%;
-  color: var(--success-text);
-  background: color-mix(in oklch, var(--success) 13%, var(--surface));
+  color: var(--ok);
+  background: color-mix(in oklch, var(--ok) 13%, var(--surface));
 }
 
 .commitment-success__facts {
@@ -402,8 +401,8 @@
 
 .commitment-loading span {
   height: 5rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
 }
 
 .commitment-empty {
@@ -414,9 +413,9 @@
   gap: 0.35rem;
   padding: 1.5rem;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  color: var(--muted);
-  background: var(--surface-muted);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  background: var(--surface-2);
   text-align: center;
 }
 
@@ -424,11 +423,11 @@
   width: 1.6rem;
   height: 1.6rem;
   margin-bottom: 0.2rem;
-  color: var(--accent-foreground);
+  color: var(--accent-ink);
 }
 
 .commitment-empty strong {
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .commitment-empty span {
@@ -437,422 +436,15 @@
   line-height: 1.5;
 }
 
-.commitment-page__header--admin {
-  max-width: none;
-}
-
-.commitment-action-picker {
-  width: min(100%, 22rem);
-}
-
-.commitment-totals {
-  display: grid;
-  grid-template-columns: 1fr;
-  border-block: 1px solid var(--border);
-}
-
-.commitment-totals > div {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.9rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.commitment-totals > div:last-child {
-  border-bottom: 0;
-}
-
-.commitment-totals > div > span {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: 0 0 2.25rem;
-  place-items: center;
-  border-radius: var(--radius-md);
-  color: var(--accent-foreground);
-  background: var(--accent-soft);
-}
-
-.commitment-totals p {
-  display: grid;
-  gap: 0.08rem;
-  min-width: 0;
-  margin: 0;
-}
-
-.commitment-totals small {
-  color: var(--muted);
-  font-size: 0.7rem;
-}
-
-.commitment-totals strong {
-  color: var(--foreground);
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.commitment-ledger-toolbar {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.commitment-ledger-toolbar > span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.commitment-filter {
-  display: inline-grid;
-  min-width: 0;
-  max-width: 100%;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  gap: 0.2rem;
-  padding: 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
-  overflow-x: auto;
-}
-
-.commitment-filter button {
-  min-height: 2.75rem;
-  padding: 0.55rem 0.8rem;
-  border: 0;
-  border-radius: calc(var(--radius-md) - 0.18rem);
-  color: var(--muted);
-  background: transparent;
-  font-weight: 720;
-  cursor: pointer;
-}
-
-.commitment-filter button[aria-selected="true"] {
-  color: var(--foreground);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.commitment-filter button:focus-visible,
 .commitment-back-link:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
-}
-
-.commitment-ledger {
-  display: grid;
-  border-block: 1px solid var(--border);
-}
-
-.commitment-ledger-row {
-  display: grid;
-  min-width: 0;
-  gap: 0.85rem;
-  padding: 1rem 0.2rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.commitment-ledger-row:last-child {
-  border-bottom: 0;
-}
-
-.commitment-ledger-row__buyer {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.commitment-ledger-row__buyer > div,
-.commitment-ledger-row__order,
-.commitment-ledger-row__status {
-  display: grid;
-  min-width: 0;
-  gap: 0.18rem;
-}
-
-.commitment-ledger-row__buyer strong,
-.commitment-ledger-row__order strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.commitment-ledger-row__buyer small,
-.commitment-ledger-row__order span,
-.commitment-ledger-row__order small,
-.commitment-ledger-row__status small {
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.4;
-}
-
-.commitment-ledger-row__status {
-  justify-items: start;
-}
-
-.commitment-ledger-row__amount {
-  align-self: center;
-  color: var(--foreground);
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.commitment-ledger-row__action {
-  display: flex;
-  align-items: center;
-}
-
-.commitment-ledger-row__action .btn {
-  width: 100%;
-  white-space: nowrap;
-}
-
-.commitment-ledger-row__action > a {
-  color: var(--accent-foreground);
-  font-size: 0.78rem;
-  font-weight: 740;
-  text-decoration: none;
-}
-
-.commitment-ledger-row__action > a:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.2rem;
-}
-
-.commitment-invoice-review {
-  display: grid;
-  min-width: 0;
-  gap: 1.2rem;
-  margin-top: 0.3rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid
-    color-mix(in oklch, var(--accent-foreground) 24%, var(--border));
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--accent-soft) 26%, var(--surface));
-}
-
-.commitment-invoice-review > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.2rem;
-}
-
-.commitment-invoice-review h2,
-.commitment-invoice-review header p,
-.commitment-invoice-review__legal p {
-  margin: 0;
-}
-
-.commitment-invoice-review h2 {
-  margin-top: 0.18rem;
-  font-size: clamp(1.25rem, 3vw, 1.6rem);
-  letter-spacing: -0.035em;
-}
-
-.commitment-invoice-review header p:not(.commitment-eyebrow) {
-  max-width: 42rem;
-  margin-top: 0.38rem;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.55;
-}
-
-.commitment-invoice-review__number {
-  flex: 0 0 auto;
-  padding: 0.45rem 0.68rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--foreground);
-  background: var(--surface);
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.commitment-invoice-review__facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.commitment-invoice-review__facts > section {
-  display: grid;
-  align-content: start;
-  gap: 0.22rem;
-  padding-block: 0.8rem;
-  border-block: 1px solid var(--border);
-}
-
-.commitment-invoice-review__facts span,
-.commitment-invoice-review__legal > span {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 720;
-  letter-spacing: 0.025em;
-  text-transform: uppercase;
-}
-
-.commitment-invoice-review__facts strong {
-  margin-top: 0.2rem;
-  color: var(--foreground);
-  font-size: 0.9rem;
-}
-
-.commitment-invoice-review__facts address,
-.commitment-invoice-review__facts small {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-style: normal;
-  line-height: 1.5;
-}
-
-.commitment-invoice-review__lines {
-  display: grid;
-  gap: 0;
-}
-
-.commitment-invoice-review__lines > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.66rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.commitment-invoice-review__lines span {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.commitment-invoice-review__lines strong {
-  flex: 0 0 auto;
-  color: var(--foreground);
-  font-size: 0.82rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.commitment-invoice-review__lines > .commitment-invoice-review__total {
-  padding-top: 0.9rem;
-  border-bottom: 0;
-}
-
-.commitment-invoice-review__total span,
-.commitment-invoice-review__total strong {
-  color: var(--foreground);
-  font-size: 1rem;
-  font-weight: 790;
-}
-
-.commitment-invoice-review__legal {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.8rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
-}
-
-.commitment-invoice-review__legal p {
-  color: var(--foreground);
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
-.commitment-invoice-review__approval {
-  display: grid;
-  grid-template-columns: minmax(12rem, 0.6fr) minmax(16rem, 1fr);
-  align-items: end;
-  gap: 1rem;
-  padding-top: 0.2rem;
-}
-
-.commitment-invoice-review__date {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  color: var(--muted);
-  background: var(--surface);
-}
-
-.commitment-invoice-review__date > svg {
-  margin-left: 0.72rem;
-}
-
-.commitment-invoice-review__date > input {
-  border: 0;
-  background: transparent;
-}
-
-.commitment-invoice-review__date:focus-within {
-  border-color: var(--focus);
-  outline: 3px solid color-mix(in oklch, var(--focus) 32%, transparent);
-}
-
-.commitment-invoice-review__warning {
-  display: grid;
-  gap: 0.2rem;
-  align-self: stretch;
-  align-content: center;
-  padding: 0.72rem 0.82rem;
-  border-left: 2px solid var(--warning);
-  color: var(--foreground);
-  background: color-mix(in oklch, var(--warning) 9%, var(--surface));
-}
-
-.commitment-invoice-review__warning strong {
-  font-size: 0.8rem;
-}
-
-.commitment-invoice-review__warning span {
-  color: var(--muted);
-  font-size: 0.73rem;
-  line-height: 1.45;
-}
-
-.commitment-invoice-review__approval > .callout,
-.commitment-invoice-review__actions {
-  grid-column: 1 / -1;
-}
-
-.commitment-invoice-review__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.6rem;
 }
 
 @media (min-width: 660px) {
   .commitment-offering-grid,
   .commitment-recipient-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .commitment-totals {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .commitment-totals > div {
-    padding-inline: 1rem;
-    border-right: 1px solid var(--border);
-    border-bottom: 0;
-  }
-
-  .commitment-totals > div:first-child {
-    padding-left: 0;
-  }
-
-  .commitment-totals > div:last-child {
-    border-right: 0;
   }
 }
 
@@ -867,44 +459,9 @@
     position: sticky;
     top: 6rem;
   }
-
-  .commitment-page__header--admin {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 2rem;
-  }
-
-  .commitment-ledger-row {
-    grid-template-columns:
-      minmax(13rem, 1.2fr)
-      minmax(13rem, 1fr)
-      minmax(8rem, 0.65fr)
-      auto
-      minmax(9rem, auto);
-    align-items: center;
-    gap: clamp(1rem, 2.5vw, 2rem);
-  }
-
-  .commitment-ledger-row__amount {
-    justify-self: end;
-  }
-
-  .commitment-invoice-review {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 600px) {
-  .commitment-ledger-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .commitment-filter {
-    width: 100%;
-    grid-auto-columns: max-content;
-  }
-
   .commitment-success__actions {
     width: 100%;
     flex-direction: column;
@@ -913,36 +470,11 @@
   .commitment-success__actions .btn {
     width: 100%;
   }
-
-  .commitment-invoice-review > header,
-  .commitment-invoice-review__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .commitment-invoice-review__number {
-    width: fit-content;
-  }
-
-  .commitment-invoice-review__facts,
-  .commitment-invoice-review__approval {
-    grid-template-columns: 1fr;
-  }
-
-  .commitment-invoice-review__approval > .callout,
-  .commitment-invoice-review__actions {
-    grid-column: auto;
-  }
-
-  .commitment-invoice-review__actions .btn {
-    width: 100%;
-  }
 }
 
 @media (pointer: coarse) {
   .commitment-field input,
   .commitment-field select,
-  .commitment-filter button,
   .commitment-back-link {
     min-height: 3rem;
   }
@@ -953,6 +485,234 @@
     animation: none;
   }
 }
+
+/*
+ * The list view brings its own insets (header 24 px, rows full-bleed, as in
+ * the prototype), so the shell's page padding and width cap step aside.
+ */
+.page:has(.commitment-list) {
+  max-width: none;
+  padding: 0;
+}
+
+/*
+ * Orders list (/admin/orders): the shared list view plus the page bits of
+ * the prototype's orders page (prototype pages.css, components.css).
+ */
+.commitment-list .flag-high {
+  color: var(--danger);
+}
+.commitment-list .flag-space {
+  display: inline-block;
+  width: 14px;
+}
+.commitment-list .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.commitment-list .subtle {
+  color: var(--text-3);
+}
+.commitment-list .cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.commitment-list .next-step {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--zone-line);
+  border-radius: var(--r-md);
+  background: var(--zone-soft);
+  font-size: var(--fs-sm);
+}
+.commitment-list .next-step p {
+  margin: 0;
+}
+
+/* Header: quantity and value sum (like the invoices' "Offen" sum), action. */
+.commitment-sum {
+  align-self: center;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.commitment-action-picker select {
+  max-width: 16rem;
+  text-overflow: ellipsis;
+}
+.commitment-issued {
+  margin-block-end: var(--s-3);
+}
+
+/* Detail pane body. */
+.commitment-detail {
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.commitment-detail .pane-section {
+  min-width: 0;
+}
+.commitment-address {
+  display: grid;
+  gap: var(--s-0);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.commitment-address strong {
+  font-weight: var(--fw-medium);
+}
+.commitment-inline-icon {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.commitment-inline-icon > svg {
+  flex: none;
+  transform: translateY(1px);
+}
+.commitment-link {
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+}
+
+/* Invoice review inside the pane (single column at every width). */
+.commitment-invoice-review {
+  display: grid;
+  min-width: 0;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+}
+.commitment-invoice-review > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.commitment-invoice-review h3,
+.commitment-invoice-review p {
+  margin: 0;
+}
+.commitment-invoice-review h3 {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+.commitment-invoice-review h3:focus {
+  outline: none;
+}
+.commitment-invoice-review__eyebrow,
+.commitment-invoice-review__legal > span {
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.commitment-invoice-review__intro {
+  color: var(--text-2);
+  line-height: var(--lh-prose);
+}
+.commitment-invoice-review__number {
+  flex: none;
+  padding: var(--s-1) var(--s-2);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+}
+.commitment-invoice-review__lines {
+  display: grid;
+}
+.commitment-invoice-review__lines > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-block: var(--s-2);
+  border-bottom: var(--hair) solid var(--border);
+}
+.commitment-invoice-review__lines span {
+  min-width: 0;
+  color: var(--text-2);
+}
+.commitment-invoice-review__lines strong {
+  flex: none;
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.commitment-invoice-review__lines > .commitment-invoice-review__total {
+  border-bottom: 0;
+}
+.commitment-invoice-review__total span,
+.commitment-invoice-review__total strong {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.commitment-invoice-review__legal {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.commitment-invoice-review__legal p {
+  line-height: var(--lh-prose);
+}
+.commitment-invoice-review__approval {
+  display: grid;
+  gap: var(--s-3);
+}
+.commitment-invoice-review__date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border: var(--hair) solid var(--control-border);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  background: var(--surface);
+}
+.commitment-invoice-review__date > svg {
+  margin-inline-start: var(--s-3);
+}
+.commitment-invoice-review__date > input {
+  border: 0;
+  background: transparent;
+}
+.commitment-invoice-review__date:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.commitment-invoice-review__date > input:focus {
+  outline: none;
+}
+.commitment-invoice-review__warning {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border-inline-start: 2px solid var(--warn);
+  background: var(--warn-soft);
+}
+.commitment-invoice-review__warning span {
+  color: var(--text-2);
+  line-height: var(--lh-ui);
+}
+.commitment-invoice-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
 .commitment-delivery-options {
   display: flex;
   flex-wrap: wrap;
@@ -965,19 +725,19 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0.65rem 0.8rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 
 .commitment-delivery-options label:has(:checked) {
-  border-color: var(--primary);
+  border-color: var(--accent);
   background: var(--accent-soft);
 }
 
 .commitment-delivery-options input {
   flex: 0 0 auto;
-  accent-color: var(--primary);
+  accent-color: var(--accent);
 }
 
 .commitment-window-choice {
@@ -991,7 +751,7 @@
 
 .commitment-window-choice p {
   margin: 0.6rem 0 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -1011,7 +771,7 @@
   min-width: 0;
   gap: 0.75rem;
   padding-top: 1rem;
-  border-top: 1px dashed var(--input);
+  border-top: 1px dashed var(--control-border);
 }
 
 .commitment-delivery-past > h3 {
@@ -1059,20 +819,6 @@
   white-space: normal;
 }
 
-.commitment-order-details {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-
-.commitment-order-details summary {
-  width: fit-content;
-  min-height: 2.75rem;
-  padding-block: 0.65rem;
-  color: var(--primary);
-  font-weight: 650;
-  cursor: pointer;
-}
-
 .commitment-delivery-completion {
   display: grid;
   min-width: 0;
@@ -1107,6 +853,98 @@
   gap: 0.75rem;
   padding: 1rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   background: var(--surface);
+}
+
+/* Bulk invoice release dialog. */
+.bulk-release__form,
+.bulk-release__result {
+  display: grid;
+  gap: var(--s-4);
+  font-size: var(--fs-sm);
+}
+.bulk-release__table-wrap {
+  max-height: 18rem;
+  overflow: auto;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+}
+.bulk-release__table-wrap:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.bulk-release__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.bulk-release__table th,
+.bulk-release__table td {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: var(--hair) solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+.bulk-release__table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.bulk-release__table tbody th {
+  font-weight: var(--fw-medium);
+}
+.bulk-release__table .num {
+  text-align: end;
+}
+.bulk-release__table tfoot th,
+.bulk-release__table tfoot td {
+  border-bottom: 0;
+  font-weight: var(--fw-semibold);
+}
+.bulk-release__skipped,
+.bulk-release__progress {
+  margin: 0;
+  color: var(--text-2);
+}
+.bulk-release__result h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.bulk-release__result ul {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding-inline-start: var(--s-4);
+}
+.bulk-release .subtle {
+  color: var(--text-3);
+}
+@media (max-width: 720px) {
+  .bulk-release__table thead {
+    display: none;
+  }
+  .bulk-release__table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: var(--s-2) var(--s-3);
+    border-bottom: var(--hair) solid var(--border);
+  }
+  .bulk-release__table th,
+  .bulk-release__table td {
+    padding: 0;
+    border: 0;
+  }
+  .bulk-release__table tbody td:not(.num) {
+    grid-column: 1 / -1;
+    color: var(--text-2);
+  }
 }
