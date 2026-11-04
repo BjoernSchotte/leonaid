@@ -374,7 +374,7 @@ describe("delivery board", () => {
 
   it("answers drivers in Du when the server refuses", async () => {
     const client = fakeClient(board({ manager: false, drivers: [] }));
-    client.setDeliveryState.mockRejectedValueOnce(
+    vi.mocked(client.setDeliveryState).mockRejectedValueOnce(
       new ApiError(403, {
         code: "delivery_not_assigned",
         message: "Diese Lieferung ist Ihnen nicht zugewiesen.",
@@ -406,7 +406,9 @@ describe("delivery board", () => {
         ],
       }),
     );
-    client.reopenDeliveryWindow.mockRejectedValueOnce(new Error("offline"));
+    vi.mocked(client.reopenDeliveryWindow).mockRejectedValueOnce(
+      new Error("offline"),
+    );
     await renderBoard(client);
     fireEvent.click(screen.getByRole("button", { name: "Wieder öffnen" }));
     await screen.findByText(/Bitte versuchen Sie es erneut/);
