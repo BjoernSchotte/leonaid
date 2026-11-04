@@ -32,6 +32,22 @@
     {
       "file": "packages/features/src/action-admin/manage-sections.tsx",
       "contains": ["label: \"Auslieferung\"", "value: \"delivery\""]
+    },
+    {
+      "file": "packages/features/src/action-admin/delivery-section.tsx",
+      "contains": [
+        "Ausgebucht",
+        "ist als ausgebucht markiert.",
+        "ist wieder buchbar."
+      ]
+    },
+    {
+      "file": "packages/features/src/commitments/delivery-fields.tsx",
+      "contains": [
+        "Lieferfenster ist ausgebucht",
+        "Trotzdem eintragen",
+        "(ausgebucht)"
+      ]
     }
   ],
   "DOC-P013": [
@@ -52,6 +68,10 @@
     {
       "file": "apps/public/src/components/PublicOrderEnhancement.astro",
       "contains": ["Bitte prüfen Sie"]
+    },
+    {
+      "file": "apps/public/src/components/PublicDeliveryWindows.astro",
+      "contains": ["ausgebucht"]
     }
   ],
   "DOC-P014": [
@@ -659,6 +679,10 @@
         "nach Abschluss gebucht",
         "Zur Lieferung"
       ]
+    },
+    {
+      "file": "packages/features/src/delivery/delivery-board.tsx",
+      "contains": ["Ausgebucht"]
     }
   ]
 }

@@ -659,8 +659,10 @@ function AdminDashboard({
                         </span>
                         <span className="window-meter window-quantity">
                           {window.fullyBooked ? (
-                            <Badge tone="warn">Ausgebucht</Badge>
-                          ) : null}{" "}
+                            <>
+                              <Badge tone="warn">Ausgebucht</Badge>{" "}
+                            </>
+                          ) : null}
                           {window.commitments
                             ? formatQuantities(window.quantities, 0)
                             : "noch keine Bestellung"}
