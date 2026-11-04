@@ -61,12 +61,7 @@ import { consumeCreateRequest } from "../command-palette/create-request";
 import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import { says, type Address } from "./task-copy";
-import {
-  discardQuestion,
-  TaskDetail,
-  type DraftKind,
-  type TaskMoveControls,
-} from "./task-detail";
+import { TaskDetail, type TaskMoveControls } from "./task-detail";
 import type { Task } from "./task-editor";
 import {
   buildTaskRows,
@@ -1153,21 +1148,6 @@ function TasksWorkspace({
   const getId = useCallback((row: TaskRow) => row.id, []);
   const detailTitle = useCallback((row: TaskRow) => row.task.title, []);
 
-  /* ----- drafts in the pane ----- */
-  const drafts = useRef<Record<DraftKind, boolean>>({
-    editor: false,
-    structure: false,
-  });
-  const onDraft = useCallback((kind: DraftKind, dirty: boolean) => {
-    drafts.current[kind] = dirty;
-  }, []);
-  const paneGuard = useCallback(() => {
-    if (!drafts.current.editor && !drafts.current.structure) return true;
-    if (!window.confirm(discardQuestion(address))) return false;
-    drafts.current = { editor: false, structure: false };
-    return true;
-  }, [address]);
-
   /* ----- create ----- */
   const [adding, setAdding] = useState(false);
   // All tasks: the quick add opens even before a list exists and then
@@ -1509,7 +1489,6 @@ function TasksWorkspace({
             if (listId) void selected.refetch();
           }}
           onStateChange={setListState}
-          paneGuard={paneGuard}
           properties={properties}
           renderDetail={(row, pane) => (
             <TaskDetail
@@ -1520,7 +1499,6 @@ function TasksWorkspace({
               key={row.id}
               listPage={!!listId}
               move={moveControls(row)}
-              onDraft={onDraft}
               row={row}
               userId={identity.userId}
             />
