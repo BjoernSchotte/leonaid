@@ -332,6 +332,21 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     ).toBeVisible();
     await expect(page.getByTestId("invoice-profile-incomplete")).toHaveCount(0);
     await expect(page.getByTestId("invoice-open-total")).toContainText("€");
+    // List pages are full-bleed: the list starts at the rail and runs to the
+    // right edge, without the page padding or the 1320 px cap.
+    const frame = await page.evaluate(() => {
+      const main = document
+        .querySelector("#main-content")
+        .getBoundingClientRect();
+      const list = document.querySelector(".listview").getBoundingClientRect();
+      const pageStyle = getComputedStyle(document.querySelector(".page"));
+      return {
+        left: list.left - main.left,
+        right: main.right - list.right,
+        padding: pageStyle.paddingLeft,
+      };
+    });
+    expect(frame).toEqual({ left: 0, right: 0, padding: "0px" });
     await showInvoiceView(page, "Alle");
     await expect(invoiceRows(page)).toHaveCount(4);
     const issuedRow = await openInvoice(page, { number: "KT26-0004" });
