@@ -95,6 +95,19 @@
 .delivery-options > .check-row + .check-row {
   margin-top: 0;
 }
+/* Marked "ausgebucht" by the club: shown, but not selectable. */
+.delivery-options .check-row[data-fully-booked] {
+  cursor: not-allowed;
+  color: var(--ink-muted);
+  background: var(--canvas-deep);
+  border-style: dashed;
+}
+.delivery-full {
+  margin-inline-start: var(--space-xs);
+  font-size: 0.875em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .delivery-refresh {
   justify-self: start;
   padding: var(--space-sm) var(--space-md);

@@ -25,7 +25,10 @@ import { useActionInUrl } from "../action-admin/action-location";
 import {
   DeliveryFields,
   DeliverySummary,
+  FullWindowConfirm,
   deliveryDraft,
+  fullWindowSelected,
+  isFullWindowError,
   deliveryPayload,
   hasDeliveryAddress,
   selectableWindows,
@@ -197,6 +200,7 @@ export function CommitmentCapturePage({
   const [quantity, setQuantity] = useState(1);
   const [delivery, setDelivery] = useState(() => deliveryDraft());
   const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
+  const [confirmFull, setConfirmFull] = useState(false);
   const existingId = initialParameters.get("commitment") ?? "";
   const [resuming, setResuming] = useState(Boolean(existingId));
   const appliedBuyer = useRef("");
@@ -284,14 +288,17 @@ export function CommitmentCapturePage({
       readyForReview,
       buyer,
       offering,
+      allowFullWindow = false,
     }: {
       readonly readyForReview: boolean;
       readonly buyer: CommitmentBuyerResponse;
       readonly offering: ConfiguredOfferingResponse;
+      readonly allowFullWindow?: boolean;
     }) =>
       client.createCommitment(
         actionId,
         {
+          allowFullWindow,
           buyer,
           ...(configuration?.enabled ? deliveryPayload(delivery) : {}),
           invoiceRecipient: {
@@ -320,6 +327,7 @@ export function CommitmentCapturePage({
         },
       ),
     onSuccess: (order) => {
+      setConfirmFull(false);
       setSavedOrder(order);
       const url = new URL(window.location.href);
       url.searchParams.set("action", order.actionId);
@@ -332,8 +340,11 @@ export function CommitmentCapturePage({
         error.detail.code.startsWith("delivery_")
       )
         void context.refetch();
+      // Switched to "ausgebucht" meanwhile: ask, then book anyway.
+      setConfirmFull(isFullWindowError(error));
     },
   });
+  const fullWindow = fullWindowSelected(configuration, delivery.windowId);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -341,10 +352,25 @@ export function CommitmentCapturePage({
       .submitter as HTMLButtonElement | null;
     if (!selectedBuyer || !selectedOffering || !submitter) return;
     if (submitter.value === "review_ready" && !completeDelivery) return;
+    // A draft books nothing yet; its completion asks.
+    if (submitter.value === "review_ready" && fullWindow) {
+      setConfirmFull(true);
+      return;
+    }
     create.mutate({
       offering: selectedOffering,
       readyForReview: submitter.value === "review_ready",
       buyer: selectedBuyer,
+    });
+  }
+
+  function confirmFullWindow() {
+    if (!selectedBuyer || !selectedOffering) return;
+    create.mutate({
+      allowFullWindow: true,
+      buyer: selectedBuyer,
+      offering: selectedOffering,
+      readyForReview: true,
     });
   }
 
@@ -782,7 +808,7 @@ export function CommitmentCapturePage({
                 Der Core übernimmt beim Speichern den aktuellen Angebotspreis.
               </small>
             </div>
-            {create.isError ? (
+            {create.isError && !isFullWindowError(create.error) ? (
               <StatusMessage tone="error">
                 {captureError(create.error)}
               </StatusMessage>
@@ -831,6 +857,22 @@ export function CommitmentCapturePage({
               </div>
             </div>
           </aside>
+          <FullWindowConfirm
+            onCancel={() => {
+              setConfirmFull(false);
+              create.reset();
+            }}
+            onConfirm={confirmFullWindow}
+            pending={create.isPending}
+            window={
+              confirmFull
+                ? (fullWindow ??
+                  configuration?.windows.find(
+                    (item) => item.id === delivery.windowId,
+                  ))
+                : undefined
+            }
+          />
         </form>
       )}
     </div>

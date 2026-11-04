@@ -4,7 +4,8 @@ import { expect, test } from "./csp-guard.mjs";
 // The Lieferfenster tab of the action detail (Leitsystem Task 6.1) against
 // the real stack: a fresh Krapfentaxi draft from the template (delivery
 // capability), windows added through the modal, a real concurrent save
-// (409, input kept), retiring a window and the phone width. Runs in the
+// (409, input kept), retiring a window, the "ausgebucht" switch and the
+// phone width. Runs in the
 // action-admin stack (tools/action_admin/test.sh) as Klara.
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -187,6 +188,52 @@ test("Lieferfenster: add in the modal, keep input on a conflict, retire", async 
     saved = await (await context.request.get(configPath)).json();
     expect(saved.windows.filter((window) => window.retired)).toHaveLength(1);
     await expect(tab).toContainText("3");
+
+    // "Ausgebucht" saves at once, outside the form, and keeps the revision.
+    const before = saved.revision;
+    const full = page.getByRole("switch", {
+      name: /04\.12\. · 10:00–12:00 Uhr ausgebucht$/,
+    });
+    await full.check();
+    await expect(page.locator(".toast").last()).toContainText(
+      "als ausgebucht markiert",
+    );
+    const fullRow = rows.filter({ hasText: "04.12. · 10:00–12:00" });
+    await expect(fullRow).toContainText("Ausgebucht");
+    saved = await (await context.request.get(configPath)).json();
+    expect(saved.revision).toBe(before);
+    expect(
+      saved.windows.find((window) => window.startsAt.startsWith("10:00"))
+        .fullyBooked,
+    ).toBe(true);
+    await expectNoSeriousAccessibilityViolations(page, "Ausgebucht");
+    await full.uncheck();
+    await expect(page.locator(".toast").last()).toContainText("wieder buchbar");
+    await expect(fullRow).toContainText("Buchbar");
+
+    // Retiring a full window clears "Ausgebucht".
+    await page
+      .getByRole("switch", { name: /06\.12\. · 14:00–16:00 Uhr ausgebucht$/ })
+      .check();
+    await expect(
+      rows.filter({ hasText: "06.12. · 14:00–16:00" }),
+    ).toContainText("Ausgebucht");
+    await page
+      .getByRole("button", { name: /06\.12\. · 14:00–16:00 Uhr stilllegen$/ })
+      .click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Fenster stilllegen" })
+      .click();
+    const retiredFull = rows.filter({ hasText: "06.12. · 14:00–16:00" });
+    await expect(retiredFull).toHaveAttribute("data-retired", "true");
+    await expect(retiredFull.getByRole("switch")).toHaveCount(0);
+    saved = await (await context.request.get(configPath)).json();
+    const cleared = saved.windows.find(
+      (window) => window.deliveryOn === "2037-12-06",
+    );
+    expect([cleared.retired, cleared.fullyBooked]).toEqual([true, false]);
+    await expect(tab).toContainText("2");
 
     // Phone width: the page does not scroll sideways.
     await page.setViewportSize({ width: 390, height: 844 });

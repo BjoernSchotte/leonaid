@@ -1418,6 +1418,7 @@ class DashboardDeliveryWindowResponse(TransportModel):
     ends_at: datetime
     commitments: int = Field(ge=0)
     quantities: list[UnitQuantityResponse]
+    fully_booked: bool
 
 
 class DashboardDeliveryResponse(TransportModel):

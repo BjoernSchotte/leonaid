@@ -29,6 +29,7 @@ import type {
   LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
+  Badge,
   Button,
   buttonClassName,
   EmptyState,
@@ -657,9 +658,12 @@ function AdminDashboard({
                           })}
                         </span>
                         <span className="window-meter window-quantity">
+                          {window.fullyBooked ? (
+                            <Badge tone="warn">Ausgebucht</Badge>
+                          ) : null}{" "}
                           {window.commitments
                             ? formatQuantities(window.quantities, 0)
-                            : "noch frei"}
+                            : "noch keine Bestellung"}
                         </span>
                         <span className="window-num num">
                           {window.commitments}{" "}

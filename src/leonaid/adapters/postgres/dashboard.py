@@ -481,6 +481,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 window_row.id,
                 window_row.starts_at,
                 window_row.ends_at,
+                window_row.fully_booked,
                 count(commitment.id) AS commitments,
                 (
                     SELECT coalesce(
@@ -522,6 +523,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                     starts_at=row["starts_at"],
                     ends_at=row["ends_at"],
                     commitments=_integer(row, "commitments"),
+                    fully_booked=bool(row["fully_booked"]),
                     quantities=UnitQuantity.summarize(
                         (OfferingUnit(str(unit)), int(quantity))
                         for unit, quantity in json.loads(

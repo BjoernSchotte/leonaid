@@ -30,24 +30,39 @@ const dayLabel = (day: string) =>
             .filter((window) => window.deliveryOn === day)
             .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
             .map((window) => (
-              <label class="check-row">
+              <label
+                class="check-row"
+                data-fully-booked={window.fullyBooked ? "" : undefined}
+              >
                 <input
                   type="radio"
                   name="deliveryWindowId"
                   value={window.id}
-                  checked={selectedId === window.id}
+                  checked={selectedId === window.id && !window.fullyBooked}
+                  disabled={window.fullyBooked}
                   required
                   aria-describedby="deliveryWindowId-error"
                 />
                 <span>
                   {window.startsAt.slice(0, 5)}–{window.endsAt.slice(0, 5)} Uhr
                   <span class="sr-only"> am {dayLabel(day)}</span>
+                  {window.fullyBooked && (
+                    <span class="delivery-full">ausgebucht</span>
+                  )}
                 </span>
               </label>
             ))}
         </div>
       </div>
     ))
+  }
+  {
+    windows.length > 0 && windows.every((window) => window.fullyBooked) && (
+      <p role="status">
+        Alle Lieferfenster sind ausgebucht. Sobald der Club wieder Termine
+        freigibt, kannst du hier bestellen.
+      </p>
+    )
   }
   {
     !windows.length && (

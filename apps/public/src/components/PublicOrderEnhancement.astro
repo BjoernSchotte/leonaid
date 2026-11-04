@@ -40,7 +40,7 @@
     );
     const deliveryUnavailable = () =>
       Boolean(form.querySelector("[data-delivery-window-selection]")) &&
-      !form.querySelector('input[name="deliveryWindowId"]');
+      !form.querySelector('input[name="deliveryWindowId"]:not(:disabled)');
     const refreshDeliveryWindows = async () => {
       if (!refreshButton) return;
       refreshButton.disabled = true;
@@ -82,10 +82,11 @@
           throw new Error("Campaign changed");
         const selected =
           current.querySelector<HTMLInputElement>("input:checked")?.value;
+        // A window switched to "ausgebucht" meanwhile cannot stay chosen.
         for (const input of replacement.querySelectorAll<HTMLInputElement>(
           'input[name="deliveryWindowId"]',
         ))
-          input.checked = input.value === selected;
+          input.checked = !input.disabled && input.value === selected;
         current.replaceWith(replacement);
         if (refreshStatus)
           refreshStatus.textContent =

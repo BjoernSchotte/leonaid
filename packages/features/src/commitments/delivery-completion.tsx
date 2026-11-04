@@ -9,7 +9,10 @@ import { Button, StatusMessage } from "@leonaid/ui";
 import {
   DeliveryFields,
   DeliverySummary,
+  FullWindowConfirm,
   deliveryDraft,
+  fullWindowSelected,
+  isFullWindowError,
   deliveryPayload,
   hasDeliveryAddress,
   hasPartialDeliveryAddress,
@@ -75,6 +78,7 @@ export function DeliveryCompletion({
   const [comparison, setComparison] = useState<CommitmentResponse>();
   const [loadingComparison, setLoadingComparison] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmFull, setConfirmFull] = useState(false);
   const message = useRef<HTMLDivElement>(null);
   // One key per distinct payload: an unchanged retry after a lost response
   // replays exactly; any change is a new command.
@@ -108,7 +112,13 @@ export function DeliveryCompletion({
     deliveryReady &&
     !hasPartialDeliveryAddress(delivery);
 
-  async function submit() {
+  // Only a newly chosen, still bookable window asks; a booked or
+  // historical one records what happened.
+  const fullWindow = lockedWindow
+    ? undefined
+    : fullWindowSelected(configuration.data, delivery.windowId);
+
+  async function submit(allowFullWindow = false) {
     const payload = deliveryPayload(delivery);
     const body = {
       expectedVersion: baseline.deliveryCompletionVersion,
@@ -124,6 +134,7 @@ export function DeliveryCompletion({
       deliveryWindowId: enabled ? payload.deliveryWindowId : null,
       deliveryContact: enabled ? payload.deliveryContact : null,
     };
+    // The confirmation is not order content: it keeps the attempt key.
     const serialized = JSON.stringify(body);
     if (attempt.current?.payload !== serialized)
       attempt.current = {
@@ -138,10 +149,11 @@ export function DeliveryCompletion({
       const result = await client.completeCommitmentDelivery(
         order.actionId,
         order.id,
-        body,
+        { ...body, allowFullWindow },
         { headers: { "Idempotency-Key": attempt.current.key } },
       );
       attempt.current = undefined;
+      setConfirmFull(false);
       setBaseline(result);
       setComparison(undefined);
       setSaved(true);
@@ -153,6 +165,11 @@ export function DeliveryCompletion({
       );
       if (known && cause.detail.code.startsWith("delivery_window"))
         void configuration.refetch();
+      if (isFullWindowError(cause)) {
+        // Switched to "ausgebucht" meanwhile: ask, then save anyway.
+        setConfirmFull(true);
+        return;
+      }
       setError(
         known
           ? `${cause.detail.message} Ihre Eingaben bleiben erhalten.`
@@ -184,7 +201,9 @@ export function DeliveryCompletion({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (canSubmit) void submit();
+        if (!canSubmit) return;
+        if (fullWindow) setConfirmFull(true);
+        else void submit();
       }}
     >
       <h3 id={`${prefix}-title`}>Liefer- und Rechnungsangaben ergänzen</h3>
@@ -376,6 +395,19 @@ export function DeliveryCompletion({
       >
         {pending ? "Angaben werden gespeichert …" : "Angaben speichern"}
       </Button>
+      <FullWindowConfirm
+        onCancel={() => setConfirmFull(false)}
+        onConfirm={() => void submit(true)}
+        pending={pending}
+        window={
+          confirmFull
+            ? (fullWindow ??
+              configuration.data?.windows.find(
+                (item) => item.id === delivery.windowId,
+              ))
+            : undefined
+        }
+      />
     </form>
   );
 }

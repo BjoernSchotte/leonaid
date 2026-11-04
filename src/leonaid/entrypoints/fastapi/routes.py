@@ -1088,6 +1088,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         ends_at=window.ends_at,
                         commitments=window.commitments,
                         quantities=unit_quantity_responses(window.quantities),
+                        fully_booked=window.fully_booked,
                     )
                     for window in admin.delivery.windows
                 ],

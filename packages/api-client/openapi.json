@@ -4905,6 +4905,10 @@
             "title": "Endsat",
             "type": "string"
           },
+          "fullyBooked": {
+            "title": "Fullybooked",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -4928,7 +4932,8 @@
           "startsAt",
           "endsAt",
           "commitments",
-          "quantities"
+          "quantities",
+          "fullyBooked"
         ],
         "title": "DashboardDeliveryWindowResponse",
         "type": "object"
