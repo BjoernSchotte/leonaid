@@ -78,5 +78,10 @@
     "path": "tests/e2e/surveys-templates-faults.spec.mjs",
     "sha256": "a8b75de9f1be0552f813fd119dce8e13174719a26449c5235821661ace66b292",
     "reason": "Drop one actual template creation acknowledgement and retry the original request; inspect the persisted definition."
+  },
+  {
+    "path": "tools/emdash_spike/campaign-editor-browser-proof.mjs",
+    "sha256": "d87d6900f404d13f53ec52d9ffceabd679c2c4e1165785f61af74a6154e3e33d",
+    "reason": "Hold real EmDash entry and revision GET responses for 1.5 s after a publish, then forward them unchanged, so input typed during the slow refetch must survive and autosave; content is never changed."
   }
 ]
