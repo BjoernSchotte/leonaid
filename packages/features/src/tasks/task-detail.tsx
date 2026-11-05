@@ -181,7 +181,13 @@ export function TaskDetail({
 
       <TaskSteps address={address} client={client} row={row} />
 
-      {task.canEdit ? <ListAudience client={client} row={row} /> : null}
+      {task.canEdit ? (
+        <ListAudience
+          client={client}
+          listHref={listPage ? null : `${basePath}/${task.listId}`}
+          row={row}
+        />
+      ) : null}
 
       {move ? (
         <TaskMoveSection
@@ -426,9 +432,12 @@ function TaskMoveSection({
 /** "Wer die Liste sieht": the list's members, for people who manage it. */
 function ListAudience({
   client,
+  listHref,
   row,
 }: {
   readonly client: LeonAidApiClient;
+  /** The list page, where "Zugriff verwalten" is; null on that page. */
+  readonly listHref: string | null;
   readonly row: TaskRow;
 }) {
   const members = useQuery({
@@ -472,7 +481,14 @@ function ListAudience({
       ) : null}
       {members.data.nextOffset !== null ? (
         <p className="small subtle">
-          Weitere Mitglieder unter „Zugriff verwalten“.
+          {listHref ? (
+            <>
+              Weitere Mitglieder in der{" "}
+              <a href={listHref}>Liste unter „Zugriff verwalten“</a>.
+            </>
+          ) : (
+            "Weitere Mitglieder unter „Zugriff verwalten“."
+          )}
         </p>
       ) : null}
     </DetailSection>

@@ -450,6 +450,28 @@ describe("tasks page", () => {
     expect(screen.queryByText("Wer die Liste sieht")).toBeNull();
   });
 
+  it("points to the list for more members on the all-tasks page", async () => {
+    const client = harness({ open: [task("a", "Stände aufbauen")] });
+    client.listTaskListMembers.mockResolvedValue({
+      items: [
+        {
+          access: "editor" as const,
+          active: true,
+          displayName: "Jonas Weber",
+          userId: "10000000-0000-4000-8000-000000000002",
+        },
+      ],
+      nextOffset: 20,
+      ownerUserId: me,
+      revision: 1,
+    } as never);
+    renderPage(client, { path: "/admin/tasks?view=open&open=a" });
+    const link = await screen.findByRole("link", {
+      name: "Liste unter „Zugriff verwalten“",
+    });
+    expect(link.getAttribute("href")).toBe(`/admin/tasks/${listA}`);
+  });
+
   it("refuses edits on tasks the person may only read", async () => {
     const client = harness({
       open: [task("a", "Nur lesen", { canEdit: false })],
