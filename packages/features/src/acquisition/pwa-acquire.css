@@ -509,6 +509,19 @@
   margin: 0;
   line-height: var(--lh-prose);
 }
+/* "Ja, ich spreche mich … ab" (prototype .pwa-confirm). */
+.pwa-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-height: 44px;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.pwa-confirm input {
+  flex: none;
+  margin-top: 3px;
+}
 .pwa-match .assignment-warning {
   color: var(--warn);
   font-weight: var(--fw-semibold);

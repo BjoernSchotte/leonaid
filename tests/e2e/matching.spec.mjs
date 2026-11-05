@@ -106,6 +106,9 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
       name: "Ja, ich spreche mich mit Bernd Binder ab und trage mich zusätzlich ein.",
     });
     await expect(agreed).not.toBeChecked();
+    // The whole label row is a 44 px target (prototype .pwa-confirm).
+    const agreeRow = await page.locator(".pwa-confirm").boundingBox();
+    expect(agreeRow.height).toBeGreaterThanOrEqual(44);
     // During match review nothing is saved yet: a tab asks first.
     const appTabs = page.getByRole("navigation", { name: "App-Navigation" });
     const leaveQuestion = page.getByRole("alertdialog", {

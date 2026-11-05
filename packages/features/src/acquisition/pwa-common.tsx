@@ -148,14 +148,17 @@ export function sponsorHref(actionId: string, assignmentId: string) {
  * new screen's heading takes the focus (and is announced). Only screen
  * changes ask for it, not filter changes or the first page load.
  */
-let headingFocusRequested = false;
+// A request expires: a heading that mounts later (another screen, a
+// re-render after a slow query) never takes the focus unasked.
+const HEADING_FOCUS_WINDOW_MS = 1500;
+let headingFocusUntil = 0;
 
 /** Shows another acquirer screen without a page load; its h1 gets focus. */
 export function navigateToScreen(
   href: string,
   { replace = false }: { readonly replace?: boolean } = {},
 ) {
-  headingFocusRequested = true;
+  headingFocusUntil = performance.now() + HEADING_FOCUS_WINDOW_MS;
   navigateInPage(href, { replace });
   window.scrollTo({ top: 0 });
 }
@@ -163,9 +166,11 @@ export function navigateToScreen(
 /** Ref for a screen's h1 (with tabIndex -1): focused after navigateToScreen. */
 export function useScreenHeading() {
   return useCallback((element: HTMLElement | null) => {
-    if (!element || !headingFocusRequested) return;
-    headingFocusRequested = false;
-    element.focus({ preventScroll: true });
+    if (!element) return;
+    const requested = performance.now() <= headingFocusUntil;
+    // One request, one heading: the first heading that mounts consumes it.
+    headingFocusUntil = 0;
+    if (requested) element.focus({ preventScroll: true });
   }, []);
 }
 
