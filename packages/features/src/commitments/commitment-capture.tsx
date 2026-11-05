@@ -522,7 +522,7 @@ export function CommitmentCapturePage({
           ursprüngliche Erfassung und eine weiterhin bestehende
           Sponsorzuordnung.
         </p>
-        <Button onClick={() => void existing.refetch()}>
+        <Button onClick={() => void existing.refetch()} variant="secondary">
           Erneut versuchen
         </Button>
       </StatusMessage>
@@ -832,7 +832,7 @@ export function CommitmentCapturePage({
             </StatusMessage>
           ) : null}
           <div className="pwa-two">
-            <Button onClick={() => goToStep(1)} size="lg">
+            <Button onClick={() => goToStep(1)} size="lg" variant="secondary">
               Zurück
             </Button>
             <Button
@@ -911,6 +911,7 @@ export function CommitmentCapturePage({
               disabled={create.isPending}
               onClick={() => goToStep(2)}
               size="lg"
+              variant="secondary"
             >
               Zurück
             </Button>

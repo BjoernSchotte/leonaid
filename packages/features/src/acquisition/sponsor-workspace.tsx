@@ -225,6 +225,7 @@ function SponsorList({
         <EmptyState
           action={
             <Button
+              variant="secondary"
               onClick={() => {
                 setQuery("");
                 setScope("mine");
@@ -537,7 +538,12 @@ function MatchResult({
         >
           Zum Sponsor
         </a>
-        <Button className="pwa-wide" onClick={onCancel} size="lg">
+        <Button
+          className="pwa-wide"
+          onClick={onCancel}
+          size="lg"
+          variant="secondary"
+        >
           Weiteren Sponsor erfassen
         </Button>
       </div>
@@ -665,6 +671,7 @@ function MatchResult({
           disabled={resolving}
           onClick={onCancel}
           size="lg"
+          variant="secondary"
         >
           Prüfung abbrechen
         </Button>
