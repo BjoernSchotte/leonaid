@@ -25,6 +25,8 @@ interface Props {
   theme?: PublicTheme;
   canOrder?: boolean;
   carrierName?: string;
+  /** In-page target of the privacy notice, when the page renders one. */
+  privacyHref?: string;
   campaignBrand?: {
     name: string;
     logo: { src: string; alt: string; width?: number; height?: number } | null;
@@ -41,6 +43,7 @@ const {
   theme = defaultTheme,
   canOrder = false,
   carrierName,
+  privacyHref,
   campaignBrand,
 } = Astro.props;
 const shareImage = imageMetadata ?? theme.shareImage;
@@ -170,6 +173,15 @@ const header = theme.header;
           }
         </p>
       </div>
+      {
+        // The campaign footer names the carrier in its text already.
+        ((carrierName && !theme.campaignFooter) || privacyHref) && (
+          <div class="site-shell site-footer__legal" data-footer-legal>
+            {carrierName && !theme.campaignFooter && <span>{carrierName}</span>}
+            {privacyHref && <a href={privacyHref}>Datenschutz</a>}
+          </div>
+        )
+      }
     </footer>
   </body>
 </html>

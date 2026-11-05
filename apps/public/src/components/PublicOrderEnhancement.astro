@@ -65,6 +65,19 @@
     const deliveryUnavailable = () =>
       Boolean(form.querySelector("[data-delivery-window-selection]")) &&
       !form.querySelector('input[name="deliveryWindowId"]:not(:disabled)');
+    const submitBlocked = form.querySelector<HTMLElement>(
+      "[data-order-submit-blocked]",
+    );
+    /** No free window: submit is off and the note next to it says why. */
+    const syncSubmitAvailability = () => {
+      const unavailable = deliveryUnavailable();
+      if (submitBlocked) submitBlocked.hidden = !unavailable;
+      if (!submitButton) return;
+      submitButton.disabled = submitting || unavailable;
+      if (unavailable && submitBlocked)
+        submitButton.setAttribute("aria-describedby", submitBlocked.id);
+      else submitButton.removeAttribute("aria-describedby");
+    };
     /** True when the chosen window is no longer selectable afterwards. */
     const refreshDeliveryWindows = async (): Promise<boolean> => {
       if (!refreshButton) return false;
@@ -127,8 +140,7 @@
             "Die Lieferfenster konnten nicht aktualisiert werden. Ihre Eingaben bleiben erhalten. Bitte versuchen Sie es erneut.";
       } finally {
         refreshButton.disabled = false;
-        if (submitButton)
-          submitButton.disabled = submitting || deliveryUnavailable();
+        syncSubmitAvailability();
       }
       return dropped;
     };
@@ -375,6 +387,7 @@
     syncBillingFields();
     syncCustomerKind();
     syncOrderPreview();
+    syncSubmitAvailability();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -453,10 +466,8 @@
         );
       } finally {
         submitting = false;
-        if (submitButton) {
-          submitButton.disabled = deliveryUnavailable();
-          submitButton.removeAttribute("aria-busy");
-        }
+        submitButton?.removeAttribute("aria-busy");
+        syncSubmitAvailability();
         if (submitLabel) submitLabel.textContent = idleSubmitLabel;
       }
     });

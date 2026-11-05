@@ -41,9 +41,12 @@ const commandId = redisplay?.commandId ?? crypto.randomUUID();
 const collectsDelivery = orderForm.requireDeliveryAddress;
 const deliveryConfiguration = orderForm.deliveryConfiguration;
 const deliveryEnabled = Boolean(deliveryConfiguration?.enabled);
+// No window to choose: every active one is retired or "ausgebucht".
 const deliveryUnavailable =
   deliveryEnabled &&
-  !deliveryConfiguration?.windows.some((window) => !window.retired);
+  !deliveryConfiguration?.windows.some(
+    (window) => !window.retired && !window.fullyBooked,
+  );
 const quantityFor = (id: string, index: number) =>
   redisplay?.quantities[id] ?? (index === 0 ? 1 : 0);
 const currency = action.offerings[0]?.currency ?? "EUR";
@@ -819,11 +822,25 @@ const checkIcon = "M20 6 9 17l-5-5";
                 </span>
                 {". Kein Kundenkonto nötig; die Rechnung kommt per E-Mail."}
               </p>
+              <p
+                id="order-submit-blocked"
+                class="order-submit-blocked"
+                role="status"
+                data-order-submit-blocked
+                hidden={!deliveryUnavailable}
+              >
+                Bestellen ist gerade nicht möglich, weil kein Lieferfenster frei
+                ist. Sobald der Club neue Termine freigibt, können Sie hier
+                bestellen.
+              </p>
               <button
                 type="submit"
                 class="btn btn-primary btn-lg order-submit"
                 data-order-submit
                 disabled={deliveryUnavailable}
+                aria-describedby={
+                  deliveryUnavailable ? "order-submit-blocked" : undefined
+                }
               >
                 <svg
                   aria-hidden="true"
