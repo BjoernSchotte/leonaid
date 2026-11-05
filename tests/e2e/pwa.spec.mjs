@@ -65,13 +65,6 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
     "mit Bernd Binder",
   );
   const scope = page.getByRole("group", { name: "Zuständigkeit" });
-  await expect(
-    scope.getByRole("button", { name: "Meine (2)" }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await scope.getByRole("button", { name: "Gemeinsam betreut (1)" }).click();
-  await expect(rows).toHaveCount(1);
-  await scope.getByRole("button", { name: "Meine (2)" }).click();
-
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
@@ -98,6 +91,13 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   });
   expect(focusStyle.outlineStyle).not.toBe("none");
   expect(Number.parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(2);
+
+  await expect(
+    scope.getByRole("button", { name: "Meine (2)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await scope.getByRole("button", { name: "Gemeinsam betreut (1)" }).click();
+  await expect(rows).toHaveCount(1);
+  await scope.getByRole("button", { name: "Meine (2)" }).click();
 
   if (testInfo.project.name === "chromium-390") {
     await page.evaluate(() => {
@@ -146,9 +146,6 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
     "href",
     "mailto:mara.muster@musterwerk.leonaid.invalid",
   );
-  await expect(page.getByTestId("co-assignees")).toContainText(
-    "Gemeinsam mit Bernd Binder",
-  );
   for (const locator of [
     call,
     page.getByTestId("contact-open"),
@@ -168,6 +165,11 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   await expect(
     page.getByRole("heading", { level: 1, name: "Sponsoren" }),
   ).toBeVisible();
+  // The jointly managed sponsor names the colleague in its head.
+  await rows.filter({ hasText: "mit Bernd Binder" }).click();
+  await expect(page.getByTestId("co-assignees")).toHaveText(
+    "Gemeinsam mit Bernd Binder",
+  );
 
   await page.goto(`${baseUrl}/app/`);
   await expect(
@@ -221,6 +223,7 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
     expect(box.x + box.width).toBeLessThanOrEqual(column.x + column.width + 1);
   }
   // Shared pages get their phone layout in the column at every width.
+  await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
   const pageControls = await page
     .locator(
       ".pwa-main .pwa-segment button:visible, .pwa-main .pwa-row:visible",

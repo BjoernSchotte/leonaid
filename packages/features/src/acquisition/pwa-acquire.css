@@ -22,6 +22,7 @@
 .pwa-h2 {
   margin: 0 0 var(--s-2);
   font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
 .pwa-section-head {
   display: flex;
@@ -194,6 +195,10 @@
   font-weight: var(--fw-semibold);
   cursor: pointer;
 }
+.pwa-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 .pwa-chip[aria-pressed="true"] {
   border-color: var(--zone);
   background: var(--zone-soft);
@@ -260,7 +265,8 @@
 }
 .pwa-dl > div {
   display: grid;
-  grid-template-columns: 7.5rem 1fr;
+  /* 7.5rem as in the prototype, but never more than 40 % (200 % text). */
+  grid-template-columns: min(7.5rem, 40%) minmax(0, 1fr);
   gap: var(--s-3);
   padding: var(--s-2) 0;
   border-bottom: var(--hair) solid var(--border);
