@@ -52,12 +52,26 @@ def error_code(response: httpx.Response) -> str:
     return str(error.get("code"))
 
 
-async def seed_session(connection: asyncpg.Connection[Any]) -> str:
+# Browser sessions for the header links into the signed-in apps
+# (public-actions.spec.mjs): Finn may use the admin app only, Anna the PWA only.
+FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
+ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
+BROWSER_SESSIONS = {
+    FINN_ID: f"poc070-{FINN_ID}-browser-session-token",
+    ANNA_ID: f"poc070-{ANNA_ID}-browser-session-token",
+}
+
+
+async def seed_session(
+    connection: asyncpg.Connection[Any],
+    user_id: UUID = KLARA_ID,
+    token: str | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
-    token = f"poc070-{KLARA_ID}-real-server-session-token"
+    token = token or f"poc070-{user_id}-real-server-session-token"
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = $1",
-        KLARA_ID,
+        user_id,
     )
     await connection.execute(
         """
@@ -67,13 +81,47 @@ async def seed_session(connection: asyncpg.Connection[Any]) -> str:
         )
         VALUES ($1, $2, $3, $4, $5, $5, $5, $5)
         """,
-        uuid5(SESSION_NAMESPACE, str(KLARA_ID)),
-        KLARA_ID,
+        uuid5(SESSION_NAMESPACE, str(user_id)),
+        user_id,
         session_token_digest(token),
         now + SESSION_LIFETIME,
         now,
     )
     return token
+
+
+async def seed_browser_sessions(connection: asyncpg.Connection[Any]) -> None:
+    """Sessions the browser spec sets as cookies; their navigation is checked."""
+    expected = {
+        FINN_ID: ({"overview-web"}, False),
+        ANNA_ID: (set(), True),
+    }
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=30,
+    ) as client:
+        for user_id, token in BROWSER_SESSIONS.items():
+            await seed_session(connection, user_id, token)
+            response = await client.get(
+                "/api/v1/identity/me",
+                cookies={SESSION_COOKIE_NAME: token},
+                headers=request_headers(f"identity:{user_id}"),
+            )
+            if response.status_code != 200:
+                raise ContractFailure(f"Browser session for {user_id} is not valid")
+            navigation = response.json()["navigation"]
+            web_keys = {item["key"] for item in navigation if item["surface"] == "web"}
+            pwa_work = any(
+                item["surface"] == "pwa"
+                and item["key"] != "overview-pwa"
+                and item["key"] not in web_keys
+                for item in navigation
+            )
+            entries, works_in_pwa = expected[user_id]
+            if (web_keys & {"overview-web"}) != entries or pwa_work != works_in_pwa:
+                raise ContractFailure(
+                    f"Navigation of {user_id} no longer matches the header links"
+                )
 
 
 def follow_up_payload() -> dict[str, Any]:
@@ -466,6 +514,7 @@ async def run() -> None:
     try:
         token = await seed_session(connection)
         await exercise(connection, token)
+        await seed_browser_sessions(connection)
     finally:
         await connection.close()
     print(
