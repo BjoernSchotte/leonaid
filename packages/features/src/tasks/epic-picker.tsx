@@ -151,7 +151,11 @@ export function EpicPicker({
       {save.error && (
         <StatusMessage tone="error">
           {save.error instanceof ApiError && save.error.status === 409
-            ? "Der Abschnitt wurde inzwischen geändert. Lade die Abschnitte neu und prüfe den Titel vor einem weiteren Versuch."
+            ? says(
+                address,
+                "Der Abschnitt wurde inzwischen geändert. Lade die Abschnitte neu und prüfe den Titel vor einem weiteren Versuch.",
+                "Der Abschnitt wurde inzwischen geändert. Laden Sie die Abschnitte neu und prüfen Sie den Titel vor einem weiteren Versuch.",
+              )
             : says(
                 address,
                 "Der Abschnitt konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",

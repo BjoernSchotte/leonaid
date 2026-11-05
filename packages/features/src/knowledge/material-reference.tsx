@@ -8,8 +8,9 @@ import {
 import type { LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import { downloadMaterial } from "../materials/download";
+import { says, type Address } from "../tasks/task-copy";
 
-export function materialReference(client: LeonAidApiClient) {
+export function materialReference(client: LeonAidApiClient, address: Address) {
   function Reference({ node }: NodeViewProps) {
     const id = String(node.attrs.materialId);
     const version = Number(node.attrs.version);
@@ -49,8 +50,11 @@ export function materialReference(client: LeonAidApiClient) {
         )}
         {download.error && (
           <StatusMessage tone="error">
-            Download fehlgeschlagen. Prüfe deinen Zugriff und versuche es
-            erneut.
+            {says(
+              address,
+              "Download fehlgeschlagen. Prüfe deinen Zugriff und versuche es erneut.",
+              "Download fehlgeschlagen. Prüfen Sie Ihren Zugriff und versuchen Sie es erneut.",
+            )}
           </StatusMessage>
         )}
       </NodeViewWrapper>

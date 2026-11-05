@@ -1363,6 +1363,7 @@ function TasksWorkspace({
       ) : null}
       {tool === "access" && selected.data?.canEdit ? (
         <TaskListAccess
+          address={address}
           client={client}
           list={selected.data}
           onClose={() => setTool(null)}
