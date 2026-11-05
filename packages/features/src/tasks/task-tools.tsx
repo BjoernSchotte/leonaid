@@ -260,6 +260,7 @@ export function TaskListAccess({
       <ListMembersPanel
         actionScoped={!!list.actionId}
         address={address}
+        embedded
         client={client}
         listId={list.id}
       />

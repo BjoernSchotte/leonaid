@@ -479,6 +479,28 @@ describe("tasks page", () => {
     expect(link.getAttribute("href")).toBe(`/admin/tasks/${listA}`);
   });
 
+  it("opens the list's access in one step, without a second toggle", async () => {
+    const client = harness({ open: [task("a", "Stände aufbauen")] });
+    renderPage(client, {
+      path: `/admin/tasks/${listA}?view=open`,
+      listId: listA,
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zugriff verwalten" }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "Zugriff verwalten",
+    });
+    expect(
+      within(panel).queryByRole("button", { name: "Listenmitglieder" }),
+    ).toBeNull();
+    expect(
+      await within(panel).findByLabelText("Listenmitglieder suchen"),
+    ).toBeTruthy();
+    // One heading for the panel; the members are h3 under it.
+    expect(within(panel).getAllByRole("heading", { level: 2 })).toHaveLength(1);
+  });
+
   it("refuses edits on tasks the person may only read", async () => {
     const client = harness({
       open: [task("a", "Nur lesen", { canEdit: false })],

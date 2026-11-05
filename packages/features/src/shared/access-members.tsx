@@ -47,15 +47,22 @@ export function AccessMembersPanel({
   source,
   actionScoped,
   address,
+  embedded = false,
 }: {
   objectId: string;
   source: AccessMemberSource;
   actionScoped: boolean;
   /** "Sie" in the back office, "du" in the app. */
   address: Address;
+  /**
+   * Inside a panel that is itself the "Zugriff verwalten" disclosure (the
+   * task list's tool panel): open at once, no second toggle and no second
+   * heading.
+   */
+  embedded?: boolean;
 }) {
   const { label, accessLabel, subject } = source;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [email, setEmail] = useState("");
@@ -88,18 +95,23 @@ export function AccessMembersPanel({
     },
   });
   return (
-    <section className="access-members">
-      <Button
-        type="button"
-        variant="secondary"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {label}
-      </Button>
+    <section
+      aria-label={embedded ? `Zugriff auf ${subject}` : undefined}
+      className={embedded ? "access-members is-embedded" : "access-members"}
+    >
+      {embedded ? null : (
+        <Button
+          type="button"
+          variant="secondary"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {label}
+        </Button>
+      )}
       {open && (
         <div>
-          <h2>Zugriff auf {subject}</h2>
+          {embedded ? null : <h2>Zugriff auf {subject}</h2>}
           <p>
             {actionScoped
               ? "Aktionsrollen gelten weiterhin. Das Entfernen eines zusätzlichen Zugriffs entzieht keine Aktionsmitgliedschaft."
@@ -122,9 +134,10 @@ export function AccessMembersPanel({
           )}
           {members.data && !members.error && (
             <fieldset disabled={change.isPending}>
-              <label>
-                {label} suchen
+              <label className="field">
+                <span className="field-label">{label} suchen</span>
                 <input
+                  className="input"
                   type="search"
                   maxLength={200}
                   value={search}
@@ -201,9 +214,10 @@ export function AccessMembersPanel({
                 }}
               >
                 <h3>Bestehendes Konto hinzufügen</h3>
-                <label>
-                  E-Mail-Adresse
+                <label className="field">
+                  <span className="field-label">E-Mail-Adresse</span>
                   <input
+                    className="input"
                     type="email"
                     required
                     maxLength={254}
@@ -211,9 +225,10 @@ export function AccessMembersPanel({
                     onChange={(event) => setEmail(event.target.value)}
                   />
                 </label>
-                <label>
-                  {accessLabel}
+                <label className="field">
+                  <span className="field-label">{accessLabel}</span>
                   <select
+                    className="input select"
                     value={access}
                     onChange={(event) =>
                       setAccess(event.target.value as "viewer" | "editor")
