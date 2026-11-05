@@ -378,6 +378,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
     PublicCampaignRouteResponse,
+    PublicLegalNoticeResponse,
+    PublicLegalProviderResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
@@ -1869,6 +1871,39 @@ async def ready(request: Request, response: Response) -> ReadinessResponse:
 async def information(request: Request) -> PlatformInformationResponse:
     return PlatformInformationResponse.model_validate(
         platform_service(request).information()
+    )
+
+
+@router.get(
+    "/api/v1/public/legal-notice",
+    operation_id="getPublicLegalNotice",
+    response_model=PublicLegalNoticeResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def get_public_legal_notice(
+    request: Request,
+    response: Response,
+) -> PublicLegalNoticeResponse:
+    """Impressum provider of the installation (one per club, all hosts).
+
+    Only the carrier's name, postal address and contact e-mail leave the
+    active legal configuration; tax, bank and evidence data stay internal.
+    """
+    configuration = await legal_configuration_service(request).active_configuration()
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    if configuration is None:
+        return PublicLegalNoticeResponse(provider=None)
+    issuer = configuration.configuration.issuer
+    return PublicLegalNoticeResponse(
+        provider=PublicLegalProviderResponse(
+            legal_name=issuer.legal_name,
+            street_line_1=issuer.street_line_1,
+            postal_code=issuer.postal_code,
+            city=issuer.city,
+            country_code=issuer.country_code,
+            email=issuer.email,
+        )
     )
 
 

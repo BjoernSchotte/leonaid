@@ -33,6 +33,10 @@ async function openOrderForm(page) {
     page.locator('form[action*="lions-krapfentaxi.de"]'),
   ).toHaveCount(0);
   const legal = page.locator("[data-footer-legal]");
+  await expect(legal.getByRole("link", { name: "Impressum" })).toHaveAttribute(
+    "href",
+    "/impressum",
+  );
   await expect(
     legal.getByRole("link", { name: "Datenschutz" }),
   ).toHaveAttribute("href", "#datenschutz");

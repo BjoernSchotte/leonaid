@@ -888,6 +888,23 @@ class PublicActionRouteResponse(TransportModel):
     redirect_path: str | None = None
 
 
+class PublicLegalProviderResponse(TransportModel):
+    """The carrier named in the Impressum (the active legal configuration)."""
+
+    legal_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    email: str
+
+
+class PublicLegalNoticeResponse(TransportModel):
+    """Impressum data of the installation; provider is null until activated."""
+
+    provider: PublicLegalProviderResponse | None
+
+
 class PublicCampaignRouteResponse(TransportModel):
     route_kind: Literal["campaign"] = "campaign"
     route_value: str
