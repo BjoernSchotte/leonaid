@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -415,6 +422,30 @@ describe("SurveyResponsesPage", () => {
     expect(params.has("open")).toBe(false);
   });
 
+  it("choosing again shows one list and a fresh free-text dialog", async () => {
+    const client = fakeClient();
+    client.createSurveyResponseSelection.mockResolvedValueOnce({
+      ...selection,
+      id: "00000000-0000-4000-8000-0000000000bb",
+    });
+    await renderPage(`${base}?responseSelection=${snapshotId}`, client);
+    await screen.findByText("51 Antworten");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Antwortstand wählen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Antwortstand wählen",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antworten auswählen" }),
+    );
+    // The new view's heading takes the focus; the old list is gone.
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe("Einzelantworten"),
+    );
+    expect(document.querySelectorAll(".svr-applied")).toHaveLength(1);
+  });
+
   it("asks for a selection first, then lists every page of it", async () => {
     const client = await renderPage(base);
     await screen.findByRole("heading", {
@@ -613,6 +644,47 @@ describe("evaluation (summary)", () => {
     expect((await screen.findByRole("alert")).textContent).toContain(
       "Einzelantworten dieser Umfrage sind für Sie nicht zugänglich",
     );
+  });
+
+  it("withheld cells say why in the export's words, and bars read verborgen", async () => {
+    await renderPage(summaryUrl, fakeClient(), "summary");
+    await screen.findByText("51 Teilnahmen");
+    // I12: also withheld when derivable, as the exports say.
+    expect(
+      screen.getByRole("region", { name: "2. Rückmeldung" }).textContent,
+    ).toContain(
+      "Weniger als 5 gültige Antworten oder daraus ableitbar: nicht ausgewertet",
+    );
+    const labels = screen
+      .getAllByRole("meter")
+      .map((meter) => meter.getAttribute("aria-label"));
+    expect(labels).toContain("Beta: verborgen");
+    expect(labels.join(" ")).not.toContain("weniger als");
+  });
+
+  it("choosing a new Antwortstand focuses the new view's heading", async () => {
+    const client = fakeClient(["view_aggregates"]);
+    client.createSurveyAnalysis.mockResolvedValueOnce({
+      ...aggregates(),
+      id: "00000000-0000-4000-8000-0000000000aa",
+    });
+    await renderPage(summaryUrl, client, "summary");
+    await screen.findByText("51 Teilnahmen");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Antwortstand wählen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Antwortstand wählen",
+    });
+    // M50: aggregate-only accounts choose a questionnaire version.
+    expect(within(dialog).getByLabelText("Fragebogen-Version")).toBeTruthy();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antworten auswählen" }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe("Auswertung"),
+    );
+    expect(document.activeElement?.tagName).toBe("H1");
   });
 
   it("a selection under k shows no results", async () => {
