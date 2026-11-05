@@ -97,7 +97,14 @@ export function ChartTable({
   return (
     <details className="chart-table">
       <summary>{summary}</summary>
-      <div className="table-wrap">
+      {/* Wide tables scroll sideways; scrollbars are hidden, so the region
+          takes focus for keyboard scrolling (axe scrollable-region-focusable). */}
+      <div
+        aria-label={caption}
+        className="table-wrap"
+        role="region"
+        tabIndex={0}
+      >
         <table className="table">
           <caption className="sr-only">{caption}</caption>
           <thead>
