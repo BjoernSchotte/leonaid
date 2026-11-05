@@ -127,7 +127,6 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         *,
         responsible_admin_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
         configuration: ActionConfiguration | None = None,
     ) -> CharityAction:
         try:
@@ -576,7 +575,6 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         responsible_user_ids: frozenset[UUID],
         actor_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
     ) -> ActionManagementState:
         async with self._pool.acquire() as connection:
             async with connection.transaction():

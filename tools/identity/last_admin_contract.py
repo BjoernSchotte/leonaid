@@ -19,7 +19,7 @@ import hashlib
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -397,7 +397,6 @@ async def prove_repository(
     identity: AsyncpgIdentityRepository,
     actions: AsyncpgCharityActionRepository,
 ) -> None:
-    now = datetime.now(timezone.utc)
     async with pool.acquire() as connection:
         # Leave ADMIN_ONE as the only active system admin.
         await connection.execute(
@@ -429,7 +428,6 @@ async def prove_repository(
                 target,
                 actor_user_id=ADMIN_ONE,
                 expected_revision=admin_revision,
-                occurred_at=now,
                 **command(f"last-system-{target.value}"),
             ),
             code,
@@ -442,7 +440,6 @@ async def prove_repository(
             enabled=False,
             actor_user_id=ADMIN_ONE,
             expected_revision=admin_revision,
-            occurred_at=now,
             **command("last-system-role"),
         ),
         "last_system_admin_role_forbidden",
@@ -459,7 +456,6 @@ async def prove_repository(
             AccountStatus.SUSPENDED,
             actor_user_id=ADMIN_TWO,
             expected_revision=lead_one_revision,
-            occurred_at=now,
             **command("stale-actor-status"),
         ),
         "admin_scope_changed",
@@ -472,7 +468,6 @@ async def prove_repository(
             enabled=True,
             actor_user_id=ADMIN_TWO,
             expected_revision=lead_one_revision,
-            occurred_at=now,
             **command("stale-actor-global"),
         ),
         "admin_scope_changed",
@@ -487,7 +482,6 @@ async def prove_repository(
             actor=system_principal(ADMIN_TWO),
             actor_user_id=ADMIN_TWO,
             expected_revision=lead_one_revision,
-            occurred_at=now,
             **command("stale-actor-membership"),
         ),
         "role_action_scope_changed",
@@ -508,7 +502,6 @@ async def prove_repository(
             copy_action(template, REFUSED_ACTION),
             responsible_admin_user_id=LEAD_TWO,
             request_id=f"{PREFIX}:create-refused",
-            occurred_at=now,
         ),
         "action_responsible_administrator_unavailable",
         "creating an action whose only lead is suspended",
@@ -531,7 +524,6 @@ async def prove_repository(
             AccountStatus.SUSPENDED,
             actor_user_id=ADMIN_ONE,
             expected_revision=two,
-            occurred_at=datetime.now(timezone.utc),
             **command("lock-wait-status"),
         ),
         "account status change",
@@ -544,7 +536,6 @@ async def prove_repository(
             enabled=True,
             actor_user_id=ADMIN_ONE,
             expected_revision=lead_one_revision,
-            occurred_at=datetime.now(timezone.utc),
             **command("lock-wait-global"),
         ),
         "global role change",
@@ -555,7 +546,6 @@ async def prove_repository(
             copy_action(template, CREATED_ACTION),
             responsible_admin_user_id=ADMIN_ONE,
             request_id=f"{PREFIX}:create",
-            occurred_at=datetime.now(timezone.utc),
         ),
         "action creation",
     )
@@ -577,7 +567,6 @@ async def prove_repository(
                 actor=system_principal(ADMIN_ONE),
                 actor_user_id=ADMIN_ONE,
                 expected_revision=lead_revision,
-                occurred_at=datetime.now(timezone.utc),
                 **command("lock-wait"),
             )
         )
@@ -592,14 +581,12 @@ async def prove_repository(
             await reset_admins(connection)
             one = await revision(connection, ADMIN_ONE)
             two = await revision(connection, ADMIN_TWO)
-        occurred_at = datetime.now(timezone.utc)
         results = await asyncio.gather(
             identity.transition_account_status(
                 ADMIN_TWO,
                 AccountStatus.SUSPENDED,
                 actor_user_id=ADMIN_ONE,
                 expected_revision=two,
-                occurred_at=occurred_at,
                 **command(f"race-suspend-{round_number}"),
             ),
             identity.grant_global_role(
@@ -608,7 +595,6 @@ async def prove_repository(
                 enabled=False,
                 actor_user_id=ADMIN_TWO,
                 expected_revision=one,
-                occurred_at=occurred_at,
                 **command(f"race-revoke-{round_number}"),
             ),
             return_exceptions=True,
@@ -650,7 +636,6 @@ async def prove_repository(
                 AccountStatus.SUSPENDED,
                 actor_user_id=ADMIN_ONE,
                 expected_revision=one,
-                occurred_at=datetime.now(timezone.utc),
                 **command(f"lead-race-suspend-{round_number}"),
             ),
             identity.grant_action_membership(
@@ -661,7 +646,6 @@ async def prove_repository(
                 actor=actor,
                 actor_user_id=ADMIN_ONE,
                 expected_revision=two,
-                occurred_at=datetime.now(timezone.utc),
                 **command(f"lead-race-revoke-{round_number}"),
             ),
             return_exceptions=True,
@@ -704,7 +688,6 @@ async def prove_repository(
                 responsible_user_ids=frozenset({ADMIN_ONE}),
                 actor_user_id=ADMIN_ONE,
                 request_id=f"{PREFIX}:responsibles",
-                occurred_at=datetime.now(timezone.utc),
             )
         )
         await queued_behind(
@@ -733,13 +716,15 @@ async def prove_stamp_order(
     actions: AsyncpgCharityActionRepository,
     template: CharityAction,
 ) -> None:
-    """A command that queued for the lock first must see what a command that
-    got the lock before it committed, whatever times their callers passed.
+    """A command must see what a command that got the lock before it
+    committed.
 
-    Each case passes the earlier time to the command that runs second, the
-    order of the lead race of 2026-11-05. The commands take their time once
-    they hold the lock (lock_admin_access), so the passed times must not
-    matter. All cases run; the failures are reported together.
+    The commands take their time from the database once they hold the lock
+    (lock_admin_access) and accept no time from the caller, so the order of
+    the lead race of 2026-11-05 (the later-stamped command commits first)
+    cannot be passed in any more. Each case runs the two commands in that
+    commit order and checks the second sees the first. All cases run; the
+    failures are reported together.
     """
 
     failures: list[str] = []
@@ -762,12 +747,10 @@ async def prove_stamp_order(
         if count != expected:
             failures.append(f"{name}: {count} active leads, expected {expected}")
 
-    # 1. An ended role: a revoke runs first (later time), then a suspension
-    #    of the other lead (earlier time) must be refused.
+    # 1. An ended role: a revoke commits, then a suspension of the other
+    #    lead must be refused.
     async with pool.acquire() as connection:
         one, two = await two_leads_on_shared(connection)
-    earlier = datetime.now(timezone.utc)
-    later = earlier + timedelta(seconds=5)
     await identity.grant_action_membership(
         LEAD_TWO,
         SHARED_ACTION,
@@ -776,7 +759,6 @@ async def prove_stamp_order(
         actor=actor,
         actor_user_id=ADMIN_ONE,
         expected_revision=two,
-        occurred_at=later,
         **command("stamp-revoke"),
     )
     await refused(
@@ -786,7 +768,6 @@ async def prove_stamp_order(
             AccountStatus.SUSPENDED,
             actor_user_id=ADMIN_ONE,
             expected_revision=one,
-            occurred_at=earlier,
             **command("stamp-suspend"),
         ),
         "last_charity_admin_suspension_forbidden",
@@ -794,9 +775,8 @@ async def prove_stamp_order(
     await leads("ended role", SHARED_ACTION, 1)
 
     # 2. The suspended user's own new lead role: the responsible-admin
-    #    replacement makes LEAD_TWO the only lead (later time, no account
-    #    revision bump), then suspending LEAD_TWO (earlier time) must be
-    #    refused.
+    #    replacement makes LEAD_TWO the only lead (no account revision
+    #    bump), then suspending LEAD_TWO must be refused.
     async with pool.acquire() as connection:
         await two_leads_on_shared(connection)
         await connection.execute(
@@ -810,14 +790,11 @@ async def prove_stamp_order(
     shared = await actions.get(SHARED_ACTION)
     if shared is None:
         raise ContractFailure("shared action disappeared")
-    earlier = datetime.now(timezone.utc)
-    later = earlier + timedelta(seconds=5)
     await actions.replace_responsible_administrators(
         shared,
         responsible_user_ids=frozenset({LEAD_TWO}),
         actor_user_id=ADMIN_ONE,
         request_id=f"{PREFIX}:stamp-replace",
-        occurred_at=later,
     )
     await refused(
         "replacement lead",
@@ -826,26 +803,22 @@ async def prove_stamp_order(
             AccountStatus.SUSPENDED,
             actor_user_id=ADMIN_ONE,
             expected_revision=two,
-            occurred_at=earlier,
             **command("stamp-replace-suspend"),
         ),
         "last_charity_admin_suspension_forbidden",
     )
     await leads("replacement lead", SHARED_ACTION, 1)
 
-    # 3. Action create: the creator becomes the only lead (later time), then
-    #    suspending the creator (earlier time) must be refused.
+    # 3. Action create: the creator becomes the only lead, then suspending
+    #    the creator must be refused.
     async with pool.acquire() as connection:
         await two_leads_on_shared(connection)
         await end_leads(connection, LEAD_TWO, except_action=STAMPED_ACTION)
         two = await revision(connection, LEAD_TWO)
-    earlier = datetime.now(timezone.utc)
-    later = earlier + timedelta(seconds=5)
     await actions.create(
         copy_action(template, STAMPED_ACTION),
         responsible_admin_user_id=LEAD_TWO,
         request_id=f"{PREFIX}:stamp-create",
-        occurred_at=later,
     )
     await refused(
         "created action",
@@ -854,19 +827,16 @@ async def prove_stamp_order(
             AccountStatus.SUSPENDED,
             actor_user_id=ADMIN_ONE,
             expected_revision=two,
-            occurred_at=earlier,
             **command("stamp-create-suspend"),
         ),
         "last_charity_admin_suspension_forbidden",
     )
     await leads("created action", STAMPED_ACTION, 1)
 
-    # 4. The actor re-check: LEAD_ONE's lead role is revoked first (later
-    #    time), then LEAD_ONE acting as lead (earlier time) must be refused.
+    # 4. The actor re-check: LEAD_ONE's lead role is revoked, then LEAD_ONE
+    #    acting as lead must be refused.
     async with pool.acquire() as connection:
         one, two = await two_leads_on_shared(connection)
-    earlier = datetime.now(timezone.utc)
-    later = earlier + timedelta(seconds=5)
     await identity.grant_action_membership(
         LEAD_ONE,
         SHARED_ACTION,
@@ -875,7 +845,6 @@ async def prove_stamp_order(
         actor=actor,
         actor_user_id=ADMIN_ONE,
         expected_revision=one,
-        occurred_at=later,
         **command("stamp-actor-revoke"),
     )
     await refused(
@@ -888,7 +857,6 @@ async def prove_stamp_order(
             actor=actor,
             actor_user_id=LEAD_ONE,
             expected_revision=two,
-            occurred_at=earlier,
             **command("stamp-actor-grant"),
         ),
         "role_action_scope_changed",
@@ -915,7 +883,6 @@ async def prove_stamp_order(
             responsible_user_ids=frozenset({LEAD_TWO}),
             actor_user_id=ADMIN_ONE,
             request_id=f"{PREFIX}:stamp-clamp",
-            occurred_at=datetime.now(timezone.utc),
         )
     except Exception as error:  # noqa: BLE001 - reported as a failure
         failures.append(f"end before start: {error!r}")

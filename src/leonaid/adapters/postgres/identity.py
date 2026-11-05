@@ -83,7 +83,8 @@ async def load_admin_coverage(
 
     Assumption: no writer schedules a future ``active_from`` or
     ``active_until``; grants and ends are always written with the command's
-    own locked time. A feature that plans start or end dates must revisit
+    own locked time, and invitation accept (outside the lock) writes its
+    start with the database clock too. A feature that plans start or end dates must revisit
     this guard, :func:`actor_still_manages` and ``currently_enabled``."""
 
     system_admins = frozenset(
@@ -725,7 +726,6 @@ class AsyncpgIdentityRepository:
         idempotency_key: str,
         request_hash: str,
         request_id: str,
-        occurred_at: datetime,
     ) -> AccountStatusChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
@@ -928,7 +928,6 @@ class AsyncpgIdentityRepository:
         idempotency_key: str,
         request_hash: str,
         request_id: str,
-        occurred_at: datetime,
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
@@ -1064,7 +1063,6 @@ class AsyncpgIdentityRepository:
         idempotency_key: str,
         request_hash: str,
         request_id: str,
-        occurred_at: datetime,
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
