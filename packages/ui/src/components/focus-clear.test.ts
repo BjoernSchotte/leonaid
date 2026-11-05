@@ -74,4 +74,14 @@ describe("revealFocusedElement", () => {
     revealFocusedElement(link);
     expect(scrollBy).not.toHaveBeenCalled();
   });
+
+  it("adds the element's own scroll-margin (a stuck group header above)", () => {
+    const row = document.body.appendChild(document.createElement("a"));
+    row.href = "#row";
+    row.style.setProperty("scroll-margin-top", "35px");
+    // Clear of the 60px top padding, but under the 35px group header below it.
+    place(row, 70);
+    revealFocusedElement(row);
+    expect(scrollBy).toHaveBeenCalledWith({ top: -25, behavior: "instant" });
+  });
 });

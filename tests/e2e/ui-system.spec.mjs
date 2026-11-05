@@ -364,6 +364,87 @@ async function createListDemoPage(browser, viewport) {
   return { context, page, pageErrors };
 }
 
+test("a focused row stays clear of its stuck group header", async ({
+  browser,
+}) => {
+  // WCAG 2.4.11: rows scroll under the sticky top bar and, inside a group,
+  // under the group's sticky header. j moves focus to a row parked right
+  // under the stuck header; it must come fully into the clear.
+  const { context, page } = await createListDemoPage(browser, {
+    width: 1440,
+    height: 600,
+  });
+  try {
+    const group = page
+      .locator(".group")
+      .filter({ has: page.locator(".group-header") })
+      .filter({ has: page.locator(".row-link").nth(4) })
+      .first();
+    const links = group.locator(".row-link");
+    await expect(links.nth(4)).toBeVisible();
+    // Focus row 2 the way a click does, so the list knows where j starts.
+    await links.nth(2).focus();
+    await expect(links.nth(2)).toBeFocused();
+    const header = group.locator(".group-header");
+    const parked = await page.evaluate(() => {
+      const group = [...document.querySelectorAll(".group")].find(
+        (candidate) =>
+          candidate.querySelector(".group-header") &&
+          candidate.querySelectorAll(".row-link").length > 4,
+      );
+      const head = group.querySelector(".group-header");
+      const row = group.querySelectorAll(".row-link")[3].closest(".row");
+      // Park row 3 half under the stuck header (header sticks under the bar).
+      for (let round = 0; round < 4; round += 1) {
+        const delta =
+          row.getBoundingClientRect().top -
+          (head.getBoundingClientRect().bottom - row.offsetHeight / 2);
+        if (Math.abs(delta) < 1) break;
+        window.scrollBy({ top: delta, behavior: "instant" });
+      }
+      return {
+        rowTop: row.getBoundingClientRect().top,
+        headBottom: head.getBoundingClientRect().bottom,
+      };
+    });
+    expect(parked.rowTop, JSON.stringify(parked)).toBeLessThan(
+      parked.headBottom,
+    );
+    await page.keyboard.press("j");
+    await expect(links.nth(3)).toBeFocused();
+    await expect
+      .poll(
+        async () => {
+          const result = await links.nth(3).evaluate((link) => {
+            const row = link.closest(".row");
+            const box = row.getBoundingClientRect();
+            const head = row
+              .closest(".group")
+              .querySelector(".group-header")
+              .getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              box.left + 40,
+              box.top + box.height / 2,
+            );
+            return {
+              top: box.top,
+              headBottom: head.bottom,
+              hitsRow: Boolean(hit && row.contains(hit)),
+            };
+          });
+          return result.top >= result.headBottom - 1 && result.hitsRow
+            ? "clear"
+            : JSON.stringify(result);
+        },
+        { timeout: 3000 },
+      )
+      .toBe("clear");
+    await expect(header).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
 test("list view: keys, URL state, detail pane and bulk bar", async ({
   browser,
 }) => {

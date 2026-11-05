@@ -338,6 +338,13 @@
 .list {
   margin-top: var(--s-1);
 }
+/* WCAG 2.4.11: a stuck group header sits under the top bar, so a row
+   scrolled or focused into view keeps the header's height clear as well
+   (the root's scroll-padding covers the top bar). */
+.group .rows .row,
+.group .rows .row * {
+  scroll-margin-top: calc(var(--group-header-h) + var(--hair));
+}
 .group-header {
   position: sticky;
   top: var(--topbar-h);
@@ -352,7 +359,7 @@
   align-items: center;
   gap: var(--s-2);
   width: 100%;
-  height: 34px;
+  height: var(--group-header-h);
   padding: 0 var(--s-6);
   border: 0;
   background: none;

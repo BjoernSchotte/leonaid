@@ -56,6 +56,7 @@
 
   /* Size */
   --row-h: 40px;
+  --group-header-h: 34px; /* sticky list group header */
   --row-h-compact: 34px;
   --control-h: 32px;
   --control-h-lg: 44px;
