@@ -483,7 +483,10 @@ describe("InvoiceAdminPage", () => {
 
   it("gives a finance reader no commands and a read-only notice", async () => {
     await renderPage({ manage: false });
-    expect(screen.getByTestId("invoice-read-only")).toBeTruthy();
+    // The shared ReadOnlyNotice: a note, not a live status.
+    expect(screen.getByTestId("invoice-read-only").getAttribute("role")).toBe(
+      "note",
+    );
     const pane = await openRow("KT26-0003");
     expect(pane.queryByTestId("open-payment-form")).toBeNull();
     expect(pane.queryByTestId("open-cancellation-form")).toBeNull();
