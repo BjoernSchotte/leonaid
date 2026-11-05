@@ -21,6 +21,7 @@ import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 import { InboxPage } from "../../../packages/features/src/inbox/inbox";
 import {
   managesCase,
+  receivedLabel,
   shortDay,
 } from "../../../packages/features/src/inbox/inbox-model";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
@@ -243,9 +244,12 @@ describe("inbox model", () => {
   });
 
   it("formats the row day as in the prototype", () => {
-    const now = new Date("2026-11-03T12:00:00");
-    expect(shortDay("2026-10-28T09:14:00", now)).toBe("28.10.");
-    expect(shortDay("2025-10-28T09:14:00", now)).toBe("28.10.2025");
+    const now = new Date("2026-11-03T12:00:00+01:00");
+    expect(shortDay("2026-10-28T09:14:00+01:00", now)).toBe("28.10.");
+    expect(shortDay("2025-10-28T09:14:00+01:00", now)).toBe("28.10.2025");
+    // 23:30 UTC is already the next day in Berlin.
+    expect(shortDay("2026-10-28T23:30:00Z", now)).toBe("29.10.");
+    expect(receivedLabel("2026-10-28T08:14:00Z", now)).toBe("28.10. 09:14 Uhr");
   });
 });
 

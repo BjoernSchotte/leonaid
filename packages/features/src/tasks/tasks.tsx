@@ -58,6 +58,7 @@ import {
 } from "@leonaid/ui";
 
 import { consumeCreateRequest } from "../command-palette/create-request";
+import { TIME_ZONE } from "../shared/dates";
 import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import { says, type Address } from "./task-copy";
@@ -254,9 +255,8 @@ function TasksWorkspace({
   useEffect(() => {
     if (needsDone) setDoneWanted(true);
   }, [needsDone]);
-  const timeZone = useRef(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  ).current;
+  // Plan views bucket by the club's calendar day, like localIsoDate().
+  const timeZone = TIME_ZONE;
   const open = useAllPages(["tasks", "open", listId ?? null], (offset) =>
     client.listTasks({
       listId,

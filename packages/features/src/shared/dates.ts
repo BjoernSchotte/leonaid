@@ -1,6 +1,7 @@
 /** Berlin-time date helpers shared by the back-office screens (prototype shortDate/relativeDay). */
 
-const TIME_ZONE = "Europe/Berlin";
+/** The club's time zone: one club per installation, in Germany. */
+export const TIME_ZONE = "Europe/Berlin";
 
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat("de-DE", {

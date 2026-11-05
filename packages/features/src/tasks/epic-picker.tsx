@@ -145,8 +145,8 @@ export function EpicPicker({
         />
       </label>
       <p className="field-hint">
-        Ein Abschnitt bündelt Aufgaben dieser Liste. Anlegen und Umbenennen werden
-        sofort gespeichert, unabhängig vom Aufgabenentwurf.
+        Ein Abschnitt bündelt Aufgaben dieser Liste. Anlegen und Umbenennen
+        werden sofort gespeichert, unabhängig vom Aufgabenentwurf.
       </p>
       {save.error && (
         <StatusMessage tone="error">

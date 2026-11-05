@@ -286,9 +286,11 @@ describe("task model", () => {
     expect(planBucket(null, null, today)).toBe("none");
   });
 
-  it("buckets due dates by local day and keeps done tasks out of overdue", () => {
-    const now = new Date(2026, 10, 3, 9);
-    const at = (day: number) => new Date(2026, 10, day, 12).toISOString();
+  it("buckets due dates by the club's day and keeps done tasks out of overdue", () => {
+    // 09:00 in Berlin: the club's day, whatever the machine's zone.
+    const now = new Date("2026-11-03T09:00:00+01:00");
+    const at = (day: number) =>
+      `2026-11-${String(day).padStart(2, "0")}T12:00:00+01:00`;
     expect(dueBucket(task("a", "a", { dueAt: at(2) }), now)).toBe("overdue");
     expect(
       dueBucket(task("a", "a", { dueAt: at(2), status: "done" }), now),
@@ -299,7 +301,8 @@ describe("task model", () => {
   });
 
   it("merges plans into list rows and adds planned tasks of other lists only on the all page", () => {
-    const now = new Date(2026, 10, 3, 9);
+    // 09:00 in Berlin: the club's day, whatever the machine's zone.
+    const now = new Date("2026-11-03T09:00:00+01:00");
     const a = task("a", "A");
     const b = task("b", "B", { listId: "other" });
     const plans = [
