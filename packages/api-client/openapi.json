@@ -11726,6 +11726,67 @@
         "title": "PublicCharityActionResponse",
         "type": "object"
       },
+      "PublicLegalNoticeResponse": {
+        "additionalProperties": false,
+        "description": "Impressum data of the installation; provider is null until activated.",
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicLegalProviderResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "PublicLegalNoticeResponse",
+        "type": "object"
+      },
+      "PublicLegalProviderResponse": {
+        "additionalProperties": false,
+        "description": "The carrier named in the Impressum (the active legal configuration).",
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "legalName": {
+            "title": "Legalname",
+            "type": "string"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "email"
+        ],
+        "title": "PublicLegalProviderResponse",
+        "type": "object"
+      },
       "PublicOfferingResponse": {
         "additionalProperties": false,
         "properties": {
@@ -31659,6 +31720,68 @@
         "summary": "Submit Case",
         "tags": [
           "inbox"
+        ]
+      }
+    },
+    "/api/v1/public/legal-notice": {
+      "get": {
+        "description": "Impressum provider of the installation (one per club, all hosts).\n\nOnly the carrier's name, postal address and contact e-mail leave the\nactive legal configuration; tax, bank and evidence data stay internal.",
+        "operationId": "getPublicLegalNotice",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLegalNoticeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Public Legal Notice",
+        "tags": [
+          "public-actions"
         ]
       }
     },

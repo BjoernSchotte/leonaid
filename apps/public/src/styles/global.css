@@ -423,6 +423,12 @@ a.site-header__promise {
   font-size: var(--fs-sm);
 }
 
+.site-footer__links {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
 .site-footer__legal a {
   /* 44 px touch target, as every public link and button. */
   display: inline-flex;
@@ -1433,4 +1439,54 @@ main {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------- Impressum ---------- */
+.legal-page__body {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 44rem;
+  padding-block: var(--s-10) var(--s-12);
+}
+
+.legal-page__body h1 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.legal-page__lead {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.legal-page__facts {
+  display: grid;
+  margin: 0;
+}
+
+.legal-page__facts > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 30%) 1fr;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-bottom: var(--hair) solid var(--border);
+}
+
+.legal-page__facts dt {
+  color: var(--text-2);
+}
+
+.legal-page__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.legal-page__facts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-ink);
+  text-decoration: underline;
 }

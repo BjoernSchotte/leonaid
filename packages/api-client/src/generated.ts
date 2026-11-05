@@ -253,6 +253,8 @@ export type PrivacySuppressionResponse = { readonly channel: "email" | "phone" |
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly redirectPath?: string | null; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCampaignRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly orderAlias: string | null; readonly routeKind?: "campaign"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly presentationTheme: string | null; readonly purpose: string; readonly startsOn: string; };
+export type PublicLegalNoticeResponse = { readonly provider: PublicLegalProviderResponse | null; };
+export type PublicLegalProviderResponse = { readonly city: string; readonly countryCode: string; readonly email: string; readonly legalName: string; readonly postalCode: string; readonly streetLine1: string; };
 export type PublicOfferingResponse = { readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type PublicOrderDeliveryRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type PublicOrderFormResponse = { readonly accessToken: string; readonly allowMessage: boolean; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly formKey: string; readonly introduction: string; readonly legalBasis: string; readonly privacyContactEmail: string; readonly privacyNoticeText: string; readonly privacyNoticeVersion: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
@@ -2542,6 +2544,16 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getPublicLegalNotice(
+    options: RequestOptions = {},
+  ): Promise<PublicLegalNoticeResponse> {
+    return this.request<PublicLegalNoticeResponse>(
+      "/api/v1/public/legal-notice",
+      { method: "GET" },
       options,
     );
   }

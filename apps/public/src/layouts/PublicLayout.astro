@@ -14,6 +14,7 @@ import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
 
 import PublicMark from "../components/PublicMark.astro";
+import { providerAddress, readLegalNotice } from "../lib/legal-notice";
 
 interface Props {
   canonicalUrl: string;
@@ -46,6 +47,8 @@ const {
   privacyHref,
   campaignBrand,
 } = Astro.props;
+const legalNotice = await readLegalNotice();
+const provider = legalNotice.state === "ready" ? legalNotice.provider : null;
 const shareImage = imageMetadata ?? theme.shareImage;
 const header = theme.header;
 ---
@@ -174,14 +177,31 @@ const header = theme.header;
         </p>
       </div>
       {
-        // The campaign footer names the carrier in its text already.
-        ((carrierName && !theme.campaignFooter) || privacyHref) && (
-          <div class="site-shell site-footer__legal" data-footer-legal>
-            {carrierName && !theme.campaignFooter && <span>{carrierName}</span>}
-            {privacyHref && <a href={privacyHref}>Datenschutz</a>}
-          </div>
-        )
+        /* Prototype .public-footer-inner: provider and address on the left,
+          Impressum and Datenschutz on the right. */
       }
+      <div class="site-shell site-footer__legal" data-footer-legal>
+        {
+          provider ? (
+            <span data-footer-provider>
+              {provider.legalName} · {providerAddress(provider)}
+            </span>
+          ) : (
+            carrierName && !theme.campaignFooter && <span>{carrierName}</span>
+          )
+        }
+        <span class="site-footer__links">
+          <a href="/impressum">Impressum</a>
+          {
+            privacyHref && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a href={privacyHref}>Datenschutz</a>
+              </>
+            )
+          }
+        </span>
+      </div>
     </footer>
   </body>
 </html>
