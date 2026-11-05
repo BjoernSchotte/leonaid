@@ -504,24 +504,6 @@
 .commitment-list .subtle {
   color: var(--text-3);
 }
-.commitment-list .cluster {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-}
-.commitment-list .next-step {
-  display: grid;
-  gap: var(--s-3);
-  padding: var(--s-4);
-  border: var(--hair) solid var(--zone-line);
-  border-radius: var(--r-md);
-  background: var(--zone-soft);
-  font-size: var(--fs-sm);
-}
-.commitment-list .next-step p {
-  margin: 0;
-}
 
 /* Header: quantity and value sum (like the invoices' "Offen" sum), action. */
 .commitment-sum {
@@ -546,6 +528,11 @@
 }
 .commitment-detail .pane-section {
   min-width: 0;
+}
+.commitment-detail .pane-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-2);
 }
 .commitment-address {
   display: grid;

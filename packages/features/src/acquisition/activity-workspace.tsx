@@ -1,260 +1,77 @@
-import {
-  Calendar02Icon,
-  ClockAlertIcon,
-  NoteEditIcon,
-  TelephoneIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+/*
+ * "Wiedervorlagen" of the acquisition app (prototype pwa/Acquire.tsx
+ * FollowUps): the acquirer's follow-ups, grouped by when they are due.
+ * Contacts are recorded on the sponsor (detail, "Kontakt erfassen").
+ */
+import { ListTodo } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import {
-  ApiError,
-  type AcquisitionActivityBoardResponse,
-  type AcquisitionActivityWorkItemResponse,
-  type CurrentIdentityResponse,
-  type LeonAidApiClient,
-  type RecordAcquisitionActivityRequest,
+import type {
+  AcquisitionActivityWorkItemResponse,
+  CurrentIdentityResponse,
+  LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { EmptyState } from "@leonaid/ui";
+
+import { isoDay, localIsoDate, relativeDay } from "../shared/dates";
+import {
+  ActionChoice,
+  BoardFailed,
+  BoardLoading,
+  SponsorRow,
+  navigateToScreen,
+  sponsorHref,
+  useAcquirerAction,
+  useScreenHeading,
+  useSponsorBoard,
+} from "./pwa-common";
 
 interface ActivityWorkspaceProps {
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
 }
 
-const channelLabels = {
-  email: "E-Mail",
-  in_person: "Persönlich",
-  phone: "Telefon",
-} as const;
-
-const outcomeLabels = {
-  committed: "Zusage",
-  declined: "Absage",
-  follow_up: "Später nachfassen",
-  interested: "Interesse",
-  no_answer: "Nicht erreicht",
-  reached: "Erreicht",
-} as const;
-
-function berlinDate(value: string, includeYear = true) {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "short",
-    timeZone: "Europe/Berlin",
-    ...(includeYear ? { year: "numeric" } : {}),
-  }).format(new Date(value));
+function tomorrow(today: string) {
+  const [year, month, day] = today.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! + 1))
+    .toISOString()
+    .slice(0, 10);
 }
 
-function berlinDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    timeZone: "Europe/Berlin",
-  }).format(new Date(value));
-}
-
-function todayInBerlin() {
-  return new Intl.DateTimeFormat("sv-SE", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-  }).format(new Date());
-}
-
-function errorCopy(error: unknown) {
-  if (
-    error instanceof ApiError &&
-    error.detail.code === "assignment_revision_conflict"
-  ) {
-    return "Der Sponsor wurde parallel geändert. Die aktuelle Version wurde neu geladen; bitte prüfe das Ergebnis und speichere erneut.";
-  }
-  if (error instanceof ApiError && error.detail.code === "contact_suppressed") {
-    return "Dieser Kontaktweg ist für den Sponsor gesperrt. Wähle nur einen erlaubten Kontaktweg.";
-  }
-  if (error instanceof ApiError && error.status === 403) {
-    return "Du bist dieser Aktion nicht als Akquisiteur zugeordnet. Öffne eine eigene Aktion oder wende dich an den Charity-Admin.";
-  }
-  return "Die Aktivität konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut.";
-}
-
-function reminderLabel(item: AcquisitionActivityWorkItemResponse) {
-  if (item.urgency === "overdue") return "Überfällig";
-  if (item.urgency === "today") return "Heute";
-  return item.dueAt ? berlinDate(item.dueAt, false) : "";
-}
-
-function ActivityBoard({
-  board,
-  onSelect,
-  urgency,
-  onUrgencyChange,
+function Group({
+  actionId,
+  identity,
+  items,
+  testId,
+  title,
 }: {
-  readonly board: AcquisitionActivityBoardResponse;
-  readonly onSelect: (assignmentId: string) => void;
-  readonly urgency: "all" | "overdue" | "today" | "upcoming";
-  readonly onUrgencyChange: (
-    value: "all" | "overdue" | "today" | "upcoming",
-  ) => void;
+  readonly actionId: string;
+  readonly identity: CurrentIdentityResponse;
+  readonly items: ReadonlyArray<AcquisitionActivityWorkItemResponse>;
+  readonly testId: string;
+  readonly title: string;
 }) {
-  const reminders = board.workItems.filter(
-    (item) => item.nextAction && item.dueAt,
-  );
-  const visibleReminders =
-    urgency === "all"
-      ? reminders
-      : reminders.filter((item) => item.urgency === urgency);
-  const counts = {
-    overdue: reminders.filter((item) => item.urgency === "overdue").length,
-    today: reminders.filter((item) => item.urgency === "today").length,
-    upcoming: reminders.filter((item) => item.urgency === "upcoming").length,
-  };
-
+  if (!items.length) return null;
   return (
-    <>
-      <div
-        aria-label="Wiedervorlagen-Übersicht"
-        className="acq-reminder-summary"
-      >
-        <div data-urgency="overdue">
-          <strong data-testid="overdue-count">{counts.overdue}</strong>
-          <span>Überfällig</span>
-        </div>
-        <div data-urgency="today">
-          <strong data-testid="today-count">{counts.today}</strong>
-          <span>Heute</span>
-        </div>
-        <div>
-          <strong>{counts.upcoming}</strong>
-          <span>Demnächst</span>
-        </div>
-      </div>
-      <div
-        aria-label="Wiedervorlagen filtern"
-        className="acq-tabs"
-        role="tablist"
-      >
-        {(
-          [
-            ["all", "Alle"],
-            ["overdue", "Überfällig"],
-            ["today", "Heute"],
-            ["upcoming", "Demnächst"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            aria-selected={urgency === value}
-            data-testid={`reminder-filter-${value}`}
-            key={value}
-            onClick={() => onUrgencyChange(value)}
-            role="tab"
-            type="button"
-          >
-            {label}
-          </button>
+    <section aria-label={title} data-testid={testId}>
+      <h2 className="pwa-h2">
+        {title} <span className="muted num">{items.length}</span>
+      </h2>
+      <ul className="pwa-list">
+        {items.map((item) => (
+          <SponsorRow
+            actionId={actionId}
+            item={item}
+            key={item.assignmentId}
+            meta={[relativeDay(item.dueAt!), item.nextAction, item.contactName]
+              .filter(Boolean)
+              .join(" · ")}
+            userId={identity.userId}
+          />
         ))}
-      </div>
-
-      {visibleReminders.length > 0 ? (
-        <div className="acq-reminder-list" data-testid="reminder-list">
-          {visibleReminders.map((item) => (
-            <button
-              className="acq-reminder"
-              data-select-assignment={item.assignmentId}
-              data-urgency={item.urgency}
-              key={item.assignmentId}
-              onClick={() => onSelect(item.assignmentId)}
-              type="button"
-            >
-              <span aria-hidden="true" className="acq-reminder__dot" />
-              <span className="acq-reminder__copy">
-                <strong>{item.partyDisplayName}</strong>
-                <span>{item.nextAction}</span>
-              </span>
-              <span className="acq-reminder__date">{reminderLabel(item)}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="acq-empty">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ClockAlertIcon}
-            size={22}
-            strokeWidth={1.8}
-          />
-          <strong>
-            {reminders.length
-              ? "Keine Wiedervorlage in diesem Filter"
-              : "Für heute ist alles erledigt"}
-          </strong>
-          <span>
-            Plane beim nächsten Kontakt direkt einen Folgeschritt, damit nichts
-            verloren geht.
-          </span>
-        </div>
-      )}
-
-      <div className="acq-timeline-heading">
-        <div>
-          <h2>Letzte Aktivitäten</h2>
-          <p>
-            Neueste Einträge zuerst; bestehende Einträge werden nicht
-            überschrieben.
-          </p>
-        </div>
-      </div>
-      {board.activities.length > 0 ? (
-        <div className="acq-timeline" data-testid="activity-timeline">
-          {board.activities.map((activity) => (
-            <article
-              className="acq-timeline__entry"
-              data-activity-id={activity.id}
-              data-testid="activity-entry"
-              key={activity.id}
-            >
-              <div className="acq-timeline__title">
-                <strong>{activity.partyDisplayName}</strong>
-                <time dateTime={activity.occurredAt}>
-                  {berlinDateTime(activity.occurredAt)}
-                </time>
-              </div>
-              <div className="acq-timeline__meta">
-                <span>{outcomeLabels[activity.outcome]}</span>
-                <span>{channelLabels[activity.channel]}</span>
-                <span>{activity.actorDisplayName}</span>
-              </div>
-              {activity.note ? (
-                <p className="acq-timeline__note">{activity.note}</p>
-              ) : null}
-              {activity.nextAction && activity.dueAt ? (
-                <div className="acq-timeline__next">
-                  <strong>Nächster Schritt</strong>
-                  <span>
-                    {activity.nextAction} · {berlinDate(activity.dueAt)}
-                  </span>
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="acq-empty acq-empty--compact">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={NoteEditIcon}
-            size={22}
-            strokeWidth={1.8}
-          />
-          <strong>Noch kein Kontakt dokumentiert</strong>
-          <span>Die erste gespeicherte Aktivität erscheint hier.</span>
-        </div>
-      )}
-    </>
+      </ul>
+    </section>
   );
 }
 
@@ -262,418 +79,97 @@ export function ActivityWorkspace({
   client,
   identity,
 }: ActivityWorkspaceProps) {
-  const memberships = useMemo(
-    () =>
-      identity.actionMemberships.filter(
-        (membership) => membership.role === "acquirer",
-      ),
-    [identity.actionMemberships],
-  );
-  const query = new URLSearchParams(window.location.search);
-  const requestedAction = query.get("action");
-  const [actionId, setActionId] = useState(
-    memberships.find((item) => item.actionId === requestedAction)?.actionId ??
-      memberships[0]?.actionId ??
-      "",
-  );
-  const requestedUrgency = query.get("urgency");
-  const [urgency, setUrgency] = useState<
-    "all" | "overdue" | "today" | "upcoming"
-  >(
-    ["overdue", "today", "upcoming"].includes(requestedUrgency ?? "")
-      ? (requestedUrgency as "overdue" | "today" | "upcoming")
-      : "all",
-  );
-  const [assignmentId, setAssignmentId] = useState(
-    () => new URLSearchParams(window.location.search).get("assignment") ?? "",
-  );
-  const [note, setNote] = useState("");
-  const [nextAction, setNextAction] = useState("");
-  const [dueOn, setDueOn] = useState("");
-  const [success, setSuccess] = useState("");
-  const [channel, setChannel] =
-    useState<RecordAcquisitionActivityRequest["channel"]>("phone");
-  const channelRef = useRef<HTMLSelectElement>(null);
+  const { actionId, memberships, choose } = useAcquirerAction(identity);
+  const board = useSponsorBoard(client, actionId);
+  const heading = useScreenHeading();
 
-  const board = useQuery({
-    enabled: Boolean(actionId),
-    queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 50 }),
-    queryKey: ["acquisition-activity-board", actionId],
+  // Links with ?assignment= (the "Neues" next action) open that sponsor's
+  // contact sheet. The link names no campaign, so the campaign holding the
+  // assignment is looked up among the acquirer's campaigns.
+  const linked = new URLSearchParams(window.location.search).get("assignment");
+  const boards = useQueries({
+    queries: linked
+      ? memberships.map((membership) => ({
+          queryFn: () =>
+            client.getAcquisitionActivityBoard(membership.actionId, {
+              limit: 100,
+            }),
+          queryKey: ["acquisition-activity-board", membership.actionId],
+        }))
+      : [],
   });
-
+  const settled = boards.every((result) => !result.isPending);
+  const owner = memberships.find((_, index) =>
+    boards[index]?.data?.workItems.some((item) => item.assignmentId === linked),
+  )?.actionId;
   useEffect(() => {
-    const items = board.data?.workItems ?? [];
-    if (!items.some((item) => item.assignmentId === assignmentId)) {
-      setAssignmentId(items[0]?.assignmentId ?? "");
-    }
-  }, [assignmentId, board.data?.workItems]);
-
-  const record = useMutation({
-    mutationFn: ({
-      body,
-      selectedActionId,
-    }: {
-      body: RecordAcquisitionActivityRequest;
-      selectedActionId: string;
-    }) => client.recordAcquisitionActivity(selectedActionId, body),
-    onError: () => {
-      setSuccess("");
-      void board.refetch();
-    },
-    onSuccess: async (result) => {
-      setSuccess(
-        `Aktivität für ${result.activity.partyDisplayName} wurde gespeichert.`,
-      );
-      setNote("");
-      setNextAction("");
-      setDueOn("");
-      await board.refetch();
-    },
-  });
-
-  const selected = board.data?.workItems.find(
-    (item) => item.assignmentId === assignmentId,
-  );
-  const selectedChannelSuppressed =
-    selected?.suppressedChannels.includes(
-      channel as "email" | "phone" | "postal",
-    ) ?? false;
-  useEffect(() => {
-    if (!selectedChannelSuppressed) return;
-    setChannel("in_person");
-  }, [selectedChannelSuppressed]);
-  const reminderPairComplete =
-    (nextAction.trim().length === 0 && dueOn.length === 0) ||
-    (nextAction.trim().length > 0 && dueOn.length > 0);
-
-  function selectReminder(nextAssignmentId: string) {
-    setAssignmentId(nextAssignmentId);
-    channelRef.current?.focus();
-    document
-      .querySelector("#activity-form")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected || !reminderPairComplete || selectedChannelSuppressed) return;
-    const values = new FormData(event.currentTarget);
-    record.mutate({
-      body: {
-        channel,
-        dueOn: dueOn || null,
-        nextAction: nextAction.trim() || null,
-        note: note.trim() || null,
-        outcome: values.get(
-          "outcome",
-        ) as RecordAcquisitionActivityRequest["outcome"],
-        partyId: selected.partyId,
-        partyKind: selected.partyKind,
-        revision: selected.revision,
-      },
-      selectedActionId: actionId,
+    if (!linked || !settled) return;
+    const target = owner ?? actionId;
+    if (!target) return;
+    navigateToScreen(`${sponsorHref(target, linked)}&contact=1`, {
+      replace: true,
     });
-  }
+  }, [linked, settled, owner, actionId]);
+
+  const today = localIsoDate();
+  const next = tomorrow(today);
+  const rows = (board.data?.workItems ?? [])
+    .filter((item) => item.dueAt && item.nextAction)
+    .sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
+  const day = (item: AcquisitionActivityWorkItemResponse) =>
+    isoDay(item.dueAt!);
+  const overdue = rows.filter((item) => day(item) < today);
+  const soon = rows.filter((item) => day(item) === today || day(item) === next);
+  const later = rows.filter((item) => day(item) > next);
 
   return (
-    <div className="acq-page">
-      <header className="acq-page__header">
-        <p className="acq-eyebrow">Akquise-Verlauf</p>
-        <h1>Aktivitäten &amp; Wiedervorlagen</h1>
-        <p>
-          Halte einen Kontakt fest und plane direkt, was als Nächstes passieren
-          soll. Fällige Aufgaben bleiben dabei immer vorn.
-        </p>
-      </header>
-
-      <div className="acq-activity-layout">
-        <section
-          aria-labelledby="activity-form-heading"
-          className="acq-workflow"
-        >
-          <div className="acq-section-heading">
-            <span aria-hidden="true" className="acq-section-heading__icon">
-              <HugeiconsIcon icon={TelephoneIcon} size={20} strokeWidth={1.8} />
-            </span>
-            <div>
-              <h2 id="activity-form-heading">Was ist passiert?</h2>
-              <p>
-                Dokumentiere nur die Information, die für die weitere Akquise
-                nötig ist.
-              </p>
-            </div>
-          </div>
-
-          <form className="acq-form" id="activity-form" onSubmit={submit}>
-            <div className="acq-field acq-field--wide">
-              <label htmlFor="activity-action">Charity-Aktion</label>
-              <p id="activity-action-help">
-                Die Aktion bestimmt, welche eigenen Sponsoren zur Auswahl
-                stehen.
-              </p>
-              <select
-                aria-describedby="activity-action-help"
-                id="activity-action"
-                name="actionId"
-                onChange={(event) => {
-                  setActionId(event.target.value);
-                  setSuccess("");
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("action", event.target.value);
-                  window.history.replaceState(
-                    {},
-                    "",
-                    `${url.pathname}${url.search}`,
-                  );
-                }}
-                value={actionId}
-              >
-                {memberships.map((membership) => (
-                  <option key={membership.actionId} value={membership.actionId}>
-                    {membership.actionName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="acq-field acq-field--wide">
-              <label htmlFor="activity-party">Sponsor</label>
-              <p id="activity-party-help">
-                Nur aktuell dir zugeordnete Firmen und Kontakte werden
-                angezeigt.
-              </p>
-              <select
-                aria-describedby="activity-party-help"
-                data-testid="activity-party"
-                disabled={!board.data?.workItems.length}
-                id="activity-party"
-                name="party"
-                onChange={(event) => setAssignmentId(event.target.value)}
-                required
-                value={assignmentId}
-              >
-                {board.data?.workItems.length ? (
-                  board.data.workItems.map((item) => (
-                    <option key={item.assignmentId} value={item.assignmentId}>
-                      {item.partyDisplayName}
-                      {item.city ? ` · ${item.city}` : ""}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">Noch kein Sponsor zugeordnet</option>
-                )}
-              </select>
-            </div>
-
-            <div className="acq-field">
-              <label htmlFor="activity-channel">Kontaktweg</label>
-              <p id="activity-channel-help">
-                Wie der Kontakt stattgefunden hat.
-              </p>
-              <select
-                aria-describedby="activity-channel-help"
-                id="activity-channel"
-                name="channel"
-                onChange={(event) =>
-                  setChannel(
-                    event.target
-                      .value as RecordAcquisitionActivityRequest["channel"],
-                  )
-                }
-                ref={channelRef}
-                value={channel}
-              >
-                <option
-                  disabled={selected?.suppressedChannels.includes("phone")}
-                  value="phone"
-                >
-                  Telefon
-                  {selected?.suppressedChannels.includes("phone")
-                    ? " · gesperrt"
-                    : ""}
-                </option>
-                <option
-                  disabled={selected?.suppressedChannels.includes("email")}
-                  value="email"
-                >
-                  E-Mail
-                  {selected?.suppressedChannels.includes("email")
-                    ? " · gesperrt"
-                    : ""}
-                </option>
-                <option value="in_person">Persönlich</option>
-              </select>
-              {selected?.suppressedChannels.length ? (
-                <p className="acq-field__warning" role="status">
-                  Gesperrte Kontaktwege sind nicht auswählbar. Persönliche
-                  Gespräche bleiben separat dokumentierbar.
-                </p>
-              ) : null}
-            </div>
-
-            <div className="acq-field">
-              <label htmlFor="activity-outcome">Ergebnis</label>
-              <p id="activity-outcome-help">
-                Der aktuelle Stand nach diesem Kontakt.
-              </p>
-              <select
-                aria-describedby="activity-outcome-help"
-                id="activity-outcome"
-                name="outcome"
-              >
-                <option value="reached">Erreicht</option>
-                <option value="no_answer">Nicht erreicht</option>
-                <option value="interested">Interesse</option>
-                <option value="follow_up">Später nachfassen</option>
-                <option value="committed">Zusage</option>
-                <option value="declined">Absage</option>
-              </select>
-            </div>
-
-            <div className="acq-field acq-field--wide">
-              <div className="acq-field__meta">
-                <label htmlFor="activity-note">Kurze Notiz (optional)</label>
-                <span id="activity-note-count">
-                  {new Intl.NumberFormat("de-DE").format(note.length)} / 2.000
-                </span>
-              </div>
-              <p id="activity-note-help">
-                Sachlich und knapp; keine privaten oder besonders sensiblen
-                Angaben notieren.
-              </p>
-              <textarea
-                aria-describedby="activity-note-help activity-note-count"
-                id="activity-note"
-                maxLength={2000}
-                name="note"
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Zum Beispiel: Angebot per E-Mail gewünscht."
-                value={note}
-              />
-            </div>
-
-            <fieldset className="acq-fieldset acq-field--wide">
-              <legend>Nächster Schritt (optional)</legend>
-              <p>
-                Aktion und Datum gehören zusammen. Ohne beide Angaben wird keine
-                Wiedervorlage angelegt.
-              </p>
-              <div className="acq-form acq-form--nested">
-                <div className="acq-field">
-                  <label htmlFor="activity-next-action">Nächste Aktion</label>
-                  <input
-                    id="activity-next-action"
-                    maxLength={300}
-                    name="nextAction"
-                    onChange={(event) => setNextAction(event.target.value)}
-                    placeholder="Angebot nachfassen"
-                    required={Boolean(dueOn)}
-                    value={nextAction}
-                  />
-                </div>
-                <div className="acq-field">
-                  <label htmlFor="activity-due-on">Fällig am</label>
-                  <input
-                    id="activity-due-on"
-                    min={todayInBerlin()}
-                    name="dueOn"
-                    onChange={(event) => setDueOn(event.target.value)}
-                    required={Boolean(nextAction.trim())}
-                    type="date"
-                    value={dueOn}
-                  />
-                </div>
-              </div>
-            </fieldset>
-
-            <div className="acq-form__actions acq-field--wide">
-              <Button
-                data-testid="activity-submit"
-                disabled={
-                  !selected ||
-                  !reminderPairComplete ||
-                  selectedChannelSuppressed ||
-                  record.isPending
-                }
-                type="submit"
-              >
-                {record.isPending
-                  ? "Aktivität wird gespeichert …"
-                  : "Aktivität speichern"}
-              </Button>
-            </div>
-            <div
-              aria-live="polite"
-              className="acq-field--wide"
-              id="activity-status"
-              role="status"
-            >
-              {success ? (
-                <StatusMessage tone="success">{success}</StatusMessage>
-              ) : null}
-              {record.isError ? (
-                <StatusMessage tone="error">
-                  {errorCopy(record.error)}
-                </StatusMessage>
-              ) : null}
-            </div>
-          </form>
-        </section>
-
-        <section aria-labelledby="reminder-heading" className="acq-board">
-          <div className="acq-section-heading">
-            <span aria-hidden="true" className="acq-section-heading__icon">
-              <HugeiconsIcon
-                icon={Calendar02Icon}
-                size={20}
-                strokeWidth={1.8}
-              />
-            </span>
-            <div>
-              <h2 id="reminder-heading">Heute im Blick</h2>
-              <p>Überfälliges und heute Fälliges steht immer zuerst.</p>
-            </div>
-          </div>
-          {board.isPending ? (
-            <div aria-live="polite" className="acq-skeleton" role="status">
-              <span />
-              <span />
-              <span />
-              <p className="sr-only">Wiedervorlagen werden geladen</p>
-            </div>
-          ) : board.isError ? (
-            <StatusMessage tone="error">
-              <div>
-                <strong>Wiedervorlagen nicht erreichbar</strong>
-                <p>Prüfe deine Verbindung und lade die Arbeitsliste erneut.</p>
-                <Button
-                  onClick={() => void board.refetch()}
-                  variant="secondary"
-                >
-                  Arbeitsliste neu laden
-                </Button>
-              </div>
-            </StatusMessage>
-          ) : board.data ? (
-            <ActivityBoard
-              board={board.data}
-              onSelect={selectReminder}
-              onUrgencyChange={(value) => {
-                setUrgency(value);
-                const url = new URL(window.location.href);
-                if (value === "all") url.searchParams.delete("urgency");
-                else url.searchParams.set("urgency", value);
-                window.history.replaceState(
-                  {},
-                  "",
-                  `${url.pathname}${url.search}`,
-                );
-              }}
-              urgency={urgency}
-            />
-          ) : null}
-        </section>
-      </div>
-    </div>
+    <>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Wiedervorlagen
+      </h1>
+      <ActionChoice
+        actionId={actionId}
+        memberships={memberships}
+        onChange={choose}
+      />
+      {board.isPending ? (
+        <BoardLoading label="Wiedervorlagen werden geladen" />
+      ) : board.isError ? (
+        <BoardFailed
+          onRetry={() => void board.refetch()}
+          title="Wiedervorlagen nicht erreichbar"
+        />
+      ) : rows.length ? (
+        <>
+          <Group
+            actionId={actionId}
+            identity={identity}
+            items={overdue}
+            testId="follow-ups-overdue"
+            title="Überfällig"
+          />
+          <Group
+            actionId={actionId}
+            identity={identity}
+            items={soon}
+            testId="follow-ups-soon"
+            title="Heute und morgen"
+          />
+          <Group
+            actionId={actionId}
+            identity={identity}
+            items={later}
+            testId="follow-ups-later"
+            title="Später"
+          />
+        </>
+      ) : (
+        <EmptyState
+          description="Nach jedem Kontakt kannst du ein Datum setzen. Dann erinnert dich die App."
+          icon={ListTodo}
+          title="Keine Wiedervorlagen"
+        />
+      )}
+    </>
   );
 }

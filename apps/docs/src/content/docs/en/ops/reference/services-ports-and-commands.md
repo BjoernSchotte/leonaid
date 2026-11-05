@@ -4,10 +4,10 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 16
-reviewedRevision: 16
-verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
-reviewer: Björn Schotte
+contentRevision: 17
+reviewedRevision: 17
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 | Service                       | Responsibility                            | Authoritative persistence          |
@@ -64,7 +64,7 @@ erasure still references. For a sent mail it deletes the job but keeps the
 rows that another session holds locked. Invalid values stop the worker at
 start with `worker.configuration.invalid`. The metric
 `leonaid_worker_retention_deleted_total{table=...}` counts deleted rows; the
-outbox counters on `/admin/system` therefore show completed jobs of the
+outbox counters under **System › Hintergrundaufgaben** (`/admin/system/jobs`) therefore show completed jobs of the
 retention window only. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` runs one sweep by hand.
 
@@ -115,7 +115,7 @@ code as their error detail, never exception text. Every job log line
 (`outbox.job.*`) carries `durationMs` when the job finished, failed or lost
 its claim.
 
-The outbox card on `/admin/system` also shows the next pending attempt
+The queue panel on `/admin/system/jobs` also shows the next pending attempt
 and how long the oldest due job has waited (API fields `nextPendingAttemptAt`
 and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
 of both values, because they wait on purpose. A growing wait with a running

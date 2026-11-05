@@ -1,26 +1,27 @@
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Icon } from "@leonaid/ui";
 import { FONT_FAMILIES, FONT_SIZES } from "./paste";
 import {
-  TextBoldIcon,
-  TextItalicIcon,
-  TextUnderlineIcon,
-  TextStrikethroughIcon,
-  LeftToRightListBulletIcon,
-  LeftToRightListNumberIcon,
-  TextAlignLeftIcon,
-  TextAlignCenterIcon,
-  TextAlignRightIcon,
-  TextAlignJustifyCenterIcon,
-  ListIndentIncreaseIcon,
-  ListIndentDecreaseIcon,
-  UndoIcon,
-  RedoIcon,
-  Link01Icon,
-  MoreHorizontalIcon,
-} from "@hugeicons/core-free-icons";
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Ellipsis,
+  IndentDecrease,
+  IndentIncrease,
+  Italic,
+  Link,
+  List,
+  ListOrdered,
+  Redo2,
+  Strikethrough,
+  Underline,
+  Undo2,
+  type LucideIcon,
+} from "lucide-react";
 
 export function FormattingToolbar({
   editor,
@@ -67,7 +68,7 @@ export function FormattingToolbar({
   });
   const action = (
     label: string,
-    icon: typeof TextBoldIcon,
+    icon: LucideIcon,
     run: () => void,
     active?: boolean,
     unavailable = false,
@@ -81,7 +82,7 @@ export function FormattingToolbar({
       disabled={disabled || unavailable}
       onClick={run}
     >
-      <HugeiconsIcon icon={icon} size={18} aria-hidden="true" />
+      <Icon icon={icon} size={18} />
     </button>
   );
   const styleControls = (
@@ -146,26 +147,26 @@ export function FormattingToolbar({
       <span className="knowledge-tool-group">
         {action(
           "Aufzählung",
-          LeftToRightListBulletIcon,
+          List,
           () => editor.chain().focus().toggleBulletList().run(),
           state.bullet,
         )}
         {action(
           "Nummerierte Liste",
-          LeftToRightListNumberIcon,
+          ListOrdered,
           () => editor.chain().focus().toggleOrderedList().run(),
           state.ordered,
         )}
         {action(
           "Einrücken",
-          ListIndentIncreaseIcon,
+          IndentIncrease,
           () => editor.chain().focus().sinkListItem("listItem").run(),
           undefined,
           !state.indent,
         )}
         {action(
           "Ausrücken",
-          ListIndentDecreaseIcon,
+          IndentDecrease,
           () => editor.chain().focus().liftListItem("listItem").run(),
           undefined,
           !state.outdent,
@@ -174,25 +175,25 @@ export function FormattingToolbar({
       <span className="knowledge-tool-group">
         {action(
           "Linksbündig",
-          TextAlignLeftIcon,
+          AlignLeft,
           () => editor.chain().focus().setTextAlign("left").run(),
           state.align === "left",
         )}
         {action(
           "Zentriert",
-          TextAlignCenterIcon,
+          AlignCenter,
           () => editor.chain().focus().setTextAlign("center").run(),
           state.align === "center",
         )}
         {action(
           "Rechtsbündig",
-          TextAlignRightIcon,
+          AlignRight,
           () => editor.chain().focus().setTextAlign("right").run(),
           state.align === "right",
         )}
         {action(
           "Blocksatz",
-          TextAlignJustifyCenterIcon,
+          AlignJustify,
           () => editor.chain().focus().setTextAlign("justify").run(),
           state.align === "justify",
         )}
@@ -200,14 +201,14 @@ export function FormattingToolbar({
       <span className="knowledge-tool-group">
         {action(
           "Rückgängig",
-          UndoIcon,
+          Undo2,
           () => editor.chain().focus().undo().run(),
           undefined,
           !state.undo,
         )}
         {action(
           "Wiederholen",
-          RedoIcon,
+          Redo2,
           () => editor.chain().focus().redo().run(),
           undefined,
           !state.redo,
@@ -256,31 +257,31 @@ export function FormattingToolbar({
         <span className="knowledge-tool-group">
           {action(
             "Fett",
-            TextBoldIcon,
+            Bold,
             () => editor.chain().focus().toggleBold().run(),
             state.bold,
           )}
           {action(
             "Kursiv",
-            TextItalicIcon,
+            Italic,
             () => editor.chain().focus().toggleItalic().run(),
             state.italic,
           )}
           {action(
             "Unterstreichen",
-            TextUnderlineIcon,
+            Underline,
             () => editor.chain().focus().toggleUnderline().run(),
             state.underline,
           )}
           {action(
             "Durchstreichen",
-            TextStrikethroughIcon,
+            Strikethrough,
             () => editor.chain().focus().toggleStrike().run(),
             state.strike,
           )}
           {action(
             "Link bearbeiten",
-            Link01Icon,
+            Link,
             () => {
               setHref(editor.getAttributes("link").href ?? "");
               setLinkError("");
@@ -306,11 +307,7 @@ export function FormattingToolbar({
               setMore(!more);
             }}
           >
-            <HugeiconsIcon
-              icon={MoreHorizontalIcon}
-              size={18}
-              aria-hidden="true"
-            />
+            <Icon icon={Ellipsis} size={18} />
           </button>
         }
       </div>
@@ -327,6 +324,15 @@ export function FormattingToolbar({
       {linkOpen && (
         <form
           className="knowledge-link-form"
+          onKeyDown={(event) => {
+            // Esc closes only this form; the page's Esc (end editing)
+            // skips handled events.
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            setLinkOpen(false);
+            editor.commands.focus();
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             try {

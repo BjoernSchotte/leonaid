@@ -3,13 +3,17 @@ import { useState } from "react";
 import type { LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { says, type Address } from "./task-copy";
+
 export function AssigneePicker({
+  address = "du",
   client,
   listId,
   value,
   userId,
   onChange,
 }: {
+  address?: Address;
   client: LeonAidApiClient;
   listId: string;
   value: string;
@@ -25,11 +29,12 @@ export function AssigneePicker({
   });
   const selected = people.data?.items.find((person) => person.userId === value);
   return (
-    <fieldset>
-      <legend>Zuständigkeit</legend>
-      <label>
-        Personen suchen
+    <fieldset className="task-fields task-picker">
+      <legend className="sr-only">Zuständigkeit</legend>
+      <label className="field">
+        <span className="field-label">Personen suchen</span>
         <input
+          className="input"
           type="search"
           maxLength={200}
           value={search}
@@ -39,16 +44,19 @@ export function AssigneePicker({
           }}
         />
       </label>
-      <label>
-        Zuständige Person
+      <label className="field">
+        <span className="field-label">Zuständige Person</span>
         <select
+          className="input select"
           value={value}
           onChange={(event) => onChange(event.target.value)}
         >
           <option value="">Nicht zugewiesen</option>
           {value && !selected && (
             <option value={value}>
-              {value === userId ? "Ich" : "Bisherige zuständige Person"}
+              {value === userId
+                ? says(address, "Ich", "Ich selbst")
+                : "Bisherige zuständige Person"}
             </option>
           )}
           {people.data?.items.map((person) => (
@@ -60,15 +68,20 @@ export function AssigneePicker({
         </select>
       </label>
       {people.isPending && (
-        <p role="status">Berechtigte Personen werden geladen …</p>
+        <p className="field-hint" role="status">
+          Berechtigte Personen werden geladen …
+        </p>
       )}
       {people.error && (
         <StatusMessage tone="error">
-          Die Personenauswahl ist nicht verfügbar. Prüfe deine Verbindung und
-          dein Schreibrecht auf diese Liste. Eine bestehende Zuordnung bleibt
-          erhalten.{" "}
+          {says(
+            address,
+            "Die Personenauswahl ist nicht verfügbar. Prüfe deine Verbindung und dein Schreibrecht auf diese Liste. Eine bestehende Zuordnung bleibt erhalten.",
+            "Die Personenauswahl ist nicht verfügbar. Prüfen Sie Ihre Verbindung und Ihr Schreibrecht auf diese Liste. Eine bestehende Zuordnung bleibt erhalten.",
+          )}{" "}
           <Button
             type="button"
+            size="sm"
             variant="secondary"
             onClick={() => void people.refetch()}
           >
@@ -77,12 +90,15 @@ export function AssigneePicker({
         </StatusMessage>
       )}
       {people.data?.items.length === 0 && (
-        <p>Keine berechtigten Personen für diese Suche.</p>
+        <p className="field-hint">
+          Keine berechtigten Personen für diese Suche.
+        </p>
       )}
-      <div className="tasks-paging">
+      <div className="task-form-actions">
         <Button
           type="button"
-          variant="secondary"
+          size="sm"
+          variant="ghost"
           disabled={offset === 0 || people.isFetching}
           onClick={() => setOffset(Math.max(0, offset - 50))}
         >
@@ -90,7 +106,8 @@ export function AssigneePicker({
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          size="sm"
+          variant="ghost"
           disabled={people.data?.nextOffset == null || people.isFetching}
           onClick={() => setOffset(people.data!.nextOffset!)}
         >

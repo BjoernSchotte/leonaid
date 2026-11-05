@@ -49,7 +49,7 @@ def normalize_recipient(value: str, channel: ContactChannel) -> str:
         if len(normalized) > 320 or not EMAIL.fullmatch(normalized):
             raise DomainInvariantError(
                 "privacy_email_invalid",
-                "Bitte gib eine gültige E-Mail-Adresse ein.",
+                "Bitte eine gültige E-Mail-Adresse eingeben.",
             )
         return normalized
     if not normalized or len(normalized) > 500:

@@ -65,6 +65,35 @@
         "property-newly-required:CurrentIdentityResponse.installation"
       ],
       "rationale": "Leitsystem shell (Task 4.1): the identity response gains the output-only installation object with the club name (LEONAID_CLUB_NAME, one club per installation) that the admin rail and the PWA show. Core always serializes it; no request contract changes and every existing response field stays. A cached older web or PWA bundle ignores the extra property. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approved by Björn Schotte on 2026-11-04. Approval is bound to these exact contract hashes and this change."
+    },
+    {
+      "oldSha256": "d6574ed12d45853eb8925e7358a85bb1e8de26a8bf092a02c941c5b31c0ecc28",
+      "newSha256": "e987c78814295f595853f05e716be25343b1ca846ead3c9e6317d797d366151a",
+      "changes": [
+        "property-newly-required:CharityAdminDashboardResponse.delivery",
+        "property-newly-required:CharityAdminDashboardResponse.orderValueWeeks",
+        "property-newly-required:DashboardInvoiceResponse.deliveryFailed",
+        "property-newly-required:DashboardInvoiceResponse.overdue",
+        "property-newly-required:DashboardInvoiceResponse.overdueAmountMinor",
+        "property-newly-required:DeliveryWindowResponse.fullyBooked",
+        "property-newly-required:MemberDirectoryActionResponse.leadRequired",
+        "property-removed:QuestionAggregate.sum",
+        "property-type-changed:AggregateCount.count",
+        "property-type-changed:AnalysisSnapshot.participationCount",
+        "property-type-changed:LastPageCount.count",
+        "property-type-changed:MatrixRowAggregate.answered",
+        "property-type-changed:MatrixRowAggregate.invalid",
+        "property-type-changed:MatrixRowAggregate.unanswered",
+        "property-type-changed:ParticipationCounts.completed",
+        "property-type-changed:ParticipationCounts.in_progress",
+        "property-type-changed:ParticipationCounts.partial",
+        "property-type-changed:QuestionAggregate.answered",
+        "property-type-changed:QuestionAggregate.hidden",
+        "property-type-changed:QuestionAggregate.invalid",
+        "property-type-changed:QuestionAggregate.relevant",
+        "property-type-changed:QuestionAggregate.unanswered"
+      ],
+      "rationale": "Leitsystem milestone 2, approved by Björn Schotte on 2026-11-04 and 2026-11-05. Survey analysis applies the k = 5 disclosure rule to every aggregate for all viewers: counts become nullable when withheld, and QuestionAggregate.sum is removed because a sum leaks withheld answers; raw exports are unchanged. MemberDirectoryActionResponse.leadRequired tells the member page when an action needs a lead. The dashboard (delivery, orderValueWeeks), invoice dashboard (deliveryFailed, overdue, overdueAmountMinor) and delivery window (fullyBooked) fields are additive, always-serialized response data. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

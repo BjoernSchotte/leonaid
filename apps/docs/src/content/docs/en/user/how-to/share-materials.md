@@ -4,38 +4,42 @@ description: Upload a file once, keep earlier versions and share it with selecte
 docId: DOC-P043
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 583524f992adb500d686dfe91f72e7fa5b7327cc
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 3b8989c848762988ff7554ba370ce8b1714e9cf9
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
-**Role:** every active account. Open **Materialien** (materials) in the back
-office (`/admin/materials`) or in the app (`/app/materials`). Your installation
-may have switched the module off; then the entry is missing.
+**Role:** every active account. Open **Material** in the back office
+(`/admin/materials`) or in the app (`/app/materials`). Your installation may
+have switched the module off; then the entry is missing.
 
 ## Upload a file
 
-1. Select **Neues Material**, enter **Materialtitel** and choose the
-   **Kontext des Materials**: **Eigenständig** (standalone) or a charity
-   campaign you manage.
-2. Choose the **Datei** (one file up to 25 MiB) and select **Material
-   hochladen**. A standalone material is first visible to you only; current
-   members of a campaign can read a campaign material.
+1. Select **Material hochladen** (upload material), enter **Materialtitel** and
+   choose the **Kontext des Materials**: **Eigenständig** (standalone) or a
+   charity campaign you manage.
+2. Choose the **Datei** (one file up to 25 MiB) and select **Hochladen**. A
+   standalone material is first visible to you only; current members of a
+   campaign can read a campaign material.
+
+## See and download versions
+
+Each material is one row of the list. A click (or `J`/`K` and Enter) expands
+it and shows every version with file name and size; the newest carries
+**Aktuell** (current). **Aktuell** in the row downloads the newest version, the
+download icon of a version exactly the file stored then.
 
 ## Upload a new version
 
-Open the material, choose the new **Datei** and select **Neue Version
-hochladen**. The header then shows the new **Aktuelle Dateiversion**. Earlier
-versions stay unchanged: enter their number under **Dateiversion** and select
-**Dateiversion herunterladen** to get exactly the file stored then.
-
-If someone uploaded a version in the meantime, the upload is refused and your
-file choice stays. Reload the page and upload again.
+Select **Neue Version** (new version) in the row (or `U`), choose the new
+**Datei** and select **Hochladen**. Earlier versions stay downloadable
+unchanged. If you may only read the material, the dialog says so instead.
 
 ## Share a material
 
-Open **Materialfreigaben**, add an existing active account by e-mail address
-and choose **Lesen** (read) or **Bearbeiten** (edit). Removing **Materialzugriff**
-withdraws the access at once, also for downloads. Campaign roles keep applying
-to campaign materials.
+People who manage a material see in the expanded row who may edit and read it,
+and open the **Materialfreigaben** with **Zugriff verwalten** (manage access).
+Add an existing active account by e-mail address and choose **Lesen** (read) or
+**Bearbeiten** (edit). Removing **Materialzugriff** withdraws the access at
+once, also for downloads. Campaign roles keep applying to campaign materials.

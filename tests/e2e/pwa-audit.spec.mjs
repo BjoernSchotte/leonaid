@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -109,7 +109,9 @@ test("POC-062 manifest, installation, update and offline notice are real", async
       page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
     )
     .toBe(true);
-  await expect(page.locator("main h1")).toContainText("Guten Tag, Anna.");
+  await expect(page.locator("main h1")).toHaveText(
+    /^Guten (Morgen|Tag|Abend), Anna\.$/,
+  );
 
   const serviceWorkerResponse = await page.request.get(`${baseUrl}/app/sw.js`);
   const serviceWorkerSource = await serviceWorkerResponse.text();
@@ -133,7 +135,9 @@ test("POC-062 manifest, installation, update and offline notice are real", async
   );
   // The shell keeps the open page, its tabs and the gold network state.
   await expect(page.getByRole("img", { name: "Offline" })).toBeVisible();
-  await expect(page.locator("main h1")).toContainText("Guten Tag, Anna.");
+  await expect(page.locator("main h1")).toHaveText(
+    /^Guten (Morgen|Tag|Abend), Anna\.$/,
+  );
   await expect(
     page.getByRole("navigation", { name: "App-Navigation" }),
   ).toBeVisible();
@@ -145,7 +149,7 @@ test("POC-062 manifest, installation, update and offline notice are real", async
   await expect(
     page.getByRole("heading", { name: "Gerade keine Verbindung" }),
   ).toBeVisible();
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),
@@ -172,23 +176,27 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
     },
   ]);
   await page.goto(`${baseUrl}/app/sponsors`);
+  // Prototype flow: sponsor → "Bestellung erfassen" → three steps.
   await page
     .getByTestId("sponsor-row")
     .filter({ hasText: "Musterwerk GmbH" })
-    .getByRole("link", { name: "Bestellung" })
     .click();
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await page.getByTestId("order-open").click();
+  const heading = page.getByRole("heading", {
+    level: 1,
+    name: "Bestellung für Musterwerk GmbH",
+  });
+  await expect(heading).toBeVisible();
   // Orders have no tab of their own ("Neu" creates a sponsor).
   await expect(
     page
       .getByRole("navigation", { name: "App-Navigation" })
       .locator('[aria-current="page"]'),
   ).toHaveCount(0);
+  await page.getByTestId("commitment-quantity").fill("3");
+  await page.getByRole("button", { name: "Weiter" }).click();
   const street = page.getByTestId("commitment-street");
   await street.fill("Offlineweg 7");
-  await page.getByTestId("commitment-quantity").fill("3");
 
   await context.setOffline(true);
   const banner = page.getByTestId("offline-banner");
@@ -198,10 +206,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   // What the acquirer already entered stays on screen and editable.
   await expect(street).toHaveValue("Offlineweg 7");
   await expect(street).toBeEditable();
-  await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(heading).toBeVisible();
   // The gold glyph stays in the sticky bar; the banner sits under the bar.
   await expect(page.getByRole("img", { name: "Offline" })).toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -212,7 +217,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),
@@ -224,15 +229,17 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   });
 
   // Saving offline fails in Du wording and keeps every entry.
+  await page.getByRole("button", { name: "Weiter" }).click();
   await page.getByTestId("commitment-save-draft").click();
   await expect(page.locator("main")).toContainText(
     "Die Bestellung konnte nicht gespeichert werden. Prüfe deine Verbindung; deine Eingaben bleiben erhalten.",
   );
+  await page.getByRole("button", { name: "Zurück" }).click();
   await expect(street).toHaveValue("Offlineweg 7");
+  await page.getByRole("button", { name: "Zurück" }).click();
   await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(heading).toBeVisible();
+  await page.getByRole("button", { name: "Weiter" }).click();
 
   await context.setOffline(false);
   await expect(banner).toHaveCount(0);

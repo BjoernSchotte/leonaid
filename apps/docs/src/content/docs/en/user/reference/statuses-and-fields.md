@@ -4,10 +4,10 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 1c054b0fb55c59b9f884aee956b431a519ce521d
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Charity campaign
@@ -37,6 +37,17 @@ contact itself.
 The source is `acquisition`, `public_form`, or `admin`. Prices, lines, invoice
 recipient, and delivery details are checked on the server; a booked delivery
 window is retained as a snapshot.
+
+## Delivery window
+
+| Technical     | Interface   | Meaning                                                                  |
+| ------------- | ----------- | ------------------------------------------------------------------------ |
+| open          | Buchbar     | offered in the order form, acquisition and the back office (bookable)    |
+| `fullyBooked` | Ausgebucht  | not selectable publicly; back office and acquisition book after a prompt |
+| `retired`     | Stillgelegt | no longer offered; booked orders keep their time (retired)               |
+
+Retiring a window clears **Ausgebucht**. A window that has already started is
+no longer offered.
 
 ## Invoice and delivery
 

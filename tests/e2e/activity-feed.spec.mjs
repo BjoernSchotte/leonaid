@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -38,7 +38,7 @@ async function pageFor(browser, session, viewport) {
 }
 
 async function expectNoSeriousA11yIssues(page) {
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await analyzeAccessibility(page);
   expect(
     results.violations.filter(({ impact }) =>
       ["critical", "serious"].includes(impact),
@@ -57,11 +57,11 @@ test("Anna sees exclusive and shared public orders", async ({ browser }) => {
       "Anna Akquise",
     );
     await expect(
-      page.getByRole("heading", { name: "Neues & Aktivitäten" }),
+      page.getByRole("heading", { level: 1, name: "Neues" }),
     ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="activity-feed-unread-count"] strong'),
-    ).toHaveText("2");
+    await expect(page.getByTestId("activity-feed-unread-count")).toHaveText(
+      "2 ungelesen",
+    );
     const entries = page.locator('[data-testid="activity-feed-entry"]');
     await expect(entries).toHaveCount(2);
     await expect(entries).toContainText([
@@ -94,11 +94,11 @@ test("Anna sees exclusive and shared public orders", async ({ browser }) => {
       .locator('[data-testid="activity-feed-read-toggle"]')
       .click();
     expect((await markResponse).status()).toBe(200);
-    await expect(
-      page.locator('[data-testid="activity-feed-unread-count"] strong'),
-    ).toHaveText("1");
+    await expect(page.getByTestId("activity-feed-unread-count")).toHaveText(
+      "1 ungelesen",
+    );
 
-    await page.getByRole("tab", { name: /Ungelesen/ }).click();
+    await page.getByRole("button", { name: "Nur ungelesene" }).click();
     await expect(entries).toHaveCount(1);
     await expect(entries).toContainText("Doppelkontakt AG");
     await expect(entries).not.toContainText("Musterwerk GmbH");
@@ -109,7 +109,7 @@ test("Anna sees exclusive and shared public orders", async ({ browser }) => {
       .click();
     await expect(page).toHaveURL(/\/app\/activities\?view=contacts/);
     await expect(
-      page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
+      page.getByRole("heading", { level: 1, name: "Wiedervorlagen" }),
     ).toBeVisible();
   } finally {
     await context.close();
@@ -139,6 +139,17 @@ test("Bernd sees the jointly managed sponsor with their own follow-up action", a
       "href",
       /view=contacts&assignment=60000000-0000-4000-8000-000000000004/,
     );
+    // The next action opens the sponsor's contact sheet in its campaign.
+    await nextAction.click();
+    await expect(page).toHaveURL(
+      /\/app\/sponsors\?action=[0-9a-f-]+&assignment=60000000-0000-4000-8000-000000000004&contact=1/,
+    );
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Doppelkontakt AG" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Kontakt mit Doppelkontakt AG" }),
+    ).toBeVisible();
   } finally {
     await context.close();
   }
@@ -157,11 +168,22 @@ test("Klara handles the unassigned order in the admin work queue", async ({
       "Klara Kern",
     );
     await expect(
-      page.getByRole("heading", { name: "Neues & Aktivitäten" }),
+      page.getByRole("heading", { level: 1, name: "Aktivität" }),
     ).toBeVisible();
     const entries = page.locator('[data-testid="activity-feed-entry"]');
     await expect(entries).toHaveCount(1);
     await expect(entries).toContainText("Freie Firma e.K.");
+    await expect(page.getByTestId("activity-feed-unread-count")).toHaveText(
+      "1 ungelesen",
+    );
+    await expect(page.locator(".feed-day-title").first()).toHaveText(
+      /^(Heute|Gestern|\p{L}+, \d+\. \p{L}+)$/u,
+    );
+    // J focuses the first entry, U toggles its read state.
+    await page.locator("body").press("j");
+    await expect(
+      entries.first().locator('[data-testid="activity-feed-next-action"]'),
+    ).toBeFocused();
     await expect(entries).toContainText("3 Boxen · 72 Stück");
     const nextAction = entries.locator(
       '[data-testid="activity-feed-next-action"]',
@@ -173,6 +195,22 @@ test("Klara handles the unassigned order in the admin work queue", async ({
       path: `${artifactDirectory}/activity-feed-admin-desktop.png`,
       fullPage: true,
     });
+
+    // Shift+U marks everything read in one request, then the button rests.
+    const readAll = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/activity-feed/read") &&
+        response.request().method() === "POST",
+    );
+    await page.keyboard.press("Shift+U");
+    expect((await readAll).status()).toBe(200);
+    await expect(page.getByTestId("activity-feed-unread-count")).toHaveText(
+      "Alles gelesen",
+    );
+    await expect(
+      page.getByRole("button", { name: /Alle als gelesen markieren/ }),
+    ).toBeDisabled();
+    await expect(entries.first()).toHaveAttribute("data-read", "true");
   } finally {
     await context.close();
   }

@@ -16,6 +16,16 @@ export type ErrorAddress = "Sie" | "du";
 export interface ActionErrorOptions {
   /** Default "Sie" (back office). */
   readonly address?: ErrorAddress;
+  /**
+   * Where /fresh-login returns to (local path with query); default the
+   * current page. A dialog passes its own `?create=` link here.
+   */
+  readonly returnTo?: string;
+  /**
+   * Go to /fresh-login when the server asks for it (default true). False
+   * only describes the error, so it is safe to call during render.
+   */
+  readonly redirect?: boolean;
 }
 
 const copy = {
@@ -41,7 +51,7 @@ const copy = {
 
 export function actionErrorMessage(
   error: unknown,
-  { address = "Sie" }: ActionErrorOptions = {},
+  { address = "Sie", returnTo, redirect = true }: ActionErrorOptions = {},
 ): ActionErrorMessage {
   const text = copy[address];
   const withSupportCode = (message: string, requestId: string) =>
@@ -55,10 +65,10 @@ export function actionErrorMessage(
     };
   }
   if (error.detail.code === "fresh_login_required") {
-    const returnTo = encodeURIComponent(
-      `${window.location.pathname}${window.location.search}`,
+    const target = encodeURIComponent(
+      returnTo ?? `${window.location.pathname}${window.location.search}`,
     );
-    window.location.assign(`/fresh-login?returnTo=${returnTo}`);
+    if (redirect) window.location.assign(`/fresh-login?returnTo=${target}`);
     return {
       code: error.detail.code,
       conflict: false,

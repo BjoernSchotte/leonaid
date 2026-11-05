@@ -1,13 +1,24 @@
 ---
-import "@fontsource-variable/instrument-sans/wght.css";
-import "@fontsource-variable/newsreader/wght.css";
+// Leitsystem tokens and self-hosted Barlow/JetBrains Mono (CSS only).
+import "@leonaid/ui/fonts.css";
+import "@leonaid/ui/leitsystem.css";
 import "../styles/global.css";
+// Preloaded so first paint already uses Barlow: a late swap from the
+// fallback face shifts the whole layout (CLS budget in public-audit).
+import barlow400 from "@fontsource/barlow/files/barlow-latin-400-normal.woff2?url";
+import barlow600 from "@fontsource/barlow/files/barlow-latin-600-normal.woff2?url";
+import barlow700 from "@fontsource/barlow/files/barlow-latin-700-normal.woff2?url";
 // Theme modules own their scoped stylesheets; importing the registry here
 // keeps them after the global styles in the cascade.
 import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
 
 import PublicMark from "../components/PublicMark.astro";
+import {
+  providerAddress,
+  readLegalNotice,
+  type LegalNoticeResult,
+} from "../lib/legal-notice";
 
 interface Props {
   canonicalUrl: string;
@@ -19,6 +30,10 @@ interface Props {
   theme?: PublicTheme;
   canOrder?: boolean;
   carrierName?: string;
+  /** In-page target of the privacy notice, when the page renders one. */
+  privacyHref?: string;
+  /** A legal notice the page read already (/impressum); read here otherwise. */
+  legalNotice?: LegalNoticeResult;
   campaignBrand?: {
     name: string;
     logo: { src: string; alt: string; width?: number; height?: number } | null;
@@ -35,8 +50,12 @@ const {
   theme = defaultTheme,
   canOrder = false,
   carrierName,
+  privacyHref,
+  legalNotice: pageLegalNotice,
   campaignBrand,
 } = Astro.props;
+const legalNotice = pageLegalNotice ?? (await readLegalNotice());
+const provider = legalNotice.state === "ready" ? legalNotice.provider : null;
 const shareImage = imageMetadata ?? theme.shareImage;
 const header = theme.header;
 ---
@@ -55,6 +74,17 @@ const header = theme.header;
     <meta name="robots" content={robots} />
     <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {
+      [barlow400, barlow600, barlow700].map((href) => (
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={href}
+          crossorigin="anonymous"
+        />
+      ))
+    }
     <meta property="og:locale" content="de_DE" />
     <meta property="og:type" content="website" />
     <meta
@@ -104,7 +134,10 @@ const header = theme.header;
                 </>
               </>
             ) : (
-              <PublicMark />
+              <PublicMark
+                label={carrierName ?? "LeonAid"}
+                name={carrierName ?? "LeonAid"}
+              />
             )
           }
         </a>
@@ -115,6 +148,10 @@ const header = theme.header;
                 <a href={item.href}>{item.label}</a>
               ))}
             </nav>
+          ) : canOrder ? (
+            <a class="site-header__promise" href="#bestellen">
+              Bestellen
+            </a>
           ) : (
             <span class="site-header__promise">Lions helfen vor Ort</span>
           )
@@ -145,6 +182,32 @@ const header = theme.header;
             )
           }
         </p>
+      </div>
+      {
+        /* Prototype .public-footer-inner: provider and address on the left,
+          Impressum and Datenschutz on the right. */
+      }
+      <div class="site-shell site-footer__legal" data-footer-legal>
+        {
+          provider ? (
+            <span data-footer-provider>
+              {provider.legalName} · {providerAddress(provider)}
+            </span>
+          ) : (
+            carrierName && !theme.campaignFooter && <span>{carrierName}</span>
+          )
+        }
+        <span class="site-footer__links">
+          <a href="/impressum">Impressum</a>
+          {
+            privacyHref && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a href={privacyHref}>Datenschutz</a>
+              </>
+            )
+          }
+        </span>
       </div>
     </footer>
   </body>

@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { readFile } from "node:fs/promises";
 
@@ -38,10 +38,16 @@ test("system admin detects outages and retries a real mail job", async ({
   try {
     await page.goto(`${baseUrl}/admin/system`);
     await expect(
-      page.getByRole("heading", { name: "System & Betrieb" }),
+      page.getByRole("heading", { level: 1, name: "System" }),
     ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Betrieb" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await expect(page.getByTestId("operations-panel")).toBeVisible();
-    await expect(page.locator("code")).toContainText(correlationId);
+    await expect(
+      page.getByTestId("operations-panel").locator("code"),
+    ).toContainText(correlationId);
     await expect(page.getByTestId("monitoring-summary")).toContainText(
       "Nicht aktiv",
     );
@@ -94,9 +100,7 @@ test("system admin detects outages and retries a real mail job", async ({
       .getByRole("button", { name: "Diagnose-Test starten" })
       .click();
     await expect(
-      supportPanel.getByRole("heading", {
-        name: "Kontrollierter Fehler wurde erzeugt",
-      }),
+      supportPanel.getByText("Kontrollierter Fehler wurde erzeugt."),
     ).toBeVisible();
     await expect(supportPanel.getByLabel("Support-Code")).toHaveValue(
       correlationId,
@@ -119,9 +123,17 @@ test("system admin detects outages and retries a real mail job", async ({
     await expect(supportResult).not.toContainText("Cookie");
     await expect(supportResult).not.toContainText("Payload");
 
-    const retryButton = page.getByRole("button", {
-      name: "Sicher wiederholen",
-    });
+    // The dead letter is one click away: the Betrieb callout opens the
+    // Hintergrundaufgaben tab with its own URL.
+    await page
+      .getByRole("button", { name: "Betroffene Aufgaben ansehen" })
+      .click();
+    await expect(page).toHaveURL(/\/admin\/system\/jobs$/);
+    await expect(
+      page.getByRole("tab", { name: /Hintergrundaufgaben/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    const jobs = page.getByTestId("operations-jobs");
+    const retryButton = jobs.getByRole("button", { name: "Erneut versuchen" });
     await expect(retryButton).toHaveCount(1);
     await page.screenshot({
       path: `${artifactDirectory}/operations-dead-letter.png`,
@@ -129,14 +141,22 @@ test("system admin detects outages and retries a real mail job", async ({
     });
 
     await retryButton.click();
+    const confirm = page.getByRole("alertdialog", {
+      name: "Aufgabe erneut versuchen?",
+    });
+    await confirm.getByRole("button", { name: "Erneut versuchen" }).click();
     await expect(page.getByTestId("operations-no-jobs")).toBeVisible();
-    await expect(page.getByText("Keine fehlgeschlagenen Jobs")).toBeVisible();
+    await expect(
+      page.getByText("Keine fehlgeschlagenen Aufgaben"),
+    ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/operations-recovered.png`,
       fullPage: true,
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("tab", { name: "Betrieb" }).click();
+    await expect(page).toHaveURL(/\/admin\/system$/);
     await expect(page.getByTestId("operations-panel")).toBeVisible();
     await expect(page.getByTestId("pilot-daily-report")).toBeVisible();
     await expect(page.getByTestId("support-diagnostics")).toBeVisible();
@@ -145,7 +165,7 @@ test("system admin detects outages and retries a real mail job", async ({
       fullPage: true,
     });
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) =>

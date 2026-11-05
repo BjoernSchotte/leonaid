@@ -1,5 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
+import { changeRole, memberPane, openMember } from "./member-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -42,34 +43,7 @@ async function sessionContext(browser, token, viewport) {
 
 async function selectAnna(page) {
   await page.goto(`${baseUrl}/admin/members`);
-  await page
-    .getByRole("searchbox", { name: "Mitglied suchen" })
-    .fill("Anna Akquise");
-  await page.getByRole("button", { name: "Suchen", exact: true }).click();
-  await expect(page.getByTestId("member-card")).toHaveCount(1);
-  await page.getByTestId("member-card").click();
-  await expect(
-    page.getByTestId("member-detail").getByRole("heading", {
-      name: "Anna Akquise",
-    }),
-  ).toBeVisible();
-}
-
-async function changeRole(page, testId, enabled, expectedLabel) {
-  const button = page.getByTestId(testId);
-  await expect(button).toHaveText(enabled ? "Zuweisen" : "Entziehen");
-  await button.click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
-  await dialog
-    .getByRole("button", {
-      name: enabled ? "Rolle zuweisen" : "Rolle entziehen",
-    })
-    .click();
-  await expect(page.getByTestId("member-role-success")).toContainText(
-    expectedLabel,
-  );
-  await expect(button).toHaveText(enabled ? "Entziehen" : "Zuweisen");
+  await openMember(page, "Anna Akquise");
 }
 
 async function restoreAnnaRoles(request) {
@@ -136,21 +110,17 @@ test("charity admin manages only action roles in their own scope", async ({
 
   try {
     await selectAnna(page);
-    await expect(
-      page.getByText(
-        "Du siehst ausschließlich Rollen in deinen verwalteten Aktionen.",
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("member-global-role-finance_reader"),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("heading", { name: "Krapfentaxi 2026" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Krapfentaxi 2025" }),
-    ).toBeVisible();
-    await expect(page.getByText("Krapfentaxi Nord 2026")).toHaveCount(0);
+    const pane = memberPane(page);
+    await expect(pane.getByTestId("member-scope-pane-note")).toHaveText(
+      "Sie sehen ausschließlich Rollen in Ihren verwalteten Aktionen. Globale Rollen bleiben ausgeblendet.",
+    );
+    await expect(pane.getByTestId("member-global-role-add")).toHaveCount(0);
+    await expect(pane.getByText("Systemrollen")).toHaveCount(0);
+    const manageable = pane.getByTestId("member-role-add-action");
+    await expect(manageable).toContainText("Krapfentaxi 2026");
+    await expect(manageable).toContainText("Krapfentaxi 2025");
+    await expect(manageable).not.toContainText("Krapfentaxi Nord 2026");
+    await expect(pane.getByText("Krapfentaxi Nord 2026")).toHaveCount(0);
 
     const detailResponse = await context.request.get(
       `${baseUrl}/api/v1/admin/members/${annaId}`,
@@ -184,13 +154,17 @@ test("charity admin manages only action roles in their own scope", async ({
       "role_action_scope_forbidden",
     );
 
-    const financeButtonId = `member-action-role-${activeActionId}-finance_reader`;
-    await changeRole(page, financeButtonId, true, "Finanzen");
-    await expect(page.getByTestId("member-membership")).toHaveCount(2);
-    await changeRole(page, financeButtonId, false, "Finanzen");
-    await expect(page.getByTestId("member-membership")).toHaveCount(1);
+    const finance = {
+      actionId: activeActionId,
+      role: "finance_reader",
+      label: "Finanzen",
+    };
+    await changeRole(page, { ...finance, enabled: true });
+    await expect(pane.getByTestId("member-membership")).toHaveCount(2);
+    await changeRole(page, { ...finance, enabled: false });
+    await expect(pane.getByTestId("member-membership")).toHaveCount(1);
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),
@@ -228,14 +202,26 @@ test("system admin performs a role change and full offboarding through the UI", 
     ).toBeVisible();
     await selectAnna(systemPage);
 
-    const globalFinanceId = "member-global-role-finance_reader";
-    const actionFinanceId = `member-action-role-${activeActionId}-finance_reader`;
-    const driverId = `member-action-role-${activeActionId}-driver`;
-    const acquirerId = `member-action-role-${activeActionId}-acquirer`;
+    const globalFinance = { role: "finance_reader", label: "Finanzen" };
+    const actionFinance = {
+      actionId: activeActionId,
+      role: "finance_reader",
+      label: "Finanzen",
+    };
+    const driver = {
+      actionId: activeActionId,
+      role: "driver",
+      label: "Ausfahrer",
+    };
+    const acquirer = {
+      actionId: activeActionId,
+      role: "acquirer",
+      label: "Akquisiteur",
+    };
 
-    await changeRole(systemPage, globalFinanceId, true, "Finanzen");
-    await changeRole(systemPage, actionFinanceId, true, "Finanzen");
-    await changeRole(systemPage, driverId, true, "Ausfahrer");
+    await changeRole(systemPage, { ...globalFinance, enabled: true });
+    await changeRole(systemPage, { ...actionFinance, enabled: true });
+    await changeRole(systemPage, { ...driver, enabled: true });
     await systemPage.screenshot({
       path: `${artifactDirectory}/roles-assigned.png`,
       fullPage: true,
@@ -256,9 +242,10 @@ test("system admin performs a role change and full offboarding through the UI", 
     ).toBeTruthy();
     await annaPage.getByTestId("pwa-menu").click();
     const annaPwaSheet = annaPage.getByRole("dialog", { name: "Mehr" });
-    await expect(
-      annaPwaSheet.locator('[data-nav-key="delivery"]'),
-    ).toHaveAttribute("aria-disabled", "true");
+    // The driver role opens the delivery board in the app (Task 6.2).
+    const deliveryTile = annaPwaSheet.locator('[data-nav-key="delivery"]');
+    await expect(deliveryTile).toHaveAttribute("href", "/app/delivery");
+    await expect(deliveryTile).not.toHaveAttribute("aria-disabled", "true");
     await annaPwaSheet.getByRole("button", { name: "Schließen" }).click();
     await annaWebPage.goto(`${baseUrl}/admin/`);
     await annaWebPage.getByTestId("mobile-menu").click();
@@ -268,16 +255,16 @@ test("system admin performs a role change and full offboarding through the UI", 
     await expect(annaSheet.locator('[data-nav-key="invoices"]')).toBeVisible();
     await annaSheet.getByRole("button", { name: "Schließen" }).click();
 
-    await changeRole(systemPage, globalFinanceId, false, "Finanzen");
-    await changeRole(systemPage, actionFinanceId, false, "Finanzen");
-    await changeRole(systemPage, driverId, false, "Ausfahrer");
-    await changeRole(systemPage, acquirerId, false, "Akquisiteur");
+    await changeRole(systemPage, { ...globalFinance, enabled: false });
+    await changeRole(systemPage, { ...actionFinance, enabled: false });
+    await changeRole(systemPage, { ...driver, enabled: false });
+    await changeRole(systemPage, { ...acquirer, enabled: false });
+    const systemPane = memberPane(systemPage);
     await expect(
-      systemPage.getByText("Derzeit keiner Charity-Aktion zugeordnet."),
+      systemPane.getByText("Derzeit keiner Charity-Aktion zugeordnet."),
     ).toBeVisible();
-    await expect(
-      systemPage.getByRole("heading", { name: "Globale Rollen" }),
-    ).toHaveCount(0);
+    await expect(systemPane.getByTestId("member-global-role")).toHaveCount(0);
+    await expect(systemPane.getByText("Keine Systemrollen.")).toBeVisible();
 
     await annaPage.reload();
     const mobileNavigation = annaPage.locator(".pwa-tabs");
@@ -302,9 +289,7 @@ test("system admin performs a role change and full offboarding through the UI", 
       0,
     );
 
-    const accessibility = await new AxeBuilder({
-      page: systemPage,
-    }).analyze();
+    const accessibility = await analyzeAccessibility(systemPage);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),

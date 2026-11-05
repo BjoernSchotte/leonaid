@@ -57,6 +57,7 @@ export const materialsModule: UiModule = {
             {...context}
             basePath={`${shellBase(surface)}/materials`}
             materialId={match[1]}
+            surface={surface}
           />
         </Suspense>
       ),

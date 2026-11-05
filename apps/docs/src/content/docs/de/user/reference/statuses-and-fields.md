@@ -4,10 +4,10 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 1c054b0fb55c59b9f884aee956b431a519ce521d
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Charity-Aktion
@@ -37,6 +37,17 @@ CRM-Kontakt selbst.
 Quelle ist `acquisition`, `public_form` oder `admin`. Preise, Positionen,
 Rechnungs- und Lieferangaben werden serverseitig geprüft; ein gebuchtes
 Lieferfenster bleibt als Snapshot erhalten.
+
+## Lieferfenster
+
+| Technisch     | Oberfläche  | Bedeutung                                                              |
+| ------------- | ----------- | ---------------------------------------------------------------------- |
+| offen         | Buchbar     | wird in Bestellformular, Akquise und Backoffice angeboten              |
+| `fullyBooked` | Ausgebucht  | öffentlich nicht wählbar; Backoffice und Akquise buchen nach Rückfrage |
+| `retired`     | Stillgelegt | wird nicht mehr angeboten; gebuchte Bestellungen behalten den Termin   |
+
+Stilllegen hebt **Ausgebucht** auf. Ein Fenster, das schon begonnen hat, wird
+nicht mehr angeboten.
 
 ## Rechnung und Versand
 

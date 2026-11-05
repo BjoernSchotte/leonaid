@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 
@@ -34,9 +34,7 @@ async function authenticate(context, token) {
 }
 
 async function assertNoSeriousAxeFindings(page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );
@@ -61,7 +59,9 @@ async function openMusterwerkCapture(context, page) {
     .locator('[data-testid="sponsor-row"]')
     .filter({ hasText: "Musterwerk GmbH" });
   await expect(sponsor).toHaveCount(1);
-  const captureLink = sponsor.getByRole("link", { name: "Bestellung" });
+  // Prototype: the order starts on the sponsor ("Bestellung erfassen").
+  await sponsor.click();
+  const captureLink = page.getByTestId("order-open");
   const href = await captureLink.getAttribute("href");
   expect(href).toMatch(/^\/app\/commitments\/new\?/);
   await Promise.all([
@@ -70,12 +70,15 @@ async function openMusterwerkCapture(context, page) {
   ]);
   await expect(
     page.getByRole("heading", {
-      name: "Vom Gespräch zur klaren Bestellung.",
+      level: 1,
+      name: "Bestellung für Musterwerk GmbH",
     }),
   ).toBeVisible();
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(
+    page
+      .getByRole("list", { name: "Schritte" })
+      .locator('[aria-current="step"]'),
+  ).toContainText("Angebot");
 }
 
 test("acquirer captures a review-ready order from the sponsor context", async ({
@@ -88,26 +91,50 @@ test("acquirer captures a review-ready order from the sponsor context", async ({
   );
   await openMusterwerkCapture(context, page);
 
-  await expect(page.getByTestId("commitment-offering")).toHaveValue(
-    "70000000-0000-4000-8000-000000000001",
-  );
-  await expect(page.locator("#commitment-offering-help")).toContainText(
-    "aktuell bestellbare Angebote",
-  );
-  await expect(page.locator("#commitment-quantity-help")).toContainText(
-    "Einheit: Boxen",
-  );
-  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-    "36,00 €",
-  );
-  await page.getByTestId("commitment-quantity").fill("2");
-  await page.getByTestId("commitment-street").fill("Musterstraße 12");
-  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-    "72,00 €",
-  );
+  // Step 1 "Angebot": offer, stepper, total.
   await expect(
-    page.getByRole("heading", { name: "Bestellübersicht" }),
-  ).toBeVisible();
+    page
+      .getByTestId("commitment-offering")
+      .locator('input[value="70000000-0000-4000-8000-000000000001"]'),
+  ).toBeChecked();
+  await expect(page.getByRole("group", { name: "Anzahl Boxen" })).toBeVisible();
+  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
+    "Summe 36,00 €",
+  );
+  // The number field can be cleared and retyped (no "15" from "1"+"5").
+  const quantity = page.getByTestId("commitment-quantity");
+  await quantity.fill("");
+  await quantity.pressSequentially("5");
+  await expect(quantity).toHaveValue("5");
+  await quantity.fill("1");
+  await page.getByRole("button", { name: "Eine mehr" }).click();
+  await expect(page.getByTestId("commitment-quantity")).toHaveValue("2");
+  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
+    "Summe 72,00 €",
+  );
+  await page.getByRole("button", { name: "Weiter" }).click();
+  // Step 2 "Lieferung": billing (and delivery when planned); the step
+  // change moves the focus to the step's heading.
+  await expect(
+    page.getByRole("heading", { name: "Schritt 2 von 3: Lieferung" }),
+  ).toBeFocused();
+  // Billing fields are required; an empty one is named at the field.
+  const street = page.getByTestId("commitment-street");
+  await expect(street).toHaveAttribute("aria-required", "true");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  await expect(street).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("button", { name: "Weiter" })).toHaveAttribute(
+    "aria-describedby",
+    "commitment-step-error",
+  );
+  await street.fill("Musterstraße 12");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  // Step 3 "Prüfen".
+  await expect(
+    page.getByRole("heading", { name: "Schritt 3 von 3: Prüfen" }),
+  ).toBeFocused();
+  await expect(page.locator(".pwa-dl")).toContainText("2 × ");
+  await expect(page.locator(".pwa-dl")).toContainText("72,00 €");
   await expect(page.getByTestId("commitment-save-draft")).toBeVisible();
   await expect(page.getByTestId("commitment-save-ready")).toBeVisible();
 
@@ -129,11 +156,14 @@ test("acquirer captures a review-ready order from the sponsor context", async ({
   const payload = await response.json();
   await expect(page.getByTestId("commitment-success")).toBeVisible();
   await expect(page.getByTestId("commitment-success")).toContainText(
-    "Bereit für die Prüfung",
+    "Bestellung erfasst",
+  );
+  await expect(page.getByTestId("commitment-success")).toContainText(
+    "2 Boxen für Musterwerk GmbH, 72,00 €.",
   );
   await expect(
-    page.locator('.commitment-status[data-status="review_ready"]'),
-  ).toHaveText("Prüfbereit");
+    page.getByRole("link", { name: "Zurück zu Musterwerk GmbH" }),
+  ).toBeVisible();
   await expect(page.getByTestId("commitment-success")).toHaveAttribute(
     "data-commitment-id",
     payload.id,
@@ -172,9 +202,9 @@ test("order capture stays responsive and accessible in all target browsers", asy
   );
   expect(overflow).toBeLessThanOrEqual(1);
   for (const locator of [
-    page.getByTestId("commitment-sponsor"),
+    page.getByRole("button", { name: "Eine mehr" }),
     page.getByTestId("commitment-quantity"),
-    page.getByTestId("commitment-save-ready"),
+    page.getByRole("button", { name: "Weiter" }),
   ]) {
     const box = await locator.boundingBox();
     expect(box).not.toBeNull();
@@ -186,10 +216,22 @@ test("order capture stays responsive and accessible in all target browsers", asy
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "32px";
     });
-    const scaledOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(scaledOverflow).toBeLessThanOrEqual(1);
+    const scaledOverflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+    expect(await scaledOverflow(), "step 1").toBeLessThanOrEqual(1);
+    // Steps 2 and 3 with their two-button rows, also at 200 % text.
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.getByTestId("commitment-street").fill("Musterstraße 12");
+    expect(await scaledOverflow(), "step 2").toBeLessThanOrEqual(1);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await expect(page.getByTestId("commitment-save-ready")).toBeVisible();
+    expect(await scaledOverflow(), "step 3").toBeLessThanOrEqual(1);
+    await page.screenshot({
+      path: `${artifactDirectory}/commitment-review-200-chromium-390.png`,
+      fullPage: true,
+    });
   }
 
   await page.screenshot({

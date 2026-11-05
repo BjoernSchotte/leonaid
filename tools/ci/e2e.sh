@@ -24,6 +24,19 @@ case "$shard" in
     directory=$(printf '%s' "$shard" | tr '-' '_')
     python3 "$root/tools/testing/shared_stack.py" golden "tools/$directory/test.sh"
     ;;
+  # Leitsystem shell: tokens, contrast, visual baselines, dashboard, UX gates.
+  leitsystem-ui)
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/ui_system/test.sh tools/ux_acceptance/test.sh tools/dashboard/test.sh
+    ;;
+  operations)
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/operations/test.sh tools/feature_flags/test.sh tools/privacy/test.sh
+    ;;
+  invoice-flows)
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh
+    ;;
   identity)
     python3 "$root/tools/testing/shared_stack.py" core \
       tools/identity/test.sh

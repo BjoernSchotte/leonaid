@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { readFileSync } from "node:fs";
 import { expect, test } from "./csp-guard.mjs";
 
@@ -10,9 +10,7 @@ const fixture = JSON.parse(
 );
 
 async function expectNoSeriousAccessibilityViolations(page, label, scope) {
-  const builder = new AxeBuilder({ page });
-  if (scope) builder.include(scope);
-  const accessibility = await builder.analyze();
+  const accessibility = await analyzeAccessibility(page, { include: scope });
   expect(
     accessibility.violations
       .filter(
@@ -106,6 +104,22 @@ test("inbox list: j/k, Enter, Esc, x and closing with a note by keyboard", async
       pane.getByRole("group", { name: "Eigenschaften" }),
     ).toContainText("Zuständigkeit");
     await expectNoSeriousAccessibilityViolations(page, "Anfrage im Detail");
+    // A typed note is a draft: moving on asks the shared in-app question.
+    const note = pane.getByLabel("Interne Notiz", { exact: true });
+    await note.fill("Rückruf am Dienstag");
+    await page.keyboard.press("Escape");
+    await expect(note).not.toBeFocused();
+    await page.keyboard.press("j");
+    const question = page.getByRole("alertdialog", {
+      name: "Entwurf verwerfen?",
+    });
+    await expect(question).toBeVisible();
+    await question.getByRole("button", { name: "Weiter bearbeiten" }).click();
+    await expect(question).toHaveCount(0);
+    await expect(note).toHaveValue("Rückruf am Dienstag");
+    await expect(page).toHaveURL(/[?&]open=[0-9a-f-]{36}/);
+    await note.fill("");
+    await note.blur();
     const firstTitle = await pane.locator(".pane-title").textContent();
     await page.keyboard.press("j");
     await expect(rows.nth(2)).toBeFocused();

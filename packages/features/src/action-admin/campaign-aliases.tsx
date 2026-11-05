@@ -1,19 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { Info, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { useId, useRef, useState } from "react";
 
 import type {
   CampaignAliasItemResponse,
+  CampaignAliasListResponse,
   CampaignAliasTargetResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
-import { actionErrorMessage } from "./errors";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  Select,
+  SkeletonRows,
+  StatusMessage,
+  useOptionalToast,
+} from "@leonaid/ui";
+
+import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { isRevisionConflict } from "./use-action-error";
 
 interface Props {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly disabled: boolean;
 }
+
+const ALIAS = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function AliasAvailability({
   client,
@@ -30,239 +50,284 @@ function AliasAvailability({
     staleTime: 0,
   });
   return (
-    <p role="status">
+    <span className="small subtle" role="status">
       {!item.enabled
         ? "Deaktiviert"
         : query.isPending
           ? "Freigabe wird geprüft …"
           : query.isError
-            ? "Core-Freigabe derzeit nicht prüfbar."
+            ? "Freigabe derzeit nicht prüfbar."
             : query.data.redirectPath
-              ? "Core-Freigabe aktiv. Die Zielseite benötigt zusätzlich veröffentlichte Inhalte."
+              ? "Freigegeben. Die Zielseite braucht zusätzlich veröffentlichte Inhalte."
               : "Keine öffentliche Weiterleitung freigegeben."}
-    </p>
+    </span>
   );
 }
 
-function AliasEditor({
-  actionId,
-  client,
-  disabled,
-  item,
-  saved,
-  targets,
-}: Props & {
-  readonly item?: CampaignAliasItemResponse;
-  readonly saved: () => Promise<void>;
-  readonly targets: readonly CampaignAliasTargetResponse[];
-}) {
-  const [alias, setAlias] = useState(item?.alias ?? "");
-  const [enabled, setEnabled] = useState(item?.enabled ?? true);
-  const [revision, setRevision] = useState(item?.revision ?? 0);
-  const [targetActionId, setTargetActionId] = useState(actionId);
-  const [remove, setRemove] = useState(false);
-  const [feedback, setFeedback] = useState<{
-    message: string;
-    error: boolean;
-    conflict?: boolean;
-  }>();
+type Operation =
+  | {
+      readonly kind: "create";
+      readonly alias: string;
+      readonly enabled: boolean;
+    }
+  | {
+      readonly kind: "update";
+      readonly item: CampaignAliasItemResponse;
+      readonly alias: string;
+      readonly enabled: boolean;
+      readonly targetActionId: string;
+    }
+  | { readonly kind: "remove"; readonly item: CampaignAliasItemResponse };
+
+/**
+ * Create, update and remove with an idempotent command id per unchanged
+ * request (a retry after a lost answer is not a second command).
+ */
+function useAliasCommand(
+  actionId: string,
+  client: LeonAidApiClient,
+  onDone: () => Promise<void>,
+  onRemoveFailed: () => void,
+  onStale: () => void,
+) {
+  const toast = useOptionalToast();
+  const [error, setError] = useState<ActionErrorMessage>();
   const command = useRef<
-    | {
-        fingerprint: string;
-        commandId: string;
-        aliasId: string;
-      }
-    | undefined
+    { fingerprint: string; commandId: string; aliasId: string } | undefined
   >(undefined);
   const mutation = useMutation({
-    mutationFn: async (operation: "save" | "remove") => {
-      const payload = {
-        alias: alias.trim(),
-        enabled,
-        revision,
-        operation,
-        targetActionId,
-      };
-      const fingerprint = JSON.stringify(payload);
+    mutationFn: async (operation: Operation) => {
+      const fingerprint = JSON.stringify(operation);
       if (command.current?.fingerprint !== fingerprint) {
         command.current = {
           fingerprint,
           commandId: crypto.randomUUID(),
-          aliasId: item?.aliasId ?? crypto.randomUUID(),
+          aliasId:
+            operation.kind === "create"
+              ? crypto.randomUUID()
+              : operation.item.aliasId,
         };
       }
       const { commandId, aliasId } = command.current;
-      if (item && operation === "remove") {
+      if (operation.kind === "remove") {
         return client.removeCampaignAlias(actionId, aliasId, {
           commandId,
-          revision,
+          revision: operation.item.revision,
         });
       }
-      if (item) {
+      if (operation.kind === "update") {
         return client.updateCampaignAlias(actionId, aliasId, {
           commandId,
-          revision,
-          targetActionId,
-          alias: payload.alias,
-          enabled,
+          revision: operation.item.revision,
+          targetActionId: operation.targetActionId,
+          alias: operation.alias,
+          enabled: operation.enabled,
         });
       }
       return client.createCampaignAlias(actionId, {
         commandId,
         aliasId,
-        alias: payload.alias,
-        enabled,
+        alias: operation.alias,
+        enabled: operation.enabled,
       });
     },
-    async onSuccess(result) {
+    async onSuccess(result, operation) {
       command.current = undefined;
-      setRevision(result.revision);
-      if (!item) setAlias("");
-      setFeedback({ message: "Die Adresse wurde gespeichert.", error: false });
-      await saved();
-    },
-    onError(error) {
-      const details = actionErrorMessage(error);
-      setFeedback({
-        message: details.message,
-        error: true,
-        conflict: details.conflict,
+      setError(undefined);
+      toast?.show({
+        title:
+          operation.kind === "remove"
+            ? `/${result.alias} ist entfernt.`
+            : operation.kind === "update" &&
+                operation.targetActionId !== actionId
+              ? `/${result.alias} zeigt jetzt auf eine andere Aktion.`
+              : `/${result.alias} ist gespeichert.`,
+        tone: "success",
       });
+      await onDone();
+    },
+    onError(cause, operation) {
+      const message = actionErrorMessage(cause);
+      setError(message);
+      // Load the current revision; the next try sends it with the input.
+      if (isRevisionConflict(message)) onStale();
+      // The confirmation closes; the error shows under the list.
+      if (operation.kind === "remove") onRemoveFailed();
     },
   });
+  return { error, mutation, setError };
+}
+
+function AliasError({ error }: { readonly error?: ActionErrorMessage }) {
+  if (!error) return null;
   return (
-    <form
-      className="campaign-alias-editor"
-      onSubmit={(event) => {
-        event.preventDefault();
-        setFeedback(undefined);
-        mutation.mutate("save");
-      }}
-    >
-      <fieldset disabled={disabled || mutation.isPending}>
-        <div className="action-form-grid">
-          {item ? (
-            <label className="action-field action-field--wide">
-              <span>Zielkampagne</span>
-              <select
-                value={targetActionId}
-                onChange={(event) =>
-                  setTargetActionId(event.currentTarget.value)
-                }
-                required
-              >
-                {!targets.some(
-                  (target) => target.actionId === targetActionId,
-                ) ? (
-                  <option value={targetActionId} disabled>
-                    Ziel nicht mehr verfügbar — bitte neu wählen
-                  </option>
-                ) : null}
-                {targets.map((target) => (
-                  <option key={target.actionId} value={target.actionId}>
-                    {target.name} · {target.canonicalPath}
-                  </option>
-                ))}
-              </select>
-              <small>
-                {targetActionId !== actionId
-                  ? "Nach dem Speichern wird diese Adresse bei der Zielkampagne verwaltet. Die bisherige Kampagnenseite bleibt unverändert."
-                  : "Core zeigt nur Kampagnen an, deren Adressen du verwalten darfst."}
-              </small>
-            </label>
-          ) : null}
-          <label className="action-field">
-            <span>{item ? "Kurzadresse bearbeiten" : "Neue Kurzadresse"}</span>
-            <input
-              required
-              maxLength={160}
-              pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              value={alias}
-              onChange={(event) => setAlias(event.currentTarget.value)}
-            />
-            <small>
-              Nur Kleinbuchstaben, Ziffern und Bindestriche; ohne Domain oder
-              Schrägstrich.
-            </small>
-          </label>
-          <label className="action-field">
-            <span>Weiterleitung</span>
-            <select
-              value={enabled ? "enabled" : "disabled"}
-              onChange={(event) =>
-                setEnabled(event.currentTarget.value === "enabled")
-              }
-            >
-              <option value="enabled">Aktiviert</option>
-              <option value="disabled">Deaktiviert</option>
-            </select>
-            <small>
-              Auch aktiviert nur während der Freigabe durch Core erreichbar.
-            </small>
-          </label>
-        </div>
-        <div className="action-form-actions">
-          <Button type="submit" variant="secondary">
-            {mutation.isPending
-              ? "Wird gespeichert …"
-              : item
-                ? "Änderungen speichern"
-                : "Adresse hinzufügen"}
-          </Button>
-          {item && !remove ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setRemove(true)}
-            >
-              Adresse entfernen
-            </Button>
-          ) : null}
-        </div>
-        {remove ? (
-          <StatusMessage>
-            <p>
-              /{item?.alias} entfernen? Die Adresse ist anschließend wieder für
-              andere Kampagnen verfügbar. Die Kampagnenseite bleibt bestehen.
-            </p>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => mutation.mutate("remove")}
-            >
-              Entfernen bestätigen
-            </Button>{" "}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setRemove(false)}
-            >
-              Abbrechen
-            </Button>
-          </StatusMessage>
-        ) : null}
-      </fieldset>
-      {feedback ? (
-        <StatusMessage tone={feedback.error ? "error" : "success"}>
-          {feedback.message}
-          {feedback.conflict ? (
-            <p>
-              Deine Eingaben bleiben erhalten.{" "}
-              <a
-                href={`${window.location.pathname}#public`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Aktuellen Stand in einem neuen Tab öffnen
-              </a>
-            </p>
-          ) : null}
-        </StatusMessage>
+    <StatusMessage tone="error">
+      <span>{error.message}</span>
+      {isRevisionConflict(error) || error.conflict ? (
+        <span> Ihre Eingaben bleiben erhalten.</span>
       ) : null}
-    </form>
+    </StatusMessage>
   );
 }
 
+function AliasModal({
+  actionId,
+  canonicalPath,
+  error,
+  item,
+  onClose,
+  onSubmit,
+  open,
+  pending,
+  targets,
+}: {
+  readonly actionId: string;
+  readonly canonicalPath: string;
+  readonly error?: ActionErrorMessage;
+  /** Edit this alias; without it the modal adds a new one. */
+  readonly item?: CampaignAliasItemResponse;
+  readonly onClose: () => void;
+  readonly onSubmit: (operation: Operation) => void;
+  readonly open: boolean;
+  readonly pending: boolean;
+  readonly targets: readonly CampaignAliasTargetResponse[];
+}) {
+  const formId = useId();
+  const [alias, setAlias] = useState(item?.alias ?? "");
+  const [enabled, setEnabled] = useState(item?.enabled ?? true);
+  const [targetActionId, setTargetActionId] = useState(actionId);
+  const [submitted, setSubmitted] = useState(false);
+  const aliasError = ALIAS.test(alias.trim())
+    ? ""
+    : "Nur Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel „krapfen-flyer“.";
+  const target = targets.find((entry) => entry.actionId === targetActionId);
+  const moving = Boolean(item) && targetActionId !== actionId;
+
+  return (
+    <Modal
+      description={
+        item
+          ? `Weiterleitung von /${item.alias} auf ${canonicalPath}.`
+          : `Eine weitere kurze Adresse, die auf ${canonicalPath} weiterleitet, zum Beispiel für Flyer.`
+      }
+      footer={
+        <>
+          <Button disabled={pending} onClick={onClose} variant="ghost">
+            Abbrechen
+          </Button>
+          <Button
+            data-testid="alias-save"
+            form={formId}
+            loading={pending}
+            type="submit"
+            variant="primary"
+          >
+            {moving ? "Alias umstellen" : "Speichern"}
+          </Button>
+        </>
+      }
+      onClose={() => {
+        if (!pending) onClose();
+      }}
+      open={open}
+      title={item ? `/${item.alias} bearbeiten` : "Alias hinzufügen"}
+    >
+      <form
+        className="form-grid"
+        id={formId}
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSubmitted(true);
+          if (aliasError) return;
+          onSubmit(
+            item
+              ? {
+                  kind: "update",
+                  item,
+                  alias: alias.trim(),
+                  enabled,
+                  targetActionId,
+                }
+              : { kind: "create", alias: alias.trim(), enabled },
+          );
+        }}
+      >
+        <Field
+          error={submitted ? aliasError : undefined}
+          hint="Ohne Domain und ohne Schrägstrich."
+          label="Alias"
+          required
+        >
+          <Input
+            autoComplete="off"
+            className="mono"
+            data-testid="alias-input"
+            maxLength={160}
+            onChange={(event) => setAlias(event.currentTarget.value)}
+            value={alias}
+          />
+        </Field>
+        <Field
+          hint="Auch aktiviert ist der Alias nur erreichbar, solange die Aktion öffentlich freigegeben ist."
+          label="Weiterleitung"
+        >
+          <Select
+            data-testid="alias-enabled"
+            onChange={(event) =>
+              setEnabled(event.currentTarget.value === "enabled")
+            }
+            value={enabled ? "enabled" : "disabled"}
+          >
+            <option value="enabled">Aktiviert</option>
+            <option value="disabled">Deaktiviert</option>
+          </Select>
+        </Field>
+        {item ? (
+          <Field
+            hint="Sie sehen nur Aktionen, deren Adressen Sie verwalten dürfen."
+            label="Ziel"
+          >
+            <Select
+              data-testid="alias-target"
+              onChange={(event) => setTargetActionId(event.currentTarget.value)}
+              value={targetActionId}
+            >
+              {!targets.some((entry) => entry.actionId === targetActionId) ? (
+                <option disabled value={targetActionId}>
+                  Ziel nicht mehr verfügbar, bitte neu wählen
+                </option>
+              ) : null}
+              {targets.map((entry) => (
+                <option key={entry.actionId} value={entry.actionId}>
+                  {entry.name} · {entry.canonicalPath}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
+        {moving && item ? (
+          <div className="callout">
+            <Icon icon={Info} size={16} />
+            <span>
+              Wer /{item.alias} aufruft, sieht danach{" "}
+              {target?.name ?? "die neue Aktion"}. Diese Aktion bleibt unter{" "}
+              {canonicalPath} erreichbar; bereits eingegangene Bestellungen
+              ändern sich nicht.
+            </span>
+          </div>
+        ) : null}
+        <AliasError error={error} />
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Aliase (prototype Campaigns.tsx Aliases): the active alias from the
+ * publication, the extra redirect aliases and the permanent archive
+ * address. The server lists the targets this account may manage.
+ */
 export function CampaignAliasesSection(props: Props) {
   const queryClient = useQueryClient();
   const queryKey = ["campaign-aliases", props.actionId] as const;
@@ -272,72 +337,201 @@ export function CampaignAliasesSection(props: Props) {
     retry: false,
     staleTime: 0,
   });
+  const [editing, setEditing] = useState<
+    CampaignAliasItemResponse | "new" | null
+  >(null);
+  const [removing, setRemoving] = useState<CampaignAliasItemResponse>();
   const saved = async () => {
+    setEditing(null);
+    setRemoving(undefined);
     await queryClient.invalidateQueries({ queryKey });
     await queryClient.invalidateQueries({
       queryKey: ["campaign-alias-availability"],
     });
   };
+  const { error, mutation, setError } = useAliasCommand(
+    props.actionId,
+    props.client,
+    saved,
+    () => setRemoving(undefined),
+    () => void queryClient.invalidateQueries({ queryKey }),
+  );
+
+  if (query.isPending) return <SkeletonRows rows={3} />;
+  if (query.isError) {
+    return (
+      <ErrorState
+        onRetry={() => void query.refetch()}
+        title="Die Aliase konnten nicht geladen werden"
+      >
+        Der Server hat nicht geantwortet. Prüfen Sie die Verbindung und
+        versuchen Sie es erneut.
+      </ErrorState>
+    );
+  }
+
+  const data: CampaignAliasListResponse = query.data;
+  const extra = data.items.filter((item) => !item.isPrimary);
+  const primary = data.items.find((item) => item.isPrimary);
+
   return (
     <section
-      className="action-edit-section"
-      aria-labelledby="campaign-aliases-heading"
+      aria-labelledby={`campaign-aliases-${props.actionId}`}
+      className="stack"
     >
-      <header>
-        <div>
-          <h2 id="campaign-aliases-heading">Adressen und Weiterleitungen</h2>
-          <p>
-            Zusätzliche Kurzadressen führen zur dauerhaften Seite dieser
-            Kampagne.
-          </p>
-        </div>
-      </header>
-      {query.isPending ? (
-        <StatusMessage>Adressen werden geladen …</StatusMessage>
-      ) : query.isError ? (
-        <StatusMessage tone="error">
-          Adressen konnten nicht geladen werden.{" "}
-          <Button variant="secondary" onClick={() => void query.refetch()}>
-            Erneut laden
+      <h2 className="sr-only" id={`campaign-aliases-${props.actionId}`}>
+        Adressen und Weiterleitungen
+      </h2>
+      <div className="tab-head">
+        <p className="muted small">
+          Der aktive Alias ist die kurze Adresse für Flyer und QR-Codes. Weitere
+          Aliase leiten auf diese Aktion weiter; die Archivadresse bleibt
+          dauerhaft erreichbar.
+        </p>
+        {!props.disabled ? (
+          <Button
+            data-testid="alias-add"
+            icon={Plus}
+            onClick={() => {
+              setError(undefined);
+              setEditing("new");
+            }}
+            variant="secondary"
+          >
+            Alias hinzufügen
           </Button>
-        </StatusMessage>
+        ) : null}
+      </div>
+      {data.items.length === 0 && !data.canonicalPath ? (
+        <EmptyState
+          description="Diese Aktion ist noch nicht veröffentlicht."
+          icon={Tag}
+          title="Keine öffentliche Adresse"
+        />
       ) : (
-        <>
-          <p className="campaign-alias-address">
-            Dauerhafte Kampagnenadresse:{" "}
-            <a href={query.data.canonicalPath}>{query.data.canonicalPath}</a>
-          </p>
-          {query.data.items.map((item) =>
-            item.isPrimary ? (
-              <p className="campaign-alias-address" key={item.aliasId}>
-                Hauptadresse: <a href={`/${item.alias}`}>/{item.alias}</a>.
-                Änderungen erfolgen oben unter „Öffentliche Seite“.
-              </p>
-            ) : (
-              <div className="campaign-alias-row" key={item.aliasId}>
-                <p className="campaign-alias-address">
-                  <a href={`/${item.alias}`}>/{item.alias}</a> →{" "}
-                  {query.data.canonicalPath}
-                </p>
-                <AliasAvailability client={props.client} item={item} />
-                <AliasEditor
-                  {...props}
-                  item={item}
-                  saved={saved}
-                  targets={query.data.targets}
-                />
-              </div>
-            ),
-          )}
-          {!query.data.items.some((item) => !item.isPrimary) ? (
-            <p>
-              Noch keine zusätzlichen Adressen. Lege beispielsweise eine kurze
-              Adresse für Flyer an.
-            </p>
+        <ul className="alias-list" data-testid="alias-list">
+          {primary ? (
+            <li className="alias-row" data-testid="alias-primary">
+              <a className="mono alias-path" href={`/${primary.alias}`}>
+                /{primary.alias}
+              </a>
+              <Badge tone="ok">Aktiver Alias</Badge>
+              <span className="small subtle">
+                Zeitraum und Alias unter „Öffentliche Seite“
+              </span>
+            </li>
           ) : null}
-          <AliasEditor {...props} saved={saved} targets={query.data.targets} />
-        </>
+          {extra.map((item) => (
+            <li
+              className="alias-row campaign-alias-row"
+              data-testid={`alias-${item.alias}`}
+              key={item.aliasId}
+            >
+              <a className="mono alias-path" href={`/${item.alias}`}>
+                /{item.alias}
+              </a>
+              <Badge tone={item.enabled ? "neutral" : "warn"}>
+                {item.enabled ? "Weiterleitung" : "Deaktiviert"}
+              </Badge>
+              <AliasAvailability client={props.client} item={item} />
+              {!props.disabled ? (
+                <span className="alias-commands">
+                  <Button
+                    aria-label={`/${item.alias} bearbeiten`}
+                    icon={Pencil}
+                    onClick={() => {
+                      setError(undefined);
+                      setEditing(item);
+                    }}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Bearbeiten
+                  </Button>
+                  <Button
+                    aria-label={`/${item.alias} entfernen`}
+                    icon={Trash2}
+                    onClick={() => {
+                      setError(undefined);
+                      setRemoving(item);
+                    }}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Entfernen
+                  </Button>
+                </span>
+              ) : null}
+            </li>
+          ))}
+          <li className="alias-row" data-testid="alias-canonical">
+            <a className="mono alias-path" href={data.canonicalPath}>
+              {data.canonicalPath}
+            </a>
+            <Badge tone="neutral">Dauerhafte Adresse</Badge>
+          </li>
+        </ul>
       )}
+      {extra.length === 0 ? (
+        <p className="small subtle">
+          Noch keine weiteren Aliase. Legen Sie zum Beispiel eine kurze Adresse
+          für Flyer an.
+        </p>
+      ) : null}
+      {!editing ? <AliasError error={error} /> : null}
+
+      {editing ? (
+        <AliasModal
+          actionId={props.actionId}
+          canonicalPath={data.canonicalPath}
+          error={error}
+          item={editing === "new" ? undefined : editing}
+          key={editing === "new" ? "new" : editing.aliasId}
+          onClose={() => setEditing(null)}
+          onSubmit={(operation) => {
+            if (operation.kind === "create") {
+              mutation.mutate(operation);
+              return;
+            }
+            // The latest revision of this alias, e.g. after a conflict.
+            const fresh = data.items.find(
+              (entry) => entry.aliasId === operation.item.aliasId,
+            );
+            if (!fresh) {
+              setEditing(null);
+              setError({
+                code: null,
+                conflict: false,
+                message: `/${operation.item.alias} wurde inzwischen entfernt.`,
+                requestId: null,
+              });
+              return;
+            }
+            mutation.mutate({ ...operation, item: fresh });
+          }}
+          open
+          pending={mutation.isPending}
+          targets={data.targets}
+        />
+      ) : null}
+      <ConfirmDialog
+        confirmLabel="Entfernen bestätigen"
+        description={
+          removing
+            ? `/${removing.alias} entfernen? Der Alias ist danach wieder für andere Aktionen frei. Die Aktionsseite bleibt bestehen.`
+            : ""
+        }
+        onConfirm={() => {
+          if (removing) mutation.mutate({ kind: "remove", item: removing });
+        }}
+        onOpenChange={(next) => {
+          if (!next && !mutation.isPending) setRemoving(undefined);
+        }}
+        open={Boolean(removing)}
+        pending={mutation.isPending}
+        title="Alias entfernen?"
+        tone="danger"
+      />
     </section>
   );
 }

@@ -1,9 +1,4 @@
-import {
-  Add01Icon,
-  ArrowLeft01Icon,
-  CharityIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft, HandHeart, Plus } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -83,7 +78,7 @@ function templateHelp(template: ActionTemplateSummaryResponse): string {
   ];
   if (template.capabilities.includes("delivery")) {
     sentences.push(
-      "Die Liefertermine legst du nach dem Speichern des Entwurfs fest.",
+      "Die Liefertermine legen Sie nach dem Speichern des Entwurfs fest.",
     );
   }
   return sentences.join(" ");
@@ -206,14 +201,16 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         {created.capabilities.includes("delivery") && (
           <>
             <p>
-              Ergänze jetzt die Liefertermine. Du kannst den Entwurf auch
+              Ergänzen Sie jetzt die Liefertermine. Sie können den Entwurf auch
               verlassen und die Planung später vervollständigen.
             </p>
             <DeliverySection
-              client={client}
               actionId={created.id}
-              startsOn={created.startsOn}
+              actionName={created.name}
+              client={client}
               endsOn={created.endsOn}
+              heading
+              startsOn={created.startsOn}
             />
           </>
         )}
@@ -230,12 +227,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
   return (
     <div className="action-page action-page--form">
       <a className="action-back" href="/admin/actions">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={ArrowLeft01Icon}
-          size={18}
-          strokeWidth={1.8}
-        />
+        <ChevronLeft aria-hidden="true" size={18} />
         Alle Aktionen
       </a>
       <header className="action-page__header">
@@ -243,8 +235,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <p className="action-page__eyebrow">Neue Charity-Aktion</p>
           <h1>Neue Aktion anlegen</h1>
           <p>
-            Lege die gemeinsamen Eckdaten fest. Bis zur Archivierung kannst du
-            alle Angaben wieder bearbeiten.
+            Legen Sie die gemeinsamen Eckdaten fest. Bis zur Archivierung können
+            Sie alle Angaben wieder bearbeiten.
           </p>
         </div>
       </header>
@@ -296,8 +288,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
                 {template
                   ? templateHelp(template)
                   : templates.isError
-                    ? "Die Vorlagen konnten nicht geladen werden. Du kannst eine individuelle Aktion anlegen."
-                    : "Wähle die benötigten Funktionen selbst."}
+                    ? "Die Vorlagen konnten nicht geladen werden. Sie können eine individuelle Aktion anlegen."
+                    : "Wählen Sie die benötigten Funktionen selbst."}
               </small>
             </label>
             <label className="action-field action-field--wide">
@@ -549,14 +541,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           </div>
           <Button
             data-testid="add-beneficiary"
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Add01Icon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
+            icon={<Plus aria-hidden="true" size={18} />}
             onClick={() =>
               setBeneficiaries((items) => [
                 ...items,
@@ -588,14 +573,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <Button
             data-testid="action-submit"
             disabled={mutation.isPending}
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={CharityIcon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
+            icon={<HandHeart aria-hidden="true" size={18} />}
             type="submit"
           >
             {mutation.isPending

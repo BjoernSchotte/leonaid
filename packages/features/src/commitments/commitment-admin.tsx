@@ -72,6 +72,8 @@ import {
   DetailTimeline,
   Icon,
   ListView,
+  NextStep,
+  ReadOnlyNotice,
   fullBleedPage,
   StatusIcon,
   StatusLabel,
@@ -435,42 +437,38 @@ function OrderDetail({
 
   return (
     <div className="commitment-detail" data-commitment-id={commitment.id}>
-      {editable && missing ? (
-        <div className="next-step">
-          <p>
-            <strong>Nächster Schritt:</strong> Liefer- und Rechnungsangaben
-            ergänzen. Danach ist die Bestellung prüfbereit und die Rechnung kann
-            freigegeben werden.
-          </p>
-          <div className="cluster">
+      {/* While the form is open its "Angaben speichern" is the one primary
+          action, so the block steps aside (DESIGN.md: one primary, ghost
+          alternatives). */}
+      {editing ? null : editable && missing ? (
+        <NextStep
+          action={
             <Button
               aria-controls={`order-edit-${commitment.id}`}
-              aria-expanded={editing}
+              aria-expanded={false}
               data-testid="commitment-edit-details"
-              onClick={() => setEditing((open) => !open)}
-              variant={editing ? "secondary" : "primary"}
+              onClick={() => setEditing(true)}
+              variant="primary"
             >
-              {editing ? "Eingabe schließen" : "Angaben ergänzen"}
+              Angaben ergänzen
             </Button>
-            {reviewable && !reviewOpen ? (
+          }
+          alternatives={
+            reviewable && !reviewOpen ? (
               <Button
                 data-testid="review-invoice"
                 onClick={onToggleReview}
-                variant="secondary"
+                variant="ghost"
               >
                 Rechnung prüfen
               </Button>
-            ) : null}
-          </div>
-        </div>
+            ) : null
+          }
+          consequence="Liefer- und Rechnungsangaben ergänzen. Danach ist die Bestellung prüfbereit und die Rechnung kann freigegeben werden."
+        />
       ) : reviewable && !reviewOpen ? (
-        <div className="next-step">
-          <p>
-            <strong>Nächster Schritt:</strong> Rechnung prüfen und verbindlich
-            freigeben. Danach ist sie unveränderlich und erhält eine
-            fortlaufende Nummer.
-          </p>
-          <div className="cluster">
+        <NextStep
+          action={
             <Button
               data-testid="review-invoice"
               icon={Receipt}
@@ -479,22 +477,24 @@ function OrderDetail({
             >
               Rechnung prüfen
             </Button>
+          }
+          alternatives={
             <Button
               aria-controls={`order-edit-${commitment.id}`}
-              aria-expanded={editing}
+              aria-expanded={false}
               data-testid="commitment-edit-details"
-              onClick={() => setEditing((open) => !open)}
-              variant="secondary"
+              onClick={() => setEditing(true)}
+              variant="ghost"
             >
-              {editing ? "Eingabe schließen" : "Angaben bearbeiten"}
+              Angaben bearbeiten
             </Button>
-          </div>
-        </div>
+          }
+          consequence="Rechnung prüfen und verbindlich freigeben. Danach ist sie unveränderlich und erhält eine fortlaufende Nummer."
+        />
       ) : commitment.status === "review_ready" && !mayIssue ? (
-        <StatusMessage tone="info">
-          Nur lesen. Die Rechnung gibt eine Person frei, die diese Aktion
-          verwaltet.
-        </StatusMessage>
+        <ReadOnlyNotice>
+          Die Rechnung gibt eine Person frei, die diese Aktion verwaltet.
+        </ReadOnlyNotice>
       ) : null}
 
       {reviewOpen && context && reviewable ? (
@@ -511,6 +511,18 @@ function OrderDetail({
 
       {editable && editing ? (
         <div className="pane-section" id={`order-edit-${commitment.id}`}>
+          <div className="pane-section-actions">
+            <Button
+              aria-controls={`order-edit-${commitment.id}`}
+              aria-expanded
+              data-testid="commitment-edit-close"
+              onClick={() => setEditing(false)}
+              size="sm"
+              variant="ghost"
+            >
+              Eingabe schließen
+            </Button>
+          </div>
           <DeliveryCompletion
             client={client}
             onSaved={onSaved}

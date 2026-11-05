@@ -8,6 +8,8 @@ const viewports = [
 const browsers = ["chromium", "firefox", "webkit"];
 
 export default defineConfig({
+  // A committed test.only must not shrink a CI run (runners set CI=1).
+  forbidOnly: Boolean(process.env.CI),
   expect: { timeout: 15_000 },
   fullyParallel: false,
   projects: browsers.flatMap((browserName) =>

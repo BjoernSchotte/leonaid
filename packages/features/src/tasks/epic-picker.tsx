@@ -3,12 +3,16 @@ import { useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { says, type Address } from "./task-copy";
+
 export function EpicPicker({
+  address = "du",
   client,
   listId,
   value,
   onChange,
 }: {
+  address?: Address;
   client: LeonAidApiClient;
   listId: string;
   value: string;
@@ -48,11 +52,15 @@ export function EpicPicker({
     },
   });
   return (
-    <fieldset className="task-epic-picker" disabled={save.isPending}>
-      <legend>Epic (optional)</legend>
-      <label>
-        Epics suchen
+    <fieldset
+      className="task-fields task-picker task-epic-picker"
+      disabled={save.isPending}
+    >
+      <legend className="sr-only">Abschnitt (optional)</legend>
+      <label className="field">
+        <span className="field-label">Abschnitte suchen</span>
         <input
+          className="input"
           type="search"
           value={search}
           maxLength={200}
@@ -62,9 +70,10 @@ export function EpicPicker({
           }}
         />
       </label>
-      <label>
-        Epic auswählen
+      <label className="field">
+        <span className="field-label">Vorhandener Abschnitt</span>
         <select
+          className="input select"
           value={value}
           onChange={(event) => {
             onChange(event.target.value);
@@ -72,7 +81,7 @@ export function EpicPicker({
             save.reset();
           }}
         >
-          <option value="">Kein Epic</option>
+          <option value="">Ohne Abschnitt</option>
           {value && !selected && (
             <option value={value}>Aktuelle Zuordnung beibehalten</option>
           )}
@@ -83,13 +92,18 @@ export function EpicPicker({
           ))}
         </select>
       </label>
-      {epics.isPending && <p role="status">Epics werden geladen …</p>}
+      {epics.isPending && (
+        <p className="field-hint" role="status">
+          Abschnitte werden geladen …
+        </p>
+      )}
       {epics.error && (
         <StatusMessage tone="error">
-          Epics konnten nicht geladen werden. Die aktuelle Zuordnung bleibt
+          Abschnitte konnten nicht geladen werden. Die aktuelle Zuordnung bleibt
           erhalten.{" "}
           <Button
             type="button"
+            size="sm"
             variant="secondary"
             onClick={() => void epics.refetch()}
           >
@@ -97,27 +111,30 @@ export function EpicPicker({
           </Button>
         </StatusMessage>
       )}
-      <div className="tasks-paging">
+      <div className="task-form-actions">
         <Button
           type="button"
+          size="sm"
           variant="secondary"
           disabled={offset === 0 || epics.isFetching}
           onClick={() => setOffset(Math.max(0, offset - 50))}
         >
-          Vorherige Epics
+          Vorherige Abschnitte
         </Button>
         <Button
           type="button"
+          size="sm"
           variant="secondary"
           disabled={epics.data?.nextOffset == null || epics.isFetching}
           onClick={() => setOffset(epics.data!.nextOffset!)}
         >
-          Weitere Epics
+          Weitere Abschnitte
         </Button>
       </div>
-      <label>
-        Epic-Titel
+      <label className="field">
+        <span className="field-label">Titel des Abschnitts</span>
         <input
+          className="input"
           value={title}
           maxLength={240}
           onChange={(event) => {
@@ -127,20 +144,29 @@ export function EpicPicker({
           }}
         />
       </label>
-      <p>
-        Ein Epic bündelt Aufgaben dieser Liste. Anlegen und Umbenennen werden
-        sofort gespeichert, unabhängig vom Aufgabenentwurf.
+      <p className="field-hint">
+        Ein Abschnitt bündelt Aufgaben dieser Liste. Anlegen und Umbenennen
+        werden sofort gespeichert, unabhängig vom Aufgabenentwurf.
       </p>
       {save.error && (
         <StatusMessage tone="error">
           {save.error instanceof ApiError && save.error.status === 409
-            ? "Das Epic wurde inzwischen geändert. Lade die Epics neu und prüfe den Titel vor einem weiteren Versuch."
-            : "Das Epic konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung."}
+            ? says(
+                address,
+                "Der Abschnitt wurde inzwischen geändert. Lade die Abschnitte neu und prüfe den Titel vor einem weiteren Versuch.",
+                "Der Abschnitt wurde inzwischen geändert. Laden Sie die Abschnitte neu und prüfen Sie den Titel vor einem weiteren Versuch.",
+              )
+            : says(
+                address,
+                "Der Abschnitt konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",
+                "Der Abschnitt konnte nicht gespeichert werden. Prüfen Sie Ihre Berechtigung und Verbindung.",
+              )}
         </StatusMessage>
       )}
       {save.error && (
         <Button
           type="button"
+          size="sm"
           variant="secondary"
           onClick={() => {
             operation.current = crypto.randomUUID();
@@ -148,25 +174,27 @@ export function EpicPicker({
             void epics.refetch();
           }}
         >
-          Epics neu laden
+          Abschnitte neu laden
         </Button>
       )}
-      <div className="tasks-paging">
+      <div className="task-form-actions">
         <Button
           type="button"
+          size="sm"
           variant="secondary"
           disabled={!title.trim()}
           onClick={() => save.mutate(false)}
         >
-          Epic anlegen
+          Abschnitt anlegen
         </Button>
         <Button
           type="button"
+          size="sm"
           variant="secondary"
           disabled={!title.trim() || !selected || epics.isFetching}
           onClick={() => save.mutate(true)}
         >
-          Ausgewähltes Epic umbenennen
+          Ausgewähltes Abschnitt umbenennen
         </Button>
       </div>
     </fieldset>

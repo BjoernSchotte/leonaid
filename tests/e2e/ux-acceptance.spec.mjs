@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { invoiceRows } from "./invoice-list.mjs";
 import { writeFile } from "node:fs/promises";
@@ -40,9 +40,7 @@ async function contextFor(browser, session, viewport) {
 }
 
 async function expectNoSeriousAxeFindings(page, label) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
     ["critical", "serious"].includes(impact),
   );
@@ -115,10 +113,13 @@ test("charity admin completes the desktop review path without losing context", a
   try {
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toHaveText(
-      /^Aktionsziel: 900,00\s€ von 1\.000,00\s€ erreicht, 90 Prozent\.$/,
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
     );
     await expect(page.getByTestId("current-action")).toHaveText(
       "Krapfentaxi 2026",
@@ -144,9 +145,13 @@ test("charity admin completes the desktop review path without losing context", a
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/admin/\\?action=${actionId}`));
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
 
+    await page.locator("summary", { hasText: "Weitere Kennzahlen" }).click();
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await metrics.getByRole("link", { name: /Offene Posten/ }).click();
     // The dashboard's ?status=open link lands in the "Offen" list view.
@@ -303,29 +308,23 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
   try {
     await page.goto(`${baseUrl}/app/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
-    ).toBeVisible();
-    await expect(page.getByTestId("dashboard-next-step")).toContainText(
-      "Mit offenen Sponsoren weiterarbeiten",
-    );
-    await expect(
-      page.getByRole("progressbar", {
-        name: "Fortschritt des Aktionsziels",
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
       }),
-    ).toHaveAttribute(
-      "aria-valuetext",
+    ).toBeVisible();
+    await expect(page.getByTestId("goal-status")).toHaveText(
       /^Aktionsziel: 900,00\s€ von 1\.000,00\s€ erreicht, 90 Prozent\.$/,
     );
-    await expectTouchTarget(
-      page.getByTestId("dashboard-next-step").getByRole("link", {
-        name: "Jetzt öffnen",
-      }),
-      "Dashboard-Hauptaktion",
-    );
-    await page
-      .getByTestId("dashboard-next-step")
-      .getByRole("link", { name: "Jetzt öffnen" })
-      .click();
+    await expect(
+      page.getByRole("meter", { name: "Fortschritt des Aktionsziels" }),
+    ).toBeVisible();
+    // Prototype Start: the pipeline leads into the filtered sponsor list.
+    const openStage = page
+      .getByTestId("dashboard-pipeline")
+      .getByRole("link", { name: /Offen 2/ });
+    await expectTouchTarget(openStage, "Pipeline-Stufe Offen");
+    await openStage.click();
     await expect(page).toHaveURL(/\/app\/sponsors\?.*status=open/);
     await expect(page.getByTestId("sponsor-row")).toHaveCount(2);
 
@@ -333,30 +332,29 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
       .getByTestId("sponsor-row")
       .filter({ hasText: "Musterwerk GmbH" });
     await expect(musterwerk).toHaveCount(1);
-    const capture = musterwerk.getByRole("link", { name: "Bestellung" });
+    await expectTouchTarget(musterwerk, "Sponsor öffnen");
+    await musterwerk.click();
+    const capture = page.getByTestId("order-open");
     await expectTouchTarget(capture, "Bestellung aus Sponsor-Kontext");
     await capture.click();
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Vom Gespräch zur klaren Bestellung.",
+        name: "Bestellung für Musterwerk GmbH",
       }),
     ).toBeVisible();
-    await expect(page.getByTestId("commitment-party")).toContainText(
-      "Musterwerk GmbH",
-    );
-    await expect(page.locator("#commitment-quantity-help")).toContainText(
-      "Einheit: Boxen",
-    );
+    await expect(
+      page.getByRole("group", { name: "Anzahl Boxen" }),
+    ).toBeVisible();
     await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-      "36,00 €",
+      "Summe 36,00 €",
     );
     await expect(page.locator("main")).not.toContainText(
       /Twenty|PostgreSQL|UUID|API-Endpunkt|Datensatz-ID/,
     );
     await expectTouchTarget(
-      page.getByTestId("commitment-save-ready"),
-      "Bestellung zur Prüfung geben",
+      page.getByRole("button", { name: "Weiter" }),
+      "Weiter zur Lieferung",
     );
     await expectNoHorizontalOverflow(page, "Mobile Bestellerfassung");
     await page.evaluate(() => {
@@ -382,7 +380,7 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Vom Gespräch zur klaren Bestellung.",
+        name: "Bestellung für Musterwerk GmbH",
       }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page, "Akquisiteurin Desktop");
@@ -427,11 +425,16 @@ test("public customer understands form, validation and next step", async ({
     const company = form.locator('input[name="companyName"]');
     await company.fill("UX Prüfatelier GmbH");
     await form.locator('button[type="submit"]').click();
-    await expect(form.locator('input[name="givenName"]')).toBeFocused();
+    // The error summary takes the focus and links each field.
+    const summary = form.locator("[data-form-message]");
+    await expect(summary).toBeFocused();
     await expect(company).toHaveValue("UX Prüfatelier GmbH");
-    await expect(form.locator("[data-form-message]")).toContainText(
-      "Bestellung noch nicht gesendet. Bitte prüfe die markierten Felder",
+    await expect(summary).toContainText("Bitte prüfen Sie");
+    await expect(summary).toContainText(
+      "Die Bestellung wurde noch nicht gesendet. Ihre Eingaben bleiben erhalten.",
     );
+    await summary.getByRole("link", { name: /^Vorname:/ }).click();
+    await expect(form.locator('input[name="givenName"]')).toBeFocused();
     await expectTouchTarget(
       form.locator('button[type="submit"]'),
       "Öffentliche Bestellung absenden",
@@ -554,7 +557,10 @@ test("three core surfaces meet reproducible mobile performance budgets", async (
       path: `/app/?action=${actionId}`,
       ready: (page) =>
         page
-          .getByRole("heading", { level: 1, name: "Guten Tag, Anna." })
+          .getByRole("heading", {
+            level: 1,
+            name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+          })
           .waitFor(),
       session: annaSession,
     },
@@ -563,7 +569,10 @@ test("three core surfaces meet reproducible mobile performance budgets", async (
       path: `/admin/?action=${actionId}`,
       ready: (page) =>
         page
-          .getByRole("heading", { level: 1, name: "Was jetzt zählt." })
+          .getByRole("heading", {
+            level: 1,
+            name: /^Guten (Morgen|Tag|Abend), Klara$/,
+          })
           .waitFor(),
       session: klaraSession,
     },

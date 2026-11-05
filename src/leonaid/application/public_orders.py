@@ -15,6 +15,7 @@ from typing import Protocol
 from uuid import UUID, uuid5
 
 from leonaid.application.commitments import CommitmentLineDraft
+from leonaid.application.delivery import require_publicly_bookable
 from leonaid.application.crm import (
     CompanyData,
     CompanyRecord,
@@ -95,7 +96,7 @@ def _phone(value: str | None) -> str | None:
     if not PHONE.fullmatch(canonical):
         raise DomainInvariantError(
             "public_order_phone_invalid",
-            "Bitte gib eine gültige Telefonnummer ein, zum Beispiel +49 821 123456.",
+            "Bitte geben Sie eine gültige Telefonnummer ein, zum Beispiel +49 821 123456.",
         )
     return canonical
 
@@ -141,7 +142,7 @@ class PublicOrderPartyDraft:
         if not EMAIL.fullmatch(email):
             raise DomainInvariantError(
                 "public_order_email_invalid",
-                "Bitte gib eine gültige E-Mail-Adresse ein.",
+                "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
             )
         object.__setattr__(self, "company_name", company_name)
         object.__setattr__(self, "given_name", given_name)
@@ -195,7 +196,7 @@ class PublicOrderDraft:
         if not self.lines:
             raise DomainInvariantError(
                 "public_order_lines_required",
-                "Wähle mindestens ein Angebot aus.",
+                "Bitte wählen Sie mindestens ein Angebot aus.",
             )
         offering_ids = tuple(line.offering_id for line in self.lines)
         if len(offering_ids) != len(set(offering_ids)):
@@ -206,7 +207,7 @@ class PublicOrderDraft:
         if any(line.quoted_unit_price_minor is None for line in self.lines):
             raise DomainInvariantError(
                 "public_order_quote_required",
-                "Der angezeigte Preis fehlt. Lade die Seite neu.",
+                "Der angezeigte Preis fehlt. Bitte laden Sie die Seite neu.",
             )
         message = _text(
             self.message,
@@ -225,12 +226,12 @@ class PublicOrderDraft:
         if not self.privacy_acknowledged:
             raise DomainInvariantError(
                 "public_order_privacy_required",
-                "Bestätige die Hinweise zur Verarbeitung deiner Bestelldaten.",
+                "Bitte bestätigen Sie die Hinweise zur Verarbeitung Ihrer Bestelldaten.",
             )
         if not self.binding_order_confirmed:
             raise DomainInvariantError(
                 "public_order_confirmation_required",
-                "Bestätige, dass du die Bestellung verbindlich absenden möchtest.",
+                "Bitte bestätigen Sie, dass Sie die Bestellung verbindlich absenden möchten.",
             )
         if not re.fullmatch(
             r"^[a-z0-9][a-z0-9._-]{2,63}$",
@@ -369,7 +370,7 @@ class PublicOrderTokenCodec:
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise PermissionDenied(
                 "public_order_token_invalid",
-                "Das Bestellformular ist nicht mehr gültig. Lade die Seite neu.",
+                "Das Bestellformular ist nicht mehr gültig. Bitte laden Sie die Seite neu.",
             ) from error
         if (
             moment.utcoffset() is None
@@ -380,7 +381,7 @@ class PublicOrderTokenCodec:
         ):
             raise PermissionDenied(
                 "public_order_token_invalid",
-                "Das Bestellformular ist nicht mehr gültig. Lade die Seite neu.",
+                "Das Bestellformular ist nicht mehr gültig. Bitte laden Sie die Seite neu.",
             )
         return PublicFormClaims(
             action_id=action_id,
@@ -562,13 +563,13 @@ class PublicOrderService:
         ):
             raise Conflict(
                 "public_order_privacy_notice_changed",
-                "Die Datenschutzhinweise wurden aktualisiert. Lade die Seite neu.",
+                "Die Datenschutzhinweise wurden aktualisiert. Bitte laden Sie die Seite neu.",
             )
         idempotency_key = f"public.order:{claims.action_id}:{command_id}"
         if not IDEMPOTENCY_KEY.fullmatch(idempotency_key):
             raise DomainInvariantError(
                 "public_order_idempotency_invalid",
-                "Die Vorgangs-ID ist ungültig. Lade die Seite neu.",
+                "Die Vorgangs-ID ist ungültig. Bitte laden Sie die Seite neu.",
             )
         request_hash = draft.request_hash(
             action_id=claims.action_id,
@@ -599,7 +600,7 @@ class PublicOrderService:
             if draft.website is not None:
                 raise Conflict(
                     "public_order_rejected",
-                    "Die Bestellung konnte nicht verarbeitet werden. Lade die Seite neu.",
+                    "Die Bestellung konnte nicht verarbeitet werden. Bitte laden Sie die Seite neu.",
                 )
             self._require_form_fields(context, draft)
             if context.delivery_configuration is not None:
@@ -609,6 +610,9 @@ class PublicOrderService:
                     contact=draft.delivery_contact,
                     complete=True,
                     now=datetime.now(timezone.utc),
+                )
+                require_publicly_bookable(
+                    context.delivery_configuration, draft.delivery_window_id
                 )
             party = await self._resolve_party(
                 draft.party,
@@ -638,7 +642,7 @@ class PublicOrderService:
         if context.requires_delivery_recipient and draft.delivery_recipient is None:
             raise DomainInvariantError(
                 "public_order_delivery_recipient_required",
-                "Bitte gib eine Lieferanschrift an.",
+                "Bitte geben Sie eine Lieferanschrift an.",
             )
         if form.require_company_name and draft.party.company_name is None:
             raise DomainInvariantError(
@@ -698,7 +702,7 @@ class PublicOrderService:
         if len(matches) > 1:
             raise Conflict(
                 "public_order_party_ambiguous",
-                "Die Firma ist mehrfach vorhanden. Bitte wende dich an den Veranstalter.",
+                "Die Firma ist mehrfach vorhanden. Bitte wenden Sie sich an den Veranstalter.",
             )
         outcome = PublicOrderCrmOutcome.REUSED
         company: CompanyRecord
@@ -774,7 +778,7 @@ class PublicOrderService:
                 return email_matches[0].twenty_id
             raise Conflict(
                 "public_order_contact_ambiguous",
-                "Der Kontakt ist mehrfach vorhanden. Bitte wende dich an den Veranstalter.",
+                "Der Kontakt ist mehrfach vorhanden. Bitte wenden Sie sich an den Veranstalter.",
             )
         if matches:
             return matches[0].twenty_id
@@ -830,7 +834,7 @@ class PublicOrderService:
             else:
                 raise Conflict(
                     "public_order_party_ambiguous",
-                    "Der Kontakt ist mehrfach vorhanden. Bitte wende dich an den Veranstalter.",
+                    "Der Kontakt ist mehrfach vorhanden. Bitte wenden Sie sich an den Veranstalter.",
                 )
         outcome = PublicOrderCrmOutcome.REUSED
         person: PersonRecord

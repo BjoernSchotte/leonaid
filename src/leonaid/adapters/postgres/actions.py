@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.application.actions import CharityActionRepository
+from leonaid.application.actions import ActionSummary, CharityActionRepository
 from leonaid.application.errors import Conflict
 from leonaid.domain.action_templates import (
     ActionConfiguration,
@@ -37,6 +37,10 @@ from leonaid.domain.actions import (
 )
 
 
+from leonaid.adapters.postgres.identity import (
+    actor_still_manages,
+    lock_admin_access,
+)
 from leonaid.adapters.postgres.delivery import (
     has_delivery_capability,
     lock_configuration,
@@ -51,18 +55,99 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         async with self._pool.acquire() as connection:
             return await self._get(connection, action_id)
 
+    async def list_summaries(
+        self,
+        action_ids: frozenset[UUID] | None,
+    ) -> tuple[ActionSummary, ...]:
+        rows = await self._pool.fetch(
+            """
+            SELECT
+                action.id, action.name, action.status,
+                action.starts_on, action.ends_on,
+                action.goal_value, action.actual_value, action.goal_unit,
+                action.currency,
+                snapshot.display_name AS template_name,
+                coalesce(
+                    array_agg(account.display_name ORDER BY account.display_name)
+                        FILTER (WHERE account.id IS NOT NULL),
+                    '{}'
+                ) AS lead_names
+            FROM charity_action AS action
+            LEFT JOIN action_template_snapshot AS snapshot
+              ON snapshot.action_id = action.id
+            LEFT JOIN action_membership AS membership
+              ON membership.action_id = action.id
+             AND membership.role = 'charity_admin'
+             AND membership.active_from <= now()
+             AND (membership.active_until IS NULL
+                  OR membership.active_until > now())
+            LEFT JOIN user_account AS account
+              ON account.id = membership.user_id
+             AND account.status = 'active'
+            WHERE $1::uuid[] IS NULL OR action.id = ANY($1::uuid[])
+            GROUP BY action.id, snapshot.display_name
+            ORDER BY action.starts_on DESC, action.name, action.id
+            """,
+            None if action_ids is None else list(action_ids),
+        )
+        return tuple(
+            ActionSummary(
+                id=row["id"],
+                name=str(row["name"]),
+                status=CharityActionStatus(str(row["status"])),
+                starts_on=row["starts_on"],
+                ends_on=row["ends_on"],
+                template_name=(
+                    str(row["template_name"])
+                    if row["template_name"] is not None
+                    else None
+                ),
+                lead_names=tuple(str(name) for name in row["lead_names"]),
+                goal=ActionGoal(
+                    goal_value=(
+                        Decimal(row["goal_value"])
+                        if row["goal_value"] is not None
+                        else None
+                    ),
+                    actual_value=Decimal(row["actual_value"]),
+                    unit=(
+                        str(row["goal_unit"]) if row["goal_unit"] is not None else None
+                    ),
+                    currency=(
+                        str(row["currency"]) if row["currency"] is not None else None
+                    ),
+                ),
+            )
+            for row in rows
+        )
+
     async def create(
         self,
         action: CharityAction,
         *,
         responsible_admin_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
         configuration: ActionConfiguration | None = None,
     ) -> CharityAction:
         try:
             async with self._pool.acquire() as connection:
                 async with connection.transaction():
+                    # The creator becomes the only lead: it must still be
+                    # active, under the lock that suspension also takes.
+                    # The command's time is taken once the lock is held.
+                    occurred_at = await lock_admin_access(connection)
+                    if not await connection.fetchval(
+                        """
+                        SELECT true FROM user_account
+                        WHERE id = $1 AND status = 'active'
+                        FOR SHARE
+                        """,
+                        responsible_admin_user_id,
+                    ):
+                        raise Conflict(
+                            "action_responsible_administrator_unavailable",
+                            "Mindestens ein ausgewähltes Mitglied ist nicht mehr verfügbar.",
+                        )
                     await connection.execute(
                         """
                         INSERT INTO charity_action (
@@ -490,10 +575,21 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         responsible_user_ids: frozenset[UUID],
         actor_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
     ) -> ActionManagementState:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                # Same lock as account status and role changes: the new
+                # leads must still be active when this commits.
+                # The command's time is taken once the lock is held.
+                occurred_at = await lock_admin_access(connection)
+                if not await actor_still_manages(
+                    connection, actor_user_id, now=occurred_at, action_id=action.id
+                ):
+                    raise Conflict(
+                        "role_action_scope_changed",
+                        "Ihre Verwaltungsrolle wurde zwischenzeitlich "
+                        "geändert. Bitte laden Sie den aktuellen Stand.",
+                    )
                 available_rows = await connection.fetch(
                     """
                     SELECT id
@@ -520,7 +616,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 await connection.execute(
                     """
                     UPDATE action_membership
-                    SET active_until = $2, updated_at = $2
+                    -- Never before the start (ck_action_membership_period).
+                    SET active_until = GREATEST(
+                            $2, active_from + interval '1 microsecond'
+                        ),
+                        updated_at = $2
                     WHERE action_id = $1
                       AND role = 'charity_admin'
                       AND active_until IS NULL
@@ -1353,7 +1453,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             raise Conflict(
                 "action_revision_conflict",
                 "Die Charity-Aktion wurde zwischenzeitlich geändert. "
-                "Lade den aktuellen Stand und prüfe deine Eingaben erneut.",
+                "Bitte den aktuellen Stand laden und die Eingaben erneut prüfen.",
             )
         changed = action.next_revision()
         if int(revision) != changed.revision:

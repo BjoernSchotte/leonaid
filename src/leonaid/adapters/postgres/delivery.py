@@ -6,12 +6,14 @@ from dataclasses import replace
 import json
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import asyncpg
 
+from leonaid.application.delivery import window_full_conflict
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.delivery import (
     DeliveryConfiguration,
     DeliveryWindow,
@@ -30,7 +32,7 @@ async def read_configuration(
     )
     if row is None:
         raise ResourceNotFound("action_not_found", "Diese Aktion wurde nicht gefunden.")
-    zone_name = str(row["timezone"] or "Europe/Berlin")
+    zone_name = str(row["timezone"] or INSTALLATION_TIME_ZONE.key)
     zone = ZoneInfo(zone_name)
     windows = await connection.fetch(
         "SELECT * FROM action_delivery_window WHERE action_id = $1 ORDER BY starts_at, id",
@@ -49,6 +51,7 @@ async def read_configuration(
                 starts_at=item["starts_at"].astimezone(zone).time(),
                 ends_at=item["ends_at"].astimezone(zone).time(),
                 retired=item["retired"],
+                fully_booked=item["fully_booked"],
             )
             for item in windows
         ),
@@ -80,6 +83,69 @@ async def lock_configuration(
     return await read_configuration(connection, action_id)
 
 
+async def guard_window_booking(
+    connection: asyncpg.Connection[Any],
+    *,
+    window_id: UUID | None,
+    allow_full_window: bool,
+) -> bool:
+    """Apply the "ausgebucht" switch to an order that books ``window_id``.
+
+    The shared row lock lets parallel orders through but makes a concurrent
+    switch wait for them, and an order wait for a pending switch. Returns True
+    when a full window was booked on purpose; the caller records that in the
+    order event.
+    """
+    if window_id is None:
+        return False
+    fully_booked = await connection.fetchval(
+        "SELECT fully_booked FROM action_delivery_window WHERE id = $1 FOR SHARE",
+        window_id,
+    )
+    if not fully_booked:
+        return False
+    if not allow_full_window:
+        raise window_full_conflict()
+    return True
+
+
+async def _audit_fully_booked(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    window_id: UUID,
+    previous: bool,
+    current: bool,
+    actor_user_id: UUID | None,
+    request_id: str,
+    occurred_at: datetime,
+    reason: str | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "fullyBooked": current,
+        "previousFullyBooked": previous,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    await connection.execute(
+        """
+        INSERT INTO audit_event (
+            id, action_id, actor_user_id, event_type,
+            entity_type, entity_id, request_id, payload, occurred_at
+        )
+        VALUES ($1, $2, $3, 'delivery_window_fully_booked_changed',
+            'delivery_window', $4, $5, $6::jsonb, $7)
+        """,
+        uuid4(),
+        action_id,
+        actor_user_id,
+        window_id,
+        request_id,
+        json.dumps(payload, separators=(",", ":")),
+        occurred_at,
+    )
+
+
 class AsyncpgDeliveryRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -91,7 +157,13 @@ class AsyncpgDeliveryRepository:
             ):
                 return await read_configuration(connection, action_id)
 
-    async def save(self, configuration: DeliveryConfiguration) -> DeliveryConfiguration:
+    async def save(
+        self,
+        configuration: DeliveryConfiguration,
+        *,
+        actor_user_id: UUID | None = None,
+        request_id: str = "internal",
+    ) -> DeliveryConfiguration:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 action = await connection.fetchrow(
@@ -136,7 +208,13 @@ class AsyncpgDeliveryRepository:
                     updated = incoming.get(old.id)
                     if (
                         updated is None
-                        or replace(old, retired=updated.retired) != updated
+                        # The "ausgebucht" switch has its own command.
+                        or replace(
+                            old,
+                            retired=updated.retired,
+                            fully_booked=updated.fully_booked,
+                        )
+                        != updated
                         or (old.retired and not updated.retired)
                     ):
                         raise Conflict(
@@ -173,13 +251,30 @@ class AsyncpgDeliveryRepository:
                     configuration.timezone,
                     current.revision + 1,
                 )
+                stored = {window.id: window for window in current.windows}
                 for window in configuration.windows:
                     if window.id in existing_ids:
+                        # Retiring clears the switch; otherwise it is kept as
+                        # stored, so a stale form never resets it.
                         await connection.execute(
-                            "UPDATE action_delivery_window SET retired = $2 WHERE id = $1",
+                            """UPDATE action_delivery_window
+                            SET retired = $2, fully_booked = fully_booked AND NOT $2
+                            WHERE id = $1""",
                             window.id,
                             window.retired,
                         )
+                        if stored[window.id].fully_booked and window.retired:
+                            await _audit_fully_booked(
+                                connection,
+                                action_id=configuration.action_id,
+                                window_id=window.id,
+                                previous=True,
+                                current=False,
+                                actor_user_id=actor_user_id,
+                                request_id=request_id,
+                                occurred_at=now,
+                                reason="retired",
+                            )
                     else:
                         start, end = window.bounds(configuration.timezone)
                         await connection.execute(
@@ -190,7 +285,85 @@ class AsyncpgDeliveryRepository:
                             start,
                             end,
                         )
-                return replace(configuration, revision=current.revision + 1)
+                return await read_configuration(connection, configuration.action_id)
+
+    async def set_fully_booked(
+        self,
+        *,
+        action_id: UUID,
+        window_id: UUID,
+        fully_booked: bool,
+        actor_user_id: UUID,
+        request_id: str,
+    ) -> DeliveryConfiguration:
+        """Switch "ausgebucht" on or off; a repeated value changes nothing.
+
+        The configuration revision stays: the switch is not part of the
+        window form, so a parallel form edit must not conflict with it.
+        """
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                # FOR SHARE conflicts with the configuration save's FOR UPDATE.
+                action = await connection.fetchrow(
+                    "SELECT status FROM charity_action WHERE id = $1 FOR SHARE",
+                    action_id,
+                )
+                if action is None:
+                    raise ResourceNotFound(
+                        "action_not_found", "Diese Aktion wurde nicht gefunden."
+                    )
+                if not await has_delivery_capability(connection, action_id):
+                    raise DomainInvariantError(
+                        "delivery_not_supported",
+                        "Lieferplanung ist nur für Aktionen mit Auslieferung verfügbar.",
+                    )
+                if action["status"] == "archived":
+                    raise Conflict(
+                        "delivery_action_archived",
+                        "Archivierte Aktionen können nicht geändert werden.",
+                    )
+                window = await connection.fetchrow(
+                    """SELECT starts_at, retired, fully_booked
+                    FROM action_delivery_window
+                    WHERE id = $1 AND action_id = $2
+                    FOR UPDATE""",
+                    window_id,
+                    action_id,
+                )
+                if window is None:
+                    raise ResourceNotFound(
+                        "delivery_window_not_found",
+                        "Dieses Lieferfenster wurde nicht gefunden.",
+                    )
+                previous = bool(window["fully_booked"])
+                if previous != fully_booked:
+                    now = datetime.now(timezone.utc)
+                    if window["retired"]:
+                        raise Conflict(
+                            "delivery_window_retired",
+                            "Ein stillgelegtes Lieferfenster kann nicht ausgebucht werden.",
+                        )
+                    if window["starts_at"] <= now:
+                        raise Conflict(
+                            "delivery_window_past",
+                            "Dieses Lieferfenster hat bereits begonnen.",
+                        )
+                    await connection.execute(
+                        "UPDATE action_delivery_window SET fully_booked = $2 WHERE id = $1",
+                        window_id,
+                        fully_booked,
+                    )
+                    await _audit_fully_booked(
+                        connection,
+                        action_id=action_id,
+                        window_id=window_id,
+                        previous=previous,
+                        current=fully_booked,
+                        actor_user_id=actor_user_id,
+                        request_id=request_id,
+                        occurred_at=now,
+                    )
+                return await read_configuration(connection, action_id)
 
 
 def decode_window_snapshot(value: object) -> dict[str, str] | None:

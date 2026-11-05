@@ -31,12 +31,12 @@
 .material-picker input {
   width: 100%;
   min-width: 0;
-  min-height: var(--control-height);
+  min-height: var(--control-h);
   padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-sm);
   background: var(--surface);
-  color: var(--foreground);
+  color: var(--text);
   font: inherit;
 }
 .material-picker input:focus-visible {

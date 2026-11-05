@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -44,10 +44,14 @@ test("system admin runs access request, restriction and anonymization in a contr
   try {
     await page.goto(`${baseUrl}/admin/privacy`);
     await expect(
-      page.getByRole("heading", { name: "Datenschutz-Vorgänge" }),
+      page.getByRole("heading", { level: 1, name: "System" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("tab", { name: "Datenschutz" }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByText("Nach einer Person suchen")).toBeVisible();
     await page.getByTestId("privacy-email").fill(subjectEmail);
-    await page.getByRole("button", { name: "Daten prüfen" }).click();
+    await page.getByRole("button", { name: "Nachweise suchen" }).click();
     await expect(page.getByTestId("privacy-summary")).toContainText(
       subjectEmail,
     );
@@ -59,13 +63,14 @@ test("system admin runs access request, restriction and anonymization in a contr
       "Rechnungen & PDFs3650 Tage",
     );
     await expect(
-      page.getByRole("heading", {
-        name: "Offene Entscheidungen – keine Rechtsannahmen",
-      }),
+      page.getByRole("heading", { name: "Offene Entscheidungen" }),
     ).toBeVisible();
+    await expect(page.getByTestId("privacy-next-step")).toContainText(
+      "Rechnungen bleiben unverändert",
+    );
 
     const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "JSON-Auskunft laden" }).click();
+    await page.getByRole("button", { name: "Auskunft erstellen" }).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toMatch(
       /^leonaid-datenauskunft-\d{4}-\d{2}-\d{2}\.json$/,
@@ -85,40 +90,45 @@ test("system admin runs access request, restriction and anonymization in a contr
 
     await page.getByRole("button", { name: "Kontakt sperren" }).click();
     await expect(
-      page.getByRole("heading", { name: "Folgendkontakt sperren?" }),
+      page.getByRole("heading", { name: "Folgekontakt sperren?" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Kontakt jetzt sperren" }).click();
-    await expect(page.getByText("Folgendkontakt gesperrt")).toBeVisible();
+    await expect(page.getByText("Folgekontakt gesperrt")).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/privacy-before-erasure.png`,
       fullPage: true,
     });
 
-    await page.getByTestId("privacy-erasure-confirmation").fill(subjectEmail);
-    await page.getByRole("button", { name: "Anonymisierung prüfen" }).click();
-    await expect(
-      page.getByRole("heading", {
-        name: "Anonymisierung verbindlich ausführen?",
-      }),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "Operative Daten anonymisieren" })
-      .click();
+    await page.getByRole("button", { name: "Anonymisieren …" }).click();
+    const erasure = page.getByRole("alertdialog", {
+      name: "Operative Daten anonymisieren?",
+    });
+    const erase = erasure.getByRole("button", {
+      name: "Verbindlich anonymisieren",
+    });
+    // The address must be typed again exactly; the server checks it too.
+    await expect(erase).toBeDisabled();
+    await erasure
+      .getByTestId("privacy-erasure-confirmation")
+      .fill(subjectEmail.slice(0, -1));
+    await expect(erase).toBeDisabled();
+    await erasure
+      .getByTestId("privacy-erasure-confirmation")
+      .fill(subjectEmail);
+    await erase.click();
     await expect(page.getByText("Anonymisierung abgeschlossen")).toBeVisible();
     await expect(
       page.getByText(/Rechnung\(en\).*3650 Tagen unverändert erhalten/),
     ).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(
-      page.getByRole("heading", { name: "Datenschutz-Vorgänge" }),
-    ).toBeVisible();
+    await expect(page.getByText("Anonymisierung abgeschlossen")).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/privacy-after-erasure-mobile.png`,
       fullPage: true,
     });
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter(
         (violation) =>

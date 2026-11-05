@@ -67,7 +67,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                         raise Conflict(
                             "invoice_payment_concurrent_retry",
                             "Der Zahlungseingang wurde gleichzeitig bearbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Zahlungstransaktion wurde nicht ausgeführt.")
@@ -103,8 +103,8 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_cancellation_concurrent_retry",
-                            "Das Storno wurde gleichzeitig bearbeitet. Bitte "
-                            "versuche denselben Vorgang erneut.",
+                            "Das Storno wurde gleichzeitig bearbeitet. "
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Stornotransaktion wurde nicht ausgeführt.")
@@ -208,8 +208,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         if updated != "UPDATE 1":
             raise Conflict(
                 "invoice_payment_state_changed",
-                "Der Rechnungsstatus hat sich gleichzeitig geändert. Bitte "
-                "lade den Beleg neu.",
+                "Der Rechnungsstatus hat sich gleichzeitig geändert. Bitte den Beleg neu laden.",
             )
         await self._audit(
             connection,
@@ -332,8 +331,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         if updated != "UPDATE 1":
             raise Conflict(
                 "invoice_cancellation_state_changed",
-                "Der Rechnungsstatus hat sich gleichzeitig geändert. Bitte "
-                "lade den Beleg neu.",
+                "Der Rechnungsstatus hat sich gleichzeitig geändert. Bitte den Beleg neu laden.",
             )
         await self._audit(
             connection,
@@ -377,7 +375,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
         row = await connection.fetchrow(
             """
             SELECT
-                id, action_id, number, status, issued_at,
+                id, action_id, number, status, issued_at, issued_on,
                 gross_minor, currency
             FROM invoice
             WHERE id = $1
@@ -398,6 +396,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
             issued_at=row["issued_at"],
+            issued_on=row["issued_on"],
             gross=Money(int(row["gross_minor"]), str(row["currency"])),
         )
 

@@ -1,6 +1,7 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import { openInvoice } from "./invoice-list.mjs";
+import { openInviteDialog, toast } from "./member-list.mjs";
 import { writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -126,7 +127,7 @@ async function waitForCode(request, recipient, previousIds) {
 }
 
 async function expectAccessible(page) {
-  const result = await new AxeBuilder({ page }).analyze();
+  const result = await analyzeAccessibility(page);
   expect(
     result.violations.filter(
       ({ impact }) => impact === "critical" || impact === "serious",
@@ -210,19 +211,19 @@ test("complete Krapfentaxi journey without database intervention", async ({
   await adminPage.goto(`${baseUrl}/admin/members`);
   await expect(adminPage).toHaveURL(`${baseUrl}/admin/members`);
   await expect(adminPage.getByTestId("display-name")).toHaveText("Klara Kern");
-  await adminPage.getByRole("tab", { name: /Mitglied einladen/ }).click();
-  await expect(adminPage.getByTestId("invite-action")).toBeEnabled();
-  await adminPage
-    .getByRole("textbox", { name: "Name des Mitglieds" })
-    .fill(identity.displayName);
-  await adminPage
-    .getByRole("textbox", { name: "Login-E-Mail" })
+  const inviteDialog = await openInviteDialog(adminPage);
+  await inviteDialog
+    .getByRole("textbox", { name: "E-Mail-Adresse" })
     .fill(identity.email);
-  await adminPage.getByTestId("invite-role").selectOption("acquirer");
-  await adminPage.getByTestId("invite-submit").click();
-  await expect(adminPage.locator("#invitation-status")).toContainText(
-    "Einladung ist unterwegs",
-  );
+  await inviteDialog
+    .getByRole("textbox", { name: "Name", exact: true })
+    .fill(identity.displayName);
+  await inviteDialog.getByTestId("invite-role").selectOption("acquirer");
+  await inviteDialog.getByTestId("invite-submit").click();
+  await expect(inviteDialog).toBeHidden();
+  await expect(
+    toast(adminPage, `Einladung an ${identity.email} gesendet.`),
+  ).toBeVisible();
   const invitationCode = await waitForCode(
     adminContext.request,
     identity.email,
@@ -259,8 +260,7 @@ test("complete Krapfentaxi journey without database intervention", async ({
   );
   expect(forbiddenInvoices.status()).toBe(403);
 
-  await memberPage.goto(`${baseUrl}/app/sponsors`);
-  await memberPage.getByRole("tab", { name: "Sponsor erfassen" }).click();
+  await memberPage.goto(`${baseUrl}/app/sponsors?view=new`);
   await memberPage.getByTestId("sponsor-company").fill(identity.company);
   await memberPage.locator("#sponsor-given-name").fill("Jona");
   await memberPage.locator("#sponsor-family-name").fill(identity.familyName);
@@ -295,14 +295,16 @@ test("complete Krapfentaxi journey without database intervention", async ({
     .filter({ hasText: identity.company });
   await expect(sponsorRow).toHaveCount(1);
   await expect(sponsorRow.getByTestId("co-assignees")).toHaveCount(0);
-  await sponsorRow.getByRole("link", { name: "Aktivität" }).click();
-  await expect(memberPage.getByTestId("activity-party")).toContainText(
-    identity.company,
-  );
-  await memberPage.locator("#activity-channel").selectOption("in_person");
-  await memberPage.locator("#activity-outcome").selectOption("interested");
-  await memberPage
-    .locator("#activity-note")
+  // Prototype: the sponsor's detail records the contact in a sheet.
+  await sponsorRow.click();
+  await memberPage.getByTestId("contact-open").click();
+  const contactSheet = memberPage.getByRole("dialog", {
+    name: `Kontakt mit ${identity.company}`,
+  });
+  await contactSheet.getByRole("button", { name: "Persönlich" }).click();
+  await contactSheet.getByText("Interessiert", { exact: true }).click();
+  await contactSheet
+    .getByLabel("Notiz")
     .fill(`Golden Journey ${slug}: Bedarf besprochen.`);
   expect(
     await memberPage
@@ -317,20 +319,20 @@ test("complete Krapfentaxi journey without database intervention", async ({
   );
   await memberPage.getByTestId("activity-submit").click();
   expect((await activityResponse).status()).toBe(201);
-  await expect(memberPage.locator("#activity-status")).toContainText(
-    "wurde gespeichert",
+  await expect(contactSheet).toBeHidden();
+  await expect(memberPage.getByTestId("activity-entry").first()).toContainText(
+    "Bedarf besprochen.",
   );
 
-  await memberPage.goto(`${baseUrl}/app/sponsors`);
-  const refreshedSponsor = memberPage
-    .getByTestId("sponsor-row")
-    .filter({ hasText: identity.company });
-  await refreshedSponsor.getByRole("link", { name: "Bestellung" }).click();
+  // The order starts on the sponsor and runs through three steps.
+  await memberPage.getByTestId("order-open").click();
   await memberPage.getByTestId("commitment-quantity").fill("2");
+  await memberPage.getByRole("button", { name: "Weiter" }).click();
   await memberPage.getByTestId("commitment-street").fill("Löwenweg 12");
   await memberPage.locator("#commitment-postal-code").fill("86150");
   await memberPage.locator("#commitment-city").fill("Augsburg");
   await memberPage.locator("#commitment-email").fill(identity.email);
+  await memberPage.getByRole("button", { name: "Weiter" }).click();
   const commitmentPromise = memberPage.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -341,7 +343,7 @@ test("complete Krapfentaxi journey without database intervention", async ({
   expect(commitmentResponse.status()).toBe(201);
   const commitment = await commitmentResponse.json();
   await expect(memberPage.getByTestId("commitment-success")).toContainText(
-    "Bereit für die Prüfung",
+    "Bestellung erfasst",
   );
 
   const publicContext = await browser.newContext({
@@ -437,9 +439,15 @@ test("complete Krapfentaxi journey without database intervention", async ({
     name: /Zahlung für .* erfassen/,
   });
   await paymentDialog.getByTestId("payment-amount").fill("72.00");
-  await paymentDialog
-    .getByTestId("payment-date")
-    .fill(new Date().toISOString().slice(0, 10));
+  // The club's day (Berlin), as UI and server use it; the UTC day is still
+  // yesterday between 00:00 and 01:00/02:00 in Berlin.
+  const berlinToday = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+  }).format(new Date());
+  await expect(paymentDialog.getByTestId("payment-date")).toHaveValue(
+    berlinToday,
+  );
+  await paymentDialog.getByTestId("payment-date").fill(berlinToday);
   await paymentDialog
     .getByTestId("payment-reference")
     .fill(`GOLDEN-${slug.toUpperCase()}`);

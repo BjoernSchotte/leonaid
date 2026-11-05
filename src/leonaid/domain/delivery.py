@@ -8,6 +8,7 @@ from datetime import date, datetime, time, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
 from leonaid.domain.errors import DomainInvariantError
 
 
@@ -98,8 +99,15 @@ class DeliveryWindow:
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Manual "ausgebucht" switch: closes the window for public orders only.
+    fully_booked: bool = False
 
     def __post_init__(self) -> None:
+        if self.retired and self.fully_booked:
+            raise DomainInvariantError(
+                "delivery_window_full_retired",
+                "Ein stillgelegtes Lieferfenster kann nicht ausgebucht sein.",
+            )
         if (
             self.starts_at.tzinfo is not None
             or self.ends_at.tzinfo is not None
@@ -130,7 +138,7 @@ class DeliveryWindow:
 class DeliveryConfiguration:
     action_id: UUID
     enabled: bool = False
-    timezone: str = "Europe/Berlin"
+    timezone: str = INSTALLATION_TIME_ZONE.key
     revision: int = 1
     windows: tuple[DeliveryWindow, ...] = ()
 

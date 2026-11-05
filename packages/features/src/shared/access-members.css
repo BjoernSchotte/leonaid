@@ -1,51 +1,58 @@
 .access-members {
-  margin-block: 1rem;
+  display: grid;
+  gap: var(--s-3);
+  margin-block: var(--s-4);
+}
+.access-members.is-embedded {
+  margin-block: 0;
+}
+.access-members > div {
+  display: grid;
+  gap: var(--s-3);
 }
 .access-members fieldset {
-  border: 0;
-  padding: 0;
+  display: grid;
+  gap: var(--s-3);
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .access-members h2 {
-  font-size: var(--text-lg);
-  margin-block: 1.25rem 0.5rem;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
-.access-members label,
+.access-members h3 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.access-members p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
 .access-members form {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
 }
-.access-members form {
-  margin-top: 1.5rem;
-}
-.access-members :is(input, select) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--control-height);
-  padding: 0.65rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
-}
-.access-members :is(input, select):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
+.access-members form > .btn {
+  justify-self: start;
 }
 .access-results {
-  list-style: none;
+  margin: 0;
   padding: 0;
-  margin-block: 1rem;
+  list-style: none;
 }
 .access-results li {
-  padding-block: 1.25rem;
-  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: var(--s-1);
+  padding-block: var(--s-3);
+  border-bottom: var(--hair) solid var(--border);
   overflow-wrap: anywhere;
 }
 .access-paging {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-block: 0.75rem;
+  gap: var(--s-2);
 }

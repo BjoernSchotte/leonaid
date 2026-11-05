@@ -126,6 +126,7 @@ const robots =
       route.availability !== "archive",
   )}
   carrierName={route?.action?.carrierName}
+  privacyHref={state === "action" ? "#datenschutz" : undefined}
 >
   {
     state === "action" && route ? (
@@ -146,7 +147,7 @@ const robots =
         actionHref="/"
         actionLabel="Zur Startseite"
         eyebrow="Adresse nicht gefunden"
-        message="Prüfe den Aktionslink oder verwende die Adresse, die dein Lions Club veröffentlicht hat."
+        message="Bitte prüfen Sie den Aktionslink oder verwenden Sie die Adresse, die Ihr Lions Club veröffentlicht hat."
         state="not-found"
         title="Diese Aktionsseite gibt es nicht."
       />
@@ -157,12 +158,12 @@ const robots =
         eyebrow="Kurze Unterbrechung"
         message="Die Aktionsdaten sind gerade nicht erreichbar. Es wurden keine Eingaben gespeichert oder verloren."
         state="unavailable"
-        title="Bitte versuche es gleich noch einmal."
+        title="Bitte versuchen Sie es gleich noch einmal."
       />
     ) : (
       <PublicState
         eyebrow="Lions helfen vor Ort"
-        message="Über die Aktionsadresse deines Lions Clubs gelangst du direkt zur aktuell veröffentlichten Charity-Aktion."
+        message="Über die Aktionsadresse Ihres Lions Clubs gelangen Sie direkt zur aktuell veröffentlichten Charity-Aktion."
         state="home"
         title="Engagement, das ankommt."
       />

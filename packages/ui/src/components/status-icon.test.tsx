@@ -70,6 +70,17 @@ describe("StatusIcon", () => {
     expect(markup).toContain("<span>Storniert</span>");
   });
 
+  it("takes an explicit shape for a word another domain maps differently", () => {
+    const markup = renderToStaticMarkup(
+      <StatusLabel shape="done" status="Aktiv" />,
+    );
+    expect(markup).toContain('class="status-label is-done"');
+    expect(markup).toContain("<span>Aktiv</span>");
+    expect(renderToStaticMarkup(<StatusLabel status="Aktiv" />)).toContain(
+      "is-progress",
+    );
+  });
+
   it("maps domain statuses to shapes and falls back to open", () => {
     expect(statusShape["Überfällig"]).toBe("alert");
     expect(statusShape["Prüfbereit"]).toBe("review");

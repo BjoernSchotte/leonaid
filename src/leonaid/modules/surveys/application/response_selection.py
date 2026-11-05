@@ -41,6 +41,10 @@ class ResponseItem(AggregateModel):
     currentPage: str | None
     createdAt: str
     completedAt: str | None
+    choiceAnswers: dict[str, list[str]] | None = None
+    """Only with ``fields=choice``: per choice, rating or matrix question the
+    labels of the chosen options (matrix: "Zeile: Spalte"). Never free text:
+    values that match no defined option are dropped."""
 
 
 class ResponseItems(AggregateModel):

@@ -347,7 +347,7 @@ describe("theme switch", () => {
   });
 });
 
-describe("aliases for existing token names", () => {
+describe("old token aliases are gone", () => {
   const aliasRules = parseRules(tokensCss);
   const aliases = Object.assign(
     {},
@@ -356,7 +356,8 @@ describe("aliases for existing token names", () => {
       .map((candidate) => candidate.declarations),
   ) as Declarations;
 
-  const expected: Record<string, string> = {
+  // The pre-Leitsystem names; components use the Leitsystem tokens now.
+  const removed: Record<string, string> = {
     "--background": "--bg",
     "--foreground": "--text",
     "--primary": "--accent",
@@ -382,23 +383,44 @@ describe("aliases for existing token names", () => {
     "--sidebar-accent": "--rail-marker",
   };
 
-  test.each(Object.entries(expected))("%s points to %s", (alias, target) => {
-    expect(aliases[alias]).toBe(`var(${target})`);
+  // Every rule of both token files, any selector or media query.
+  const declaredAnywhere = new Set(
+    [...parseRules(tokensCss), ...rules].flatMap((candidate) =>
+      Object.keys(candidate.declarations),
+    ),
+  );
+
+  test.each(Object.entries(removed))(
+    "%s is defined nowhere in the token files (use %s)",
+    (alias) => {
+      expect(declaredAnywhere.has(alias)).toBe(false);
+    },
+  );
+
+  test("tokens.css holds only literal values, no token pointers", () => {
+    // An alias is a var() pointer; brand primitives and metrics are literals.
+    const pointers = aliasRules.flatMap((candidate) =>
+      Object.entries(candidate.declarations)
+        .filter(([, value]) => value.includes("var("))
+        .map(([name, value]) => `${name}: ${value}`),
+    );
+    expect(pointers).toEqual([]);
   });
 
-  test("aliases are theme independent", () => {
-    expect(
-      aliasRules.filter(
-        (candidate) =>
-          candidate.media !== null ||
-          candidate.selectors.some((selector) =>
-            selector.includes("data-theme"),
-          ),
+  test("tokens.css does not redefine a Leitsystem token", () => {
+    const leitsystemNames = new Set(
+      rules.flatMap((candidate) => Object.keys(candidate.declarations)),
+    );
+    const shadowed = aliasRules.flatMap((candidate) =>
+      Object.keys(candidate.declarations).filter((name) =>
+        leitsystemNames.has(name),
       ),
-    ).toEqual([]);
+    );
+    expect(shadowed).toEqual([]);
   });
 
-  // Pairs the existing components render with the old names.
+  // The pairs components rendered with the old names, now checked under the
+  // Leitsystem names they resolved to.
   const aliasPairs: [string, string, number][] = [
     ["--foreground", "--background", TEXT],
     ["--primary-foreground", "--primary", TEXT],
@@ -421,10 +443,47 @@ describe("aliases for existing token names", () => {
 
   describe.each(Object.entries(themes))("%s theme", (_, theme) => {
     test.each(aliasPairs)("%s on %s", (foreground, background, target) => {
-      const scope = { ...theme, ...aliases };
+      const resolve = (name: string) => removed[name] ?? name;
       expect(
-        contrast(oklch(foreground, scope), oklch(background, scope)),
+        contrast(
+          oklch(resolve(foreground), theme),
+          oklch(resolve(background), theme),
+        ),
       ).toBeGreaterThanOrEqual(target);
+    });
+  });
+});
+
+describe("diverging chart ramp", () => {
+  // Non-text contrast exception (WCAG 1.4.11): neighbouring segments only
+  // differ by 1.5–2.5:1 because the legend and the table carry every value.
+  // What must hold: both poles read as graphics (≥ 3:1 on --surface), and the
+  // ramp stays ordered, the grey middle closest to the surface.
+  describe.each(Object.entries(themes))("%s theme", (_, theme) => {
+    const onSurface = (name: string) =>
+      contrast(oklch(name, theme), oklch("--surface", theme));
+
+    test.each(["--chart-neg", "--chart-pos"])(
+      "%s pole on --surface ≥ 3:1",
+      (pole) => {
+        expect(onSurface(pole)).toBeGreaterThanOrEqual(UI);
+      },
+    );
+
+    test("steps stay ordered from each pole to the middle", () => {
+      const ratio = Object.fromEntries(
+        [
+          "--chart-neg",
+          "--chart-neg-soft",
+          "--chart-mid",
+          "--chart-pos-soft",
+          "--chart-pos",
+        ].map((name) => [name, onSurface(name)]),
+      );
+      expect(ratio["--chart-neg"]).toBeGreaterThan(ratio["--chart-neg-soft"]);
+      expect(ratio["--chart-neg-soft"]).toBeGreaterThan(ratio["--chart-mid"]);
+      expect(ratio["--chart-pos"]).toBeGreaterThan(ratio["--chart-pos-soft"]);
+      expect(ratio["--chart-pos-soft"]).toBeGreaterThan(ratio["--chart-mid"]);
     });
   });
 });

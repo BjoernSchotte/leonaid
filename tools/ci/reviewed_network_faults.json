@@ -1,70 +1,5 @@
 [
   {
-    "path": "tests/e2e/surveys-analytics.spec.mjs",
-    "sha256": "8152a497b8a8aa78c5c98999df5322534919a5840acb290a38de521d74089a32",
-    "reason": "Drop one acknowledgement after a real analysis snapshot is committed; retry and verify the stored snapshot."
-  },
-  {
-    "path": "tests/e2e/surveys-authoring.spec.mjs",
-    "sha256": "d44c3dd904ac6e231c57d83ab3aeea4b7bf463ccb09a474382904b27bbe04583",
-    "reason": "Drop one real publication acknowledgement; subsequent request reaches the server unchanged."
-  },
-  {
-    "path": "tests/e2e/surveys-deletion.spec.mjs",
-    "sha256": "97ab6155bd44095aeded24ab98d1ba9669ad6bcc39a48db4873f81b7cd16cd85",
-    "reason": "Fetch real pending deletion status, drop acknowledgement and verify durable deletion on reload."
-  },
-  {
-    "path": "tests/e2e/surveys-export-states.spec.mjs",
-    "sha256": "210084928bc1bbaf07cc64fe83c1f194149b640b94b44279f224e2cb05a5fa68",
-    "reason": "Abort one status read while real worker failures and recovery determine export state."
-  },
-  {
-    "path": "tests/e2e/surveys-exports.spec.mjs",
-    "sha256": "d6e01841a5362f7ef27bd86d9504411ad498fe9641148d6c44e4ca2d2cdebadd",
-    "reason": "Drop a committed export request acknowledgement; forward retries and inspect actual downloads."
-  },
-  {
-    "path": "tests/e2e/surveys-import-recovery.spec.mjs",
-    "sha256": "3f15dadd3e25fc137b06651fd9f416ad7aa0e0532cc4390c1c5245d362bc7348",
-    "reason": "Commit the first real draft save before losing acknowledgement; abort while disconnected, then retry against persisted revisions."
-  },
-  {
-    "path": "tests/e2e/surveys-invitations.spec.mjs",
-    "sha256": "33a14896ad53f51daf54c2008a4e0e9dd78bf072736a666db5cabd358a80ce6b",
-    "reason": "Fetch actual API responses for three identical requests; abort the first two acknowledgements and forward the unmodified third response; verify one Mailpit message."
-  },
-  {
-    "path": "tests/e2e/surveys-module.spec.mjs",
-    "sha256": "24420933a618187f2641b59472ef1d9bdbee18ff8b1f34f86387a88f12c2481c",
-    "reason": "Hold one real survey GET after a settings save until other settings forms are edited; the request then reaches the server unchanged."
-  },
-  {
-    "path": "tests/e2e/surveys-package.spec.mjs",
-    "sha256": "b8353c71c33c584f88b0f9f995e5446f95c2e67c062605162333e54ae71dbecb",
-    "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
-  },
-  {
-    "path": "tests/e2e/surveys-publisher.spec.mjs",
-    "sha256": "cfe0d53d1adc796ecb8dbec04f26051b60e48150daf276cd180f159eb7868f6a",
-    "reason": "Drop the first committed publication acknowledgement and forward the unmodified real retry response."
-  },
-  {
-    "path": "tests/e2e/surveys-responses.spec.mjs",
-    "sha256": "683f46fde8a7c23e32559f0eb8e95e1b95a5e4b513a894dea0ad02cd5b4632c3",
-    "reason": "Abort one response read and one committed response-selection acknowledgement; validate stored selection and restored responses."
-  },
-  {
-    "path": "tests/e2e/surveys-runner.spec.mjs",
-    "sha256": "550a51af111d530cf3f312167440acfebc5ab51a08cd6682cc6f62899165ceb9",
-    "reason": "Delay a real save to create a competing-revision conflict; drop a committed completion acknowledgement and forward the unmodified retry response; fail unsent saves before transport so closing the context cannot lift offline emulation and send them."
-  },
-  {
-    "path": "tests/e2e/surveys-templates.spec.mjs",
-    "sha256": "9c00163c29ba9e160ee6c10f355c5beb881d8cf4e346ae846769446638a2e2ba",
-    "reason": "Drop one actual template creation acknowledgement and retry the original request; inspect independent persisted definitions."
-  },
-  {
     "path": "tests/e2e/public-inbox-retry.spec.mjs",
     "sha256": "22c98ea9574802b48a95fbe71b38df3e541e3bf6bfe6a48c5598eeb177ef0196",
     "reason": "Drop only the real committed Inbox response; exhaust the real server rate limit and verify the browser retains and repeats the identical command after HTTP 429."
@@ -75,8 +10,78 @@
     "reason": "Hold one real search request for 3 s, then forward it unchanged, so the next keystroke must abort it in flight; every response comes from the real API."
   },
   {
+    "path": "tests/e2e/surveys-responses-faults.spec.mjs",
+    "sha256": "7c00460807f6685e1bbc0e87a05cd241dc4fd17df0799d621ac45d656c16e919",
+    "reason": "Abort one response read and one committed response-selection acknowledgement; retry the read and the identical selection request against the real API and verify the stored selection."
+  },
+  {
     "path": "tests/e2e/invoices-bulk-faults.spec.mjs",
     "sha256": "171b014710bacec49a3cbb0c435d83c7869b77181b67d90e207f3e94dc938510",
     "reason": "Let one real invoice-issue request reach the API and commit, then abort its first successful answer once (connectionreset), so the bulk release must stop and the retry must replay the same idempotency key; every other request and response passes unchanged from the real API."
+  },
+  {
+    "path": "tests/e2e/surveys-analytics-faults.spec.mjs",
+    "sha256": "b6088816970e6e8e2c084690692ebba437204d5c0425271c319c05cc523e6eee",
+    "reason": "Drop one acknowledgement after a real analysis snapshot is committed; retry and verify the stored snapshot."
+  },
+  {
+    "path": "tests/e2e/surveys-authoring-faults.spec.mjs",
+    "sha256": "adaff01d8ca5c47ab46bb7b3857d8966ecfffa4aef1a7b452e1bcc2f2d8788f4",
+    "reason": "Drop one real publication acknowledgement; subsequent request reaches the server unchanged."
+  },
+  {
+    "path": "tests/e2e/surveys-deletion-faults.spec.mjs",
+    "sha256": "a67a06ed4d33bf4ca187ac71cb0da84ac35ea419e112f69082f82575497c1bff",
+    "reason": "Fetch real pending deletion status, drop acknowledgement and verify durable deletion on reload."
+  },
+  {
+    "path": "tests/e2e/surveys-export-states-faults.spec.mjs",
+    "sha256": "210084928bc1bbaf07cc64fe83c1f194149b640b94b44279f224e2cb05a5fa68",
+    "reason": "Abort one status read while real worker failures and recovery determine export state."
+  },
+  {
+    "path": "tests/e2e/surveys-exports-faults.spec.mjs",
+    "sha256": "bcc738403a40a62138ca837c24b158b438ea06a5e49c2169e3f499d87ad4f1b0",
+    "reason": "Drop a committed export request acknowledgement; forward the retry and inspect the actual download."
+  },
+  {
+    "path": "tests/e2e/surveys-import-recovery-faults.spec.mjs",
+    "sha256": "2bd3ed8c3a131e46c4421bccdb777ab2861ffd6ef81af06a0653a0067bec372d",
+    "reason": "Commit the first real draft save before losing acknowledgement; abort while disconnected, then retry against persisted revisions."
+  },
+  {
+    "path": "tests/e2e/surveys-invitations-faults.spec.mjs",
+    "sha256": "bf7581767867ba78de1bb07966ab4524a7d85f53ae49ca8668252eb3a0d3b2fe",
+    "reason": "Fetch actual API responses for three identical requests; abort the first two acknowledgements and forward the unmodified third response; verify one Mailpit message."
+  },
+  {
+    "path": "tests/e2e/surveys-module-faults.spec.mjs",
+    "sha256": "9449e46a219865d19416ee97606105feb64e06b42457ff8623c686a4898c0580",
+    "reason": "Hold one real survey GET after a settings save until other settings forms are edited; the request then reaches the server unchanged."
+  },
+  {
+    "path": "tests/e2e/surveys-package-faults.spec.mjs",
+    "sha256": "5b8d1c4d353b3345f2f9af2a81ca2fbb2dc62ca55cfa30cea424f0b0e9f64a57",
+    "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
+  },
+  {
+    "path": "tests/e2e/surveys-publisher-faults.spec.mjs",
+    "sha256": "f0b525dcd1960411d9fac057f705b164e03ba6e78887b24806088aed3f80e9a2",
+    "reason": "Drop the first committed publication acknowledgement and forward the unmodified real retry response."
+  },
+  {
+    "path": "tests/e2e/surveys-runner-faults.spec.mjs",
+    "sha256": "97d784ccee8dc96b6cbeacbdc9fb2e395cefb68e6dfa89c04721e1042ddc59a0",
+    "reason": "Delay a real save to create a competing-revision conflict; drop a committed completion acknowledgement and forward the unmodified retry response; fail unsent saves before transport so closing the context cannot lift offline emulation and send them."
+  },
+  {
+    "path": "tests/e2e/surveys-templates-faults.spec.mjs",
+    "sha256": "a8b75de9f1be0552f813fd119dce8e13174719a26449c5235821661ace66b292",
+    "reason": "Drop one actual template creation acknowledgement and retry the original request; inspect the persisted definition."
+  },
+  {
+    "path": "tools/emdash_spike/campaign-editor-browser-proof.mjs",
+    "sha256": "d87d6900f404d13f53ec52d9ffceabd679c2c4e1165785f61af74a6154e3e33d",
+    "reason": "Hold real EmDash entry and revision GET responses for 1.5 s after a publish, then forward them unchanged, so input typed during the slow refetch must survive and autosave; content is never changed."
   }
 ]

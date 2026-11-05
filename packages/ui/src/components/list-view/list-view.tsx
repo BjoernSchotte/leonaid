@@ -29,8 +29,10 @@ import { useHotkeys } from "../../keyboard/use-hotkeys";
 import { isTypingTarget, type HotkeyBinding } from "../../keyboard/hotkeys";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
+import { useDiscardDialog } from "../discard-dialog";
 import { EmptyState } from "../empty-state";
 import { Kbd } from "../kbd";
+import { LeaveGuardContext, useLeaveGuardScope } from "../leave-guard";
 import { OptionMenu } from "../option-menu";
 import { fullBleedPage } from "../page-layout";
 import { Popover } from "../popover";
@@ -112,7 +114,10 @@ interface Group<T> {
   readonly key: string;
   readonly label: string;
   readonly icon: ReactNode;
+  /** Rendered rows (within `renderLimit`). */
   readonly rows: readonly T[];
+  /** All rows of the group, for the header count. */
+  readonly total: number;
 }
 
 const ALL_GROUP = "__all";
@@ -417,24 +422,109 @@ export function ListView<T>(props: ListViewProps<T>) {
     // Only the options matter here; schema follows fieldSchema.
   }, [fieldSchema]);
 
+  /* The URL this list last wrote or accepted; a refused Back returns to it. */
+  const lastUrl = useRef(window.location.href);
   useEffect(() => {
     const next = serializeListState(window.location.search, state, schema);
     const push = pushNext.current;
     pushNext.current = false;
-    if (next === window.location.search) return;
-    const url = `${window.location.pathname}${next}${window.location.hash}`;
-    if (push) window.history.pushState(window.history.state, "", url);
-    else window.history.replaceState(window.history.state, "", url);
+    if (next !== window.location.search) {
+      const url = `${window.location.pathname}${next}${window.location.hash}`;
+      if (push) window.history.pushState(window.history.state, "", url);
+      else window.history.replaceState(window.history.state, "", url);
+    }
+    lastUrl.current = window.location.href;
   }, [state, schema]);
+
+  const onStateChangeRef = useRef(props.onStateChange);
+  onStateChangeRef.current = props.onStateChange;
+  useEffect(() => {
+    onStateChangeRef.current?.(state);
+  }, [state]);
+
+  /*
+   * Leaving the pane's record (close, j/k, another row, Back): the page's
+   * own guard first, then the shared discard question when a form in the
+   * pane holds a draft (`useLeaveGuard` inside the pane registers here).
+   * True when nothing needs asking, so the common path stays synchronous.
+   */
+  const draftScope = useLeaveGuardScope();
+  const discard = useDiscardDialog(props.address ?? "Sie");
+  const confirmDiscardRef = useRef(discard.confirmDiscard);
+  confirmDiscardRef.current = discard.confirmDiscard;
+  const paneGuardRef = useRef(props.paneGuard);
+  paneGuardRef.current = props.paneGuard;
+  const paneDecision = useCallback((): boolean | Promise<boolean> => {
+    const custom = paneGuardRef.current?.() ?? true;
+    const withDrafts = (allowed: boolean): boolean | Promise<boolean> =>
+      !allowed
+        ? false
+        : draftScope.hasDirtyPages()
+          ? confirmDiscardRef.current()
+          : true;
+    return typeof custom === "boolean"
+      ? withDrafts(custom)
+      : custom.then(withDrafts);
+  }, [draftScope]);
+  const whenPaneMayChange = (action: () => void) => {
+    const decision = paneDecision();
+    if (decision === true) action();
+    else if (decision !== false)
+      // A guard that fails keeps the pane, like a "no".
+      void decision.then(
+        (allowed) => {
+          if (allowed) action();
+        },
+        () => {},
+      );
+  };
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
+  const openIdRef = useRef(state.openId);
+  openIdRef.current = state.openId;
+  /* Set when an answered Back goes on: the next popstate is not asked again. */
+  const backConfirmed = useRef(false);
+  /* An asked Back is still open: further Backs only restore the entry. */
+  const backPending = useRef(false);
   useEffect(() => {
-    const onPopState = () =>
-      setState(parseListState(window.location.search, schemaRef.current));
+    const onPopState = () => {
+      const next = parseListState(window.location.search, schemaRef.current);
+      const leavesPane =
+        openIdRef.current !== null && next.openId !== openIdRef.current;
+      if (leavesPane && backPending.current && !backConfirmed.current) {
+        window.history.pushState(window.history.state, "", lastUrl.current);
+        return;
+      }
+      const decision =
+        leavesPane && !backConfirmed.current ? paneDecision() : true;
+      backConfirmed.current = false;
+      if (decision !== true) {
+        // Keep the pane for now: put the entry the person tried to leave
+        // back, and go back once they agree.
+        window.history.pushState(window.history.state, "", lastUrl.current);
+        if (decision !== false) {
+          backPending.current = true;
+          void decision.then(
+            (allowed) => {
+              backPending.current = false;
+              if (!allowed) return;
+              backConfirmed.current = true;
+              window.history.back();
+            },
+            () => {
+              backPending.current = false;
+            },
+          );
+        }
+        return;
+      }
+      lastUrl.current = window.location.href;
+      setState(next);
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [paneDecision]);
 
   const baseView =
     allViews.find((view) => view.id === state.viewId) ?? allViews[0]!;
@@ -488,7 +578,15 @@ export function ListView<T>(props: ListViewProps<T>) {
   const groups = useMemo<Group<T>[]>(() => {
     const prop = state.groupBy ? propertyById.get(state.groupBy) : undefined;
     if (!prop)
-      return [{ key: ALL_GROUP, label: "", icon: null, rows: visible }];
+      return [
+        {
+          key: ALL_GROUP,
+          label: "",
+          icon: null,
+          rows: visible,
+          total: visible.length,
+        },
+      ];
     const byKey = new Map<string, T[]>();
     for (const row of visible) {
       const key = valuesOf(prop, row)[0] ?? "–";
@@ -512,20 +610,41 @@ export function ListView<T>(props: ListViewProps<T>) {
           label: option?.label ?? key,
           icon: option?.icon ?? null,
           rows: groupRows,
+          total: groupRows.length,
         };
       });
   }, [visible, state.groupBy, propertyById]);
 
   /* Collapsed state belongs to one grouping, not to equal option values. */
   const collapseKey = (key: string) => `${state.groupBy ?? ""}:${key}`;
+  /*
+   * `renderLimit`: open groups share the budget in display order; a
+   * collapsed group renders nothing and so uses none of it.
+   */
+  const { shownGroups, notRendered } = useMemo(() => {
+    const limit = props.renderLimit;
+    if (limit === undefined) return { shownGroups: groups, notRendered: 0 };
+    let budget = limit;
+    let hidden = 0;
+    const result = groups.map((group) => {
+      if (collapsed.has(`${state.groupBy ?? ""}:${group.key}`)) return group;
+      const take = Math.min(budget, group.rows.length);
+      budget -= take;
+      hidden += group.rows.length - take;
+      return take === group.rows.length
+        ? group
+        : { ...group, rows: group.rows.slice(0, take) };
+    });
+    return { shownGroups: result, notRendered: hidden };
+  }, [groups, collapsed, props.renderLimit, state.groupBy]);
   const flatIds = useMemo(
     () =>
-      groups
+      shownGroups
         .filter(
           (group) => !collapsed.has(`${state.groupBy ?? ""}:${group.key}`),
         )
         .flatMap((group) => group.rows.map(getId)),
-    [groups, collapsed, getId, state.groupBy],
+    [shownGroups, collapsed, getId, state.groupBy],
   );
   const rowById = useMemo(
     () => new Map(rows.map((row) => [getId(row), row])),
@@ -571,6 +690,13 @@ export function ListView<T>(props: ListViewProps<T>) {
   }, []);
 
   const openById = (id: string) => {
+    if (renderDetail && openRow && state.openId !== id) {
+      whenPaneMayChange(() => {
+        setFocusedId(id);
+        update({ openId: id });
+      });
+      return;
+    }
     setFocusedId(id);
     if (!renderDetail) {
       const row = rowById.get(id);
@@ -580,7 +706,8 @@ export function ListView<T>(props: ListViewProps<T>) {
     update({ openId: id }, state.openId === null);
   };
 
-  const closePane = () => {
+  const closePane = () => whenPaneMayChange(closePaneNow);
+  const closePaneNow = () => {
     const previous = state.openId;
     // Replace, not push: opening pushed the entry, so Back after a close
     // leaves the list instead of reopening the pane.
@@ -608,8 +735,14 @@ export function ListView<T>(props: ListViewProps<T>) {
           ? 0
           : Math.max(0, Math.min(flatIds.length - 1, index + delta))
       ]!;
+    if (openRow && next !== state.openId) {
+      whenPaneMayChange(() => {
+        focusRow(next);
+        update({ openId: next });
+      });
+      return;
+    }
     focusRow(next);
-    if (openRow) update({ openId: next });
   };
 
   const toggleChecked = useCallback((id: string) => {
@@ -704,12 +837,16 @@ export function ListView<T>(props: ListViewProps<T>) {
     try {
       const outcome = await prop.edit.apply(ids, value);
       if (outcome === "cancelled") return;
+      const undo = outcome ? outcome.undo : undefined;
       toast?.show({
         title:
           ids.length > 1
             ? `${prop.label} bei ${ids.length} Einträgen: ${label}`
             : `${prop.label}: ${label}`,
         tone: "success",
+        action: undo
+          ? { label: "Rückgängig", run: () => void undoEdit(prop, undo) }
+          : undefined,
       });
     } catch {
       toast?.show({
@@ -720,6 +857,21 @@ export function ListView<T>(props: ListViewProps<T>) {
     } finally {
       for (const id of ids) busyRef.current.delete(id);
       setRowsBusy(ids, false);
+    }
+  };
+
+  const undoEdit = async (
+    prop: ListProperty<T>,
+    undo: () => void | Promise<void>,
+  ) => {
+    try {
+      await undo();
+    } catch {
+      toast?.show({
+        title: `${prop.label} wurde nicht zurückgesetzt.`,
+        description: copy.retry,
+        tone: "error",
+      });
     }
   };
 
@@ -966,7 +1118,7 @@ export function ListView<T>(props: ListViewProps<T>) {
     ...(props.onCreate
       ? [
           {
-            id: `list:${props.id}:create`,
+            id: props.createCommandId ?? `list:${props.id}:create`,
             label: props.createLabel ?? "Neu anlegen",
             group: title,
             icon: Plus,
@@ -1106,7 +1258,7 @@ export function ListView<T>(props: ListViewProps<T>) {
       />
     );
   } else {
-    body = groups.map((group) => {
+    body = shownGroups.map((group) => {
       const groupKey = collapseKey(group.key);
       const isCollapsed = collapsed.has(groupKey);
       return (
@@ -1138,11 +1290,11 @@ export function ListView<T>(props: ListViewProps<T>) {
                   <span className="group-icon">{group.icon}</span>
                 ) : null}
                 <span>{group.label}</span>
-                <span className="group-count num">{group.rows.length}</span>
+                <span className="group-count num">{group.total}</span>
               </button>
             </h2>
           ) : null}
-          {!isCollapsed ? (
+          {!isCollapsed && group.rows.length > 0 ? (
             <ul className="rows">
               {group.rows.map((row) => {
                 const id = getId(row);
@@ -1323,6 +1475,13 @@ export function ListView<T>(props: ListViewProps<T>) {
         >
           {body}
         </div>
+        {notRendered > 0 && status === "ready" ? (
+          <p className="list-cap" role="status">
+            Angezeigt werden die ersten {count - notRendered} von {count}{" "}
+            {entityLabel.many}. Suche, Filter oder Sortierung zeigen die
+            übrigen.
+          </p>
+        ) : null}
         <p aria-hidden="true" className="list-hint">
           <Kbd announce={false} keys="j" /> <Kbd announce={false} keys="k" />{" "}
           bewegen · <Kbd announce={false} keys="enter" /> öffnen ·{" "}
@@ -1378,7 +1537,9 @@ export function ListView<T>(props: ListViewProps<T>) {
               })}
             </div>
           ) : null}
-          {renderDetail(openRow)}
+          <LeaveGuardContext.Provider value={draftScope}>
+            {renderDetail(openRow, { close: closePane })}
+          </LeaveGuardContext.Provider>
         </DetailPane>
       ) : null}
 
@@ -1482,6 +1643,7 @@ export function ListView<T>(props: ListViewProps<T>) {
           </Button>
         </form>
       </Popover>
+      {discard.dialog}
     </div>
   );
 }

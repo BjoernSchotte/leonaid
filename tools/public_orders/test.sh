@@ -122,14 +122,42 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 compose up --detach --wait --wait-timeout 420 public proxy
 
+# A Charity-Admin session for the delivery-window case of the browser spec.
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/admin_session.py /proof/admin-session.env
+
+# The browser step may switch on delivery windows; undo a leftover from an
+# interrupted run first, and always undo it again afterwards. The spec lists
+# its windows (and an extended action period) in a state file that outlives
+# this run's proof directory, so the next run can undo an interrupted one.
+delivery_state="$root/.artifacts/public-orders/delivery-state"
+mkdir -p "$delivery_state"
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$delivery_state:/delivery-state" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/delivery_cleanup.py /delivery-state/state.json
+set +e
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env LEONAID_E2E_DELIVERY_STATE=/delivery-state/state.json \
+  --env-file "$proof/admin-session.env" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
+  --volume "$delivery_state:/delivery-state" \
   --workdir /workspace \
   --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
@@ -140,6 +168,17 @@ docker run --rm \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
+browser_status=$?
+set -e
+compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$delivery_state:/delivery-state" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/public_orders/delivery_cleanup.py /delivery-state/state.json
+[ "$browser_status" -eq 0 ]
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \

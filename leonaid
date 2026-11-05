@@ -765,6 +765,19 @@ check_all() {
     python /workspace/tools/ci/conflict_markers.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/axe_helper_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/axe_helper.py /workspace
+  # Leitsystem only: no Hugeicons, Base UI or old token aliases.
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/legacy_ui_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/legacy_ui.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/ci/core_oneoff_user.py /workspace
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
@@ -3241,6 +3254,9 @@ case "$command" in
     run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync pytest tests/unit/test_survey*.py -q
     run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts tools/surveys/editor.test.ts tools/surveys/editor-i18n.test.ts
+    # The disclosure solver's per-person results are SurveyJS's own.
+    run_bun bun tools/surveys/solver-profiles.ts check tests/fixtures/surveys/solver-profiles.json
+    run_bun bun tools/surveys/equality-sweep.ts check tests/fixtures/surveys/surveyjs-equality.json
     ;;
   test-surveys-validation-candidate)
     run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare

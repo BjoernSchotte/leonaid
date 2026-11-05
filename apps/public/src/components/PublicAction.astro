@@ -126,23 +126,6 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
               </div>
             </dl>
           </div>
-          <figure class="action-hero__visual" aria-hidden="true">
-            <img
-              src="/community-routes.webp"
-              alt=""
-              width="1440"
-              height="758"
-              fetchpriority="high"
-              decoding="async"
-            />
-            <figcaption>
-              <span>{isArchive ? "Abgeschlossen" : "Gemeinsam unterwegs"}</span>
-              <strong>{action.beneficiaries.length}</strong>
-              {action.beneficiaries.length === 1
-                ? "Begünstigter"
-                : "Begünstigte"}
-            </figcaption>
-          </figure>
         </div>
       </section>
     )
@@ -176,7 +159,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   >
     <div class="site-shell offerings-section__grid">
       <div class="section-intro">
-        <p class="eyebrow">So kannst du unterstützen</p>
+        <p class="eyebrow">So können Sie unterstützen</p>
         <h2 id="offerings-heading">
           Ein Angebot, das vor Ort Wirkung entfaltet.
         </h2>
@@ -186,7 +169,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
             isArchive
               ? " Die Darstellung dient der dauerhaften Dokumentation."
               : orderForm
-                ? " Du wählst die Menge; wir zeigen dir den Gesamtbetrag sofort."
+                ? " Sie wählen die Menge und sehen den Gesamtbetrag sofort."
                 : " Aktuell ist für diese Aktion kein Bestellformular freigeschaltet."
           }
         </p>
@@ -229,6 +212,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
         action={action}
         orderForm={orderForm}
         publicAlias={orderAlias}
+        contactFormHref={inboxForm ? "#kontakt" : undefined}
         orderResult={orderResult}
       />
     )
@@ -236,7 +220,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   <section class="impact-section" id="wirkung" aria-labelledby="impact-heading">
     <div class="site-shell impact-section__grid">
       <div class="impact-section__title">
-        <p class="eyebrow eyebrow--on-dark">Gemeinsame Wirkung</p>
+        <p class="eyebrow">Gemeinsame Wirkung</p>
         <h2 id="impact-heading">Wem die Aktion hilft</h2>
       </div>
       <ol class="beneficiary-list">

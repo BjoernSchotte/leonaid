@@ -1,5 +1,12 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
+import {
+  memberPane,
+  memberRow,
+  memberRows,
+  openMember,
+  searchMembers,
+} from "./member-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -66,12 +73,19 @@ test("charity admin sees only own actions and no system navigation", async ({
       page.locator('[data-nav-key="invoices"]').first(),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
-    const actionSelector = page.getByRole("combobox", {
-      name: "Charity-Aktion",
-    });
-    await expect(actionSelector).toContainText("Krapfentaxi 2026");
-    await expect(actionSelector).toContainText("Krapfentaxi 2025");
-    await expect(actionSelector).not.toContainText("Krapfentaxi Nord 2026");
+    // The rail switcher lists only Klara's own campaigns.
+    await page.getByTestId("campaign-switcher").click();
+    const switcher = page.getByRole("dialog", { name: "Aktion wechseln" });
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2026/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi 2025/ }),
+    ).toBeVisible();
+    await expect(
+      switcher.getByRole("option", { name: /Krapfentaxi Nord/ }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await page.screenshot({
       path: `${artifactDirectory}/charity-admin-desktop.png`,
       fullPage: true,
@@ -93,11 +107,16 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
   try {
     const mobileNavigation = page.locator(".pwa-tabs");
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
+    // One campaign: the app bar names it; the choice appears only for
+    // several campaigns (ActionChoice in packages/features).
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Krapfentaxi 2026",
+    );
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
-    ).toContainText("Krapfentaxi 2026");
+    ).toHaveCount(0);
     await expect(mobileNavigation).toBeVisible();
     await expect(
       mobileNavigation.locator('[data-nav-key="sponsors"]'),
@@ -111,9 +130,6 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="invoices"]')).toHaveCount(0);
-    await expect(
-      page.getByRole("combobox", { name: "Charity-Aktion" }).locator("option"),
-    ).toHaveCount(1);
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-mobile.png`,
       fullPage: true,
@@ -135,17 +151,22 @@ test("acquirer-only member is redirected from the back office to the PWA", async
   try {
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
+    // One campaign: the app bar names it; the choice appears only for
+    // several campaigns (ActionChoice in packages/features).
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Krapfentaxi 2026",
+    );
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
-    ).toContainText("Krapfentaxi 2026");
+    ).toHaveCount(0);
     await expect(page.locator('[data-nav-key="overview-web"]')).toHaveCount(0);
 
     await page.goto(`${baseUrl}/admin/members`);
     await page.waitForURL(`${baseUrl}/app/`);
     await expect(
-      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+      page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-admin-redirect.png`,
@@ -192,7 +213,7 @@ test("system admin recognizes the global, action-independent area", async ({
   }
 });
 
-test("system admin searches, filters and paginates the full member list", async ({
+test("system admin searches, filters and opens the full member list", async ({
   browser,
 }) => {
   const { context, page } = await sessionPage(
@@ -203,57 +224,40 @@ test("system admin searches, filters and paginates the full member list", async 
   );
   try {
     await expect(
-      page.getByRole("heading", { name: "Mitglieder verwalten" }),
+      page.getByRole("heading", { level: 1, name: "Mitglieder" }),
     ).toBeVisible();
-    await expect(page.getByText("Clubweite Ansicht")).toBeVisible();
-    await expect(page.getByText("8 Mitglieder")).toBeVisible();
-    await expect(page.getByTestId("member-card")).toHaveCount(6);
-    await expect(
-      page.getByTestId("member-detail").getByRole("heading", {
-        name: "Anna Akquise",
-      }),
-    ).toBeVisible();
+    await expect(page.locator(".listview .page-count")).toHaveText(
+      "8 Mitglieder",
+    );
+    // The list loads every member; there are no pages any more.
+    await expect(memberRows(page)).toHaveCount(8);
+    await expect(page.getByTestId("member-scope-note")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Weiter" }).click();
-    await expect(page.getByText("Seite 2")).toBeVisible();
-    await expect(page.getByTestId("member-card")).toHaveCount(2);
-    await expect(
-      page.getByTestId("member-card").filter({ hasText: "Simone System" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Zurück" }).click();
-    await expect(page.getByText("Seite 1")).toBeVisible();
+    const views = page.getByRole("navigation", {
+      name: "Gespeicherte Ansichten",
+    });
+    await views.getByRole("button", { name: "Gesperrt", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/members\?view=blocked$/);
+    await expect(memberRows(page)).toHaveCount(1);
+    await expect(memberRow(page, "Gesa Gesperrt")).toBeVisible();
+    await expect(page.locator(".listview .page-count")).toHaveText("1 von 8");
+    await views.getByRole("button", { name: "Alle", exact: true }).click();
+    await expect(memberRows(page)).toHaveCount(8);
 
-    await page.getByTestId("member-status-filter").selectOption("suspended");
-    await expect(page.getByText("1 Mitglied")).toBeVisible();
-    await expect(page.getByTestId("member-card")).toHaveCount(1);
-    await expect(
-      page.getByTestId("member-card").filter({ hasText: "Gesa Gesperrt" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Filter zurücksetzen" }).click();
+    await searchMembers(page, "Klara");
+    await expect(memberRows(page)).toHaveCount(1);
+    const pane = await openMember(page, "Klara Kern");
+    await expect(pane.getByTestId("member-detail-status")).toHaveText("Aktiv");
+    expect(new URL(page.url()).searchParams.get("open")).toBeTruthy();
 
-    await page
-      .getByRole("searchbox", { name: "Mitglied suchen" })
-      .fill("Klara");
-    await page.getByRole("button", { name: "Suchen", exact: true }).click();
-    await expect(page.getByTestId("member-card")).toHaveCount(1);
-    await page.getByTestId("member-card").click();
+    // The URL keeps the open member across a reload.
+    await page.reload();
+    await expect(memberPane(page)).toBeVisible();
     await expect(
-      page.getByTestId("member-detail").getByRole("heading", {
-        name: "Klara Kern",
-      }),
+      page.getByRole("heading", { level: 2, name: "Klara Kern", exact: true }),
     ).toBeVisible();
 
-    await page.getByRole("tab", { name: /Mitgliederübersicht/ }).focus();
-    await page.keyboard.press("ArrowRight");
-    await expect(
-      page.getByRole("tab", { name: /Mitglied einladen/ }),
-    ).toHaveAttribute("aria-selected", "true");
-    await page.keyboard.press("ArrowLeft");
-    await expect(
-      page.getByRole("tab", { name: /Mitgliederübersicht/ }),
-    ).toHaveAttribute("aria-selected", "true");
-
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),
@@ -278,30 +282,24 @@ test("charity admin sees on mobile only members and roles of own actions", async
     { width: 390, height: 844 },
   );
   try {
-    await expect(page.getByText("Ansicht deiner Aktionen")).toBeVisible();
-    await expect(page.getByText("6 Mitglieder")).toBeVisible();
-    const actionFilter = page.getByTestId("member-action-filter");
-    await expect(actionFilter).toContainText("Krapfentaxi 2026");
-    await expect(actionFilter).toContainText("Krapfentaxi 2025");
-    await expect(actionFilter).not.toContainText("Krapfentaxi Nord 2026");
-    await expect(page.getByText("Simone System", { exact: true })).toHaveCount(
-      0,
+    await expect(page.getByTestId("member-scope-note")).toContainText(
+      "Ansicht Ihrer Aktionen.",
     );
-    await expect(page.getByText("Felix Fremd", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".listview .page-count")).toHaveText(
+      "6 Mitglieder",
+    );
+    await expect(memberRow(page, "Simone System")).toHaveCount(0);
+    await expect(memberRow(page, "Felix Fremd")).toHaveCount(0);
 
-    await page.getByRole("searchbox", { name: "Mitglied suchen" }).fill("Anna");
-    await page.getByRole("button", { name: "Suchen", exact: true }).click();
-    await expect(page.getByTestId("member-card")).toHaveCount(1);
-    await page.getByTestId("member-card").click();
-    await expect(page.getByTestId("member-membership")).toHaveCount(1);
-    await expect(
-      page.getByRole("heading", { name: "Globale Rollen" }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByText(
-        "Du siehst ausschließlich Rollen in deinen verwalteten Aktionen.",
-      ),
-    ).toBeVisible();
+    const pane = await openMember(page, "Anna Akquise");
+    await expect(page.locator("dialog.pane-sheet")).toBeVisible();
+    await expect(pane.getByTestId("member-membership")).toHaveCount(1);
+    const actions = pane.getByTestId("member-role-add-action");
+    await expect(actions).toContainText("Krapfentaxi 2026");
+    await expect(actions).toContainText("Krapfentaxi 2025");
+    await expect(actions).not.toContainText("Krapfentaxi Nord 2026");
+    await expect(pane.getByText("Systemrollen")).toHaveCount(0);
+    await expect(pane.getByTestId("member-scope-pane-note")).toBeVisible();
 
     await page.screenshot({
       path: `${artifactDirectory}/charity-members-mobile.png`,
@@ -327,7 +325,7 @@ test("finance gets no member access, even through a direct URL", async ({
         name: "Mitglieder konnten nicht geladen werden",
       }),
     ).toBeVisible();
-    await expect(page.getByTestId("member-card")).toHaveCount(0);
+    await expect(memberRows(page)).toHaveCount(0);
   } finally {
     await context.close();
   }

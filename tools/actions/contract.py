@@ -24,6 +24,7 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 
+SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FELIX_ID = UUID("10000000-0000-4000-8000-000000000003")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
@@ -48,7 +49,7 @@ def token_for(user_id: UUID) -> str:
 
 async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[UUID, str]:
     now = datetime.now(timezone.utc)
-    users = (KLARA_ID, FELIX_ID, ANNA_ID)
+    users = (SIMONE_ID, KLARA_ID, FELIX_ID, ANNA_ID)
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
         list(users),
@@ -225,6 +226,67 @@ async def exercise(
         )
         if error_signature(foreign) != error_signature(unknown):
             raise ContractFailure("foreign action is detectable from the error")
+
+        # "Aktionen verwalten": each manager lists only the actions they
+        # manage; an acquirer gets an empty list; no session is refused.
+        async def listed(user_id: UUID, label: str) -> list[dict[str, Any]]:
+            response = await client.get(
+                "/api/v1/actions",
+                cookies=cookies(tokens[user_id]),
+                headers=request_headers(label),
+            )
+            response.raise_for_status()
+            if response.headers.get("cache-control") != "no-store":
+                raise ContractFailure("action list may be cached")
+            return list(response.json()["items"])
+
+        klara_list = {item["id"]: item for item in await listed(KLARA_ID, "list")}
+        own_item = klara_list.get(str(action_id))
+        if (
+            own_item is None
+            or own_item["status"] != "draft"
+            # A blank action keeps the "Leere Charity-Aktion" template.
+            or own_item["templateName"] != "Leere Charity-Aktion"
+            or own_item["goal"]["goalValue"] != "12500"
+            or own_item["leadNames"] != ["Klara Kern"]
+        ):
+            raise ContractFailure(
+                f"own action is missing from the action list: {own_item!r}, "
+                f"{len(klara_list)} listed"
+            )
+        if str(action_id) in {
+            item["id"] for item in await listed(FELIX_ID, "foreign-list")
+        }:
+            raise ContractFailure("action list shows a foreign action")
+        if await listed(ANNA_ID, "acquirer-list"):
+            raise ContractFailure("an acquirer lists managed actions")
+        # A system admin manages every action, also without a membership:
+        # Klara's new action and the golden Krapfentaxi 2025 must be listed.
+        simone_memberships = await connection.fetchval(
+            "SELECT count(*) FROM action_membership WHERE user_id = $1",
+            SIMONE_ID,
+        )
+        if simone_memberships != 0:
+            raise ContractFailure("the system admin unexpectedly has memberships")
+        system_listed = {
+            item["id"] for item in await listed(SIMONE_ID, "system-admin-list")
+        }
+        golden_action = "20000000-0000-4000-8000-000000000002"
+        if not {str(action_id), golden_action} <= system_listed:
+            raise ContractFailure(
+                "the system admin does not see every action: "
+                f"{len(system_listed)} listed"
+            )
+        all_actions = await connection.fetchval("SELECT count(*) FROM charity_action")
+        if len(system_listed) != all_actions:
+            raise ContractFailure(
+                f"the system admin lists {len(system_listed)} of {all_actions} actions"
+            )
+        anonymous = await client.get(
+            "/api/v1/actions", headers=request_headers("anonymous-list")
+        )
+        if anonymous.status_code != 401:
+            raise ContractFailure("action list answers without a session")
 
         goal_changed = await client.put(
             f"/api/v1/actions/{action_id}/goal",
@@ -431,7 +493,7 @@ async def run(session_output: Path) -> None:
         await connection.close()
     print(
         "action-contract: neutral core, 1-n beneficiaries, targets, capabilities, "
-        "lifecycle and audit proven against real services"
+        "lifecycle, audit and the scoped action list proven against real services"
     )
 
 

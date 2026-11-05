@@ -4,10 +4,10 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 16
-reviewedRevision: 16
-verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
-reviewer: Björn Schotte
+contentRevision: 17
+reviewedRevision: 17
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 | Dienst                        | Aufgabe                                      | Führende Persistenz                     |
@@ -67,7 +67,7 @@ behält aber den Nachweis in `mail_delivery`, ohne Verweis auf den Job. Sie lös
 überspringt Zeilen, die eine andere Sitzung gesperrt hält. Ungültige Werte
 beenden den Worker beim Start mit `worker.configuration.invalid`. Die Metrik
 `leonaid_worker_retention_deleted_total{table=...}` zählt gelöschte Zeilen;
-die Outbox-Zähler unter `/admin/system` zeigen abgeschlossene Jobs daher nur
+die Outbox-Zähler unter **System › Hintergrundaufgaben** (`/admin/system/jobs`) zeigen abgeschlossene Jobs daher nur
 für das Aufbewahrungsfenster. `docker compose run --rm worker python -m
 leonaid.entrypoints.worker.outbox retention-sweep` startet einen Durchlauf von
 Hand.
@@ -122,7 +122,7 @@ erneut versucht. Jobs speichern als Fehlerangabe nur den sicheren Fehlercode,
 nie Ausnahmetext. Jede Joblogzeile (`outbox.job.*`) enthält `durationMs`,
 wenn der Job abgeschlossen wurde, fehlschlug oder seinen Claim verlor.
 
-Die Outbox-Karte unter `/admin/system` zeigt außerdem den nächsten
+Die Warteschlange unter `/admin/system/jobs` zeigt außerdem den nächsten
 wartenden Versuch und wie lange der älteste fällige Job schon wartet
 (API-Felder `nextPendingAttemptAt` und `oldestDuePendingAgeSeconds`). Jobs
 abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich

@@ -48,9 +48,14 @@ test("golden dashboard stays functionally stable across the upgrade boundary", a
     const page = await context.newPage();
     await page.goto(`${baseUrl}/admin/?action=${actionId}`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Was jetzt zählt." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^Guten (Morgen|Tag|Abend), Klara$/,
+      }),
     ).toBeVisible();
-    await expect(page.getByTestId("goal-status")).toContainText("90 Prozent");
+    await expect(page.getByTestId("goal-status")).toContainText(
+      "90 % erreicht",
+    );
     const metrics = page.getByTestId("admin-dashboard-metrics");
     await expect(metrics).toContainText(
       `Bestellungen${expectedOrderCount}${expectedQuantity}`,

@@ -48,6 +48,13 @@ from leonaid.modules.inbox.api import (
 from leonaid.modules.inbox.jobs import InboxContactError, InboxContactHandler
 
 
+# Twenty allows 100 requests per minute per API key, shared by the API, the
+# worker and every contract of the gateway suite. Without rate-limit retries
+# a 429 from that shared bucket failed this proof at random (CI 2026-11-04
+# and 2026-11-05). The API's gateway retries 429s and waits for the reset,
+# so the contract's own gateways do the same (the default settings).
+
+
 async def assert_consent_recorded(conn: asyncpg.Connection[Any], case_id: UUID) -> None:
     """A linked case carries exactly one consent record for its CRM person."""
     rows = await conn.fetch(
@@ -404,11 +411,12 @@ async def timeout_after_real_create(
     receipt = await service.submit(command)
     try:
         async with TwentyCrmGateway(
+            # Rate-limit retries as in production (see the note at the top);
+            # the proof here is the timeout, which they do not touch.
             TwentyGatewaySettings(
                 base_url=f"http://127.0.0.1:{port}",
                 api_key=SecretStr(os.environ["TWENTY_INTEGRATION_API_KEY"]),
                 timeout_seconds=2.0,
-                max_rate_limit_retries=0,
             )
         ) as delayed:
             worker = OutboxWorker(
@@ -561,10 +569,10 @@ async def main(mode: str, state_path: Path) -> None:
         assert await worker.run_once()
         completed = await queue.state(job_id)
         assert completed is not None and completed.status == "completed"
+        # Rate-limit retries as in production (see the note at the top).
         settings = TwentyGatewaySettings(
             base_url=os.environ["TWENTY_BASE_URL"],
             api_key=SecretStr(os.environ["TWENTY_INTEGRATION_API_KEY"]),
-            max_rate_limit_retries=0,
         )
         async with TwentyCrmGateway(settings) as crm:
             async with pool.acquire() as conn:

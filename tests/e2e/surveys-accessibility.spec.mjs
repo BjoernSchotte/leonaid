@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { test, expect } from "./csp-guard.mjs";
 import { writeFile } from "node:fs/promises";
 
@@ -62,10 +62,10 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
       "saved",
     );
   async function scan(label) {
-    const result = await new AxeBuilder({ page })
-      .include(".survey-editor")
-      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-      .analyze();
+    const result = await analyzeAccessibility(page, {
+      include: ".survey-editor",
+      tags: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+    });
     // axe analyzes results in a temporary page; restore the tested browser window,
     // without changing which control the keyboard journey has focused.
     await page.bringToFront();
@@ -130,11 +130,26 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
     ).toBeVisible();
     await scan("initial editor");
     const controlColors = await textbox("Titel des Fragebogens").evaluate(
-      (element) => ({
-        border: getComputedStyle(element).borderTopColor,
-        background: getComputedStyle(element.closest(".survey-editor"))
-          .backgroundColor,
-      }),
+      (element) => {
+        // Computed colours may be oklch(); a canvas pixel gives sRGB.
+        const context = document.createElement("canvas").getContext("2d");
+        const rgb = (color) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+          return `rgb(${r}, ${g}, ${b})`;
+        };
+        return {
+          border: rgb(getComputedStyle(element).borderTopColor),
+          // The field sits on the questionnaire card, not on the page.
+          background: rgb(
+            getComputedStyle(
+              element.closest(".se-meta") ?? element.closest(".survey-editor"),
+            ).backgroundColor,
+          ),
+        };
+      },
     );
     const luminance = (color) => {
       const rgb = color
@@ -164,12 +179,14 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
     await expect(button("Kurzer Text Weitere Hinweise")).toBeFocused();
     await activate("Seite hinzufügen");
     await enter("Seitentitel", "Zweite Seite");
-    await tabTo(page.getByRole("combobox", { name: "Fragetyp", exact: true }));
-    await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
+    // The type menu opens on its first entry; arrows move, Enter adds.
     await activate("Frage hinzufügen");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      page.getByRole("menuitem", { name: "Einfachauswahl", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
     await enter("Fragetitel", "Ihr Wunsch");
     await enter("Eintrag 1", "Ja");
     await enter("Eintrag 2", "Nein");
@@ -177,11 +194,28 @@ test("keyboard authoring, recovery and preview have visible focus and accessible
       page.getByRole("checkbox", { name: "Antwort erforderlich", exact: true }),
     );
     await page.keyboard.press("Space");
-    await tabTo(page.getByRole("combobox", { name: "Fragetyp", exact: true }));
-    await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
+    // Escape closes the menu and returns to the trigger.
     await activate("Frage hinzufügen");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "Fragetyp" })).toHaveCount(0);
+    await expect(button("Frage hinzufügen")).toBeFocused();
+    // ArrowUp opens on the last type; typing filters the list.
+    await page.keyboard.press("ArrowUp");
+    await expect(
+      page.getByRole("menuitem", { name: "Matrix", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.type("lang");
+    await expect(
+      page.getByRole("menu", { name: "Fragetyp" }).getByRole("menuitem"),
+    ).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(button("Frage hinzufügen")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      page.getByRole("menuitem", { name: "Langer Text", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
     await enter("Fragetitel", "Was wünschen Sie sich?");
     const rules = page
       .getByRole("complementary", { name: "Frageeigenschaften" })

@@ -36,10 +36,11 @@ test("visual page and question editing persists stable identities through the re
       "saved",
     );
   await editor
-    .getByRole("combobox", { name: "Fragetyp", exact: true })
-    .selectOption("radiogroup");
-  await editor
     .getByRole("button", { name: "Frage hinzufügen", exact: true })
+    .click();
+  await editor
+    .getByRole("menu", { name: "Fragetyp" })
+    .getByRole("menuitem", { name: "Einfachauswahl", exact: true })
     .click();
   await editor
     .getByLabel("Fragetitel", { exact: true })
@@ -48,6 +49,47 @@ test("visual page and question editing persists stable identities through the re
   await editor
     .getByLabel("Eintrag 2", { exact: true })
     .fill("Verbesserungsbedarf");
+  await editor.getByLabel("Hinweis", { exact: true }).fill("Bitte ehrlich");
+  await saved();
+  // The open card holds the fields; a mouse drag over their text selects
+  // it instead of dragging the card (only the card head is draggable).
+  // A wrapping label's name includes a filled textarea's text, hence /^…/.
+  for (const label of [/^Fragetitel$/, /^Hinweis/, /^Eintrag 1$/]) {
+    const field = editor.getByLabel(label);
+    // Centre it instantly: "visible" for scrollIntoViewIfNeeded includes
+    // under the sticky top bar, and the page scrolls smoothly, so on a
+    // slow runner the measured box was stale and the drag started in the
+    // bar's search field (CI, PR #79).
+    await field.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    const box = await field.boundingBox();
+    const y = box.y + Math.min(box.height / 2, 18);
+    expect(
+      await field.evaluate(
+        (element, point) =>
+          document.elementFromPoint(point.x, point.y) === element,
+        { x: box.x + 8, y },
+      ),
+      `${label} is under the pointer`,
+    ).toBe(true);
+    await page.mouse.move(box.x + 8, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 8, y, { steps: 8 });
+    await page.mouse.up();
+    expect(
+      await field.evaluate(
+        (element) => element.selectionEnd - element.selectionStart,
+      ),
+      `${label} text is selectable with the mouse`,
+    ).toBeGreaterThan(0);
+  }
   await saved();
   const sid = page.url().split("/").at(-1);
   const read = () =>
@@ -60,7 +102,11 @@ test("visual page and question editing persists stable identities through the re
   const items = editor
     .getByRole("list", { name: "Fragen auf dieser Seite" })
     .locator("li");
-  await items.nth(1).dragTo(items.nth(0));
+  // Drag by the card head: the open card's fields are not a drag handle.
+  await items
+    .nth(1)
+    .locator(".se-question-head")
+    .dragTo(items.nth(0).locator(".se-question-head"));
   await saved();
   expect((await read()).definition.pages[0].elements[0].name).toBe(choice.name);
   await editor
@@ -133,5 +179,61 @@ test("visual page and question editing persists stable identities through the re
     path: `${process.env.LEONAID_E2E_ARTIFACT_DIR}/surveys-editor.png`,
     fullPage: true,
   });
+  await context.close();
+});
+
+test("leaving with unsaved settings asks once: in the page, not again by the browser", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 1440, height: 1000 },
+  });
+  await context.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: token,
+      url: baseURL,
+      secure: true,
+      httpOnly: true,
+      sameSite: "Lax",
+    },
+  ]);
+  const page = await context.newPage();
+  const browserDialogs = [];
+  page.on("dialog", (dialog) => {
+    browserDialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await page.goto(`${baseURL}/admin/surveys/new`);
+  await page
+    .getByLabel("Titel der Umfrage", { exact: true })
+    .fill("Einmal fragen");
+  await page
+    .getByRole("button", { name: "Umfrage erstellen", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Fragebogen bearbeiten" }),
+  ).toBeVisible();
+  await expect(page.locator("[data-draft-state]")).toHaveAttribute(
+    "data-draft-state",
+    "saved",
+  );
+  const surveyUrl = page.url();
+  await page
+    .getByText("Teilantworten nach Inaktivität", { exact: true })
+    .click();
+  await page.getByLabel("Abweichender Zeitraum in Sekunden").fill("120");
+  // Still protected: a reload asks through the browser (dismissed: stay).
+  await page.reload({ timeout: 3_000 }).catch(() => {});
+  await expect.poll(() => browserDialogs).toEqual(["beforeunload"]);
+  expect(page.url()).toBe(surveyUrl);
+  // The in-page question, then no second dialog from the browser (I11).
+  await page.getByRole("link", { name: "Alle Umfragen" }).click();
+  const discard = page.getByRole("alertdialog");
+  await expect(discard).toContainText("Entwurf verwerfen?");
+  await discard.getByRole("button", { name: "Verwerfen", exact: true }).click();
+  await page.waitForURL(`${baseURL}/admin/surveys`);
+  expect(browserDialogs).toEqual(["beforeunload"]);
   await context.close();
 });

@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -22,8 +22,19 @@ function sessionCookie(value) {
   };
 }
 
+/** Toggle a switch and confirm the installation-wide change. */
+async function toggle(page, control, confirmLabel) {
+  await control.focus();
+  await control.press("Space");
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: confirmLabel })
+    .click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+}
+
 async function expectNoSeriousAccessibilityViolations(page) {
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(
     accessibility.violations.filter(
       (violation) =>
@@ -45,9 +56,13 @@ test("system admin controls browser and backend through OpenFeature", async ({
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   try {
-    await page.goto(`${baseUrl}/admin/system`);
+    await page.goto(`${baseUrl}/admin/system/flags`);
+    await expect(page.getByRole("tab", { name: "Funktionen" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await expect(
-      page.getByRole("heading", { name: "Feature-Flags" }),
+      page.getByRole("heading", { name: "Funktionen dieser Installation" }),
     ).toBeVisible();
     await expect(page.getByTestId("preview-notice")).toHaveCount(0);
     await expect(page.getByTestId("feature-system-status")).toHaveCount(0);
@@ -56,17 +71,25 @@ test("system admin controls browser and backend through OpenFeature", async ({
     const systemStatus = page.getByTestId(
       "feature-switch-admin.system_status_panel",
     );
-    await expect(preview).toHaveAttribute("aria-checked", "false");
-    await expect(systemStatus).toHaveAttribute("aria-checked", "false");
+    await expect(preview).not.toBeChecked();
+    await expect(systemStatus).not.toBeChecked();
 
+    // A switch only asks; nothing changes until the change is confirmed.
     await preview.focus();
     await preview.press("Space");
-    await expect(preview).toHaveAttribute("aria-checked", "true");
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Abbrechen" })
+      .click();
+    await expect(preview).not.toBeChecked();
+    await expect(page.getByTestId("preview-notice")).toHaveCount(0);
+
+    await toggle(page, preview, "Einschalten");
+    await expect(preview).toBeChecked();
     await expect(page.getByTestId("preview-notice")).toBeVisible();
 
-    await systemStatus.focus();
-    await systemStatus.press("Space");
-    await expect(systemStatus).toHaveAttribute("aria-checked", "true");
+    await toggle(page, systemStatus, "Einschalten");
+    await expect(systemStatus).toBeChecked();
     await expect(page.getByTestId("feature-system-status")).toContainText(
       "Betriebsbereit",
     );
@@ -87,8 +110,8 @@ test("system admin controls browser and backend through OpenFeature", async ({
     const reloadedStatus = page.getByTestId(
       "feature-switch-admin.system_status_panel",
     );
-    await reloadedStatus.click();
-    await expect(reloadedStatus).toHaveAttribute("aria-checked", "false");
+    await toggle(page, reloadedStatus, "Ausschalten");
+    await expect(reloadedStatus).not.toBeChecked();
     await expect(page.getByTestId("feature-system-status")).toHaveCount(0);
     const disabledStatus = await page.evaluate(async () => {
       const response = await fetch("/api/v1/admin/system-status");
@@ -96,15 +119,15 @@ test("system admin controls browser and backend through OpenFeature", async ({
     });
     expect(disabledStatus).toBe(404);
 
-    await reloadedStatus.click();
-    await expect(reloadedStatus).toHaveAttribute("aria-checked", "true");
+    await toggle(page, reloadedStatus, "Einschalten");
+    await expect(reloadedStatus).toBeChecked();
     await expect(page.getByTestId("feature-system-status")).toContainText(
       "Betriebsbereit",
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(
-      page.getByRole("heading", { name: "Feature-Flags" }),
+      page.getByRole("heading", { name: "Funktionen dieser Installation" }),
     ).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/feature-flags-mobile.png`,

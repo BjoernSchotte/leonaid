@@ -307,6 +307,21 @@ describe("orders list", () => {
     );
   });
 
+  it("keeps one primary in the next step and steps aside while editing", async () => {
+    await renderPage("?open=c1");
+    const review = await screen.findByTestId("review-invoice");
+    const block = review.closest(".next-step") as HTMLElement;
+    // One primary action, the alternative is a ghost (DESIGN.md).
+    expect(block.querySelectorAll(".btn-primary")).toHaveLength(1);
+    const edit = within(block).getByTestId("commitment-edit-details");
+    expect(edit.classList.contains("btn-ghost")).toBe(true);
+    fireEvent.click(edit);
+    // The form's save is now the one primary: the block steps aside.
+    expect(screen.queryByTestId("review-invoice")).toBeNull();
+    fireEvent.click(await screen.findByTestId("commitment-edit-close"));
+    expect(await screen.findByTestId("review-invoice")).toBeTruthy();
+  });
+
   it("shows a read-only note instead of the review when the server says so", async () => {
     const client = fakeClient();
     (client.getInvoiceContext as ReturnType<typeof vi.fn>).mockResolvedValue({

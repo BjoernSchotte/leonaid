@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   CircleDot,
-  Eye,
   FileText,
   Mail,
   ReceiptEuro,
@@ -27,6 +26,7 @@ import {
   type ListProperty,
   type ListSort,
   type ListViewDefinition,
+  ReadOnlyNotice,
 } from "@leonaid/ui";
 
 import {
@@ -98,7 +98,7 @@ function SubNav({
   ];
   return (
     <div className="inv-subnav">
-      <nav aria-label="Finanzbereiche" className="inv-links">
+      <nav aria-label="Finanzbereiche" className="section-links">
         {links.map(([section, label]) => (
           <a
             aria-current={current === section ? "page" : undefined}
@@ -306,18 +306,13 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
         onActionChange={setActionId}
       />
       {readOnly ? (
-        <div
-          className="callout inv-readonly"
+        <ReadOnlyNotice
+          className="inv-readonly"
           data-testid="invoice-read-only"
-          role="status"
         >
-          <Icon icon={Eye} size={16} />
-          <span>
-            <strong>Nur lesen.</strong> Ihre Rolle zeigt Rechnungen, Zahlungen
-            und PDFs. Zahlungen und Stornos erfasst die Aktionsleitung oder
-            „Finanzen verwalten“.
-          </span>
-        </div>
+          Ihre Rolle zeigt Rechnungen, Zahlungen und PDFs. Zahlungen und Stornos
+          erfasst die Aktionsleitung oder „Finanzen verwalten“.
+        </ReadOnlyNotice>
       ) : null}
       {profileIncomplete ? (
         <div

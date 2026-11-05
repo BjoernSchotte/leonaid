@@ -4,10 +4,10 @@
  * product UI can evolve without coupling components to raw brand colors.
  * https://www.lionsclubs.org/en/resources-for-members/brand-guidelines
  *
- * The semantic tokens live in leitsystem.css. The names below are aliases
- * that keep existing component styles working until each component moves to
- * the Leitsystem names. They only point at Leitsystem tokens, so both themes
- * and the system preference follow automatically.
+ * The semantic tokens, the type scale (--fs-*) and control heights
+ * (--control-h, --control-h-lg) live in leitsystem.css; component styles use
+ * those names directly. The old aliases and metric tokens (--text-sm,
+ * --control-height, ...) are gone; tools/ci/legacy_ui.py keeps it that way.
  */
 :root {
   /* --lions-blue and --lions-gold are defined in leitsystem.css. */
@@ -19,43 +19,4 @@
   --lions-navy: #0d2240;
   --lions-coral: #ff5b35;
   --lions-cool-gray-5: #b3b2b1;
-
-  /* Aliases: existing name -> Leitsystem token. */
-  --background: var(--bg);
-  --foreground: var(--text);
-  --primary: var(--accent);
-  --primary-foreground: var(--on-accent);
-  --surface-muted: var(--surface-2);
-  --input: var(--control-border);
-  --muted: var(--text-2);
-  --accent-foreground: var(--accent-ink);
-  --danger-text: var(--danger);
-  --danger-foreground: var(--on-accent);
-  --destructive: var(--danger);
-  --success: var(--ok);
-  --success-text: var(--ok);
-  --warning: var(--warn);
-  --warning-text: var(--warn);
-  --warning-foreground: var(--on-accent);
-  --info-text: var(--info);
-  --ring: var(--focus);
-  --sidebar: var(--rail-bg);
-  --sidebar-foreground: var(--rail-text);
-  --sidebar-muted: var(--rail-text-2);
-  --sidebar-active: var(--rail-active);
-  --sidebar-accent: var(--rail-marker);
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --shadow-sm: var(--shadow-1);
-  --shadow-md: var(--shadow-2);
-  --motion-fast: var(--dur-1);
-  --motion-standard: var(--dur-2);
-
-  /* Component metrics that later Leitsystem tasks replace. */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --control-height: 2.75rem;
 }

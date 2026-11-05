@@ -16,16 +16,24 @@ from typing import Any
 from pypdf import PdfReader
 from pypdf.generic import ByteStringObject, ContentStream, TextStringObject
 
-from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.disclosure import (
+    AnalysisSnapshot as DisclosedSnapshot,
+)
 from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
     export_filename,
+    UNRELEASED_CONDITION_NOTE,
+    shown_count,
+    withheld_legend,
+    withheld_note,
 )
 
 TYPST_VERSION = "0.13.1"
-RENDER_VERSION = f"survey-analysis-v1+typst-{TYPST_VERSION}"
+# v7: report PDFs under the disclosure rules of review round 5 (Task
+# 5.6b). Bump with every change of disclose() (see DISCLOSED_SINCE).
+RENDER_VERSION = f"survey-analysis-v7+typst-{TYPST_VERSION}"
 DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "survey-analysis-v1.typ"
 STATUSES = {
     "in_progress": "In Bearbeitung",
@@ -41,19 +49,25 @@ def number(value: int | float | None) -> str:
 
 
 def render_payload(source: SurveyExportSource) -> dict[str, Any]:
-    snapshot = AnalysisSnapshot.model_validate(source.snapshot.model_dump())
+    # The export adapter passes the disclosed snapshot (k = 5); the renderer
+    # draws what it gets, so its own checks can use full numbers.
+    snapshot = source.snapshot
+    k = snapshot.minimumGroupSize if isinstance(snapshot, DisclosedSnapshot) else None
     questions = []
     for question in snapshot.questions:
 
-        def distribution(label: str, denominator: int, counts: Any) -> dict[str, Any]:
+        def distribution(
+            label: str, denominator: int | None, counts: Any
+        ) -> dict[str, Any]:
+            shown = shown_count(denominator)
             return {
                 "label": label,
-                "denominator": denominator,
+                "denominator": shown,
                 "rows": [
                     {
                         "label": bucket.label,
-                        "count": bucket.count,
-                        "denominator": denominator,
+                        "count": shown_count(bucket.count),
+                        "denominator": shown,
                         "percentage": bucket.percentage or 0,
                         "percentageLabel": number(bucket.percentage) + " %"
                         if bucket.percentage is not None
@@ -73,8 +87,9 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             distribution(row.label, row.answered, row.counts)
             for row in question.matrixRows
         )
+        # The disclosed model has no "sum" (R3); a stored one still does.
         metrics = [
-            {"label": label, "value": number(getattr(question, key))}
+            {"label": label, "value": number(getattr(question, key, None))}
             for key, label in (
                 ("sum", "Summe"),
                 ("mean", "Mittelwert"),
@@ -82,26 +97,43 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
                 ("maximum", "Maximum"),
                 ("nps", "Net Promoter Score"),
             )
-            if getattr(question, key) is not None
+            if getattr(question, key, None) is not None
         ]
+        if getattr(question, "withheldReason", None) == "unreleasedCondition":
+            metrics.append({"label": "Hinweis", "value": UNRELEASED_CONDITION_NOTE})
+        elif k is not None and getattr(question, "suppressed", False):
+            metrics.append({"label": "Hinweis", "value": withheld_note(k)})
+        hidden_rows = [
+            row.label
+            for row in question.matrixRows
+            if getattr(row, "suppressed", False)
+        ]
+        if k is not None and hidden_rows:
+            metrics.append(
+                {
+                    "label": "Hinweis",
+                    "value": f"Ohne Auswertung (weniger als {k} gültige Antworten oder daraus ableitbar): "
+                    + ", ".join(hidden_rows),
+                }
+            )
         questions.append(
             {
                 "id": question.questionId,
                 "title": question.title,
                 "kind": question.kind,
-                "relevant": question.relevant,
-                "answered": question.answered,
-                "unanswered": question.unanswered,
-                "hidden": question.hidden,
-                "invalid": question.invalid,
+                "relevant": shown_count(question.relevant),
+                "answered": shown_count(question.answered),
+                "unanswered": shown_count(question.unanswered),
+                "hidden": shown_count(question.hidden),
+                "invalid": shown_count(question.invalid),
                 "metrics": metrics,
                 "groups": groups,
                 "matrixRows": [
                     {
                         "label": row.label,
-                        "answered": row.answered,
-                        "unanswered": row.unanswered,
-                        "invalid": row.invalid,
+                        "answered": shown_count(row.answered),
+                        "unanswered": shown_count(row.unanswered),
+                        "invalid": shown_count(row.invalid),
                     }
                     for row in question.matrixRows
                 ],
@@ -121,15 +153,17 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
         "testData": "Testantworten" if snapshot.filter.isTest else "Echte Antworten",
         "createdFrom": snapshot.filter.createdFrom or "Ohne Untergrenze",
         "createdBefore": snapshot.filter.createdBefore or "Ohne Obergrenze",
-        "participationCount": snapshot.participationCount,
+        "participationCount": shown_count(snapshot.participationCount),
         "statusCounts": [
-            {"label": STATUSES[k], "count": v}
-            for k, v in snapshot.statusCounts.model_dump().items()
+            {"label": STATUSES[key], "count": shown_count(v)}
+            for key, v in snapshot.statusCounts.model_dump().items()
         ],
         "lastPages": [
-            {"label": p.title, "count": p.count} for p in snapshot.lastPageCounts
+            {"label": p.title, "count": shown_count(p.count)}
+            for p in snapshot.lastPageCounts
         ],
         "questions": questions,
+        "withheldLegend": withheld_legend(k) if k else None,
     }
 
 

@@ -104,6 +104,10 @@ probe() {
 }
 probe source_compose seed
 archive_publish() {
+  # A fresh named volume mounted at a path the image does not have is owned
+  # by root; the API runs as the host user, so hand the archive to it first.
+  docker run --rm --network none --volume "$archive_volume:/archive" \
+    "$ALPINE_IMAGE" chown "$LEONAID_CORE_RUNTIME_USER" /archive
   source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --volume "$archive_volume:/archive" --workdir /repo --entrypoint python api \
     tools/surveys/recovery.py publish --archive /archive

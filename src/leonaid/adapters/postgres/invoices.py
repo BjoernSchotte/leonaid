@@ -214,7 +214,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                         raise Conflict(
                             "invoice_concurrent_retry",
                             "Die Rechnung wurde gleichzeitig verarbeitet. "
-                            "Bitte versuche denselben Vorgang erneut.",
+                            "Bitte denselben Vorgang erneut ausführen.",
                         ) from None
                     await serialization_pause(attempt)
         raise RuntimeError("Die Rechnungstransaktion wurde nicht ausgeführt.")
@@ -534,7 +534,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
-                document_version, idempotency_key, created_at, updated_at
+                document_version, idempotency_key, created_at, updated_at,
+                issued_on
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6,
@@ -542,7 +543,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 $12, $13::jsonb, $14::jsonb, $15::jsonb,
                 $16::jsonb, $17, $18,
                 $19, $20, $21,
-                2, $22, $6, $6
+                2, $22, $6, $6,
+                $23
             )
             """,
             invoice.id,
@@ -570,6 +572,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             invoice.payment_reference,
             invoice.approved_by_user_id,
             idempotency_key,
+            invoice.issued_on,
         )
         await connection.execute(
             """
@@ -804,6 +807,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
             issued_at=row["issued_at"],
+            issued_on=row["issued_on"],
             service_on=row["service_on"],
             due_on=row["due_on"],
             issuer=InvoiceIssuerSnapshot.from_payload(

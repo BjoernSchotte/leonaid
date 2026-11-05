@@ -233,6 +233,10 @@ def test_publication_details_and_revision_are_server_side_invariants() -> None:
             ends_on=archived.ends_on,
         )
     assert immutable.value.code == "action_archived_immutable"
+    with pytest.raises(DomainInvariantError) as leads:
+        archived.require_mutable()
+    assert leads.value.code == "action_archived_immutable"
+    neutral_action(status=CharityActionStatus.COMPLETED).require_mutable()
 
 
 def test_management_state_requires_one_unique_responsible_admin() -> None:

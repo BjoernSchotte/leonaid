@@ -270,7 +270,8 @@ def _result(hit: SearchHit) -> SearchResult:
                 hit.detail,
                 None if status is AccountStatus.ACTIVE else STATUS_LABELS[status],
             )
-            href = "/admin/members"
+            # The member list opens the hit in its pane.
+            href = f"/admin/members?open={hit.id}"
         case _:
             raise ValueError(f"Unsupported core search result: {hit.type}")
     return SearchResult(

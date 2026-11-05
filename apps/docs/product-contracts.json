@@ -3,26 +3,31 @@
     {
       "file": "packages/features/src/commitments/commitment-capture.tsx",
       "contains": [
-        "Zugeordneter Sponsor",
-        "Prüfbereit erfassen",
+        "Bestellung für",
+        "Verbindlich erfassen",
         "Als Entwurf speichern",
-        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut."
+        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut.",
+        "Bestellung erfasst"
       ]
     },
     {
       "file": "packages/features/src/commitments/complete-draft.tsx",
       "contains": ["Entwurf prüfbereit abschließen"]
+    },
+    {
+      "file": "packages/features/src/acquisition/sponsor-workspace.tsx",
+      "contains": ["Bestellung erfassen"]
     }
   ],
   "DOC-P012": [
     {
       "file": "packages/features/src/action-admin/delivery-section.tsx",
       "contains": [
-        "Lieferplanung für diese Aktion aktivieren",
-        "Weiteren Tag hinzufügen",
-        "Zeitfenster hinzufügen",
-        "Lieferplanung speichern",
-        "Aktuellen Stand laden und Eingaben behalten"
+        "Lieferfenster hinzufügen",
+        "Lieferplanung aktivieren",
+        "Fenster stilllegen",
+        "Stillgelegt",
+        "inzwischen geändert"
       ]
     },
     {
@@ -32,6 +37,22 @@
     {
       "file": "packages/features/src/action-admin/manage-sections.tsx",
       "contains": ["label: \"Auslieferung\"", "value: \"delivery\""]
+    },
+    {
+      "file": "packages/features/src/action-admin/delivery-section.tsx",
+      "contains": [
+        "Ausgebucht",
+        "ist als ausgebucht markiert.",
+        "ist wieder buchbar."
+      ]
+    },
+    {
+      "file": "packages/features/src/commitments/delivery-fields.tsx",
+      "contains": [
+        "Lieferfenster ist ausgebucht",
+        "Trotzdem eintragen",
+        "(ausgebucht)"
+      ]
     }
   ],
   "DOC-P013": [
@@ -41,8 +62,21 @@
         "Aktueller Bestellwert",
         "Rechnungsadresse entspricht der Lieferadresse",
         "Ich bestelle die gewählte Menge verbindlich.",
-        "Bestellung eingegangen"
+        "Bestellung eingegangen",
+        "Ihre Auswahl",
+        "Wer bestellt?",
+        "Firma oder Verein",
+        "Privatperson",
+        "Danke für Ihre Bestellung!"
       ]
+    },
+    {
+      "file": "apps/public/src/components/PublicOrderEnhancement.astro",
+      "contains": ["Bitte prüfen Sie"]
+    },
+    {
+      "file": "apps/public/src/components/PublicDeliveryWindows.astro",
+      "contains": ["ausgebucht"]
     }
   ],
   "DOC-P014": [
@@ -68,11 +102,16 @@
     {
       "file": "packages/features/src/invoices/invoice-admin.tsx",
       "contains": [
-        "Nur lesen.",
+        "ReadOnlyNotice",
+        "Ihre Rolle zeigt Rechnungen",
         "Charity-Aktion",
         "Zahlungen",
         "mayManageSettlements"
       ]
+    },
+    {
+      "file": "packages/ui/src/components/next-step.tsx",
+      "contains": ["Nur lesen."]
     }
   ],
   "DOC-P015": [
@@ -81,7 +120,9 @@
       "contains": [
         "Login-Code anfordern",
         "Sechsstelliger Code",
-        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten"
+        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten",
+        "Neuen Code senden",
+        "Andere E-Mail-Adresse"
       ]
     },
     {
@@ -408,18 +449,43 @@
     {
       "file": "packages/features/src/tasks/tasks.tsx",
       "contains": [
-        "Neue Liste",
-        "Name der Liste",
-        "Liste anlegen",
+        "Liste wechseln",
         "Zugriff verwalten",
-        "Aufgabe schnell erfassen",
-        "Aufgabe abschließen",
-        "Aufgabe wieder öffnen",
-        "Reihenfolge ändern",
+        "Aufgabe anlegen",
+        "Mein Plan",
         "Für mich",
-        "Meine Planung",
-        "Mein Heute"
+        "Alle offenen",
+        "Nach Liste",
+        "Erledigt",
+        "Rückgängig",
+        "Wiedervorlage",
+        "Zurückgestellt"
       ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-tools.tsx",
+      "contains": ["Neue Liste", "Name der Liste", "Liste anlegen"]
+    },
+    {
+      "file": "packages/features/src/tasks/task-quick-add.tsx",
+      "contains": ["Aufgabe schnell erfassen", "im Plan unter Heute"]
+    },
+    {
+      "file": "packages/features/src/tasks/task-detail.tsx",
+      "contains": [
+        "Reihenfolge ändern",
+        "Nach oben",
+        "Nach unten",
+        "In Abschnitt",
+        "Für Tag planen",
+        "Schritte",
+        "Neuer Schritt",
+        "Schritt hinzufügen"
+      ]
+    },
+    {
+      "file": "packages/features/src/tasks/task-model.ts",
+      "contains": ["Bis heute fällig", "Diese Woche", "Später", "Irgendwann"]
     },
     {
       "file": "packages/features/src/tasks/task-editor.tsx",
@@ -434,13 +500,10 @@
     {
       "file": "packages/features/src/tasks/task-structure.tsx",
       "contains": [
-        "Priorität, Tags und Checkliste",
-        "Hohe Priorität",
-        "Neuer Tag",
-        "Tag anlegen",
-        "Neuer Schritt",
-        "Schritt hinzufügen",
-        "Struktur speichern"
+        "Priorität und Schlagworte",
+        "Neues Schlagwort",
+        "Schlagwort anlegen",
+        "Speichern"
       ]
     },
     {
@@ -481,16 +544,16 @@
     {
       "file": "packages/features/src/materials/materials.tsx",
       "contains": [
-        "Neues Material",
+        "Material hochladen",
         "Materialtitel",
         "Kontext des Materials",
-        "Material hochladen",
         "Neue Version hochladen",
-        "Aktuelle Dateiversion",
-        "Dateiversion herunterladen",
+        "Neue Version",
+        "Aktuell",
+        "Zugriff verwalten",
         "Materialfreigaben",
         "Materialzugriff",
-        "Eine Datei bis 25 MiB."
+        "Höchstens 25 MiB."
       ]
     },
     {
@@ -511,8 +574,10 @@
         "Einfügen",
         "Aufgabe aus dieser Seite",
         "Freigaben verwalten",
-        "Seitenfreigaben",
-        "Seitenzugriff"
+        "Bearbeiten",
+        "Meine Fassung behalten",
+        "Andere übernehmen",
+        "Material aus Ablage verknüpfen"
       ]
     },
     {
@@ -606,6 +671,29 @@
       "contains": [
         "RateLimitPolicy(\"inbox.public.submit\", 5, timedelta(minutes=10))"
       ]
+    }
+  ],
+  "DOC-P046": [
+    {
+      "file": "packages/features/src/delivery/delivery-board.tsx",
+      "contains": [
+        "Fahrer zuweisen",
+        "Fahrer für alle",
+        "Ausfahrer einladen",
+        "Fahrdienst",
+        "Liefertag",
+        "Fenster abschließen",
+        "Wieder öffnen",
+        "Nachliefern",
+        "Rückgängig",
+        "Ohne Verbindung zeigen wir keine Lieferungen.",
+        "nach Abschluss gebucht",
+        "Zur Lieferung"
+      ]
+    },
+    {
+      "file": "packages/features/src/delivery/delivery-board.tsx",
+      "contains": ["Ausgebucht"]
     }
   ]
 }

@@ -16,6 +16,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import {
   loadKrapfentaxiSource,
   krapfentaxiImportData,
+  krapfentaxiJournalMatches,
 } from "./krapfentaxi-source.mjs";
 import { normalizeCampaignImage } from "../../apps/campaign-site/src/auth/campaign-image.mjs";
 
@@ -23,7 +24,7 @@ const root = new URL("../../", import.meta.url);
 const source = await loadKrapfentaxiSource();
 assert.deepEqual(await loadKrapfentaxiSource(), source);
 assert.equal(source.assets.length, 3);
-assert.equal(source.manifest.version, 1);
+assert.equal(source.manifest.version, 2);
 assert.equal(source.manifest.productionRightsCleared, false);
 assert.match(source.manifest.rightsNotice, /Rechte verbleiben/);
 assert.match(source.manifest.rightsNotice, /vor einem produktiven/);
@@ -75,6 +76,62 @@ assert.equal(data.brand_logo.id, media.logo.id);
 assert.equal(data.partners[0].logo.id, media.partner.id);
 assert.equal(data.hero_title, null);
 assert.deepEqual(data.hero_summary, source.manifest.editorial.hero_summary);
+// Version 2 addresses public visitors with "Sie", never "du".
+const visitorCopy = [
+  data.hero_summary,
+  ...data.body.map((block) => block.children[0].text),
+];
+for (const text of visitorCopy)
+  assert.doesNotMatch(
+    text,
+    /\b(du|dein\w*|dir|dich|erfährst)\b/i,
+    `import copy must not use "du": ${text}`,
+  );
+assert.ok(
+  visitorCopy.some((text) => /\b(Sie|Ihr\w*)\b/.test(text)),
+  'import copy must address visitors with "Sie"',
+);
+// A journal row from another import version is refused (journal_conflict).
+const identity = { coreUserId: "core-user", authorId: "cms-author" };
+const journal = {
+  fingerprint: source.fingerprint,
+  manifest: source.manifest,
+  core_user_id: identity.coreUserId,
+  author_id: identity.authorId,
+  media: {
+    hero: "01ARZ3NDEKTSV4RRFFQ69G5FA0",
+    logo: "01ARZ3NDEKTSV4RRFFQ69G5FA1",
+    partner: "01ARZ3NDEKTSV4RRFFQ69G5FA2",
+  },
+};
+assert.equal(krapfentaxiJournalMatches(journal, source, identity), true);
+const versionOne = { ...source.manifest, version: 1 };
+assert.equal(
+  krapfentaxiJournalMatches(
+    {
+      ...journal,
+      manifest: versionOne,
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify(versionOne))
+        .digest("hex"),
+    },
+    source,
+    identity,
+  ),
+  false,
+);
+for (const drift of [
+  { fingerprint: "0".repeat(64) },
+  { manifest: versionOne },
+  { core_user_id: "other-user" },
+  { author_id: "other-author" },
+  { media: { ...journal.media, extra: journal.media.hero } },
+  { media: [] },
+])
+  assert.equal(
+    krapfentaxiJournalMatches({ ...journal, ...drift }, source, identity),
+    false,
+  );
 for (const key of [
   "name",
   "purpose",
@@ -162,5 +219,5 @@ try {
   await rm(fixture, { recursive: true, force: true });
 }
 console.log(
-  "krapfentaxi-source: OK: actual three raster assets decode, deterministic content/provenance fingerprint, preserved rights notice, no Core business snapshots, scoped payload checks and actual five-file/symlink drift denial; import writes remain a separate gate",
+  "krapfentaxi-source: OK: actual three raster assets decode, deterministic content/provenance fingerprint, version 2 Sie copy, v1 journal refused, preserved rights notice, no Core business snapshots, scoped payload checks and actual five-file/symlink drift denial; import writes remain a separate gate",
 );

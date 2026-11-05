@@ -84,6 +84,11 @@ const units = {
   piece: "je Stück",
   sponsoring: "je Sponsoring",
 };
+// The contact form renders below the order on published pages with the inbox
+// module; the order confirmation then links to it instead of the mailto.
+const showsInbox = Boolean(
+  action && route?.availability === "published" && moduleEnabled("inbox"),
+);
 ---
 
 <PublicLayout
@@ -131,7 +136,7 @@ const units = {
         {!!content.faq?.length && (
           <section
             slot="after-intro"
-            class="site-shell"
+            class="site-shell campaign-faq"
             aria-labelledby="faq-heading"
           >
             <h2 id="faq-heading">Häufige Fragen</h2>
@@ -145,101 +150,110 @@ const units = {
         )}
       </PublicAction>
     ) : content && action ? (
-      <article
-        class="site-shell campaign-story"
-        data-campaign-state="published"
-      >
-        <header id="start">
-          <p class="eyebrow">{action.carrierName}</p>
-          <h1>{content.hero_title || content.title}</h1>
-          {content.hero_summary && (
-            <p class="summary">{content.hero_summary}</p>
-          )}
-          {orderForm && (
-            <a class="primary-link" href="#bestellen">
-              Zur Bestellung
-            </a>
-          )}
+      <article class="campaign-story" data-campaign-state="published">
+        {/* The prototype's Lions-blue hero (apps/public .action-hero). */}
+        <header id="start" class="action-hero">
+          <div class="site-shell action-hero__grid">
+            <div class="action-hero__copy">
+              <p class="eyebrow">{action.carrierName}</p>
+              <h1>{content.hero_title || content.title}</h1>
+              {content.hero_summary && (
+                <p class="action-hero__lead">{content.hero_summary}</p>
+              )}
+              {orderForm && (
+                <div class="action-hero__actions">
+                  <a class="primary-link" href="#bestellen">
+                    Zur Bestellung
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
         </header>
-        {content.hero_image && (
-          <img
-            class="campaign-hero-image"
-            src={publicMediaPath(action.archiveSlug, content.hero_image.id)}
-            alt={content.hero_image.alt ?? ""}
-            width={content.hero_image.width}
-            height={content.hero_image.height}
-            fetchpriority="high"
+        <div class="site-shell campaign-body">
+          {content.hero_image && (
+            <img
+              class="campaign-hero-image"
+              src={publicMediaPath(action.archiveSlug, content.hero_image.id)}
+              alt={content.hero_image.alt ?? ""}
+              width={content.hero_image.width}
+              height={content.hero_image.height}
+              fetchpriority="high"
+            />
+          )}
+          <section
+            aria-label="Über die Aktion"
+            class="editorial"
+            set:html={body}
           />
-        )}
-        <section
-          aria-label="Über die Aktion"
-          class="editorial"
-          set:html={body}
-        />
-        <section id="wirkung" aria-labelledby="purpose-heading">
-          <>
-            <h2 id="purpose-heading">Wem wir helfen</h2>
-            <p>{action.purpose}</p>
-          </>
-        </section>
-        {action.offerings.length > 0 && (
-          <section id="angebote" aria-labelledby="offerings-heading">
-            <h2 id="offerings-heading">Unsere Angebote</h2>
-            <ul class="offers">
-              {action.offerings.map((offering) => (
-                <li>
-                  <h3>{offering.name}</h3>
-                  <p>
-                    {money(offering.unitPriceMinor, offering.currency)} ·{" "}
-                    {units[offering.unit]}
-                  </p>
-                </li>
+          <section id="wirkung" aria-labelledby="purpose-heading">
+            <>
+              <h2 id="purpose-heading">Wem wir helfen</h2>
+              <p>{action.purpose}</p>
+            </>
+          </section>
+          {action.offerings.length > 0 && (
+            <section id="angebote" aria-labelledby="offerings-heading">
+              <h2 id="offerings-heading">Unsere Angebote</h2>
+              <ul class="offers">
+                {action.offerings.map((offering) => (
+                  <li>
+                    <h3>{offering.name}</h3>
+                    <p>
+                      {money(offering.unitPriceMinor, offering.currency)} ·{" "}
+                      {units[offering.unit]}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {!!content.faq?.length && (
+            <section aria-labelledby="faq-heading">
+              <h2 id="faq-heading">Häufige Fragen</h2>
+              {content.faq.map((item) => (
+                <details>
+                  <summary>{item.question}</summary>
+                  <p>{item.answer}</p>
+                </details>
               ))}
-            </ul>
-          </section>
-        )}
-        {!!content.faq?.length && (
-          <section aria-labelledby="faq-heading">
-            <h2 id="faq-heading">Häufige Fragen</h2>
-            {content.faq.map((item) => (
-              <details>
-                <summary>{item.question}</summary>
-                <p>{item.answer}</p>
-              </details>
-            ))}
-          </section>
-        )}
-        {!!content.partners?.length && (
-          <section aria-labelledby="partners-heading">
-            <h2 id="partners-heading">Gemeinsam möglich gemacht</h2>
-            <ul class="partners">
-              {content.partners.map((partner) => (
-                <li>
-                  {partner.logo && (
-                    <img
-                      class="campaign-partner-logo"
-                      src={publicMediaPath(action.archiveSlug, partner.logo.id)}
-                      alt={partner.logo.alt ?? ""}
-                      width={partner.logo.width}
-                      height={partner.logo.height}
-                      loading="lazy"
-                    />
-                  )}
-                  <h3>
-                    {partner.website ? (
-                      <a href={partner.website} rel="noopener noreferrer">
-                        {partner.name}
-                      </a>
-                    ) : (
-                      partner.name
+            </section>
+          )}
+          {!!content.partners?.length && (
+            <section aria-labelledby="partners-heading">
+              <h2 id="partners-heading">Gemeinsam möglich gemacht</h2>
+              <ul class="partners">
+                {content.partners.map((partner) => (
+                  <li>
+                    {partner.logo && (
+                      <img
+                        class="campaign-partner-logo"
+                        src={publicMediaPath(
+                          action.archiveSlug,
+                          partner.logo.id,
+                        )}
+                        alt={partner.logo.alt ?? ""}
+                        width={partner.logo.width}
+                        height={partner.logo.height}
+                        loading="lazy"
+                      />
                     )}
-                  </h3>
-                  {partner.description && <p>{partner.description}</p>}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                    <h3>
+                      {partner.website ? (
+                        <a href={partner.website} rel="noopener noreferrer">
+                          {partner.name}
+                        </a>
+                      ) : (
+                        partner.name
+                      )}
+                    </h3>
+                    {partner.description && <p>{partner.description}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </article>
     ) : (
       <PublicState
@@ -251,13 +265,13 @@ const units = {
         }
         title={
           state === "unavailable"
-            ? "Bitte versuche es gleich noch einmal."
+            ? "Bitte versuchen Sie es gleich noch einmal."
             : "Diese Aktionsseite ist derzeit nicht veröffentlicht."
         }
         message={
           state === "unavailable"
-            ? "Die Aktionsseite ist gerade nicht erreichbar. Bitte lade sie in Kürze erneut."
-            : "Verwende den aktuellen Aktionslink deines Lions Clubs oder schau später wieder vorbei."
+            ? "Die Aktionsseite ist gerade nicht erreichbar. Bitte laden Sie sie in Kürze erneut."
+            : "Bitte verwenden Sie den aktuellen Aktionslink Ihres Lions Clubs oder schauen Sie später wieder vorbei."
         }
         actionHref={state === "unavailable" ? Astro.url.pathname : "/"}
         actionLabel={
@@ -272,25 +286,30 @@ const units = {
         action={action}
         orderForm={orderForm}
         publicAlias={route.orderAlias}
+        contactFormHref={showsInbox ? "#kontakt" : undefined}
         orderResult={orderResult}
       />
     )
   }
   {
-    !ThemeIntro &&
-      action &&
-      route?.availability === "published" &&
-      moduleEnabled("inbox") && (
-        <PublicInbox actionId={action.id} actionName={action.name} />
-      )
+    !ThemeIntro && action && showsInbox && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
+    )
   }
 </PublicLayout>
 <style>
+  /* Leitsystem type scale and Lions colours (tokens from @leonaid/ui via the
+     public layout), following the prototype's public page sections. */
+  .campaign-body {
+    display: grid;
+    gap: var(--s-10);
+    padding-block: var(--s-10) var(--s-12);
+  }
   .campaign-hero-image {
     width: 100%;
     max-width: 48rem;
     height: auto;
-    margin-block: 2rem;
+    border-radius: var(--r-lg);
   }
   .campaign-partner-logo {
     width: 8rem;
@@ -298,68 +317,91 @@ const units = {
     object-fit: contain;
     object-position: left center;
   }
-  .campaign-story {
-    max-width: 64rem;
-    padding-block: clamp(2rem, 6vw, 5rem);
+  .campaign-body > section {
+    display: grid;
+    gap: var(--s-4);
   }
-  .campaign-story header {
-    max-width: 48rem;
-    margin-bottom: 3rem;
+  .campaign-body h2 {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
   }
-  h1 {
-    font-family: var(--font-display);
-    font-weight: 500;
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
-    line-height: 1.05;
-    margin-block: 1rem;
-  }
-  .summary {
-    font-size: clamp(1.125rem, 2vw, 1.5rem);
-    line-height: 1.6;
-  }
-  section {
-    margin-block: 3rem;
+  .campaign-body h3 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
   }
   .editorial,
-  section > p {
-    max-width: 68ch;
-    line-height: 1.75;
+  .campaign-body section > p {
+    max-width: 64ch;
+    color: var(--text-2);
+    line-height: var(--lh-prose);
+  }
+  .editorial :global(p + p) {
+    margin-top: var(--s-3);
   }
   .editorial :global(a) {
+    color: var(--accent-ink);
     text-decoration: underline;
-    text-underline-offset: 0.2em;
+    text-underline-offset: 3px;
   }
   .offers,
   .partners {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: var(--s-3) var(--s-6);
     padding: 0;
     list-style: none;
-    display: grid;
-    gap: 1.5rem;
   }
-  .offers li,
+  /* Offers as the prototype's offer card. */
+  .offers li {
+    display: grid;
+    gap: var(--s-1);
+    padding: var(--s-4);
+    border: var(--hair) solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+  }
+  .offers li p {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+  }
   .partners li {
-    border-top: 1px solid var(--rule);
-    padding-top: 1rem;
+    display: grid;
+    gap: var(--s-2);
+    align-content: start;
+  }
+  .partners li p {
+    max-width: 48ch;
+    color: var(--text-2);
+  }
+  .campaign-faq {
+    display: grid;
+    gap: var(--s-4);
+    padding-block: var(--s-10);
+  }
+  .campaign-faq h2 {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
   }
   details {
-    border-top: 1px solid var(--rule);
-    padding-block: 0.5rem;
+    border-top: var(--hair) solid var(--border);
+  }
+  details:last-of-type {
+    border-bottom: var(--hair) solid var(--border);
   }
   summary {
-    padding-block: 0.75rem;
+    display: flex;
+    align-items: center;
     min-height: 44px;
+    padding-block: var(--s-2);
+    font-weight: var(--fw-semibold);
     cursor: pointer;
-    font-weight: 600;
   }
   details p {
-    max-width: 68ch;
-    line-height: 1.7;
+    max-width: 64ch;
+    padding-bottom: var(--s-3);
+    color: var(--text-2);
+    line-height: var(--lh-prose);
     white-space: pre-line;
-  }
-  @media (min-width: 45rem) {
-    .offers,
-    .partners {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
   }
 </style>

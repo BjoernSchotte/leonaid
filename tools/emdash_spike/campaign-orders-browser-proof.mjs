@@ -5,6 +5,7 @@ import { deserializeActionResult } from "../../node_modules/astro/dist/actions/r
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 import { guardCsp } from "./csp-guard.mjs";
+import { WCAG_TAGS, analyzeAccessibility } from "../../tests/e2e/axe.mjs";
 import {
   deadlineSignal,
   deadlineWait,
@@ -155,6 +156,76 @@ for (const [engineName, engine] of Object.entries({
             ),
           );
           assert.equal(await page.locator("[data-order-form]").count(), 1);
+        }
+        // The campaign page (Leitsystem tokens, theme on top) stays free of
+        // serious and critical WCAG findings, at both widths and in both
+        // colour schemes. axe-core needs page scripts (it never resolves in
+        // a context with JavaScript disabled), and the deadline runs hand off
+        // to SQL operators on a clock, so the scan runs in the plain enhanced
+        // Chromium run. The imported run shows the Krapfentaxi theme; the
+        // other run shows the generic story (no theme).
+        if (
+          !controlledDeadline &&
+          javaScriptEnabled &&
+          engineName === "chromium" &&
+          scenario === "new-company"
+        ) {
+          // Strict CSP: the server HTML carries no <style> element and no
+          // style attribute (stylesheets are external, see astro.config.mjs).
+          const html = await entered.text();
+          assert.doesNotMatch(
+            html,
+            /<style[\s>]/i,
+            `${label}: <style> element`,
+          );
+          assert.doesNotMatch(html, /\sstyle=/i, `${label}: style attribute`);
+          const story =
+            (await page.locator("article.campaign-story").count()) === 1;
+          assert.equal(story, !imported, `${label}: unexpected page variant`);
+          if (story) {
+            // The generic story renders the contact form (inbox module on),
+            // so the order confirmation points there, not to the mailto.
+            assert.equal(await page.locator("#kontakt").count(), 1);
+            const confirmation = page.locator("[data-order-success]");
+            assert.equal(
+              await confirmation.locator('a[href="#kontakt"]').count(),
+              1,
+              `${label}: confirmation links the contact form`,
+            );
+            assert.equal(
+              await confirmation.locator('a[href^="mailto:"]').count(),
+              0,
+              `${label}: confirmation without the privacy mailto`,
+            );
+          }
+          for (const [width, height] of [
+            [1440, 900],
+            [390, 844],
+          ]) {
+            for (const colorScheme of ["light", "dark"]) {
+              await page.setViewportSize({ width, height });
+              await page.emulateMedia({ colorScheme });
+              const view = `${story ? "campaign-story" : "campaign-page"}-${width}-${colorScheme}`;
+              const accessibility = await analyzeAccessibility(page, {
+                tags: WCAG_TAGS,
+              });
+              assert.deepEqual(
+                accessibility.violations
+                  .filter((violation) =>
+                    ["serious", "critical"].includes(violation.impact),
+                  )
+                  .map((violation) => `${label} ${view}: ${violation.id}`),
+                [],
+              );
+              // Fidelity shots for the task review.
+              await page.screenshot({
+                path: `/visual-proof/${view}.png`,
+                fullPage: true,
+              });
+            }
+          }
+          await page.setViewportSize({ width: 1280, height: 900 });
+          await page.emulateMedia({ colorScheme: null });
         }
         const form = page.locator("[data-order-form]");
         const quantity =

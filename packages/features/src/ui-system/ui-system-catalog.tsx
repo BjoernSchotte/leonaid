@@ -1,23 +1,20 @@
 import {
-  Alert02Icon,
-  ArrowLeft01Icon,
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-  Notification03Icon,
-  PaintBoardIcon,
-  TableIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
+  Bell,
+  ChevronLeft,
   CircleAlert,
+  CircleCheck,
   CircleDot,
   Filter,
+  Info,
   PackageOpen,
+  Palette,
   Plus,
   Search,
   Sparkles,
+  Table,
   Tag,
   Trash2,
+  TriangleAlert,
   UserRound,
   Users,
 } from "lucide-react";
@@ -59,6 +56,7 @@ import {
 } from "@leonaid/ui";
 
 import { navigationZones } from "../navigation/zones";
+import { ChartsDemo } from "./charts-demo";
 import { ListViewDemo } from "./list-view-demo";
 
 export interface UiSystemCatalogPageProps {
@@ -400,7 +398,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
     <div className="ui-catalog" data-testid="ui-catalog">
       <header className="ui-catalog-hero">
         <div className="ui-catalog-hero__icon" aria-hidden="true">
-          <HugeiconsIcon icon={PaintBoardIcon} size={26} strokeWidth={1.7} />
+          <Palette aria-hidden="true" size={26} />
         </div>
         <div>
           <p className="ui-catalog-hero__eyebrow">System · UI-Basis</p>
@@ -423,13 +421,8 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           className={buttonClassName({ variant: "secondary" })}
           href="/admin/system"
         >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ArrowLeft01Icon}
-            size={18}
-            strokeWidth={1.8}
-          />
-          Feature-Flags
+          <ChevronLeft aria-hidden="true" size={18} />
+          Betrieb
         </a>
       </header>
 
@@ -668,14 +661,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         </ErrorState>
         <div className="ui-catalog-row">
           <Button
-            icon={
-              <HugeiconsIcon
-                aria-hidden="true"
-                icon={Notification03Icon}
-                size={18}
-                strokeWidth={1.8}
-              />
-            }
+            icon={<Bell aria-hidden="true" size={18} />}
             onClick={() =>
               toast.show({
                 description:
@@ -799,12 +785,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
                   <td>{row.scope}</td>
                   <td>
                     <span className="ui-catalog-status">
-                      <HugeiconsIcon
-                        aria-hidden="true"
-                        icon={CheckmarkCircle02Icon}
-                        size={16}
-                        strokeWidth={1.8}
-                      />
+                      <CircleCheck aria-hidden="true" size={16} />
                       Zugeordnet
                     </span>
                   </td>
@@ -830,6 +811,16 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           icon={PackageOpen}
           title="Keine passenden Bestellungen"
         />
+      </section>
+
+      <section aria-labelledby="charts" className="ui-catalog-section">
+        <PatternHeading
+          description="Chart.js mit Farben aus den Leitsystem-Tokens, Legende mit Werten und Tabelle; verborgene Werte (unter 5 Personen oder daraus ableitbar) als „–“."
+          id="charts"
+        >
+          Diagramme
+        </PatternHeading>
+        <ChartsDemo />
       </section>
 
       <section aria-labelledby="lists" className="ui-catalog-section">
@@ -859,10 +850,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         </div>
       </section>
 
-      <section
-        aria-labelledby="semantics"
-        className="ui-catalog-section ui-catalog-section--compact"
-      >
+      <section aria-labelledby="semantics" className="ui-catalog-section">
         <PatternHeading
           description="Komponenten verwenden ausschließlich semantische Tokens und freie Icon-Pakete."
           id="semantics"
@@ -871,39 +859,19 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         </PatternHeading>
         <ul className="ui-catalog-guardrails">
           <li>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={PaintBoardIcon}
-              size={18}
-              strokeWidth={1.8}
-            />
+            <Palette aria-hidden="true" size={18} />
             Light, Dark und System nutzen denselben semantischen Vertrag.
           </li>
           <li>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={TableIcon}
-              size={18}
-              strokeWidth={1.8}
-            />
+            <Table aria-hidden="true" size={18} />
             Tabellen bleiben nativ, beschriftet und per Tastatur scrollbar.
           </li>
           <li>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={InformationCircleIcon}
-              size={18}
-              strokeWidth={1.8}
-            />
+            <Info aria-hidden="true" size={18} />
             UI-Zustände enthalten verständliche Ursache und nächsten Schritt.
           </li>
           <li>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={Alert02Icon}
-              size={18}
-              strokeWidth={1.8}
-            />
+            <TriangleAlert aria-hidden="true" size={18} />
             Kritische Änderungen werden bestätigt und nie nur farblich markiert.
           </li>
         </ul>

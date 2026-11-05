@@ -34,6 +34,18 @@ class DeliveryWindowRequest(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool = False
+    # Accepted so a client can send a loaded window back unchanged, but
+    # ignored: the switch has its own command and the stored value stays.
+    # A new window (no id) with true is refused (delivery_window_full_new).
+    fully_booked: bool | None = Field(
+        default=None,
+        description=(
+            "Read-only echo, ignored for existing windows; use "
+            'setDeliveryWindowFullyBooked for "ausgebucht". True on a new '
+            "window is refused."
+        ),
+        json_schema_extra={"readOnly": True},
+    )
 
 
 class DeliveryWindowResponse(TransportModel):
@@ -42,6 +54,13 @@ class DeliveryWindowResponse(TransportModel):
     starts_at: time
     ends_at: time
     retired: bool
+    # "Ausgebucht": closed for public orders; admin and acquisition capture
+    # may still book it with allowFullWindow.
+    fully_booked: bool
+
+
+class DeliveryWindowFullyBookedRequest(TransportModel):
+    fully_booked: bool
 
 
 class DeliveryConfigurationRequest(TransportModel):
@@ -179,6 +198,12 @@ class MemberDirectoryActionResponse(TransportModel):
     available_roles: list[
         Literal["charity_admin", "acquirer", "finance_reader", "driver"]
     ]
+    lead_required: bool = Field(
+        description=(
+            "Revoking the last charity admin of this action is refused "
+            "(draft, scheduled and active actions)."
+        )
+    )
 
 
 class MemberDirectoryResponse(TransportModel):
@@ -759,6 +784,23 @@ class ActionGoalResponse(TransportModel):
     currency: str | None
 
 
+class CharityActionSummaryResponse(TransportModel):
+    """One managed action in the "Aktionen verwalten" list."""
+
+    id: UUID
+    name: str
+    status: Literal["draft", "scheduled", "active", "completed", "archived"]
+    starts_on: date
+    ends_on: date
+    template_name: str | None
+    lead_names: list[str]
+    goal: ActionGoalResponse
+
+
+class CharityActionListResponse(TransportModel):
+    items: list[CharityActionSummaryResponse]
+
+
 class BeneficiaryDraftRequest(TransportModel):
     organization_name: str = Field(min_length=1, max_length=200)
     public_description: str = Field(min_length=1, max_length=2_000)
@@ -861,6 +903,23 @@ class PublicActionRouteResponse(TransportModel):
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
     redirect_path: str | None = None
+
+
+class PublicLegalProviderResponse(TransportModel):
+    """The carrier named in the Impressum (the active legal configuration)."""
+
+    legal_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    email: str
+
+
+class PublicLegalNoticeResponse(TransportModel):
+    """Impressum data of the installation; provider is null until activated."""
+
+    provider: PublicLegalProviderResponse | None
 
 
 class PublicCampaignRouteResponse(TransportModel):
@@ -1068,6 +1127,8 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    # Confirms booking a window marked "ausgebucht" (otherwise 409).
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1077,6 +1138,7 @@ class CreateCommitmentRequest(TransportModel):
 
 
 class CompleteCommitmentRequest(TransportModel):
+    allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1084,6 +1146,7 @@ class CompleteCommitmentRequest(TransportModel):
 
 class CompleteCommitmentDeliveryRequest(TransportModel):
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    allow_full_window: bool = False
     invoice_recipient: CommitmentInvoiceRecipientRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
@@ -1383,7 +1446,30 @@ class DashboardInvoiceResponse(TransportModel):
     total: int = Field(ge=0)
     invoiced_amount_minor: int = Field(ge=0)
     open_amount_minor: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+    overdue_amount_minor: int = Field(ge=0)
+    delivery_failed: int = Field(ge=0)
     currency: str
+
+
+class DashboardOrderValueWeekResponse(TransportModel):
+    week_start: date
+    iso_week: int = Field(ge=1, le=53)
+    total_minor: int = Field(ge=0)
+
+
+class DashboardDeliveryWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    commitments: int = Field(ge=0)
+    quantities: list[UnitQuantityResponse]
+    fully_booked: bool
+
+
+class DashboardDeliveryResponse(TransportModel):
+    enabled: bool
+    windows: list[DashboardDeliveryWindowResponse]
 
 
 class AcquirerDashboardResponse(TransportModel):
@@ -1396,6 +1482,8 @@ class CharityAdminDashboardResponse(TransportModel):
     pipeline: DashboardPipelineResponse
     commitments: DashboardCommitmentResponse
     invoices: DashboardInvoiceResponse
+    order_value_weeks: list[DashboardOrderValueWeekResponse]
+    delivery: DashboardDeliveryResponse
 
 
 class DashboardMetricDefinitionResponse(TransportModel):
@@ -1632,14 +1720,14 @@ class SponsorDraftRequest(TransportModel):
         family_name = (self.family_name or "").strip()
         email = (self.email or "").strip()
         if not company_name and (not given_name or not family_name):
-            raise ValueError("Gib einen Firmennamen oder Vorname und Nachname an.")
+            raise ValueError("Bitte einen Firmennamen oder Vor- und Nachnamen angeben.")
         if (
             company_name
             and (given_name or family_name or email)
             and (not given_name or not family_name)
         ):
             raise ValueError(
-                "Gib für einen Firmenkontakt Vorname und Nachname gemeinsam an."
+                "Für einen Firmenkontakt bitte Vor- und Nachnamen gemeinsam angeben."
             )
         return self
 
@@ -1942,6 +2030,10 @@ class UpdateActivityFeedItemRequest(TransportModel):
     read: bool
 
 
+class ActivityFeedReadAllResponse(TransportModel):
+    updated: int = Field(ge=0)
+
+
 class AcquisitionDocumentResponse(TransportModel):
     id: UUID
     action_id: UUID
@@ -2126,6 +2218,60 @@ AUTHENTICATED_CONFLICT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
 }
 
+
+def _conflicts(*codes: str) -> dict[int | str, dict[str, object]]:
+    """Authenticated responses whose 409 lists the command's stable codes."""
+
+    return {
+        **AUTHENTICATED_ERROR_RESPONSES,
+        409: {
+            "model": ApiErrorResponse,
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. "
+            "Stabile Codes: " + ", ".join(f"`{code}`" for code in codes) + ".",
+        },
+    }
+
+
+# The admin-access invariants: at least one active system admin and one
+# active lead (charity admin) per open action; only active accounts count.
+MEMBER_STATUS_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "account_status_unchanged",
+    "account_invitation_activation_forbidden",
+    "account_self_status_change_forbidden",
+    "admin_scope_changed",
+    "last_system_admin_suspension_forbidden",
+    "last_system_admin_archival_forbidden",
+    "last_charity_admin_suspension_forbidden",
+    "last_charity_admin_archival_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "admin_scope_changed",
+    "last_system_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
+    "account_revision_conflict",
+    "role_assignment_unchanged",
+    "role_action_scope_changed",
+    "driver_role_capability_missing",
+    "last_charity_admin_role_forbidden",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+
+# Action creation: the creator becomes the action's only lead, so it must
+# still be an active account when the action is written.
+ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
+    "action_responsible_administrator_unavailable",
+    "action_archive_slug_conflict",
+)
+
 RequestIdHeader = Annotated[
     str | None,
     Field(
@@ -2133,3 +2279,104 @@ RequestIdHeader = Annotated[
         examples=["poc023:contract:golden-v1"],
     ),
 ]
+
+
+# ---------- Delivery day board ----------
+
+
+class DeliveryDropQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int
+
+
+class DeliveryDropAddressResponse(TransportModel):
+    recipient_name: str
+    street_line1: str
+    postal_code: str
+    city: str
+
+
+class DeliveryDropContactResponse(TransportModel):
+    name: str | None
+    phone: str | None
+
+
+class DeliveryDropResponse(TransportModel):
+    """One order on the board. Never amounts, e-mail or the order message."""
+
+    commitment_id: UUID
+    window_id: UUID
+    buyer_name: str
+    quantities: list[DeliveryDropQuantityResponse]
+    total_boxes: int
+    address: DeliveryDropAddressResponse | None
+    contact: DeliveryDropContactResponse | None
+    state: Literal["open", "delivered", "missed"]
+    state_changed_at: datetime | None
+    state_changed_by_name: str | None
+    driver_user_id: UUID | None
+    driver_name: str | None
+    revision: int
+    # Marked missed when its window was closed; only such a drop can return
+    # to "missed" while the window stays closed.
+    missed_at_closure: bool
+    # Managers only: the order status (cancelled drops stay struck through).
+    order_status: (
+        Literal["draft", "review_ready", "confirmed", "invoiced", "cancelled"] | None
+    )
+
+
+class DeliveryWindowClosureResponse(TransportModel):
+    closed_at: datetime
+    closed_by_name: str
+    missed_count: int
+
+
+class DeliveryBoardWindowResponse(TransportModel):
+    id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    retired: bool
+    fully_booked: bool
+    closure: DeliveryWindowClosureResponse | None
+    drops: list[DeliveryDropResponse]
+
+
+class DeliveryBoardDriverResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+
+
+class DeliveryBoardResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    timezone: str
+    day: date | None
+    days: list[date]
+    manager: bool
+    windows: list[DeliveryBoardWindowResponse]
+    drivers: list[DeliveryBoardDriverResponse]
+    follow_up_tasks: bool
+
+
+class DeliveryStateRequest(TransportModel):
+    delivered: bool
+    expected_revision: int = Field(ge=0)
+
+
+class DeliveryDriverAssignmentRequest(TransportModel):
+    commitment_ids: list[UUID] = Field(min_length=1, max_length=1000)
+    driver_user_id: UUID | None
+
+
+class DeliveryDriverAssignmentResponse(TransportModel):
+    changed: int
+
+
+class DeliveryWindowClosureResultResponse(TransportModel):
+    missed_count: int
+    follow_up: Literal["tasks", "board"]
+
+
+class DeliveryWindowReopenResponse(TransportModel):
+    reopened_count: int

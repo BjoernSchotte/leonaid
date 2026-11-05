@@ -4,10 +4,10 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: eb6beaafa55551234a561a0353b0e0babc81d094
-reviewer: Björn Schotte
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Diese Dokumentation beschreibt den aktuellen Entwicklungsstand. Sie ist keine
@@ -18,9 +18,9 @@ allgemeine Produktionsfreigabe.
   wörtlich.
 - Eine Installation bildet einen Club beziehungsweise einen getrennten
   Mandanten ab. Gemeinsamer Mehrmandantenbetrieb ist nicht vorgesehen.
-- Der Ausfahrer-Workflow ist zurückgestellt. Lieferadressen und Lieferfenster
-  werden gespeichert; eine Fahrer-App mit Touren und Zustellstatus gehört nicht
-  zum aktuellen Funktionsumfang.
+- Ausfahrer haken ihre zugewiesenen Lieferungen in der App ab (siehe
+  [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)). Routen- und
+  Tourenplanung gehört nicht zum aktuellen Funktionsumfang.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
   Finanzen beweist genau diesen Lesezugriff. Vollzahlung und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.

@@ -1,21 +1,21 @@
 # Third-party notices for `@leonaid/ui`
 
-As of: November 3, 2026
+As of: November 5, 2026
 
 LeonAid wraps the following UI dependencies in one place. The packages pinned
 in `bun.lock` and the license texts shipped with each package remain
 authoritative.
 
-| Package/project                                                                          |                                Version used | License | Use                                              |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------: | ------- | ------------------------------------------------ |
-| [shadcn/ui](https://github.com/shadcn-ui/ui)                                             | open-code configuration, no runtime package | MIT     | component structure and `components.json`        |
-| [`@fontsource/barlow`](https://github.com/fontsource/font-files)                         |                                       5.3.0 | OFL-1.1 | self-hosted Barlow text font (latin, 400–700)    |
-| [`@fontsource-variable/jetbrains-mono`](https://github.com/fontsource/font-files)        |                                       5.3.0 | OFL-1.1 | self-hosted JetBrains Mono for numbers and codes |
-| [`@hugeicons/core-free-icons`](https://www.npmjs.com/package/@hugeicons/core-free-icons) |                                       4.2.3 | MIT     | free icon data (older feature screens)           |
-| [`@hugeicons/react`](https://github.com/hugeicons/hugeicons)                             |                                       1.1.9 | MIT     | React renderer for free Hugeicons                |
-| [`lucide-react`](https://github.com/lucide-icons/lucide)                                 |                                      1.60.0 | ISC     | icon set for new UI (`Icon` adapter)             |
-| [React](https://github.com/facebook/react)                                               |                                      19.2.8 | MIT     | component runtime                                |
-| [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss)                              |                                       4.3.3 | MIT     | build-time CSS and shadcn/ui compatibility       |
+| Package/project                                                                   |                                Version used | License | Use                                              |
+| --------------------------------------------------------------------------------- | ------------------------------------------: | ------- | ------------------------------------------------ |
+| [shadcn/ui](https://github.com/shadcn-ui/ui)                                      | open-code configuration, no runtime package | MIT     | component structure and `components.json`        |
+| [`@fontsource/barlow`](https://github.com/fontsource/font-files)                  |                                       5.3.0 | OFL-1.1 | self-hosted Barlow text font (latin, 400–700)    |
+| [`@fontsource-variable/jetbrains-mono`](https://github.com/fontsource/font-files) |                                       5.3.0 | OFL-1.1 | self-hosted JetBrains Mono for numbers and codes |
+| [`@kurkle/color`](https://github.com/kurkle/color)                                |                                       0.3.4 | MIT     | colour parsing, Chart.js dependency, pinned      |
+| [`chart.js`](https://github.com/chartjs/Chart.js)                                 |                                       4.6.1 | MIT     | bar charts (`ChartCanvas`)                       |
+| [`lucide-react`](https://github.com/lucide-icons/lucide)                          |                                      1.60.0 | ISC     | icon set (`Icon` adapter and direct imports)     |
+| [React](https://github.com/facebook/react)                                        |                                      19.2.8 | MIT     | component runtime                                |
+| [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss)                       |                                       4.3.3 | MIT     | build-time CSS and shadcn/ui compatibility       |
 
 The two font packages ship the font files under the SIL Open Font License 1.1
 (OFL-1.1); Björn Schotte approved OFL-1.1 for exactly these two packages on

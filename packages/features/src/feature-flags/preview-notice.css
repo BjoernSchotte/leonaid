@@ -1,0 +1,33 @@
+/* The "PoC-Preview" notice above every admin page (flag preview_notice). */
+.feature-preview-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.feature-preview-notice span {
+  flex: none;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.feature-preview-notice p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+@media (max-width: 720px) {
+  .feature-preview-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

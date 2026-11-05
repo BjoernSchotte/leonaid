@@ -1,4 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import {
+  ClipboardList,
+  ExternalLink,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import {
   ApiError,
   type LeonAidApiClient,
@@ -11,7 +25,26 @@ import {
   type SurveyDeletionResponse,
   type SurveyDraftResponse,
 } from "@leonaid/api-client";
-import { Button, buttonClassName } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  cn,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  Icon,
+  isTypingTarget,
+  Kbd,
+  LeaveGuardContext,
+  NextStep,
+  ReadOnlyNotice,
+  StatusLabel,
+  type StatusShape,
+  useDiscardDialog,
+  useHotkeys,
+  useLeaveGuard,
+  useLeaveGuardScope,
+} from "@leonaid/ui";
 import {
   SurveyEditor,
   SurveyPublicationPreview,
@@ -23,9 +56,11 @@ import type {
   ErrorCode,
 } from "@leonaid/surveys/contracts";
 import "@leonaid/surveys/editor-styles";
+import { useContextCommands } from "../command-palette/store";
+import { formatDateTime, shortDate } from "../shared/dates";
 import "./surveys.css";
 import { SurveyAnalysis } from "./survey-analysis";
-import { SurveyResponses } from "./survey-responses";
+import { surveyResponsesHref } from "./survey-responses";
 import taxiTemplate from "./survey-templates/krapfentaxi.json";
 import golfTemplate from "./survey-templates/golf.json";
 
@@ -163,6 +198,9 @@ export function SurveysPage({
   const [endedRetentionDays, setEndedRetentionDays] = useState("");
   const [trashRetentionDays, setTrashRetentionDays] = useState("");
   const [confirmTrash, setConfirmTrash] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  // After a status change the button that was pressed is gone.
+  const focusAfterTransition = useRef(false);
   const [confirmErasure, setConfirmErasure] = useState(false);
   const [understoodErasure, setUnderstoodErasure] = useState(false);
   const [deletion, setDeletion] = useState<SurveyDeletionResponse | null>(null);
@@ -171,13 +209,27 @@ export function SurveysPage({
     expectedRevision: number;
   } | null>(null);
   const [saveState, setSaveState] = useState("saved");
+  // The editor's last saved revision: the page's draft object stays at the
+  // one it loaded, while the editor saves on (M46).
+  const editorRevision = useRef<{ surveyId: string; revision: number } | null>(
+    null,
+  );
   const adapter = useMemo<AuthoringAdapter>(
     () => ({
       validateDraft: (key, expectedRevision, options) =>
         mapped(client.validateSurveyDraft(key, { expectedRevision }, options)),
       loadDraft: (key, options) => mapped(client.getSurveyDraft(key, options)),
       saveDraft: (key, body, options) =>
-        mapped(client.saveSurveyDraft(key, body, options)),
+        mapped<Draft>(client.saveSurveyDraft(key, body, options)).then(
+          (result) => {
+            if (result.ok)
+              editorRevision.current = {
+                surveyId: result.value.surveyId,
+                revision: result.value.revision,
+              };
+            return result;
+          },
+        ),
       publish: (key, body, options) =>
         mapped(client.publishSurvey(key, body, options)),
     }),
@@ -216,9 +268,19 @@ export function SurveysPage({
       if (
         ["draft", "active"].includes(value.status) &&
         value.capabilities?.includes("design")
-      )
-        setDraft((await client.getSurveyDraft(key)) as Draft);
-      else setDraft(null);
+      ) {
+        const next = (await client.getSurveyDraft(key)) as Draft;
+        // The editor already holds this revision: keep its draft, so it
+        // keeps the undo history and in-flight saves (M46).
+        setDraft((current) => {
+          if (!current || current.surveyId !== next.surveyId) return next;
+          const held =
+            editorRevision.current?.surveyId === next.surveyId
+              ? editorRevision.current.revision
+              : current.revision;
+          return held === next.revision ? current : next;
+        });
+      } else setDraft(null);
     },
     [client],
   );
@@ -373,9 +435,23 @@ export function SurveysPage({
         expectedRevision: summary.revision,
       });
       await refresh(summary.id);
-      setConfirmTrash(false);
+      focusAfterTransition.current = true;
     }, "Status wurde gespeichert.");
+    // A failed change shows its message on the page, not behind the dialog.
+    setConfirmTrash(false);
+    setConfirmEnd(false);
   }
+  // Runs after the dialog handed focus back (its layout effect): move on to
+  // the next step's action, or to the page heading without one.
+  useEffect(() => {
+    if (!focusAfterTransition.current || confirmEnd || confirmTrash) return;
+    focusAfterTransition.current = false;
+    const target =
+      document.querySelector<HTMLElement>(
+        '[data-testid="survey-next-step"] .next-step-actions .btn',
+      ) ?? document.getElementById("survey-heading");
+    target?.focus();
+  }, [summary, confirmEnd, confirmTrash]);
   const allowed = (capability: string) =>
     summary?.capabilities?.includes(capability) ?? false;
   const pending = busy || (draft !== null && saveState !== "saved");
@@ -408,905 +484,1366 @@ export function SurveysPage({
       setConfirmErasure(false);
     }, "");
   }
+  const settingsDirty =
+    !!summary &&
+    (accessMode !== summary.accessMode ||
+      scheduledEnd !== localDateTime(summary.endsAt) ||
+      timeout !== (summary.inactivityTimeoutSeconds?.toString() ?? "") ||
+      recipientEmail !== "" ||
+      recipientName !== "");
+  const createDirty =
+    !id && createNew && title.trim() !== "" && creationRequest.current === null;
+  const dirty =
+    createDirty || settingsDirty || (draft !== null && saveState !== "saved");
+  // The page's own scope (I11): the admin shell has no registry, so once
+  // "Verwerfen" is confirmed, this scope silences the browser's dialog.
+  // A surrounding registry (a shell) still sees the drafts through it.
+  const leaveScope = useLeaveGuardScope();
+  const { confirmDiscard, dialog: discardDialog } = useDiscardDialog("Sie");
+  const leaveToList = useCallback(async () => {
+    if (dirty && !(await confirmDiscard())) return;
+    leaveScope.leaving = true;
+    window.location.assign("/admin/surveys");
+  }, [dirty, confirmDiscard, leaveScope]);
+
+  const items = list?.items ?? [];
+  const [focus, setFocus] = useState(0);
+  const rowLinks = useRef<(HTMLAnchorElement | null)[]>([]);
+  const move = (delta: number) => {
+    if (!items.length) return;
+    const next = Math.max(0, Math.min(items.length - 1, focus + delta));
+    setFocus(next);
+    rowLinks.current[next]?.focus();
+  };
+  const onList = !id && !createNew;
+  const openCreate = () => window.location.assign("/admin/surveys/new");
+  useHotkeys(
+    onList
+      ? [
+          {
+            keys: "j",
+            label: "Nächste Umfrage",
+            group: "Umfragen",
+            run: () => move(1),
+          },
+          {
+            keys: "k",
+            label: "Vorherige Umfrage",
+            group: "Umfragen",
+            run: () => move(-1),
+          },
+          {
+            keys: "c",
+            label: "Umfrage anlegen",
+            group: "Umfragen",
+            run: openCreate,
+          },
+        ]
+      : [
+          {
+            keys: "escape",
+            label: "Zurück zu allen Umfragen",
+            group: "Umfrage",
+            // Esc in a field stays with the field.
+            when: () => !isTypingTarget(document.activeElement),
+            run: () => void leaveToList(),
+          },
+          // Prototype: digits switch the survey's tabs; here they jump to
+          // the sections of the one survey page.
+          ...sections.map(([section, label], index) => ({
+            keys: String(index + 1),
+            label: `Abschnitt ${label}`,
+            group: "Umfrage",
+            when: () => !!document.getElementById(`${section}-title`),
+            run: () => {
+              const heading = document.getElementById(`${section}-title`);
+              heading?.scrollIntoView({ block: "start" });
+              heading?.focus({ preventScroll: true });
+            },
+          })),
+        ],
+    [onList, items.length, focus, leaveToList],
+  );
+  useContextCommands(
+    onList
+      ? [
+          {
+            id: "create:survey",
+            label: "Umfrage anlegen",
+            group: "Umfragen",
+            icon: Plus,
+            keys: "c",
+            keywords: ["Neue Umfrage", "Fragebogen"],
+            run: openCreate,
+          },
+        ]
+      : [],
+  );
+
+  const actionName = (actionId: string | null) =>
+    actionId
+      ? (list?.actions.find((action) => action.id === actionId)?.name ??
+        "Mit Aktion verknüpft")
+      : "Eigenständig";
+  const heading = deletion
+    ? "Umfrage löschen"
+    : (summary?.title ??
+      (id ? "Umfrage laden" : createNew ? "Neue Umfrage" : "Umfragen"));
+
   return (
-    <section className="surveys-module" aria-label="Umfragen">
-      <header className="surveys-heading">
-        <div>
-          {(id || createNew) && <a href="/admin/surveys">← Alle Umfragen</a>}
-          <h1>
-            {deletion
-              ? "Umfrage löschen"
-              : (summary?.title ??
-                (id
-                  ? "Umfrage laden"
-                  : createNew
-                    ? "Neue Umfrage"
-                    : "Umfragen"))}
-          </h1>
-          <p>
-            {id
-              ? "Fragebogen, Teilnahme und Teilantworten verwalten."
-              : createNew
-                ? "Starten Sie mit einer Frage. Weitere Fragen und Seiten ergänzen Sie im nächsten Schritt."
-                : "Rückmeldungen zu Ihren Aktionen sammeln und Fragebögen gemeinsam betreuen."}
-          </p>
-        </div>
-        {!id && !createNew && (
-          <a
-            className={buttonClassName({ variant: "primary" })}
-            href="/admin/surveys/new"
-          >
-            Neue Umfrage
-          </a>
+    <LeaveGuardContext.Provider value={leaveScope}>
+      <PageLeaveGuard dirty={dirty} />
+      <section
+        className={cn(
+          "surveys-module",
+          onList ? "surveys-index" : "survey-page",
         )}
-      </header>
-      {message && (
-        <div role="alert" className="surveys-error">
-          <p>{message}</p>
-          <Button variant="secondary" onClick={() => window.location.reload()}>
-            Aktuellen Stand laden
-          </Button>
-        </div>
-      )}
-      {notice && <p role="status">{notice}</p>}
-      {loading && <p role="status">Umfragen werden geladen …</p>}
-      {deletion && (
-        <section
-          className="surveys-management"
-          aria-label="Endgültige Löschung"
-        >
-          <p role="status">
-            {
-              {
-                pending:
-                  "Die endgültige Löschung wurde beauftragt. Antworten und Exportdateien sind nicht mehr zugänglich.",
-                retrying:
-                  "Die Löschung ist noch nicht abgeschlossen. Der Server bearbeitet den Auftrag weiter; Antworten und Exportdateien bleiben gesperrt.",
-                failed: deletion.retryEventId
-                  ? "Die Löschung konnte nicht abgeschlossen werden. Sie können den Auftrag erneut ausführen. Die Daten bleiben gesperrt."
-                  : "Die Löschung konnte nicht abgeschlossen werden. Bitte wenden Sie sich an die Administration, damit der Auftrag erneut ausgeführt wird. Die Daten bleiben gesperrt.",
-                completed:
-                  "Die Umfrage einschließlich Antworten, Einladungen und Exportdateien wurde endgültig gelöscht.",
-              }[deletion.status]
-            }
-          </p>
-          <p>
-            Der Löschauftrag bleibt auch nach dem Schließen dieser Seite
-            bestehen.
-          </p>
-          {deletion.status === "failed" && deletion.retryEventId && (
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await client.retryOperationalJob(deletion.retryEventId!);
-                  await refresh(deletion.surveyId);
-                }, "Der Löschauftrag wurde erneut zur Bearbeitung vorgemerkt.")
-              }
+        aria-label="Umfragen"
+      >
+        {!onList && (
+          <nav aria-label="Brotkrumen" className="crumbs">
+            <a
+              aria-label="Alle Umfragen"
+              href="/admin/surveys"
+              onClick={(event) => {
+                if (!dirty || event.metaKey || event.ctrlKey || event.shiftKey)
+                  return;
+                event.preventDefault();
+                void leaveToList();
+              }}
             >
-              Löschung erneut versuchen
-            </Button>
-          )}
-          <a href="/admin/surveys">Zur Umfragenübersicht</a>
-        </section>
-      )}
-      {!id && !createNew && list && (
-        <>
-          <form
-            className="surveys-filters"
-            onSubmit={(e) => e.preventDefault()}
-          >
-            <label>
-              Umfrage suchen
-              <input
-                type="search"
-                value={search}
-                maxLength={240}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setOffset(0);
-                }}
-              />
-            </label>
-            <label>
-              Status
-              <select
-                value={filter}
-                onChange={(e) => {
-                  setFilter(e.target.value as Status | "");
-                  setOffset(0);
-                }}
+              Umfragen
+            </a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">{heading}</span>
+          </nav>
+        )}
+        <header className="page-header">
+          <div>
+            <div className="page-heading">
+              <h1 id="survey-heading" tabIndex={-1}>
+                {heading}
+              </h1>
+              {onList && list ? (
+                <span className="page-count num" aria-live="polite">
+                  {list.total} {list.total === 1 ? "Umfrage" : "Umfragen"}
+                </span>
+              ) : null}
+              {summary ? (
+                <span data-survey-status={summary.status}>
+                  <StatusLabel
+                    shape={shapes[summary.status]}
+                    status={labels[summary.status]}
+                  />
+                </span>
+              ) : null}
+            </div>
+            {summary ? (
+              <p className="page-sub">
+                {actionName(summary.actionId)} ·{" "}
+                {summary.accessMode === "invitation"
+                  ? "Persönliche Einladungen"
+                  : "Anonymer Link"}
+                {summary.endsAt
+                  ? ` · Antworten bis ${formatDateTime(summary.endsAt)}`
+                  : ""}
+              </p>
+            ) : createNew && !id ? (
+              <p className="page-sub">
+                Starten Sie mit einer Frage oder einer Vorlage. Weitere Fragen
+                und Seiten ergänzen Sie im nächsten Schritt.
+              </p>
+            ) : null}
+          </div>
+          {onList && (
+            <div className="page-actions">
+              <a
+                className={buttonClassName({ variant: "primary" })}
+                href="/admin/surveys/new"
               >
-                <option value="">Alle</option>
-                {Object.entries(labels).map(([key, label]) => (
-                  <option value={key} key={key}>
-                    {label}
+                <Icon icon={Plus} size={16} />
+                <span className="btn-label">Neue Umfrage</span>
+                <Kbd announce={false} keys="c" subtle />
+              </a>
+            </div>
+          )}
+        </header>
+        {message && (
+          <div role="alert" className="callout tone-danger surveys-error">
+            <p>{message}</p>
+            <Button
+              variant="secondary"
+              onClick={() => window.location.reload()}
+            >
+              Aktuellen Stand laden
+            </Button>
+          </div>
+        )}
+        {notice && (
+          <p className="surveys-notice" role="status">
+            {notice}
+          </p>
+        )}
+        {loading && (
+          <p className="surveys-loading" role="status">
+            Umfragen werden geladen …
+          </p>
+        )}
+        {deletion && (
+          <section
+            className="surveys-panel surveys-deletion"
+            aria-label="Endgültige Löschung"
+          >
+            <p role="status">
+              {
+                {
+                  pending:
+                    "Die endgültige Löschung wurde beauftragt. Antworten und Exportdateien sind nicht mehr zugänglich.",
+                  retrying:
+                    "Die Löschung ist noch nicht abgeschlossen. Der Server bearbeitet den Auftrag weiter; Antworten und Exportdateien bleiben gesperrt.",
+                  failed: deletion.retryEventId
+                    ? "Die Löschung konnte nicht abgeschlossen werden. Sie können den Auftrag erneut ausführen. Die Daten bleiben gesperrt."
+                    : "Die Löschung konnte nicht abgeschlossen werden. Bitte wenden Sie sich an die Administration, damit der Auftrag erneut ausgeführt wird. Die Daten bleiben gesperrt.",
+                  completed:
+                    "Die Umfrage einschließlich Antworten, Einladungen und Exportdateien wurde endgültig gelöscht.",
+                }[deletion.status]
+              }
+            </p>
+            <p className="surveys-muted">
+              Der Löschauftrag bleibt auch nach dem Schließen dieser Seite
+              bestehen.
+            </p>
+            <div className="surveys-actions">
+              {deletion.status === "failed" && deletion.retryEventId && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await client.retryOperationalJob(deletion.retryEventId!);
+                      await refresh(deletion.surveyId);
+                    }, "Der Löschauftrag wurde erneut zur Bearbeitung vorgemerkt.")
+                  }
+                >
+                  Löschung erneut versuchen
+                </Button>
+              )}
+              <a href="/admin/surveys">Zur Umfragenübersicht</a>
+            </div>
+          </section>
+        )}
+        {onList && list && (
+          <>
+            <form
+              className="surveys-filters"
+              role="search"
+              onSubmit={(e) => e.preventDefault()}
+            >
+              <label className="search">
+                <Search aria-hidden="true" size={15} />
+                <span className="sr-only">Umfrage suchen</span>
+                <input
+                  type="search"
+                  value={search}
+                  maxLength={240}
+                  placeholder="Umfragen durchsuchen"
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setOffset(0);
+                    setFocus(0);
+                  }}
+                />
+              </label>
+              <label className="select-inline">
+                <span className="sr-only">Status</span>
+                <select
+                  value={filter}
+                  onChange={(e) => {
+                    setFilter(e.target.value as Status | "");
+                    setOffset(0);
+                    setFocus(0);
+                  }}
+                >
+                  <option value="">Alle Status</option>
+                  {Object.entries(labels).map(([key, label]) => (
+                    <option value={key} key={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </form>
+            {items.length ? (
+              <ul className="surveys-list survey-list">
+                {items.map((item, index) => (
+                  <li className="survey-row" key={item.id}>
+                    <span className="survey-row-main">
+                      <a
+                        className="survey-row-title"
+                        href={`/admin/surveys/${item.id}`}
+                        tabIndex={index === focus ? 0 : -1}
+                        onFocus={() => setFocus(index)}
+                        ref={(element) => {
+                          rowLinks.current[index] = element;
+                        }}
+                      >
+                        {item.title}
+                      </a>
+                      <span className="survey-row-meta">
+                        {actionName(item.actionId)} ·{" "}
+                        {item.accessMode === "invitation"
+                          ? "Persönliche Einladungen"
+                          : "Anonymer Link"}
+                        {item.ownerUserId === identity.userId
+                          ? " · von Ihnen erstellt"
+                          : ""}
+                      </span>
+                    </span>
+                    <span
+                      className="survey-row-status"
+                      data-survey-status={item.status}
+                    >
+                      <StatusLabel
+                        shape={shapes[item.status]}
+                        status={labels[item.status]}
+                      />
+                    </span>
+                    <span className="survey-row-close num">
+                      {item.endsAt
+                        ? `bis ${shortDate(item.endsAt)}`
+                        : item.status === "draft" || item.status === "active"
+                          ? "kein Ende"
+                          : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                icon={ClipboardList}
+                title={
+                  search || filter
+                    ? "Keine passenden Umfragen"
+                    : "Noch keine Umfragen"
+                }
+                description={
+                  search || filter
+                    ? "Ändern Sie die Suche oder den Status-Filter."
+                    : "Fragen Sie Helfer, Sponsoren oder Mitglieder nach ihrer Meinung. Antworten lassen sich anonym auswerten."
+                }
+                action={
+                  search || filter ? undefined : (
+                    <a
+                      className={buttonClassName({ variant: "primary" })}
+                      href="/admin/surveys/new"
+                    >
+                      Umfrage anlegen
+                    </a>
+                  )
+                }
+              />
+            )}
+            {items.length > 0 && (
+              <p className="list-hint" aria-hidden="true">
+                <Kbd keys="j" /> <Kbd keys="k" /> bewegen · <Kbd keys="enter" />{" "}
+                öffnen · <Kbd keys="c" /> neue Umfrage
+              </p>
+            )}
+            {(offset > 0 || offset + 50 < list.total) && (
+              <nav aria-label="Umfragenseiten" className="surveys-actions">
+                <Button
+                  variant="secondary"
+                  disabled={offset === 0}
+                  onClick={() => {
+                    setOffset(offset - 50);
+                    setFocus(0);
+                  }}
+                >
+                  Vorherige Seite
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={offset + 50 >= list.total}
+                  onClick={() => {
+                    setOffset(offset + 50);
+                    setFocus(0);
+                  }}
+                >
+                  Nächste Seite
+                </Button>
+              </nav>
+            )}
+            {defaults && (
+              <section
+                className="surveys-defaults"
+                aria-labelledby="surveys-defaults-title"
+              >
+                <h2 id="surveys-defaults-title">Für alle Umfragen</h2>
+                <details className="surveys-settings">
+                  <summary>Aufbewahrung und Papierkorb</summary>
+                  <div className="surveys-settings-body">
+                    <p>
+                      Diese Fristen gelten für alle Umfragen, auch für bereits
+                      beendete. Leere Felder schalten den jeweiligen
+                      automatischen Schritt aus. Inaktivität beim Ausfüllen
+                      löscht keine Antworten.
+                    </p>
+                    <p>
+                      Nach Ablauf der ersten Frist kommen beendete und
+                      archivierte Umfragen in den Papierkorb. Die zweite Frist
+                      beginnt dort und führt zur endgültigen Löschung
+                      einschließlich Antworten und Exportdateien. Bereits
+                      beauftragte endgültige Löschungen lassen sich nicht
+                      zurücknehmen.
+                    </p>
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void run(async () => {
+                          const value = await client.updateSurveySettings({
+                            operationId: crypto.randomUUID(),
+                            expectedRevision: defaults.revision,
+                            inactivityTimeoutSeconds:
+                              defaults.inactivityTimeoutSeconds,
+                            endedRetentionSeconds:
+                              endedRetentionDays === ""
+                                ? null
+                                : Math.round(
+                                    Number(endedRetentionDays) * 86400,
+                                  ),
+                            trashRetentionSeconds:
+                              trashRetentionDays === ""
+                                ? null
+                                : Math.round(
+                                    Number(trashRetentionDays) * 86400,
+                                  ),
+                          });
+                          setDefaults(value);
+                        }, "Aufbewahrungsfristen wurden gespeichert.");
+                      }}
+                    >
+                      <Field label="Tage nach Ende bis zum Papierkorb">
+                        <input
+                          type="number"
+                          min={1 / 86400}
+                          max={3650}
+                          step="any"
+                          value={endedRetentionDays}
+                          onChange={(event) =>
+                            setEndedRetentionDays(event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field label="Tage im Papierkorb bis zur endgültigen Löschung">
+                        <input
+                          type="number"
+                          min={1 / 86400}
+                          max={3650}
+                          step="any"
+                          value={trashRetentionDays}
+                          onChange={(event) =>
+                            setTrashRetentionDays(event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Button type="submit" variant="secondary" disabled={busy}>
+                        Aufbewahrungsfristen speichern
+                      </Button>
+                    </form>
+                  </div>
+                </details>
+                <details className="surveys-settings">
+                  <summary>Standard für Teilantworten</summary>
+                  <div className="surveys-settings-body">
+                    <p>
+                      Gilt für neue Teilnahmen ohne abweichende
+                      Umfrage-Einstellung. Bereits begonnene Teilnahmen behalten
+                      ihren Zeitraum.
+                    </p>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void run(async () => {
+                          const value = await client.updateSurveySettings({
+                            operationId: crypto.randomUUID(),
+                            expectedRevision: defaults.revision,
+                            inactivityTimeoutSeconds: Number(defaultValue),
+                          });
+                          setDefaults(value);
+                        }, "Standard wurde gespeichert.");
+                      }}
+                    >
+                      <Field label="Standardzeitraum in Sekunden">
+                        <input
+                          type="number"
+                          min={1}
+                          max={604800}
+                          step={1}
+                          required
+                          value={defaultValue}
+                          onChange={(e) => setDefaultValue(e.target.value)}
+                        />
+                      </Field>
+                      <Button type="submit" variant="secondary" disabled={busy}>
+                        Standard speichern
+                      </Button>
+                    </form>
+                  </div>
+                </details>
+              </section>
+            )}
+          </>
+        )}
+        {!id && createNew && (
+          <form
+            className="surveys-panel surveys-create"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void create();
+            }}
+          >
+            <div className="field">
+              <label className="field-label" htmlFor="survey-title">
+                Titel der Umfrage
+              </label>
+              <input
+                className="input"
+                id="survey-title"
+                required
+                maxLength={240}
+                value={title}
+                disabled={busy || creationRequest.current !== null}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="survey-template">
+                Fragebogenvorlage
+              </label>
+              <select
+                className="input select"
+                id="survey-template"
+                aria-label="Fragebogenvorlage"
+                value={template}
+                disabled={busy || creationRequest.current !== null}
+                onChange={(e) => setTemplate(e.target.value)}
+                aria-describedby="survey-template-description"
+              >
+                <option value="blank">Leerer Fragebogen</option>
+                <option value="krapfentaxi">
+                  Krapfentaxi – Lieferung und Zufriedenheit
+                </option>
+                <option value="golf">
+                  Golfturnier – Veranstaltung und Verbesserungen
+                </option>
+              </select>
+              <p className="field-hint" id="survey-template-description">
+                {template === "blank"
+                  ? "Beginnen Sie mit einer Textfrage und ergänzen Sie weitere Fragen."
+                  : "Drei Seiten mit vorbereiteten Fragen. Sie können alle Fragen vor der Veröffentlichung anpassen. Die Vorlage enthält keine Antworten oder Empfänger."}
+              </p>
+            </div>
+            <Field label="Zuordnung">
+              <select
+                value={actionId}
+                disabled={busy || creationRequest.current !== null}
+                onChange={(e) => setActionId(e.target.value)}
+              >
+                <option value="">Eigenständig – ich bin verantwortlich</option>
+                {list?.actions.map((action) => (
+                  <option value={action.id} key={action.id}>
+                    {action.name}
                   </option>
                 ))}
               </select>
-            </label>
-          </form>
-          <p className="surveys-count" aria-live="polite">
-            {list.total} {list.total === 1 ? "Umfrage" : "Umfragen"}
-          </p>
-          {list.items.length ? (
-            <ul className="surveys-list">
-              {list.items.map((item) => (
-                <li key={item.id}>
-                  <div>
-                    <a href={`/admin/surveys/${item.id}`}>{item.title}</a>
-                    <p>
-                      {item.actionId
-                        ? "Mit Charity-Aktion verknüpft"
-                        : "Eigenständige Umfrage"}
-                      {item.ownerUserId === identity.userId
-                        ? " · Von Ihnen erstellt"
-                        : ""}
-                    </p>
-                  </div>
-                  <span
-                    className="surveys-status"
-                    data-survey-status={item.status}
-                  >
-                    {labels[item.status]}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="surveys-empty">
-              Hier gibt es noch keine passenden Umfragen. Erstellen Sie einen
-              Fragebogen oder ändern Sie den Filter.
-            </p>
-          )}
-          {(offset > 0 || offset + 50 < list.total) && (
-            <nav aria-label="Umfragenseiten" className="surveys-actions">
-              <Button
-                variant="secondary"
-                disabled={offset === 0}
-                onClick={() => setOffset(offset - 50)}
-              >
-                Vorherige Seite
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={offset + 50 >= list.total}
-                onClick={() => setOffset(offset + 50)}
-              >
-                Nächste Seite
-              </Button>
-            </nav>
-          )}
-          {defaults && (
-            <details className="surveys-settings">
-              <summary>Aufbewahrung und Papierkorb</summary>
-              <p>
-                Diese Fristen gelten für alle Umfragen, auch für bereits
-                beendete. Leere Felder schalten den jeweiligen automatischen
-                Schritt aus. Inaktivität beim Ausfüllen löscht keine Antworten.
-              </p>
-              <p>
-                Nach Ablauf der ersten Frist kommen beendete und archivierte
-                Umfragen in den Papierkorb. Die zweite Frist beginnt dort und
-                führt zur endgültigen Löschung einschließlich Antworten und
-                Exportdateien. Bereits beauftragte endgültige Löschungen lassen
-                sich nicht zurücknehmen.
-              </p>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(async () => {
-                    const value = await client.updateSurveySettings({
-                      operationId: crypto.randomUUID(),
-                      expectedRevision: defaults.revision,
-                      inactivityTimeoutSeconds:
-                        defaults.inactivityTimeoutSeconds,
-                      endedRetentionSeconds:
-                        endedRetentionDays === ""
-                          ? null
-                          : Math.round(Number(endedRetentionDays) * 86400),
-                      trashRetentionSeconds:
-                        trashRetentionDays === ""
-                          ? null
-                          : Math.round(Number(trashRetentionDays) * 86400),
-                    });
-                    setDefaults(value);
-                  }, "Aufbewahrungsfristen wurden gespeichert.");
-                }}
-              >
-                <label>
-                  Tage nach Ende bis zum Papierkorb
-                  <input
-                    type="number"
-                    min={1 / 86400}
-                    max={3650}
-                    step="any"
-                    value={endedRetentionDays}
-                    onChange={(event) =>
-                      setEndedRetentionDays(event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  Tage im Papierkorb bis zur endgültigen Löschung
-                  <input
-                    type="number"
-                    min={1 / 86400}
-                    max={3650}
-                    step="any"
-                    value={trashRetentionDays}
-                    onChange={(event) =>
-                      setTrashRetentionDays(event.target.value)
-                    }
-                  />
-                </label>
-                <Button type="submit" disabled={busy}>
-                  Aufbewahrungsfristen speichern
-                </Button>
-              </form>
-            </details>
-          )}
-          {defaults && (
-            <details className="surveys-settings">
-              <summary>Standard für Teilantworten</summary>
-              <p>
-                Gilt für neue Teilnahmen ohne abweichende Umfrage-Einstellung.
-                Bereits begonnene Teilnahmen behalten ihren Zeitraum.
-              </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void run(async () => {
-                    const value = await client.updateSurveySettings({
-                      operationId: crypto.randomUUID(),
-                      expectedRevision: defaults.revision,
-                      inactivityTimeoutSeconds: Number(defaultValue),
-                    });
-                    setDefaults(value);
-                  }, "Standard wurde gespeichert.");
-                }}
-              >
-                <label>
-                  Standardzeitraum in Sekunden
-                  <input
-                    type="number"
-                    min={1}
-                    max={604800}
-                    step={1}
-                    required
-                    value={defaultValue}
-                    onChange={(e) => setDefaultValue(e.target.value)}
-                  />
-                </label>
-                <Button type="submit" disabled={busy}>
-                  Standard speichern
-                </Button>
-              </form>
-            </details>
-          )}
-        </>
-      )}
-      {!id && createNew && (
-        <form
-          className="surveys-create"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void create();
-          }}
-        >
-          <label>
-            Titel der Umfrage
-            <input
-              required
-              maxLength={240}
-              value={title}
-              disabled={busy || creationRequest.current !== null}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </label>
-          <label>
-            Fragebogenvorlage
-            <select
-              aria-label="Fragebogenvorlage"
-              value={template}
-              disabled={busy || creationRequest.current !== null}
-              onChange={(e) => setTemplate(e.target.value)}
-              aria-describedby="survey-template-description"
-            >
-              <option value="blank">Leerer Fragebogen</option>
-              <option value="krapfentaxi">
-                Krapfentaxi – Lieferung und Zufriedenheit
-              </option>
-              <option value="golf">
-                Golfturnier – Veranstaltung und Verbesserungen
-              </option>
-            </select>
-          </label>
-          <p id="survey-template-description">
-            {template === "blank"
-              ? "Beginnen Sie mit einer Textfrage und ergänzen Sie weitere Fragen."
-              : "Drei Seiten mit vorbereiteten Fragen. Sie können alle Fragen vor der Veröffentlichung anpassen. Die Vorlage enthält keine Antworten oder Empfänger."}
-          </p>
-          <label>
-            Zuordnung
-            <select
-              value={actionId}
-              disabled={busy || creationRequest.current !== null}
-              onChange={(e) => setActionId(e.target.value)}
-            >
-              <option value="">Eigenständig – ich bin verantwortlich</option>
-              {list?.actions.map((action) => (
-                <option value={action.id} key={action.id}>
-                  {action.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button type="submit" disabled={busy || !title.trim()}>
-            {busy ? "Wird erstellt …" : "Umfrage erstellen"}
-          </Button>
-        </form>
-      )}
-      {summary && (
-        <>
-          <section
-            className="surveys-management"
-            aria-label="Umfrage verwalten"
-          >
+            </Field>
             <div className="surveys-actions">
-              <span
-                className="surveys-status"
-                data-survey-status={summary.status}
+              <Button
+                type="submit"
+                icon={Plus}
+                loading={busy}
+                disabled={!title.trim()}
               >
-                {labels[summary.status]}
-              </span>
-              {summary.status === "active" &&
-                summary.accessMode === "anonymous" && (
-                  <a
-                    href={`/surveys/${summary.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Veröffentlichte Umfrage öffnen
-                  </a>
-                )}
-              {summary.status === "active" && allowed("publish") && (
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => void mutate("end")}
-                >
-                  Teilnahme beenden
-                </Button>
-              )}
-              {summary.status === "ended" && allowed("archive") && (
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => void mutate("archive")}
-                >
-                  Archivieren
-                </Button>
-              )}
-              {summary.status === "archived" && allowed("archive") && (
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => void mutate("unarchive")}
-                >
-                  Aus Archiv holen
-                </Button>
-              )}
-              {summary.status === "deleted" && allowed("delete") && (
-                <>
-                  <Button
-                    variant="secondary"
-                    disabled={pending}
-                    onClick={() => void mutate("restore")}
-                  >
-                    Wiederherstellen
-                  </Button>
-                  <Button
-                    variant="danger"
-                    disabled={pending}
-                    onClick={() => setConfirmErasure(true)}
-                  >
-                    Endgültig löschen
-                  </Button>
-                </>
-              )}
-              {summary.status !== "deleted" && allowed("delete") && (
-                <Button
-                  variant="ghost"
-                  disabled={pending}
-                  onClick={() => setConfirmTrash(true)}
-                >
-                  In Papierkorb verschieben
-                </Button>
-              )}
+                {busy ? "Wird erstellt …" : "Umfrage erstellen"}
+              </Button>
             </div>
-            {["ended", "archived", "deleted"].includes(summary.status) && (
-              <p>
-                Die Teilnahme ist geschlossen. Eine Wiederherstellung öffnet die
-                Umfrage nicht erneut.
-              </p>
-            )}
-            {confirmTrash && (
-              <div className="surveys-confirm">
-                <p>
-                  Die Umfrage wird geschlossen und aus der normalen Bearbeitung
-                  entfernt. Sie können sie später wiederherstellen.
-                </p>
-                <div className="surveys-actions">
-                  <Button
-                    variant="danger"
-                    disabled={pending}
-                    onClick={() => void mutate("trash")}
+          </form>
+        )}
+        {summary && (
+          <>
+            <section
+              className="surveys-management"
+              aria-label="Umfrage verwalten"
+            >
+              <SurveyNextStep
+                summary={summary}
+                allowed={allowed}
+                pending={pending}
+                onMutate={(action) => void mutate(action)}
+                onErase={() => setConfirmErasure(true)}
+                onEnd={() => setConfirmEnd(true)}
+              />
+              {confirmErasure &&
+                summary.status === "deleted" &&
+                allowed("delete") && (
+                  <div
+                    className="surveys-confirm"
+                    role="group"
+                    aria-label="Endgültige Löschung bestätigen"
                   >
-                    Jetzt in Papierkorb verschieben
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setConfirmTrash(false)}
-                  >
-                    Abbrechen
-                  </Button>
-                </div>
+                    <p>
+                      Der Fragebogen, alle Antworten, Einladungen und
+                      Exportdateien werden unwiderruflich gelöscht. Eine
+                      Wiederherstellung ist danach nicht möglich.
+                    </p>
+                    <label className="checkbox surveys-erasure-consent">
+                      <input
+                        type="checkbox"
+                        checked={understoodErasure}
+                        onChange={(event) =>
+                          setUnderstoodErasure(event.target.checked)
+                        }
+                      />
+                      Ich möchte diese Umfrage mit allen zugehörigen Daten
+                      endgültig löschen.
+                    </label>
+                    <div className="surveys-actions">
+                      <Button
+                        variant="danger"
+                        disabled={pending || !understoodErasure}
+                        onClick={() => void erase()}
+                      >
+                        Löschung jetzt beauftragen
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          setConfirmErasure(false);
+                          setUnderstoodErasure(false);
+                        }}
+                      >
+                        Abbrechen
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              <ConfirmDialog
+                open={confirmTrash}
+                onOpenChange={setConfirmTrash}
+                title="Umfrage in den Papierkorb verschieben?"
+                description="Die Umfrage wird geschlossen und aus der normalen Bearbeitung entfernt. Sie können sie später wiederherstellen."
+                confirmLabel="Jetzt in Papierkorb verschieben"
+                pending={pending}
+                tone="danger"
+                onConfirm={() => void mutate("trash")}
+              />
+              <ConfirmDialog
+                open={confirmEnd}
+                onOpenChange={setConfirmEnd}
+                title="Teilnahme beenden?"
+                description={
+                  summary.accessMode === "invitation"
+                    ? "Danach kann niemand mehr antworten, auch nicht mit einer offenen Einladung. Vorhandene Antworten bleiben erhalten und auswertbar."
+                    : "Danach kann niemand mehr antworten, der Link zur Umfrage schließt. Vorhandene Antworten bleiben erhalten und auswertbar."
+                }
+                confirmLabel="Teilnahme beenden"
+                pending={pending}
+                tone="danger"
+                onConfirm={() => void mutate("end")}
+              />
+            </section>
+            <nav className="section-links" aria-label="Bereiche der Umfrage">
+              {draft ||
+              (["draft", "active"].includes(summary.status) &&
+                allowed("publish")) ? (
+                <a href="#survey-questions" aria-keyshortcuts="1">
+                  Fragen
+                </a>
+              ) : null}
+              {summary.status !== "deleted" &&
+              (allowed("view_aggregates") ||
+                allowed("read_responses") ||
+                allowed("export_raw") ||
+                allowed("export_reports")) ? (
+                <a href="#survey-answers" aria-keyshortcuts="2">
+                  Antworten
+                </a>
+              ) : null}
+              <a href="#survey-settings" aria-keyshortcuts="3">
+                Einstellungen
+              </a>
+            </nav>
+            {(draft ||
+              (["draft", "active"].includes(summary.status) &&
+                allowed("publish") &&
+                !allowed("design"))) && (
+              <div className="survey-section" id="survey-questions">
+                <h2
+                  className="survey-section-title"
+                  id="survey-questions-title"
+                  tabIndex={-1}
+                >
+                  Fragen
+                </h2>
+                {["draft", "active"].includes(summary.status) &&
+                  allowed("publish") &&
+                  !allowed("design") && (
+                    <PublicationReview
+                      key={summary.id}
+                      client={client}
+                      surveyId={summary.id}
+                      onPublished={() => refresh(summary.id)}
+                    />
+                  )}
+                {draft && (
+                  <SurveyEditor
+                    draft={draft}
+                    adapter={adapter}
+                    canPublish={allowed("publish")}
+                    onSaveStateChange={setSaveState}
+                    onPublished={() => {
+                      void refresh(summary.id).catch((error) =>
+                        setMessage(errorMessage(error)),
+                      );
+                    }}
+                  />
+                )}
               </div>
             )}
-            {confirmErasure &&
-              summary.status === "deleted" &&
-              allowed("delete") && (
+            {summary.status !== "deleted" &&
+              (allowed("view_aggregates") ||
+                allowed("read_responses") ||
+                allowed("export_raw") ||
+                allowed("export_reports")) && (
                 <div
-                  className="surveys-confirm"
-                  role="group"
-                  aria-label="Endgültige Löschung bestätigen"
+                  className="survey-section survey-answers"
+                  id="survey-answers"
                 >
-                  <p>
-                    Der Fragebogen, alle Antworten, Einladungen und
-                    Exportdateien werden unwiderruflich gelöscht. Eine
-                    Wiederherstellung ist danach nicht möglich.
-                  </p>
-                  <label className="surveys-erasure-consent">
-                    <input
-                      type="checkbox"
-                      checked={understoodErasure}
-                      onChange={(event) =>
-                        setUnderstoodErasure(event.target.checked)
-                      }
-                    />
-                    Ich möchte diese Umfrage mit allen zugehörigen Daten
-                    endgültig löschen.
-                  </label>
-                  <div className="surveys-actions">
-                    <Button
-                      variant="danger"
-                      disabled={pending || !understoodErasure}
-                      onClick={() => void erase()}
-                    >
-                      Löschung jetzt beauftragen
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        setConfirmErasure(false);
-                        setUnderstoodErasure(false);
-                      }}
-                    >
-                      Abbrechen
-                    </Button>
-                  </div>
+                  <h2
+                    className="survey-section-title"
+                    id="survey-answers-title"
+                    tabIndex={-1}
+                  >
+                    Antworten
+                  </h2>
+                  {allowed("view_aggregates") && (
+                    <details className="surveys-settings">
+                      <summary>Antworten auswerten</summary>
+                      <div className="surveys-settings-body">
+                        <SurveyAnalysis
+                          key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
+                          client={client}
+                          surveyId={summary.id}
+                          canTest={allowed("design")}
+                          canExportRaw={allowed("export_raw")}
+                          canExportReports={allowed("export_reports")}
+                        />
+                      </div>
+                    </details>
+                  )}
+                  {!allowed("view_aggregates") &&
+                    (allowed("export_raw") || allowed("export_reports")) && (
+                      <details className="surveys-settings">
+                        <summary>Antworten exportieren</summary>
+                        <div className="surveys-settings-body">
+                          <SurveyAnalysis
+                            key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
+                            client={client}
+                            surveyId={summary.id}
+                            canTest={allowed("design")}
+                            canExportRaw={allowed("export_raw")}
+                            canExportReports={allowed("export_reports")}
+                            exportOnly
+                          />
+                        </div>
+                      </details>
+                    )}
+                  {(allowed("view_aggregates") ||
+                    allowed("read_responses")) && (
+                    <p className="surveys-settings surveys-settings-link">
+                      <a
+                        href={`/admin/surveys/${encodeURIComponent(summary.id)}/responses/summary`}
+                      >
+                        Auswertung ansehen
+                      </a>
+                    </p>
+                  )}
+                  {allowed("read_responses") && (
+                    <p className="surveys-settings surveys-settings-link">
+                      <a
+                        href={surveyResponsesHref(summary.id, location.search)}
+                      >
+                        Einzelantworten lesen
+                      </a>
+                    </p>
+                  )}
                 </div>
               )}
-            <p>
-              {summary.accessMode === "invitation"
-                ? "Persönliche Einladungen: Antworten sind dem jeweiligen Empfänger zuordenbar."
-                : "Anonymer Link: Antworten werden keinem Empfänger oder Auftrag zugeordnet."}
-            </p>
-            {summary.status === "draft" && allowed("publish") && (
-              <details className="surveys-settings">
-                <summary>Zugang zur Umfrage</summary>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const submitted =
-                      settingsEdits.current.snapshot("accessMode");
-                    void run(async () => {
-                      await client.updateSurveyAccess(summary.id, {
-                        operationId: crypto.randomUUID(),
-                        expectedRevision: summary.revision,
-                        accessMode,
-                      });
-                      settingsEdits.current.saved("accessMode", submitted);
-                      await refresh(summary.id);
-                    }, "Zugangsmodus wurde gespeichert.");
-                  }}
-                >
-                  <label>
-                    Zugangsmodus
-                    <select
-                      value={accessMode}
-                      onChange={(e) => {
-                        settingsEdits.current.edit("accessMode");
-                        setAccessMode(
-                          e.target.value as "anonymous" | "invitation",
-                        );
+            {new URLSearchParams(location.search).has("responseSelection") &&
+              (!allowed("read_responses") || summary.status === "deleted") && (
+                <p role="alert" className="callout tone-danger">
+                  Dieser Antwortstand ist für Sie nicht zugänglich.
+                </p>
+              )}
+            <section
+              className="survey-section"
+              id="survey-settings"
+              aria-labelledby="survey-settings-title"
+            >
+              <h2
+                className="survey-section-title"
+                id="survey-settings-title"
+                tabIndex={-1}
+              >
+                Einstellungen
+              </h2>
+              <p className="surveys-muted">
+                {summary.accessMode === "invitation"
+                  ? "Persönliche Einladungen: Antworten sind dem jeweiligen Empfänger zuordenbar."
+                  : "Anonymer Link: Antworten werden keinem Empfänger oder Auftrag zugeordnet."}
+              </p>
+              {summary.status === "draft" && allowed("publish") && (
+                <details className="surveys-settings">
+                  <summary>Zugang zur Umfrage</summary>
+                  <div className="surveys-settings-body">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const submitted =
+                          settingsEdits.current.snapshot("accessMode");
+                        void run(async () => {
+                          await client.updateSurveyAccess(summary.id, {
+                            operationId: crypto.randomUUID(),
+                            expectedRevision: summary.revision,
+                            accessMode,
+                          });
+                          settingsEdits.current.saved("accessMode", submitted);
+                          await refresh(summary.id);
+                        }, "Zugangsmodus wurde gespeichert.");
                       }}
                     >
-                      <option value="anonymous">Anonymer Link</option>
-                      <option value="invitation">Persönliche Einladung</option>
-                    </select>
-                  </label>
-                  <p>
-                    Nach der Veröffentlichung bleibt dieser Modus festgelegt.
-                  </p>
-                  <Button type="submit" disabled={pending}>
-                    Zugangsmodus speichern
-                  </Button>
-                </form>
-              </details>
-            )}
-            {invitations && allowed("manage_invitations") && (
-              <details className="surveys-settings">
-                <summary>Einladungen ({invitations.total})</summary>
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() =>
-                    void run(async () => {
-                      setInvitations(
-                        await client.listSurveyInvitations(summary.id, {
-                          offset: invitationOffset,
-                        }),
-                      );
-                    }, "Versandstatus wurde aktualisiert.")
-                  }
-                >
-                  Versandstatus aktualisieren
-                </Button>
-                {summary.status === "active" && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void run(async () => {
-                        invitationRequest.current ??= {
-                          operationId: crypto.randomUUID(),
-                          expectedRevision: summary.revision,
-                          recipientEmail,
-                          recipientName,
-                          expiresInDays: expiryDays,
-                        };
-                        try {
-                          await client.createSurveyInvitation(
-                            summary.id,
-                            invitationRequest.current,
-                          );
-                        } catch (error) {
-                          if (
-                            error instanceof ApiError &&
-                            [400, 401, 403, 404, 409, 422].includes(
-                              error.status,
-                            )
-                          )
-                            invitationRequest.current = null;
-                          throw error;
-                        }
-                        invitationRequest.current = null;
-                        setRecipientEmail("");
-                        setRecipientName("");
-                        await refresh(summary.id);
-                      }, "Einladung wurde zum Versand vorgemerkt.");
-                    }}
-                  >
-                    <label>
-                      E-Mail des Empfängers
-                      <input
-                        type="email"
-                        required
-                        maxLength={254}
-                        value={recipientEmail}
-                        readOnly={!!invitationRequest.current}
-                        onChange={(e) => setRecipientEmail(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Name des Empfängers (optional)
-                      <input
-                        maxLength={160}
-                        value={recipientName}
-                        readOnly={!!invitationRequest.current}
-                        onChange={(e) => setRecipientName(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Gültigkeit in Tagen
-                      <input
-                        type="number"
-                        min={1}
-                        max={90}
-                        value={expiryDays}
-                        readOnly={!!invitationRequest.current}
-                        onChange={(e) => setExpiryDays(Number(e.target.value))}
-                      />
-                    </label>
-                    <Button type="submit" disabled={pending}>
-                      Einladung senden
-                    </Button>
-                  </form>
-                )}
-                <ul className="surveys-list">
-                  {invitations.items.map((invitation) => (
-                    <li key={invitation.id}>
-                      <span>
-                        {invitation.recipientName || invitation.recipientEmail}
-                      </span>
-                      {invitation.recipientName && (
-                        <span>{invitation.recipientEmail}</span>
-                      )}
-                      <span>
-                        {
-                          {
-                            queued: "Zum Versand vorgemerkt",
-                            retrying:
-                              "Versand verzögert · erneuter Versuch folgt",
-                            failed:
-                              "Versand fehlgeschlagen · bitte Administration kontaktieren",
-                            cancelled: "Nicht versendet · Umfrage geschlossen",
-                            sent: "Versendet",
-                            redeemed: "Teilnahme begonnen",
-                            expired: "Abgelaufen",
-                            revoked: "Widerrufen",
-                          }[invitation.status]
-                        }
-                      </span>
-                      <span>
-                        Gültig bis{" "}
-                        {new Date(invitation.expiresAt).toLocaleDateString(
-                          "de-DE",
-                        )}
-                      </span>
-                      {!["revoked", "expired"].includes(invitation.status) && (
-                        <Button
-                          variant="secondary"
-                          disabled={pending}
-                          onClick={() =>
-                            void run(async () => {
-                              await client.revokeSurveyInvitation(
-                                summary.id,
-                                invitation.id,
-                                {
-                                  operationId: crypto.randomUUID(),
-                                  expectedRevision: summary.revision,
-                                },
-                              );
-                              await refresh(summary.id);
-                            }, "Einladung wurde widerrufen.")
-                          }
+                      <Field
+                        label="Zugangsmodus"
+                        hint="Nach der Veröffentlichung bleibt dieser Modus festgelegt."
+                      >
+                        <select
+                          value={accessMode}
+                          onChange={(e) => {
+                            settingsEdits.current.edit("accessMode");
+                            setAccessMode(
+                              e.target.value as "anonymous" | "invitation",
+                            );
+                          }}
                         >
-                          Einladung widerrufen
-                        </Button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <div className="surveys-actions">
-                  <Button
-                    variant="secondary"
-                    disabled={pending || invitationOffset === 0}
-                    onClick={() =>
-                      void run(async () => {
-                        const next = Math.max(0, invitationOffset - 100);
-                        setInvitations(
-                          await client.listSurveyInvitations(summary.id, {
-                            offset: next,
-                          }),
-                        );
-                        setInvitationOffset(next);
-                      }, "")
-                    }
-                  >
-                    Vorherige Einladungen
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={
-                      pending ||
-                      invitationOffset + invitations.items.length >=
-                        invitations.total
-                    }
-                    onClick={() =>
-                      void run(async () => {
-                        const next = invitationOffset + 100;
-                        setInvitations(
-                          await client.listSurveyInvitations(summary.id, {
-                            offset: next,
-                          }),
-                        );
-                        setInvitationOffset(next);
-                      }, "")
-                    }
-                  >
-                    Weitere Einladungen
-                  </Button>
-                </div>
-              </details>
-            )}
-            {["draft", "active"].includes(summary.status) &&
-              allowed("publish") && (
-                <details className="surveys-settings">
-                  <summary>Geplantes Ende</summary>
-                  <p>
-                    Die Teilnahme endet automatisch zu diesem Zeitpunkt. Bereits
-                    gespeicherte Antworten bleiben erhalten.
-                  </p>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const submitted =
-                        settingsEdits.current.snapshot("scheduledEnd");
-                      void run(async () => {
-                        await client.scheduleSurveyEnd(summary.id, {
-                          operationId: crypto.randomUUID(),
-                          expectedRevision: summary.revision,
-                          endsAt: scheduledEnd
-                            ? new Date(scheduledEnd).toISOString()
-                            : null,
-                        });
-                        settingsEdits.current.saved("scheduledEnd", submitted);
-                        await refresh(summary.id);
-                      }, "Geplantes Ende wurde gespeichert.");
-                    }}
-                  >
-                    <label>
-                      Teilnahme endet am
-                      <input
-                        type="datetime-local"
-                        value={scheduledEnd}
-                        onChange={(e) => {
-                          settingsEdits.current.edit("scheduledEnd");
-                          setScheduledEnd(e.target.value);
-                        }}
-                      />
-                    </label>
-                    <p>
-                      Lokale Zeitzone:{" "}
-                      {Intl.DateTimeFormat().resolvedOptions().timeZone}. Leer
-                      lassen, um ohne geplantes Ende fortzufahren.
-                    </p>
-                    <Button type="submit" disabled={pending}>
-                      Geplantes Ende speichern
-                    </Button>
-                  </form>
+                          <option value="anonymous">Anonymer Link</option>
+                          <option value="invitation">
+                            Persönliche Einladung
+                          </option>
+                        </select>
+                      </Field>
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        disabled={pending}
+                      >
+                        Zugangsmodus speichern
+                      </Button>
+                    </form>
+                  </div>
                 </details>
               )}
-            {summary.status !== "deleted" && allowed("design") && (
-              <details className="surveys-settings">
-                <summary>Teilantworten nach Inaktivität</summary>
-                <p>
-                  Antworten bleiben erhalten. Nach diesem Zeitraum gilt eine
-                  neue Teilnahme als Teilantwort. Bereits begonnene Teilnahmen
-                  behalten ihren Zeitraum.
-                </p>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const submitted = settingsEdits.current.snapshot("timeout");
-                    void run(async () => {
-                      await client.updateSurveyTimeout(summary.id, {
-                        operationId: crypto.randomUUID(),
-                        expectedRevision: summary.revision,
-                        inactivityTimeoutSeconds:
-                          timeout === "" ? null : Number(timeout),
-                      });
-                      settingsEdits.current.saved("timeout", submitted);
-                      await refresh(summary.id);
-                    }, "Zeitraum wurde gespeichert.");
-                  }}
-                >
-                  <label>
-                    Abweichender Zeitraum in Sekunden
-                    <input
-                      type="number"
-                      min={1}
-                      max={604800}
-                      step={1}
-                      value={timeout}
-                      placeholder="Standard verwenden"
-                      onChange={(e) => {
-                        settingsEdits.current.edit("timeout");
-                        setTimeoutValue(e.target.value);
-                      }}
-                    />
-                  </label>
-                  <p>
-                    Leer lassen, um den Standard zu verwenden. Erlaubt: 1 bis
-                    604800 Sekunden.
-                  </p>
-                  <Button type="submit" disabled={pending}>
-                    Zeitraum speichern
-                  </Button>
-                </form>
-              </details>
-            )}
-          </section>
-          {summary.status !== "deleted" && allowed("view_aggregates") && (
-            <details className="surveys-settings">
-              <summary>Antworten auswerten</summary>
-              <SurveyAnalysis
-                key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
-                client={client}
-                surveyId={summary.id}
-                canTest={allowed("design")}
-                canExportRaw={allowed("export_raw")}
-                canExportReports={allowed("export_reports")}
-              />
-            </details>
-          )}
-          {summary.status !== "deleted" &&
-            !allowed("view_aggregates") &&
-            (allowed("export_raw") || allowed("export_reports")) && (
-              <details className="surveys-settings">
-                <summary>Antworten exportieren</summary>
-                <SurveyAnalysis
-                  key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
-                  client={client}
-                  surveyId={summary.id}
-                  canTest={allowed("design")}
-                  canExportRaw={allowed("export_raw")}
-                  canExportReports={allowed("export_reports")}
-                  exportOnly
-                />
-              </details>
-            )}
-          {summary.status !== "deleted" && allowed("read_responses") && (
-            <details
-              className="surveys-settings"
-              open={Boolean(
-                new URLSearchParams(location.search).get("responseSelection"),
+              {invitations && allowed("manage_invitations") && (
+                <details className="surveys-settings">
+                  <summary>Einladungen ({invitations.total})</summary>
+                  <div className="surveys-settings-body">
+                    <div className="surveys-actions">
+                      <Button
+                        variant="secondary"
+                        disabled={pending}
+                        onClick={() =>
+                          void run(async () => {
+                            setInvitations(
+                              await client.listSurveyInvitations(summary.id, {
+                                offset: invitationOffset,
+                              }),
+                            );
+                          }, "Versandstatus wurde aktualisiert.")
+                        }
+                      >
+                        Versandstatus aktualisieren
+                      </Button>
+                    </div>
+                    {summary.status === "active" && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void run(async () => {
+                            invitationRequest.current ??= {
+                              operationId: crypto.randomUUID(),
+                              expectedRevision: summary.revision,
+                              recipientEmail,
+                              recipientName,
+                              expiresInDays: expiryDays,
+                            };
+                            try {
+                              await client.createSurveyInvitation(
+                                summary.id,
+                                invitationRequest.current,
+                              );
+                            } catch (error) {
+                              if (
+                                error instanceof ApiError &&
+                                [400, 401, 403, 404, 409, 422].includes(
+                                  error.status,
+                                )
+                              )
+                                invitationRequest.current = null;
+                              throw error;
+                            }
+                            invitationRequest.current = null;
+                            setRecipientEmail("");
+                            setRecipientName("");
+                            await refresh(summary.id);
+                          }, "Einladung wurde zum Versand vorgemerkt.");
+                        }}
+                      >
+                        <div className="field">
+                          <label
+                            className="field-label"
+                            htmlFor="survey-recipient-email"
+                          >
+                            E-Mail des Empfängers
+                          </label>
+                          <input
+                            className="input"
+                            id="survey-recipient-email"
+                            type="email"
+                            required
+                            maxLength={254}
+                            value={recipientEmail}
+                            readOnly={!!invitationRequest.current}
+                            onChange={(e) => setRecipientEmail(e.target.value)}
+                          />
+                        </div>
+                        <Field label="Name des Empfängers (optional)">
+                          <input
+                            maxLength={160}
+                            value={recipientName}
+                            readOnly={!!invitationRequest.current}
+                            onChange={(e) => setRecipientName(e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Gültigkeit in Tagen">
+                          <input
+                            type="number"
+                            min={1}
+                            max={90}
+                            value={expiryDays}
+                            readOnly={!!invitationRequest.current}
+                            onChange={(e) =>
+                              setExpiryDays(Number(e.target.value))
+                            }
+                          />
+                        </Field>
+                        <Button type="submit" disabled={pending}>
+                          Einladung senden
+                        </Button>
+                      </form>
+                    )}
+                    <ul className="surveys-list surveys-invitations">
+                      {invitations.items.map((invitation) => (
+                        <li key={invitation.id}>
+                          <span className="surveys-invitation-name">
+                            {invitation.recipientName ||
+                              invitation.recipientEmail}
+                          </span>
+                          {invitation.recipientName && (
+                            <span>{invitation.recipientEmail}</span>
+                          )}
+                          <span>
+                            {
+                              {
+                                queued: "Zum Versand vorgemerkt",
+                                retrying:
+                                  "Versand verzögert · erneuter Versuch folgt",
+                                failed:
+                                  "Versand fehlgeschlagen · bitte Administration kontaktieren",
+                                cancelled:
+                                  "Nicht versendet · Umfrage geschlossen",
+                                sent: "Versendet",
+                                redeemed: "Teilnahme begonnen",
+                                expired: "Abgelaufen",
+                                revoked: "Widerrufen",
+                              }[invitation.status]
+                            }
+                          </span>
+                          <span>
+                            Gültig bis{" "}
+                            {new Date(invitation.expiresAt).toLocaleDateString(
+                              "de-DE",
+                            )}
+                          </span>
+                          {!["revoked", "expired"].includes(
+                            invitation.status,
+                          ) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pending}
+                              onClick={() =>
+                                void run(async () => {
+                                  await client.revokeSurveyInvitation(
+                                    summary.id,
+                                    invitation.id,
+                                    {
+                                      operationId: crypto.randomUUID(),
+                                      expectedRevision: summary.revision,
+                                    },
+                                  );
+                                  await refresh(summary.id);
+                                }, "Einladung wurde widerrufen.")
+                              }
+                            >
+                              Einladung widerrufen
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="surveys-actions">
+                      <Button
+                        variant="secondary"
+                        disabled={pending || invitationOffset === 0}
+                        onClick={() =>
+                          void run(async () => {
+                            const next = Math.max(0, invitationOffset - 100);
+                            setInvitations(
+                              await client.listSurveyInvitations(summary.id, {
+                                offset: next,
+                              }),
+                            );
+                            setInvitationOffset(next);
+                          }, "")
+                        }
+                      >
+                        Vorherige Einladungen
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={
+                          pending ||
+                          invitationOffset + invitations.items.length >=
+                            invitations.total
+                        }
+                        onClick={() =>
+                          void run(async () => {
+                            const next = invitationOffset + 100;
+                            setInvitations(
+                              await client.listSurveyInvitations(summary.id, {
+                                offset: next,
+                              }),
+                            );
+                            setInvitationOffset(next);
+                          }, "")
+                        }
+                      >
+                        Weitere Einladungen
+                      </Button>
+                    </div>
+                  </div>
+                </details>
               )}
-            >
-              <summary>Einzelantworten lesen</summary>
-              <SurveyResponses
-                key={summary.id}
-                client={client}
-                surveyId={summary.id}
-                canTest={allowed("design")}
-              />
-            </details>
-          )}
-          {new URLSearchParams(location.search).has("responseSelection") &&
-            (!allowed("read_responses") || summary.status === "deleted") && (
-              <p role="alert">
-                Dieser Antwortstand ist für Sie nicht zugänglich.
-              </p>
-            )}
-          {["draft", "active"].includes(summary.status) &&
-            allowed("publish") &&
-            !allowed("design") && (
-              <PublicationReview
-                key={summary.id}
-                client={client}
-                surveyId={summary.id}
-                onPublished={() => refresh(summary.id)}
-              />
-            )}
-          {draft && (
-            <SurveyEditor
-              draft={draft}
-              adapter={adapter}
-              canPublish={allowed("publish")}
-              onSaveStateChange={setSaveState}
-              onPublished={() => {
-                void refresh(summary.id).catch((error) =>
-                  setMessage(errorMessage(error)),
-                );
-              }}
-            />
-          )}
-        </>
-      )}
-    </section>
+              {["draft", "active"].includes(summary.status) &&
+                allowed("publish") && (
+                  <details className="surveys-settings">
+                    <summary>Geplantes Ende</summary>
+                    <div className="surveys-settings-body">
+                      <p>
+                        Die Teilnahme endet automatisch zu diesem Zeitpunkt.
+                        Bereits gespeicherte Antworten bleiben erhalten.
+                      </p>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const submitted =
+                            settingsEdits.current.snapshot("scheduledEnd");
+                          void run(async () => {
+                            await client.scheduleSurveyEnd(summary.id, {
+                              operationId: crypto.randomUUID(),
+                              expectedRevision: summary.revision,
+                              endsAt: scheduledEnd
+                                ? new Date(scheduledEnd).toISOString()
+                                : null,
+                            });
+                            settingsEdits.current.saved(
+                              "scheduledEnd",
+                              submitted,
+                            );
+                            await refresh(summary.id);
+                          }, "Geplantes Ende wurde gespeichert.");
+                        }}
+                      >
+                        <Field
+                          label="Teilnahme endet am"
+                          hint={`Lokale Zeitzone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}. Leer lassen, um ohne geplantes Ende fortzufahren.`}
+                        >
+                          <input
+                            type="datetime-local"
+                            value={scheduledEnd}
+                            onChange={(e) => {
+                              settingsEdits.current.edit("scheduledEnd");
+                              setScheduledEnd(e.target.value);
+                            }}
+                          />
+                        </Field>
+                        <Button
+                          type="submit"
+                          variant="secondary"
+                          disabled={pending}
+                        >
+                          Geplantes Ende speichern
+                        </Button>
+                      </form>
+                    </div>
+                  </details>
+                )}
+              {summary.status !== "deleted" && allowed("design") && (
+                <details className="surveys-settings">
+                  <summary>Teilantworten nach Inaktivität</summary>
+                  <div className="surveys-settings-body">
+                    <p>
+                      Antworten bleiben erhalten. Nach diesem Zeitraum gilt eine
+                      neue Teilnahme als Teilantwort. Bereits begonnene
+                      Teilnahmen behalten ihren Zeitraum.
+                    </p>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const submitted =
+                          settingsEdits.current.snapshot("timeout");
+                        void run(async () => {
+                          await client.updateSurveyTimeout(summary.id, {
+                            operationId: crypto.randomUUID(),
+                            expectedRevision: summary.revision,
+                            inactivityTimeoutSeconds:
+                              timeout === "" ? null : Number(timeout),
+                          });
+                          settingsEdits.current.saved("timeout", submitted);
+                          await refresh(summary.id);
+                        }, "Zeitraum wurde gespeichert.");
+                      }}
+                    >
+                      <Field
+                        label="Abweichender Zeitraum in Sekunden"
+                        hint="Leer lassen, um den Standard zu verwenden. Erlaubt: 1 bis 604800 Sekunden."
+                      >
+                        <input
+                          type="number"
+                          min={1}
+                          max={604800}
+                          step={1}
+                          value={timeout}
+                          placeholder="Standard verwenden"
+                          onChange={(e) => {
+                            settingsEdits.current.edit("timeout");
+                            setTimeoutValue(e.target.value);
+                          }}
+                        />
+                      </Field>
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        disabled={pending}
+                      >
+                        Zeitraum speichern
+                      </Button>
+                    </form>
+                  </div>
+                </details>
+              )}
+              {summary.status !== "deleted" && allowed("delete") && (
+                <div className="surveys-danger">
+                  <p>
+                    <strong>Papierkorb:</strong> Die Umfrage wird geschlossen
+                    und lässt sich später wiederherstellen.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    icon={Trash2}
+                    disabled={pending}
+                    onClick={() => setConfirmTrash(true)}
+                  >
+                    In Papierkorb verschieben
+                  </Button>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+        {discardDialog}
+      </section>
+    </LeaveGuardContext.Provider>
+  );
+}
+
+/** Unsaved settings, a new survey or editor saves in flight (one guard). */
+function PageLeaveGuard({ dirty }: { dirty: boolean }) {
+  useLeaveGuard(dirty);
+  return null;
+}
+
+const sections = [
+  ["survey-questions", "Fragen"],
+  ["survey-answers", "Antworten"],
+  ["survey-settings", "Einstellungen"],
+] as const;
+
+const shapes: Record<Status, StatusShape> = {
+  draft: "draft",
+  active: "progress",
+  ended: "done",
+  archived: "done",
+  deleted: "cancelled",
+};
+
+/** "Nächster Schritt" per lifecycle status; read-only roles get a notice. */
+function SurveyNextStep({
+  summary,
+  allowed,
+  pending,
+  onMutate,
+  onErase,
+  onEnd,
+}: {
+  summary: SurveySummaryResponse;
+  allowed: (capability: string) => boolean;
+  pending: boolean;
+  onMutate: (action: "archive" | "unarchive" | "restore") => void;
+  onErase: () => void;
+  onEnd: () => void;
+}) {
+  const closed = "Eine Wiederherstellung öffnet die Teilnahme nicht erneut.";
+  switch (summary.status) {
+    case "draft":
+      if (allowed("design") || allowed("publish"))
+        return (
+          <NextStep
+            data-testid="survey-next-step"
+            consequence={
+              allowed("publish")
+                ? "Noch kann niemand antworten. Prüfen Sie den Fragebogen in der Vorschau und veröffentlichen Sie ihn dann."
+                : "Noch kann niemand antworten. Gestalten Sie den Fragebogen; veröffentlichen kann die Umfrage-Verantwortung."
+            }
+            action={
+              <a
+                className={buttonClassName({ variant: "primary" })}
+                href="#survey-questions"
+              >
+                Zum Fragebogen
+              </a>
+            }
+          />
+        );
+      break;
+    case "active":
+      if (allowed("publish"))
+        return (
+          <NextStep
+            data-testid="survey-next-step"
+            consequence={`Antworten gehen ein${summary.endsAt ? ` bis ${formatDateTime(summary.endsAt)}` : ""}. Beenden Sie die Teilnahme, wenn genug Rückmeldungen da sind; danach kann niemand mehr antworten.`}
+            action={
+              <Button variant="danger" disabled={pending} onClick={onEnd}>
+                Teilnahme beenden
+              </Button>
+            }
+            alternatives={
+              summary.accessMode === "anonymous" ? (
+                <PublishedLink surveyId={summary.id} />
+              ) : undefined
+            }
+          />
+        );
+      if (summary.accessMode === "anonymous")
+        return (
+          <div className="callout surveys-live">
+            <span>Die Umfrage ist veröffentlicht. Antworten gehen ein.</span>
+            <PublishedLink surveyId={summary.id} />
+          </div>
+        );
+      break;
+    case "ended":
+      if (allowed("archive"))
+        return (
+          <NextStep
+            data-testid="survey-next-step"
+            consequence={`Die Teilnahme ist geschlossen; Antworten bleiben auswertbar. Archivieren Sie die Umfrage, wenn die Auswertung abgeschlossen ist. ${closed}`}
+            action={
+              <Button disabled={pending} onClick={() => onMutate("archive")}>
+                Archivieren
+              </Button>
+            }
+          />
+        );
+      break;
+    case "archived":
+      if (allowed("archive"))
+        return (
+          <NextStep
+            data-testid="survey-next-step"
+            consequence={`Die Umfrage ist archiviert. ${closed}`}
+            action={
+              <Button disabled={pending} onClick={() => onMutate("unarchive")}>
+                Aus Archiv holen
+              </Button>
+            }
+          />
+        );
+      break;
+    case "deleted":
+      if (allowed("delete"))
+        return (
+          <NextStep
+            data-testid="survey-next-step"
+            consequence={`Die Umfrage liegt im Papierkorb. ${closed}`}
+            action={
+              <Button disabled={pending} onClick={() => onMutate("restore")}>
+                Wiederherstellen
+              </Button>
+            }
+            alternatives={
+              <Button
+                variant="ghost"
+                className="surveys-danger-ghost"
+                disabled={pending}
+                onClick={onErase}
+              >
+                Endgültig löschen
+              </Button>
+            }
+          />
+        );
+      break;
+  }
+  return (
+    <ReadOnlyNotice data-testid="survey-read-only">
+      {summary.status === "draft" || summary.status === "active"
+        ? "Sie sehen den Stand der Umfrage; Fragen und Teilnahme ändern andere Rollen."
+        : `Die Teilnahme ist geschlossen. ${closed}`}
+    </ReadOnlyNotice>
+  );
+}
+
+function PublishedLink({ surveyId }: { surveyId: string }) {
+  return (
+    <a
+      className={buttonClassName({ variant: "ghost" })}
+      href={`/surveys/${surveyId}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <Icon icon={ExternalLink} size={16} />
+      <span className="btn-label">Veröffentlichte Umfrage öffnen</span>
+    </a>
   );
 }
 
@@ -1364,13 +1901,17 @@ function PublicationReview({
     }
   }
   return (
-    <section aria-label="Veröffentlichung prüfen">
+    <section className="surveys-review" aria-label="Veröffentlichung prüfen">
       <h2>Fragebogen zur Veröffentlichung prüfen</h2>
       <p>
         Die Vorschau speichert keine Antworten. Veröffentlicht wird genau der
         geladene Entwurfsstand.
       </p>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p className="callout tone-danger" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p role="status">{notice}</p>}
       <Button
         variant="secondary"

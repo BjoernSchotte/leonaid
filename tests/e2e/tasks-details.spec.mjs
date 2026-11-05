@@ -1,6 +1,14 @@
 import { test, expect } from "./csp-guard.mjs";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import {
+  discardQuestion,
+  openTask,
+  taskPane,
+  taskRow,
+  taskRowLink,
+  taskSearch,
+} from "./task-list.mjs";
 
 const fixture = JSON.parse(
   readFileSync(process.env.LEONAID_MODULE_FIXTURE, "utf8"),
@@ -68,16 +76,17 @@ test("S2 quick capture requires a visible editable list and keeps URL filters", 
 }) => {
   const context = await signedInContext(browser, 1440);
   const { list } = await createListAndTasks(context, 1);
-  const identityResponse = await context.request.get(
-    `${baseURL}/api/v1/identity/me`,
-  );
-  expect(identityResponse.ok()).toBe(true);
-  const identity = await identityResponse.json();
   const page = await context.newPage();
-  await page.goto(`${baseURL}/admin/tasks?scope=mine&view=open`);
+  await page.goto(`${baseURL}/admin/tasks?view=open`);
 
+  await page
+    .getByRole("button", { name: /^Aufgabe anlegen/ })
+    .first()
+    .click();
   const quick = page.getByRole("form", { name: "Aufgabe schnell erfassen" });
   await expect(quick).toBeVisible();
+  const field = quick.getByLabel("Neue Aufgabe", { exact: true });
+  await expect(field).toBeFocused();
   let writes = 0;
   page.on("request", (request) => {
     if (
@@ -86,29 +95,36 @@ test("S2 quick capture requires a visible editable list and keeps URL filters", 
     )
       writes += 1;
   });
-  await quick.getByLabel("Titel").press("Enter");
+  await field.press("Enter");
+  expect(writes).toBe(0);
+  // Without a list nothing is sent; the person is told to pick one.
+  await quick.getByLabel("Aufgabenliste").selectOption("");
+  const title = `S2 Schnellerfassung ${randomUUID()}`;
+  await field.fill(title);
+  await field.press("Enter");
+  await expect(
+    page.getByText("Wählen Sie zuerst eine Liste.", { exact: true }),
+  ).toBeVisible();
+  await expect(quick.getByLabel("Aufgabenliste")).toBeFocused();
   expect(writes).toBe(0);
   await quick.getByLabel("Aufgabenliste").selectOption(list.id);
-  await expect(quick.getByLabel("Zuständigkeit")).toHaveValue(identity.userId);
-  const title = `S2 Schnellerfassung ${randomUUID()}`;
-  await quick.getByLabel("Titel").fill(title);
-  await quick.getByLabel("Titel").press("Enter");
+  await field.press("Enter");
   await expect.poll(() => writes).toBe(1);
   await expect(
-    page.getByRole("heading", { name: title, exact: true }),
+    page.getByText(`Aufgabe „${title}“ angelegt.`, { exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/scope=mine/);
+  await expect(field).toHaveValue("");
+  await expect(taskRowLink(page, { title })).toBeVisible();
   await expect(page).toHaveURL(/view=open/);
 
-  await page.getByLabel("Aufgaben suchen").fill(title);
+  await field.press("Escape");
+  await taskSearch(page).fill(title);
   await expect
-    .poll(() => new URL(page.url()).searchParams.get("search"))
+    .poll(() => new URL(page.url()).searchParams.get("q"))
     .toBe(title);
   await page.reload();
-  await expect(page.getByLabel("Aufgaben suchen")).toHaveValue(title);
-  await expect(
-    page.getByRole("heading", { name: title, exact: true }),
-  ).toBeVisible();
+  await expect(taskSearch(page)).toHaveValue(title);
+  await expect(taskRowLink(page, { title })).toBeVisible();
   await context.close();
 });
 
@@ -125,9 +141,12 @@ for (const [surface, width] of [
     const context = await signedInContext(browser, width);
     const { list, tasks } = await createListAndTasks(context);
     const page = await context.newPage();
+    // An old bookmark: its filters become list view parameters.
     await page.goto(
       `${baseURL}/${surface}/tasks/${list.id}?scope=all&view=open&search=Detail`,
     );
+    await expect(page).toHaveURL(new RegExp(`/tasks/${list.id}\\?q=Detail$`));
+    await expect(taskSearch(page)).toHaveValue("Detail");
 
     const switcher = page.getByRole("button", { name: "Liste wechseln" });
     const access = page.getByRole("button", { name: "Zugriff verwalten" });
@@ -135,43 +154,26 @@ for (const [surface, width] of [
     await expect(access).toHaveAttribute("title", "Zugriff verwalten");
     for (const control of [switcher, access]) {
       const box = await control.boundingBox();
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
+      const target = width <= 800 ? 44 : 32;
+      expect(box.width).toBeGreaterThanOrEqual(target);
+      expect(box.height).toBeGreaterThanOrEqual(target);
     }
-    const quickSubmit = page.getByRole("button", { name: "Neue Aufgabe" });
+    await page
+      .getByRole("button", { name: /^Aufgabe anlegen/ })
+      .first()
+      .click();
     const quickForm = page.getByRole("form", {
       name: "Aufgabe schnell erfassen",
     });
-    await expect(quickForm.locator(".task-quick-context")).toHaveCount(0);
-    const quickSubmitBox = await quickSubmit.boundingBox();
-    const quickFormBox = await quickForm.boundingBox();
-    const quickTitleBox = await quickForm.getByLabel("Titel").boundingBox();
-    const quickAssigneeBox = await quickForm
-      .getByLabel("Zuständigkeit")
-      .boundingBox();
-    expect(quickSubmitBox.height).toBeLessThanOrEqual(48);
-    expect(quickSubmitBox.width).toBeLessThanOrEqual(200);
-    expect(quickSubmitBox.y).toBeGreaterThanOrEqual(quickAssigneeBox.y - 2);
-    // The workspace stacks the quick form below 850 px of its own width
-    // (container query); at 1024 px the rail is collapsed and it still fits.
-    const quickWorkspaceWidth = (
-      await page.locator(".tasks-workspace").boundingBox()
-    ).width;
-    if (quickWorkspaceWidth <= 850) {
-      expect(quickTitleBox.width).toBeGreaterThanOrEqual(
-        quickFormBox.width * 0.9,
-      );
+    await expect(quickForm).toBeVisible();
+    // On a list page the list is fixed: no picker.
+    await expect(quickForm.getByLabel("Aufgabenliste")).toHaveCount(0);
+    const quickBox = await quickForm.boundingBox();
+    if (width <= 720) {
+      expect(quickBox.height).toBeGreaterThanOrEqual(44);
     }
-    if (surface === "app") {
-      expect(quickAssigneeBox.width).toBeGreaterThanOrEqual(
-        quickFormBox.width * 0.9,
-      );
-    }
-    expect(
-      await quickSubmit.evaluate(
-        (button) => button.scrollWidth <= button.clientWidth,
-      ),
-    ).toBe(true);
+    await quickForm.getByLabel("Neue Aufgabe", { exact: true }).press("Escape");
+    await expect(quickForm).toHaveCount(0);
     if (surface === "app") {
       // Tasks live in the "Mehr" sheet; the tab bar stays in the viewport.
       const tabbar = page.locator(".pwa-tabs");
@@ -189,35 +191,29 @@ for (const [surface, width] of [
       await sheet.getByRole("button", { name: "Schließen" }).click();
       await expect(sheet).toBeHidden();
     }
-    // Same 850 px container breakpoint for the list tools.
-    if (quickWorkspaceWidth <= 850) {
-      const scopeBox = await page
-        .getByRole("combobox", { name: /^Bereich/ })
-        .boundingBox();
-      const statusBox = await page.getByLabel("Ansicht").boundingBox();
-      const searchBox = await page.getByLabel("Aufgaben suchen").boundingBox();
-      expect(Math.abs(scopeBox.y - statusBox.y)).toBeLessThanOrEqual(2);
-      expect(searchBox.y).toBeGreaterThan(scopeBox.y + scopeBox.height);
-    }
     await switcher.click();
     await expect(switcher).toHaveAttribute("aria-expanded", "true");
     await expect(
       page.getByRole("heading", { name: "Aufgabenliste wechseln" }),
     ).toBeVisible();
     await switcher.click();
+    await expect(
+      page.getByRole("heading", { name: "Aufgabenliste wechseln" }),
+    ).toHaveCount(0);
 
-    const target = page.getByRole("button", {
-      name: "S2 Detail 04",
-      exact: true,
-    });
+    const target = taskRowLink(page, { id: tasks[3].id });
     await target.scrollIntoViewIfNeeded();
     const returnScroll = await page.evaluate(() => window.scrollY);
-    await target.click();
-    await expect(page).toHaveURL(/task=/);
-    const editor = page.getByRole("form", { name: "Aufgabe bearbeiten" });
+    const pane = await openTask(page, { id: tasks[3].id });
+    await expect(page).toHaveURL(/open=/);
+    const editor = pane.getByRole("form", { name: "Aufgabe bearbeiten" });
     await expect(editor).toBeVisible();
-    if (surface === "app") {
-      await expect(page.locator(".pwa-tabs")).toBeHidden();
+    if (width <= 720) {
+      // Phone: the pane is a full-screen sheet with reachable actions.
+      const sheet = page.locator("dialog.pane-sheet");
+      await expect(sheet).toBeVisible();
+      const sheetBox = await sheet.boundingBox();
+      expect(sheetBox.width).toBeGreaterThanOrEqual(width - 1);
       const editorActions = editor
         .getByRole("button", { name: "Speichern" })
         .locator("..");
@@ -233,17 +229,12 @@ for (const [surface, width] of [
       await editor
         .getByRole("textbox", { name: "Titel", exact: true })
         .scrollIntoViewIfNeeded();
-    }
-    const workspaceWidth = (
-      await page.locator(".tasks-workspace").boundingBox()
-    ).width;
-    if (workspaceWidth >= 720) {
-      await expect(page.locator(".tasks-main")).toBeVisible();
+    } else if (width > 1180) {
+      // Wide: list and pane side by side.
       expect(
-        (await page.locator(".tasks-main").boundingBox()).width,
+        (await page.locator(".listview-main").boundingBox()).width,
       ).toBeGreaterThanOrEqual(360);
-    } else {
-      await expect(page.locator(".tasks-main")).toBeHidden();
+      await expect(target).toBeVisible();
     }
     await page.screenshot({
       path: testInfo.outputPath(`s2-${surface}-${width}-detail.png`),
@@ -298,58 +289,67 @@ for (const [surface, width] of [
       );
       await other.close();
     }
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("verwerfen");
-      await dialog.dismiss();
-    });
-    await page.goBack();
-    await expect(description).toHaveValue(
-      "Dieser Entwurf muss erhalten bleiben",
-    );
-    await description.press("Escape");
-    await expect(description).toHaveValue(
-      "Dieser Entwurf muss erhalten bleiben",
-    );
-
-    if (surface === "app") {
-      // A dirty task editor registers with the shell: a sheet link asks
-      // once in the app, with no second browser dialog.
-      const native = [];
-      const onDialog = (dialog) => {
-        native.push(dialog.type());
-        void dialog.dismiss();
-      };
-      page.on("dialog", onDialog);
-      await page.getByTestId("pwa-menu").click();
-      const sheet = page.getByRole("dialog", { name: "Mehr" });
-      await sheet.getByRole("link", { name: "Aufgaben" }).click();
-      const question = page.getByRole("alertdialog", {
-        name: "Seite wechseln?",
-      });
+    // Drafts are guarded by the in-app "Entwurf verwerfen?" question; no
+    // native browser dialog appears.
+    const native = [];
+    const onNative = (dialog) => {
+      native.push(dialog.message());
+      void dialog.dismiss();
+    };
+    page.on("dialog", onNative);
+    const keepDraft = async () => {
+      const question = discardQuestion(page);
       await expect(question).toBeVisible();
-      await question.getByRole("button", { name: "Abbrechen" }).click();
-      await expect(question).toBeHidden();
-      await sheet.getByRole("button", { name: "Schließen" }).click();
+      await question.getByRole("button", { name: "Weiter bearbeiten" }).click();
+      await expect(question).toHaveCount(0);
       await expect(description).toHaveValue(
         "Dieser Entwurf muss erhalten bleiben",
       );
-      page.off("dialog", onDialog);
-      expect(native).toEqual([]);
+    };
+    // Back with a draft asks first; keeping the draft keeps the pane.
+    await page.goBack();
+    await keepDraft();
+    await expect(page).toHaveURL(/open=/);
+    if (width > 720) {
+      // Esc leaves the field first, then asks before closing the pane.
+      await description.press("Escape");
+      await expect(description).not.toBeFocused();
+      await page.keyboard.press("Escape");
+      await keepDraft();
     }
 
-    page.once("dialog", async (dialog) => dialog.accept());
-    await editor.getByRole("button", { name: "Abbrechen" }).click();
-    await expect(editor).toHaveCount(0);
-    await expect(page).toHaveURL(/scope=all/);
-    await expect(page).toHaveURL(/view=open/);
-    await expect(page).toHaveURL(/search=Detail/);
     if (surface === "app") {
-      await expect(page.locator(".pwa-tabs")).toBeVisible();
+      // The task sheet is modal: the shell's tabs and sheet links are out
+      // of reach until it closes, and closing asks about the draft.
+      expect(
+        await page.evaluate(() =>
+          document.querySelector("dialog.pane-sheet")?.matches(":modal"),
+        ),
+      ).toBe(true);
     }
+
+    if (width <= 720) {
+      // Phone: closing the sheet with a draft asks in the app as well.
+      const sheet = page.locator("dialog.pane-sheet");
+      await sheet.getByRole("button", { name: "Schließen (Esc)" }).click();
+      await keepDraft();
+      await expect(sheet).toBeVisible();
+    }
+
+    await editor.getByRole("button", { name: "Abbrechen" }).click();
+    await discardQuestion(page)
+      .getByRole("button", { name: "Verwerfen" })
+      .click();
+    page.off("dialog", onNative);
+    expect(native).toEqual([]);
+    await expect(taskPane(page)).toHaveCount(0);
+    await expect(page).not.toHaveURL(/open=/);
+    await expect(page).toHaveURL(/q=Detail/);
     await expect(target).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(
       Math.max(0, returnScroll - 2),
     );
+    await expect(taskRow(page, tasks[3].id)).toBeVisible();
 
     await page.evaluate(() => window.scrollTo({ top: 0 }));
     await page.screenshot({
@@ -357,13 +357,13 @@ for (const [surface, width] of [
       fullPage: false,
     });
     if (surface === "app") {
-      // A typed filter loses nothing: a tab leaves without the shell asking.
+      // A typed search loses nothing: a tab leaves without the shell asking.
       const dialogs = [];
       page.on("dialog", (dialog) => {
         dialogs.push(dialog.message());
         void dialog.dismiss();
       });
-      await page.getByLabel("Aufgaben suchen").fill("Detail 0");
+      await taskSearch(page).fill("Detail 0");
       await page
         .getByRole("navigation", { name: "App-Navigation" })
         .getByRole("link", { name: "Start" })

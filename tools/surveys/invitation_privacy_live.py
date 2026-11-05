@@ -48,7 +48,10 @@ async def main():
                     },
                 )
             ).json()
-            assert snapshot["participationCount"] == 1
+            # The aggregate withholds counts below k = 5; the raw CSV below
+            # proves exactly one participation.
+            assert snapshot["participationCount"] is None
+            assert snapshot["suppressed"] is True
             for product in products:
                 job = (
                     await call(
@@ -71,11 +74,10 @@ async def main():
                         await asyncio.sleep(0.2)
                 content = (await call("GET", job_path + "/download")).content
                 if product == "responses_csv":
-                    text = " ".join(
-                        cell
-                        for row in csv.reader(io.StringIO(content.decode("utf-8-sig")))
-                        for cell in row
-                    )
+                    rows = list(csv.reader(io.StringIO(content.decode("utf-8-sig"))))
+                    # Raw reader: one "response" record per participation.
+                    assert [row[0] for row in rows[1:]].count("response") == 1
+                    text = " ".join(cell for row in rows for cell in row)
                 elif product.endswith("xlsx"):
                     # Inspect every uncompressed member, including hidden metadata.
                     with ZipFile(io.BytesIO(content)) as archive:
@@ -109,6 +111,8 @@ async def main():
             {
                 "syntheticOnly": True,
                 "attributableParticipations": 2,
+                "oneParticipationPerFixtureInRawCsv": True,
+                "aggregateCountWithheldBelowK": True,
                 "actualWorkerDownloadsParsed": 8,
                 "productsPerParticipation": products,
                 "credentialsAbsentFromAllProducts": True,

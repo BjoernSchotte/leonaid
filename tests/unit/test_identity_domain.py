@@ -37,8 +37,12 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
     can_manage_action_roles,
-    removes_last_active_system_admin,
-    removes_last_required_charity_admin,
+    OPEN_ACTION_STATUSES,
+    AccessRemoval,
+    AdminCoverage,
+    AdminInvariant,
+    admin_invariant_violation,
+    charity_admin_required,
 )
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
@@ -354,6 +358,53 @@ def test_navigation_keeps_backoffice_overview_for_authorized_roles(
         assert microsites[0].href == "/_emdash/admin/content/campaign_pages"
 
 
+@pytest.mark.parametrize(
+    ("global_roles", "action_role", "managed"),
+    (
+        (frozenset({GlobalRole.SYSTEM_ADMIN}), None, True),
+        (frozenset(), ActionRole.CHARITY_ADMIN, True),
+        (frozenset(), ActionRole.FINANCE_READER, False),
+        (frozenset(), ActionRole.ACQUIRER, False),
+    ),
+)
+@pytest.mark.parametrize("delivery", (True, False))
+def test_delivery_navigation_needs_a_managed_action_with_delivery(
+    global_roles: frozenset[GlobalRole],
+    action_role: ActionRole | None,
+    managed: bool,
+    delivery: bool,
+) -> None:
+    memberships = (
+        (
+            ActionMembership(
+                id=UUID("21000000-0000-4000-8000-000000000022"),
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+                user_id=KLARA_ID,
+                role=action_role,
+                active_from=NOW,
+            ),
+        )
+        if action_role is not None
+        else ()
+    )
+    principal = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=global_roles,
+        action_memberships=memberships,
+    )
+
+    items = [
+        item
+        for item in navigation_for(principal, delivery=delivery)
+        if item.key == "delivery"
+    ]
+
+    assert len(items) == int(managed and delivery)
+    if items:
+        assert (items[0].surface, items[0].href) == ("web", "/admin/delivery")
+
+
 def test_role_management_matrix_separates_global_and_action_scopes() -> None:
     charity_admin = IdentityPrincipal(
         account=account(AccountStatus.ACTIVE),
@@ -381,43 +432,97 @@ def test_role_management_matrix_separates_global_and_action_scopes() -> None:
     assert can_manage_action_roles(system_admin, ARCHIVED_ACTION_ID) is True
 
 
-def test_last_admin_invariants_cover_global_and_action_lifecycles() -> None:
-    assert removes_last_active_system_admin(
-        role=GlobalRole.SYSTEM_ADMIN,
-        enabled=False,
-        active_admin_count=1,
-    )
-    assert not removes_last_active_system_admin(
-        role=GlobalRole.FINANCE_READER,
-        enabled=False,
-        active_admin_count=1,
-    )
-    for status in (
+def test_open_actions_need_a_lead() -> None:
+    assert OPEN_ACTION_STATUSES == {
         CharityActionStatus.DRAFT,
         CharityActionStatus.SCHEDULED,
         CharityActionStatus.ACTIVE,
+    }
+    for status in CharityActionStatus:
+        assert charity_admin_required(status) is (status in OPEN_ACTION_STATUSES)
+
+
+_ADMIN_A = UUID("90000000-0000-4000-8000-00000000000a")
+_ADMIN_B = UUID("90000000-0000-4000-8000-00000000000b")
+_LEAD_A = UUID("90000000-0000-4000-8000-0000000000a1")
+_LEAD_B = UUID("90000000-0000-4000-8000-0000000000b1")
+_ACTION_1 = UUID("90000000-0000-4000-8000-000000000001")
+_ACTION_2 = UUID("90000000-0000-4000-8000-000000000002")
+
+
+def _coverage(
+    admins: set[UUID], leads: dict[UUID, set[UUID]] | None = None
+) -> AdminCoverage:
+    return AdminCoverage(
+        system_admins=frozenset(admins),
+        open_action_leads={
+            key: frozenset(value) for key, value in (leads or {}).items()
+        },
+    )
+
+
+def test_last_system_admin_keeps_role_and_access() -> None:
+    alone = _coverage({_ADMIN_A})
+    for removal in (
+        AccessRemoval.system_admin_role(_ADMIN_A),
+        AccessRemoval.deactivation(_ADMIN_A),
     ):
-        assert removes_last_required_charity_admin(
-            action_status=status,
-            role=ActionRole.CHARITY_ADMIN,
-            enabled=False,
-            active_admin_count=1,
+        assert (
+            admin_invariant_violation(alone, removal)
+            is AdminInvariant.LAST_SYSTEM_ADMIN
         )
-    for status in (
-        CharityActionStatus.COMPLETED,
-        CharityActionStatus.ARCHIVED,
-    ):
-        assert not removes_last_required_charity_admin(
-            action_status=status,
-            role=ActionRole.CHARITY_ADMIN,
-            enabled=False,
-            active_admin_count=1,
+    pair = _coverage({_ADMIN_A, _ADMIN_B})
+    assert admin_invariant_violation(pair, AccessRemoval.deactivation(_ADMIN_A)) is None
+    assert (
+        admin_invariant_violation(pair, AccessRemoval.system_admin_role(_ADMIN_B))
+        is None
+    )
+    # Someone who is not an active system admin removes nothing.
+    assert admin_invariant_violation(alone, AccessRemoval.deactivation(_LEAD_A)) is None
+
+
+def test_last_lead_of_an_open_action_keeps_role_and_access() -> None:
+    coverage = _coverage(
+        {_ADMIN_A},
+        {_ACTION_1: {_LEAD_A}, _ACTION_2: {_LEAD_A, _LEAD_B}},
+    )
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.lead_role(_LEAD_A, _ACTION_1))
+        is AdminInvariant.LAST_CHARITY_ADMIN
+    )
+    # Suspension and archival take every lead role at once.
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.deactivation(_LEAD_A))
+        is AdminInvariant.LAST_CHARITY_ADMIN
+    )
+    # A second active lead covers the action.
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.lead_role(_LEAD_A, _ACTION_2))
+        is None
+    )
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.deactivation(_LEAD_B)) is None
+    )
+    # The system-admin role is not a lead role.
+    assert (
+        admin_invariant_violation(
+            _coverage({_LEAD_A, _ADMIN_A}, {_ACTION_1: {_LEAD_A}}),
+            AccessRemoval.system_admin_role(_LEAD_A),
         )
-    assert not removes_last_required_charity_admin(
-        action_status=CharityActionStatus.ACTIVE,
-        role=ActionRole.CHARITY_ADMIN,
-        enabled=False,
-        active_admin_count=2,
+        is None
+    )
+
+
+def test_existing_gaps_do_not_block_unrelated_changes() -> None:
+    # No active system admin left already, and an action without any lead:
+    # changes that remove neither are allowed.
+    coverage = _coverage(set(), {_ACTION_1: set(), _ACTION_2: {_LEAD_A, _LEAD_B}})
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.deactivation(_LEAD_B)) is None
+    )
+    assert (
+        admin_invariant_violation(coverage, AccessRemoval.system_admin_role(_ADMIN_A))
+        is None
     )
 
 

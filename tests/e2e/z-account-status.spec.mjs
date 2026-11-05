@@ -1,5 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
+import { memberPane, openMember, toast } from "./member-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
@@ -8,7 +9,7 @@ const staleSystemSession = process.env.SYSTEM_STALE_SESSION;
 const annaSession = process.env.ANNA_SESSION;
 const systemEmail = "system-admin@leonaid.invalid";
 const annaEmail = "anna.akquise@leonaid.invalid";
-const annaId = "10000000-0000-4000-8000-000000000002";
+const annaId = "10000000-0000-4000-8000-000000000004";
 
 if (
   !baseUrl ||
@@ -110,20 +111,6 @@ async function addSessionCookie(context, token) {
   ]);
 }
 
-async function selectAnna(page) {
-  await page
-    .getByRole("searchbox", { name: "Mitglied suchen" })
-    .fill("Anna Akquise");
-  await page.getByRole("button", { name: "Suchen", exact: true }).click();
-  await expect(page.getByTestId("member-card")).toHaveCount(1);
-  await page.getByTestId("member-card").click();
-  await expect(
-    page.getByTestId("member-detail").getByRole("heading", {
-      name: "Anna Akquise",
-    }),
-  ).toBeVisible();
-}
-
 async function confirmStatus(page, label) {
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
@@ -171,21 +158,19 @@ test("fresh login revokes all old sessions and reactivation requires a new sign-
   try {
     await oldAnnaPage.goto(`${baseUrl}/app/`);
     await expect(
-      oldAnnaPage.getByRole("heading", { name: "Guten Tag, Anna." }),
+      oldAnnaPage.getByRole("heading", {
+        name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
+      }),
     ).toBeVisible();
 
     await systemPage.goto(`${baseUrl}/admin/members`);
-    await selectAnna(systemPage);
-    await expect(systemPage.getByTestId("member-detail-status")).toHaveText(
-      "Aktiv",
+    const pane = await openMember(systemPage, "Anna Akquise");
+    await expect(pane.getByTestId("member-detail-status")).toHaveText("Aktiv");
+    await expect(pane.getByTestId("member-sessions")).toHaveText(
+      "1 aktive Sitzung",
     );
-    await expect(
-      systemPage
-        .getByTestId("member-detail")
-        .getByText("1 Sitzung", { exact: true }),
-    ).toBeVisible();
 
-    await systemPage.getByTestId("member-status-suspend").click();
+    await pane.getByTestId("member-status-suspend").click();
     await expect(systemPage.getByRole("alertdialog")).toContainText(
       "Anna Akquise verliert sofort den Zugriff",
     );
@@ -205,17 +190,26 @@ test("fresh login revokes all old sessions and reactivation requires a new sign-
     );
     await systemPage.locator("#login-code").fill(freshCode);
     await systemPage.getByTestId("complete-login").click();
-    await systemPage.waitForURL(`${baseUrl}/admin/members`);
+    // The fresh sign-in returns to the list with Anna's pane open again;
+    // nothing was changed before it.
+    await systemPage.waitForURL(
+      (url) =>
+        url.pathname === "/admin/members" &&
+        url.searchParams.get("open") === annaId,
+    );
+    await expect(memberPane(systemPage)).toBeVisible();
+    await expect(
+      memberPane(systemPage).getByTestId("member-detail-status"),
+    ).toHaveText("Aktiv");
 
-    await selectAnna(systemPage);
-    await systemPage.getByTestId("member-status-suspend").click();
+    await memberPane(systemPage).getByTestId("member-status-suspend").click();
     await confirmStatus(systemPage, "Zugang sperren");
-    await expect(systemPage.getByTestId("member-status-success")).toContainText(
-      "1 Sitzung wurde sofort beendet",
-    );
-    await expect(systemPage.getByTestId("member-detail-status")).toHaveText(
-      "Gesperrt",
-    );
+    await expect(
+      toast(systemPage, "1 Sitzung wurde sofort beendet"),
+    ).toBeVisible();
+    await expect(
+      memberPane(systemPage).getByTestId("member-detail-status"),
+    ).toHaveText("Gesperrt");
     await systemPage.screenshot({
       path: `${artifactDirectory}/account-status-suspended.png`,
       fullPage: true,
@@ -230,24 +224,29 @@ test("fresh login revokes all old sessions and reactivation requires a new sign-
       oldAnnaPage.getByRole("heading", { name: "Bitte erneut anmelden" }),
     ).toBeVisible();
 
-    await systemPage.getByTestId("member-status-reactivate").click();
+    await memberPane(systemPage)
+      .getByTestId("member-status-reactivate")
+      .click();
     await expect(systemPage.getByRole("alertdialog")).toContainText(
       "Alte Sitzungen bleiben beendet",
     );
     await confirmStatus(systemPage, "Zugang reaktivieren");
-    await expect(systemPage.getByTestId("member-status-success")).toContainText(
-      "Für den nächsten Zugriff ist eine neue Anmeldung erforderlich",
-    );
-    await expect(systemPage.getByTestId("member-detail-status")).toHaveText(
-      "Aktiv",
-    );
+    await expect(
+      toast(
+        systemPage,
+        "Für den nächsten Zugriff ist eine neue Anmeldung erforderlich",
+      ),
+    ).toBeVisible();
+    await expect(
+      memberPane(systemPage).getByTestId("member-detail-status"),
+    ).toHaveText("Aktiv");
     expect(
       (
         await oldAnnaContext.request.get(`${baseUrl}/api/v1/identity/me`)
       ).status(),
     ).toBe(401);
 
-    const accessibility = await new AxeBuilder({ page: systemPage }).analyze();
+    const accessibility = await analyzeAccessibility(systemPage);
     expect(
       accessibility.violations.filter((violation) =>
         ["critical", "serious"].includes(violation.impact ?? ""),

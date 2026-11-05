@@ -1,36 +1,105 @@
+/*
+ * Survey editor. Hosts theme it with --survey-* custom properties; the
+ * defaults keep an independent host readable. Layout follows the LeonAid
+ * Leitsystem question editor: question cards with number, type badge and
+ * move tools, a page list and a sticky properties panel.
+ */
 .survey-editor {
   --se-accent: var(--survey-accent, #00338d);
+  --se-accent-hover: var(--survey-accent-hover, var(--se-accent));
+  --se-on-accent: var(--survey-on-accent, #fff);
+  --se-text: var(--survey-foreground, #172238);
+  --se-text-2: var(--survey-muted, #4a5870);
+  --se-text-3: var(--survey-subtle, #66758c);
+  --se-bg: var(--survey-background, #fff);
+  --se-surface: var(--survey-surface, #fff);
+  --se-surface-2: var(--survey-canvas, #f5f7fa);
+  --se-border: var(--survey-border, #dbe0e8);
   --se-control-border: var(--survey-control-border, #6f7e94);
+  --se-selected: var(--survey-selected, #edf2fa);
+  --se-selected-line: var(--survey-selected-line, var(--se-accent));
+  --se-row-hover: var(--survey-row-hover, #f0f3f7);
+  --se-danger: var(--survey-danger, #a3261a);
+  --se-danger-soft: var(--survey-danger-soft, #fbeceb);
   --se-focus: var(--survey-focus, var(--se-accent));
-  color: var(--survey-foreground, #172238);
+  --se-radius: var(--survey-radius, 10px);
+  --se-radius-sm: var(--survey-radius-sm, 6px);
+  --se-shadow: var(--survey-shadow, 0 1px 2px rgb(16 24 40 / 0.08));
+  --se-control-h: var(--survey-control-h, 44px);
+  --se-gap: var(--survey-gap, 1rem);
+  --se-motion: var(--survey-motion, 120ms ease-out);
+  display: grid;
+  gap: var(--se-gap);
+  color: var(--se-text);
   background: var(--survey-background, #fff);
   font-family: var(--survey-font, sans-serif);
-  padding: 1.5rem;
+  font-size: var(--survey-font-size, 0.9375rem);
 }
 .survey-editor * {
   box-sizing: border-box;
 }
+/* The runner centres itself; a grid would shrink it to its content. */
+.survey-editor.survey-preview {
+  display: block;
+}
+.survey-preview > .se-toolbar {
+  margin-bottom: var(--se-gap);
+}
+.survey-editor h2 {
+  margin: 0;
+  font-size: var(--survey-heading-size, 1rem);
+  font-weight: 600;
+}
+
+/* Toolbar: save state left, tools right, the primary action last. */
 .se-toolbar,
 .se-actions,
 .se-add {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.5rem;
   align-items: center;
 }
 .se-toolbar {
-  border-bottom: 1px solid #cbd3df;
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius);
+  background: var(--se-surface);
 }
-.se-toolbar [role="status"] {
+.se-toolbar [role="status"],
+.se-toolbar h2 {
   flex: 1;
   min-width: 12rem;
+  color: var(--se-text-2);
 }
+.se-toolbar .se-save::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-end: 0.5rem;
+  border-radius: 50%;
+  background: var(--se-text-3);
+  vertical-align: 0.1em;
+}
+.se-toolbar .se-save[data-draft-state="saved"]::before {
+  background: var(--survey-ok, #1d7a45);
+}
+.se-toolbar .se-save[data-draft-state="error"],
+.se-toolbar .se-save[data-draft-state="conflict"] {
+  color: var(--se-danger);
+}
+.se-toolbar .se-save[data-draft-state="error"]::before,
+.se-toolbar .se-save[data-draft-state="conflict"]::before {
+  background: var(--se-danger);
+}
+
+/* Controls */
 .survey-editor:not(.survey-preview) label {
-  display: block;
-  margin-block: 0.8rem;
-  font-size: 0.9rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--se-text);
+  font-size: 0.875rem;
   font-weight: 600;
 }
 .survey-editor:not(.survey-preview) input:not([type="checkbox"]),
@@ -38,144 +107,583 @@
 .survey-editor:not(.survey-preview) select {
   display: block;
   width: 100%;
-  min-height: 44px;
+  min-height: var(--se-control-h);
+  padding: 0.375rem 0.75rem;
   border: 1px solid var(--se-control-border);
-  border-radius: 4px;
-  padding: 0.6rem;
-  margin-top: 0.35rem;
-  font: inherit;
+  border-radius: var(--se-radius-sm);
+  background: var(--se-surface);
   color: inherit;
-  background: transparent;
+  font: inherit;
+  font-size: var(--survey-input-size, inherit);
+  font-weight: 400;
+}
+.survey-editor:not(.survey-preview) textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+/* Questionnaire texts start as one line and grow with their content;
+   browsers without field-sizing keep a two-line box. */
+.survey-editor:not(.survey-preview) .se-meta textarea,
+.survey-editor:not(.survey-preview) .se-properties textarea {
+  min-height: var(--se-control-h);
+  field-sizing: content;
+}
+@supports not (field-sizing: content) {
+  .survey-editor:not(.survey-preview) .se-meta textarea,
+  .survey-editor:not(.survey-preview) .se-properties textarea {
+    min-height: 3.75rem;
+  }
+}
+.se-limits {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+.survey-editor:not(.survey-preview) input[type="file"] {
+  padding-block: 0.6rem;
+}
+.survey-editor:not(.survey-preview) input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--se-accent);
+}
+.survey-editor:not(.survey-preview) .se-check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--se-control-h);
+  font-weight: 500;
 }
 .survey-editor:not(.survey-preview) button,
 .survey-preview > .se-toolbar button {
-  min-width: 44px;
-  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: var(--se-control-h);
+  min-height: var(--se-control-h);
+  padding: 0 0.875rem;
   border: 1px solid var(--se-control-border);
-  background: transparent;
+  border-radius: var(--se-radius-sm);
+  background: var(--se-surface);
   color: inherit;
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
   font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--se-motion),
+    border-color var(--se-motion);
+}
+.survey-editor:not(.survey-preview) button:hover:not(:disabled),
+.survey-preview > .se-toolbar button:hover:not(:disabled) {
+  background: var(--se-row-hover);
+}
+.survey-editor:not(.survey-preview) .se-button-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--se-text-2);
+}
+.survey-editor:not(.survey-preview) .se-button-ghost:hover:not(:disabled) {
+  color: var(--se-text);
+}
+.survey-editor:not(.survey-preview) .se-button-primary {
+  border-color: var(--se-accent);
+  background: var(--se-accent);
+  color: var(--se-on-accent);
+}
+.survey-editor:not(.survey-preview) .se-button-primary:hover:not(:disabled) {
+  border-color: var(--se-accent-hover);
+  background: var(--se-accent-hover);
+}
+.survey-editor:not(.survey-preview) .se-button-danger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--se-danger);
+}
+.survey-editor:not(.survey-preview) .se-button-danger:hover:not(:disabled) {
+  background: var(--se-danger-soft);
 }
 .survey-editor:not(.survey-preview) button:disabled,
 .survey-preview > .se-toolbar button:disabled {
   opacity: 0.45;
   cursor: default;
 }
+.survey-editor .se-glyph {
+  flex: none;
+}
 .survey-editor :focus-visible,
 .survey-editor [data-editor-focus]:focus {
   outline: 3px solid var(--se-focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
   /* Host motion rules must not animate the appearance of keyboard focus. */
   transition-property: none;
 }
-.se-title input {
-  font-size: 1.6rem !important;
+
+/* Messages */
+.se-notice {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius-sm);
+  background: var(--se-surface-2);
+  line-height: 1.5;
 }
-.se-workspace {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 2.5fr) minmax(
-      15rem,
-      1.4fr
-    );
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  align-items: start;
+.se-notice-error {
+  border-color: var(--se-danger);
+  background: var(--se-danger-soft);
+  color: var(--se-danger);
 }
-.se-workspace h2 {
-  font-size: 1rem;
-  margin-top: 0;
+.se-conflict p {
+  margin: 0 0 0.75rem;
 }
-.se-workspace ol {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0;
+.se-conflict button {
+  margin: 0 0.5rem 0.5rem 0;
 }
-.se-workspace li {
-  display: flex;
-  gap: 0.35rem;
-  border-bottom: 1px solid #dbe0e8;
-  padding: 0.5rem 0;
+.se-issues ul {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.25rem;
 }
-.se-workspace li > button {
-  text-align: left;
-  flex: 1;
-  border-color: transparent;
-}
-.se-workspace button[aria-current],
-.se-workspace button[aria-pressed="true"] {
-  border-color: var(--se-accent);
-  color: var(--se-accent);
-  background: #edf2fa;
-}
-.se-move {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.se-canvas {
-  padding: 1rem;
-  background: var(--survey-canvas, #f5f7fa);
-  border-top: 3px solid var(--se-accent);
-}
-.se-canvas small,
-.se-canvas strong {
-  display: block;
-}
-.se-canvas small {
-  color: #586780;
-  margin-bottom: 0.4rem;
-}
-.se-canvas li > button {
-  background: var(--survey-background, #fff);
-  padding: 1rem;
-}
-.se-workspace aside {
-  border-left: 1px solid #dbe0e8;
-  padding-left: 1.5rem;
-}
-.se-workspace fieldset {
-  border: 1px solid #dbe0e8;
-  margin: 1rem 0;
-  padding: 0.75rem;
-}
-@media (max-width: 1050px) {
-  .se-workspace {
-    grid-template-columns: 12rem minmax(0, 1fr);
-  }
-  .se-workspace aside {
-    grid-column: 2;
-    border-left: 0;
-    padding-left: 0;
-  }
-}
-@media (max-width: 650px) {
-  .survey-editor {
-    padding: 0.75rem;
-  }
-  .se-workspace {
-    display: block;
-  }
-  .se-workspace nav ol {
-    display: flex;
-    overflow: auto;
-  }
-  .se-workspace nav li {
-    min-width: 11rem;
-  }
-  .se-workspace aside {
-    margin-top: 1.5rem;
-  }
+.se-issues p {
+  margin: 0.5rem 0 0;
 }
 
 .survey-editor > .se-editing {
-  border: 0;
-  padding: 0;
-  margin: 0;
+  display: grid;
+  gap: var(--se-gap);
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .survey-editor .se-editing:disabled {
   opacity: 0.7;
+}
+
+/* Questionnaire settings: title as a large heading field, then the rest. */
+.se-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  padding: 1rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius);
+  background: var(--se-surface);
+}
+.se-meta .se-title {
+  grid-column: 1 / -1;
+}
+.survey-editor:not(.survey-preview) .se-title input {
+  font-size: var(--survey-title-size, 1.375rem);
+  font-weight: 700;
+}
+.se-json {
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius);
+  background: var(--se-surface);
+}
+.se-json > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--se-control-h);
+  padding: 0 1rem;
+  color: var(--se-text-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+.se-json[open] {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+}
+.se-json[open] > :not(summary) {
+  margin-inline: 1rem;
+}
+.se-json p {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--se-text-2);
+  line-height: 1.5;
+}
+.se-json button {
+  justify-self: start;
+}
+
+/* Workspace: pages | question cards (the open card holds its fields) */
+.se-workspace {
+  display: grid;
+  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.se-workspace ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.se-pages {
+  display: grid;
+  gap: 0.5rem;
+}
+.se-pages h2,
+.se-properties h2 {
+  color: var(--se-text-2);
+}
+.se-pages ol {
+  gap: 0.25rem;
+}
+.se-page {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.survey-editor:not(.survey-preview) .se-page-select {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  border-color: transparent;
+  background: transparent;
+  color: var(--se-text-2);
+  text-align: start;
+  text-overflow: ellipsis;
+}
+.survey-editor:not(.survey-preview) .se-page-select[aria-current] {
+  border-color: var(--se-selected-line);
+  background: var(--se-selected);
+  color: var(--se-text);
+}
+.se-move {
+  display: flex;
+  gap: 0.125rem;
+}
+.survey-editor:not(.survey-preview) .se-move button,
+.survey-editor:not(.survey-preview) .se-icon-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--se-text-2);
+}
+.survey-editor:not(.survey-preview) .se-add-page {
+  justify-content: flex-start;
+}
+
+.se-canvas {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.se-page-settings {
+  display: grid;
+  gap: 0.75rem;
+}
+.se-page-settings > label,
+.se-page-settings > fieldset {
+  padding: 1rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius);
+  background: var(--se-surface);
+}
+.se-page-settings > .se-actions {
+  justify-content: flex-end;
+}
+.se-question {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius);
+  background: var(--se-surface);
+  transition:
+    border-color var(--se-motion),
+    box-shadow var(--se-motion);
+}
+.se-question[data-selected] {
+  padding-bottom: 1rem;
+  border-color: var(--se-selected-line);
+  box-shadow: var(--se-shadow);
+}
+.se-question-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: grab;
+}
+/* The open card shows the title as its editable field below. */
+.se-question[data-selected] .se-question-select strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.se-grip {
+  display: inline-flex;
+  flex: none;
+  color: var(--se-text-3);
+  cursor: grab;
+}
+.survey-editor:not(.survey-preview) .se-question-select {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: stretch;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border-color: transparent;
+  background: transparent;
+  text-align: start;
+  white-space: normal;
+}
+.survey-editor:not(.survey-preview) .se-question-select:hover:not(:disabled) {
+  background: transparent;
+}
+.se-question-no {
+  grid-row: span 2;
+  min-width: 1.5rem;
+  color: var(--se-text-3);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.se-badge {
+  justify-self: start;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--se-surface-2);
+  color: var(--se-text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.se-question-select strong {
+  overflow-wrap: anywhere;
+  font-size: var(--survey-question-size, 1.0625rem);
+  font-weight: 600;
+  line-height: 1.3;
+}
+/* "Frage hinzufügen" opens a menu of question types (prototype popover). */
+.se-add {
+  position: relative;
+}
+.se-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 5;
+  display: grid;
+  min-width: 14rem;
+  padding: 0.25rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius-sm);
+  background: var(--se-surface);
+  box-shadow: var(--survey-shadow-menu, 0 8px 24px rgb(16 24 40 / 0.16));
+}
+.se-menu > [role="menu"] {
+  display: grid;
+}
+.survey-editor:not(.survey-preview) .se-menu-filter {
+  min-height: var(--se-control-h);
+  margin-bottom: 0.25rem;
+  border-color: transparent;
+  border-bottom-color: var(--se-border);
+  border-radius: 0;
+}
+.survey-editor:not(.survey-preview) .se-menu-item {
+  justify-content: space-between;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 500;
+}
+/* The active item shows also when the menu was opened with the mouse. */
+.survey-editor:not(.survey-preview) .se-menu-item:focus,
+.survey-editor:not(.survey-preview) .se-menu-item:hover {
+  background: var(--se-selected);
+}
+.survey-editor:not(.survey-preview) .se-menu-item:focus:not(:focus-visible) {
+  outline: none;
+}
+.survey-editor:not(.survey-preview) .se-menu-item:focus-visible {
+  outline-offset: -3px;
+}
+.se-menu-key {
+  min-width: 1.25rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--se-border);
+  border-radius: 4px;
+  color: var(--se-text-3);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.se-menu-empty {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  color: var(--se-text-2);
+}
+
+.se-properties {
+  display: grid;
+  gap: 0.875rem;
+  padding: 0 0.5rem 0 2.25rem;
+}
+/* The question title reads as the card's heading (prototype .question-title). */
+.survey-editor:not(.survey-preview) .se-properties > label:first-of-type input {
+  font-size: var(--survey-question-size, 1.0625rem);
+  font-weight: 600;
+}
+.se-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.se-hint {
+  margin: 0;
+  color: var(--se-text-3);
+  font-size: 0.8125rem;
+}
+.se-properties > .se-actions {
+  padding-top: 0.25rem;
+}
+.se-empty {
+  margin: 0;
+  color: var(--se-text-2);
+  line-height: 1.5;
+}
+.se-workspace fieldset {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--se-border);
+  border-radius: var(--se-radius-sm);
+}
+.se-workspace legend {
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.se-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.se-choice > label {
+  flex: 1;
+  min-width: 0;
+}
+.se-choice-marker {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-inline-end: 0.25rem;
+  border: 1.5px solid var(--se-control-border);
+  border-radius: 50%;
+}
+.se-choice-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.survey-editor:not(.survey-preview) .se-add-choice {
+  justify-self: start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--se-accent);
+}
+
+@media (max-width: 1100px) {
+  .se-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .se-workspace {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+}
+/* Undo and redo name themselves in text on wide screens, as icons on
+   narrow ones (the label stays the accessible name). */
+.se-undo .se-glyph,
+.se-redo .se-glyph {
+  display: none;
+}
+@media (max-width: 800px) {
+  .se-toolbar {
+    display: grid;
+    grid-template-columns:
+      var(--se-control-h) var(--se-control-h) minmax(0, 1fr)
+      minmax(0, 1fr);
+    grid-template-areas:
+      "state state state state"
+      "undo redo flush flush"
+      "preview preview preview publish";
+  }
+  .se-toolbar .se-save {
+    grid-area: state;
+  }
+  .se-toolbar .se-undo {
+    grid-area: undo;
+  }
+  .se-toolbar .se-redo {
+    grid-area: redo;
+  }
+  .se-toolbar .se-flush {
+    grid-area: flush;
+    justify-self: start;
+  }
+  .se-toolbar [data-preview-trigger] {
+    grid-area: preview;
+  }
+  .se-toolbar .se-button-primary {
+    grid-area: publish;
+  }
+  .se-undo .se-glyph,
+  .se-redo .se-glyph {
+    display: block;
+  }
+  .se-undo .se-button-label,
+  .se-redo .se-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 720px) {
+  .se-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .se-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .se-properties {
+    padding-left: 0.25rem;
+  }
+  .se-pages ol {
+    display: flex;
+    overflow-x: auto;
+  }
+  .se-page {
+    flex: none;
+    min-width: 11rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .survey-editor * {
+    transition: none !important;
+  }
 }

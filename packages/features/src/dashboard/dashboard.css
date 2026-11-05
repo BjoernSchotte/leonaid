@@ -24,9 +24,8 @@
 
 .dashboard-header p,
 .dashboard-goal__intro p,
-.dashboard-pipeline header p,
-.dashboard-next p {
-  color: var(--accent-foreground);
+.dashboard-pipeline header p {
+  color: var(--accent-ink);
   font-size: 0.72rem;
   font-weight: 820;
   letter-spacing: 0.1em;
@@ -40,7 +39,7 @@
 }
 
 .dashboard-header > div > span {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 1.02rem;
   line-height: 1.55;
 }
@@ -52,19 +51,19 @@
 }
 
 .dashboard-action-picker > span {
-  color: var(--muted);
-  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
   font-weight: 720;
 }
 
 .dashboard-action-picker select {
   min-width: 0;
   width: 100%;
-  min-height: var(--control-height);
+  min-height: var(--control-h-lg);
   padding: 0.6rem 2.3rem 0.6rem 0.75rem;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  color: var(--foreground);
+  border: 1px solid var(--control-border);
+  border-radius: var(--r-md);
+  color: var(--text);
   background: var(--surface);
   font-weight: 680;
 }
@@ -77,9 +76,9 @@
   gap: 1rem 2rem;
   padding: clamp(1.25rem, 3vw, 2rem);
   overflow: hidden;
-  border-radius: var(--radius-lg);
-  color: var(--primary-foreground);
-  background: var(--primary);
+  border-radius: var(--r-lg);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .dashboard-goal::after {
@@ -88,8 +87,7 @@
   right: -2rem;
   width: 14rem;
   height: 14rem;
-  border: 2.4rem solid
-    color-mix(in oklch, var(--primary-foreground) 8%, transparent);
+  border: 2.4rem solid color-mix(in oklch, var(--on-accent) 8%, transparent);
   border-radius: 999px;
   content: "";
   pointer-events: none;
@@ -104,7 +102,7 @@
 }
 
 .dashboard-goal__intro p {
-  color: color-mix(in oklab, var(--primary-foreground) 80%, var(--primary));
+  color: color-mix(in oklab, var(--on-accent) 80%, var(--accent));
 }
 
 .dashboard-goal__intro h2 {
@@ -118,10 +116,9 @@
   height: 2.8rem;
   flex: 0 0 2.8rem;
   place-items: center;
-  border: 1px solid
-    color-mix(in oklch, var(--primary-foreground) 25%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--primary-foreground) 10%, transparent);
+  border: 1px solid color-mix(in oklch, var(--on-accent) 25%, transparent);
+  border-radius: var(--r-md);
+  background: color-mix(in oklch, var(--on-accent) 10%, transparent);
 }
 
 .dashboard-goal__value {
@@ -142,7 +139,7 @@
 
 .dashboard-goal__value span,
 .dashboard-goal__configuration {
-  color: color-mix(in oklab, var(--primary-foreground) 78%, var(--primary));
+  color: color-mix(in oklab, var(--on-accent) 78%, var(--accent));
   font-size: 0.82rem;
 }
 
@@ -153,19 +150,19 @@
   overflow: hidden;
   border: 0;
   border-radius: 999px;
-  color: var(--warning);
-  background: color-mix(in oklch, var(--primary-foreground) 18%, transparent);
+  color: var(--warn);
+  background: color-mix(in oklch, var(--on-accent) 18%, transparent);
 }
 
 .dashboard-goal progress::-webkit-progress-bar {
   border-radius: inherit;
-  background: color-mix(in oklch, var(--primary-foreground) 18%, transparent);
+  background: color-mix(in oklch, var(--on-accent) 18%, transparent);
 }
 
 .dashboard-goal progress::-webkit-progress-value,
 .dashboard-goal progress::-moz-progress-bar {
   border-radius: inherit;
-  background: var(--warning);
+  background: var(--warn);
 }
 
 .dashboard-goal__configuration {
@@ -180,13 +177,13 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
   gap: 0.2rem 0.6rem;
-  font-size: var(--text-sm);
+  font-size: var(--fs-sm);
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .dashboard-goal__beneficiaries > span {
-  color: color-mix(in oklab, var(--primary-foreground) 82%, var(--primary));
+  color: color-mix(in oklab, var(--on-accent) 82%, var(--accent));
 }
 
 .dashboard-goal__beneficiaries ul,
@@ -198,45 +195,6 @@
 
 .dashboard-goal__beneficiaries li + li {
   margin-top: 0.2rem;
-}
-
-.dashboard-next {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--border);
-}
-
-.dashboard-next > span {
-  display: grid;
-  width: 3.1rem;
-  height: 3.1rem;
-  place-items: center;
-  border-radius: 999px;
-  color: var(--warning-foreground);
-  background: var(--warning);
-}
-
-.dashboard-next > div {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.dashboard-next h2,
-.dashboard-next p,
-.dashboard-next span {
-  margin: 0;
-}
-
-.dashboard-next h2 {
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-}
-
-.dashboard-next > div > span {
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .dashboard-personal-metrics {
@@ -262,12 +220,12 @@
 
 .dashboard-personal-metrics svg {
   width: 1.25rem;
-  color: var(--accent-foreground);
+  color: var(--accent-ink);
 }
 
 .dashboard-personal-metrics span {
-  color: var(--muted);
-  font-size: var(--text-sm);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 
 .dashboard-personal-metrics strong {
@@ -276,7 +234,7 @@
 
 .dashboard-personal-metrics a:hover,
 .dashboard-personal-metrics a:focus-visible {
-  background: var(--surface-muted);
+  background: var(--surface-2);
 }
 
 .dashboard-pipeline {
@@ -303,8 +261,8 @@
 }
 
 .dashboard-pipeline header > span {
-  color: var(--muted);
-  font-size: var(--text-sm);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 
 .dashboard-pipeline ol {
@@ -337,8 +295,8 @@
 
 .dashboard-pipeline ol a span {
   grid-column: 1 / -1;
-  color: var(--muted);
-  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
   font-weight: 720;
 }
 
@@ -349,76 +307,23 @@
 
 .dashboard-pipeline ol a svg {
   align-self: center;
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 .dashboard-pipeline ol a:hover,
 .dashboard-pipeline ol a:focus-visible {
-  background: var(--surface-muted);
-}
-
-.dashboard-admin-metrics {
-  display: grid;
-  grid-template-columns: 0.8fr 1.2fr 1.2fr 1.2fr;
-  border-block: 1px solid var(--border);
-}
-
-.dashboard-admin-metrics a {
-  display: grid;
-  min-height: 9.5rem;
-  align-content: start;
-  gap: 0.3rem;
-  padding: 1rem;
-  border-right: 1px solid var(--border);
-  text-decoration: none;
-}
-
-.dashboard-admin-metrics a:last-child {
-  border-right: 0;
-}
-
-.dashboard-admin-metrics a:hover,
-.dashboard-admin-metrics a:focus-visible {
-  background: var(--surface-muted);
-}
-
-.dashboard-admin-metrics a > span {
-  display: grid;
-  width: 2.3rem;
-  height: 2.3rem;
-  margin-bottom: 0.45rem;
-  place-items: center;
-  border-radius: var(--radius-md);
-  color: var(--accent-foreground);
-  background: var(--accent-soft);
-}
-
-.dashboard-admin-metrics small,
-.dashboard-admin-metrics p {
-  color: var(--muted);
-}
-
-.dashboard-admin-metrics strong {
-  overflow-wrap: anywhere;
-  font-size: clamp(1.35rem, 2.5vw, 2rem);
-  line-height: 1.1;
-}
-
-.dashboard-admin-metrics p {
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: 1.45;
+  background: var(--surface-2);
 }
 
 .dashboard-definitions {
   border-top: 1px solid var(--border);
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 .dashboard-definitions summary {
   min-height: 2.75rem;
   padding-block: 0.8rem;
-  font-size: var(--text-sm);
+  font-size: var(--fs-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -439,52 +344,16 @@
 .dashboard-definitions dt,
 .dashboard-definitions dd {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 
 .dashboard-definitions dt {
-  color: var(--foreground);
+  color: var(--text);
   font-weight: 720;
 }
 
-.dashboard-loading {
-  display: grid;
-  min-height: 18rem;
-  place-content: center;
-  justify-items: center;
-  gap: 0.7rem;
-  color: var(--muted);
-}
-
-.dashboard-loading span {
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 999px;
-  animation: dashboard-spin 0.8s linear infinite;
-}
-
-@keyframes dashboard-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 950px) {
-  .dashboard-admin-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-admin-metrics a:nth-child(2) {
-    border-right: 0;
-  }
-
-  .dashboard-admin-metrics a:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--border);
-  }
-
   .dashboard-pipeline ol {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -537,18 +406,8 @@
   }
 
   .dashboard-goal progress,
-  .dashboard-goal__spoken,
   .dashboard-goal__configuration {
     grid-column: 1;
-  }
-
-  .dashboard-next {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .dashboard-next .btn {
-    grid-column: 1 / -1;
-    width: 100%;
   }
 
   .dashboard-personal-metrics {
@@ -563,15 +422,6 @@
 
   .dashboard-personal-metrics a:last-child {
     border-bottom: 0;
-  }
-
-  .dashboard-admin-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .dashboard-admin-metrics a {
-    min-height: 8rem;
-    padding: 0.8rem;
   }
 
   .dashboard-pipeline ol {
@@ -599,8 +449,268 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-loading span {
-    animation-duration: 2s;
+/* Admin dashboard, ported from the Leitsystem prototype (pages/Dashboard.css).
+   Product: .dashboard .muted from base.css; the window meter column shows
+   booked quantities (windows have no capacity). */
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: var(--s-8);
+  margin-top: var(--s-6);
+}
+.dash-h2 {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.dash-h2-gap {
+  margin-top: var(--s-8);
+}
+.queue {
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.queue li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 60px;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text);
+  text-decoration: none;
+}
+.queue-item:hover {
+  background: var(--row-hover);
+}
+.queue-item:focus-visible {
+  outline-offset: -2px;
+}
+.queue-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+}
+.queue-icon.tone-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.queue-icon.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.queue-icon.tone-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.queue-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.queue-label {
+  font-weight: var(--fw-semibold);
+}
+.queue-detail {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.queue-count {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+.queue-arrow {
+  color: var(--text-3);
+}
+.windows {
+  display: grid;
+  gap: 2px;
+}
+.window-row {
+  display: grid;
+  grid-template-columns: 16px minmax(130px, 1fr) minmax(80px, 2fr) 64px;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 40px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+.window-row:hover {
+  background: var(--row-hover);
+}
+.window-row > svg {
+  color: var(--text-3);
+}
+.window-num {
+  text-align: right;
+  color: var(--text-2);
+}
+.dash-facts {
+  display: grid;
+  align-content: start;
+  gap: var(--s-6);
+}
+.fact {
+  padding-bottom: var(--s-6);
+  border-bottom: var(--hair) solid var(--border);
+}
+.fact:last-child {
+  border-bottom: 0;
+}
+.fact-big {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+}
+.fact-of {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+  letter-spacing: 0;
+}
+.fact-note {
+  margin-top: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.fact-mid {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+.trend {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.trend.is-up {
+  color: var(--ok);
+}
+.trend.is-down {
+  color: var(--danger);
+}
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+}
+.spark-bar {
+  --bar: 0;
+  flex: 1;
+  height: calc(var(--bar) * 100%);
+  min-height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--zone-line);
+}
+.spark-bar.is-current {
+  background: var(--zone);
+}
+.spark-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--s-1);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.pipeline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 34px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+.pipeline-row:hover {
+  background: var(--row-hover);
+}
+.pipeline-count {
+  margin-inline-start: auto;
+  font-weight: var(--fw-semibold);
+}
+
+@media (max-width: 960px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (max-width: 720px) {
+  .window-row {
+    grid-template-columns: 16px 1fr 56px;
+  }
+  .window-meter {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    padding-bottom: var(--s-2);
+  }
+  .dashboard .page-actions,
+  .dashboard .page-actions .btn {
+    width: 100%;
+  }
+  .dashboard .page-actions .btn {
+    height: var(--control-h-lg);
+  }
+}
+
+.dashboard .muted {
+  color: var(--text-2);
+}
+.window-quantity {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+/* Product: the count column names "Bestellungen", so it takes its width. */
+.window-row {
+  grid-template-columns: 16px minmax(130px, 1fr) minmax(80px, 2fr) auto;
+}
+@media (max-width: 720px) {
+  .window-row {
+    grid-template-columns: 16px 1fr auto;
+  }
+}
+
+/* Product: the key figures the earlier dashboard showed (orders, value,
+   invoiced, open items) stay available above their definitions. */
+.dashboard-definitions .dashboard-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--s-3) var(--s-6);
+  margin: 0 0 var(--s-4);
+}
+.dashboard-definitions .dashboard-figures > div {
+  display: grid;
+  gap: 2px;
+}
+.dashboard-definitions .dashboard-figures dt {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.dashboard-definitions .dashboard-figures dd {
+  display: grid;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.dashboard-definitions .dashboard-figures strong {
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
 }

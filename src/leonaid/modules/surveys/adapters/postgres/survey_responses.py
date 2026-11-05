@@ -15,6 +15,55 @@ from leonaid.modules.surveys.application.response_selection import (
 )
 
 
+CHOICE_KINDS = {"radiogroup", "dropdown", "checkbox", "rating", "matrix"}
+
+
+def _key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True)
+
+
+def choice_labels(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Defined options per choice question, from the frozen version."""
+    result: dict[str, dict[str, Any]] = {}
+    for q in selection_metadata(snapshot)["questions"]:
+        if q["kind"] not in CHOICE_KINDS:
+            continue
+        result[q["id"]] = {
+            "matrix": q["kind"] == "matrix",
+            "choices": {_key(c["value"]): c["label"] for c in q["choices"]},
+            "rows": {r["value"]: r["label"] for r in q["rows"]},
+        }
+    return result
+
+
+def choice_answers(
+    answers: dict[str, Any], labels: dict[str, dict[str, Any]]
+) -> dict[str, list[str]]:
+    """Labels of the chosen options. Anything that is not a defined option
+    (an "other" text, a comment, a stray value) is dropped, so no free text
+    can pass."""
+    result: dict[str, list[str]] = {}
+    for question_id, spec in labels.items():
+        value = answers.get(question_id)
+        if value is None:
+            continue
+        chosen: list[str] = []
+        if spec["matrix"]:
+            if isinstance(value, dict):
+                for row_id, row_label in spec["rows"].items():
+                    label = spec["choices"].get(_key(value.get(row_id)))
+                    if row_id in value and label is not None:
+                        chosen.append(f"{row_label}: {label}")
+        else:
+            for item in value if isinstance(value, list) else [value]:
+                label = spec["choices"].get(_key(item))
+                if label is not None:
+                    chosen.append(label)
+        if chosen:
+            result[question_id] = chosen
+    return result
+
+
 def selection_metadata(snapshot: dict[str, Any]) -> dict[str, Any]:
     return ResponseSelection.model_validate(
         {
@@ -60,6 +109,9 @@ async def read_responses(
     snapshot = await read_snapshot(conn, survey_id, snapshot_id, can_test=can_test)
     if operation == "response-selection":
         return selection_metadata(snapshot)
+    if operation == "response-aggregates":
+        # The stored aggregates only (payload); disclose() applies k on the way out.
+        return snapshot
     source = """FROM survey_analysis_snapshot s
       CROSS JOIN LATERAL jsonb_array_elements(s.private_responses)
         WITH ORDINALITY AS r(value,position)
@@ -111,17 +163,29 @@ async def read_responses(
                 ],
             }
         ).model_dump()
+    # Summaries: answers are removed in SQL. With a large limit one request
+    # expands the frozen array once instead of once per 50 rows.
+    choice = body.get("fields") == "choice"
     rows = await conn.fetch(
-        "SELECT r.value - 'answers' AS summary "
+        "SELECT r.value - 'answers' AS summary"
+        + (", r.value->'answers' AS answers " if choice else " ")
         + source
-        + " ORDER BY r.position OFFSET $3 LIMIT 50",
+        + " ORDER BY r.position OFFSET $3 LIMIT $4",
         survey_id,
         snapshot_id,
         offset,
+        body.get("limit", 50),
     )
+    labels = choice_labels(snapshot) if choice else None
+    items = []
+    for row in rows:
+        item = json.loads(row["summary"])
+        if labels is not None:
+            item["choiceAnswers"] = choice_answers(json.loads(row["answers"]), labels)
+        items.append(ResponseItem.model_validate(item))
     return ResponseItems(
         snapshotId=str(snapshot_id),
         total=snapshot["participationCount"],
         offset=offset,
-        items=[ResponseItem.model_validate(json.loads(row["summary"])) for row in rows],
+        items=items,
     ).model_dump()

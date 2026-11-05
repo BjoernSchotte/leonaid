@@ -23,6 +23,8 @@ ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 DELIVERY_WINDOW_ID = UUID("98000000-0000-4000-8000-000000000002")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
+# Anna (acquirer) also drives for the delivery board proof.
+ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 SESSION_NAMESPACE = UUID("ab77cb61-0df1-4df7-a3fb-fbf8bddf58b4")
 # Review-ready golden order the bulk-release orders are copied from.
 SOURCE_ORDER_ID = UUID("80000000-0000-4000-8000-000000000002")
@@ -163,6 +165,22 @@ async def main() -> None:
             stale_at,
         ),
         (
+            # The delivery board proof; earlier proofs end Klara's other
+            # sessions.
+            "KLARA_BOARD_SESSION",
+            KLARA_ID,
+            "poc090-browser-klara-board-session-token-value",
+            now,
+            now,
+        ),
+        (
+            "ANNA_DRIVER_SESSION",
+            ANNA_ID,
+            "poc090-browser-anna-driver-session-token-value",
+            now,
+            now,
+        ),
+        (
             "FINN_SESSION",
             FINN_ID,
             "poc090-browser-finn-finance-session-token-value",
@@ -174,7 +192,17 @@ async def main() -> None:
     try:
         await connection.execute(
             "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
-            [KLARA_ID, FINN_ID],
+            [KLARA_ID, FINN_ID, ANNA_ID],
+        )
+        await connection.execute(
+            """
+            INSERT INTO action_membership (id, action_id, user_id, role)
+            VALUES ($1, $2, $3, 'driver')
+            ON CONFLICT ON CONSTRAINT uq_action_membership_role DO NOTHING
+            """,
+            uuid5(SESSION_NAMESPACE, "anna-driver"),
+            ACTION_ID,
+            ANNA_ID,
         )
         for name, user_id, token, created_at, fresh_login_at in sessions:
             await connection.execute(

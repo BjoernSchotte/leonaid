@@ -8,7 +8,10 @@ import {
 import { Button, StatusMessage } from "@leonaid/ui";
 import {
   DeliveryFields,
+  FullWindowConfirm,
   deliveryDraft,
+  fullWindowSelected,
+  isFullWindowError,
   deliveryPayload,
   hasDeliveryAddress,
   selectableWindows,
@@ -37,24 +40,31 @@ export function CompleteDraft({
     queryFn: () => client.getCommitmentCaptureContext(order.actionId),
     refetchOnWindowFocus: false,
   });
+  const [confirmFull, setConfirmFull] = useState(false);
   const complete = useMutation({
-    mutationFn: () =>
+    mutationFn: (allowFullWindow: boolean) =>
       client.completeCommitment(
         order.actionId,
         order.id,
-        deliveryPayload(value),
+        { ...deliveryPayload(value), allowFullWindow },
         { headers: { "Idempotency-Key": key.current } },
       ),
-    onSuccess: onCompleted,
+    onSuccess: (result) => {
+      setConfirmFull(false);
+      onCompleted(result);
+    },
     onError: (error) => {
       if (
         error instanceof ApiError &&
         error.detail.code.startsWith("delivery_")
       )
         void context.refetch();
+      // Switched to "ausgebucht" meanwhile: ask, then book anyway.
+      setConfirmFull(isFullWindowError(error));
     },
   });
   const configuration = context.data?.deliveryConfiguration;
+  const fullWindow = fullWindowSelected(configuration, value.windowId);
   const canComplete =
     !configuration?.enabled ||
     (hasDeliveryAddress(value) &&
@@ -84,7 +94,9 @@ export function CompleteDraft({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (canComplete) complete.mutate();
+            if (!canComplete) return;
+            if (fullWindow) setConfirmFull(true);
+            else complete.mutate(false);
           }}
         >
           {configuration?.enabled ? (
@@ -106,7 +118,7 @@ export function CompleteDraft({
               refreshing={context.isFetching}
             />
           ) : null}
-          {complete.isError ? (
+          {complete.isError && !isFullWindowError(complete.error) ? (
             <StatusMessage tone="error">
               {orderError(complete.error)}
             </StatusMessage>
@@ -124,6 +136,22 @@ export function CompleteDraft({
               ? "Bestellung wird abgeschlossen …"
               : "Entwurf prüfbereit abschließen"}
           </Button>
+          <FullWindowConfirm
+            onCancel={() => {
+              setConfirmFull(false);
+              complete.reset();
+            }}
+            onConfirm={() => complete.mutate(true)}
+            pending={complete.isPending}
+            window={
+              confirmFull
+                ? (fullWindow ??
+                  configuration?.windows.find(
+                    (item) => item.id === value.windowId,
+                  ))
+                : undefined
+            }
+          />
         </form>
       )}
     </section>

@@ -1,55 +1,50 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, StatusMessage, useLeaveGuard } from "@leonaid/ui";
 
+import { says, type Address } from "./task-copy";
 import type { Task } from "./task-editor";
 
-type ChecklistStep = Task["checklist"][number];
-
-/** Compact, read-only summary of priority, tags and checklist progress. */
-export function TaskStructureSummary({ task }: { task: Task }) {
-  const done = task.checklist.filter((step) => step.done).length;
-  return (
-    <>
-      {task.priority === "high" && (
-        <span className="task-priority">Hohe Priorität</span>
-      )}
-      {task.tags.map((tag) => (
-        <span className="task-tag" key={tag.id}>
-          #{tag.title}
-        </span>
-      ))}
-      {task.checklist.length > 0 && (
-        <span>
-          Checkliste {done}/{task.checklist.length}
-        </span>
-      )}
-    </>
-  );
-}
-
 /**
- * Priority, list tags and checklist of one task. They are saved together in
- * one task revision, separate from the main editor, so a conflict keeps the
- * draft of both forms.
+ * Priority and list tags (Schlagworte) of one task, saved together in one
+ * task revision, separate from the main editor, so a conflict keeps the
+ * draft of both forms. Steps live in the detail's "Schritte" section. Without a draft the form follows newer revisions of
+ * `task`; with a draft it keeps the revision it started from, so a save
+ * after someone else's change is refused instead of overwriting it.
  */
 export function TaskStructurePanel({
+  address = "du",
   client,
   task,
+  onDirtyChange,
 }: {
+  address?: Address;
   client: LeonAidApiClient;
   task: Task;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const id = useId();
   const cache = useQueryClient();
   const operation = useRef(crypto.randomUUID());
   const tagOperation = useRef(crypto.randomUUID());
+  const [base, setBase] = useState(task);
   const [priority, setPriority] = useState(task.priority);
   const [tagIds, setTagIds] = useState(task.tags.map((tag) => tag.id));
-  const [checklist, setChecklist] = useState<ChecklistStep[]>(task.checklist);
-  const [newStep, setNewStep] = useState("");
   const [newTag, setNewTag] = useState("");
+  const tagKey = (value: Task) => value.tags.map((tag) => tag.id).join(" ");
+  const dirty = priority !== base.priority || tagIds.join(" ") !== tagKey(base);
+  useEffect(() => {
+    if (dirty || task.revision === base.revision) return;
+    setBase(task);
+    setPriority(task.priority);
+    setTagIds(task.tags.map((tag) => tag.id));
+  }, [base.revision, dirty, task]);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useLeaveGuard(dirty);
   const tags = useQuery({
     queryKey: ["task-tags", task.listId],
     queryFn: () => client.listTaskTags(task.listId, { limit: 100 }),
@@ -63,13 +58,21 @@ export function TaskStructurePanel({
     mutationFn: () =>
       client.setTaskStructure(task.id, {
         idempotencyKey: operation.current,
-        expectedRevision: task.revision,
+        // Steps are ticked and edited in "Schritte" and saved at once; a
+        // step change alone must not turn this save into a conflict. Only
+        // a change to priority or tags since the form opened does.
+        expectedRevision:
+          task.priority === base.priority && tagKey(task) === tagKey(base)
+            ? task.revision
+            : base.revision,
         priority,
         tagIds,
-        checklist,
+        checklist: task.checklist,
       }),
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       operation.current = crypto.randomUUID();
+      setBase(saved);
+      onDirtyChange?.(false);
       await cache.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
@@ -89,16 +92,18 @@ export function TaskStructurePanel({
   });
   return (
     <form
-      className="task-structure"
+      className="task-form task-structure"
       aria-labelledby={`${id}-heading`}
       onSubmit={(event) => {
         event.preventDefault();
         save.mutate();
       }}
     >
-      <h2 id={`${id}-heading`}>Priorität, Tags und Checkliste</h2>
-      <fieldset disabled={save.isPending}>
-        <label className="task-structure-check">
+      <h3 className="task-form-title" id={`${id}-heading`}>
+        Priorität und Schlagworte
+      </h3>
+      <fieldset className="task-fields" disabled={save.isPending}>
+        <label className="checkbox task-structure-check">
           <input
             type="checkbox"
             checked={priority === "high"}
@@ -109,17 +114,23 @@ export function TaskStructurePanel({
           />
           Hohe Priorität
         </label>
-        <fieldset className="task-structure-tags">
-          <legend>Tags</legend>
+        <fieldset className="task-fields task-structure-tags">
+          <legend className="field-label">Schlagworte</legend>
           {tags.isPending ? (
-            <p role="status">Tags werden geladen …</p>
+            <p className="field-hint" role="status">
+              Schlagworte werden geladen …
+            </p>
           ) : tags.isError ? (
-            <p role="status">Tags konnten nicht geladen werden.</p>
+            <p className="field-hint" role="status">
+              Schlagworte konnten nicht geladen werden.
+            </p>
           ) : tags.data.items.length === 0 ? (
-            <p>Diese Liste hat noch keine Tags.</p>
+            <p className="field-hint">
+              Diese Liste hat noch keine Schlagworte.
+            </p>
           ) : (
             tags.data.items.map((tag) => (
-              <label className="task-structure-check" key={tag.id}>
+              <label className="checkbox task-structure-check" key={tag.id}>
                 <input
                   type="checkbox"
                   checked={tagIds.includes(tag.id)}
@@ -137,9 +148,10 @@ export function TaskStructurePanel({
             ))
           )}
           <div className="task-structure-add">
-            <label>
-              Neuer Tag
+            <label className="field">
+              <span className="field-label">Neues Schlagwort</span>
               <input
+                className="input"
                 maxLength={40}
                 value={newTag}
                 onChange={(event) => {
@@ -151,120 +163,46 @@ export function TaskStructurePanel({
             </label>
             <Button
               type="button"
+              size="sm"
               variant="secondary"
               disabled={!newTag.trim() || createTag.isPending}
               onClick={() => createTag.mutate()}
             >
-              Tag anlegen
+              Schlagwort anlegen
             </Button>
           </div>
           {createTag.error && (
-            <p role="status">
+            <p className="field-error" role="status">
               {createTag.error instanceof ApiError &&
               createTag.error.status === 409
-                ? "Diesen Tag gibt es in der Liste schon."
-                : "Der Tag konnte nicht angelegt werden."}
+                ? "Dieses Schlagwort gibt es in der Liste schon."
+                : "Das Schlagwort konnte nicht angelegt werden."}
             </p>
           )}
-        </fieldset>
-        <fieldset className="task-structure-checklist">
-          <legend>Checkliste</legend>
-          {checklist.length === 0 && <p>Noch keine Schritte.</p>}
-          <ul>
-            {checklist.map((step, index) => (
-              <li key={step.id}>
-                <input
-                  type="checkbox"
-                  aria-label={`Schritt ${index + 1} erledigt`}
-                  checked={step.done}
-                  onChange={(event) => {
-                    setChecklist((current) =>
-                      current.map((item) =>
-                        item.id === step.id
-                          ? { ...item, done: event.target.checked }
-                          : item,
-                      ),
-                    );
-                    changed();
-                  }}
-                />
-                <input
-                  aria-label={`Schritt ${index + 1}`}
-                  maxLength={500}
-                  required
-                  value={step.text}
-                  onChange={(event) => {
-                    setChecklist((current) =>
-                      current.map((item) =>
-                        item.id === step.id
-                          ? { ...item, text: event.target.value }
-                          : item,
-                      ),
-                    );
-                    changed();
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setChecklist((current) =>
-                      current.filter((item) => item.id !== step.id),
-                    );
-                    changed();
-                  }}
-                >
-                  Schritt entfernen
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <div className="task-structure-add">
-            <label>
-              Neuer Schritt
-              <input
-                maxLength={500}
-                value={newStep}
-                onChange={(event) => setNewStep(event.target.value)}
-              />
-            </label>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!newStep.trim() || checklist.length >= 100}
-              onClick={() => {
-                setChecklist((current) => [
-                  ...current,
-                  {
-                    id: crypto.randomUUID(),
-                    text: newStep.trim(),
-                    done: false,
-                  },
-                ]);
-                setNewStep("");
-                changed();
-              }}
-            >
-              Schritt hinzufügen
-            </Button>
-          </div>
         </fieldset>
         {save.error && (
           <StatusMessage tone="error">
             <p>
               {save.error instanceof ApiError && save.error.status === 409
-                ? "Die Aufgabe wurde inzwischen geändert oder ein Tag ist nicht mehr verfügbar. Deine Auswahl bleibt erhalten; lade die Aufgabe neu und speichere erneut."
-                : "Priorität, Tags und Checkliste konnten nicht gespeichert werden."}
+                ? says(
+                    address,
+                    "Die Aufgabe wurde inzwischen geändert oder ein Schlagwort ist nicht mehr verfügbar. Deine Auswahl bleibt erhalten; lade die Aufgabe neu und speichere erneut.",
+                    "Die Aufgabe wurde inzwischen geändert oder ein Schlagwort ist nicht mehr verfügbar. Ihre Auswahl bleibt erhalten; laden Sie die Aufgabe neu und speichern Sie erneut.",
+                  )
+                : "Priorität und Schlagworte konnten nicht gespeichert werden."}
             </p>
           </StatusMessage>
         )}
-        {save.isSuccess && <p role="status">Struktur gespeichert.</p>}
-        <Button
-          type="submit"
-          disabled={checklist.some((step) => !step.text.trim())}
-        >
-          {save.isPending ? "Wird gespeichert …" : "Struktur speichern"}
-        </Button>
+        {save.isSuccess && (
+          <p className="field-hint" role="status">
+            Gespeichert.
+          </p>
+        )}
+        <div className="task-form-actions">
+          <Button type="submit" variant="secondary" loading={save.isPending}>
+            {save.isPending ? "Wird gespeichert …" : "Speichern"}
+          </Button>
+        </div>
       </fieldset>
     </form>
   );

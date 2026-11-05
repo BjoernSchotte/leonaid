@@ -129,7 +129,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   --config=tests/e2e/pwa.config.mjs \
-  ui-system.spec.mjs \
+  ui-system.spec.mjs axe-helper.spec.mjs \
   --project=chromium-1440 \
   --output=/browser-results/run \
   --trace=retain-on-failure \

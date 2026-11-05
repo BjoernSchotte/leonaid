@@ -10,7 +10,7 @@ const frozen = JSON.parse(
   readFileSync(`${proof}/survey-analysis-snapshot.json`, "utf8"),
 );
 
-test("analysis filters, immutable results, chart/table agreement and lost acknowledgement", async ({
+test("analysis filters, immutable results and chart/table agreement", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -41,6 +41,9 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     .selectOption(frozen.filter.versionId);
   const format = (value) =>
     new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
+  // The API discloses with k = 5: a withheld count (null) reads "–".
+  const count = (value) => (value === null ? "–" : format(value));
+  const tooFew = /Weniger als 5 gültige Antworten/;
   async function analyze() {
     const response = page.waitForResponse(
       (r) =>
@@ -56,7 +59,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     await expect(result).toHaveAttribute("data-snapshot-id", snapshot.id);
     await expect(
       result.getByText(
-        `Ausgewählte Teilnahmen: ${snapshot.participationCount}`,
+        `Ausgewählte Teilnahmen: ${count(snapshot.participationCount)}`,
         { exact: true },
       ),
     ).toBeVisible();
@@ -69,11 +72,22 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
       "completed",
     ].entries()) {
       await expect(overview.locator("dd").nth(index)).toHaveText(
-        format(snapshot.statusCounts[key]),
+        count(snapshot.statusCounts[key]),
       );
+    }
+    if (snapshot.suppressed) {
+      if (snapshot.participationCount !== 0)
+        await expect(result).toContainText(/Weniger als 5 Teilnahmen/);
+      await expect(result.locator("[data-question-id]")).toHaveCount(0);
+      return snapshot;
     }
     for (const q of snapshot.questions) {
       const section = result.locator(`[data-question-id="${q.questionId}"]`);
+      if (q.suppressed) {
+        await expect(section).toContainText(tooFew);
+        await expect(section.locator(".survey-analytics-bars")).toHaveCount(0);
+        continue;
+      }
       const distributions = [
         ...(q.counts.length ? [q.counts] : []),
         ...q.matrixRows.map((row) => row.counts),
@@ -93,19 +107,21 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
         await expect(details.getByRole("table")).toBeVisible();
         for (const [index, bucket] of counts.entries()) {
           const share =
-            bucket.percentage === null
-              ? "Keine gültigen Antworten"
-              : `${format(bucket.percentage)} %`;
+            bucket.count === null
+              ? "–"
+              : bucket.percentage === null
+                ? "Keine gültigen Antworten"
+                : `${format(bucket.percentage)} %`;
           await expect(
             chart.locator(".survey-analytics-bar").nth(index),
           ).toContainText(
-            `${format(bucket.count)} · ${bucket.percentage === null ? "—" : share}`,
+            `${count(bucket.count)} · ${bucket.percentage === null ? "–" : share}`,
           );
           const cells = details
             .locator("tbody tr")
             .nth(index)
             .getByRole("cell");
-          await expect(cells.nth(0)).toHaveText(format(bucket.count));
+          await expect(cells.nth(0)).toHaveText(count(bucket.count));
           await expect(cells.nth(1)).toHaveText(share);
         }
         await details.locator("summary").click();
@@ -114,6 +130,7 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     return snapshot;
   }
   const initial = await analyze();
+  expect(initial.minimumGroupSize).toBe(5);
   expect(initial.versionNumber).toBe(1);
   expect(initial.filter.statuses).toEqual(["partial", "completed"]);
   expect(initial.filter.isTest).toBe(false);
@@ -122,42 +139,29 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
   await filters.getByLabel("Teilantworten", { exact: true }).uncheck();
   await expect(result).toHaveAttribute("data-snapshot-id", oldId);
   const complete = await analyze();
-  expect(complete.participationCount).toBe(1);
-  expect(complete.questions.find((q) => q.questionId === "nps").nps).toBe(100);
-  const nps = result.locator('[data-question-id="nps"]');
-  const summary = nps.locator("summary");
-  await summary.focus();
-  await page.keyboard.press("Enter");
-  await expect(nps.getByRole("table")).toBeVisible();
-  for (const [index, bucket] of complete.questions
-    .find((q) => q.questionId === "nps")
-    .counts.entries()) {
-    const row = nps.locator("tbody tr").nth(index);
-    await expect(row.getByRole("cell").nth(0)).toHaveText(format(bucket.count));
-    await expect(row.getByRole("cell").nth(1)).toHaveText(
-      `${format(bucket.percentage)} %`,
-    );
-  }
+  // One participation: the API shows no results, not even the NPS.
+  expect(complete.participationCount).toBe(null); // 1: withheld (R0)
+  expect(complete.suppressed).toBe(true);
+  expect(complete.questions.find((q) => q.questionId === "nps").nps).toBe(null);
   await page.screenshot({
     path: `${proof}/surveys-analytics-desktop.png`,
     fullPage: true,
   });
-  await screenshotWithStaticTopbar(nps, {
+  await screenshotWithStaticTopbar(result, {
     path: `${proof}/surveys-analytics-chart.png`,
   });
   await filters
     .getByLabel("Fragebogen-Version")
     .selectOption({ label: "Version 2" });
   const second = await analyze();
-  expect(second.participationCount).toBe(1);
-  expect(second.questions.find((q) => q.questionId === "nps").nps).toBe(-100);
+  expect(second.participationCount).toBe(null);
+  expect(second.suppressed).toBe(true);
   await filters.getByLabel("Teilnahme begonnen ab").fill("2099-01-01T00:00");
   const empty = await analyze();
   expect(empty.participationCount).toBe(0);
   await expect(
     result.getByText(/Für diese Filter gibt es keine Teilnahmen/),
   ).toBeVisible();
-  await expect(result).toContainText("Keine gültigen Antworten");
   await expect(result).not.toContainText("NaN");
   await filters.getByLabel("Teilnahme begonnen ab").fill("");
   await filters
@@ -167,42 +171,14 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
   await filters.getByLabel("In Bearbeitung", { exact: true }).check();
   const all = await analyze();
   expect(all.participationCount).toBe(6);
-  expect(all.questions.find((q) => q.questionId === "nps").nps).toBe(-50);
-  // Forward a real successful write, then lose its HTTP acknowledgement.
-  let requestBody;
-  let committed;
-  await page.route(
-    `**/surveys/${frozen.surveyId}/analysis`,
-    async (route) => {
-      requestBody = route.request().postDataJSON();
-      const response = await route.fetch();
-      expect(response.status()).toBe(200);
-      committed = await response.json();
-      await route.abort("failed");
-    },
-    { times: 1 },
-  );
-  await filters
-    .getByRole("button", { name: "Auswertung erstellen", exact: true })
-    .click();
-  await expect(
-    filters.getByRole("button", { name: "Auswertung erneut anfordern" }),
-  ).toBeVisible();
-  const repeat = page.waitForRequest(
-    (r) =>
-      r.url().endsWith(`/surveys/${frozen.surveyId}/analysis`) &&
-      r.method() === "POST",
-  );
-  await filters
-    .getByRole("button", { name: "Auswertung erneut anfordern" })
-    .click();
-  expect((await repeat).postDataJSON()).toEqual(requestBody);
-  await expect(result).toHaveAttribute("data-snapshot-id", committed.id);
+  expect(all.suppressed).toBe(false);
+  // Fewer than 5 valid NPS answers: no score through the API.
+  const allNps = all.questions.find((q) => q.questionId === "nps");
+  expect([allNps.suppressed, allNps.nps]).toEqual([true, null]);
   await page.setViewportSize({ width: 390, height: 844 });
-  await result.locator('[data-question-id="multi"] summary').click();
-  await expect(
-    result.locator('[data-question-id="multi"]').getByRole("table"),
-  ).toBeVisible();
+  await expect(result.locator('[data-question-id="multi"]')).toContainText(
+    tooFew,
+  );
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

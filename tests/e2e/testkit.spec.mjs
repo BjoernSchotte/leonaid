@@ -29,7 +29,7 @@ test("POC-013 reads the same golden sponsor visibly in the PWA", async ({
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.getByTestId("display-name")).toHaveText("Anna Akquise");
   await expect(
-    page.getByRole("heading", { name: "Meine Sponsoren" }),
+    page.getByRole("heading", { level: 1, name: "Sponsoren" }),
   ).toBeVisible();
 
   const goldenSponsor = page

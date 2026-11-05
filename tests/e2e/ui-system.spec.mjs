@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -23,7 +23,7 @@ function sessionCookie(value) {
 }
 
 async function expectNoSeriousAccessibilityViolations(page, context) {
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(
     accessibility.violations.filter(
       (violation) =>
@@ -473,6 +473,81 @@ test("list view: detail is a full-screen sheet at 390 px", async ({
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
     await expect(page).not.toHaveURL(/[?&]open=/);
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+test("charts: token colours under the strict CSP, theme redraw, resize", async ({
+  browser,
+}) => {
+  const { context, page, pageErrors } = await createCatalogPage(browser, {
+    width: 1440,
+    height: 1000,
+  });
+  try {
+    const charts = page.getByTestId("ui-catalog-charts");
+    await charts.scrollIntoViewIfNeeded();
+    const canvases = charts.locator("canvas[role=img]");
+    await expect(canvases).toHaveCount(3);
+    await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: –/);
+    await expect(
+      charts.getByRole("list", { name: "Legende: Empfehlung" }),
+    ).toContainText("Förderer (9–10)30 (58 %)");
+    // The first matrix segment uses --chart-pos, read from canvas pixels.
+    const pixel = () =>
+      canvases.nth(2).evaluate((canvas) => {
+        const ctx = canvas.getContext("2d");
+        const ratio = canvas.width / canvas.clientWidth;
+        const [r, g, b] = ctx.getImageData(
+          Math.round(canvas.width * 0.35),
+          Math.round(18 * ratio),
+          1,
+          1,
+        ).data;
+        return `${r},${g},${b}`;
+      });
+    const light = await pixel();
+    await charts.getByText("Als Tabelle anzeigen").click();
+    await expect(charts.getByRole("table")).toContainText("–");
+    await expect(charts).toHaveScreenshot("ui-system-charts.png", {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.001,
+    });
+    await expectNoSeriousAccessibilityViolations(page, "Diagramme hell");
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+    await expect.poll(pixel).not.toBe(light);
+    await expectNoSeriousAccessibilityViolations(page, "Diagramme dunkel");
+    // Reduced motion gives every element a 0.01 ms transition: token
+    // resolution must still read each colour, not the previous one.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    await charts.scrollIntoViewIfNeeded();
+    const segment = (share) =>
+      canvases.nth(2).evaluate((canvas, at) => {
+        const ctx = canvas.getContext("2d");
+        const ratio = canvas.width / canvas.clientWidth;
+        return ctx
+          .getImageData(
+            Math.round(canvas.width * at),
+            Math.round(18 * ratio),
+            1,
+            1,
+          )
+          .data.slice(0, 3)
+          .join(",");
+      }, share);
+    await expect.poll(() => segment(0.35)).not.toBe(await segment(0.97));
+    // The canvas follows its container.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(() => canvases.nth(0).evaluate((canvas) => canvas.clientWidth))
+      .toBeLessThan(360);
+    expect(await page.locator("style").count()).toBe(0);
     expect(pageErrors).toEqual([]);
   } finally {
     await context.close();

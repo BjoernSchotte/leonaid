@@ -18,3 +18,16 @@ def test_campaign_and_survey_migrations_share_one_head() -> None:
         "0029_primary_campaign_renderer",
         "0034_survey_recovery_identity",
     } <= revisions
+
+
+def test_revision_ids_fit_the_alembic_version_column() -> None:
+    # alembic_version.version_num is VARCHAR(32); a longer id makes the
+    # upgrade fail when Alembic stamps it, so the API never starts.
+    root = Path(__file__).resolve().parents[2]
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "migrations"))
+    scripts = ScriptDirectory.from_config(config)
+    too_long = sorted(
+        item.revision for item in scripts.walk_revisions() if len(item.revision) > 32
+    )
+    assert too_long == []

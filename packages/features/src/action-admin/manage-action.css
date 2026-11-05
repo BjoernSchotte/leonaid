@@ -1,0 +1,254 @@
+/*
+ * Aktion im Detail (Überblick, Lieferfenster, Aliase, Vorlagen, Angebote).
+ * Ported from the prototype's pages/Campaigns.css and the helpers of
+ * styles/components.css. Scoped to .campaign (the detail page) and
+ * .delivery-windows (also shown on the "Aktion angelegt" page).
+ * The data table comes from packages/ui page-sections.css, the
+ * "Nächster Schritt" block from next-step.css.
+ */
+
+/* ---------- prototype pages/Campaigns.css ---------- */
+.campaign .page-heading {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.campaign .tab-panel {
+  padding-top: var(--s-5);
+}
+.campaign .tab-panel:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+:is(.campaign, .delivery-windows) .tab-h2 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+:is(.campaign, .delivery-windows) .tab-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+:is(.campaign, .delivery-windows) .tab-head p {
+  max-width: 62ch;
+}
+.campaign .overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+  gap: var(--s-8);
+}
+.campaign .overview-purpose {
+  max-width: 65ch;
+  margin-bottom: var(--s-4);
+  line-height: var(--lh-prose);
+}
+.campaign .capabilities {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+}
+.campaign .capabilities li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+}
+:is(.campaign, .delivery-windows) .form-grid {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+:is(.campaign, .delivery-windows) .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+.campaign .alias-list,
+.campaign .template-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.campaign .alias-row,
+.campaign .template-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-2) var(--s-4);
+}
+.campaign .alias-row + .alias-row,
+.campaign .template-row + .template-row {
+  border-top: var(--hair) solid var(--border);
+}
+.campaign .alias-path {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.campaign .alias-path:hover {
+  text-decoration: underline;
+}
+.campaign .alias-commands {
+  display: inline-flex;
+  gap: var(--s-1);
+  margin-inline-start: auto;
+}
+.campaign .template-row {
+  justify-content: space-between;
+  padding-block: var(--s-3);
+}
+.campaign .template-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-weight: var(--fw-semibold);
+}
+:is(.campaign, .delivery-windows) .table-note {
+  padding: var(--s-3) var(--s-4);
+  border-top: var(--hair) solid var(--border);
+}
+
+/* ---------- edit mode (product: the forms behind "Bearbeiten") ---------- */
+.campaign .edit-stack {
+  display: grid;
+  gap: var(--s-8);
+  max-width: 860px;
+}
+.campaign .edit-section {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.campaign .edit-section .tab-h2 {
+  margin-bottom: 0;
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+.campaign .edit-section-intro {
+  max-width: 65ch;
+}
+/* Under a section's conflict message: reload button and new-tab link. */
+.campaign .section-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-2);
+}
+.campaign .form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.campaign .input.is-readonly {
+  display: flex;
+  align-items: center;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.campaign .beneficiary-row {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-md);
+}
+.campaign .beneficiary-row > .btn {
+  justify-self: end;
+}
+.campaign .choice-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.campaign .choice-list li + li {
+  border-top: var(--hair) solid var(--border);
+}
+.campaign .choice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+}
+.campaign .choice > span:not(.avatar):not(.badge) {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.campaign .choice input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.campaign .choice[data-available="false"] {
+  color: var(--text-3);
+}
+
+/* ---------- prototype styles/components.css helpers ---------- */
+:is(.campaign, .delivery-windows) p {
+  margin: 0;
+}
+:is(.campaign, .delivery-windows) .muted {
+  color: var(--text-2);
+}
+:is(.campaign, .delivery-windows) .subtle {
+  color: var(--text-3);
+}
+:is(.campaign, .delivery-windows) .small {
+  font-size: var(--fs-sm);
+}
+.delivery-windows,
+:is(.campaign, .delivery-windows) .stack {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.campaign .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.delivery-windows .is-struck {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+@media (max-width: 860px) {
+  .campaign .overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  :is(.campaign, .delivery-windows) .tab-head .btn {
+    width: 100%;
+    height: var(--control-h-lg);
+  }
+  :is(.campaign, .delivery-windows) .form-row {
+    grid-template-columns: 1fr;
+  }
+  .campaign .alias-commands {
+    margin-inline-start: 0;
+  }
+}

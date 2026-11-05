@@ -7,14 +7,15 @@
   "scripts": {
     "build": "astro build",
     "check": "astro check",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@astrojs/node": "11.1.9",
-    "@fontsource-variable/instrument-sans": "5.3.0",
-    "@fontsource-variable/newsreader": "5.3.0",
+    "@fontsource/barlow": "5.3.0",
     "@leonaid/api-client": "workspace:*",
     "@leonaid/surveys": "workspace:*",
+    "@leonaid/ui": "workspace:*",
     "astro": "7.4.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

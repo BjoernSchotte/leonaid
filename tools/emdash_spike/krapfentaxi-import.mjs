@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
 import { requireCampaignSchema } from "../../apps/campaign-site/src/install-campaign-schema.mjs";
 import { sql } from "kysely";
 import { MediaRepository, ContentRepository } from "emdash";
@@ -11,6 +10,7 @@ import { normalizeCampaignImage } from "../../apps/campaign-site/src/auth/campai
 import {
   loadKrapfentaxiSource,
   krapfentaxiImportData,
+  krapfentaxiJournalMatches,
 } from "./krapfentaxi-source.mjs";
 
 const versionName = "leonaid:krapfentaxi_import_journal_version";
@@ -163,18 +163,10 @@ export async function importKrapfentaxi({
       .executeTakeFirst();
     if (
       job &&
-      (job.fingerprint !== source.fingerprint ||
-        !isDeepStrictEqual(job.manifest, source.manifest) ||
-        job.core_user_id !== initial.profile.userId ||
-        job.author_id !== initial.authorId ||
-        !job.media ||
-        Array.isArray(job.media) ||
-        Object.entries(job.media).some(
-          ([key, id]) =>
-            !["hero", "logo", "partner"].includes(key) ||
-            typeof id !== "string" ||
-            !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id),
-        ))
+      !krapfentaxiJournalMatches(job, source, {
+        coreUserId: initial.profile.userId,
+        authorId: initial.authorId,
+      })
     )
       fail("journal_conflict");
     if (content && content.id !== job?.content_id)
