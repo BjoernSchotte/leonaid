@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import {
   actionErrorMessage,
@@ -7,20 +7,26 @@ import {
 } from "./errors";
 
 /**
- * The message for a query or mutation error, worked out once per error.
- * actionErrorMessage redirects to /fresh-login, so it must not run in
- * render (it would assign the location on every render).
+ * The message for a query or mutation error. It is worked out in render, so
+ * it is there with the first render of the error; only the /fresh-login
+ * redirect runs in an effect (it must not repeat on every render).
  */
 export function useActionErrorMessage(
   error: unknown,
   options?: ActionErrorOptions,
 ): ActionErrorMessage | null {
-  const [message, setMessage] = useState<ActionErrorMessage | null>(null);
-  useEffect(() => {
-    setMessage(error ? actionErrorMessage(error, options) : null);
+  const message = useMemo(
+    () =>
+      error ? actionErrorMessage(error, { ...options, redirect: false }) : null,
     // The options are fixed per call site; the error alone triggers it.
+    [error],
+  );
+  useEffect(() => {
+    if (message?.code === "fresh_login_required") {
+      actionErrorMessage(error, options);
+    }
   }, [error]);
-  return error ? message : null;
+  return message;
 }
 
 /**

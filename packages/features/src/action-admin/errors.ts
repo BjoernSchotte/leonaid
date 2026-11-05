@@ -21,6 +21,11 @@ export interface ActionErrorOptions {
    * current page. A dialog passes its own `?create=` link here.
    */
   readonly returnTo?: string;
+  /**
+   * Go to /fresh-login when the server asks for it (default true). False
+   * only describes the error, so it is safe to call during render.
+   */
+  readonly redirect?: boolean;
 }
 
 const copy = {
@@ -46,7 +51,7 @@ const copy = {
 
 export function actionErrorMessage(
   error: unknown,
-  { address = "Sie", returnTo }: ActionErrorOptions = {},
+  { address = "Sie", returnTo, redirect = true }: ActionErrorOptions = {},
 ): ActionErrorMessage {
   const text = copy[address];
   const withSupportCode = (message: string, requestId: string) =>
@@ -63,7 +68,7 @@ export function actionErrorMessage(
     const target = encodeURIComponent(
       returnTo ?? `${window.location.pathname}${window.location.search}`,
     );
-    window.location.assign(`/fresh-login?returnTo=${target}`);
+    if (redirect) window.location.assign(`/fresh-login?returnTo=${target}`);
     return {
       code: error.detail.code,
       conflict: false,

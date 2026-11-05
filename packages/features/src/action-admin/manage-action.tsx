@@ -543,7 +543,14 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
               client={client}
               disabled={archived || action.status === "completed"}
             />
-            {!archived ? <PublicationSection {...shared} /> : null}
+            {!archived ? (
+              // Completing an action releases its aliases (server): the
+              // public alias and window stay read-only from then on.
+              <PublicationSection
+                {...shared}
+                disabled={action.status === "completed"}
+              />
+            ) : null}
           </div>
         ) : current === "templates" ? (
           <TemplatesTab

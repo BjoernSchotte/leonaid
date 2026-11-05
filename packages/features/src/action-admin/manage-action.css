@@ -141,6 +141,14 @@
 .campaign .edit-section-intro {
   max-width: 65ch;
 }
+/* Under a section's conflict message: reload button and new-tab link. */
+.campaign .section-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-2);
+}
 .campaign .form-actions {
   display: flex;
   align-items: center;

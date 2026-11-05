@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, MailPlus, PenLine, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -27,14 +27,22 @@ import {
 import { createHref } from "../command-palette/create-request";
 import { formatDateTime } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import {
+  needsFreshLogin,
+  saveFreshLoginDraft,
+  takeFreshLoginDraft,
+} from "./fresh-login-draft";
 import { saveInviteDraft, takeInviteDraft } from "./invite-draft";
-import { INVITE_KIND, actionRoleLabels } from "./member-model";
+import {
+  EMAIL,
+  INVALID_EMAIL,
+  INVITE_KIND,
+  actionRoleLabels,
+} from "./member-model";
 import { useActionErrorMessage } from "./use-action-error";
 
 type InvitationRole = CreateInvitationRequest["role"];
 type InvitationStatus = InvitationSummaryResponse["status"];
-
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const retryUnlessApiError = (failureCount: number, error: unknown) =>
   !(error instanceof ApiError) && failureCount < 2;
@@ -159,7 +167,7 @@ export function InviteMemberDialog({
       description="Die Person bekommt einen Link und einen Code per E-Mail."
       footer={
         <>
-          <Button onClick={close} variant="ghost">
+          <Button disabled={invite.isPending} onClick={close} variant="ghost">
             Abbrechen
           </Button>
           <Button
@@ -198,9 +206,7 @@ export function InviteMemberDialog({
           onSubmit={(event) => {
             event.preventDefault();
             const next: DraftErrors = {
-              email: EMAIL.test(email.trim())
-                ? undefined
-                : "Bitte eine gültige E-Mail-Adresse eingeben, z. B. name@beispiel.de.",
+              email: EMAIL.test(email.trim()) ? undefined : INVALID_EMAIL,
               displayName: displayName.trim()
                 ? undefined
                 : "Bitte den Namen des Mitglieds eingeben.",
@@ -322,9 +328,12 @@ const statusFilters: ReadonlyArray<{
 export function InvitationLedger({
   client,
   onInvite,
+  userId,
 }: {
   readonly client: LeonAidApiClient;
   readonly onInvite: () => void;
+  /** The signed-in account; a stored address draft belongs to it. */
+  readonly userId: string;
 }) {
   const queryClient = useQueryClient();
   const toast = useOptionalToast();
@@ -379,6 +388,16 @@ export function InvitationLedger({
       readonly email: string;
       readonly invitationId: string;
     }) => client.correctInvitationAddress(invitationId, { email }),
+    onError: (error, { email, invitationId }) => {
+      // The fresh sign-in reloads the page: keep the typed address.
+      if (needsFreshLogin(error)) {
+        saveFreshLoginDraft(
+          `invitation-address:${invitationId}`,
+          userId,
+          email,
+        );
+      }
+    },
     onSuccess: () => {
       setCorrection(undefined);
       done(
@@ -386,7 +405,25 @@ export function InvitationLedger({
       );
     },
   });
+  // Back from the fresh sign-in: reopen the correction with the typed
+  // address once the invitation is listed again.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !invitations.data) return;
+    restored.current = true;
+    for (const invitation of invitations.data.items) {
+      const draft = takeFreshLoginDraft(
+        `invitation-address:${invitation.id}`,
+        userId,
+      );
+      if (draft !== null) {
+        setCorrection({ invitation, email: draft });
+        return;
+      }
+    }
+  }, [invitations.data, userId]);
   const correctionFormId = useId();
+  const [correctionInvalid, setCorrectionInvalid] = useState(false);
   const correctionError = useActionErrorMessage(correctAddress.error);
   const invitationsError = useActionErrorMessage(invitations.error);
   const items = invitations.data?.items ?? [];
@@ -405,8 +442,7 @@ export function InvitationLedger({
         <div className="page-actions">
           <label className="members-filter">
             <span className="small">Status</span>
-            <select
-              className="input select"
+            <Select
               data-testid="invitation-status-filter"
               onChange={(event) =>
                 setStatusFilter(event.target.value as InvitationStatus | "")
@@ -418,7 +454,7 @@ export function InvitationLedger({
                   {item.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <Button icon={MailPlus} onClick={onInvite}>
             Mitglied einladen
@@ -578,9 +614,15 @@ export function InvitationLedger({
           <form
             className="stack"
             id={correctionFormId}
+            // The Field shows the error; no native validation bubble.
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
-              if (!correction.email.trim()) return;
+              if (!EMAIL.test(correction.email.trim())) {
+                setCorrectionInvalid(true);
+                return;
+              }
+              setCorrectionInvalid(false);
               correctAddress.mutate({
                 email: correction.email.trim(),
                 invitationId: correction.invitation.id,
@@ -588,7 +630,9 @@ export function InvitationLedger({
             }}
           >
             <Field
-              error={correctionError?.message}
+              error={
+                correctionInvalid ? INVALID_EMAIL : correctionError?.message
+              }
               label="Neue Login-E-Mail"
               required
             >

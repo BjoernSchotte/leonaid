@@ -18,6 +18,7 @@ import {
   Icon,
   Input,
   Modal,
+  Select,
   SkeletonRows,
   StatusMessage,
   useOptionalToast,
@@ -271,8 +272,7 @@ function AliasModal({
           hint="Auch aktiviert ist der Alias nur erreichbar, solange die Aktion öffentlich freigegeben ist."
           label="Weiterleitung"
         >
-          <select
-            className="input select"
+          <Select
             data-testid="alias-enabled"
             onChange={(event) =>
               setEnabled(event.currentTarget.value === "enabled")
@@ -281,15 +281,14 @@ function AliasModal({
           >
             <option value="enabled">Aktiviert</option>
             <option value="disabled">Deaktiviert</option>
-          </select>
+          </Select>
         </Field>
         {item ? (
           <Field
             hint="Sie sehen nur Aktionen, deren Adressen Sie verwalten dürfen."
             label="Ziel"
           >
-            <select
-              className="input select"
+            <Select
               data-testid="alias-target"
               onChange={(event) => setTargetActionId(event.currentTarget.value)}
               value={targetActionId}
@@ -304,7 +303,7 @@ function AliasModal({
                   {entry.name} · {entry.canonicalPath}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         ) : null}
         {moving && item ? (

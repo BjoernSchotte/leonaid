@@ -143,7 +143,11 @@ export function MemberAdministrationPage({
       {section === "list" ? (
         <MemberList client={client} identity={identity} onInvite={openInvite} />
       ) : (
-        <InvitationLedger client={client} onInvite={openInvite} />
+        <InvitationLedger
+          client={client}
+          onInvite={openInvite}
+          userId={identity.userId}
+        />
       )}
       <InviteMemberDialog
         client={client}
