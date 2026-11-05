@@ -29,6 +29,19 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         const target = tabbables[index];
         const before = tabbables[index - 1];
         if (!target.closest(scope) || !before.closest(scope)) continue;
+        // Sticky or fixed parts (bars, jump navs) do not scroll: skip them.
+        const pinned = (element) => {
+          for (
+            let node = element;
+            node && node !== document.body;
+            node = node.parentElement
+          ) {
+            const position = getComputedStyle(node).position;
+            if (position === "sticky" || position === "fixed") return true;
+          }
+          return false;
+        };
+        if (pinned(target) || pinned(before)) continue;
         const box = target.getBoundingClientRect();
         const top = box.top + window.scrollY;
         if (box.height === 0 || box.height > 120) continue;
@@ -82,16 +95,18 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
   const parked = await page.evaluate(
     ({ edge, coverTop, coverBottom }) => {
       const element = document.querySelector("[data-obscure-target]");
-      const now = element.getBoundingClientRect();
       const fromY = window.scrollY;
-      window.scrollTo({
-        top:
-          fromY +
-          (edge === "top"
+      // A few rounds: sticky headers that start or stop sticking can shift
+      // the layout while scrolling.
+      for (let round = 0; round < 4; round += 1) {
+        const now = element.getBoundingClientRect();
+        const delta =
+          edge === "top"
             ? now.top - (coverBottom - now.height / 2)
-            : now.bottom - (coverTop + now.height / 2)),
-        behavior: "instant",
-      });
+            : now.bottom - (coverTop + now.height / 2);
+        if (Math.abs(delta) < 1) break;
+        window.scrollBy({ top: delta, behavior: "instant" });
+      }
       return {
         fromY,
         toY: window.scrollY,
