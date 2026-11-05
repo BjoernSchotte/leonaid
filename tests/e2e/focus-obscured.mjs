@@ -32,10 +32,14 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         const box = target.getBoundingClientRect();
         const top = box.top + window.scrollY;
         if (box.height === 0 || box.height > 120) continue;
-        // Below the fold, and the page must be able to scroll it to the bar.
+        // The page must be able to scroll the target half under the bar:
+        // past the top bar for "top", up from below the fold for "bottom".
         const maxScroll = scrollHeight - window.innerHeight;
-        if (top < window.innerHeight) continue;
-        if (edge === "top" && top - coverBottom / 2 > maxScroll) continue;
+        const needed =
+          edge === "top"
+            ? top - (coverBottom - box.height / 2)
+            : top + box.height / 2 - coverTop;
+        if (needed <= box.height || needed > maxScroll) continue;
         document
           .querySelectorAll("[data-obscure-target], [data-obscure-before]")
           .forEach((element) => {
@@ -60,9 +64,19 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
             behavior: "instant",
           });
         }
-        return true;
+        return { found: true };
       }
-      return false;
+      const inScope = tabbables.filter((element) => element.closest(scope));
+      return {
+        found: false,
+        tabbables: tabbables.length,
+        inScope: inScope.length,
+        lastTop: inScope.length
+          ? inScope.at(-1).getBoundingClientRect().top + window.scrollY
+          : null,
+        innerHeight: window.innerHeight,
+        scrollHeight,
+      };
     },
     {
       scope,
@@ -71,7 +85,10 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
       coverBottom: coverBox.y + coverBox.height,
     },
   );
-  expect(prepared, `a tabbable pair below the fold in ${scope}`).toBe(true);
+  expect(
+    prepared.found,
+    `a tabbable pair below the fold in ${scope}: ${JSON.stringify(prepared)}`,
+  ).toBe(true);
   const target = page.locator("[data-obscure-target]");
   const startBox = await target.boundingBox();
   if (edge === "top") {
@@ -84,51 +101,47 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
 
   await page.keyboard.press("Tab");
   await expect(target).toBeFocused();
-  // Focus scrolling follows scroll-behavior: smooth; measure once it stops.
-  await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        let last = -1;
-        let still = 0;
-        const step = () => {
-          still = window.scrollY === last ? still + 1 : 0;
-          last = window.scrollY;
-          if (still >= 3) resolve(undefined);
-          else requestAnimationFrame(step);
+  const measure = () =>
+    target.evaluate(
+      (element, { coverSelector }) => {
+        const box = element.getBoundingClientRect();
+        const bar = document
+          .querySelector(coverSelector)
+          .getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          box.left + Math.min(box.width / 2, 20),
+          box.top + box.height / 2,
+        );
+        return {
+          top: box.top,
+          bottom: box.bottom,
+          barTop: bar.top,
+          barBottom: bar.bottom,
+          hitsTarget: Boolean(
+            hit && (hit === element || element.contains(hit)),
+          ),
+          hit: hit
+            ? `${hit.tagName.toLowerCase()}.${[...hit.classList].join(".")}`
+            : null,
+          target: `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} ${(element.textContent ?? "").trim().slice(0, 30)}`,
         };
-        requestAnimationFrame(step);
-      }),
-  );
-  const result = await target.evaluate(
-    (element, { coverSelector }) => {
-      const box = element.getBoundingClientRect();
-      const bar = document.querySelector(coverSelector).getBoundingClientRect();
-      const hit = document.elementFromPoint(
-        box.left + Math.min(box.width / 2, 20),
-        box.top + box.height / 2,
-      );
-      return {
-        top: box.top,
-        bottom: box.bottom,
-        barTop: bar.top,
-        barBottom: bar.bottom,
-        hitsTarget: Boolean(hit && (hit === element || element.contains(hit))),
-        hit: hit
-          ? `${hit.tagName.toLowerCase()}.${[...hit.classList].join(".")}`
-          : null,
-        target: `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} ${(element.textContent ?? "").trim().slice(0, 30)}`,
-      };
-    },
-    { coverSelector: cover },
-  );
-  if (edge === "top") {
-    expect(result.top, JSON.stringify(result)).toBeGreaterThanOrEqual(
-      result.barBottom - 1,
+      },
+      { coverSelector: cover },
     );
-  } else {
-    expect(result.bottom, JSON.stringify(result)).toBeLessThanOrEqual(
-      result.barTop + 1,
-    );
-  }
-  expect(result.hitsTarget, JSON.stringify(result)).toBe(true);
+  // The focused element must end up clear: the browser's (smooth) focus
+  // scroll, and the shell's reveal where the browser ignores scroll-padding.
+  // Received shows the last measurement when it never gets clear.
+  await expect
+    .poll(
+      async () => {
+        const result = await measure();
+        const clear =
+          edge === "top"
+            ? result.top >= result.barBottom - 1
+            : result.bottom <= result.barTop + 1;
+        return clear && result.hitsTarget ? "clear" : JSON.stringify(result);
+      },
+      { timeout: 3000 },
+    )
+    .toBe("clear");
 }

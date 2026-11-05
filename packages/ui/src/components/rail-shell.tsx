@@ -29,6 +29,7 @@ import { PrefixHint } from "../keyboard/prefix-hint";
 import { ShortcutHelp } from "../keyboard/shortcut-help";
 import type { HotkeyBinding } from "../keyboard/hotkeys";
 import { cn } from "../lib/utils";
+import { useFocusNotObscured } from "./focus-clear";
 import { Avatar } from "./avatar";
 import { IconButton } from "./button";
 import { isMacPlatform, Kbd } from "./kbd";
@@ -531,6 +532,7 @@ function ShellFrame({
   navigate = assignLocation,
   children,
 }: RailShellProps) {
+  useFocusNotObscured();
   const help = useShortcutHelp();
   const [moreOpen, setMoreOpen] = useState(false);
   const [railCampaignOpen, setRailCampaignOpen] = useState(false);

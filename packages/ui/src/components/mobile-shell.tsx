@@ -21,6 +21,7 @@ import {
   type HotkeyBinding,
 } from "../keyboard";
 import { cn } from "../lib/utils";
+import { useFocusNotObscured } from "./focus-clear";
 import { Button } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 import { LeaveGuardContext, LeaveGuardRegistry } from "./leave-guard";
@@ -223,6 +224,7 @@ function MobileShellFrame({
   zone = "pwa",
   registry,
 }: MobileShellProps & { readonly registry: LeaveGuardRegistry }) {
+  useFocusNotObscured();
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
   const { hasUnsavedWork, mainRef, question, requestLeave } =
