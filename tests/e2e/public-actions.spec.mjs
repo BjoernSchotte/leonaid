@@ -12,6 +12,10 @@ if (!baseUrl || !artifactDirectory) {
 
 test.use({ ignoreHTTPSErrors: true });
 
+// Every public page loads this script for the header's app links.
+const headerScript = 'script[src*="/_astro/PublicAppLinks."]';
+const pageScripts = `script:not(${headerScript})`;
+
 async function expectNoHorizontalScroll(page) {
   expect(
     await page.evaluate(
@@ -106,9 +110,11 @@ test("active, inactive and archived public pages stay functionally identical in 
     );
   expect(unloadedImages).toEqual([]);
   await expect(page.locator('img[src*="lions-krapfentaxi.de"]')).toHaveCount(0);
-  // The inquiry form is the only enhanced element of this page.
-  await expect(page.locator("script")).toHaveCount(1);
-  await expect(page.locator("script")).toHaveAttribute(
+  // Besides the header's app links (headerScript), the inquiry form is the
+  // only enhanced element of this page.
+  await expect(page.locator(headerScript)).toHaveCount(1);
+  await expect(page.locator(pageScripts)).toHaveCount(1);
+  await expect(page.locator(pageScripts)).toHaveAttribute(
     "src",
     /\/_astro\/PublicInbox\./,
   );
@@ -142,7 +148,7 @@ test("active, inactive and archived public pages stay functionally identical in 
     0,
   );
   await expect(page.locator("body")).toHaveClass("taxi-site");
-  await expect(page.locator("script")).toHaveCount(0);
+  await expect(page.locator(pageScripts)).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     `${baseUrl}/archive/krapfentaxi-2027`,
