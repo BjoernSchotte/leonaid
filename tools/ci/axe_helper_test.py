@@ -67,7 +67,7 @@ def main() -> int:
                 return 1
     print(
         "axe-helper-test: OK: helper and comments pass; direct AxeBuilder, "
-        "direct import and nested specs are rejected"
+        "static import, import(), require() and nested specs are rejected"
     )
     return 0
 
