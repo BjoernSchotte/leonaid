@@ -22,6 +22,7 @@ export * from "./popover";
 export * from "./leave-guard";
 export * from "./mobile-shell";
 export * from "./modal";
+export { FOCUS_FALLBACK_ATTRIBUTE } from "./focus-return";
 export * from "./skeleton-rows";
 export * from "./switch";
 export * from "./tabs";
