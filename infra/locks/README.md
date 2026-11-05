@@ -47,6 +47,6 @@ The checks run only inside the Docker images recorded here:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \
-  python:3.13.18-slim-trixie@sha256:d0a9e379c0c588befb0e427db17ca9731751d281f32c6cb1a90a1277b680bdad \
+  python:3.13.18-slim-trixie@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc \
   python /workspace/tools/pins/check.py /workspace
 ```
