@@ -73,6 +73,34 @@ async def _event(pool: asyncpg.Pool, commitment_id: UUID, event: str) -> Any:
     return json.loads(payload)
 
 
+async def _queued_behind(
+    pool: asyncpg.Pool,
+    holder: asyncpg.Connection,
+    task: asyncio.Task[Any],
+    what: str,
+) -> None:
+    """Return once a backend is blocked by the holder's lock; fail otherwise.
+
+    A fixed sleep would also pass for a command that is only slow.
+    """
+
+    holder_pid = await holder.fetchval("SELECT pg_backend_pid()")
+    deadline = asyncio.get_running_loop().time() + 10
+    async with pool.acquire() as observer:
+        while True:
+            assert not task.done(), f"{what} did not wait for the lock"
+            if await observer.fetchval(
+                "SELECT count(*) FROM pg_stat_activity "
+                "WHERE $1::integer = ANY(pg_blocking_pids(pid))",
+                holder_pid,
+            ):
+                return
+            assert asyncio.get_running_loop().time() < deadline, (
+                f"{what} never queued behind the lock"
+            )
+            await asyncio.sleep(0.02)
+
+
 async def prove_fully_booked(
     pool: asyncpg.Pool,
     *,
@@ -579,8 +607,7 @@ async def prove_fully_booked(
                     request_id="fully-booked-proof",
                 )
             )
-            await asyncio.sleep(0.3)
-            assert not switching.done(), "Switch did not wait for the booking"
+            await _queued_behind(pool, booking, switching, "Switch")
         finally:
             await transaction.commit()
         assert any(w.fully_booked for w in (await switching).windows)
@@ -596,8 +623,7 @@ async def prove_fully_booked(
                         booking, window_id=other.id, allow_full_window=False
                     )
                 )
-                await asyncio.sleep(0.3)
-                assert not waiting.done(), "Booking did not wait for the switch"
+                await _queued_behind(pool, switcher, waiting, "Booking")
             assert await waiting is False
     print(
         "KLF-065 fully-booked PASS: audited manager switch (no-op repeat, 403/404/409), stale form keeps it, new full window refused, public refusal early and under lock with replay intact, switch between check and record refused on the real path, admin create/completion/manager completion (also of a draft carrying the window) with confirmation recorded, retire clears it, lock order both ways"

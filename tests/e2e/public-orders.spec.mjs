@@ -1,5 +1,5 @@
 import { expect, test } from "./csp-guard.mjs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -423,6 +423,118 @@ const windowRequest = ({ id, deliveryOn, startsAt, endsAt, retired }) => ({
   retired,
 });
 
+// tools/public_orders/delivery_cleanup.py reads this file around the
+// browser step: the proof window IDs to retire and, when this spec extended
+// the action period, the period to restore.
+const deliveryProofPath =
+  process.env.LEONAID_E2E_DELIVERY_STATE ??
+  `${artifactDirectory}/public-orders-delivery.json`;
+
+async function recordDeliveryProof(change) {
+  let proof = { windowIds: [], periods: [] };
+  try {
+    proof = JSON.parse(await readFile(deliveryProofPath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  await writeFile(deliveryProofPath, JSON.stringify(change(proof)));
+}
+
+/** A calendar day in Berlin, `days` from today. */
+function berlinDay(days) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(
+    new Date(Date.now() + days * 86_400_000),
+  );
+}
+
+/**
+ * The proof windows lie two days ahead: a new window must start after now
+ * and inside the action period. If the action ends before that day, its
+ * period is extended by 30 days for the case; `restore` undoes it once the
+ * windows are retired (retired windows do not bind the period).
+ */
+async function proofDeliveryDay(request, actionId) {
+  const url = `${baseUrl}/api/v1/actions/${actionId}`;
+  const headers = { Origin: new URL(baseUrl).origin };
+  const read = async () => {
+    const response = await request.get(url);
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const setPeriod = async (action, startsOn, endsOn) => {
+    const response = await request.put(`${url}/details`, {
+      headers,
+      data: {
+        revision: action.revision,
+        carrierName: action.carrierName,
+        name: action.name,
+        purpose: action.purpose,
+        startsOn,
+        endsOn,
+      },
+    });
+    expect(response.status(), await response.text()).toBe(200);
+  };
+  const day = berlinDay(2);
+  const action = await read();
+  if (action.startsOn <= day && day <= action.endsOn) {
+    return { day, restore: async () => {} };
+  }
+  const original = { startsOn: action.startsOn, endsOn: action.endsOn };
+  await recordDeliveryProof((proof) => ({
+    ...proof,
+    periods: [...proof.periods, { actionId, ...original }],
+  }));
+  await setPeriod(
+    action,
+    action.startsOn <= day ? action.startsOn : day,
+    berlinDay(30),
+  );
+  return {
+    day,
+    restore: async () =>
+      setPeriod(await read(), original.startsOn, original.endsOn),
+  };
+}
+
+async function addProofWindows(request, actionId, day) {
+  const configured = await deliveryConfiguration(
+    request,
+    actionId,
+    (configuration) => ({
+      expectedRevision: configuration.revision,
+      enabled: true,
+      timezone: configuration.timezone,
+      windows: [
+        ...configuration.windows.map(windowRequest),
+        { deliveryOn: day, startsAt: "08:00", endsAt: "10:00" },
+        { deliveryOn: day, startsAt: "10:00", endsAt: "12:00" },
+      ],
+    }),
+  );
+  const added = configured.windows
+    .filter((window) => window.deliveryOn === day && !window.retired)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  expect(added).toHaveLength(2);
+  await recordDeliveryProof((proof) => ({
+    ...proof,
+    windowIds: [...proof.windowIds, ...added.map((window) => window.id)],
+  }));
+  return added;
+}
+
+async function retireAllWindows(request, actionId) {
+  await deliveryConfiguration(request, actionId, (configuration) => ({
+    expectedRevision: configuration.revision,
+    enabled: true,
+    timezone: configuration.timezone,
+    windows: configuration.windows.map((window) => ({
+      ...windowRequest(window),
+      retired: true,
+    })),
+  }));
+}
+
 async function deliveryConfiguration(request, actionId, change) {
   const url = `${baseUrl}/api/v1/actions/${actionId}/delivery-configuration`;
   const current = await request.get(url);
@@ -454,17 +566,9 @@ test("an unselected delivery window is listed and linked in the error summary", 
   ]);
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  await deliveryConfiguration(page.request, actionId, (configuration) => ({
-    expectedRevision: configuration.revision,
-    enabled: true,
-    timezone: configuration.timezone,
-    windows: [
-      ...configuration.windows.map(windowRequest),
-      { deliveryOn: "2026-11-12", startsAt: "08:00", endsAt: "10:00" },
-      { deliveryOn: "2026-11-12", startsAt: "10:00", endsAt: "12:00" },
-    ],
-  }));
+  const { day, restore } = await proofDeliveryDay(page.request, actionId);
   try {
+    await addProofWindows(page.request, actionId, day);
     form = await openOrderForm(page);
     const windows = form.locator('input[name="deliveryWindowId"]');
     await expect(windows).toHaveCount(2);
@@ -490,17 +594,11 @@ test("an unselected delivery window is listed and linked in the error summary", 
     await link.click();
     await expect(windows.first()).toBeFocused();
   } finally {
-    // Retire the proof windows; tools/public_orders/delivery_cleanup.py then
-    // restores the golden state (planning cannot be switched off by API).
-    await deliveryConfiguration(page.request, actionId, (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: configuration.windows.map((window) => ({
-        ...windowRequest(window),
-        retired: true,
-      })),
-    }));
+    // Retire the proof windows, then restore the period;
+    // tools/public_orders/delivery_cleanup.py then restores the golden state
+    // (planning cannot be switched off by API).
+    await retireAllWindows(page.request, actionId);
+    await restore();
   }
 });
 
@@ -529,23 +627,9 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   const page = await context.newPage();
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  const configured = await deliveryConfiguration(
-    page.request,
-    actionId,
-    (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: [
-        ...configuration.windows.map(windowRequest),
-        { deliveryOn: "2026-11-12", startsAt: "08:00", endsAt: "10:00" },
-        { deliveryOn: "2026-11-12", startsAt: "10:00", endsAt: "12:00" },
-      ],
-    }),
-  );
-  const [first, second] = configured.windows
-    .filter((window) => window.deliveryOn === "2026-11-12" && !window.retired)
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const { day, restore } = await proofDeliveryDay(page.request, actionId);
+  let first;
+  let second;
   const markFull = async (window, fullyBooked) => {
     const response = await page.request.put(
       `${baseUrl}/api/v1/actions/${actionId}/delivery-windows/${window.id}/fully-booked`,
@@ -556,6 +640,7 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   const radio = (window) =>
     form.locator(`input[name="deliveryWindowId"][value="${window.id}"]`);
   try {
+    [first, second] = await addProofWindows(page.request, actionId, day);
     // A full window is listed, marked and not selectable.
     await markFull(first, true);
     form = await openOrderForm(page);
@@ -611,17 +696,10 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
     await expect(radio(second)).toBeFocused();
     await expect(radio(second)).toBeEnabled();
   } finally {
-    // Retiring also clears "ausgebucht"; delivery_cleanup.py then restores
-    // the golden state.
-    await deliveryConfiguration(page.request, actionId, (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: configuration.windows.map((window) => ({
-        ...windowRequest(window),
-        retired: true,
-      })),
-    }));
+    // Retiring also clears "ausgebucht"; then the period is restored and
+    // delivery_cleanup.py restores the golden state.
+    await retireAllWindows(page.request, actionId);
+    await restore();
     await context.close();
   }
 });

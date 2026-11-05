@@ -18,14 +18,9 @@ export const WCAG_TAGS = Object.freeze([
 
 const SCRIPT_PROBE_MS = 2000;
 
-/**
- * axe-core needs the page's task queue. In a context with JavaScript
- * disabled, evaluate still runs but timers never fire, so axe would hang
- * until the test timeout. A zero-delay timer probe fails fast instead.
- */
-export async function assertPageScriptsRun(page) {
+async function pageTimerRuns(page) {
   let timer;
-  const ran = await Promise.race([
+  return Promise.race([
     page.evaluate(
       () => new Promise((resolve) => setTimeout(() => resolve(true), 0)),
     ),
@@ -33,13 +28,22 @@ export async function assertPageScriptsRun(page) {
       timer = setTimeout(() => resolve(false), SCRIPT_PROBE_MS);
     }),
   ]).finally(() => clearTimeout(timer));
-  if (!ran) {
-    throw new Error(
-      "analyzeAccessibility: page timers do not run (JavaScript disabled in " +
-        "this browser context?); axe-core cannot finish there. Scan in a " +
-        "context with JavaScript enabled.",
-    );
-  }
+}
+
+/**
+ * axe-core needs the page's task queue. In a context with JavaScript
+ * disabled, evaluate still runs but timers never fire, so axe would hang
+ * until the test timeout. A zero-delay timer probe fails fast instead.
+ * A long main-thread task (a busy CI runner) can delay one probe, so a
+ * second probe runs before the scan gives up (at most 4 s in total).
+ */
+export async function assertPageScriptsRun(page) {
+  if ((await pageTimerRuns(page)) || (await pageTimerRuns(page))) return;
+  throw new Error(
+    "analyzeAccessibility: page scripts did not run within 2 s (probed " +
+      "twice), so axe-core cannot finish. JavaScript may be disabled in " +
+      "this browser context, or a long task blocks the page.",
+  );
 }
 
 export async function settleAnimations(page) {

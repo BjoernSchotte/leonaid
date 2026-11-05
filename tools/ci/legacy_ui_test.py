@@ -73,6 +73,9 @@ DIRTY = {
     "apps/pwa/package.json": '{"optionalDependencies": {"@base-ui/react": "1.6.0"}}\n',
     "apps/docs/package.json": '{"overrides": {"some-lib": {"@hugeicons/react": "1.1.9"}}}\n',
     "packages/surveys/package.json": '{"resolutions": {"@base-ui/react": "1.6.0"}}\n',
+    # Final review M3: the root manifest, and manifests that cannot be parsed.
+    "package.json": '{"devDependencies": {"@hugeicons/react": "1.1.9"}}\n',
+    "apps/web/broken/package.json": '{"dependencies": {\n',
     # M4: old names set or read from JavaScript.
     "packages/features/src/set.ts": 'node.style.setProperty("--primary", "red");\n',
     "packages/features/src/read.ts": "getComputedStyle(node).getPropertyValue('--muted');\n",

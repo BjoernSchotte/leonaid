@@ -65,6 +65,9 @@ E2E_SHARDS = (
     "materials",
     "knowledge",
     "inbox",
+    "leitsystem-ui",
+    "operations",
+    "invoice-flows",
 )
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
@@ -244,6 +247,57 @@ RULES: tuple[Rule, ...] = (
         ("tools/inbox/**",),
         e2e("inbox") | integration("schema-outbox"),
         "inbox proofs",
+    ),
+    # The shared axe scan serves every browser suite, the survey specs and the
+    # EmDash order proof, so it selects everything on purpose.
+    Rule(("tests/e2e/axe.mjs",), ALL, "shared axe scan"),
+    # Shared list helpers of the module specs.
+    Rule(("tests/e2e/task-list.mjs",), e2e("tasks"), "task list helper"),
+    Rule(
+        ("tests/e2e/material-list.mjs",),
+        e2e("materials", "inbox", "knowledge"),
+        "material list helper",
+    ),
+    Rule(("tests/e2e/delivery-board.spec.mjs",), e2e("invoices"), "delivery board"),
+    # Leitsystem shell proofs (tools/ci/e2e.sh leitsystem-ui).
+    Rule(
+        (
+            "tools/ui_system/**",
+            "tools/ux_acceptance/**",
+            "tools/dashboard/**",
+            "tests/e2e/ui-system.spec.mjs",
+            "tests/e2e/ui-system.spec.mjs-snapshots/**",
+            "tests/e2e/axe-helper.spec.mjs",
+            "tests/e2e/ux-acceptance.spec.mjs",
+            "tests/e2e/command-palette.spec.mjs",
+            "tests/e2e/command-palette-faults.spec.mjs",
+            "tests/e2e/dashboard.spec.mjs",
+        ),
+        e2e("leitsystem-ui"),
+        "Leitsystem UI proofs",
+    ),
+    Rule(
+        (
+            "tools/operations/**",
+            "tools/feature_flags/**",
+            "tools/privacy/**",
+            "tests/e2e/operations.spec.mjs",
+            "tests/e2e/feature-flags.spec.mjs",
+            "tests/e2e/privacy.spec.mjs",
+        ),
+        e2e("operations"),
+        "operations proofs",
+    ),
+    Rule(
+        (
+            "tools/invoice_delivery/**",
+            "tools/invoice_settlements/**",
+            "tests/e2e/invoice-delivery.spec.mjs",
+            "tests/e2e/invoice-settlements.spec.mjs",
+            "tests/e2e/invoices-keyboard.spec.mjs",
+        ),
+        e2e("invoice-flows"),
+        "invoice flow proofs",
     ),
     # Integration shards with their own proof directories.
     Rule(("tools/delivery/**",), integration("delivery"), "delivery proofs"),

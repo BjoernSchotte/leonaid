@@ -32,8 +32,10 @@ def expect_failure(checker: Path, root: Path, expected: str) -> None:
         raise AssertionError(f"Policy case {expected!r} was not rejected: {output}")
 
 
-def write_review(root: Path, source: str) -> Path:
-    path = root / "tests/e2e/reviewed.spec.mjs"
+def write_review(
+    root: Path, source: str, name: str = "tests/e2e/reviewed-faults.spec.mjs"
+) -> Path:
+    path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8")
     manifest = root / "tools/ci/reviewed_network_faults.json"
@@ -147,11 +149,29 @@ def main() -> None:
         expect_failure(checker, fault, "browser network interception")
         (fault / "tests/e2e/unreviewed.spec.mjs").unlink()
 
+        # Helpers and tools are scanned too, and route variants count.
+        for relative, line in (
+            ("tests/e2e/helper.mjs", "await page.route('/api/**', handler);\n"),
+            ("tools/proof/browser.mjs", "await context.routeFromHAR('x.har');\n"),
+            ("tests/e2e/socket.spec.mjs", "await page.routeWebSocket('/ws', h);\n"),
+        ):
+            target = fault / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(line, encoding="utf-8")
+            expect_failure(checker, fault, "browser network interception")
+            target.unlink()
+
+        # A reviewed file must be named *-faults.spec.mjs.
+        misnamed = write_review(fault, test_source, "tests/e2e/reviewed.spec.mjs")
+        expect_failure(checker, fault, "invalid network fault review")
+        misnamed.unlink()
+        write_review(fault, test_source)
+
         path.unlink()
         expect_failure(checker, fault, "invalid network fault review")
 
     print(
-        "no-test-doubles-test: OK: real-source check, reviewed fault and 12 negative policy cases"
+        "no-test-doubles-test: OK: real-source check, reviewed fault and 16 negative policy cases"
     )
 
 

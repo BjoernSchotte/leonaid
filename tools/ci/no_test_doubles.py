@@ -42,8 +42,18 @@ FORBIDDEN_NETWORK_MARKERS = {
     "mock.module(": "Module replacement",
     "vi.mock(": "Module replacement",
 }
-NETWORK_CALL = re.compile(r"\.\s*(?:route|fulfill)\s*\(")
+# route(), routeFromHAR(), routeWebSocket() and fulfill().
+NETWORK_CALL = re.compile(r"\.\s*(?:route\w*|fulfill)\s*\(")
 REVIEW_MANIFEST = "tools/ci/reviewed_network_faults.json"
+# Reviewed fault files are named *-faults.spec.mjs; these predate the rule.
+FAULT_NAME_EXCEPTIONS = {
+    "tests/e2e/public-inbox-retry.spec.mjs",
+    "tools/emdash_spike/campaign-editor-browser-proof.mjs",
+}
+SCRIPT_SUFFIXES = {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"}
+# Helpers and proofs: every script file, not only *.spec/*.test files.
+WHOLE_TREES = ("tests", "tools")
+SKIPPED_PARTS = {"node_modules", "test-results"}
 HTTP_FIXTURE_PARTS = {
     "cassettes",
     "http-fixture",
@@ -157,9 +167,14 @@ def reviewed_network_faults(root: Path) -> tuple[set[Path], list[str]]:
             path = root / name
             if (
                 name in seen
-                or not name.startswith("tests/e2e/")
-                or not name.endswith(".spec.mjs")
-                or not path.resolve().is_relative_to((root / "tests/e2e").resolve())
+                or not (
+                    name in FAULT_NAME_EXCEPTIONS
+                    or (
+                        name.startswith("tests/e2e/")
+                        and name.endswith("-faults.spec.mjs")
+                    )
+                )
+                or not path.resolve().is_relative_to(root.resolve())
                 or path.is_symlink()
                 or not entry["reason"].strip()
                 or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
@@ -197,20 +212,18 @@ def check(root: Path) -> list[str]:
     )
     for path in sorted((root / "tests").rglob("*.py")):
         problems.extend(python_problems(path))
-    for base in ("tests", "apps", "packages"):
+    for base in ("tests", "tools", "apps", "packages"):
         for path in sorted((root / base).rglob("*")):
-            if not path.is_file():
+            if not path.is_file() or SKIPPED_PARTS & set(path.relative_to(root).parts):
                 continue
-            fixture = fixture_problem(path)
-            if fixture is not None:
-                problems.append(fixture)
-            if (".test." in path.name or ".spec." in path.name) and path.suffix in {
-                ".js",
-                ".jsx",
-                ".mjs",
-                ".ts",
-                ".tsx",
-            }:
+            if base != "tools":
+                fixture = fixture_problem(path)
+                if fixture is not None:
+                    problems.append(fixture)
+            scanned = path.suffix in SCRIPT_SUFFIXES and (
+                base in WHOLE_TREES or ".test." in path.name or ".spec." in path.name
+            )
+            if scanned:
                 problems.extend(
                     text_problems(path, reviewed_network_fault=path in reviewed)
                 )

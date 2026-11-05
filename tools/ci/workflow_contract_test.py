@@ -216,6 +216,18 @@ OTHER_MUTATIONS = (
 
 ACTION_MUTATIONS = (
     (
+        "tools/ci/lint-types.sh",
+        "  python /workspace/tools/ci/axe_helper.py /workspace\n",
+        "  true\n",
+        "lint-types.sh must run tools/ci/axe_helper.py",
+    ),
+    (
+        "tools/ci/lint-types.sh",
+        "  python /workspace/tools/ci/legacy_ui.py /workspace\n",
+        "  true\n",
+        "lint-types.sh must run tools/ci/legacy_ui.py",
+    ),
+    (
         ".github/actions/build-cache/action.yml",
         "    - name: Retry layer import and image build\n      if: steps.bake.outcome == 'failure'\n",
         "    - name: Retry layer import and image build\n      if: false\n",
@@ -251,6 +263,8 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         copy = Path(temporary)
         shutil.copytree(root / ".github", copy / ".github")
+        (copy / "tools/ci").mkdir(parents=True)
+        shutil.copy(root / "tools/ci/lint-types.sh", copy / "tools/ci/lint-types.sh")
         ci = copy / ".github/workflows/ci.yml"
         text = (workflows / "ci.yml").read_text(encoding="utf-8")
         for old, new, expected in CI_MUTATIONS:

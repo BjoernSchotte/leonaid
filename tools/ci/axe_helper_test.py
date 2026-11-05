@@ -44,6 +44,8 @@ def main() -> int:
         "tests/e2e/direct.spec.mjs": "const r = await new AxeBuilder({ page }).analyze();\n",
         "tests/e2e/import.spec.mjs": "import AxeBuilder from '@axe-core/playwright';\n",
         "tests/e2e/nested/deep.spec.ts": "new  AxeBuilder({ page })\n",
+        "tests/e2e/dynamic.spec.mjs": 'const { default: A } = await import("@axe-core/playwright");\n',
+        "tests/e2e/require.spec.cjs": "const A = require(`@axe-core/playwright`);\n",
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -65,7 +67,7 @@ def main() -> int:
                 return 1
     print(
         "axe-helper-test: OK: helper and comments pass; direct AxeBuilder, "
-        "direct import and nested specs are rejected"
+        "static import, import(), require() and nested specs are rejected"
     )
     return 0
 
