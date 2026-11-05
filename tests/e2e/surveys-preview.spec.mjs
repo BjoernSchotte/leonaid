@@ -139,14 +139,24 @@ test("backend timeout changes preserve existing participation and preview stays 
   };
   // 2 real and 1 test participation: below k = 5 the size is withheld
   // (Task 5.6b, R0), so the two sources are told apart by the filter.
+  // The screen says why nothing is shown, rather than staying blank.
+  const withheld = async (snapshot) => {
+    const results = page.locator(`[data-snapshot-id="${snapshot.id}"]`);
+    await expect(results.getByRole("status")).toHaveText(
+      "Weniger als 5 Teilnahmen: Ergebnisse werden nicht gezeigt, damit niemand erkennbar wird.",
+    );
+    await expect(results.locator("[data-question-id]")).toHaveCount(0);
+  };
   const real = await runAnalysis(false);
   expect(real.filter.isTest).toBe(false);
   expect([real.participationCount, real.suppressed]).toEqual([null, true]);
+  await withheld(real);
   const simulated = await runAnalysis(true);
   expect(simulated.filter.isTest).toBe(true);
   expect([simulated.participationCount, simulated.suppressed]).toEqual([
     null,
     true,
   ]);
+  await withheld(simulated);
   await context.close();
 });
