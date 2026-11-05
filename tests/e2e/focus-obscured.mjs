@@ -44,12 +44,19 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         before.dataset.obscureBefore = "";
         before.focus({ preventScroll: true });
         // Park the target half under the bar: still "in the viewport", so
-        // without scroll-padding a browser does not scroll on focus.
+        // without scroll-padding a browser does not scroll on focus. Instant:
+        // the page sets scroll-behavior: smooth.
         const now = target.getBoundingClientRect();
         if (edge === "top") {
-          window.scrollBy(0, now.top - (coverBottom - now.height / 2));
+          window.scrollBy({
+            top: now.top - (coverBottom - now.height / 2),
+            behavior: "instant",
+          });
         } else {
-          window.scrollBy(0, now.bottom - (coverTop + now.height / 2));
+          window.scrollBy({
+            top: now.bottom - (coverTop + now.height / 2),
+            behavior: "instant",
+          });
         }
         return true;
       }
@@ -75,6 +82,21 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
 
   await page.keyboard.press("Tab");
   await expect(target).toBeFocused();
+  // Focus scrolling follows scroll-behavior: smooth; measure once it stops.
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let last = -1;
+        let still = 0;
+        const step = () => {
+          still = window.scrollY === last ? still + 1 : 0;
+          last = window.scrollY;
+          if (still >= 3) resolve(undefined);
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }),
+  );
   const result = await target.evaluate(
     (element, { coverSelector }) => {
       const box = element.getBoundingClientRect();
