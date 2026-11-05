@@ -287,6 +287,43 @@ describe("inbox list", () => {
     expect(within(pane).getByText(/mit Einwilligung/)).toBeTruthy();
   });
 
+  it("links a task chip to the task, not only its list", async () => {
+    const id = caseId(8);
+    const taskId = "70000000-0000-4000-8000-000000000009";
+    const listId = "60000000-0000-4000-8000-000000000003";
+    window.history.replaceState(null, "", `/admin/inbox?open=${id}`);
+    const api = client([inboxCase(id)], {
+      listInboxTaskReferences: vi.fn(async () => ({
+        items: [
+          {
+            taskId,
+            task: {
+              id: taskId,
+              listId,
+              title: "Rückruf vereinbaren",
+              status: "open" as const,
+              checklist: [],
+              createdAt: "2026-11-03T08:00:00Z",
+              createdBy: me,
+              priority: "none" as const,
+              revision: 1,
+              tags: [],
+              updatedAt: "2026-11-03T08:00:00Z",
+            },
+          },
+        ],
+      })),
+    });
+    renderPage(api);
+    const chip = await screen.findByRole("link", {
+      name: /Rückruf vereinbaren · Offen/,
+    });
+    expect(chip.getAttribute("href")).toBe(
+      `/admin/tasks/${listId}?view=all&open=${taskId}`,
+    );
+    expect(chip.getAttribute("title")).toBe("Aufgabe öffnen");
+  });
+
   it("explains a case the account cannot open", async () => {
     window.history.replaceState(null, "", "/app/inbox");
     const api = client([inboxCase(caseId(1))]);
