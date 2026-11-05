@@ -68,6 +68,6 @@ Check:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \
-  python:3.13.18-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 \
+  python:3.13.18-slim-trixie@sha256:d0a9e379c0c588befb0e427db17ca9731751d281f32c6cb1a90a1277b680bdad \
   /bin/sh /workspace/tools/golden/test.sh /workspace
 ```
