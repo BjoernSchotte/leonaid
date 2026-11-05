@@ -3,11 +3,12 @@ import { useEffect } from "react";
 /**
  * WCAG 2.4.11 Focus Not Obscured, for browsers that ignore scroll-padding
  * when focus moves (WebKit, so Safari on the iPhone). The shells set
- * `scroll-padding-top/-bottom` on <html> for their sticky bars; Chromium and
- * Firefox keep a focused element clear of that padding by themselves. Here a
- * focused element that still sits in the padding (under a bar) is scrolled
- * into the clear by the missing distance. Where the browser already did it,
- * nothing happens.
+ * `scroll-padding-top/-bottom` on <html> for their sticky bars, and elements
+ * under further sticky parts (list group headers) carry a `scroll-margin`;
+ * Chromium and Firefox keep a focused element clear of both by themselves.
+ * Here a focused element that still sits in that space is scrolled into the
+ * clear by the missing distance. Where the browser already did it, nothing
+ * happens.
  */
 export function revealFocusedElement(
   element: Element,
@@ -28,8 +29,15 @@ export function revealFocusedElement(
     if (position === "sticky" || position === "fixed") return;
   }
   const style = view.getComputedStyle(root);
-  const top = Number.parseFloat(style.scrollPaddingTop) || 0;
-  const bottom = Number.parseFloat(style.scrollPaddingBottom) || 0;
+  const own = view.getComputedStyle(element);
+  // The root's scroll-padding (the shell's bars) plus the element's own
+  // scroll-margin (e.g. a sticky group header above list rows).
+  const top =
+    (Number.parseFloat(style.scrollPaddingTop) || 0) +
+    (Number.parseFloat(own.scrollMarginTop) || 0);
+  const bottom =
+    (Number.parseFloat(style.scrollPaddingBottom) || 0) +
+    (Number.parseFloat(own.scrollMarginBottom) || 0);
   if (!top && !bottom) return;
   const box = element.getBoundingClientRect();
   if (box.height === 0) return;
