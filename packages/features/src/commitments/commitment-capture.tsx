@@ -830,7 +830,7 @@ export function CommitmentCapturePage({
             </dl>
           </section>
           <p className="small muted">
-            Der Preis wird beim Speichern vom aktuellen Angebot übernommen.
+            LeonAid berechnet den verbindlichen Preis beim Speichern erneut.
           </p>
           {!completeDelivery ? (
             <StatusMessage tone="info">

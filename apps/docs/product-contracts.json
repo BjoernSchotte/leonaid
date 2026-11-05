@@ -3,15 +3,20 @@
     {
       "file": "packages/features/src/commitments/commitment-capture.tsx",
       "contains": [
-        "Zugeordneter Sponsor",
-        "Prüfbereit erfassen",
+        "Bestellung für",
+        "Verbindlich erfassen",
         "Als Entwurf speichern",
-        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut."
+        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut.",
+        "Bestellung erfasst"
       ]
     },
     {
       "file": "packages/features/src/commitments/complete-draft.tsx",
       "contains": ["Entwurf prüfbereit abschließen"]
+    },
+    {
+      "file": "packages/features/src/acquisition/sponsor-workspace.tsx",
+      "contains": ["Bestellung erfassen"]
     }
   ],
   "DOC-P012": [
