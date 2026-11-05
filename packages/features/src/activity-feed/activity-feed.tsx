@@ -22,10 +22,11 @@ import {
 import {
   Button,
   cn,
-  EmptyState,
-  ErrorState,
   Icon,
   Kbd,
+  EmptyState,
+  ErrorState,
+  SkeletonRows,
   StatusMessage,
   useHotkeys,
   useToast,
@@ -301,15 +302,7 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
       ) : null}
 
       {feed.isPending ? (
-        <div
-          aria-label="Aktivitäten werden geladen"
-          className="feed-loading"
-          role="status"
-        >
-          <span />
-          <span />
-          <span />
-        </div>
+        <SkeletonRows rows={5} />
       ) : feed.isError ? (
         <ErrorState
           onRetry={() => void feed.refetch()}
@@ -329,6 +322,7 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
                   : "Entfernen Sie den Filter, um mehr zu sehen."
                 : "Neue öffentliche Bestellungen erscheinen hier und nennen den nächsten Schritt."
             }
+            headingLevel={2}
             icon={ActivityIcon}
             title={filtered ? "Nichts in dieser Auswahl" : "Alles erledigt"}
           />

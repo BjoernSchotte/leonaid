@@ -14,7 +14,7 @@
   padding: var(--s-1) var(--s-2);
   border-radius: var(--r-pill);
   background: var(--accent);
-  color: var(--text-inverse);
+  color: var(--on-accent);
   font-size: var(--fs-2xs);
   font-weight: var(--fw-bold);
   letter-spacing: var(--track-caps);

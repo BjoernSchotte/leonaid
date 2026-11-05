@@ -30,15 +30,16 @@ import type {
 } from "@leonaid/api-client";
 import {
   Badge,
-  Button,
   buttonClassName,
-  EmptyState,
   Icon,
   Meter,
+  EmptyState,
   NextStep,
+  ErrorState,
+  SkeletonRows,
   StatusIcon,
-  type StatusShape,
   StatusMessage,
+  type StatusShape,
 } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
@@ -92,6 +93,13 @@ function selectedActionFromUrl(
     memberships[0]?.actionId ??
     ""
   );
+}
+
+/** A relative link with one more query parameter, with or without a query. */
+export function withParam(href: string, key: string, value: string): string {
+  const url = new URL(href, "https://leonaid.invalid");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function definition(
@@ -305,10 +313,10 @@ function AcquirerDashboard({
     "/app/activities?view=contacts";
   const nextHref =
     data.reminders.overdue > 0
-      ? `${reminderHref}&urgency=overdue`
+      ? withParam(reminderHref, "urgency", "overdue")
       : data.reminders.today > 0
-        ? `${reminderHref}&urgency=today`
-        : `${pipelineHref}&status=open`;
+        ? withParam(reminderHref, "urgency", "today")
+        : withParam(pipelineHref, "status", "open");
   const nextLabel =
     data.reminders.overdue > 0
       ? `${data.reminders.overdue} überfällige ${
@@ -647,7 +655,7 @@ function AdminDashboard({
                         className="window-row"
                         href={href(
                           "admin.delivery",
-                          `/admin/orders?action=${action}&view=windows`,
+                          `/admin/delivery?action=${action}`,
                         )}
                       >
                         <Icon icon={Truck} size={14} />
@@ -898,31 +906,19 @@ export function RoleDashboardPage({
     );
   }
 
-  const loading = (
-    <div
-      aria-label="Dashboard wird geladen"
-      className="dashboard-loading"
-      role="status"
-    >
-      <span />
-      <p>Aktionsstand wird berechnet …</p>
-    </div>
-  );
+  const loading = <SkeletonRows rows={6} />;
   const failed = dashboard.isError ? (
-    <StatusMessage tone="error">
-      <strong>Aktionsstand nicht erreichbar</strong>
-      <p>
-        {
-          actionErrorMessage(dashboard.error, {
-            // The acquirer dashboard is the PWA (du); admins get Sie.
-            address: mode === "acquirer" ? "du" : "Sie",
-          }).message
-        }
-      </p>
-      <Button onClick={() => void dashboard.refetch()} variant="secondary">
-        Erneut laden
-      </Button>
-    </StatusMessage>
+    <ErrorState
+      onRetry={() => void dashboard.refetch()}
+      title="Aktionsstand nicht erreichbar"
+    >
+      {
+        actionErrorMessage(dashboard.error, {
+          // The acquirer dashboard is the PWA (du); admins get Sie.
+          address: mode === "acquirer" ? "du" : "Sie",
+        }).message
+      }
+    </ErrorState>
   ) : null;
 
   // Admin: the campaign comes from the rail switcher (?action=), as in the

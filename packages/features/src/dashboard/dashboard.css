@@ -353,30 +353,6 @@
   font-weight: 720;
 }
 
-.dashboard-loading {
-  display: grid;
-  min-height: 18rem;
-  place-content: center;
-  justify-items: center;
-  gap: 0.7rem;
-  color: var(--text-2);
-}
-
-.dashboard-loading span {
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 999px;
-  animation: dashboard-spin 0.8s linear infinite;
-}
-
-@keyframes dashboard-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 950px) {
   .dashboard-pipeline ol {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -430,7 +406,6 @@
   }
 
   .dashboard-goal progress,
-  .dashboard-goal__spoken,
   .dashboard-goal__configuration {
     grid-column: 1;
   }
@@ -471,12 +446,6 @@
   .dashboard-definitions dl > div {
     grid-template-columns: 1fr;
     gap: 0.15rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-loading span {
-    animation-duration: 2s;
   }
 }
 
@@ -586,10 +555,6 @@
 .window-num {
   text-align: right;
   color: var(--text-2);
-}
-.window-num.is-over {
-  color: var(--danger);
-  font-weight: var(--fw-semibold);
 }
 .dash-facts {
   display: grid;

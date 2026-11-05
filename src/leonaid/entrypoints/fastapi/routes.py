@@ -1049,10 +1049,10 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="admin.delivery",
                     label="Lieferfenster",
                     description=(
-                        "Lieferfenster ab heute und die nicht stornierten "
-                        "Bestellungen darin."
+                        "Lieferfenster ab heute und die verbindlichen "
+                        "Bestellungen darin (ohne Entwürfe und Stornos)."
                     ),
-                    href=f"/admin/orders?action={action}&view=windows",
+                    href=f"/admin/delivery?action={action}",
                 ),
             )
         )

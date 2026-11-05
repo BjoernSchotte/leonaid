@@ -30,16 +30,24 @@ class TaskDeliveryFollowUp:
         action_id: UUID,
         owner_user_id: UUID,
     ) -> UUID:
-        existing = await connection.fetchval(
-            """
-            SELECT list_id FROM task_delivery_follow_up_list
-            WHERE action_id = $1 AND owner_user_id = $2
-            """,
-            action_id,
-            owner_user_id,
+        existing = await self._existing_list(
+            connection, action_id=action_id, owner_user_id=owner_user_id
         )
         if existing is not None:
-            return UUID(str(existing))
+            return existing
+        # Two closures (or a closure and a driver's undo) for the same
+        # owner may create the first list at once. Serialize the creation
+        # per (action, owner) and look again: the board's transactions run
+        # in READ COMMITTED, so the second one sees the first one's list.
+        await connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            f"task-delivery-follow-up-list:{action_id}:{owner_user_id}",
+        )
+        existing = await self._existing_list(
+            connection, action_id=action_id, owner_user_id=owner_user_id
+        )
+        if existing is not None:
+            return existing
         list_id = uuid4()
         await connection.execute(
             """
@@ -61,6 +69,23 @@ class TaskDeliveryFollowUp:
             list_id,
         )
         return list_id
+
+    @staticmethod
+    async def _existing_list(
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        owner_user_id: UUID,
+    ) -> UUID | None:
+        existing = await connection.fetchval(
+            """
+            SELECT list_id FROM task_delivery_follow_up_list
+            WHERE action_id = $1 AND owner_user_id = $2
+            """,
+            action_id,
+            owner_user_id,
+        )
+        return None if existing is None else UUID(str(existing))
 
     async def _audit(
         self,

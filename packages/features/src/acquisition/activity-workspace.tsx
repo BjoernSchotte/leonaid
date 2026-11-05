@@ -10,7 +10,7 @@ import {
   type LeonAidApiClient,
   type RecordAcquisitionActivityRequest,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, Icon, StatusMessage } from "@leonaid/ui";
 
 interface ActivityWorkspaceProps {
   readonly client: LeonAidApiClient;
@@ -175,7 +175,7 @@ function ActivityBoard({
         </div>
       ) : (
         <div className="acq-empty">
-          <ClockAlert aria-hidden="true" size={22} />
+          <Icon icon={ClockAlert} size={20} />
           <strong>
             {reminders.length
               ? "Keine Wiedervorlage in diesem Filter"
@@ -233,7 +233,7 @@ function ActivityBoard({
         </div>
       ) : (
         <div className="acq-empty acq-empty--compact">
-          <NotebookPen aria-hidden="true" size={22} />
+          <Icon icon={NotebookPen} size={20} />
           <strong>Noch kein Kontakt dokumentiert</strong>
           <span>Die erste gespeicherte Aktivität erscheint hier.</span>
         </div>
@@ -377,7 +377,7 @@ export function ActivityWorkspace({
         >
           <div className="acq-section-heading">
             <span aria-hidden="true" className="acq-section-heading__icon">
-              <Phone aria-hidden="true" size={20} />
+              <Icon icon={Phone} size={20} />
             </span>
             <div>
               <h2 id="activity-form-heading">Was ist passiert?</h2>
@@ -607,7 +607,7 @@ export function ActivityWorkspace({
         <section aria-labelledby="reminder-heading" className="acq-board">
           <div className="acq-section-heading">
             <span aria-hidden="true" className="acq-section-heading__icon">
-              <Calendar aria-hidden="true" size={20} />
+              <Icon icon={Calendar} size={20} />
             </span>
             <div>
               <h2 id="reminder-heading">Heute im Blick</h2>
