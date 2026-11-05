@@ -1,3 +1,4 @@
+import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -198,4 +199,70 @@ test("public action page stays readable from 320 to 1440 pixels", async ({
     path: `${artifactDirectory}/public-archive-chromium-1440.png`,
     fullPage: true,
   });
+});
+
+test("the footer names the provider and links the Impressum on every public page", async ({
+  browserName,
+  page,
+}) => {
+  test.skip(browserName !== "chromium", "Content check; parity is above.");
+  const provider = "Lions Hilfswerk LeonAid Golden e.V.";
+  const address = "Clubweg 1 · 86150 Augsburg";
+
+  // Action page: provider and address, Impressum and the page's privacy notice.
+  await page.goto(`${baseUrl}/krapfentaxi`);
+  const legal = page.locator("[data-footer-legal]");
+  await expect(legal.locator("[data-footer-provider]")).toHaveText(
+    `${provider} · ${address}`,
+  );
+  await expect(legal.getByRole("link", { name: "Impressum" })).toHaveAttribute(
+    "href",
+    "/impressum",
+  );
+  await expect(
+    legal.getByRole("link", { name: "Datenschutz" }),
+  ).toHaveAttribute("href", "#datenschutz");
+
+  // A page without an action keeps the Impressum link.
+  await page.goto(`${baseUrl}/`);
+  await expect(
+    page
+      .locator("[data-footer-legal]")
+      .getByRole("link", { name: "Impressum" }),
+  ).toBeVisible();
+
+  // The Impressum comes from the active legal configuration.
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ]) {
+    await page.setViewportSize({ width, height });
+    const response = await page.goto(`${baseUrl}/impressum`);
+    expect(response?.status()).toBe(200);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Impressum" }),
+    ).toBeVisible();
+    await expect(page.locator("[data-imprint-name]")).toHaveText(provider);
+    await expect(page.locator("[data-imprint-address]")).toHaveText(address);
+    await expect(
+      page.getByRole("link", { name: "finanzen@leonaid.invalid" }),
+    ).toHaveAttribute("href", "mailto:finanzen@leonaid.invalid");
+    // Only contact data is public: no tax number, no bank account.
+    await expect(page.locator("main")).not.toContainText("103/999/99999");
+    await expect(page.locator("body")).not.toContainText("DE89");
+    await expectNoHorizontalScroll(page);
+    await expectTouchTargets(page);
+    const accessibility = await analyzeAccessibility(page, { tags: WCAG_TAGS });
+    expect(
+      accessibility.violations
+        .filter((violation) =>
+          ["serious", "critical"].includes(violation.impact),
+        )
+        .map((violation) => violation.id),
+    ).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/public-impressum-${width}.png`,
+      fullPage: true,
+    });
+  }
 });

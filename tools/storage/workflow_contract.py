@@ -28,6 +28,11 @@ from leonaid.domain.sessions import (
     SESSION_LIFETIME,
     session_token_digest,
 )
+from leonaid.domain.calendar import local_day
+
+# The service date must lie in the golden action period, which the seed
+# places around the seed day (tools/seed/golden.py); today always does.
+SERVICE_ON = local_day(datetime.now(timezone.utc)).isoformat()
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMMITMENT_ID = UUID("80000000-0000-4000-8000-000000000002")
@@ -113,7 +118,7 @@ async def prepare(connection: asyncpg.Connection[Any], state_path: Path) -> None
                 "Idempotency-Key": "poc092:invoice:render-storage",
                 "X-Request-ID": "poc092:invoice:render-storage",
             },
-            json={"serviceOn": "2026-11-15"},
+            json={"serviceOn": SERVICE_ON},
         )
         response.raise_for_status()
         invoice = response.json()

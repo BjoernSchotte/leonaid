@@ -21,6 +21,7 @@ import { HotkeyProvider, ToastProvider } from "@leonaid/ui";
 import { InboxPage } from "../../../packages/features/src/inbox/inbox";
 import {
   managesCase,
+  receivedLabel,
   shortDay,
 } from "../../../packages/features/src/inbox/inbox-model";
 import { installDialogPolyfill } from "../../../packages/ui/src/test-utils/dialog-polyfill";
@@ -243,9 +244,12 @@ describe("inbox model", () => {
   });
 
   it("formats the row day as in the prototype", () => {
-    const now = new Date("2026-11-03T12:00:00");
-    expect(shortDay("2026-10-28T09:14:00", now)).toBe("28.10.");
-    expect(shortDay("2025-10-28T09:14:00", now)).toBe("28.10.2025");
+    const now = new Date("2026-11-03T12:00:00+01:00");
+    expect(shortDay("2026-10-28T09:14:00+01:00", now)).toBe("28.10.");
+    expect(shortDay("2025-10-28T09:14:00+01:00", now)).toBe("28.10.2025");
+    // 23:30 UTC is already the next day in Berlin.
+    expect(shortDay("2026-10-28T23:30:00Z", now)).toBe("29.10.");
+    expect(receivedLabel("2026-10-28T08:14:00Z", now)).toBe("28.10. 09:14 Uhr");
   });
 });
 
@@ -285,6 +289,43 @@ describe("inbox list", () => {
     expect(params.get("open")).toBe(id);
     expect(within(pane).getByText(/können wir einen Termin/)).toBeTruthy();
     expect(within(pane).getByText(/mit Einwilligung/)).toBeTruthy();
+  });
+
+  it("links a task chip to the task, not only its list", async () => {
+    const id = caseId(8);
+    const taskId = "70000000-0000-4000-8000-000000000009";
+    const listId = "60000000-0000-4000-8000-000000000003";
+    window.history.replaceState(null, "", `/admin/inbox?open=${id}`);
+    const api = client([inboxCase(id)], {
+      listInboxTaskReferences: vi.fn(async () => ({
+        items: [
+          {
+            taskId,
+            task: {
+              id: taskId,
+              listId,
+              title: "Rückruf vereinbaren",
+              status: "open" as const,
+              checklist: [],
+              createdAt: "2026-11-03T08:00:00Z",
+              createdBy: me,
+              priority: "none" as const,
+              revision: 1,
+              tags: [],
+              updatedAt: "2026-11-03T08:00:00Z",
+            },
+          },
+        ],
+      })),
+    });
+    renderPage(api);
+    const chip = await screen.findByRole("link", {
+      name: /Rückruf vereinbaren · Offen/,
+    });
+    expect(chip.getAttribute("href")).toBe(
+      `/admin/tasks/${listId}?view=all&open=${taskId}`,
+    );
+    expect(chip.getAttribute("title")).toBe("Aufgabe öffnen");
   });
 
   it("explains a case the account cannot open", async () => {

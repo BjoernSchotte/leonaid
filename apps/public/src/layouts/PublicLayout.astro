@@ -14,6 +14,11 @@ import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
 
 import PublicMark from "../components/PublicMark.astro";
+import {
+  providerAddress,
+  readLegalNotice,
+  type LegalNoticeResult,
+} from "../lib/legal-notice";
 
 interface Props {
   canonicalUrl: string;
@@ -25,6 +30,10 @@ interface Props {
   theme?: PublicTheme;
   canOrder?: boolean;
   carrierName?: string;
+  /** In-page target of the privacy notice, when the page renders one. */
+  privacyHref?: string;
+  /** A legal notice the page read already (/impressum); read here otherwise. */
+  legalNotice?: LegalNoticeResult;
   campaignBrand?: {
     name: string;
     logo: { src: string; alt: string; width?: number; height?: number } | null;
@@ -41,8 +50,12 @@ const {
   theme = defaultTheme,
   canOrder = false,
   carrierName,
+  privacyHref,
+  legalNotice: pageLegalNotice,
   campaignBrand,
 } = Astro.props;
+const legalNotice = pageLegalNotice ?? (await readLegalNotice());
+const provider = legalNotice.state === "ready" ? legalNotice.provider : null;
 const shareImage = imageMetadata ?? theme.shareImage;
 const header = theme.header;
 ---
@@ -169,6 +182,32 @@ const header = theme.header;
             )
           }
         </p>
+      </div>
+      {
+        /* Prototype .public-footer-inner: provider and address on the left,
+          Impressum and Datenschutz on the right. */
+      }
+      <div class="site-shell site-footer__legal" data-footer-legal>
+        {
+          provider ? (
+            <span data-footer-provider>
+              {provider.legalName} · {providerAddress(provider)}
+            </span>
+          ) : (
+            carrierName && !theme.campaignFooter && <span>{carrierName}</span>
+          )
+        }
+        <span class="site-footer__links">
+          <a href="/impressum">Impressum</a>
+          {
+            privacyHref && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a href={privacyHref}>Datenschutz</a>
+              </>
+            )
+          }
+        </span>
       </div>
     </footer>
   </body>

@@ -378,6 +378,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
     PublicCampaignRouteResponse,
+    PublicLegalNoticeResponse,
+    PublicLegalProviderResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
@@ -392,7 +394,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     SessionAuthenticationResponse,
     SessionRevocationResponse,
     BeneficiaryResponse,
+    CharityActionListResponse,
     CharityActionResponse,
+    CharityActionSummaryResponse,
     CharityActionConfigurationResponse,
     OrderFormConfigurationResponse,
     SetActionBeneficiariesRequest,
@@ -1049,10 +1053,10 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="admin.delivery",
                     label="Lieferfenster",
                     description=(
-                        "Lieferfenster ab heute und die nicht stornierten "
-                        "Bestellungen darin."
+                        "Lieferfenster ab heute und die verbindlichen "
+                        "Bestellungen darin (ohne Entwürfe und Stornos)."
                     ),
-                    href=f"/admin/orders?action={action}&view=windows",
+                    href=f"/admin/delivery?action={action}",
                 ),
             )
         )
@@ -1869,6 +1873,39 @@ async def ready(request: Request, response: Response) -> ReadinessResponse:
 async def information(request: Request) -> PlatformInformationResponse:
     return PlatformInformationResponse.model_validate(
         platform_service(request).information()
+    )
+
+
+@router.get(
+    "/api/v1/public/legal-notice",
+    operation_id="getPublicLegalNotice",
+    response_model=PublicLegalNoticeResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def get_public_legal_notice(
+    request: Request,
+    response: Response,
+) -> PublicLegalNoticeResponse:
+    """Impressum provider of the installation (one per club, all hosts).
+
+    Only the carrier's name, postal address and contact e-mail leave the
+    active legal configuration; tax, bank and evidence data stay internal.
+    """
+    configuration = await legal_configuration_service(request).active_configuration()
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    if configuration is None:
+        return PublicLegalNoticeResponse(provider=None)
+    issuer = configuration.configuration.issuer
+    return PublicLegalNoticeResponse(
+        provider=PublicLegalProviderResponse(
+            legal_name=issuer.legal_name,
+            street_line_1=issuer.street_line_1,
+            postal_code=issuer.postal_code,
+            city=issuer.city,
+            country_code=issuer.country_code,
+            email=issuer.email,
+        )
     )
 
 
@@ -3178,6 +3215,46 @@ async def create_charity_action_from_template(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Location"] = f"/api/v1/actions/{action.id}/configuration"
     return charity_action_configuration_response(action, configuration)
+
+
+@router.get(
+    "/api/v1/actions",
+    operation_id="listCharityActions",
+    response_model=CharityActionListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def list_charity_actions(
+    request: Request,
+    response: Response,
+) -> CharityActionListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    summaries = await action_service(request).list_managed(actor)
+    response.headers["Cache-Control"] = "no-store"
+    return CharityActionListResponse(
+        items=[
+            CharityActionSummaryResponse(
+                id=item.id,
+                name=item.name,
+                status=item.status.value,
+                starts_on=item.starts_on,
+                ends_on=item.ends_on,
+                template_name=item.template_name,
+                lead_names=list(item.lead_names),
+                goal=ActionGoalResponse(
+                    goal_value=(
+                        decimal_text(item.goal.goal_value)
+                        if item.goal.goal_value is not None
+                        else None
+                    ),
+                    actual_value=decimal_text(item.goal.actual_value),
+                    unit=item.goal.unit,
+                    currency=item.goal.currency,
+                ),
+            )
+            for item in summaries
+        ]
+    )
 
 
 @router.post(

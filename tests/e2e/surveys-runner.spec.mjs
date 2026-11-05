@@ -82,7 +82,16 @@ test("acknowledged text survives closing mid-page and hidden follow-up is remove
     viewport,
   });
   let page = await context.newPage();
-  await page.goto(`${baseURL}/surveys/${surveyId}`);
+  const surveyResponse = await page.goto(`${baseURL}/surveys/${surveyId}`);
+  // The page styles ship as a stylesheet file, never as a <style> element.
+  const surveyHtml = (await surveyResponse?.text()) ?? "";
+  expect(surveyHtml).not.toMatch(/<style[\s>]/);
+  expect(surveyHtml).toMatch(/<link[^>]+rel="stylesheet"[^>]+\.css/);
+  expect(
+    await page
+      .getByRole("button", { name: "Umfrage beginnen" })
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(0, 51, 141)");
   await page.getByRole("button", { name: "Umfrage beginnen" }).click();
   await expect(page.locator("[data-name=delivery_rating]")).toBeVisible();
   expect(

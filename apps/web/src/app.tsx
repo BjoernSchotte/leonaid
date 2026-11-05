@@ -395,7 +395,7 @@ export function App({ client }: AppProps) {
                 mode="charity_admin"
               />
             ) : (
-              <ActionListPage identity={identity.data} />
+              <ActionListPage client={client} />
             )}
           </CampaignUrlGate>
         </div>

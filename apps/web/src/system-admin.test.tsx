@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -180,15 +181,16 @@ const identity = {
   userId: "10000000-0000-4000-8000-000000000001",
 } as unknown as CurrentIdentityResponse;
 
+let queryClient: QueryClient;
+
 function renderPage(url: string) {
   window.history.replaceState(null, "", url);
   const client = fakeClient();
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
+    <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <HotkeyProvider>
           <FeatureFlagProvider
@@ -267,6 +269,31 @@ describe("SystemPage", () => {
     );
     await waitFor(() =>
       expect(client.retryOperationalJob).toHaveBeenCalledWith("job-1"),
+    );
+  });
+
+  it("keeps the last overview and an open dialog when a refresh fails", async () => {
+    const client = renderPage("/admin/system/jobs");
+    fireEvent.click(await screen.findByTestId("retry-job-job-1"));
+    const dialog = await screen.findByRole("alertdialog");
+    client.getOperationsOverview.mockRejectedValueOnce(new Error("offline"));
+    await act(() =>
+      queryClient.refetchQueries({ queryKey: ["operations-overview"] }),
+    );
+    expect(
+      await screen.findByText(
+        "Betriebsstatus konnte nicht aktualisiert werden",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByTestId("retry-job-job-1")).toBeTruthy();
+    expect(dialog.isConnected).toBe(true);
+    expect(screen.queryByText("Betriebsstatus nicht erreichbar")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt neu laden" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Betriebsstatus konnte nicht aktualisiert werden"),
+      ).toBeNull(),
     );
   });
 

@@ -133,14 +133,19 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   api tools/public_orders/admin_session.py /proof/admin-session.env
 
 # The browser step may switch on delivery windows; undo a leftover from an
-# interrupted run first, and always undo it again afterwards.
+# interrupted run first, and always undo it again afterwards. The spec lists
+# its windows (and an extended action period) in a state file that outlives
+# this run's proof directory, so the next run can undo an interrupted one.
+delivery_state="$root/.artifacts/public-orders/delivery-state"
+mkdir -p "$delivery_state"
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
+  --volume "$delivery_state:/delivery-state" \
   --workdir /repo \
   --entrypoint python \
-  api tools/public_orders/delivery_cleanup.py
+  api tools/public_orders/delivery_cleanup.py /delivery-state/state.json
 set +e
 docker run --rm \
   --network "${project}_edge" \
@@ -148,9 +153,11 @@ docker run --rm \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env LEONAID_E2E_DELIVERY_STATE=/delivery-state/state.json \
   --env-file "$proof/admin-session.env" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
+  --volume "$delivery_state:/delivery-state" \
   --workdir /workspace \
   --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
@@ -167,9 +174,10 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
+  --volume "$delivery_state:/delivery-state" \
   --workdir /repo \
   --entrypoint python \
-  api tools/public_orders/delivery_cleanup.py
+  api tools/public_orders/delivery_cleanup.py /delivery-state/state.json
 [ "$browser_status" -eq 0 ]
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \

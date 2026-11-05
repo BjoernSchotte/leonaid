@@ -1,5 +1,6 @@
 import type { LeonAidApiClient } from "@leonaid/api-client";
 
+import type { Address } from "./task-copy";
 import {
   AccessMembersPanel,
   type AccessMemberSource,
@@ -33,16 +34,22 @@ export function ListMembersPanel({
   client,
   listId,
   actionScoped,
+  address,
+  embedded,
 }: {
   client: LeonAidApiClient;
   listId: string;
   actionScoped: boolean;
+  address: Address;
+  embedded?: boolean;
 }) {
   return (
     <AccessMembersPanel
       objectId={listId}
       source={taskListSource(client, listId)}
       actionScoped={actionScoped}
+      address={address}
+      embedded={embedded}
     />
   );
 }

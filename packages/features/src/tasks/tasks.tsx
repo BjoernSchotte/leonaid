@@ -58,6 +58,7 @@ import {
 } from "@leonaid/ui";
 
 import { consumeCreateRequest } from "../command-palette/create-request";
+import { TIME_ZONE } from "../shared/dates";
 import { useContextCommands } from "../command-palette/store";
 import type { ModulePageContext } from "../modules";
 import { says, type Address } from "./task-copy";
@@ -254,9 +255,8 @@ function TasksWorkspace({
   useEffect(() => {
     if (needsDone) setDoneWanted(true);
   }, [needsDone]);
-  const timeZone = useRef(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  ).current;
+  // Plan views bucket by the club's calendar day, like localIsoDate().
+  const timeZone = TIME_ZONE;
   const open = useAllPages(["tasks", "open", listId ?? null], (offset) =>
     client.listTasks({
       listId,
@@ -1332,7 +1332,17 @@ function TasksWorkspace({
           }
           identity={identity}
           lists={quickLists}
+          listsStatus={
+            listId
+              ? "ready"
+              : editableLists.isPending
+                ? "loading"
+                : editableLists.isError
+                  ? "error"
+                  : "ready"
+          }
           onClose={() => setAdding(false)}
+          onRetryLists={() => void editableLists.refetch()}
           onNeedList={() => setTool("lists")}
           planToday={!listId && listState?.viewId === "plan"}
         />
@@ -1353,6 +1363,7 @@ function TasksWorkspace({
       ) : null}
       {tool === "access" && selected.data?.canEdit ? (
         <TaskListAccess
+          address={address}
           client={client}
           list={selected.data}
           onClose={() => setTool(null)}
@@ -1410,6 +1421,24 @@ function TasksWorkspace({
         <p className="small subtle task-note" role="status">
           Erledigte Aufgaben werden geladen …
         </p>
+      ) : null}
+      {status === "ready" && needsDone && done.failed ? (
+        // Mixed views still show the open tasks; say that the done ones
+        // and the count are missing instead of failing silently.
+        <StatusMessage tone="error">
+          <p>
+            Erledigte Aufgaben konnten nicht geladen werden. Die Liste zeigt nur
+            offene Aufgaben.
+          </p>
+          <Button
+            loading={done.query.isFetching}
+            onClick={() => void done.query.refetch()}
+            size="sm"
+            variant="secondary"
+          >
+            Erledigte erneut laden
+          </Button>
+        </StatusMessage>
       ) : null}
       {status === "ready" && truncated.length > 0 ? (
         <StatusMessage tone="info">

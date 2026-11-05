@@ -445,8 +445,11 @@ export function AppliedSelection({ info }: { info: SelectionInfo }) {
       Antwortstand: Version {info.versionNumber} ·{" "}
       {filter.statuses.map((s) => responseStatusLabels[s]).join(", ")} ·{" "}
       {filter.isTest ? "Testteilnahmen" : "Echte Teilnahmen"} ·{" "}
-      {info.total === null ? "weniger als 5" : info.total} Teilnahmen. Stand vom{" "}
-      {new Date(info.createdAt).toLocaleString("de-DE")} ({zone}). Zeitraum:{" "}
+      {info.total === null
+        ? `weniger als ${info.minimumGroupSize}`
+        : info.total}{" "}
+      Teilnahmen. Stand vom {new Date(info.createdAt).toLocaleString("de-DE")} (
+      {zone}). Zeitraum:{" "}
       {filter.createdFrom
         ? `ab ${new Date(filter.createdFrom).toLocaleString("de-DE")}`
         : "offener Beginn"}{" "}
@@ -466,9 +469,13 @@ export interface SelectionInfo {
   readonly createdAt: string;
   readonly versionNumber: number;
   readonly filter: ResolvedAnalysisFilter;
-  /** null: fewer than 5 (withheld). */
+  /** null: fewer than `minimumGroupSize` (withheld). */
   readonly total: number | null;
+  readonly minimumGroupSize: number;
 }
+
+/** The server's minimum group size when a response omits it. */
+const DEFAULT_MINIMUM_GROUP_SIZE = 5;
 
 interface Loaded {
   readonly info: SelectionInfo;
@@ -503,8 +510,11 @@ const infoOf = (
   createdAt: value.createdAt,
   versionNumber: value.versionNumber,
   filter: value.filter,
-  // A disclosed size of 1-4 is withheld (null).
+  // A disclosed size below the minimum group size is withheld (null).
   total: "total" in value ? value.total : value.participationCount,
+  minimumGroupSize:
+    ("minimumGroupSize" in value ? value.minimumGroupSize : undefined) ??
+    DEFAULT_MINIMUM_GROUP_SIZE,
 });
 
 const fromSelection = (selection: ResponseSelection): Loaded => ({
@@ -647,6 +657,17 @@ function SurveyResponses({
   const mounted = useRef(true);
   /* Aborts a running create() when the page goes away. */
   const createAbort = useRef<AbortController | null>(null);
+  /* After choosing a new Antwortstand the view remounts (keyed by its id):
+     focus its heading, not the lost opener. */
+  const focusHeading = useRef(false);
+  useEffect(() => {
+    if (load.kind !== "ready" || !focusHeading.current) return;
+    focusHeading.current = false;
+    const heading = document.querySelector<HTMLElement>(".svr-page h1");
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus();
+  }, [load]);
   useEffect(
     () => () => {
       mounted.current = false;
@@ -757,6 +778,7 @@ function SurveyResponses({
       setRetry(false);
       setNotice("");
       setChoosing(false);
+      focusHeading.current = true;
       setLoad({ kind: "ready", data });
     } catch (cause) {
       if (!mounted.current) return;
@@ -864,6 +886,8 @@ function SurveyResponses({
         />
         {chooser}
         <FreeTextDialog
+          // A sibling of the list, which is keyed by the same id (M44).
+          key={`free-text-${selection.id}`}
           client={client}
           initialQuestion={freeTextQuestion}
           onClose={() => {
@@ -981,7 +1005,11 @@ function SelectionForm({
       ) : null}
       <fieldset className="svr-fields" disabled={busy || retry}>
         <legend className="sr-only">Antwortstand auswählen</legend>
-        <Field label="Version der Einzelantworten">
+        <Field
+          label={
+            daysOnly ? "Fragebogen-Version" : "Version der Einzelantworten"
+          }
+        >
           <select
             value={filter.version}
             onChange={(e) => onChange({ ...filter, version: e.target.value })}

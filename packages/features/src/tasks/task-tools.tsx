@@ -241,10 +241,12 @@ export function TaskListNavigation({
 
 /** "Zugriff verwalten" of the current list (editors only). */
 export function TaskListAccess({
+  address,
   client,
   list,
   onClose,
 }: {
+  readonly address: Address;
   readonly client: LeonAidApiClient;
   readonly list: TaskList;
   readonly onClose: () => void;
@@ -257,6 +259,8 @@ export function TaskListAccess({
     >
       <ListMembersPanel
         actionScoped={!!list.actionId}
+        address={address}
+        embedded
         client={client}
         listId={list.id}
       />

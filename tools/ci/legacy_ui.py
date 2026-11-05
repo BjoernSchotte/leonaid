@@ -103,6 +103,9 @@ ALLOWED = {Path("packages/ui/src/styles/contrast.test.ts")}
 
 
 def files(root: Path) -> Iterator[Path]:
+    # The workspace root manifest holds the shared devDependencies.
+    if (root / "package.json").is_file():
+        yield root / "package.json"
     for top in ROOTS:
         base = root / top
         if not base.is_dir():
@@ -134,8 +137,11 @@ def _dependency_names(value: object) -> Iterator[str]:
 def _manifest_findings(path: Path, relative: Path) -> list[str]:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    except (OSError, ValueError) as error:
+        # An unreadable manifest must not pass silently.
+        return [f"{relative}: package.json cannot be parsed ({error})"]
+    if not isinstance(manifest, dict):
+        return [f"{relative}: package.json is not a JSON object"]
     result: list[str] = []
     for field in DEPENDENCY_FIELDS:
         for name in _dependency_names(manifest.get(field)):

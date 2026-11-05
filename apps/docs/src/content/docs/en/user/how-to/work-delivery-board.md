@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 2
 reviewedRevision: 2
 verifiedAgainst: a255af208a20325a525d9fa2f88f6e5642ad5c73
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 **Role:** Charity Admin of the campaign for the board; drivers for their own

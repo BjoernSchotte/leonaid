@@ -272,9 +272,10 @@ async def prove() -> None:
         from tools.delivery.completion import prove_completion
 
         await prove_completion(pool, action.id, admin_id)
-        from tools.delivery.board import prove_board
+        from tools.delivery.board import prove_board, prove_follow_up_list_race
 
         await prove_board(pool, action.id, admin_id)
+        await prove_follow_up_list_race(pool, action.id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)

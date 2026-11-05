@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQueries,
@@ -52,6 +53,7 @@ import {
   useActionContexts,
 } from "../shared/action-contexts";
 import { downloadMaterial } from "./download";
+import { useDebouncedValue } from "../shared/use-debounced-value";
 import "./materials.css";
 
 type Address = "Sie" | "du";
@@ -382,6 +384,7 @@ function MaterialRow({
   client,
   expanded,
   focusable,
+  actionName,
   material,
   onAccess,
   onFocus,
@@ -390,6 +393,8 @@ function MaterialRow({
   registerToggle,
   userId,
 }: {
+  /** The campaign's name (prototype subtitle), or null for own material. */
+  readonly actionName: string | null;
   readonly address: Address;
   readonly client: LeonAidApiClient;
   readonly expanded: boolean;
@@ -486,7 +491,7 @@ function MaterialRow({
           <span className="material-text">
             <span className="material-title">{material.title}</span>
             <span className="small subtle">
-              {material.actionId ? "Aktionsmaterial" : "Eigenständig"} · {count}{" "}
+              {actionName ?? "Eigenständig"} · {count}{" "}
               {count === 1 ? "Version" : "Versionen"}
             </span>
           </span>
@@ -649,17 +654,21 @@ export function MaterialsPage({
   const [access, setAccess] = useState<Material | null>(null);
   const toggles = useRef(new Map<string, HTMLButtonElement>());
 
+  // Typing waits for a pause; the previous result stays while the next
+  // loads, so the list does not flash "loading" on every keystroke.
+  const query = useDebouncedValue(search);
   const list = useInfiniteQuery({
-    queryKey: ["materials", search, actionId],
+    queryKey: ["materials", query, actionId],
     queryFn: ({ pageParam }) =>
       client.listMaterials({
-        search,
+        search: query,
         offset: pageParam,
         limit: PAGE,
         actionId: actionId || undefined,
       }),
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextOffset ?? undefined,
+    placeholderData: keepPreviousData,
     retry: false,
   });
   // A deep link (/materials/<id>, search hits) shows that material first,
@@ -873,6 +882,13 @@ export function MaterialsPage({
         <ul className="materials">
           {items.map((item, index) => (
             <MaterialRow
+              actionName={
+                item.actionId
+                  ? (contexts.knownActions.find(
+                      ([known]) => known === item.actionId,
+                    )?.[1] ?? "Charity-Aktion")
+                  : null
+              }
               address={address}
               client={client}
               expanded={open.has(item.id)}
@@ -941,6 +957,7 @@ export function MaterialsPage({
         {access ? (
           <AccessMembersPanel
             actionScoped={!!access.actionId}
+            address={address}
             objectId={access.id}
             source={materialMemberSource(client, access.id)}
           />

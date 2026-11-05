@@ -422,7 +422,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
           href="/admin/system"
         >
           <ChevronLeft aria-hidden="true" size={18} />
-          Feature-Flags
+          Betrieb
         </a>
       </header>
 
@@ -850,10 +850,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         </div>
       </section>
 
-      <section
-        aria-labelledby="semantics"
-        className="ui-catalog-section ui-catalog-section--compact"
-      >
+      <section aria-labelledby="semantics" className="ui-catalog-section">
         <PatternHeading
           description="Komponenten verwenden ausschließlich semantische Tokens und freie Icon-Pakete."
           id="semantics"

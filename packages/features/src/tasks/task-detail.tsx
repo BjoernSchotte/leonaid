@@ -5,8 +5,9 @@ import {
   CalendarDays,
   Eye,
   FolderInput,
+  Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
   Avatar,
@@ -15,11 +16,12 @@ import {
   DetailProps,
   DetailSection,
   Icon,
+  IconButton,
   useOptionalToast,
 } from "@leonaid/ui";
 
 import { says, type Address } from "./task-copy";
-import { TaskEditor, TaskPlanPanel } from "./task-editor";
+import { TaskEditor, TaskPlanPanel, type Task } from "./task-editor";
 import {
   formatDateTime,
   localIsoDate,
@@ -181,7 +183,13 @@ export function TaskDetail({
 
       <TaskSteps address={address} client={client} row={row} />
 
-      {task.canEdit ? <ListAudience client={client} row={row} /> : null}
+      {task.canEdit ? (
+        <ListAudience
+          client={client}
+          listHref={listPage ? null : `${basePath}/${task.listId}`}
+          row={row}
+        />
+      ) : null}
 
       {move ? (
         <TaskMoveSection
@@ -229,6 +237,10 @@ export function TaskDetail({
 }
 
 /** Checklist with direct toggles, as in the prototype's "Schritte". */
+/**
+ * "Schritte" (prototype): tick, add and remove steps; each change is saved
+ * at once as a structure revision. This is the only checklist in the pane.
+ */
 function TaskSteps({
   address,
   client,
@@ -241,18 +253,29 @@ function TaskSteps({
   const { task } = row;
   const cache = useQueryClient();
   const toast = useOptionalToast();
-  const toggle = useMutation({
-    mutationFn: (stepId: string) =>
+  const inputId = useId();
+  const [newStep, setNewStep] = useState("");
+  // The steps as just changed, shown until the task's next revision arrives.
+  const [shown, setShown] = useState<{
+    readonly revision: number;
+    readonly checklist: Task["checklist"];
+  } | null>(null);
+  const checklist =
+    shown && shown.revision === task.revision
+      ? shown.checklist
+      : task.checklist;
+  const save = useMutation({
+    onMutate: (next) => setShown({ revision: task.revision, checklist: next }),
+    mutationFn: (checklist: Task["checklist"]) =>
       client.setTaskStructure(task.id, {
         idempotencyKey: crypto.randomUUID(),
         expectedRevision: task.revision,
         priority: task.priority,
         tagIds: task.tags.map((tag) => tag.id),
-        checklist: task.checklist.map((step) =>
-          step.id === stepId ? { ...step, done: !step.done } : step,
-        ),
+        checklist,
       }),
-    onError: (error) =>
+    onError: (error) => {
+      setShown(null);
       toast?.show({
         title: "Der Schritt wurde nicht gespeichert.",
         description:
@@ -264,44 +287,106 @@ function TaskSteps({
                 "Bitte versuchen Sie es erneut.",
               ),
         tone: "error",
-      }),
+      });
+    },
     onSettled: () => cache.invalidateQueries({ queryKey: ["tasks"] }),
   });
-  const done = task.checklist.filter((step) => step.done).length;
+  const done = checklist.filter((step) => step.done).length;
+  const add = () => {
+    const text = newStep.trim();
+    if (!text || checklist.length >= 100) return;
+    save.mutate(
+      [...checklist, { id: crypto.randomUUID(), text, done: false }],
+      {
+        onSuccess: () => setNewStep(""),
+      },
+    );
+  };
   return (
     <DetailSection
       title={
         <>
           Schritte{" "}
-          {task.checklist.length ? (
+          {checklist.length ? (
             <span className="num">
-              · {done} von {task.checklist.length}
+              · {done} von {checklist.length}
             </span>
           ) : null}
         </>
       }
     >
-      {task.checklist.length === 0 ? (
+      {checklist.length === 0 ? (
         <p className="small subtle">Noch keine Schritte.</p>
       ) : (
         <ul className="steps">
-          {task.checklist.map((step) => (
+          {checklist.map((step, index) => (
             <li key={step.id}>
               <label className="checkbox">
                 <input
                   checked={step.done}
-                  disabled={!task.canEdit || toggle.isPending}
-                  onChange={() => toggle.mutate(step.id)}
+                  disabled={!task.canEdit || save.isPending}
+                  onChange={() =>
+                    save.mutate(
+                      checklist.map((item) =>
+                        item.id === step.id
+                          ? { ...item, done: !item.done }
+                          : item,
+                      ),
+                    )
+                  }
                   type="checkbox"
                 />
                 <span className={step.done ? "is-struck" : undefined}>
                   {step.text}
                 </span>
               </label>
+              {task.canEdit ? (
+                <IconButton
+                  disabled={save.isPending}
+                  icon={Trash2}
+                  label={`Schritt ${index + 1} entfernen`}
+                  onClick={() =>
+                    save.mutate(checklist.filter((item) => item.id !== step.id))
+                  }
+                  size="sm"
+                />
+              ) : null}
             </li>
           ))}
         </ul>
       )}
+      {task.canEdit ? (
+        <form
+          className="steps-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            add();
+          }}
+        >
+          <label className="sr-only" htmlFor={inputId}>
+            Neuer Schritt
+          </label>
+          <input
+            className="input"
+            disabled={save.isPending}
+            id={inputId}
+            maxLength={500}
+            onChange={(event) => setNewStep(event.target.value)}
+            placeholder="Neuer Schritt"
+            value={newStep}
+          />
+          <Button
+            disabled={
+              !newStep.trim() || save.isPending || checklist.length >= 100
+            }
+            size="sm"
+            type="submit"
+            variant="secondary"
+          >
+            Schritt hinzufügen
+          </Button>
+        </form>
+      ) : null}
     </DetailSection>
   );
 }
@@ -426,9 +511,12 @@ function TaskMoveSection({
 /** "Wer die Liste sieht": the list's members, for people who manage it. */
 function ListAudience({
   client,
+  listHref,
   row,
 }: {
   readonly client: LeonAidApiClient;
+  /** The list page, where "Zugriff verwalten" is; null on that page. */
+  readonly listHref: string | null;
   readonly row: TaskRow;
 }) {
   const members = useQuery({
@@ -472,7 +560,14 @@ function ListAudience({
       ) : null}
       {members.data.nextOffset !== null ? (
         <p className="small subtle">
-          Weitere Mitglieder unter „Zugriff verwalten“.
+          {listHref ? (
+            <>
+              Weitere Mitglieder in der{" "}
+              <a href={listHref}>Liste unter „Zugriff verwalten“</a>.
+            </>
+          ) : (
+            "Weitere Mitglieder unter „Zugriff verwalten“."
+          )}
         </p>
       ) : null}
     </DetailSection>

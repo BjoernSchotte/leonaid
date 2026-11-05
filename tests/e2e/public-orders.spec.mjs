@@ -1,5 +1,5 @@
 import { expect, test } from "./csp-guard.mjs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -21,6 +21,8 @@ async function openOrderForm(page) {
   });
   expect(response?.status()).toBe(200);
   expect(response?.headers()["cache-control"]).toContain("no-store");
+  // Styles ship as files; the footer links the page's privacy notice.
+  expect(await response?.text()).not.toMatch(/<style[\s>]/);
   await expect(page.locator("body")).toHaveClass("taxi-site");
   await expect(page.locator(".taxi-hero__logo")).toBeVisible();
   await page.getByRole("link", { name: "Jetzt bestellen" }).click();
@@ -30,6 +32,15 @@ async function openOrderForm(page) {
   await expect(
     page.locator('form[action*="lions-krapfentaxi.de"]'),
   ).toHaveCount(0);
+  const legal = page.locator("[data-footer-legal]");
+  await expect(legal.getByRole("link", { name: "Impressum" })).toHaveAttribute(
+    "href",
+    "/impressum",
+  );
+  await expect(
+    legal.getByRole("link", { name: "Datenschutz" }),
+  ).toHaveAttribute("href", "#datenschutz");
+  await expect(page.locator("#datenschutz")).toHaveCount(1);
   await expect(form.getByText("Menge und Bestellwert")).toBeVisible();
   await expect(
     form.getByText("Eine bestehende Firma wird automatisch erkannt."),
@@ -423,6 +434,74 @@ const windowRequest = ({ id, deliveryOn, startsAt, endsAt, retired }) => ({
   retired,
 });
 
+// tools/public_orders/delivery_cleanup.py reads this file around the
+// browser step: the proof window IDs to retire.
+const deliveryProofPath =
+  process.env.LEONAID_E2E_DELIVERY_STATE ??
+  `${artifactDirectory}/public-orders-delivery.json`;
+
+async function recordDeliveryProof(change) {
+  let proof = { windowIds: [] };
+  try {
+    proof = JSON.parse(await readFile(deliveryProofPath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  await writeFile(deliveryProofPath, JSON.stringify(change(proof)));
+}
+
+/** A calendar day in Berlin, `days` from today. */
+function berlinDay(days) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(
+    new Date(Date.now() + days * 86_400_000),
+  );
+}
+
+/**
+ * The proof windows lie two days ahead: a new window must start after now
+ * and inside the action period. The seed runs the golden action from 60
+ * days before to 75 days after the seed day (tools/seed/golden.py).
+ */
+const proofDeliveryDay = () => berlinDay(2);
+
+async function addProofWindows(request, actionId, day) {
+  const configured = await deliveryConfiguration(
+    request,
+    actionId,
+    (configuration) => ({
+      expectedRevision: configuration.revision,
+      enabled: true,
+      timezone: configuration.timezone,
+      windows: [
+        ...configuration.windows.map(windowRequest),
+        { deliveryOn: day, startsAt: "08:00", endsAt: "10:00" },
+        { deliveryOn: day, startsAt: "10:00", endsAt: "12:00" },
+      ],
+    }),
+  );
+  const added = configured.windows
+    .filter((window) => window.deliveryOn === day && !window.retired)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  expect(added).toHaveLength(2);
+  await recordDeliveryProof((proof) => ({
+    ...proof,
+    windowIds: [...proof.windowIds, ...added.map((window) => window.id)],
+  }));
+  return added;
+}
+
+async function retireAllWindows(request, actionId) {
+  await deliveryConfiguration(request, actionId, (configuration) => ({
+    expectedRevision: configuration.revision,
+    enabled: true,
+    timezone: configuration.timezone,
+    windows: configuration.windows.map((window) => ({
+      ...windowRequest(window),
+      retired: true,
+    })),
+  }));
+}
+
 async function deliveryConfiguration(request, actionId, change) {
   const url = `${baseUrl}/api/v1/actions/${actionId}/delivery-configuration`;
   const current = await request.get(url);
@@ -454,17 +533,9 @@ test("an unselected delivery window is listed and linked in the error summary", 
   ]);
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  await deliveryConfiguration(page.request, actionId, (configuration) => ({
-    expectedRevision: configuration.revision,
-    enabled: true,
-    timezone: configuration.timezone,
-    windows: [
-      ...configuration.windows.map(windowRequest),
-      { deliveryOn: "2026-11-12", startsAt: "08:00", endsAt: "10:00" },
-      { deliveryOn: "2026-11-12", startsAt: "10:00", endsAt: "12:00" },
-    ],
-  }));
+  const day = proofDeliveryDay();
   try {
+    await addProofWindows(page.request, actionId, day);
     form = await openOrderForm(page);
     const windows = form.locator('input[name="deliveryWindowId"]');
     await expect(windows).toHaveCount(2);
@@ -492,15 +563,7 @@ test("an unselected delivery window is listed and linked in the error summary", 
   } finally {
     // Retire the proof windows; tools/public_orders/delivery_cleanup.py then
     // restores the golden state (planning cannot be switched off by API).
-    await deliveryConfiguration(page.request, actionId, (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: configuration.windows.map((window) => ({
-        ...windowRequest(window),
-        retired: true,
-      })),
-    }));
+    await retireAllWindows(page.request, actionId);
   }
 });
 
@@ -529,23 +592,9 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   const page = await context.newPage();
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  const configured = await deliveryConfiguration(
-    page.request,
-    actionId,
-    (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: [
-        ...configuration.windows.map(windowRequest),
-        { deliveryOn: "2026-11-12", startsAt: "08:00", endsAt: "10:00" },
-        { deliveryOn: "2026-11-12", startsAt: "10:00", endsAt: "12:00" },
-      ],
-    }),
-  );
-  const [first, second] = configured.windows
-    .filter((window) => window.deliveryOn === "2026-11-12" && !window.retired)
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const day = proofDeliveryDay();
+  let first;
+  let second;
   const markFull = async (window, fullyBooked) => {
     const response = await page.request.put(
       `${baseUrl}/api/v1/actions/${actionId}/delivery-windows/${window.id}/fully-booked`,
@@ -556,6 +605,7 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   const radio = (window) =>
     form.locator(`input[name="deliveryWindowId"][value="${window.id}"]`);
   try {
+    [first, second] = await addProofWindows(page.request, actionId, day);
     // A full window is listed, marked and not selectable.
     await markFull(first, true);
     form = await openOrderForm(page);
@@ -567,12 +617,65 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
       fullPage: true,
     });
 
-    // All full: the form says so.
+    // A free window left: ordering stays possible.
+    const submit = () => form.locator("[data-order-submit]");
+    const blocked = () => form.locator("[data-order-submit-blocked]");
+    await expect(submit()).toBeEnabled();
+    await expect(blocked()).toBeHidden();
+
+    // All full: the form says so and "Verbindlich bestellen" is off.
     await markFull(second, true);
     form = await openOrderForm(page);
     await expect(
       form.getByText("Alle Lieferfenster sind ausgebucht."),
     ).toBeVisible();
+    await expect(submit()).toBeDisabled();
+    await expect(blocked()).toBeVisible();
+    await expect(blocked()).toContainText(
+      "Bestellen ist gerade nicht möglich, weil kein Lieferfenster frei ist.",
+    );
+    await expect(submit()).toHaveAttribute(
+      "aria-describedby",
+      "order-submit-blocked",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/public-order-all-full-mobile.png`,
+      fullPage: true,
+    });
+
+    // The same without JavaScript: the server renders the button disabled.
+    const noScript = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      javaScriptEnabled: false,
+      userAgent: "LeonAid public-order proof (ausgebucht, no JavaScript)",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const plain = await noScript.newPage();
+      await plain.goto(`${baseUrl}/krapfentaxi`, { waitUntil: "networkidle" });
+      const plainForm = plain.locator("[data-order-form]");
+      await expect(plainForm.locator("[data-order-submit]")).toBeDisabled();
+      await expect(
+        plainForm.locator("[data-order-submit-blocked]"),
+      ).toBeVisible();
+      await expect(
+        plainForm.getByText("Alle Lieferfenster sind ausgebucht."),
+      ).toBeVisible();
+    } finally {
+      await noScript.close();
+    }
+
+    // A window frees up while the form is open: refreshing the windows
+    // enables ordering again.
+    await markFull(second, false);
+    await form.locator("[data-delivery-refresh]").click();
+    await expect(form.locator("[data-delivery-refresh-status]")).toContainText(
+      "Die Lieferfenster sind aktuell.",
+    );
+    await expect(radio(second)).toBeEnabled();
+    await expect(submit()).toBeEnabled();
+    await expect(blocked()).toBeHidden();
+    await expect(submit()).not.toHaveAttribute("aria-describedby", /.+/);
 
     // Stale form: the chosen window fills before the order is sent.
     await markFull(first, false);
@@ -613,15 +716,7 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   } finally {
     // Retiring also clears "ausgebucht"; delivery_cleanup.py then restores
     // the golden state.
-    await deliveryConfiguration(page.request, actionId, (configuration) => ({
-      expectedRevision: configuration.revision,
-      enabled: true,
-      timezone: configuration.timezone,
-      windows: configuration.windows.map((window) => ({
-        ...windowRequest(window),
-        retired: true,
-      })),
-    }));
+    await retireAllWindows(page.request, actionId);
     await context.close();
   }
 });

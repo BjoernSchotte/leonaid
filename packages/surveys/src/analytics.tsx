@@ -31,6 +31,8 @@ export interface AnalyticsMessages {
   /** "{k}" is replaced by the minimum group size. */
   tooFewParticipants: string;
   tooFewAnswers: string;
+  /** Explains the "–" marker; "{k}" as above. */
+  withheldLegend: string;
   /** A question selected by a number, date or text answer (settled). */
   unreleasedCondition: string;
 }
@@ -69,7 +71,8 @@ export const englishAnalytics: AnalyticsMessages = {
   tooFewParticipants:
     "Fewer than {k} participants: results are not shown, so no one can be identified.",
   tooFewAnswers:
-    "Fewer than {k} valid answers: this question is not evaluated, so no one can be identified.",
+    "Fewer than {k} valid answers or derivable from them: not evaluated, so no one can be identified.",
+  withheldLegend: "“–” hidden: fewer than {k} people or derivable from them.",
   unreleasedCondition:
     "Hidden: this question depends on a free-text or number answer.",
 };
@@ -95,14 +98,18 @@ function Distribution({
             <span>{bucket.label}</span>
             <span className="survey-analytics-track">
               <span
-                style={{
-                  width: `${Math.max(0, Math.min(100, bucket.percentage ?? 0))}%`,
-                }}
+                ref={(element) =>
+                  // CSSOM, not a style attribute (strict CSP, M49).
+                  element?.style.setProperty(
+                    "width",
+                    `${Math.max(0, Math.min(100, bucket.percentage ?? 0))}%`,
+                  )
+                }
               />
             </span>
             <span>
               {c(bucket.count)} ·{" "}
-              {bucket.percentage === null ? "—" : `${n(bucket.percentage)} %`}
+              {bucket.percentage === null ? "–" : `${n(bucket.percentage)} %`}
             </span>
           </div>
         ))}
@@ -133,7 +140,7 @@ function Distribution({
                   <td>{c(bucket.count)}</td>
                   <td>
                     {bucket.count === null
-                      ? "—"
+                      ? "–"
                       : bucket.percentage === null
                         ? m.noValue
                         : `${n(bucket.percentage)} %`}
@@ -191,6 +198,9 @@ export function SurveyAnalytics({
       <p className="survey-analytics-total">
         {m.participants}: <strong>{c(snapshot.participationCount)}</strong>
       </p>
+      {snapshot.participationCount !== 0 && (
+        <p className="survey-analytics-legend">{fill(m.withheldLegend)}</p>
+      )}
       {snapshot.participationCount === 0 && <p role="status">{m.empty}</p>}
       {snapshot.suppressed && snapshot.participationCount !== 0 && (
         <p className="survey-analytics-withheld" role="status">
@@ -252,7 +262,13 @@ export function SurveyAnalytics({
                 ).map(([key, label]) => (
                   <div key={key}>
                     <dt>{label}</dt>
-                    <dd>{q[key] === null ? m.noValue : n(q[key])}</dd>
+                    <dd>
+                      {q[key] !== null
+                        ? n(q[key])
+                        : q.answered === 0
+                          ? m.noValue
+                          : "–"}
+                    </dd>
                   </div>
                 ))}
               </dl>

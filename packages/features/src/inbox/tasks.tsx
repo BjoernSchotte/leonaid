@@ -115,8 +115,10 @@ export function InboxTasks({
             {reference.task ? (
               <a
                 className="ref-chip"
-                href={`${taskBasePath}/${reference.task.listId}`}
-                title="Aufgabenliste öffnen"
+                // Same deep link as the tasks module search: the list in
+                // "Alle" with this task's detail open.
+                href={`${taskBasePath}/${reference.task.listId}?view=all&open=${encodeURIComponent(reference.taskId)}`}
+                title="Aufgabe öffnen"
               >
                 <ListChecks aria-hidden="true" size={13} />
                 {title} · {state}

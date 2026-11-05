@@ -365,7 +365,7 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
                   <div className="callout tone-warn" role="status">
                     <Icon icon={ShieldAlert} size={16} />
                     <span>
-                      <strong>Folgendkontakt gesperrt:</strong>{" "}
+                      <strong>Folgekontakt gesperrt:</strong>{" "}
                       {report.suppressions
                         .map(
                           (item) =>
@@ -470,7 +470,7 @@ export function PrivacyTab({ client }: PrivacyAdminPageProps) {
         }
         open={revokeTarget !== null}
         pending={revoke.isPending}
-        title="Folgendkontakt sperren?"
+        title="Folgekontakt sperren?"
         tone="danger"
       />
       <Modal

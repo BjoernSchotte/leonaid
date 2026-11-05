@@ -125,6 +125,33 @@ function OverviewState({ overview }: { readonly overview: Overview }) {
   );
 }
 
+/**
+ * A failed 15-second refresh keeps the last overview on screen (with open
+ * dialogs and generated results) and says so, instead of blanking the tab.
+ */
+function OverviewRefreshNotice({ overview }: { readonly overview: Overview }) {
+  const error = useActionErrorMessage(overview.error);
+  if (!overview.isError || overview.data === undefined) return null;
+  return (
+    <StatusMessage className="system-refresh-notice" tone="warning">
+      <strong>Betriebsstatus konnte nicht aktualisiert werden</strong>
+      <p>
+        Angezeigt wird der Stand von {formatDateTime(overview.data.generatedAt)}
+        . {error?.message ?? "Der Server hat nicht geantwortet."} LeonAid
+        versucht es automatisch erneut.
+      </p>
+      <Button
+        disabled={overview.isFetching}
+        onClick={() => void overview.refetch()}
+        size="sm"
+        variant="secondary"
+      >
+        Jetzt neu laden
+      </Button>
+    </StatusMessage>
+  );
+}
+
 function downloadPilotDailyReport(report: PilotDailyReportResponse) {
   const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], {
     type: "application/json",
@@ -276,7 +303,8 @@ export function OperationsTab({
   readonly onShowJobs: () => void;
   readonly overview: Overview;
 }) {
-  if (!overview.isSuccess) return <OverviewState overview={overview} />;
+  // Only without any data: a failed refresh keeps the last overview.
+  if (overview.data === undefined) return <OverviewState overview={overview} />;
   const data = overview.data;
   const down = data.dependencies.filter((item) => item.status !== "ready");
   const monitoring = data.monitoring;
@@ -284,6 +312,7 @@ export function OperationsTab({
 
   return (
     <div className="system-grid" data-testid="operations-panel">
+      <OverviewRefreshNotice overview={overview} />
       <section aria-labelledby="svc-title" className="panel">
         <header className="panel-header">
           <h2 id="svc-title">Dienste</h2>
@@ -558,7 +587,7 @@ export function JobsTab({
     },
   });
 
-  if (!overview.isSuccess) return <OverviewState overview={overview} />;
+  if (overview.data === undefined) return <OverviewState overview={overview} />;
   const data = overview.data;
   const jobs = data.failedJobs;
 
@@ -567,6 +596,7 @@ export function JobsTab({
       <h2 className="sr-only" id="jobs-title">
         Hintergrundaufgaben
       </h2>
+      <OverviewRefreshNotice overview={overview} />
       <p className="small muted system-intro">
         Aufgaben, die LeonAid im Hintergrund erledigt: Rechnungen versenden,
         PDFs erzeugen, CRM abgleichen. Fehlgeschlagene Aufgaben starten Sie hier

@@ -545,9 +545,7 @@ async def prove_repository(
                 **command("lock-wait"),
             )
         )
-        await asyncio.sleep(0.5)
-        if waiting.done():
-            raise ContractFailure("a role change did not wait for the admin lock")
+        await queued_behind(pool, holder, waiting, "a role change")
         await transaction.rollback()
     await asyncio.wait_for(waiting, timeout=10)
 
@@ -693,11 +691,9 @@ async def prove_repository(
                 occurred_at=datetime.now(timezone.utc),
             )
         )
-        await asyncio.sleep(0.5)
-        if replacing.done():
-            raise ContractFailure(
-                "the responsible-admin replacement did not wait for the admin lock"
-            )
+        await queued_behind(
+            pool, holder, replacing, "the responsible-admin replacement"
+        )
         await transaction.rollback()
     await asyncio.wait_for(replacing, timeout=10)
 
@@ -716,6 +712,35 @@ def copy_action(template: CharityAction, action_id: UUID) -> CharityAction:
     )
 
 
+async def queued_behind(
+    pool: asyncpg.Pool[Any],
+    holder: asyncpg.Connection[Any],
+    task: asyncio.Future[Any],
+    what: str,
+) -> None:
+    """Wait until a backend is blocked by the holder's lock, or fail.
+
+    A fixed sleep would also pass for a command that is only slow; this
+    proves it is queued behind the held lock (pg_blocking_pids).
+    """
+
+    holder_pid = await holder.fetchval("SELECT pg_backend_pid()")
+    deadline = asyncio.get_running_loop().time() + 10
+    async with pool.acquire() as observer:
+        while True:
+            if task.done():
+                raise ContractFailure(f"{what} did not wait for the admin lock")
+            if await observer.fetchval(
+                "SELECT count(*) FROM pg_stat_activity "
+                "WHERE $1::integer = ANY(pg_blocking_pids(pid))",
+                holder_pid,
+            ):
+                return
+            if asyncio.get_running_loop().time() > deadline:
+                raise ContractFailure(f"{what} never queued behind the admin lock")
+            await asyncio.sleep(0.02)
+
+
 async def expect_waits(
     pool: asyncpg.Pool[Any],
     start: Callable[[], Awaitable[object]],
@@ -728,11 +753,10 @@ async def expect_waits(
         await transaction.start()
         await lock_admin_access(holder)
         task = asyncio.ensure_future(start())
-        await asyncio.sleep(0.5)
-        if task.done():
+        try:
+            await queued_behind(pool, holder, task, what)
+        finally:
             await transaction.rollback()
-            raise ContractFailure(f"{what} did not wait for the admin lock")
-        await transaction.rollback()
     await asyncio.wait_for(task, timeout=10)
 
 

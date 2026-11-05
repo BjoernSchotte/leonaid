@@ -108,14 +108,14 @@ test("analysis filters, immutable results and chart/table agreement", async ({
         for (const [index, bucket] of counts.entries()) {
           const share =
             bucket.count === null
-              ? "—"
+              ? "–"
               : bucket.percentage === null
                 ? "Keine gültigen Antworten"
                 : `${format(bucket.percentage)} %`;
           await expect(
             chart.locator(".survey-analytics-bar").nth(index),
           ).toContainText(
-            `${count(bucket.count)} · ${bucket.percentage === null ? "—" : share}`,
+            `${count(bucket.count)} · ${bucket.percentage === null ? "–" : share}`,
           );
           const cells = details
             .locator("tbody tr")

@@ -4,10 +4,10 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: eb6beaafa55551234a561a0353b0e0babc81d094
-reviewer: Björn Schotte
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 This documentation describes the current development state. It is not a
@@ -17,9 +17,9 @@ general production approval.
   English guides quote German UI labels verbatim.
 - One installation represents one club or isolated tenant. Shared
   multi-tenancy is not supported.
-- The driver workflow is deferred. Delivery addresses and delivery windows are
-  stored, but a driver app with routes and delivery status is outside the
-  current scope.
+- Drivers tick off their assigned deliveries in the app (see
+  [Work the delivery board](/en/user/how-to/work-delivery-board/)). Route and tour
+  planning is outside the current scope.
 - `finance_reader` can only read documents. The maintained demo user Finn
   Finanzen proves this read-only access. Full payment and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.

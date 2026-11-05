@@ -10,7 +10,7 @@ import {
   Trash2,
   UserCheck,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
   ApiError,
@@ -28,11 +28,17 @@ import {
   Icon,
   Input,
   Modal,
+  Select,
   StatusLabel,
   StatusMessage,
   useOptionalToast,
 } from "@leonaid/ui";
 
+import {
+  needsFreshLogin,
+  saveFreshLoginDraft,
+  takeFreshLoginDraft,
+} from "./fresh-login-draft";
 import { formatDateTime, relativeDay } from "../shared/dates";
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
 import {
@@ -41,7 +47,9 @@ import {
   useActionErrorMessage,
 } from "./use-action-error";
 import {
+  EMAIL,
   GLOBAL_ROLES,
+  INVALID_EMAIL,
   actionRoleLabels,
   globalRoleDescriptions,
   globalRoleLabels,
@@ -158,6 +166,7 @@ export function MemberDetail({
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [requestedEmail, setRequestedEmail] = useState("");
+  const [emailInvalid, setEmailInvalid] = useState(false);
   const [addActionId, setAddActionId] = useState(
     () => actions[0]?.actionId ?? "",
   );
@@ -285,6 +294,12 @@ export function MemberDetail({
       readonly email: string;
       readonly userId: string;
     }) => client.createMemberEmailChange(userId, { newEmail: email }),
+    onError: (error, { email, userId }) => {
+      // The fresh sign-in reloads the page: keep the typed address.
+      if (needsFreshLogin(error)) {
+        saveFreshLoginDraft(`member-email:${userId}`, identity.userId, email);
+      }
+    },
     onSuccess: (_result, { email }) => {
       setEmailOpen(false);
       setRequestedEmail(email);
@@ -294,6 +309,17 @@ export function MemberDetail({
       });
     },
   });
+
+  // Back from the fresh sign-in: reopen the form with the typed address.
+  useEffect(() => {
+    const draft = takeFreshLoginDraft(
+      `member-email:${row.userId}`,
+      identity.userId,
+    );
+    if (draft === null) return;
+    setNewEmail(draft);
+    setEmailOpen(true);
+  }, [row.userId, identity.userId]);
 
   const detailError = useActionErrorMessage(detail.error);
   const emailError = useActionErrorMessage(emailChange.error);
@@ -391,7 +417,7 @@ export function MemberDetail({
       toast?.show({
         title: `${member.displayName} ist der letzte Charity-Admin von ${actionName}.`,
         description:
-          "Laufende Aktionen behalten mindestens einen Charity-Admin. Bitte zuerst eine Vertretung ernennen.",
+          "Offene Aktionen behalten mindestens einen Charity-Admin. Bitte zuerst eine Vertretung ernennen.",
         tone: "error",
       });
       return;
@@ -631,8 +657,8 @@ export function MemberDetail({
             >
               Aktion
             </label>
-            <select
-              className="input select role-add-action"
+            <Select
+              className="role-add-action"
               data-testid="member-role-add-action"
               id={`role-add-action-${member.userId}`}
               onChange={(event) => setAddActionId(event.target.value)}
@@ -643,15 +669,14 @@ export function MemberDetail({
                   {action.actionName}
                 </option>
               ))}
-            </select>
+            </Select>
             <label
               className="sr-only"
               htmlFor={`role-add-role-${member.userId}`}
             >
               Rolle
             </label>
-            <select
-              className="input select"
+            <Select
               data-testid="member-role-add-role"
               disabled={addActionRoles.length === 0}
               id={`role-add-role-${member.userId}`}
@@ -668,7 +693,7 @@ export function MemberDetail({
                   {actionRoleLabels[role]}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               data-testid="member-role-add-submit"
               disabled={addActionRoles.length === 0 || busy}
@@ -718,7 +743,7 @@ export function MemberDetail({
           {lastSystemAdmin ? (
             <p className="member-guard small">
               <Icon icon={ShieldAlert} size={14} />
-              Einzige aktive Systemverwaltung. Diese Rolle lässt sich erst
+              Einziger aktiver System-Admin. Diese Rolle lässt sich erst
               entziehen, wenn eine zweite Person sie hat.
             </p>
           ) : null}
@@ -741,8 +766,7 @@ export function MemberDetail({
               >
                 Systemrolle
               </label>
-              <select
-                className="input select"
+              <Select
                 data-testid="member-global-role-add"
                 id={`global-role-add-${member.userId}`}
                 onChange={(event) =>
@@ -755,7 +779,7 @@ export function MemberDetail({
                     {globalRoleLabels[role]}
                   </option>
                 ))}
-              </select>
+              </Select>
               <Button
                 data-testid="member-global-role-add-submit"
                 disabled={busy}
@@ -956,9 +980,15 @@ export function MemberDetail({
       >
         <form
           id={emailFormId}
+          // The Field shows the error; no native validation bubble.
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (!newEmail.trim()) return;
+            if (!EMAIL.test(newEmail.trim())) {
+              setEmailInvalid(true);
+              return;
+            }
+            setEmailInvalid(false);
             emailChange.mutate({
               email: newEmail.trim(),
               userId: member.userId,
@@ -967,13 +997,15 @@ export function MemberDetail({
         >
           <Field
             error={
-              emailError
-                ? `${
-                    isRevisionConflict(emailError)
-                      ? "E-Mail-Korrektur nicht möglich."
-                      : "E-Mail-Korrektur fehlgeschlagen."
-                  } ${emailError.message}`
-                : undefined
+              emailInvalid
+                ? INVALID_EMAIL
+                : emailError
+                  ? `${
+                      isRevisionConflict(emailError)
+                        ? "E-Mail-Korrektur nicht möglich."
+                        : "E-Mail-Korrektur fehlgeschlagen."
+                    } ${emailError.message}`
+                  : undefined
             }
             hint="Magic Link und Code gehen an diese Adresse. Die bisherige Adresse erhält einen Sicherheitshinweis."
             label="Neue Login-E-Mail"

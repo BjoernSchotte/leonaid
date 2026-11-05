@@ -182,6 +182,22 @@ for (const [engineName, engine] of Object.entries({
           const story =
             (await page.locator("article.campaign-story").count()) === 1;
           assert.equal(story, !imported, `${label}: unexpected page variant`);
+          if (story) {
+            // The generic story renders the contact form (inbox module on),
+            // so the order confirmation points there, not to the mailto.
+            assert.equal(await page.locator("#kontakt").count(), 1);
+            const confirmation = page.locator("[data-order-success]");
+            assert.equal(
+              await confirmation.locator('a[href="#kontakt"]').count(),
+              1,
+              `${label}: confirmation links the contact form`,
+            );
+            assert.equal(
+              await confirmation.locator('a[href^="mailto:"]').count(),
+              0,
+              `${label}: confirmation without the privacy mailto`,
+            );
+          }
           for (const [width, height] of [
             [1440, 900],
             [390, 844],

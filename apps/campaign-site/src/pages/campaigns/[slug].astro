@@ -84,6 +84,11 @@ const units = {
   piece: "je Stück",
   sponsoring: "je Sponsoring",
 };
+// The contact form renders below the order on published pages with the inbox
+// module; the order confirmation then links to it instead of the mailto.
+const showsInbox = Boolean(
+  action && route?.availability === "published" && moduleEnabled("inbox"),
+);
 ---
 
 <PublicLayout
@@ -281,17 +286,15 @@ const units = {
         action={action}
         orderForm={orderForm}
         publicAlias={route.orderAlias}
+        contactFormHref={showsInbox ? "#kontakt" : undefined}
         orderResult={orderResult}
       />
     )
   }
   {
-    !ThemeIntro &&
-      action &&
-      route?.availability === "published" &&
-      moduleEnabled("inbox") && (
-        <PublicInbox actionId={action.id} actionName={action.name} />
-      )
+    !ThemeIntro && action && showsInbox && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
+    )
   }
 </PublicLayout>
 <style>

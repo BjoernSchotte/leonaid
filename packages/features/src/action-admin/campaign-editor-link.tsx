@@ -1,5 +1,7 @@
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
-import { buttonClassName } from "@leonaid/ui";
+import { ExternalLink } from "lucide-react";
+
+import { buttonClassName, Icon } from "@leonaid/ui";
 
 type CampaignIdentity = Pick<
   CurrentIdentityResponse,
@@ -36,8 +38,11 @@ export function CampaignEditorLink({
   if (!href) return null;
 
   return (
-    <a className={buttonClassName({ variant: "secondary" })} href={href}>
-      Microsite bearbeiten
+    // Same as the action page header: a ghost link beside the page's one
+    // primary action.
+    <a className={buttonClassName({ variant: "ghost" })} href={href}>
+      <Icon icon={ExternalLink} size={16} />
+      <span className="btn-label">Microsite bearbeiten</span>
     </a>
   );
 }

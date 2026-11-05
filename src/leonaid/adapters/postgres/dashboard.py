@@ -18,6 +18,7 @@ from leonaid.domain.calendar import (
     local_day_bounds,
 )
 from leonaid.domain.commitments import UnitQuantity
+from leonaid.domain.delivery_board import DELIVERABLE_ORDER_STATUSES
 from leonaid.application.dashboard import (
     AcquirerDashboard,
     CharityAdminDashboard,
@@ -495,7 +496,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
                         JOIN commitment_line AS line
                           ON line.commitment_id = booked.id
                         WHERE booked.delivery_window_id = window_row.id
-                          AND booked.status <> 'cancelled'
+                          AND booked.status = ANY($4::text[])
                         GROUP BY line.unit_snapshot
                     ) AS unit_totals
                 ) AS quantities_by_unit
@@ -503,7 +504,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
             LEFT JOIN commitment
               ON commitment.delivery_window_id = window_row.id
              AND commitment.action_id = window_row.action_id
-             AND commitment.status <> 'cancelled'
+             AND commitment.status = ANY($4::text[])
             WHERE window_row.action_id = $1
               AND NOT window_row.retired
               AND window_row.ends_at >= $2
@@ -514,6 +515,8 @@ class AsyncpgDashboardRepository(DashboardRepository):
             action_id,
             window_day_start,
             DELIVERY_WINDOW_LIMIT,
+            # Like the delivery board: a draft books nothing yet.
+            sorted(DELIVERABLE_ORDER_STATUSES),
         )
         return DeliveryOverview(
             enabled=enabled,

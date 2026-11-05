@@ -361,9 +361,18 @@ test("charity admin takes a golden action accessibly through the full lifecycle"
     await page.locator("body").click({ position: { x: 5, y: 5 } });
     await page.keyboard.press("Escape");
     await page.waitForURL(`${baseUrl}/admin/actions`);
+    // The action list (prototype CampaignList): the archived action is not
+    // under "Laufend und geplant" but under "Archiv".
     await expect(
-      page.getByRole("heading", { name: "Aktionen verwalten" }),
+      page.getByRole("heading", { name: "Aktionen", level: 1 }),
     ).toBeVisible();
+    const actionRow = page.locator(
+      `a.row-link[href="/admin/actions/${actionId}"]`,
+    );
+    await expect(actionRow).toHaveCount(0);
+    await page.getByRole("button", { name: "Archiv", exact: true }).click();
+    await expect(actionRow).toBeVisible();
+    await expect(actionRow).toContainText("Krapfentaxi Golden 2028");
     await expect(page.getByTestId("topbar-zone")).toHaveText("Aktionen");
     await page.screenshot({
       path: `${artifactDirectory}/action-overview-desktop.png`,

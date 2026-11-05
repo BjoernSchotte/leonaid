@@ -1,10 +1,4 @@
 export * from "./chart-canvas";
 export * from "./configs";
-export {
-  divergingColors,
-  divergingSteps,
-  resolveTheme,
-  themeFor,
-  type ChartTheme,
-  type DivergingStep,
-} from "./theme";
+// The theme helpers stay internal; consumers only need the types.
+export type { ChartTheme, DivergingStep } from "./theme";

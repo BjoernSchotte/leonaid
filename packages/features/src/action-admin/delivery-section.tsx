@@ -21,6 +21,7 @@ import {
   Modal,
   NextStep,
   ReadOnlyNotice,
+  Select,
   SkeletonRows,
   StatusMessage,
   Switch,
@@ -301,7 +302,11 @@ function DeliveryWindows({
       ) : open.length === 0 ? (
         <NextStep
           action={addButton}
-          consequence="Erstes Lieferfenster anlegen. Sponsoren wählen beim Bestellen eines dieser Fenster; vor dem Einplanen der Aktion ist mindestens ein zukünftiges Fenster nötig."
+          consequence={
+            config.windows.length === 0
+              ? "Erstes Lieferfenster anlegen. Sponsoren wählen beim Bestellen eines dieser Fenster; vor dem Einplanen der Aktion ist mindestens ein zukünftiges Fenster nötig."
+              : "Alle Lieferfenster sind stillgelegt. Legen Sie ein neues Fenster an, damit Sponsoren wieder einen Liefertermin wählen können."
+          }
           data-testid="delivery-next-step"
         />
       ) : !config.enabled ? (
@@ -650,8 +655,7 @@ function WindowModal({
             hint="Alle Uhrzeiten dieser Aktion gelten in dieser Zeitzone. Nach dem ersten Fenster bleibt sie fest."
             label="Zeitzone"
           >
-            <select
-              className="input select"
+            <Select
               data-testid="delivery-window-timezone"
               onChange={(event) => setTimezone(event.target.value)}
               value={timezone}
@@ -661,7 +665,7 @@ function WindowModal({
                   {zone}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         )}
         {error ? (

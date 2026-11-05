@@ -312,9 +312,9 @@ function PageEditor({
       ClassTextAlign,
       ReplaceSelectionInput,
       taskReference(client, basePath),
-      materialReference(client),
+      materialReference(client, address),
     ],
-    [client, basePath],
+    [client, basePath, address],
   );
   const changed = () => {
     setDirty(true);
@@ -458,7 +458,10 @@ function PageEditor({
       keys: "e",
       label: "Seite bearbeiten",
       group: "Wissen",
-      when: () => canEdit && !editing,
+      // Not while a side panel (task, material, access) is open: "e" there
+      // would swap the page under the panel.
+      when: () =>
+        canEdit && !editing && !taskOpen && !materialOpen && !accessOpen,
       run: startEditing,
     },
     {
@@ -784,6 +787,7 @@ function PageEditor({
       )}
       {taskOpen && (
         <TaskFromPage
+          address={address}
           client={client}
           userId={userId}
           onClose={() => {
@@ -831,6 +835,7 @@ function PageEditor({
         {accessOpen ? (
           <AccessMembersPanel
             actionScoped={!!page.actionId}
+            address={address}
             objectId={page.id}
             source={pageMemberSource(client, page.id)}
           />

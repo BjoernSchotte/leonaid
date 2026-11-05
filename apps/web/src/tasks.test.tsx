@@ -1,6 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Fragment, StrictMode } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -286,9 +293,11 @@ describe("task model", () => {
     expect(planBucket(null, null, today)).toBe("none");
   });
 
-  it("buckets due dates by local day and keeps done tasks out of overdue", () => {
-    const now = new Date(2026, 10, 3, 9);
-    const at = (day: number) => new Date(2026, 10, day, 12).toISOString();
+  it("buckets due dates by the club's day and keeps done tasks out of overdue", () => {
+    // 09:00 in Berlin: the club's day, whatever the machine's zone.
+    const now = new Date("2026-11-03T09:00:00+01:00");
+    const at = (day: number) =>
+      `2026-11-${String(day).padStart(2, "0")}T12:00:00+01:00`;
     expect(dueBucket(task("a", "a", { dueAt: at(2) }), now)).toBe("overdue");
     expect(
       dueBucket(task("a", "a", { dueAt: at(2), status: "done" }), now),
@@ -299,7 +308,8 @@ describe("task model", () => {
   });
 
   it("merges plans into list rows and adds planned tasks of other lists only on the all page", () => {
-    const now = new Date(2026, 10, 3, 9);
+    // 09:00 in Berlin: the club's day, whatever the machine's zone.
+    const now = new Date("2026-11-03T09:00:00+01:00");
     const a = task("a", "A");
     const b = task("b", "B", { listId: "other" });
     const plans = [
@@ -357,6 +367,34 @@ describe("tasks page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Alle offenen" }));
     expect(await screen.findByText("Kasse zählen")).toBeTruthy();
     expect(window.location.search).toBe("?view=open");
+  });
+
+  it("says when the done tasks of a mixed view fail to load and reloads them", async () => {
+    const open = task("a", "Stände aufbauen");
+    const finished = task("b", "Kasse zählen", { status: "done" });
+    const client = harness({ open: [open], done: [finished] });
+    const listed = client.listTasks.getMockImplementation()!;
+    client.listTasks.mockImplementation(async (query: { status?: string }) => {
+      if (query.status === "done") throw new Error("offline");
+      return listed(query);
+    });
+    renderPage(client, { path: "/admin/tasks?view=lists" });
+    expect(await screen.findByText("Stände aufbauen")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        /Erledigte Aufgaben konnten nicht geladen werden/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Kasse zählen")).toBeNull();
+
+    client.listTasks.mockImplementation(listed);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erledigte erneut laden" }),
+    );
+    expect(await screen.findByText("Kasse zählen")).toBeTruthy();
+    expect(
+      screen.queryByText(/Erledigte Aufgaben konnten nicht geladen werden/),
+    ).toBeNull();
   });
 
   it("changes the status with s and undoes it from the toast", async () => {
@@ -419,6 +457,50 @@ describe("tasks page", () => {
     expect(screen.queryByText("Wer die Liste sieht")).toBeNull();
   });
 
+  it("points to the list for more members on the all-tasks page", async () => {
+    const client = harness({ open: [task("a", "Stände aufbauen")] });
+    client.listTaskListMembers.mockResolvedValue({
+      items: [
+        {
+          access: "editor" as const,
+          active: true,
+          displayName: "Jonas Weber",
+          userId: "10000000-0000-4000-8000-000000000002",
+        },
+      ],
+      nextOffset: 20,
+      ownerUserId: me,
+      revision: 1,
+    } as never);
+    renderPage(client, { path: "/admin/tasks?view=open&open=a" });
+    const link = await screen.findByRole("link", {
+      name: "Liste unter „Zugriff verwalten“",
+    });
+    expect(link.getAttribute("href")).toBe(`/admin/tasks/${listA}`);
+  });
+
+  it("opens the list's access in one step, without a second toggle", async () => {
+    const client = harness({ open: [task("a", "Stände aufbauen")] });
+    renderPage(client, {
+      path: `/admin/tasks/${listA}?view=open`,
+      listId: listA,
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zugriff verwalten" }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "Zugriff verwalten",
+    });
+    expect(
+      within(panel).queryByRole("button", { name: "Listenmitglieder" }),
+    ).toBeNull();
+    expect(
+      await within(panel).findByLabelText("Listenmitglieder suchen"),
+    ).toBeTruthy();
+    // One heading for the panel; the members are h3 under it.
+    expect(within(panel).getAllByRole("heading", { level: 2 })).toHaveLength(1);
+  });
+
   it("refuses edits on tasks the person may only read", async () => {
     const client = harness({
       open: [task("a", "Nur lesen", { canEdit: false })],
@@ -439,6 +521,27 @@ describe("tasks page", () => {
     expect(
       within(pane).getByRole("heading", { name: "Persönliche Planung" }),
     ).toBeTruthy();
+  });
+
+  it("quick add does not ask for a first list while the lists load or failed", async () => {
+    const client = harness({});
+    const lists = client.listTaskLists.getMockImplementation()!;
+    client.listTaskLists.mockRejectedValue(new Error("offline"));
+    renderPage(client);
+    await screen.findByText("Noch keine Aufgaben");
+    press("c");
+    const input = await screen.findByLabelText("Neue Aufgabe");
+    fireEvent.change(input, { target: { value: "Tische holen" } });
+    client.listTaskLists.mockImplementation(lists);
+    fireEvent.submit(input.closest("form")!);
+    expect(
+      await screen.findByText("Die Listen konnten nicht geladen werden."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Legen Sie zuerst eine Liste an.")).toBeNull();
+    expect(client.createTask).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(client.listTaskLists.mock.calls.length).toBeGreaterThan(1),
+    );
   });
 
   it("quick add creates in the chosen list and plans it for today in Mein Plan", async () => {

@@ -45,7 +45,15 @@ EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Proofs that run nowhere else; dropping a shard silently stops the proof.
 INTEGRATION_SHARDS = ("delivery",)
 # Module browser proofs; each module's journeys run only in its own leaf.
-E2E_SHARDS = ("tasks", "materials", "knowledge", "inbox")
+E2E_SHARDS = (
+    "tasks",
+    "materials",
+    "knowledge",
+    "inbox",
+    "leitsystem-ui",
+    "operations",
+    "invoice-flows",
+)
 
 # Workflows whose gate is a required check. Each must run on pull_request
 # and merge_group, must not use path filters and must end in its gate.
@@ -77,6 +85,21 @@ FIRST_ATTEMPTS = {
     ".github/actions/build-cache/action.yml": "bake",
     ".github/actions/test-fixture/action.yml": "restore",
 }
+
+# Static gates the "Lint and types" job must run (tools/ci/lint-types.sh);
+# ./leonaid check alone never runs in CI.
+STATIC_GATES = (
+    "conflict_markers_test.py",
+    "conflict_markers.py",
+    "axe_helper_test.py",
+    "axe_helper.py",
+    "legacy_ui_test.py",
+    "legacy_ui.py",
+    "core_oneoff_user_test.py",
+    "core_oneoff_user.py",
+    "select_suites_test.py",
+    "gate_test.py",
+)
 
 JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
 
@@ -344,6 +367,15 @@ def check_first_attempts(root: Path) -> list[str]:
     return problems
 
 
+def check_static_gates(root: Path) -> list[str]:
+    text = (root / "tools/ci/lint-types.sh").read_text(encoding="utf-8")
+    return [
+        f"tools/ci/lint-types.sh must run tools/ci/{gate}."
+        for gate in STATIC_GATES
+        if not re.search(rf"python /workspace/tools/ci/{re.escape(gate)}(\s|$)", text)
+    ]
+
+
 def check_repository(root: Path) -> list[str]:
     workflows = root / ".github/workflows"
     problems = check(workflows / "ci.yml")
@@ -365,6 +397,7 @@ def check_repository(root: Path) -> list[str]:
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
     problems.extend(check_first_attempts(root))
+    problems.extend(check_static_gates(root))
     return problems
 
 

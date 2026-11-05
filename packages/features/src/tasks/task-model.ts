@@ -1,3 +1,8 @@
+import {
+  isoDay,
+  localIsoDate as berlinIsoDate,
+  TIME_ZONE,
+} from "../shared/dates";
 import type {
   PersonalPlan,
   PlannedTask,
@@ -63,10 +68,9 @@ export interface TaskRow {
   readonly deferred: boolean;
 }
 
-/** Local calendar date `YYYY-MM-DD`. */
+/** The club's calendar date `YYYY-MM-DD` (Berlin time, as shared/dates). */
 export function localIsoDate(date = new Date()): string {
-  const part = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}`;
+  return berlinIsoDate(date);
 }
 
 function dayNumber(iso: string): number {
@@ -79,9 +83,12 @@ export function daysBetween(today: string, iso: string): number {
   return dayNumber(iso) - dayNumber(today);
 }
 
+/** Calendar arithmetic on `YYYY-MM-DD`, free of time zones and DST. */
 export function addDays(iso: string, days: number): string {
   const [year, month, day] = iso.split("-").map(Number);
-  return localIsoDate(new Date(year!, month! - 1, day! + days));
+  return new Date(Date.UTC(year!, month! - 1, day! + days))
+    .toISOString()
+    .slice(0, 10);
 }
 
 export function planBucket(
@@ -100,19 +107,13 @@ export function planBucket(
   return "none";
 }
 
+/** Buckets by the club's calendar day (Berlin), like the other screens. */
 export function dueBucket(task: TaskSummary, now: Date): DueBucket {
   if (!task.dueAt) return "none";
-  const due = new Date(task.dueAt).getTime();
-  const start = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).getTime();
-  const day = (offset: number) =>
-    new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
-  if (due < start) return task.status === "done" ? "past" : "overdue";
-  if (due < day(1).getTime()) return "today";
-  if (due < day(8).getTime()) return "week";
+  const days = daysBetween(berlinIsoDate(now), isoDay(task.dueAt));
+  if (days < 0) return task.status === "done" ? "past" : "overdue";
+  if (days === 0) return "today";
+  if (days <= 7) return "week";
   return "later";
 }
 
@@ -202,31 +203,42 @@ export function buildTaskRows({
 
 /* ---------- formatting ---------- */
 
+// Calendar days (`YYYY-MM-DD`) are formatted as UTC midnights in UTC, so
+// no time zone moves them; instants are shown in the club's time zone.
 const weekday = new Intl.DateTimeFormat("de-DE", {
   weekday: "short",
   day: "numeric",
   month: "short",
+  timeZone: "UTC",
 });
 const shortDay = new Intl.DateTimeFormat("de-DE", {
   day: "numeric",
   month: "short",
+  timeZone: TIME_ZONE,
 });
-const longDate = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" });
+const longDate = new Intl.DateTimeFormat("de-DE", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
 const dateTime = new Intl.DateTimeFormat("de-DE", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: TIME_ZONE,
 });
+const calendarDay = (iso: string) => {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day!));
+};
 
-/** "heute", "morgen", "gestern", "in 3 Tagen", "vor 2 Tagen", "Mi., 12. Nov.". */
+/** "Heute", "Morgen", "Gestern", "in 3 Tagen", "vor 2 Tagen", "Mi., 12. Nov.". */
 export function relativeDay(iso: string, today: string): string {
   const days = daysBetween(today, iso);
-  if (days === 0) return "heute";
-  if (days === 1) return "morgen";
-  if (days === -1) return "gestern";
+  if (days === 0) return "Heute";
+  if (days === 1) return "Morgen";
+  if (days === -1) return "Gestern";
   if (days > 1 && days < 7) return `in ${days} Tagen`;
   if (days < -1 && days > -7) return `vor ${-days} Tagen`;
-  const [year, month, day] = iso.split("-").map(Number);
-  const date = new Date(year!, month! - 1, day!);
+  const date = calendarDay(iso);
   return Math.abs(days) < 180 ? weekday.format(date) : longDate.format(date);
 }
 
@@ -236,8 +248,7 @@ export function planLabel(row: TaskRow, today: string): string | null {
     const days = daysBetween(today, row.plan.plannedOn);
     if (days <= 0) return "Heute";
     if (days === 1) return "Morgen";
-    const [year, month, day] = row.plan.plannedOn.split("-").map(Number);
-    return weekday.format(new Date(year!, month! - 1, day!));
+    return weekday.format(calendarDay(row.plan.plannedOn));
   }
   if (row.plan?.state === "someday") return "Irgendwann";
   if (row.planSource === "due") return "Fällig";
@@ -249,8 +260,7 @@ export function formatDateTime(value: string): string {
 }
 
 export function formatCalendarDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return longDate.format(new Date(year!, month! - 1, day!));
+  return longDate.format(calendarDay(iso));
 }
 
 export function formatShortDay(value: string): string {

@@ -97,6 +97,28 @@ function longDay(day: string) {
   }).format(new Date(`${day}T12:00:00Z`));
 }
 
+/** How often the managers' board reloads (drivers tick in the PWA). */
+export const BOARD_POLL_MS = 20_000;
+
+/** The board with one drop replaced by its newer state. */
+export function withDrop(
+  board: DeliveryBoardResponse,
+  drop: DeliveryDropResponse,
+): DeliveryBoardResponse {
+  return {
+    ...board,
+    windows: board.windows.map((window) => ({
+      ...window,
+      drops: window.drops.map((item) =>
+        item.commitmentId === drop.commitmentId &&
+        item.revision <= drop.revision
+          ? drop
+          : item,
+      ),
+    })),
+  };
+}
+
 /** Cancelled orders stay struck through but take no commands. */
 const deliverable = (drop: DeliveryDropResponse) =>
   drop.orderStatus !== "cancelled";
@@ -228,7 +250,11 @@ export function DeliveryBoardPage({
     gcTime: surface === "pwa" ? 0 : undefined,
     queryFn: () => client.getDeliveryBoard(actionId, { day }),
     queryKey,
-    // Addresses and phones: no refetch on focus surprises, no retries.
+    // Managers follow the drivers' ticks: poll and refetch on focus. The
+    // PWA (drivers, addresses and phones) keeps no background refetches.
+    refetchInterval: surface === "web" ? BOARD_POLL_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: surface === "web",
     retry: false,
   });
   useEffect(() => {
@@ -300,6 +326,17 @@ export function DeliveryBoardPage({
     );
   };
 
+  // Set at once, before the mutation reports "pending" in a later render:
+  // a second key press in the same moment must not send a second command.
+  const ticking = useRef(false);
+  const tick = (
+    variables: { drop: DeliveryDropResponse; delivered: boolean },
+    options?: { onSuccess?: (updated: DeliveryDropResponse) => void },
+  ) => {
+    if (ticking.current) return;
+    ticking.current = true;
+    setState.mutate(variables, options);
+  };
   const setState = useMutation({
     ...mutationOptions,
     mutationFn: ({
@@ -313,7 +350,18 @@ export function DeliveryBoardPage({
         delivered,
         expectedRevision: drop.revision,
       }),
-    onSettled: () => void refresh(),
+    onMutate: () => {
+      ticking.current = true;
+    },
+    // Show the returned drop at once; the refetch then confirms the board.
+    onSuccess: (updated) =>
+      queries.setQueryData<DeliveryBoardResponse>(queryKey, (current) =>
+        current ? withDrop(current, updated) : current,
+      ),
+    onSettled: () => {
+      ticking.current = false;
+      void refresh();
+    },
     onError: showError,
   });
 
@@ -329,8 +377,11 @@ export function DeliveryBoardPage({
 
   const toggle = (drop: DeliveryDropResponse, closed: boolean) => {
     const delivered = drop.state !== "delivered";
-    if (locked(drop, closed, manager)) return;
-    setState.mutate(
+    // The same guards as the check button, also for the "d" key: one
+    // command at a time (so its toast and undo stay, see `tick`), none for
+    // cancelled or frozen drops.
+    if (!deliverable(drop) || locked(drop, closed, manager)) return;
+    tick(
       { drop, delivered },
       {
         onSuccess: (updated) =>
@@ -350,7 +401,7 @@ export function DeliveryBoardPage({
                     label: "Rückgängig",
                     // The freshest revision: the board may have reloaded.
                     run: () =>
-                      setState.mutate({
+                      tick({
                         drop: freshest(updated),
                         delivered: !delivered,
                       }),
@@ -623,7 +674,7 @@ export function DeliveryBoardPage({
           title="Keine Lieferplanung"
           description={text.notEnabled}
         />
-      ) : board.isError ? (
+      ) : board.isError && !board.data ? (
         <ErrorState onRetry={() => void board.refetch()} title={text.error}>
           {surface === "web"
             ? "Prüfen Sie die Verbindung und versuchen Sie es erneut."
@@ -794,7 +845,9 @@ export function DeliveryBoardPage({
                         <span className="stamp tone-ok">Abgeschlossen</span>
                         {manager ? (
                           <Button
+                            disabled={reopenWindow.isPending}
                             icon={RotateCcw}
+                            loading={reopenWindow.isPending}
                             onClick={() => reopenWindow.mutate(window.id)}
                             size="sm"
                             variant="ghost"

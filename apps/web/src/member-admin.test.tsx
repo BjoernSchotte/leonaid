@@ -705,7 +705,9 @@ describe("member pane", () => {
   it("guards the only system admin and the own access", async () => {
     await renderPage();
     const pane = await openMember("Simone System");
-    expect(pane.getByText(/Einzige aktive Systemverwaltung/)).toBeTruthy();
+    expect(
+      pane.getByText(/Einziger aktiver System-Admin\. Diese Rolle/),
+    ).toBeTruthy();
     expect(
       (
         pane.getByTestId(
@@ -734,6 +736,100 @@ describe("member pane", () => {
     const klara = within(screen.getByTestId("member-detail"));
     expect(klara.getAllByTestId("member-membership").length).toBeGreaterThan(0);
     expect(klara.queryByText("Letzter Charity-Admin")).toBeNull();
+  });
+
+  it("keeps the typed login address through the fresh sign-in", async () => {
+    const client = await renderPage({ url: `/admin/members?open=${annaId}` });
+    client.createMemberEmailChange.mockRejectedValueOnce(
+      new ApiError(401, {
+        code: "fresh_login_required",
+        message: "Bitte erneut anmelden.",
+        requestId: "req-7",
+      }),
+    );
+    const pane = within(await screen.findByTestId("member-detail"));
+    fireEvent.click(pane.getByTestId("member-email-change-open"));
+    const dialog = within(
+      await screen.findByRole("dialog", { name: "Anmeldeadresse ändern" }),
+    );
+    fireEvent.change(dialog.getByTestId("member-email-change-input"), {
+      target: { value: "anna.neu@leonaid.invalid" },
+    });
+    const assign = vi.fn();
+    const { pathname, search } = window.location;
+    const location = vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+      pathname,
+      search,
+    } as Location);
+    fireEvent.click(dialog.getByTestId("member-email-change-submit"));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    location.mockRestore();
+    cleanup();
+
+    // Back from /fresh-login: the form is open again with the address.
+    await renderPage({ url: `/admin/members?open=${annaId}` });
+    const restored = within(
+      await screen.findByRole("dialog", { name: "Anmeldeadresse ändern" }),
+    );
+    expect(
+      (restored.getByTestId("member-email-change-input") as HTMLInputElement)
+        .value,
+    ).toBe("anna.neu@leonaid.invalid");
+  });
+
+  it("names an invalid login address in the field, not a browser bubble", async () => {
+    const client = await renderPage({ url: `/admin/members?open=${annaId}` });
+    const pane = within(await screen.findByTestId("member-detail"));
+    fireEvent.click(pane.getByTestId("member-email-change-open"));
+    const dialog = within(
+      await screen.findByRole("dialog", { name: "Anmeldeadresse ändern" }),
+    );
+    const form = dialog
+      .getByTestId("member-email-change-input")
+      .closest("form") as HTMLFormElement;
+    expect(form.noValidate).toBe(true);
+    fireEvent.change(dialog.getByTestId("member-email-change-input"), {
+      target: { value: "kein-at" },
+    });
+    fireEvent.click(dialog.getByTestId("member-email-change-submit"));
+    expect(
+      await dialog.findByText(/Bitte eine gültige E-Mail-Adresse eingeben/),
+    ).toBeTruthy();
+    expect(client.createMemberEmailChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the invitation open until the send settles", async () => {
+    const client = await renderPage({
+      url: "/admin/members?create=member-invitation",
+    });
+    let finish: (value: unknown) => void = () => {};
+    client.createInvitation.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as never,
+    );
+    const dialog = within(
+      await screen.findByRole("dialog", { name: "Mitglied einladen" }),
+    );
+    await dialog.findByTestId("invite-action");
+    fireEvent.change(dialog.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "neu@leonaid.invalid" },
+    });
+    fireEvent.change(dialog.getByLabelText("Name"), {
+      target: { value: "Nora Neu" },
+    });
+    fireEvent.click(dialog.getByTestId("invite-submit"));
+    await waitFor(() =>
+      expect(
+        (dialog.getByRole("button", { name: "Abbrechen" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(true),
+    );
+    await act(async () => {
+      finish({ invitationId: "inv-2", status: "queued" });
+    });
   });
 
   it("reopens the pane from ?open= after the fresh sign-in", async () => {

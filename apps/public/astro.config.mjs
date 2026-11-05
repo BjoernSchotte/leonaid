@@ -8,6 +8,8 @@ export default defineConfig({
   adapter: node({ mode: "standalone" }),
   integrations: [runtimeAllowedDomains("LEONAID_PUBLIC_DOMAIN")],
   output: "server",
+  // Styles always ship as files: no <style> elements in the rendered HTML.
+  build: { inlineStylesheets: "never" },
   server: {
     host: true,
     port: 3000,

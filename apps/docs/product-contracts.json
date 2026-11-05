@@ -473,7 +473,9 @@
         "Nach unten",
         "In Abschnitt",
         "Für Tag planen",
-        "Schritte"
+        "Schritte",
+        "Neuer Schritt",
+        "Schritt hinzufügen"
       ]
     },
     {
@@ -493,13 +495,10 @@
     {
       "file": "packages/features/src/tasks/task-structure.tsx",
       "contains": [
-        "Priorität, Tags und Checkliste",
-        "Hohe Priorität",
-        "Neuer Tag",
-        "Tag anlegen",
-        "Neuer Schritt",
-        "Schritt hinzufügen",
-        "Struktur speichern"
+        "Priorität und Schlagworte",
+        "Neues Schlagwort",
+        "Schlagwort anlegen",
+        "Speichern"
       ]
     },
     {

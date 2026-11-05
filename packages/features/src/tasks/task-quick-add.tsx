@@ -84,8 +84,10 @@ export function TaskQuickAdd({
   fixedList,
   identity,
   lists,
+  listsStatus = "ready",
   onClose,
   onNeedList,
+  onRetryLists,
   planToday,
 }: {
   readonly address: Address;
@@ -99,6 +101,10 @@ export function TaskQuickAdd({
   readonly identity: CurrentIdentityResponse;
   /** Lists I may add to. */
   readonly lists: readonly QuickAddList[];
+  /** Whether `lists` is known yet: "no list" only counts once loaded. */
+  readonly listsStatus?: "loading" | "error" | "ready";
+  /** Loads the lists again after `listsStatus` "error". */
+  readonly onRetryLists?: () => void;
   readonly onClose: () => void;
   /** No list to add to yet: show where to create one. */
   readonly onNeedList: () => void;
@@ -190,6 +196,26 @@ export function TaskQuickAdd({
         event.preventDefault();
         const value = title.trim();
         if (!value || create.isPending) return;
+        if (!listChoice && lists.length === 0 && listsStatus === "loading") {
+          toast?.show({
+            title: "Die Listen werden noch geladen.",
+            tone: "info",
+          });
+          return;
+        }
+        if (!listChoice && lists.length === 0 && listsStatus === "error") {
+          toast?.show({
+            title: "Die Listen konnten nicht geladen werden.",
+            description: says(
+              address,
+              "Sie werden neu geladen. Versuche es gleich noch einmal.",
+              "Sie werden neu geladen. Versuchen Sie es gleich noch einmal.",
+            ),
+            tone: "error",
+          });
+          onRetryLists?.();
+          return;
+        }
         if (!listChoice && lists.length === 0) {
           toast?.show({
             title: says(

@@ -8,6 +8,8 @@ on and off, the driver's field and scope limits, and the read audit and its
 
 from __future__ import annotations
 
+import asyncio
+
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -76,6 +78,53 @@ async def _expect(operation: object, kind: type[Exception], code: str) -> None:
         assert getattr(error, "code", None) == code, (code, error)
     else:
         raise AssertionError(f"expected {code}")
+
+
+async def prove_follow_up_list_race(pool: asyncpg.Pool, action_id: UUID) -> None:
+    """Two closures that create the first "Nachliefern" list of one owner at
+    once get the same list: the second waits for the first and reuses it,
+    instead of failing on the unique key (review M2)."""
+
+    owner = await _user(pool, "Race Closer")
+    follow_up = TaskDeliveryFollowUp()
+    first = await pool.acquire()
+    second = await pool.acquire()
+    try:
+        first_tx = first.transaction()
+        await first_tx.start()
+        try:
+            first_list = await follow_up._list(
+                first, action_id=action_id, owner_user_id=owner
+            )
+
+            async def concurrent() -> UUID:
+                async with second.transaction():
+                    return await follow_up._list(
+                        second, action_id=action_id, owner_user_id=owner
+                    )
+
+            racing = asyncio.create_task(concurrent())
+            await asyncio.sleep(0.5)
+            assert not racing.done(), "the second creation must wait"
+        except BaseException:
+            await first_tx.rollback()
+            raise
+        await first_tx.commit()
+        second_list = await asyncio.wait_for(racing, timeout=10)
+        assert second_list == first_list, (first_list, second_list)
+        assert (
+            await pool.fetchval(
+                "SELECT count(*) FROM task_delivery_follow_up_list"
+                " WHERE action_id = $1 AND owner_user_id = $2",
+                action_id,
+                owner,
+            )
+            == 1
+        )
+    finally:
+        await pool.release(second)
+        await pool.release(first)
+    print("KLF-062 PASS: concurrent first Nachliefern lists resolve to one list")
 
 
 async def prove_board(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) -> None:

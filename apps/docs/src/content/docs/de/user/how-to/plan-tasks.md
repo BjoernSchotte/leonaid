@@ -4,10 +4,10 @@ description: Aufgabenlisten anlegen und freigeben, Aufgaben zuweisen und den eig
 docId: DOC-P041
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 0f6e2da74ab9bfc3bfc8007a0a5ac0861b70b405
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: a77c9527329c3bf72fa8fab3687c7cd7bdbb5cf3
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 **Rolle:** jedes aktive Konto. Öffne **Aufgaben** in der Verwaltung
@@ -45,17 +45,18 @@ diesem Browser.
    Person unter **Zuständigkeit auswählen**, einen Abschnitt unter **Abschnitt
    auswählen** und Zeiten unter **Termine und Wiedervorlage**. Wähle
    **Speichern**.
-3. Unter **Priorität, Tags und Checkliste** markierst du **Hohe Priorität**,
-   wählst Tags der Liste oder legst mit **Neuer Tag** und **Tag anlegen** einen
-   an und ergänzt Schritte mit **Neuer Schritt** und **Schritt hinzufügen**.
-   Wähle **Struktur speichern**. Die Liste zeigt danach Priorität, Tags und den
-   Fortschritt der Schritte; einzelne Schritte hakst du unter **Schritte**
-   direkt ab.
-4. Status (`S`), Plan (`W`), Zuständig (`A`) und Priorität (`P`) änderst du
+3. Unter **Schritte** ergänzt du Schritte mit **Neuer Schritt** und **Schritt
+   hinzufügen**, hakst sie ab oder entfernst sie. Jede Änderung wird sofort
+   gespeichert.
+4. Unter **Priorität und Schlagworte** markierst du **Hohe Priorität**, wählst
+   Schlagworte der Liste oder legst mit **Neues Schlagwort** und **Schlagwort
+   anlegen** eines an. Wähle **Speichern**. Die Liste zeigt danach Priorität,
+   Schlagworte und den Fortschritt der Schritte.
+5. Status (`S`), Plan (`W`), Zuständig (`A`) und Priorität (`P`) änderst du
    auch direkt in der Liste, für eine Zeile oder alle mit `X` ausgewählten.
    **Erledigt** in der Auswahlleiste schließt die ausgewählten Aufgaben ab.
    Nach einer Änderung bietet die Meldung **Rückgängig** an.
-5. **Reihenfolge ändern**: In einer Liste mit der Sortierung **Reihenfolge**
+6. **Reihenfolge ändern**: In einer Liste mit der Sortierung **Reihenfolge**
    und in **Mein Plan** ziehst du eine Aufgabe am Griff, nimmst den Griff mit
    der Leertaste auf und bewegst ihn mit den Pfeiltasten, oder nutzt in den
    Details **Nach oben**, **Nach unten**, **In Abschnitt** und **Für Tag

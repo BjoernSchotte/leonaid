@@ -329,9 +329,12 @@ export function SurveyEditor({
       return false;
     }
   }
+  // A host that tracks the save state (onSaveStateChange) guards leaving
+  // itself, with one question (I11); the editor guards only on its own.
+  const guardsItself = !onSaveStateChange;
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (saves.state !== "saved") {
+      if (guardsItself && saves.state !== "saved") {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -344,7 +347,7 @@ export function SurveyEditor({
       window.removeEventListener("beforeunload", warn);
       window.removeEventListener("online", online);
     };
-  }, [saves]);
+  }, [saves, guardsItself]);
   function exportJson() {
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(history.document, null, 2)], {

@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 2
 reviewedRevision: 2
 verifiedAgainst: 3b8989c848762988ff7554ba370ce8b1714e9cf9
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 **Rolle:** jedes aktive Konto. Öffne **Material** in der Verwaltung
