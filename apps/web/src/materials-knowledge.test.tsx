@@ -175,6 +175,10 @@ describe("materials page", () => {
     expect(await screen.findByText("Flyer Adventskalender")).toBeTruthy();
     expect(screen.getByText("2 Dateien")).toBeTruthy();
     expect(await screen.findByText("flyer-v2.pdf")).toBeTruthy();
+    const versions = screen.getByRole("region", {
+      name: "Versionen von Flyer Adventskalender",
+    });
+    expect(versions.getAttribute("tabindex")).toBe("0");
     expect(await screen.findByText("flyer.pdf")).toBeTruthy();
     expect(screen.getAllByText("2,0 MB")).toHaveLength(2);
     expect(await screen.findByText(/Bearbeiten: Bernd Binder/)).toBeTruthy();

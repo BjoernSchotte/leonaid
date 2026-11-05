@@ -531,7 +531,14 @@ function MaterialRow({
       </div>
       {expanded ? (
         <div className="versions" id={`versions-${material.id}`}>
-          <div className="table-wrap">
+          {/* Wide on phones and scrollbars are hidden: the region takes
+              focus so the keyboard can scroll it (as ChartTable). */}
+          <div
+            aria-label={`Versionen von ${material.title}`}
+            className="table-wrap"
+            role="region"
+            tabIndex={0}
+          >
             <table className="table">
               <caption className="sr-only">
                 Versionen von {material.title}
