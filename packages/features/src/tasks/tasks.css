@@ -67,6 +67,17 @@
   min-height: 36px;
   cursor: pointer;
 }
+.tasks-page .steps li > .checkbox {
+  flex: 1;
+  min-width: 0;
+}
+/* Add a step right under the list (prototype "Schritte hinzufügen"). */
+.tasks-page .steps-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
 .tasks-page .access-list {
   display: grid;
 }
@@ -353,19 +364,6 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: var(--s-2);
-}
-.task-structure-checklist ul {
-  display: grid;
-  gap: var(--s-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.task-structure-checklist li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
   gap: var(--s-2);
 }
 @media (max-width: 720px) {

@@ -5,8 +5,9 @@ import {
   CalendarDays,
   Eye,
   FolderInput,
+  Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
   Avatar,
@@ -15,11 +16,12 @@ import {
   DetailProps,
   DetailSection,
   Icon,
+  IconButton,
   useOptionalToast,
 } from "@leonaid/ui";
 
 import { says, type Address } from "./task-copy";
-import { TaskEditor, TaskPlanPanel } from "./task-editor";
+import { TaskEditor, TaskPlanPanel, type Task } from "./task-editor";
 import {
   formatDateTime,
   localIsoDate,
@@ -235,6 +237,10 @@ export function TaskDetail({
 }
 
 /** Checklist with direct toggles, as in the prototype's "Schritte". */
+/**
+ * "Schritte" (prototype): tick, add and remove steps; each change is saved
+ * at once as a structure revision. This is the only checklist in the pane.
+ */
 function TaskSteps({
   address,
   client,
@@ -247,16 +253,16 @@ function TaskSteps({
   const { task } = row;
   const cache = useQueryClient();
   const toast = useOptionalToast();
-  const toggle = useMutation({
-    mutationFn: (stepId: string) =>
+  const inputId = useId();
+  const [newStep, setNewStep] = useState("");
+  const save = useMutation({
+    mutationFn: (checklist: Task["checklist"]) =>
       client.setTaskStructure(task.id, {
         idempotencyKey: crypto.randomUUID(),
         expectedRevision: task.revision,
         priority: task.priority,
         tagIds: task.tags.map((tag) => tag.id),
-        checklist: task.checklist.map((step) =>
-          step.id === stepId ? { ...step, done: !step.done } : step,
-        ),
+        checklist,
       }),
     onError: (error) =>
       toast?.show({
@@ -274,6 +280,16 @@ function TaskSteps({
     onSettled: () => cache.invalidateQueries({ queryKey: ["tasks"] }),
   });
   const done = task.checklist.filter((step) => step.done).length;
+  const add = () => {
+    const text = newStep.trim();
+    if (!text || task.checklist.length >= 100) return;
+    save.mutate(
+      [...task.checklist, { id: crypto.randomUUID(), text, done: false }],
+      {
+        onSuccess: () => setNewStep(""),
+      },
+    );
+  };
   return (
     <DetailSection
       title={
@@ -291,23 +307,76 @@ function TaskSteps({
         <p className="small subtle">Noch keine Schritte.</p>
       ) : (
         <ul className="steps">
-          {task.checklist.map((step) => (
+          {task.checklist.map((step, index) => (
             <li key={step.id}>
               <label className="checkbox">
                 <input
                   checked={step.done}
-                  disabled={!task.canEdit || toggle.isPending}
-                  onChange={() => toggle.mutate(step.id)}
+                  disabled={!task.canEdit || save.isPending}
+                  onChange={() =>
+                    save.mutate(
+                      task.checklist.map((item) =>
+                        item.id === step.id
+                          ? { ...item, done: !item.done }
+                          : item,
+                      ),
+                    )
+                  }
                   type="checkbox"
                 />
                 <span className={step.done ? "is-struck" : undefined}>
                   {step.text}
                 </span>
               </label>
+              {task.canEdit ? (
+                <IconButton
+                  disabled={save.isPending}
+                  icon={Trash2}
+                  label={`Schritt ${index + 1} entfernen`}
+                  onClick={() =>
+                    save.mutate(
+                      task.checklist.filter((item) => item.id !== step.id),
+                    )
+                  }
+                  size="sm"
+                />
+              ) : null}
             </li>
           ))}
         </ul>
       )}
+      {task.canEdit ? (
+        <form
+          className="steps-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            add();
+          }}
+        >
+          <label className="sr-only" htmlFor={inputId}>
+            Neuer Schritt
+          </label>
+          <input
+            className="input"
+            disabled={save.isPending}
+            id={inputId}
+            maxLength={500}
+            onChange={(event) => setNewStep(event.target.value)}
+            placeholder="Neuer Schritt"
+            value={newStep}
+          />
+          <Button
+            disabled={
+              !newStep.trim() || save.isPending || task.checklist.length >= 100
+            }
+            size="sm"
+            type="submit"
+            variant="secondary"
+          >
+            Schritt hinzufügen
+          </Button>
+        </form>
+      ) : null}
     </DetailSection>
   );
 }

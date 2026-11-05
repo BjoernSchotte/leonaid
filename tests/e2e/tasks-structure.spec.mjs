@@ -57,7 +57,7 @@ async function createListAndTask(context) {
   return { list, task: await response.json() };
 }
 
-test("priority, a new tag and a checklist are saved in one revision and shown on the PWA", async ({
+test("steps save at once; priority and a new Schlagwort save together and show on the PWA", async ({
   browser,
 }) => {
   const violations = [];
@@ -71,33 +71,44 @@ test("priority, a new tag and a checklist are saved in one revision and shown on
   // An old deep link opens the task in the pane.
   await page.goto(`${baseURL}/admin/tasks/${list.id}?task=${task.id}`);
   await expect(page).toHaveURL(new RegExp(`open=${task.id}`));
-  const panel = taskPane(page, task.id).getByRole("form", {
-    name: "Priorität, Tags und Checkliste",
-  });
-  await expect(panel).toBeVisible();
+  const pane = taskPane(page, task.id);
+  // Steps live in "Schritte": each add and tick is saved at once.
+  const steps = pane.locator(".steps-add");
+  await steps.getByLabel("Neuer Schritt").fill("Tische holen");
+  await steps.getByRole("button", { name: "Schritt hinzufügen" }).click();
+  await expect(
+    pane.locator(".steps").getByRole("checkbox", { name: "Tische holen" }),
+  ).toBeVisible();
+  await steps.getByLabel("Neuer Schritt").fill("Strom prüfen");
+  await steps.getByRole("button", { name: "Schritt hinzufügen" }).click();
+  const first = pane
+    .locator(".steps")
+    .getByRole("checkbox", { name: "Tische holen" });
+  await expect(
+    pane.locator(".steps").getByRole("checkbox", { name: "Strom prüfen" }),
+  ).toBeEnabled();
+  await first.check();
+  await expect(first).toBeChecked();
+  await expect(first).toBeEnabled();
 
+  // Priority and Schlagworte are saved together in their own form.
+  const panel = pane.getByRole("form", { name: "Priorität und Schlagworte" });
+  await expect(panel).toBeVisible();
   await panel.getByLabel("Hohe Priorität").check();
   const tagTitle = `Aufbau${randomUUID().slice(0, 6)}`;
-  await panel.getByLabel("Neuer Tag").fill(tagTitle);
-  await panel.getByRole("button", { name: "Tag anlegen" }).click();
+  await panel.getByLabel("Neues Schlagwort").fill(tagTitle);
+  await panel.getByRole("button", { name: "Schlagwort anlegen" }).click();
   await expect(panel.getByLabel(tagTitle)).toBeChecked();
-  await panel.getByLabel("Neuer Schritt").fill("Tische holen");
-  await panel.getByRole("button", { name: "Schritt hinzufügen" }).click();
-  await panel.getByLabel("Neuer Schritt").fill("Strom prüfen");
-  await panel.getByRole("button", { name: "Schritt hinzufügen" }).click();
-  await panel.getByLabel("Schritt 1 erledigt").check();
-  await panel.getByRole("button", { name: "Struktur speichern" }).click();
-  await expect(panel.getByRole("status")).toHaveText("Struktur gespeichert.");
-  // The pane's steps follow the saved checklist and toggle directly.
-  const steps = taskPane(page, task.id).locator(".steps");
-  await expect(
-    steps.getByRole("checkbox", { name: "Tische holen" }),
-  ).toBeChecked();
+  await panel.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(panel.getByRole("status")).toHaveText("Gespeichert.");
+  // The step changes did not make this save a conflict.
+  await expect(panel.getByText(/inzwischen geändert/)).toHaveCount(0);
 
   const saved = await (
     await web.request.get(`${baseURL}/api/v1/tasks/${task.id}`)
   ).json();
-  expect(saved.revision).toBe(task.revision + 1);
+  // Two added steps, one tick, then priority and tag: four revisions.
+  expect(saved.revision).toBe(task.revision + 4);
   expect(saved.priority).toBe("high");
   expect(saved.tags.map((tag) => tag.title)).toEqual([tagTitle]);
   expect(saved.checklist.map((step) => [step.text, step.done])).toEqual([
@@ -117,7 +128,7 @@ test("priority, a new tag and a checklist are saved in one revision and shown on
       checklist: saved.checklist,
     },
   });
-  await panel.getByRole("button", { name: "Struktur speichern" }).click();
+  await panel.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(panel.getByText(/inzwischen geändert/)).toBeVisible();
   await expect(panel.getByLabel("Hohe Priorität")).not.toBeChecked();
   await web.close();
