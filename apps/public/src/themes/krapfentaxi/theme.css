@@ -54,6 +54,17 @@
   text-underline-offset: 0.35em;
 }
 
+/* App links on the dark header read like the campaign navigation. */
+.taxi-site .site-header .site-header__app-link {
+  color: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.taxi-site .site-header .site-header__app-link:hover {
+  color: var(--lions-gold);
+}
+
 .taxi-hero {
   position: relative;
   isolation: isolate;
