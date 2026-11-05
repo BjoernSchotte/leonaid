@@ -63,7 +63,14 @@ async def load_admin_coverage(
 ) -> AdminCoverage:
     """Active system admins, and the active leads of the open actions where
     ``user_id`` currently leads (only ``action_id`` when given). Call under
-    :func:`lock_admin_access`."""
+    :func:`lock_admin_access`.
+
+    Commands stamp ``now`` before they queue for the lock, so a command that
+    committed earlier can carry a later stamp. A lead role it ended
+    (``active_until`` set, even to a moment after ``now``) no longer counts:
+    under the lock the committed state is current. Comparing ``active_until``
+    with ``now`` let two concurrent removals each see the other lead and
+    leave an open action without one."""
 
     system_admins = frozenset(
         row["user_id"]
@@ -86,7 +93,7 @@ async def load_admin_coverage(
         WHERE membership.role = 'charity_admin'
           AND account.status = 'active'
           AND membership.active_from <= $2
-          AND (membership.active_until IS NULL OR membership.active_until > $2)
+          AND membership.active_until IS NULL
           AND action.status = ANY($3::text[])
           AND ($4::uuid IS NULL OR membership.action_id = $4)
           AND membership.action_id IN (
@@ -95,7 +102,7 @@ async def load_admin_coverage(
             WHERE own.user_id = $1
               AND own.role = 'charity_admin'
               AND own.active_from <= $2
-              AND (own.active_until IS NULL OR own.active_until > $2)
+              AND own.active_until IS NULL
           )
         """,
         user_id,
@@ -166,10 +173,9 @@ async def actor_still_manages(
                               AND membership.action_id = $2
                               AND membership.role = 'charity_admin'
                               AND membership.active_from <= $3
-                              AND (
-                                membership.active_until IS NULL
-                                OR membership.active_until > $3
-                              )
+                              -- Ended by a committed command, whatever its
+                              -- stamp (see load_admin_coverage).
+                              AND membership.active_until IS NULL
                         )
                     )
                   )

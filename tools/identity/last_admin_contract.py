@@ -19,7 +19,7 @@ import hashlib
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -356,6 +356,39 @@ async def reset_admins(connection: asyncpg.Connection[Any]) -> None:
         )
 
 
+async def two_leads_on_shared(
+    connection: asyncpg.Connection[Any],
+) -> tuple[int, int]:
+    """LEAD_ONE and LEAD_TWO are the only leads, of SHARED_ACTION only.
+    Returns their account revisions."""
+
+    await reset_admins(connection)
+    await connection.execute(
+        "UPDATE user_account SET status = 'active' WHERE id = ANY($1::uuid[])",
+        [LEAD_ONE, LEAD_TWO],
+    )
+    # SOLO_ACTION gets no lead role from these two here.
+    await connection.execute(
+        "UPDATE action_membership SET active_until = now()"
+        " WHERE action_id = $1 AND role = 'charity_admin'",
+        SOLO_ACTION,
+    )
+    await connection.execute(
+        "UPDATE action_membership SET active_until = now()"
+        " WHERE action_id <> $1 AND user_id = ANY($2::uuid[])"
+        " AND role = 'charity_admin'",
+        SHARED_ACTION,
+        [LEAD_ONE, LEAD_TWO],
+    )
+    occurred_at = datetime.now(timezone.utc)
+    for user_id in (LEAD_ONE, LEAD_TWO):
+        await grant_lead(connection, SHARED_ACTION, user_id, occurred_at)
+    return (
+        await revision(connection, LEAD_ONE),
+        await revision(connection, LEAD_TWO),
+    )
+
+
 async def prove_repository(
     pool: asyncpg.Pool[Any],
     identity: AsyncpgIdentityRepository,
@@ -606,29 +639,7 @@ async def prove_repository(
     # Race on an open action: its two leads leave at the same moment.
     for round_number in range(RACE_ROUNDS):
         async with pool.acquire() as connection:
-            await reset_admins(connection)
-            await connection.execute(
-                "UPDATE user_account SET status = 'active' WHERE id = ANY($1::uuid[])",
-                [LEAD_ONE, LEAD_TWO],
-            )
-            # SOLO_ACTION gets no lead role from these two here.
-            await connection.execute(
-                "UPDATE action_membership SET active_until = now()"
-                " WHERE action_id = $1 AND role = 'charity_admin'",
-                SOLO_ACTION,
-            )
-            await connection.execute(
-                "UPDATE action_membership SET active_until = now()"
-                " WHERE action_id <> $1 AND user_id = ANY($2::uuid[])"
-                " AND role = 'charity_admin'",
-                SHARED_ACTION,
-                [LEAD_ONE, LEAD_TWO],
-            )
-            occurred_at = datetime.now(timezone.utc)
-            for user_id in (LEAD_ONE, LEAD_TWO):
-                await grant_lead(connection, SHARED_ACTION, user_id, occurred_at)
-            one = await revision(connection, LEAD_ONE)
-            two = await revision(connection, LEAD_TWO)
+            one, two = await two_leads_on_shared(connection)
         actor = system_principal(ADMIN_ONE)
         results = await asyncio.gather(
             identity.transition_account_status(
@@ -673,6 +684,46 @@ async def prove_repository(
                 raise ContractFailure(
                     f"lead race round {round_number} left the action without a lead"
                 )
+
+    # Commands stamp their time before they queue for the lock, so the one
+    # that commits first can carry the later stamp. Its committed removal
+    # must still count for a removal that runs after it with an earlier
+    # stamp (the ['ok', 'ok'] lead race of 2026-11-05).
+    async with pool.acquire() as connection:
+        one, two = await two_leads_on_shared(connection)
+    earlier = datetime.now(timezone.utc)
+    later = earlier + timedelta(seconds=5)
+    await identity.grant_action_membership(
+        LEAD_TWO,
+        SHARED_ACTION,
+        ActionRole.CHARITY_ADMIN,
+        enabled=False,
+        actor=system_principal(ADMIN_ONE),
+        actor_user_id=ADMIN_ONE,
+        expected_revision=two,
+        occurred_at=later,
+        **command("stamp-revoke"),
+    )
+    try:
+        await identity.transition_account_status(
+            LEAD_ONE,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=one,
+            occurred_at=earlier,
+            **command("stamp-suspend"),
+        )
+    except Conflict as error:
+        if error.code != "last_charity_admin_suspension_forbidden":
+            raise ContractFailure(f"stamp order: unexpected refusal {error.code}")
+    else:
+        raise ContractFailure(
+            "a removal stamped before an already committed removal left the "
+            "action without a lead"
+        )
+    async with pool.acquire() as connection:
+        if await active_leads(connection, SHARED_ACTION) != 1:
+            raise ContractFailure("stamp order left the action without a lead")
 
     # The responsible-admin replacement takes the same lock.
     async with pool.acquire() as holder:
