@@ -408,6 +408,56 @@ describe("knowledge", () => {
     expect(editor.getAttribute("contenteditable")).toBe("false");
   });
 
+  it("keeps e off while the task panel is open", async () => {
+    const client = knowledgeClient();
+    wrap(
+      <KnowledgeEditorPage
+        basePath="/admin/knowledge"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        pageId="p1"
+      />,
+      "/admin/knowledge/p1",
+    );
+    const editor = await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aufgabe aus dieser Seite" }),
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+    press("e");
+    await act(async () => {});
+    // Editing would show the title field (the editor itself stays locked
+    // while the panel is open).
+    expect(screen.queryByLabelText("Seitentitel")).toBeNull();
+    expect(editor.getAttribute("contenteditable")).toBe("false");
+  });
+
+  it("closes the link form with Esc and stays in editing", async () => {
+    const client = knowledgeClient();
+    wrap(
+      <KnowledgeEditorPage
+        basePath="/admin/knowledge"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        pageId="p1"
+      />,
+      "/admin/knowledge/p1",
+    );
+    const editor = await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    press("e");
+    await act(async () => {});
+    expect(editor.getAttribute("contenteditable")).toBe("true");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Link bearbeiten" })[0]!,
+    );
+    const field = await screen.findByLabelText("Link-Adresse");
+    field.focus();
+    press("Escape");
+    await act(async () => {});
+    expect(screen.queryByLabelText("Link-Adresse")).toBeNull();
+    expect(editor.getAttribute("contenteditable")).toBe("true");
+  });
+
   it("offers both fassungen after a conflict", async () => {
     const client = knowledgeClient();
     client.updateKnowledgePage
