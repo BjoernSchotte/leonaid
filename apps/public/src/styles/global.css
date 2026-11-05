@@ -424,6 +424,11 @@ a.site-header__promise {
 }
 
 .site-footer__legal a {
+  /* 44 px touch target, as every public link and button. */
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--accent-ink);
   text-decoration: underline;
   text-decoration-thickness: 1px;
