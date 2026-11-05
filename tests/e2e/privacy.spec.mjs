@@ -90,10 +90,10 @@ test("system admin runs access request, restriction and anonymization in a contr
 
     await page.getByRole("button", { name: "Kontakt sperren" }).click();
     await expect(
-      page.getByRole("heading", { name: "Folgendkontakt sperren?" }),
+      page.getByRole("heading", { name: "Folgekontakt sperren?" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Kontakt jetzt sperren" }).click();
-    await expect(page.getByText("Folgendkontakt gesperrt")).toBeVisible();
+    await expect(page.getByText("Folgekontakt gesperrt")).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/privacy-before-erasure.png`,
       fullPage: true,
