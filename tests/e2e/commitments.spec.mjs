@@ -101,16 +101,38 @@ test("acquirer captures a review-ready order from the sponsor context", async ({
   await expect(page.getByTestId("commitment-preview-total")).toHaveText(
     "Summe 36,00 €",
   );
+  // The number field can be cleared and retyped (no "15" from "1"+"5").
+  const quantity = page.getByTestId("commitment-quantity");
+  await quantity.fill("");
+  await quantity.pressSequentially("5");
+  await expect(quantity).toHaveValue("5");
+  await quantity.fill("1");
   await page.getByRole("button", { name: "Eine mehr" }).click();
   await expect(page.getByTestId("commitment-quantity")).toHaveValue("2");
   await expect(page.getByTestId("commitment-preview-total")).toHaveText(
     "Summe 72,00 €",
   );
   await page.getByRole("button", { name: "Weiter" }).click();
-  // Step 2 "Lieferung": billing (and delivery when planned).
-  await page.getByTestId("commitment-street").fill("Musterstraße 12");
+  // Step 2 "Lieferung": billing (and delivery when planned); the step
+  // change moves the focus to the step's heading.
+  await expect(
+    page.getByRole("heading", { name: "Schritt 2 von 3: Lieferung" }),
+  ).toBeFocused();
+  // Billing fields are required; an empty one is named at the field.
+  const street = page.getByTestId("commitment-street");
+  await expect(street).toHaveAttribute("aria-required", "true");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  await expect(street).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("button", { name: "Weiter" })).toHaveAttribute(
+    "aria-describedby",
+    "commitment-step-error",
+  );
+  await street.fill("Musterstraße 12");
   await page.getByRole("button", { name: "Weiter" }).click();
   // Step 3 "Prüfen".
+  await expect(
+    page.getByRole("heading", { name: "Schritt 3 von 3: Prüfen" }),
+  ).toBeFocused();
   await expect(page.locator(".pwa-dl")).toContainText("2 × ");
   await expect(page.locator(".pwa-dl")).toContainText("72,00 €");
   await expect(page.getByTestId("commitment-save-draft")).toBeVisible();
@@ -194,10 +216,22 @@ test("order capture stays responsive and accessible in all target browsers", asy
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "32px";
     });
-    const scaledOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(scaledOverflow).toBeLessThanOrEqual(1);
+    const scaledOverflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+    expect(await scaledOverflow(), "step 1").toBeLessThanOrEqual(1);
+    // Steps 2 and 3 with their two-button rows, also at 200 % text.
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.getByTestId("commitment-street").fill("Musterstraße 12");
+    expect(await scaledOverflow(), "step 2").toBeLessThanOrEqual(1);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await expect(page.getByTestId("commitment-save-ready")).toBeVisible();
+    expect(await scaledOverflow(), "step 3").toBeLessThanOrEqual(1);
+    await page.screenshot({
+      path: `${artifactDirectory}/commitment-review-200-chromium-390.png`,
+      fullPage: true,
+    });
   }
 
   await page.screenshot({

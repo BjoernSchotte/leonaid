@@ -100,6 +100,12 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     );
     const confirmation = page.locator('[data-testid="sponsor-resolve"]');
     await expect(confirmation).toHaveText("Als weitere Akquise eintragen");
+    // Prototype: the acquirer confirms the shared care themselves.
+    await expect(confirmation).toBeDisabled();
+    const agreed = page.getByRole("checkbox", {
+      name: "Ja, ich spreche mich mit Bernd Binder ab und trage mich zusätzlich ein.",
+    });
+    await expect(agreed).not.toBeChecked();
     // During match review nothing is saved yet: a tab asks first.
     const appTabs = page.getByRole("navigation", { name: "App-Navigation" });
     const leaveQuestion = page.getByRole("alertdialog", {
@@ -117,6 +123,8 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
       path: `${artifactDirectory}/matching-warning-mobile.png`,
       fullPage: true,
     });
+    await agreed.check();
+    await expect(confirmation).toBeEnabled();
 
     const resolutionResponse = page.waitForResponse(
       (response) =>
@@ -212,7 +220,13 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     );
     await page.waitForTimeout(300);
     expect(resolveBodies.length).toBeGreaterThanOrEqual(2);
+    // The shared assignment carries the ticked confirmation; the new
+    // sponsor has nobody to agree with, so nothing is confirmed for it.
+    expect(resolveBodies[0].confirmExistingAssignments).toBe(true);
     const creationBodies = resolveBodies.slice(1);
+    expect(
+      creationBodies.every((body) => body.confirmExistingAssignments === false),
+    ).toBe(true);
     expect(new Set(creationBodies.map((body) => body.commandId)).size).toBe(1);
     await page.screenshot({
       path: `${artifactDirectory}/matching-created-mobile.png`,

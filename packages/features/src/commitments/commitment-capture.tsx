@@ -30,9 +30,12 @@ import {
 import { useActionInUrl } from "../action-admin/action-location";
 import {
   ActionChoice,
+  SponsorRow,
   followInPage,
   sponsorHref,
+  useScreenHeading,
 } from "../acquisition/pwa-common";
+import { useLocationHref } from "../shared/location";
 import { CompleteDraft } from "./complete-draft";
 import {
   DeliveryFields,
@@ -121,6 +124,10 @@ function Stepper({
   readonly onChange: (value: number) => void;
   readonly value: number;
 }) {
+  // The field may be empty while typing; the last valid number stays the
+  // value until the next one, and leaving the field shows it again.
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
   return (
     <div
       aria-labelledby="commitment-quantity-label"
@@ -147,16 +154,16 @@ function Stepper({
           inputMode="numeric"
           max={MAX_QUANTITY}
           min={1}
-          onChange={(event) =>
-            onChange(
-              Math.min(
-                MAX_QUANTITY,
-                Math.max(1, Number.parseInt(event.target.value, 10) || 1),
-              ),
-            )
-          }
+          onBlur={() => setText(String(value))}
+          onChange={(event) => {
+            setText(event.target.value);
+            const next = Number.parseInt(event.target.value, 10);
+            if (Number.isFinite(next) && next >= 1) {
+              onChange(Math.min(MAX_QUANTITY, next));
+            }
+          }}
           type="number"
-          value={value}
+          value={text}
         />
         <button
           aria-label="Eine mehr"
@@ -305,7 +312,10 @@ export function CommitmentCapturePage({
       : (memberships[0]?.actionId ?? ""),
   );
   useActionInUrl(actionId);
-  const assignmentId = initialParameters.get("assignment") ?? "";
+  // From the URL on every render: the sponsor picker links in-page.
+  const href = useLocationHref();
+  const assignmentId =
+    new URLSearchParams(href.split("?")[1] ?? "").get("assignment") ?? "";
   const existingId = initialParameters.get("commitment") ?? "";
   const [step, setStep] = useState(1);
   const [offeringId, setOfferingId] = useState("");
@@ -315,6 +325,20 @@ export function CommitmentCapturePage({
     recipientFor(undefined),
   );
   const [stepError, setStepError] = useState("");
+  const [showMissing, setShowMissing] = useState(false);
+  const heading = useScreenHeading();
+  // Each step change moves the focus to the step's heading (I3).
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const stepChanged = useRef(false);
+  function goToStep(next: number) {
+    stepChanged.current = true;
+    setStep(next);
+  }
+  useEffect(() => {
+    if (!stepChanged.current) return;
+    stepChanged.current = false;
+    stepHeading.current?.focus({ preventScroll: false });
+  }, [step]);
   const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
   const [confirmFull, setConfirmFull] = useState(false);
   const appliedBuyer = useRef("");
@@ -370,6 +394,7 @@ export function CommitmentCapturePage({
     appliedBuyer.current = buyerKey;
     setRecipient(recipientFor(sponsor));
     setDelivery(deliveryDraft());
+    setStep(1);
     commandId.current = crypto.randomUUID();
   }, [buyerKey]);
 
@@ -460,11 +485,13 @@ export function CommitmentCapturePage({
       return;
     }
     if (!hasRecipient(recipient)) {
+      setShowMissing(true);
       setStepError("Bitte Name, Straße, PLZ und Ort für die Rechnung angeben.");
       return;
     }
+    setShowMissing(false);
     setStepError("");
-    setStep(3);
+    goToStep(3);
   }
 
   const result = savedOrder ?? existing.data;
@@ -547,7 +574,9 @@ export function CommitmentCapturePage({
     const items = sponsors.data.workItems;
     return (
       <>
-        <h1 className="pwa-h1">Bestellung erfassen</h1>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Bestellung erfassen
+        </h1>
         <ActionChoice
           actionId={actionId}
           memberships={memberships}
@@ -559,23 +588,13 @@ export function CommitmentCapturePage({
         {items.length ? (
           <ul className="pwa-list" data-testid="commitment-sponsors">
             {items.map((item) => (
-              <li key={item.assignmentId}>
-                <a
-                  className="pwa-row"
-                  href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
-                >
-                  <span className="pwa-row-text">
-                    <span className="pwa-row-title">
-                      {item.partyDisplayName}
-                    </span>
-                    <span className="pwa-row-meta">
-                      {[item.contactName, item.city]
-                        .filter(Boolean)
-                        .join(" · ") || "Keine Zusatzdaten"}
-                    </span>
-                  </span>
-                </a>
-              </li>
+              <SponsorRow
+                actionId={actionId}
+                href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
+                item={item}
+                key={item.assignmentId}
+                userId={identity.userId}
+              />
             ))}
           </ul>
         ) : (
@@ -608,8 +627,13 @@ export function CommitmentCapturePage({
       <a className="pwa-back" href={back} onClick={followInPage}>
         <Icon icon={ArrowLeft} size={18} /> Abbrechen
       </a>
-      <h1 className="pwa-h1">Bestellung für {sponsor.partyDisplayName}</h1>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Bestellung für {sponsor.partyDisplayName}
+      </h1>
       <StepList step={step} />
+      <h2 className="sr-only" ref={stepHeading} tabIndex={-1}>
+        Schritt {step} von {STEPS.length}: {STEPS[step - 1]}
+      </h2>
 
       {step === 1 ? (
         <div className="stack">
@@ -661,7 +685,7 @@ export function CommitmentCapturePage({
               <Button
                 className="pwa-wide"
                 disabled={!offering}
-                onClick={() => setStep(2)}
+                onClick={() => goToStep(2)}
                 size="lg"
                 variant="primary"
               >
@@ -701,7 +725,15 @@ export function CommitmentCapturePage({
               Die Rechnung geht später an diese Anschrift. Bezahlt wird per
               Überweisung.
             </p>
-            <Field label="Name">
+            <Field
+              error={
+                showMissing && !recipient.recipientName.trim()
+                  ? "Bitte ausfüllen."
+                  : undefined
+              }
+              label="Name"
+              required
+            >
               <Input
                 autoComplete="organization"
                 id="commitment-recipient-name"
@@ -715,7 +747,15 @@ export function CommitmentCapturePage({
                 value={recipient.recipientName}
               />
             </Field>
-            <Field label="Straße und Hausnummer">
+            <Field
+              error={
+                showMissing && !recipient.streetLine1.trim()
+                  ? "Bitte ausfüllen."
+                  : undefined
+              }
+              label="Straße und Hausnummer"
+              required
+            >
               <Input
                 autoComplete="address-line1"
                 data-testid="commitment-street"
@@ -731,7 +771,15 @@ export function CommitmentCapturePage({
               />
             </Field>
             <div className="pwa-two">
-              <Field label="PLZ">
+              <Field
+                error={
+                  showMissing && !recipient.postalCode.trim()
+                    ? "Bitte ausfüllen."
+                    : undefined
+                }
+                label="PLZ"
+                required
+              >
                 <Input
                   autoComplete="postal-code"
                   id="commitment-postal-code"
@@ -745,7 +793,15 @@ export function CommitmentCapturePage({
                   value={recipient.postalCode}
                 />
               </Field>
-              <Field label="Ort">
+              <Field
+                error={
+                  showMissing && !recipient.city.trim()
+                    ? "Bitte ausfüllen."
+                    : undefined
+                }
+                label="Ort"
+                required
+              >
                 <Input
                   autoComplete="address-level2"
                   id="commitment-city"
@@ -771,13 +827,20 @@ export function CommitmentCapturePage({
             </Field>
           </fieldset>
           {stepError ? (
-            <StatusMessage tone="error">{stepError}</StatusMessage>
+            <StatusMessage tone="error">
+              <span id="commitment-step-error">{stepError}</span>
+            </StatusMessage>
           ) : null}
           <div className="pwa-two">
-            <Button onClick={() => setStep(1)} size="lg">
+            <Button onClick={() => goToStep(1)} size="lg">
               Zurück
             </Button>
-            <Button size="lg" type="submit" variant="primary">
+            <Button
+              aria-describedby={stepError ? "commitment-step-error" : undefined}
+              size="lg"
+              type="submit"
+              variant="primary"
+            >
               Weiter
             </Button>
           </div>
@@ -846,7 +909,7 @@ export function CommitmentCapturePage({
           <div className="pwa-two">
             <Button
               disabled={create.isPending}
-              onClick={() => setStep(2)}
+              onClick={() => goToStep(2)}
               size="lg"
             >
               Zurück

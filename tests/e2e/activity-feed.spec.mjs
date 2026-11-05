@@ -139,6 +139,17 @@ test("Bernd sees the jointly managed sponsor with their own follow-up action", a
       "href",
       /view=contacts&assignment=60000000-0000-4000-8000-000000000004/,
     );
+    // The next action opens the sponsor's contact sheet in its campaign.
+    await nextAction.click();
+    await expect(page).toHaveURL(
+      /\/app\/sponsors\?action=[0-9a-f-]+&assignment=60000000-0000-4000-8000-000000000004&contact=1/,
+    );
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Doppelkontakt AG" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Kontakt mit Doppelkontakt AG" }),
+    ).toBeVisible();
   } finally {
     await context.close();
   }

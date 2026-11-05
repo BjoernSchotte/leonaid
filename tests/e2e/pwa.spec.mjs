@@ -25,6 +25,12 @@ async function authenticate(context, token) {
   ]);
 }
 
+async function horizontalOverflow(page) {
+  return page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+}
+
 async function assertNoSeriousAxeFindings(page) {
   const results = await analyzeAccessibility(page, { tags: WCAG_TAGS });
   const severe = results.violations.filter(({ impact }) =>
@@ -135,11 +141,15 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   });
 
   // Prototype SponsorDetail: call, mail and contact tiles, order button.
+  // The in-page change moves the focus to the new screen's heading.
   await rows.filter({ hasText: "Musterwerk GmbH" }).click();
   await expect(page).toHaveURL(/\/app\/sponsors\?.*assignment=/);
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Musterwerk GmbH" }),
-  ).toBeVisible();
+  const detailHeading = page.getByRole("heading", {
+    level: 1,
+    name: "Musterwerk GmbH",
+  });
+  await expect(detailHeading).toBeVisible();
+  await expect(detailHeading).toBeFocused();
   const call = page.getByRole("link", { name: "Anrufen" });
   await expect(call).toHaveAttribute("href", "tel:+493012345678");
   await expect(page.getByRole("link", { name: "E-Mail" })).toHaveAttribute(
@@ -155,16 +165,43 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
     expect(box).not.toBeNull();
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
+  // chromium-390 still runs at 200 % text here (set above).
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
   await assertNoSeriousAxeFindings(page);
   await page.screenshot({
     path: `${artifactDirectory}/pwa-detail-${testInfo.project.name}.png`,
     fullPage: true,
   });
-  // Esc returns to the list (prototype hotkey).
+
+  // Contact sheet: K opens it, Esc closes it, the focus comes back to
+  // "Kontakt erfassen"; the same from the button.
+  const contactOpen = page.getByTestId("contact-open");
+  const sheet = page.getByRole("dialog", {
+    name: "Kontakt mit Musterwerk GmbH",
+  });
+  await page.keyboard.press("k");
+  await expect(sheet).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: `${artifactDirectory}/pwa-contact-sheet-${testInfo.project.name}.png`,
+  });
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Sponsoren" }),
-  ).toBeVisible();
+  await expect(sheet).toBeHidden();
+  await expect(contactOpen).toBeFocused();
+  await contactOpen.click();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(contactOpen).toBeFocused();
+
+  // Esc returns to the list (prototype hotkey), focus on its heading.
+  await page.keyboard.press("Escape");
+  const listHeading = page.getByRole("heading", {
+    level: 1,
+    name: "Sponsoren",
+  });
+  await expect(listHeading).toBeVisible();
+  await expect(listHeading).toBeFocused();
   // The jointly managed sponsor names the colleague in its head.
   await rows.filter({ hasText: "mit Bernd Binder" }).click();
   await expect(page.getByTestId("co-assignees")).toHaveText(

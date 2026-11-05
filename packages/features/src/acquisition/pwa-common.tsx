@@ -5,7 +5,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import { useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useMemo, useState, type MouseEvent } from "react";
 
 import type {
   AcquisitionActivityWorkItemResponse,
@@ -14,7 +14,9 @@ import type {
 } from "@leonaid/api-client";
 import {
   Button,
+  Field,
   Icon,
+  Select,
   StatusIcon,
   StatusMessage,
   SkeletonRows,
@@ -26,13 +28,16 @@ import { relativeDay } from "../shared/dates";
 
 export type AssignmentStatus = AcquisitionActivityWorkItemResponse["status"];
 
-/** The server's assignment states, in pipeline order. */
+/**
+ * The states a sponsor in the acquirer's list can have, in pipeline order.
+ * A handed-over sponsor leaves the list (the board omits it), so
+ * "Übergeben" is no filter; Start shows its count without a link.
+ */
 export const ASSIGNMENT_STATUSES: readonly AssignmentStatus[] = [
   "open",
   "contacted",
   "committed",
   "declined",
-  "handed_over",
 ];
 
 export const assignmentStatusLabel: Readonly<Record<AssignmentStatus, string>> =
@@ -106,11 +111,10 @@ export function ActionChoice({
 }) {
   if (memberships.length < 2) return null;
   return (
-    <label className="pwa-action-choice">
-      <span>Charity-Aktion</span>
-      <select
-        className="input select"
+    <Field label="Charity-Aktion">
+      <Select
         data-testid="acquirer-action"
+        id="acquirer-action"
         onChange={(event) => onChange(event.target.value)}
         value={actionId}
       >
@@ -119,8 +123,8 @@ export function ActionChoice({
             {membership.actionName}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </Field>
   );
 }
 
@@ -128,7 +132,8 @@ export function ActionChoice({
 export function useSponsorBoard(client: LeonAidApiClient, actionId: string) {
   return useQuery({
     enabled: Boolean(actionId),
-    // The server returns at most 100 sponsors and the latest contacts.
+    // All of the acquirer's sponsors; `limit` caps only the latest contacts
+    // across all sponsors (the detail's "Verlauf" shows those).
     queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
     queryKey: ["acquisition-activity-board", actionId],
   });
@@ -136,6 +141,32 @@ export function useSponsorBoard(client: LeonAidApiClient, actionId: string) {
 
 export function sponsorHref(actionId: string, assignmentId: string) {
   return `/app/sponsors?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(assignmentId)}`;
+}
+
+/*
+ * Focus after an in-page screen change: the activated link unmounts, so the
+ * new screen's heading takes the focus (and is announced). Only screen
+ * changes ask for it, not filter changes or the first page load.
+ */
+let headingFocusRequested = false;
+
+/** Shows another acquirer screen without a page load; its h1 gets focus. */
+export function navigateToScreen(
+  href: string,
+  { replace = false }: { readonly replace?: boolean } = {},
+) {
+  headingFocusRequested = true;
+  navigateInPage(href, { replace });
+  window.scrollTo({ top: 0 });
+}
+
+/** Ref for a screen's h1 (with tabIndex -1): focused after navigateToScreen. */
+export function useScreenHeading() {
+  return useCallback((element: HTMLElement | null) => {
+    if (!element || !headingFocusRequested) return;
+    headingFocusRequested = false;
+    element.focus({ preventScroll: true });
+  }, []);
 }
 
 /** In-page link: the shell keeps its state and the tabs follow. */
@@ -151,8 +182,12 @@ export function followInPage(event: MouseEvent<HTMLAnchorElement>) {
     return;
   }
   event.preventDefault();
-  navigateInPage(event.currentTarget.getAttribute("href") ?? "/app/");
-  window.scrollTo({ top: 0 });
+  navigateToScreen(event.currentTarget.getAttribute("href") ?? "/app/");
+}
+
+/** "tel:" wants the number without spaces or separators (RFC 3966). */
+export function telHref(phone: string) {
+  return `tel:${phone.replace(/[^\d+]/g, "")}`;
 }
 
 export function otherAcquirers(
@@ -171,11 +206,14 @@ export function followUpWhen(item: AcquisitionActivityWorkItemResponse) {
 
 export function SponsorRow({
   actionId,
+  href,
   item,
   meta,
   userId,
 }: {
   readonly actionId: string;
+  /** Target of the row; the sponsor's detail by default. */
+  readonly href?: string;
   readonly item: AcquisitionActivityWorkItemResponse;
   readonly meta?: string;
   readonly userId: string;
@@ -191,7 +229,7 @@ export function SponsorRow({
         data-party-id={item.partyId}
         data-party-kind={item.partyKind}
         data-testid="sponsor-row"
-        href={sponsorHref(actionId, item.assignmentId)}
+        href={href ?? sponsorHref(actionId, item.assignmentId)}
         onClick={followInPage}
       >
         {/* The status word is in the meta line unless a meta replaces it;

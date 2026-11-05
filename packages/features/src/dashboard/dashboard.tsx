@@ -39,7 +39,7 @@ import {
 } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
-import { ActionChoice } from "../acquisition/pwa-common";
+import { ActionChoice, useScreenHeading } from "../acquisition/pwa-common";
 import { AcquirerStart } from "../acquisition/pwa-start";
 import { snapshotWindowLabel } from "../commitments/order-format";
 import { formatQuantities } from "../commitments/quantities";
@@ -634,6 +634,7 @@ export function RoleDashboardPage({
     ],
     [identity.actionMemberships, mode],
   );
+  const screenHeading = useScreenHeading();
   const [actionId, setActionId] = useState(() =>
     selectedActionFromUrl(memberships),
   );
@@ -693,7 +694,9 @@ export function RoleDashboardPage({
   // Acquisition app "Start" (prototype pwa/Acquire.tsx Start()).
   return (
     <>
-      <h1 className="pwa-h1">{`${greeting()}, ${identity.displayName.split(" ")[0]}.`}</h1>
+      <h1 className="pwa-h1" ref={screenHeading} tabIndex={-1}>
+        {`${greeting()}, ${identity.displayName.split(" ")[0]}.`}
+      </h1>
       {dashboard.isPending ? (
         loading
       ) : dashboard.isError ? (

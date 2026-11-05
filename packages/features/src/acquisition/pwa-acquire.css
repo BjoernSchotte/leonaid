@@ -143,6 +143,11 @@
 .pipe-count {
   font-weight: var(--fw-bold);
 }
+.pipe-note {
+  display: block;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
 
 /* Search, chips */
 .pwa-search {
@@ -252,6 +257,22 @@
   font-weight: var(--fw-semibold);
   text-decoration: none;
   cursor: pointer;
+}
+.pwa-action {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+/* The shared segment's 1fr columns grow with a long word at 200 % text;
+   in these screens they share the row and wrap instead. */
+.pwa-main .pwa-segment,
+.pwa-sheet .pwa-segment {
+  grid-auto-columns: minmax(0, 1fr);
+}
+.pwa-main .pwa-segment button,
+.pwa-sheet .pwa-segment button {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .pwa-action:hover {
   background: var(--row-hover);

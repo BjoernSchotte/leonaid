@@ -4,7 +4,13 @@
  */
 import { X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type RefObject,
+} from "react";
 
 import {
   ApiError,
@@ -94,12 +100,15 @@ export function ContactSheet({
   item,
   onClose,
   open,
+  returnFocus,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly item: AcquisitionActivityWorkItemResponse;
   readonly onClose: () => void;
   readonly open: boolean;
+  /** Takes the focus when the sheet closes ("Kontakt erfassen"). */
+  readonly returnFocus?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const queries = useQueryClient();
@@ -115,11 +124,26 @@ export function ContactSheet({
   const [nextAction, setNextAction] = useState("Nachfassen");
   const [note, setNote] = useState("");
 
+  const opener = useRef<Element | null>(null);
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+    if (open && !dialog.open) {
+      // A failed save of an earlier opening is not shown again.
+      record.reset();
+      opener.current = document.activeElement;
+      dialog.showModal();
+    }
+    if (!open && dialog.open) {
+      dialog.close();
+      // The sheet returns the focus itself (no reliance on the browser's
+      // or the shared Modal's fallback): to "Kontakt erfassen", else to
+      // what had it before.
+      const target =
+        returnFocus?.current ??
+        (opener.current instanceof HTMLElement ? opener.current : null);
+      target?.focus();
+    }
   }, [open]);
 
   const record = useMutation({

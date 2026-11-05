@@ -4,6 +4,7 @@
  * Contacts are recorded on the sponsor (detail, "Kontakt erfassen").
  */
 import { ListTodo } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import type {
@@ -14,14 +15,15 @@ import type {
 import { EmptyState } from "@leonaid/ui";
 
 import { isoDay, localIsoDate, relativeDay } from "../shared/dates";
-import { navigateInPage } from "../shared/location";
 import {
   ActionChoice,
   BoardFailed,
   BoardLoading,
   SponsorRow,
+  navigateToScreen,
   sponsorHref,
   useAcquirerAction,
+  useScreenHeading,
   useSponsorBoard,
 } from "./pwa-common";
 
@@ -79,17 +81,35 @@ export function ActivityWorkspace({
 }: ActivityWorkspaceProps) {
   const { actionId, memberships, choose } = useAcquirerAction(identity);
   const board = useSponsorBoard(client, actionId);
+  const heading = useScreenHeading();
 
-  // Older links (?assignment=) recorded a contact here; that is the
-  // sponsor's contact sheet now.
+  // Links with ?assignment= (the "Neues" next action) open that sponsor's
+  // contact sheet. The link names no campaign, so the campaign holding the
+  // assignment is looked up among the acquirer's campaigns.
   const linked = new URLSearchParams(window.location.search).get("assignment");
+  const boards = useQueries({
+    queries: linked
+      ? memberships.map((membership) => ({
+          queryFn: () =>
+            client.getAcquisitionActivityBoard(membership.actionId, {
+              limit: 100,
+            }),
+          queryKey: ["acquisition-activity-board", membership.actionId],
+        }))
+      : [],
+  });
+  const settled = boards.every((result) => !result.isPending);
+  const owner = memberships.find((_, index) =>
+    boards[index]?.data?.workItems.some((item) => item.assignmentId === linked),
+  )?.actionId;
   useEffect(() => {
-    if (linked && actionId) {
-      navigateInPage(`${sponsorHref(actionId, linked)}&contact=1`, {
-        replace: true,
-      });
-    }
-  }, [linked, actionId]);
+    if (!linked || !settled) return;
+    const target = owner ?? actionId;
+    if (!target) return;
+    navigateToScreen(`${sponsorHref(target, linked)}&contact=1`, {
+      replace: true,
+    });
+  }, [linked, settled, owner, actionId]);
 
   const today = localIsoDate();
   const next = tomorrow(today);
@@ -104,7 +124,9 @@ export function ActivityWorkspace({
 
   return (
     <>
-      <h1 className="pwa-h1">Wiedervorlagen</h1>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Wiedervorlagen
+      </h1>
       <ActionChoice
         actionId={actionId}
         memberships={memberships}

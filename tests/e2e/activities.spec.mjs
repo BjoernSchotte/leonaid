@@ -47,6 +47,17 @@ test("acquirer records a contact and finds it after reload", async ({
   ]);
   const page = await context.newPage();
   try {
+    // Start: "Heute dran" lists the overdue and today's follow-ups.
+    await page.goto(`${baseUrl}/app/`);
+    const due = page.getByTestId("due-today");
+    await expect(due.getByTestId("sponsor-row")).toHaveCount(2);
+    await expect(due.getByTestId("sponsor-row").first()).toContainText(
+      "Musterwerk GmbH",
+    );
+    await expect(
+      due.getByTestId("sponsor-row").filter({ hasText: "Doppelkontakt AG" }),
+    ).toContainText("Wiedervorlage Heute");
+
     await page.goto(`${baseUrl}/app/activities?view=contacts`);
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",

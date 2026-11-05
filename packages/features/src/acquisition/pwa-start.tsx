@@ -239,6 +239,24 @@ export function AcquirerStart({
                 </li>
               );
             })}
+            {pipeline.handedOver > 0 ? (
+              <li>
+                <span className="pipe-row" data-testid="pipeline-handed-over">
+                  <StatusIcon
+                    label=""
+                    size={16}
+                    status={assignmentStatusShape.handed_over}
+                  />
+                  <span className="pipe-label">
+                    {assignmentStatusLabel.handed_over}
+                    <span className="pipe-note">
+                      nicht mehr in deiner Liste
+                    </span>
+                  </span>
+                  <span className="pipe-count num">{pipeline.handedOver}</span>
+                </span>
+              </li>
+            ) : null}
           </ul>
         </section>
       ) : null}

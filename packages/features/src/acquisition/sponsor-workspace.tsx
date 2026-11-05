@@ -36,6 +36,7 @@ import {
   Input,
   StatusIcon,
   StatusMessage,
+  isTypingTarget,
   useHotkeys,
 } from "@leonaid/ui";
 
@@ -52,9 +53,12 @@ import {
   assignmentStatusShape,
   followInPage,
   isAssignmentStatus,
+  navigateToScreen,
   otherAcquirers,
   sponsorHref,
+  telHref,
   useAcquirerAction,
+  useScreenHeading,
   useSponsorBoard,
   type AssignmentStatus,
 } from "./pwa-common";
@@ -257,6 +261,8 @@ function SponsorDetail({
   const [sheet, setSheet] = useState(
     () => new URLSearchParams(window.location.search).get("contact") === "1",
   );
+  const heading = useScreenHeading();
+  const contactButton = useRef<HTMLButtonElement>(null);
   const back = listHref(actionId);
   const orderHref = item
     ? `/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`
@@ -267,7 +273,9 @@ function SponsorDetail({
         keys: "escape",
         label: "Zurück zur Liste",
         group: "Akquise-App",
-        run: () => navigateInPage(back),
+        run: () => navigateToScreen(back),
+        // Esc in a field leaves the field (shell rule), not the page.
+        when: () => !isTypingTarget(document.activeElement),
       },
       {
         keys: "k",
@@ -280,7 +288,7 @@ function SponsorDetail({
         keys: "b",
         label: "Bestellung erfassen",
         group: "Akquise-App",
-        run: () => navigateInPage(orderHref),
+        run: () => navigateToScreen(orderHref),
         when: () => Boolean(item),
       },
     ],
@@ -289,21 +297,25 @@ function SponsorDetail({
 
   if (!item) {
     return (
-      <EmptyState
-        action={
-          <a
-            className={buttonClassName({ variant: "primary" })}
-            href={back}
-            onClick={followInPage}
-          >
-            Zur Liste
-          </a>
-        }
-        description="Vielleicht wurde der Sponsor zusammengeführt oder du bist nicht mehr zuständig."
-        headingLevel={2}
-        icon={Users}
-        title="Sponsor nicht gefunden"
-      />
+      <>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Sponsor nicht gefunden
+        </h1>
+        <EmptyState
+          action={
+            <a
+              className={buttonClassName({ variant: "primary" })}
+              href={back}
+              onClick={followInPage}
+            >
+              Zur Liste
+            </a>
+          }
+          description="Vielleicht wurde der Sponsor zusammengeführt oder du bist nicht mehr zuständig."
+          icon={Users}
+          title="Nicht mehr in deiner Liste"
+        />
+      </>
     );
   }
 
@@ -321,7 +333,9 @@ function SponsorDetail({
         <Icon icon={ArrowLeft} size={18} /> Sponsoren
       </a>
       <header className="pwa-detail-head">
-        <h1 className="pwa-h1">{item.partyDisplayName}</h1>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          {item.partyDisplayName}
+        </h1>
         <p className="pwa-detail-sub" data-status={item.status}>
           <StatusIcon
             label=""
@@ -338,7 +352,7 @@ function SponsorDetail({
       </header>
       <div aria-label="Kontaktmöglichkeiten" className="pwa-actions">
         {phoneAllowed ? (
-          <a className="pwa-action" href={`tel:${item.phone}`}>
+          <a className="pwa-action" href={telHref(item.phone!)}>
             <Icon icon={Phone} size={20} />
             Anrufen
           </a>
@@ -353,6 +367,7 @@ function SponsorDetail({
           className="pwa-action"
           data-testid="contact-open"
           onClick={() => setSheet(true)}
+          ref={contactButton}
           type="button"
         >
           <Icon icon={CalendarClock} size={20} />
@@ -456,6 +471,7 @@ function SponsorDetail({
         client={client}
         item={item}
         onClose={() => setSheet(false)}
+        returnFocus={contactButton}
         open={sheet}
       />
     </>
@@ -466,6 +482,7 @@ function SponsorDetail({
 
 function MatchResult({
   actionId,
+  confirmed,
   currentUser,
   match,
   onCancel,
@@ -473,6 +490,7 @@ function MatchResult({
   resolving,
   resolution,
   selectedId,
+  setConfirmed,
   setSelectedId,
 }: {
   readonly actionId: string;
@@ -484,6 +502,9 @@ function MatchResult({
   readonly resolution: SponsorResolutionResponse | null;
   readonly selectedId: string;
   readonly setSelectedId: (id: string) => void;
+  /** The acquirer's own "Ja, ich spreche mich … ab" (prototype). */
+  readonly confirmed: boolean;
+  readonly setConfirmed: (value: boolean) => void;
 }) {
   if (resolution) {
     const shared = [
@@ -535,10 +556,11 @@ function MatchResult({
   const selected = match.candidates.find(
     (candidate) => candidate.twentyId === selectedId,
   );
-  const hasOtherAssignments =
-    selected?.assignedAcquirers.some(
-      (assignee) => assignee.userId !== currentUser.userId,
-    ) ?? false;
+  const others =
+    selected?.assignedAcquirers
+      .filter((assignee) => assignee.userId !== currentUser.userId)
+      .map((assignee) => assignee.displayName) ?? [];
+  const hasOtherAssignments = others.length > 0;
   const title =
     match.status === "no_match"
       ? "Kein gleichnamiger Sponsor gefunden"
@@ -603,12 +625,25 @@ function MatchResult({
             </div>
           </fieldset>
         ) : null}
+        {hasOtherAssignments ? (
+          <label className="checkbox pwa-confirm">
+            <input
+              checked={confirmed}
+              data-testid="sponsor-confirm-shared"
+              onChange={(event) => setConfirmed(event.target.checked)}
+              type="checkbox"
+            />
+            Ja, ich spreche mich mit {others.join(", ")} ab und trage mich
+            zusätzlich ein.
+          </label>
+        ) : null}
         <Button
           className="pwa-wide"
           data-testid="sponsor-resolve"
           disabled={
             resolving ||
-            (match.status !== "no_match" && selectedId.length === 0)
+            (match.status !== "no_match" && selectedId.length === 0) ||
+            (hasOtherAssignments && !confirmed)
           }
           icon={UserPlus}
           loading={resolving}
@@ -654,7 +689,13 @@ function NewSponsor({
   const [match, setMatch] = useState<SponsorMatchResponse | null>(null);
   const [draft, setDraft] = useState<SponsorDraftRequest | null>(null);
   const [commandId, setCommandId] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedIdState] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  // Another candidate needs its own confirmation.
+  const setSelectedId = (id: string) => {
+    setSelectedIdState(id);
+    setConfirmed(false);
+  };
   const [resolution, setResolution] =
     useState<SponsorResolutionResponse | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -681,8 +722,8 @@ function NewSponsor({
       );
       return client.resolveSponsorMatch(actionId, {
         commandId,
-        confirmExistingAssignments:
-          (selected?.assignedAcquirers.length ?? 0) > 0,
+        // Only the acquirer's own tick confirms a shared assignment.
+        confirmExistingAssignments: confirmed,
         expectedStatus: match.status,
         selectedTwentyId: selected?.twentyId ?? null,
         sponsor: draft,
@@ -911,7 +952,9 @@ function NewSponsor({
           onResolve={() => resolve.mutate()}
           resolving={resolve.isPending}
           resolution={resolution}
+          confirmed={confirmed}
           selectedId={selectedId}
+          setConfirmed={setConfirmed}
           setSelectedId={setSelectedId}
         />
       </section>
@@ -923,6 +966,7 @@ function NewSponsor({
 
 export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   const { actionId, memberships, choose } = useAcquirerAction(identity);
+  const heading = useScreenHeading();
   const href = useLocationHref();
   const query = new URLSearchParams(href.split("?")[1] ?? "");
   const view = query.get("view") === "new" ? "new" : "list";
@@ -952,7 +996,9 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   if (view === "new") {
     return (
       <>
-        <h1 className="pwa-h1">Neuer Sponsor</h1>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Neuer Sponsor
+        </h1>
         {choice}
         <NewSponsor
           actionId={actionId}
@@ -994,7 +1040,9 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
 
   return (
     <>
-      <h1 className="pwa-h1">Sponsoren</h1>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Sponsoren
+      </h1>
       {choice}
       {content ?? (
         <SponsorList

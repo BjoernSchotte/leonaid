@@ -101,6 +101,12 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
     await expect(
       page.getByRole("heading", { name: "Heute dran" }),
     ).toBeVisible();
+    // This stack's sponsors have no follow-up yet (activities.spec proves
+    // the filled list on its own data).
+    await expect(page.getByTestId("due-today")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Heute ist nichts fällig" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Alle Wiedervorlagen" }),
     ).toHaveAttribute("href", /\/app\/activities\?view=contacts/);
@@ -123,6 +129,8 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
       "aria-pressed",
       "true",
     );
+    // Handed-over sponsors leave the list, so "Übergeben" is no filter.
+    await expect(page.getByTestId("sponsor-status-handed_over")).toHaveCount(0);
     await expect(page.getByTestId("sponsor-row")).toHaveCount(2);
     await expect(page.getByTestId("sponsor-row")).toContainText([
       "Offen",
