@@ -64,4 +64,14 @@ describe("revealFocusedElement", () => {
     revealFocusedElement(plain);
     expect(scrollBy).not.toHaveBeenCalled();
   });
+
+  it("leaves elements inside sticky or fixed parts alone", () => {
+    const nav = document.body.appendChild(document.createElement("nav"));
+    nav.style.position = "sticky";
+    const link = nav.appendChild(document.createElement("a"));
+    link.href = "#x";
+    place(link, 20);
+    revealFocusedElement(link);
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
 });

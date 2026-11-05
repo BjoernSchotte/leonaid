@@ -79,27 +79,36 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
   // scroll-padding a browser does not scroll on focus. Instant scrolling:
   // the page sets scroll-behavior: smooth.
   await page.waitForTimeout(500);
-  await page.evaluate(
+  const parked = await page.evaluate(
     ({ edge, coverTop, coverBottom }) => {
-      const now = document
-        .querySelector("[data-obscure-target]")
-        .getBoundingClientRect();
-      window.scrollBy({
+      const element = document.querySelector("[data-obscure-target]");
+      const now = element.getBoundingClientRect();
+      const fromY = window.scrollY;
+      window.scrollTo({
         top:
-          edge === "top"
+          fromY +
+          (edge === "top"
             ? now.top - (coverBottom - now.height / 2)
-            : now.bottom - (coverTop + now.height / 2),
+            : now.bottom - (coverTop + now.height / 2)),
         behavior: "instant",
       });
+      return {
+        fromY,
+        toY: window.scrollY,
+        maxY: document.documentElement.scrollHeight - window.innerHeight,
+        top: element.getBoundingClientRect().top,
+        active: document.activeElement?.tagName,
+      };
     },
     { edge, coverTop: coverBox.y, coverBottom: coverBox.y + coverBox.height },
   );
   const target = page.locator("[data-obscure-target]");
   const startBox = await target.boundingBox();
   if (edge === "top") {
-    expect(startBox.y, "the target starts under the bar").toBeLessThan(
-      coverBox.y + coverBox.height,
-    );
+    expect(
+      startBox.y,
+      `the target starts under the bar: ${JSON.stringify(parked)}`,
+    ).toBeLessThan(coverBox.y + coverBox.height);
   } else {
     expect(startBox.y + startBox.height).toBeGreaterThan(coverBox.y);
   }

@@ -17,6 +17,16 @@ export function revealFocusedElement(
   const root = doc.documentElement;
   if (!view || !(element instanceof view.HTMLElement)) return;
   if (element.closest("dialog")) return; // modals scroll on their own
+  // Bars, jump navs and other sticky or fixed parts do not move with the
+  // page: scrolling cannot reveal them, it would only shift the page.
+  for (
+    let node: Element | null = element;
+    node && node !== root;
+    node = node.parentElement
+  ) {
+    const position = view.getComputedStyle(node).position;
+    if (position === "sticky" || position === "fixed") return;
+  }
   const style = view.getComputedStyle(root);
   const top = Number.parseFloat(style.scrollPaddingTop) || 0;
   const bottom = Number.parseFloat(style.scrollPaddingBottom) || 0;
