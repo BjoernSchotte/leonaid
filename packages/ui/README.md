@@ -76,13 +76,12 @@ that accessible name. An icon never stands alone: an icon-only control is an
 `Button`, `IconButton` and `Badge` take a Lucide icon component directly and
 size it themselves.
 
-Older feature code still uses the free Hugeicons packages. Screens move to
-Lucide one by one; do not add new Hugeicons usages.
+Hugeicons and Base UI are gone; `./leonaid check` (tools/ci/legacy_ui.py)
+rejects them and the old token aliases.
 
 ## Dependencies and license boundary
 
 The exact versions stay pinned in `package.json` and `bun.lock`. License and
 origin notices are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-Product code may use only icons from `lucide-react` and, until the remaining
-screens move, `@hugeicons/core-free-icons`. Hugeicons Pro, copied web SVGs or
-other asset packages need their own license decision before they are added.
+Product code may use only icons from `lucide-react`. Copied web SVGs or other
+asset packages need their own license decision before they are added.

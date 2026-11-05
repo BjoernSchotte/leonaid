@@ -1,10 +1,4 @@
-import {
-  ClockAlertIcon,
-  Search01Icon,
-  UserMultiple02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Contact } from "lucide-react";
+import { ClockAlert, Contact, Search, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -188,12 +182,7 @@ export function AcquisitionAdminPage({
           ))}
         </div>
         <label className="acq-search">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={Search01Icon}
-            size={19}
-            strokeWidth={1.8}
-          />
+          <Search aria-hidden="true" size={19} />
           <span className="sr-only">Pipeline durchsuchen</span>
           <input
             onChange={(event) => setSearch(event.target.value)}
@@ -260,12 +249,7 @@ export function AcquisitionAdminPage({
                       </th>
                       <td>
                         <span className="acq-admin-assignees">
-                          <HugeiconsIcon
-                            aria-hidden="true"
-                            icon={UserMultiple02Icon}
-                            size={17}
-                            strokeWidth={1.8}
-                          />
+                          <Users aria-hidden="true" size={17} />
                           {item.assignedAcquirers
                             .map((person) => person.displayName)
                             .join(", ")}
@@ -284,12 +268,7 @@ export function AcquisitionAdminPage({
                           className="acq-admin-due"
                           data-urgency={item.urgency}
                         >
-                          <HugeiconsIcon
-                            aria-hidden="true"
-                            icon={ClockAlertIcon}
-                            size={16}
-                            strokeWidth={1.8}
-                          />
+                          <ClockAlert aria-hidden="true" size={16} />
                           {formatDue(item)}
                         </span>
                       </td>

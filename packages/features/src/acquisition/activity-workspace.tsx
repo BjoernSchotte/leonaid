@@ -1,10 +1,4 @@
-import {
-  Calendar02Icon,
-  ClockAlertIcon,
-  NoteEditIcon,
-  TelephoneIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Calendar, ClockAlert, NotebookPen, Phone } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -181,12 +175,7 @@ function ActivityBoard({
         </div>
       ) : (
         <div className="acq-empty">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ClockAlertIcon}
-            size={22}
-            strokeWidth={1.8}
-          />
+          <ClockAlert aria-hidden="true" size={22} />
           <strong>
             {reminders.length
               ? "Keine Wiedervorlage in diesem Filter"
@@ -244,12 +233,7 @@ function ActivityBoard({
         </div>
       ) : (
         <div className="acq-empty acq-empty--compact">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={NoteEditIcon}
-            size={22}
-            strokeWidth={1.8}
-          />
+          <NotebookPen aria-hidden="true" size={22} />
           <strong>Noch kein Kontakt dokumentiert</strong>
           <span>Die erste gespeicherte Aktivität erscheint hier.</span>
         </div>
@@ -393,7 +377,7 @@ export function ActivityWorkspace({
         >
           <div className="acq-section-heading">
             <span aria-hidden="true" className="acq-section-heading__icon">
-              <HugeiconsIcon icon={TelephoneIcon} size={20} strokeWidth={1.8} />
+              <Phone aria-hidden="true" size={20} />
             </span>
             <div>
               <h2 id="activity-form-heading">Was ist passiert?</h2>
@@ -623,11 +607,7 @@ export function ActivityWorkspace({
         <section aria-labelledby="reminder-heading" className="acq-board">
           <div className="acq-section-heading">
             <span aria-hidden="true" className="acq-section-heading__icon">
-              <HugeiconsIcon
-                icon={Calendar02Icon}
-                size={20}
-                strokeWidth={1.8}
-              />
+              <Calendar aria-hidden="true" size={20} />
             </span>
             <div>
               <h2 id="reminder-heading">Heute im Blick</h2>

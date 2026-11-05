@@ -1,11 +1,10 @@
 import {
-  ArrowLeft01Icon,
-  CheckmarkCircle02Icon,
-  Invoice03Icon,
-  Package01Icon,
-  UserMultiple02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  ChevronLeft,
+  CircleCheck,
+  Package,
+  ReceiptText,
+  Users,
+} from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -113,11 +112,7 @@ function CaptureSuccess({
       data-testid="commitment-success"
     >
       <span aria-hidden="true" className="commitment-success__icon">
-        <HugeiconsIcon
-          icon={CheckmarkCircle02Icon}
-          size={26}
-          strokeWidth={1.8}
-        />
+        <CircleCheck aria-hidden="true" size={26} />
       </span>
       <p className="commitment-eyebrow">Bestellung gespeichert</p>
       <h1 id="commitment-success-heading" ref={heading} tabIndex={-1}>
@@ -427,12 +422,7 @@ export function CommitmentCapturePage({
     <div className="commitment-page commitment-page--capture">
       <header className="commitment-page__header">
         <a className="commitment-back-link" href="/app/sponsors">
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ArrowLeft01Icon}
-            size={18}
-            strokeWidth={1.8}
-          />
+          <ChevronLeft aria-hidden="true" size={18} />
           Meine Sponsoren
         </a>
         <p className="commitment-eyebrow">Bestellung oder Zusage</p>
@@ -545,11 +535,7 @@ export function CommitmentCapturePage({
                   data-testid="commitment-party"
                 >
                   <span aria-hidden="true">
-                    <HugeiconsIcon
-                      icon={UserMultiple02Icon}
-                      size={20}
-                      strokeWidth={1.8}
-                    />
+                    <Users aria-hidden="true" size={20} />
                   </span>
                   <div>
                     <strong>{selectedSponsor.partyDisplayName}</strong>
@@ -621,12 +607,7 @@ export function CommitmentCapturePage({
                 </div>
               ) : (
                 <div className="commitment-empty">
-                  <HugeiconsIcon
-                    aria-hidden="true"
-                    icon={Package01Icon}
-                    size={24}
-                    strokeWidth={1.8}
-                  />
+                  <Package aria-hidden="true" size={24} />
                   <strong>Kein Angebot bestellbar</strong>
                   <span>
                     Bitte den Charity-Admin, Angebot und Zeitraum zu prüfen.
@@ -762,11 +743,7 @@ export function CommitmentCapturePage({
           >
             <div className="commitment-summary__heading">
               <span aria-hidden="true">
-                <HugeiconsIcon
-                  icon={Invoice03Icon}
-                  size={21}
-                  strokeWidth={1.8}
-                />
+                <ReceiptText aria-hidden="true" size={21} />
               </span>
               <div>
                 <h2 id="commitment-summary-heading">Bestellübersicht</h2>

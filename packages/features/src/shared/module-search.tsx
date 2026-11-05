@@ -1,7 +1,6 @@
+import { Search } from "lucide-react";
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@leonaid/ui";
 import type { ModulePageContext, UiModule } from "../modules";
 import "./module-search.css";
@@ -80,8 +79,8 @@ export function ModuleSearch({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary>
-        <HugeiconsIcon icon={Search01Icon} size={18} aria-hidden="true" />{" "}
-        Aufgaben, Wissen und Materialien suchen
+        <Search size={18} aria-hidden="true" /> Aufgaben, Wissen und Materialien
+        suchen
       </summary>
       {open && (
         <div>
@@ -106,13 +105,7 @@ export function ModuleSearch({
               <Button
                 type="submit"
                 disabled={!text.trim()}
-                icon={
-                  <HugeiconsIcon
-                    icon={Search01Icon}
-                    size={18}
-                    aria-hidden="true"
-                  />
-                }
+                icon={<Search size={18} aria-hidden="true" />}
               >
                 Suchen
               </Button>
