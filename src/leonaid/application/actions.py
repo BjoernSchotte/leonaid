@@ -187,7 +187,6 @@ class CharityActionRepository(Protocol):
         *,
         responsible_admin_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
         configuration: ActionConfiguration | None = None,
     ) -> CharityAction: ...
 
@@ -256,7 +255,6 @@ class CharityActionRepository(Protocol):
         responsible_user_ids: frozenset[UUID],
         actor_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
     ) -> ActionManagementState: ...
 
     async def update_goal(
@@ -328,7 +326,6 @@ class CharityActionService:
             action,
             responsible_admin_user_id=actor.account.id,
             request_id=request_id,
-            occurred_at=datetime.now(timezone.utc),
             configuration=blank_template.configure(
                 action.id,
                 capabilities=action.capabilities,
@@ -374,7 +371,6 @@ class CharityActionService:
             action,
             responsible_admin_user_id=actor.account.id,
             request_id=request_id,
-            occurred_at=datetime.now(timezone.utc),
             configuration=configuration,
         )
         return created, configuration
@@ -445,7 +441,6 @@ class CharityActionService:
             action,
             responsible_admin_user_id=actor.account.id,
             request_id=request_id,
-            occurred_at=datetime.now(timezone.utc),
             configuration=configuration,
         )
         return created, configuration
@@ -795,7 +790,6 @@ class CharityActionService:
             responsible_user_ids=selected,
             actor_user_id=actor.account.id,
             request_id=request_id,
-            occurred_at=datetime.now(timezone.utc),
         )
 
     async def set_goal(

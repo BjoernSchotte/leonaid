@@ -55,7 +55,6 @@ class IdentityRepository(Protocol):
         idempotency_key: str,
         request_hash: str,
         request_id: str,
-        occurred_at: datetime,
     ) -> AccountStatusChange | None: ...
 
     async def grant_global_role(
@@ -69,7 +68,6 @@ class IdentityRepository(Protocol):
         idempotency_key: str,
         request_hash: str,
         request_id: str,
-        occurred_at: datetime,
     ) -> RoleAssignmentChange | None: ...
 
     async def grant_action_membership(
@@ -85,7 +83,6 @@ class IdentityRepository(Protocol):
         request_hash: str,
         actor_user_id: UUID,
         request_id: str,
-        occurred_at: datetime,
     ) -> RoleAssignmentChange | None: ...
 
     async def member_directory_snapshot(
@@ -672,7 +669,6 @@ class IdentityAdministrationService:
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             request_id=request_id,
-            occurred_at=self._clock(),
         )
         if changed is None:
             raise ResourceNotFound(
@@ -712,7 +708,6 @@ class IdentityAdministrationService:
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             request_id=request_id,
-            occurred_at=self._clock(),
         )
         if result is None:
             raise ResourceNotFound(
@@ -759,7 +754,6 @@ class IdentityAdministrationService:
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             request_id=request_id,
-            occurred_at=self._clock(),
         )
         if result is None:
             raise ResourceNotFound(

@@ -576,6 +576,10 @@ class AsyncpgInvitationRepository:
                         return None
 
                 membership_id = uuid4()
+                # The start comes from the database clock, like the times of
+                # the admin-lock commands that compare with it (see
+                # load_admin_coverage): an app clock ahead of the database
+                # would hide this role from them for that moment.
                 membership_inserted = await connection.fetchval(
                     """
                     INSERT INTO action_membership (
@@ -587,7 +591,7 @@ class AsyncpgInvitationRepository:
                         created_at,
                         updated_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $5, $5)
+                    VALUES ($1, $2, $3, $4, clock_timestamp(), $5, $5)
                     ON CONFLICT (action_id, user_id, role) DO NOTHING
                     RETURNING true
                     """,
