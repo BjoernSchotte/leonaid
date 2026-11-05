@@ -97,7 +97,9 @@ for (const [surface, width] of [
     });
     const epicTitle = `S4 Abschnitt ${randomUUID()}`;
     await editor.getByText("Abschnitt auswählen", { exact: true }).click();
-    await editor.getByLabel("Titel des Abschnitts", { exact: true }).fill(epicTitle);
+    await editor
+      .getByLabel("Titel des Abschnitts", { exact: true })
+      .fill(epicTitle);
     const createdEpicResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
