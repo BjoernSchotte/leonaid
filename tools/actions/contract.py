@@ -24,6 +24,7 @@ from leonaid.domain.sessions import (
     session_token_digest,
 )
 
+SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 FELIX_ID = UUID("10000000-0000-4000-8000-000000000003")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
@@ -48,7 +49,7 @@ def token_for(user_id: UUID) -> str:
 
 async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[UUID, str]:
     now = datetime.now(timezone.utc)
-    users = (KLARA_ID, FELIX_ID, ANNA_ID)
+    users = (SIMONE_ID, KLARA_ID, FELIX_ID, ANNA_ID)
     await connection.execute(
         "DELETE FROM user_session WHERE user_id = ANY($1::uuid[])",
         list(users),
@@ -259,6 +260,28 @@ async def exercise(
             raise ContractFailure("action list shows a foreign action")
         if await listed(ANNA_ID, "acquirer-list"):
             raise ContractFailure("an acquirer lists managed actions")
+        # A system admin manages every action, also without a membership:
+        # Klara's new action and the golden Krapfentaxi 2025 must be listed.
+        simone_memberships = await connection.fetchval(
+            "SELECT count(*) FROM action_membership WHERE user_id = $1",
+            SIMONE_ID,
+        )
+        if simone_memberships != 0:
+            raise ContractFailure("the system admin unexpectedly has memberships")
+        system_listed = {
+            item["id"] for item in await listed(SIMONE_ID, "system-admin-list")
+        }
+        golden_action = "20000000-0000-4000-8000-000000000002"
+        if not {str(action_id), golden_action} <= system_listed:
+            raise ContractFailure(
+                "the system admin does not see every action: "
+                f"{len(system_listed)} listed"
+            )
+        all_actions = await connection.fetchval("SELECT count(*) FROM charity_action")
+        if len(system_listed) != all_actions:
+            raise ContractFailure(
+                f"the system admin lists {len(system_listed)} of {all_actions} actions"
+            )
         anonymous = await client.get(
             "/api/v1/actions", headers=request_headers("anonymous-list")
         )

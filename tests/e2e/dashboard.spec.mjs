@@ -209,6 +209,22 @@ test("charity admin sees next steps, delivery, goal, weekly value and pipeline",
     await expect(
       page.getByTestId("acquisition-admin-list").locator("tbody tr"),
     ).toHaveCount(5, { timeout: 75_000 });
+    // The status filter is a tab list: one tab stop, arrows move and select.
+    const openTab = page.getByTestId("admin-pipeline-filter-open");
+    await expect(openTab).toHaveAttribute("tabindex", "0");
+    await expect(page.getByTestId("admin-pipeline-filter-all")).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+    await openTab.focus();
+    await page.keyboard.press("ArrowRight");
+    const contacted = page.getByTestId("admin-pipeline-filter-contacted");
+    await expect(contacted).toBeFocused();
+    await expect(contacted).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/status=contacted/);
+    await page.keyboard.press("ArrowLeft");
+    await expect(openTab).toBeFocused();
+    await expect(openTab).toHaveAttribute("aria-selected", "true");
 
     // 390 px: one column, the primary action spans the width.
     await page.setViewportSize({ width: 390, height: 844 });

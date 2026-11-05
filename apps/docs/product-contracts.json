@@ -102,11 +102,16 @@
     {
       "file": "packages/features/src/invoices/invoice-admin.tsx",
       "contains": [
-        "Nur lesen.",
+        "ReadOnlyNotice",
+        "Ihre Rolle zeigt Rechnungen",
         "Charity-Aktion",
         "Zahlungen",
         "mayManageSettlements"
       ]
+    },
+    {
+      "file": "packages/ui/src/components/next-step.tsx",
+      "contains": ["Nur lesen."]
     }
   ],
   "DOC-P015": [

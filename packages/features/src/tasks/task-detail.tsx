@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
-  Eye,
   FolderInput,
   Trash2,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import {
   Icon,
   IconButton,
   useOptionalToast,
+  ReadOnlyNotice,
 } from "@leonaid/ui";
 
 import { says, type Address } from "./task-copy";
@@ -95,17 +95,13 @@ export function TaskDetail({
       data-testid="task-detail"
     >
       {!task.canEdit ? (
-        <div className="callout task-readonly" role="note">
-          <Icon icon={Eye} size={16} />
-          <span>
-            <strong>Nur lesen.</strong>{" "}
-            {says(
-              address,
-              "Du kannst diese Aufgabe sehen und für dich planen; bearbeiten dürfen die Bearbeiterinnen und Bearbeiter der Liste.",
-              "Sie können diese Aufgabe sehen und für sich planen; bearbeiten dürfen die Bearbeiterinnen und Bearbeiter der Liste.",
-            )}
-          </span>
-        </div>
+        <ReadOnlyNotice>
+          {says(
+            address,
+            "Du kannst diese Aufgabe sehen und für dich planen; bearbeiten dürfen die Bearbeiterinnen und Bearbeiter der Liste.",
+            "Sie können diese Aufgabe sehen und für sich planen; bearbeiten dürfen die Bearbeiterinnen und Bearbeiter der Liste.",
+          )}
+        </ReadOnlyNotice>
       ) : null}
 
       <DetailSection title="Details">

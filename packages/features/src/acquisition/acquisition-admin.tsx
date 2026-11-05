@@ -1,6 +1,6 @@
 import { ClockAlert, Contact, Search, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type {
   AcquisitionActivityWorkItemResponse,
@@ -19,6 +19,15 @@ type AssignmentFilter =
   | "committed"
   | "declined"
   | "handed_over";
+
+const PIPELINE_FILTERS: readonly (readonly [AssignmentFilter, string])[] = [
+  ["all", "Alle"],
+  ["open", "Offen"],
+  ["contacted", "Kontaktiert"],
+  ["committed", "Zugesagt"],
+  ["declined", "Abgesagt"],
+  ["handed_over", "Übergeben"],
+];
 
 interface AcquisitionAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -74,6 +83,14 @@ export function AcquisitionAdminPage({
       ? (requestedStatus as AssignmentFilter)
       : "all",
   );
+  const filterTabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const chooseFilter = (value: AssignmentFilter) => {
+    setFilter(value);
+    const url = new URL(window.location.href);
+    if (value === "all") url.searchParams.delete("status");
+    else url.searchParams.set("status", value);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  };
   const [search, setSearch] = useState("");
   const board = useQuery({
     enabled: Boolean(actionId),
@@ -149,32 +166,39 @@ export function AcquisitionAdminPage({
           className="acq-tabs"
           role="tablist"
         >
-          {(
-            [
-              ["all", "Alle"],
-              ["open", "Offen"],
-              ["contacted", "Kontaktiert"],
-              ["committed", "Zugesagt"],
-              ["declined", "Abgesagt"],
-              ["handed_over", "Übergeben"],
-            ] as const
-          ).map(([value, label]) => (
+          {PIPELINE_FILTERS.map(([value, label], index) => (
             <button
               aria-selected={filter === value}
               data-testid={`admin-pipeline-filter-${value}`}
               key={value}
-              onClick={() => {
-                setFilter(value);
-                const url = new URL(window.location.href);
-                if (value === "all") url.searchParams.delete("status");
-                else url.searchParams.set("status", value);
-                window.history.replaceState(
-                  {},
-                  "",
-                  `${url.pathname}${url.search}`,
-                );
+              onClick={() => chooseFilter(value)}
+              onKeyDown={(event) => {
+                // ui Tabs pattern: arrows, Home and End move and select.
+                const last = PIPELINE_FILTERS.length - 1;
+                const next =
+                  event.key === "ArrowRight"
+                    ? index === last
+                      ? 0
+                      : index + 1
+                    : event.key === "ArrowLeft"
+                      ? index === 0
+                        ? last
+                        : index - 1
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? last
+                          : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                chooseFilter(PIPELINE_FILTERS[next]![0]);
+                filterTabs.current[next]?.focus();
+              }}
+              ref={(element) => {
+                filterTabs.current[index] = element;
               }}
               role="tab"
+              tabIndex={filter === value ? 0 : -1}
               type="button"
             >
               {label}
