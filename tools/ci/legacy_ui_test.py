@@ -57,6 +57,8 @@ DIRTY = {
     "apps/web/src/spaced.css": ".w { box-shadow: var( --shadow-sm ); }\n",
     "apps/pwa/src/fallback.css": ".v { color: var(--muted, #555); }\n",
     "apps/web/src/sidebar.css": ".s { color: var(--sidebar-foreground); }\n",
+    "apps/web/src/metric.css": ".n { font-size: var(--text-sm); }\n",
+    "apps/web/src/height.css": ".h { min-height: var(--control-height); }\n",
     "apps/web/src/multiline.css": ".m {\n  color: var(\n    --primary\n  );\n}\n",
     "apps/web/src/inline.tsx": "const style = 'color: var(--surface-muted)';\n",
     # M2: definitions, also several on one line.
