@@ -59,7 +59,9 @@ async function openMusterwerkCapture(context, page) {
     .locator('[data-testid="sponsor-row"]')
     .filter({ hasText: "Musterwerk GmbH" });
   await expect(sponsor).toHaveCount(1);
-  const captureLink = sponsor.getByRole("link", { name: "Bestellung" });
+  // Prototype: the order starts on the sponsor ("Bestellung erfassen").
+  await sponsor.click();
+  const captureLink = page.getByTestId("order-open");
   const href = await captureLink.getAttribute("href");
   expect(href).toMatch(/^\/app\/commitments\/new\?/);
   await Promise.all([
@@ -68,12 +70,15 @@ async function openMusterwerkCapture(context, page) {
   ]);
   await expect(
     page.getByRole("heading", {
-      name: "Vom Gespräch zur klaren Bestellung.",
+      level: 1,
+      name: "Bestellung für Musterwerk GmbH",
     }),
   ).toBeVisible();
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(
+    page
+      .getByRole("list", { name: "Schritte" })
+      .locator('[aria-current="step"]'),
+  ).toContainText("Angebot");
 }
 
 test("acquirer captures a review-ready order from the sponsor context", async ({
@@ -86,26 +91,28 @@ test("acquirer captures a review-ready order from the sponsor context", async ({
   );
   await openMusterwerkCapture(context, page);
 
-  await expect(page.getByTestId("commitment-offering")).toHaveValue(
-    "70000000-0000-4000-8000-000000000001",
-  );
-  await expect(page.locator("#commitment-offering-help")).toContainText(
-    "aktuell bestellbare Angebote",
-  );
-  await expect(page.locator("#commitment-quantity-help")).toContainText(
-    "Einheit: Boxen",
-  );
-  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-    "36,00 €",
-  );
-  await page.getByTestId("commitment-quantity").fill("2");
-  await page.getByTestId("commitment-street").fill("Musterstraße 12");
-  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-    "72,00 €",
-  );
+  // Step 1 "Angebot": offer, stepper, total.
   await expect(
-    page.getByRole("heading", { name: "Bestellübersicht" }),
-  ).toBeVisible();
+    page
+      .getByTestId("commitment-offering")
+      .locator('input[value="70000000-0000-4000-8000-000000000001"]'),
+  ).toBeChecked();
+  await expect(page.getByRole("group", { name: "Anzahl Boxen" })).toBeVisible();
+  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
+    "Summe 36,00 €",
+  );
+  await page.getByRole("button", { name: "Eine mehr" }).click();
+  await expect(page.getByTestId("commitment-quantity")).toHaveValue("2");
+  await expect(page.getByTestId("commitment-preview-total")).toHaveText(
+    "Summe 72,00 €",
+  );
+  await page.getByRole("button", { name: "Weiter" }).click();
+  // Step 2 "Lieferung": billing (and delivery when planned).
+  await page.getByTestId("commitment-street").fill("Musterstraße 12");
+  await page.getByRole("button", { name: "Weiter" }).click();
+  // Step 3 "Prüfen".
+  await expect(page.locator(".pwa-dl")).toContainText("2 × ");
+  await expect(page.locator(".pwa-dl")).toContainText("72,00 €");
   await expect(page.getByTestId("commitment-save-draft")).toBeVisible();
   await expect(page.getByTestId("commitment-save-ready")).toBeVisible();
 
@@ -127,11 +134,14 @@ test("acquirer captures a review-ready order from the sponsor context", async ({
   const payload = await response.json();
   await expect(page.getByTestId("commitment-success")).toBeVisible();
   await expect(page.getByTestId("commitment-success")).toContainText(
-    "Bereit für die Prüfung",
+    "Bestellung erfasst",
+  );
+  await expect(page.getByTestId("commitment-success")).toContainText(
+    "2 Boxen für Musterwerk GmbH, 72,00 €.",
   );
   await expect(
-    page.locator('.commitment-status[data-status="review_ready"]'),
-  ).toHaveText("Prüfbereit");
+    page.getByRole("link", { name: "Zurück zu Musterwerk GmbH" }),
+  ).toBeVisible();
   await expect(page.getByTestId("commitment-success")).toHaveAttribute(
     "data-commitment-id",
     payload.id,
@@ -170,9 +180,9 @@ test("order capture stays responsive and accessible in all target browsers", asy
   );
   expect(overflow).toBeLessThanOrEqual(1);
   for (const locator of [
-    page.getByTestId("commitment-sponsor"),
+    page.getByRole("button", { name: "Eine mehr" }),
     page.getByTestId("commitment-quantity"),
-    page.getByTestId("commitment-save-ready"),
+    page.getByRole("button", { name: "Weiter" }),
   ]) {
     const box = await locator.boundingBox();
     expect(box).not.toBeNull();

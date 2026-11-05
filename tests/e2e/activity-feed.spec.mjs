@@ -109,7 +109,7 @@ test("Anna sees exclusive and shared public orders", async ({ browser }) => {
       .click();
     await expect(page).toHaveURL(/\/app\/activities\?view=contacts/);
     await expect(
-      page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
+      page.getByRole("heading", { level: 1, name: "Wiedervorlagen" }),
     ).toBeVisible();
   } finally {
     await context.close();

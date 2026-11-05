@@ -51,9 +51,10 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
     "Anna Akquise",
   );
   await expect(
-    page.getByRole("heading", { name: "Meine Sponsoren" }),
+    page.getByRole("heading", { level: 1, name: "Sponsoren" }),
   ).toBeVisible();
 
+  // Prototype SponsorList: search, status chips, scope segment, rows.
   const rows = page.locator('[data-testid="sponsor-row"]');
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: "Musterwerk GmbH" })).toHaveCount(1);
@@ -61,34 +62,34 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
   await expect(page.getByText("Bäckerei Sonnenseite KG")).toHaveCount(0);
   await expect(page.getByText("Sophie Sponsor")).toHaveCount(0);
   await expect(page.locator('[data-testid="co-assignees"]')).toContainText(
-    "Gemeinsam mit Bernd Binder",
+    "mit Bernd Binder",
   );
-
+  const scope = page.getByRole("group", { name: "Zuständigkeit" });
   await expect(
-    page.getByRole("link", { name: "Musterwerk GmbH anrufen" }),
-  ).toHaveAttribute("href", "tel:+493012345678");
-  await expect(
-    page.getByRole("link", { name: "E-Mail an Musterwerk GmbH schreiben" }),
-  ).toHaveAttribute("href", "mailto:mara.muster@musterwerk.leonaid.invalid");
+    scope.getByRole("button", { name: "Meine (2)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await scope.getByRole("button", { name: "Gemeinsam betreut (1)" }).click();
+  await expect(rows).toHaveCount(1);
+  await scope.getByRole("button", { name: "Meine (2)" }).click();
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
 
+  const allChip = page.getByTestId("sponsor-status-all");
   for (const locator of [
-    page.getByRole("tab", { name: "Übersicht" }),
-    page.getByRole("tab", { name: "Sponsor erfassen" }),
-    page.getByRole("link", { name: "Musterwerk GmbH anrufen" }),
+    allChip,
+    scope.getByRole("button", { name: "Meine (2)" }),
+    rows.first(),
   ]) {
     const box = await locator.boundingBox();
     expect(box).not.toBeNull();
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
 
-  const sponsorTab = page.getByRole("tab", { name: "Sponsor erfassen" });
-  await sponsorTab.focus();
-  const focusStyle = await sponsorTab.evaluate((element) => {
+  await allChip.focus();
+  const focusStyle = await allChip.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       outlineStyle: style.outlineStyle,
@@ -103,7 +104,7 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
       document.documentElement.style.fontSize = "32px";
     });
     await expect(
-      page.getByRole("heading", { name: "Meine Sponsoren" }),
+      page.getByRole("heading", { level: 1, name: "Sponsoren" }),
     ).toBeVisible();
     const scaledLayout = await page.evaluate(() => ({
       offenders: [...document.querySelectorAll("body *")]
@@ -133,6 +134,41 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
     fullPage: true,
   });
 
+  // Prototype SponsorDetail: call, mail and contact tiles, order button.
+  await rows.filter({ hasText: "Musterwerk GmbH" }).click();
+  await expect(page).toHaveURL(/\/app\/sponsors\?.*assignment=/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Musterwerk GmbH" }),
+  ).toBeVisible();
+  const call = page.getByRole("link", { name: "Anrufen" });
+  await expect(call).toHaveAttribute("href", "tel:+493012345678");
+  await expect(page.getByRole("link", { name: "E-Mail" })).toHaveAttribute(
+    "href",
+    "mailto:mara.muster@musterwerk.leonaid.invalid",
+  );
+  await expect(page.getByTestId("co-assignees")).toContainText(
+    "Gemeinsam mit Bernd Binder",
+  );
+  for (const locator of [
+    call,
+    page.getByTestId("contact-open"),
+    page.getByTestId("order-open"),
+  ]) {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await assertNoSeriousAxeFindings(page);
+  await page.screenshot({
+    path: `${artifactDirectory}/pwa-detail-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  // Esc returns to the list (prototype hotkey).
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Sponsoren" }),
+  ).toBeVisible();
+
   await page.goto(`${baseUrl}/app/`);
   await expect(
     page.getByRole("heading", {
@@ -140,11 +176,8 @@ test("POC-062 sponsor list meets visual, responsive and a11y budgets", async ({
       name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
     }),
   ).toBeVisible();
-  const actionSelector = page.getByRole("combobox", {
-    name: "Charity-Aktion",
-  });
-  await expect(actionSelector).toContainText("Krapfentaxi 2026");
-  await expect(actionSelector.locator("option")).toHaveCount(1);
+  // One campaign: the app bar names it, no picker (prototype).
+  await expect(page.getByTestId("acquirer-action")).toHaveCount(0);
 });
 
 test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
@@ -189,7 +222,9 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   }
   // Shared pages get their phone layout in the column at every width.
   const pageControls = await page
-    .locator(".pwa-main .btn:visible, .pwa-main a[href^='tel:']:visible")
+    .locator(
+      ".pwa-main .pwa-segment button:visible, .pwa-main .pwa-row:visible",
+    )
     .evaluateAll((elements) =>
       elements.map((element) => {
         const box = element.getBoundingClientRect();
@@ -271,31 +306,17 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
 
-  // "Neu" opens the sponsor capture, as in the prototype; the in-page
-  // switch back moves the active tab without a page load.
+  // "Neu" opens the sponsor capture, as in the prototype.
   await tabs.getByRole("link", { name: "Neu", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/sponsors\?view=new$/);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Sponsor erfassen" }),
+    page.getByRole("heading", { level: 1, name: "Neuer Sponsor" }),
   ).toBeVisible();
   await expect(
     tabs.getByRole("link", { name: "Neu", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  // Typed sponsor data survives the in-page switch and Back: the capture
-  // stays mounted, as the prototype keeps its flow without a question.
   const company = page.getByLabel("Firmenname");
   await company.fill("Ungespeichert GmbH");
-  await page.getByRole("tab", { name: "Übersicht" }).click();
-  await expect(page).toHaveURL(/\/app\/sponsors$/);
-  await expect(tabs.getByRole("link", { name: "Sponsoren" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await page.goBack();
-  await expect(
-    tabs.getByRole("link", { name: "Neu", exact: true }),
-  ).toHaveAttribute("aria-current", "page");
-  await expect(company).toHaveValue("Ungespeichert GmbH");
 
   // A tab asks once, in the app (iOS shows no beforeunload dialog).
   const nativeDialogs = [];
@@ -331,7 +352,7 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
   await tabs.getByRole("link", { name: "Wiedervorlagen" }).click();
   await expect(page).toHaveURL(/\/app\/activities\?view=contacts$/);
   await expect(
-    page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
+    page.getByRole("heading", { level: 1, name: "Wiedervorlagen" }),
   ).toBeVisible();
   await expect(
     tabs.getByRole("link", { name: "Wiedervorlagen" }),
@@ -355,9 +376,9 @@ test("POC-062 shows a real empty work queue", async ({
   await expect(page.locator('[data-testid="display-name"]')).toHaveText(
     "Gesa Gesperrt",
   );
-  await expect(page.locator('[data-testid="sponsor-empty"]')).toContainText(
-    "Noch kein Sponsor zugeordnet",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Noch kein Sponsor zugeordnet" }),
+  ).toBeVisible();
   await assertNoSeriousAxeFindings(page);
   await page.screenshot({
     path: `${artifactDirectory}/pwa-empty-chromium-390.png`,

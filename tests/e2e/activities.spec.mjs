@@ -51,52 +51,53 @@ test("acquirer records a contact and finds it after reload", async ({
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",
     );
+    // Prototype FollowUps: grouped by when they are due.
     await expect(
-      page.getByRole("heading", { name: "Aktivitäten & Wiedervorlagen" }),
+      page.getByRole("heading", { level: 1, name: "Wiedervorlagen" }),
     ).toBeVisible();
-    await expect(page.locator('[data-testid="overdue-count"]')).toHaveText("1");
-    await expect(page.locator('[data-testid="today-count"]')).toHaveText("1");
-    const reminderCards = page.locator("[data-select-assignment]");
-    await expect(reminderCards.nth(0)).toContainText("Musterwerk GmbH");
-    await expect(reminderCards.nth(0)).toContainText("Überfällig");
-    await expect(reminderCards.nth(1)).toContainText("Doppelkontakt AG");
-    await expect(reminderCards.nth(1)).toContainText("Heute");
+    const overdue = page.getByTestId("follow-ups-overdue");
+    const soon = page.getByTestId("follow-ups-soon");
+    await expect(overdue.getByTestId("sponsor-row")).toHaveCount(1);
+    await expect(overdue).toContainText("Musterwerk GmbH");
+    await expect(soon.getByTestId("sponsor-row")).toHaveCount(1);
+    await expect(soon).toContainText("Doppelkontakt AG");
+    await expect(soon).toContainText("Heute");
 
-    const musterwerkValue = await page
-      .locator('[data-testid="activity-party"] option')
-      .filter({ hasText: "Musterwerk GmbH" })
-      .getAttribute("value");
-    expect(musterwerkValue).toBeTruthy();
-    await page
-      .locator('[data-testid="activity-party"]')
-      .selectOption(musterwerkValue);
-    await page.locator("#activity-channel").selectOption("in_person");
-    await page.locator("#activity-outcome").selectOption("reached");
-    await page
-      .locator("#activity-note")
-      .fill("Lieferadresse gemeinsam geprüft.");
-    await page
-      .locator("#activity-next-action")
-      .fill("Lieferadresse bestätigen");
-    await page.locator("#activity-due-on").fill(berlinTomorrow());
+    // The contact is recorded on the sponsor, in the contact sheet.
+    await overdue.getByTestId("sponsor-row").click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Musterwerk GmbH" }),
+    ).toBeVisible();
+    await page.keyboard.press("k");
+    const sheet = page.getByRole("dialog", {
+      name: "Kontakt mit Musterwerk GmbH",
+    });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "Persönlich" }).click();
+    await sheet.getByText("Erreicht", { exact: true }).click();
+    await sheet.getByLabel("Wiedervorlage am").fill(berlinTomorrow());
+    await sheet.getByLabel("Nächster Schritt").fill("Lieferadresse bestätigen");
+    await sheet.getByLabel("Notiz").fill("Lieferadresse gemeinsam geprüft.");
 
     const responsePromise = page.waitForResponse(
       (response) =>
         response.url().endsWith("/acquisition/activities") &&
         response.request().method() === "POST",
     );
-    await page.locator('[data-testid="activity-submit"]').click();
+    await sheet.getByTestId("activity-submit").click();
     const response = await responsePromise;
     expect(response.status()).toBe(201);
     const recorded = await response.json();
+    expect(recorded.activity.channel).toBe("in_person");
+    expect(recorded.activity.outcome).toBe("reached");
 
-    await expect(page.locator("#activity-status")).toContainText(
-      "Aktivität für Musterwerk GmbH wurde gespeichert",
-    );
+    await expect(sheet).toBeHidden();
     const newest = page.locator('[data-testid="activity-entry"]').first();
-    await expect(newest).toContainText("Musterwerk GmbH");
+    await expect(newest).toContainText("Erreicht");
     await expect(newest).toContainText("Lieferadresse gemeinsam geprüft.");
-    await expect(newest).toContainText("Lieferadresse bestätigen");
+    await expect(page.getByTestId("detail-follow-up")).toContainText(
+      "Lieferadresse bestätigen",
+    );
     await page.screenshot({
       path: `${artifactDirectory}/activity-recorded-mobile.png`,
       fullPage: true,
@@ -107,9 +108,14 @@ test("acquirer records a contact and finds it after reload", async ({
       `[data-activity-id="${recorded.activity.id}"]`,
     );
     await expect(persisted).toContainText("Lieferadresse gemeinsam geprüft.");
-    await expect(persisted).toContainText("Lieferadresse bestätigen");
-    await expect(page.locator('[data-testid="overdue-count"]')).toHaveText("0");
-    await expect(page.locator('[data-testid="today-count"]')).toHaveText("1");
+    await expect(page.getByTestId("detail-follow-up")).toContainText(
+      "Lieferadresse bestätigen",
+    );
+    await page.goto(`${baseUrl}/app/activities?view=contacts`);
+    await expect(page.getByTestId("follow-ups-overdue")).toHaveCount(0);
+    await expect(
+      page.getByTestId("follow-ups-soon").getByTestId("sponsor-row"),
+    ).toHaveCount(2);
     await page.screenshot({
       path: `${artifactDirectory}/activity-persisted-mobile.png`,
       fullPage: true,

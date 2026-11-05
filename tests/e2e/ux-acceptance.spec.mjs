@@ -313,27 +313,18 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
         name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
       }),
     ).toBeVisible();
-    await expect(page.getByTestId("dashboard-next-step")).toContainText(
-      "Mit offenen Sponsoren weiterarbeiten",
-    );
-    await expect(
-      page.getByRole("progressbar", {
-        name: "Fortschritt des Aktionsziels",
-      }),
-    ).toHaveAttribute(
-      "aria-valuetext",
+    await expect(page.getByTestId("goal-status")).toHaveText(
       /^Aktionsziel: 900,00\s€ von 1\.000,00\s€ erreicht, 90 Prozent\.$/,
     );
-    await expectTouchTarget(
-      page.getByTestId("dashboard-next-step").getByRole("link", {
-        name: /^(Wiedervorlagen|Offene Sponsoren) öffnen$/,
-      }),
-      "Dashboard-Hauptaktion",
-    );
-    await page
-      .getByTestId("dashboard-next-step")
-      .getByRole("link", { name: /^(Wiedervorlagen|Offene Sponsoren) öffnen$/ })
-      .click();
+    await expect(
+      page.getByRole("meter", { name: "Fortschritt des Aktionsziels" }),
+    ).toBeVisible();
+    // Prototype Start: the pipeline leads into the filtered sponsor list.
+    const openStage = page
+      .getByTestId("dashboard-pipeline")
+      .getByRole("link", { name: /Offen 2/ });
+    await expectTouchTarget(openStage, "Pipeline-Stufe Offen");
+    await openStage.click();
     await expect(page).toHaveURL(/\/app\/sponsors\?.*status=open/);
     await expect(page.getByTestId("sponsor-row")).toHaveCount(2);
 
@@ -341,30 +332,29 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
       .getByTestId("sponsor-row")
       .filter({ hasText: "Musterwerk GmbH" });
     await expect(musterwerk).toHaveCount(1);
-    const capture = musterwerk.getByRole("link", { name: "Bestellung" });
+    await expectTouchTarget(musterwerk, "Sponsor öffnen");
+    await musterwerk.click();
+    const capture = page.getByTestId("order-open");
     await expectTouchTarget(capture, "Bestellung aus Sponsor-Kontext");
     await capture.click();
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Vom Gespräch zur klaren Bestellung.",
+        name: "Bestellung für Musterwerk GmbH",
       }),
     ).toBeVisible();
-    await expect(page.getByTestId("commitment-party")).toContainText(
-      "Musterwerk GmbH",
-    );
-    await expect(page.locator("#commitment-quantity-help")).toContainText(
-      "Einheit: Boxen",
-    );
+    await expect(
+      page.getByRole("group", { name: "Anzahl Boxen" }),
+    ).toBeVisible();
     await expect(page.getByTestId("commitment-preview-total")).toHaveText(
-      "36,00 €",
+      "Summe 36,00 €",
     );
     await expect(page.locator("main")).not.toContainText(
       /Twenty|PostgreSQL|UUID|API-Endpunkt|Datensatz-ID/,
     );
     await expectTouchTarget(
-      page.getByTestId("commitment-save-ready"),
-      "Bestellung zur Prüfung geben",
+      page.getByRole("button", { name: "Weiter" }),
+      "Weiter zur Lieferung",
     );
     await expectNoHorizontalOverflow(page, "Mobile Bestellerfassung");
     await page.evaluate(() => {
@@ -390,7 +380,7 @@ test("acquirer reaches sponsor and order capture on mobile with clear guidance",
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Vom Gespräch zur klaren Bestellung.",
+        name: "Bestellung für Musterwerk GmbH",
       }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page, "Akquisiteurin Desktop");
