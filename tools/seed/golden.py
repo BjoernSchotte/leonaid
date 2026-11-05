@@ -24,7 +24,7 @@ import httpx
 from botocore.exceptions import ClientError
 
 from leonaid.adapters.typst import RENDER_VERSION
-from leonaid.domain.calendar import local_day
+from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
 
 DATASET_VERSION = "1.0.0"
 # Twenty 2.54 builds indexes and validates foreign keys of a schema change in
@@ -620,6 +620,55 @@ def snapshot_rustfs(dataset: JsonObject) -> JsonObject:
     return {"objects": sorted(objects, key=lambda item: str(item["objectKey"]))}
 
 
+# The active golden action runs around the day it is seeded: period from
+# 60 days before to 75 days after that day, published from two months before
+# the start until the day after the end (the shape of the dataset's
+# 2026-07-01 / 2026-09-01 / 2026-11-15 / 2026-11-16 values). Fixed dates
+# would close the public order page on 2026-11-16 and refuse every new
+# delivery window or invoice service date after the period. Other actions
+# (archived, draft) keep the dataset's dates.
+ACTIVE_PERIOD_BEFORE = timedelta(days=60)
+ACTIVE_PERIOD_AFTER = timedelta(days=75)
+ACTIVE_PUBLICATION_LEAD = timedelta(days=62)
+
+
+def action_schedule(
+    action: JsonObject, *, today: date
+) -> tuple[date, date, datetime | None, datetime | None]:
+    """Period and publication window the seed writes for one action."""
+
+    if action["status"] != "ACTIVE":
+        return (
+            date.fromisoformat(str(action["startsOn"])),
+            date.fromisoformat(str(action["endsOn"])),
+            (
+                datetime.fromisoformat(str(action["publicationStartsAt"]))
+                if action["publicationStartsAt"] is not None
+                else None
+            ),
+            (
+                datetime.fromisoformat(str(action["publicationEndsAt"]))
+                if action["publicationEndsAt"] is not None
+                else None
+            ),
+        )
+    starts_on = today - ACTIVE_PERIOD_BEFORE
+    ends_on = today + ACTIVE_PERIOD_AFTER
+    midnight = datetime.min.time()
+    return (
+        starts_on,
+        ends_on,
+        datetime.combine(
+            starts_on - ACTIVE_PUBLICATION_LEAD, midnight, INSTALLATION_TIME_ZONE
+        ),
+        datetime.combine(ends_on + timedelta(days=1), midnight, INSTALLATION_TIME_ZONE),
+    )
+
+
+def seed_today() -> date:
+    return local_day(datetime.now(timezone.utc))
+
+
 async def seed_identity(
     connection: asyncpg.Connection[Any],
     dataset: JsonObject,
@@ -644,7 +693,11 @@ async def seed_identity(
         "DRIVER": "driver",
     }
 
+    today = seed_today()
     for action in dataset["actions"]:
+        starts_on, ends_on, publication_starts_at, publication_ends_at = (
+            action_schedule(action, today=today)
+        )
         goal_value = Decimal(int(action["goalAmountCents"])) / Decimal(100)
         actual_value = Decimal(int(action["actualAmountCents"])) / Decimal(100)
         await connection.execute(
@@ -690,18 +743,10 @@ async def seed_identity(
             action["name"],
             f"Synthetische Golden-Data-Aktion {action['kind']}",
             action_status[str(action["status"])],
-            date.fromisoformat(str(action["startsOn"])),
-            date.fromisoformat(str(action["endsOn"])),
-            (
-                datetime.fromisoformat(str(action["publicationStartsAt"]))
-                if action["publicationStartsAt"] is not None
-                else None
-            ),
-            (
-                datetime.fromisoformat(str(action["publicationEndsAt"]))
-                if action["publicationEndsAt"] is not None
-                else None
-            ),
+            starts_on,
+            ends_on,
+            publication_starts_at,
+            publication_ends_at,
             action["archiveSlug"],
             goal_value,
             actual_value,
