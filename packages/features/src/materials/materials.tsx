@@ -941,6 +941,7 @@ export function MaterialsPage({
         {access ? (
           <AccessMembersPanel
             actionScoped={!!access.actionId}
+            address={address}
             objectId={access.id}
             source={materialMemberSource(client, access.id)}
           />

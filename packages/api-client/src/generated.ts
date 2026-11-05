@@ -59,7 +59,9 @@ export type Cases = { readonly items: Array<Case>; readonly nextOffset: number |
 export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
+export type CharityActionListResponse = { readonly items: Array<CharityActionSummaryResponse>; };
 export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly isPublished: boolean; readonly name: string; readonly presentationTheme: string | null; readonly publicationEndsAt: string | null; readonly publicationStartsAt: string | null; readonly purpose: string; readonly revision: number; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
+export type CharityActionSummaryResponse = { readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly leadNames: Array<string>; readonly name: string; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; readonly templateName: string | null; };
 export type CharityAdminDashboardResponse = { readonly commitments: DashboardCommitmentResponse; readonly delivery: DashboardDeliveryResponse; readonly invoices: DashboardInvoiceResponse; readonly orderValueWeeks: Array<DashboardOrderValueWeekResponse>; readonly pipeline: DashboardPipelineResponse; };
 export type ChecklistItem = { readonly done: boolean; readonly id: string; readonly text: string; };
 export type Comment = { readonly authorUserId: string; readonly body: string; readonly caseId: string; readonly createdAt: string; readonly id: string; };
@@ -435,6 +437,16 @@ export class LeonAidApiClient {
   ): Promise<ActionTemplateListResponse> {
     return this.request<ActionTemplateListResponse>(
       "/api/v1/action-templates",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listCharityActions(
+    options: RequestOptions = {},
+  ): Promise<CharityActionListResponse> {
+    return this.request<CharityActionListResponse>(
+      "/api/v1/actions",
       { method: "GET" },
       options,
     );

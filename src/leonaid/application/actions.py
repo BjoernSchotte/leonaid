@@ -34,7 +34,24 @@ from leonaid.domain.actions import (
     PublicActionAlias,
 )
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.identity import ActionRole, IdentityPrincipal
+
+
+@dataclass(frozen=True, slots=True)
+class ActionSummary:
+    """One row of the "Aktionen verwalten" list."""
+
+    id: UUID
+    name: str
+    status: CharityActionStatus
+    starts_on: date
+    ends_on: date
+    # The template's display name ("Krapfentaxi", "Leere Charity-Aktion");
+    # None only for actions without a template snapshot.
+    template_name: str | None
+    # Display names of the active charity admins (the action's leads).
+    lead_names: tuple[str, ...]
+    goal: ActionGoal
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +173,13 @@ class PublicActionRoute:
 
 class CharityActionRepository(Protocol):
     async def get(self, action_id: UUID) -> CharityAction | None: ...
+
+    async def list_summaries(
+        self,
+        action_ids: frozenset[UUID] | None,
+    ) -> tuple[ActionSummary, ...]:
+        """Summaries of these actions, or of every action for ``None``."""
+        ...
 
     async def create(
         self,
@@ -432,6 +456,29 @@ class CharityActionService:
         action_id: UUID,
     ) -> CharityAction:
         return await self._managed_action(actor, action_id)
+
+    async def list_managed(
+        self,
+        actor: IdentityPrincipal,
+    ) -> tuple[ActionSummary, ...]:
+        """The actions the actor manages: all for system admins, else the
+        actions where the actor is a charity admin."""
+
+        if not actor.account.can_authenticate:
+            raise PermissionDenied(
+                "action_management_required",
+                "Nur wer Aktionen verwaltet, sieht diese Liste.",
+            )
+        if actor.is_system_admin:
+            return await self._repository.list_summaries(None)
+        managed = frozenset(
+            membership.action_id
+            for membership in actor.action_memberships
+            if membership.role is ActionRole.CHARITY_ADMIN
+        )
+        if not managed:
+            return ()
+        return await self._repository.list_summaries(managed)
 
     async def resolve_public_alias(
         self,

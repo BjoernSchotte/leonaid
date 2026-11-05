@@ -151,7 +151,11 @@ export function EpicPicker({
       {save.error && (
         <StatusMessage tone="error">
           {save.error instanceof ApiError && save.error.status === 409
-            ? "Das Epic wurde inzwischen geändert. Lade die Epics neu und prüfe den Titel vor einem weiteren Versuch."
+            ? says(
+                address,
+                "Das Epic wurde inzwischen geändert. Lade die Epics neu und prüfe den Titel vor einem weiteren Versuch.",
+                "Das Epic wurde inzwischen geändert. Laden Sie die Epics neu und prüfen Sie den Titel vor einem weiteren Versuch.",
+              )
             : says(
                 address,
                 "Das Epic konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",

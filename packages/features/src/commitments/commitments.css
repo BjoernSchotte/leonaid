@@ -529,6 +529,11 @@
 .commitment-detail .pane-section {
   min-width: 0;
 }
+.commitment-detail .pane-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-2);
+}
 .commitment-address {
   display: grid;
   gap: var(--s-0);

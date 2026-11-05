@@ -49,6 +49,8 @@ test("the selected campaign and its role determine the same-tab editor link", ()
   const link = screen.getByRole("link", { name: "Microsite bearbeiten" });
   expect(link.getAttribute("href")).toBe(`/_emdash/admin/campaigns/${first}`);
   expect(link.hasAttribute("target")).toBe(false);
+  // The same ghost style as the action page header.
+  expect(link.classList.contains("btn-ghost")).toBe(true);
 
   view.rerender(<CampaignEditorLink actionId={second} identity={identity} />);
   expect(screen.queryByRole("link")).toBeNull();

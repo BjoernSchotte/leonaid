@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.application.actions import CharityActionRepository
+from leonaid.application.actions import ActionSummary, CharityActionRepository
 from leonaid.application.errors import Conflict
 from leonaid.domain.action_templates import (
     ActionConfiguration,
@@ -54,6 +54,72 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     async def get(self, action_id: UUID) -> CharityAction | None:
         async with self._pool.acquire() as connection:
             return await self._get(connection, action_id)
+
+    async def list_summaries(
+        self,
+        action_ids: frozenset[UUID] | None,
+    ) -> tuple[ActionSummary, ...]:
+        rows = await self._pool.fetch(
+            """
+            SELECT
+                action.id, action.name, action.status,
+                action.starts_on, action.ends_on,
+                action.goal_value, action.actual_value, action.goal_unit,
+                action.currency,
+                snapshot.display_name AS template_name,
+                coalesce(
+                    array_agg(account.display_name ORDER BY account.display_name)
+                        FILTER (WHERE account.id IS NOT NULL),
+                    '{}'
+                ) AS lead_names
+            FROM charity_action AS action
+            LEFT JOIN action_template_snapshot AS snapshot
+              ON snapshot.action_id = action.id
+            LEFT JOIN action_membership AS membership
+              ON membership.action_id = action.id
+             AND membership.role = 'charity_admin'
+             AND membership.active_from <= now()
+             AND (membership.active_until IS NULL
+                  OR membership.active_until > now())
+            LEFT JOIN user_account AS account
+              ON account.id = membership.user_id
+             AND account.status = 'active'
+            WHERE $1::uuid[] IS NULL OR action.id = ANY($1::uuid[])
+            GROUP BY action.id, snapshot.display_name
+            ORDER BY action.starts_on DESC, action.name, action.id
+            """,
+            None if action_ids is None else list(action_ids),
+        )
+        return tuple(
+            ActionSummary(
+                id=row["id"],
+                name=str(row["name"]),
+                status=CharityActionStatus(str(row["status"])),
+                starts_on=row["starts_on"],
+                ends_on=row["ends_on"],
+                template_name=(
+                    str(row["template_name"])
+                    if row["template_name"] is not None
+                    else None
+                ),
+                lead_names=tuple(str(name) for name in row["lead_names"]),
+                goal=ActionGoal(
+                    goal_value=(
+                        Decimal(row["goal_value"])
+                        if row["goal_value"] is not None
+                        else None
+                    ),
+                    actual_value=Decimal(row["actual_value"]),
+                    unit=(
+                        str(row["goal_unit"]) if row["goal_unit"] is not None else None
+                    ),
+                    currency=(
+                        str(row["currency"]) if row["currency"] is not None else None
+                    ),
+                ),
+            )
+            for row in rows
+        )
 
     async def create(
         self,

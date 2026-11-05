@@ -441,6 +441,37 @@ describe("action detail: drafts and revisions", () => {
     expect(screen.getByTestId("action-overview")).toBeTruthy();
   });
 
+  it("keeps the public alias read-only once the action is completed", async () => {
+    await renderPage(
+      "#aliases",
+      fakeClient(management({ status: "completed" }, ["archived"])),
+    );
+    expect(
+      (await screen.findByTestId("aliases-read-only")).textContent,
+    ).toContain("Nach dem Abschluss");
+    // Inside the disabled fieldset: not editable.
+    expect(screen.getByTestId("publication-alias").matches(":disabled")).toBe(
+      true,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Öffentliche Seite speichern" })
+        .matches(":disabled"),
+    ).toBe(true);
+  });
+
+  it("names retired windows instead of asking for the first one", async () => {
+    const client = fakeClient();
+    client.getDeliveryConfiguration.mockResolvedValue({
+      ...delivery,
+      windows: delivery.windows.map((item) => ({ ...item, retired: true })),
+    });
+    await renderPage("#delivery", client);
+    const next = await screen.findByTestId("delivery-next-step");
+    expect(next.textContent).toContain("Alle Lieferfenster sind stillgelegt.");
+    expect(next.textContent).not.toContain("Erstes Lieferfenster");
+  });
+
   it("marks the aliases of an archived action as read-only", async () => {
     await renderPage(
       "#aliases",

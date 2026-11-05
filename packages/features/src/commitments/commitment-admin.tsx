@@ -437,17 +437,20 @@ function OrderDetail({
 
   return (
     <div className="commitment-detail" data-commitment-id={commitment.id}>
-      {editable && missing ? (
+      {/* While the form is open its "Angaben speichern" is the one primary
+          action, so the block steps aside (DESIGN.md: one primary, ghost
+          alternatives). */}
+      {editing ? null : editable && missing ? (
         <NextStep
           action={
             <Button
               aria-controls={`order-edit-${commitment.id}`}
-              aria-expanded={editing}
+              aria-expanded={false}
               data-testid="commitment-edit-details"
-              onClick={() => setEditing((open) => !open)}
-              variant={editing ? "secondary" : "primary"}
+              onClick={() => setEditing(true)}
+              variant="primary"
             >
-              {editing ? "Eingabe schließen" : "Angaben ergänzen"}
+              Angaben ergänzen
             </Button>
           }
           alternatives={
@@ -455,7 +458,7 @@ function OrderDetail({
               <Button
                 data-testid="review-invoice"
                 onClick={onToggleReview}
-                variant="secondary"
+                variant="ghost"
               >
                 Rechnung prüfen
               </Button>
@@ -478,12 +481,12 @@ function OrderDetail({
           alternatives={
             <Button
               aria-controls={`order-edit-${commitment.id}`}
-              aria-expanded={editing}
+              aria-expanded={false}
               data-testid="commitment-edit-details"
-              onClick={() => setEditing((open) => !open)}
-              variant="secondary"
+              onClick={() => setEditing(true)}
+              variant="ghost"
             >
-              {editing ? "Eingabe schließen" : "Angaben bearbeiten"}
+              Angaben bearbeiten
             </Button>
           }
           consequence="Rechnung prüfen und verbindlich freigeben. Danach ist sie unveränderlich und erhält eine fortlaufende Nummer."
@@ -508,6 +511,18 @@ function OrderDetail({
 
       {editable && editing ? (
         <div className="pane-section" id={`order-edit-${commitment.id}`}>
+          <div className="pane-section-actions">
+            <Button
+              aria-controls={`order-edit-${commitment.id}`}
+              aria-expanded
+              data-testid="commitment-edit-close"
+              onClick={() => setEditing(false)}
+              size="sm"
+              variant="ghost"
+            >
+              Eingabe schließen
+            </Button>
+          </div>
           <DeliveryCompletion
             client={client}
             onSaved={onSaved}

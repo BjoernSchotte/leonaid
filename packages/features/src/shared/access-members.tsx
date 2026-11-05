@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+import { says, type Address } from "../tasks/task-copy";
 import "./access-members.css";
 
 export type AccessChange =
@@ -45,10 +46,13 @@ export function AccessMembersPanel({
   objectId,
   source,
   actionScoped,
+  address,
 }: {
   objectId: string;
   source: AccessMemberSource;
   actionScoped: boolean;
+  /** "Sie" in the back office, "du" in the app. */
+  address: Address;
 }) {
   const { label, accessLabel, subject } = source;
   const [open, setOpen] = useState(false);
@@ -235,8 +239,16 @@ export function AccessMembersPanel({
           {change.error && (
             <StatusMessage tone="error">
               {change.error instanceof ApiError && change.error.status === 409
-                ? "Die Zugriffsrechte wurden inzwischen geändert oder das Konto kann nicht hinzugefügt werden. Lade die Zugriffe neu und prüfe deine Eingabe."
-                : "Die Änderung konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung."}
+                ? says(
+                    address,
+                    "Die Zugriffsrechte wurden inzwischen geändert oder das Konto kann nicht hinzugefügt werden. Lade die Zugriffe neu und prüfe deine Eingabe.",
+                    "Die Zugriffsrechte wurden inzwischen geändert oder das Konto kann nicht hinzugefügt werden. Laden Sie die Zugriffe neu und prüfen Sie Ihre Eingabe.",
+                  )
+                : says(
+                    address,
+                    "Die Änderung konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",
+                    "Die Änderung konnte nicht gespeichert werden. Prüfen Sie Ihre Berechtigung und Verbindung.",
+                  )}
               <Button
                 variant="secondary"
                 onClick={() => {

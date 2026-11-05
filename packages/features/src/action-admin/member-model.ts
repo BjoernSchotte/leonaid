@@ -200,3 +200,8 @@ export function migrateLegacyInviteParam(): void {
 export function membersPath(section: "list" | "invitations"): string {
   return section === "list" ? "/admin/members" : "/admin/members/invitations";
 }
+
+/** A plausible address; the server decides. The forms show `INVALID_EMAIL`. */
+export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const INVALID_EMAIL =
+  "Bitte eine gültige E-Mail-Adresse eingeben, z. B. name@beispiel.de.";
