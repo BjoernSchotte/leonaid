@@ -87,7 +87,7 @@
       "sourceVersion": "16.9-alpine3.21",
       "sourceImage": "docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
       "targetVersion": "16.15-alpine3.24",
-      "targetImage": "docker.io/library/postgres:16.15-alpine3.24@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
+      "targetImage": "docker.io/library/postgres:16.15-alpine3.24@sha256:e0e53cfa0884f3cc216a621033e4f38dceb49e52218ac77facc8e48f02973093",
       "releaseNotes": [
         "https://www.postgresql.org/docs/release/16.15/",
         "https://www.postgresql.org/support/versioning/",
