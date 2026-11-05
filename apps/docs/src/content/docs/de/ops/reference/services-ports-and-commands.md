@@ -6,8 +6,8 @@ audience: [ops]
 diataxis: reference
 contentRevision: 17
 reviewedRevision: 17
-verifiedAgainst: 2ffe04e8c92f8eb60033985eb35aa89e75e36b92
-reviewer: Björn Schotte
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 | Dienst                        | Aufgabe                                      | Führende Persistenz                     |

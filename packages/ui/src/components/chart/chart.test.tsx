@@ -104,4 +104,18 @@ describe("chart companions", () => {
     expect(screen.getByText("Als Tabelle anzeigen").tagName).toBe("SUMMARY");
     expect(screen.getByRole("table").textContent).toContain("Kritiker< 5");
   });
+
+  it("lets keyboard users scroll a wide table (focusable, labelled region)", () => {
+    render(
+      <ChartTable
+        caption="Antworten je Option"
+        columns={["Frage", "Sehr gut", "Gut", "Mittel", "Schlecht"]}
+        rows={[["Lieferung", "4", "3", "2", "1"]]}
+      />,
+    );
+    const region = screen.getByRole("region", { name: "Antworten je Option" });
+    expect(region.className).toBe("table-wrap");
+    expect(region.tabIndex).toBe(0);
+    expect(region.querySelector("table")).not.toBeNull();
+  });
 });

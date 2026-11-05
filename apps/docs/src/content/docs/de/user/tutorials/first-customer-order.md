@@ -6,8 +6,8 @@ audience: [user]
 diataxis: tutorial
 contentRevision: 2
 reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
-reviewer: Björn Schotte
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 In diesem Lernweg erfasst du als Akquisiteur eine synthetische Bestellung für

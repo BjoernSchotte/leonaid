@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 4
 reviewedRevision: 4
 verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 You need the published campaign link and no LeonAid account. Enter real contact

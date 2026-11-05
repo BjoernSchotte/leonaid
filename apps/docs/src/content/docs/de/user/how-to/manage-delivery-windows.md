@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 7
 reviewedRevision: 7
 verifiedAgainst: 0902dfb1bf60793cde4dd67936e7f8424c58a8db
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 **Rolle:** Charity-Admin der betroffenen Aktion. Der Reiter **Lieferfenster**

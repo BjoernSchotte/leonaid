@@ -76,3 +76,13 @@ h1 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Scrollbars are invisible everywhere (Björn, 2026-11-03), as in the product;
+   areas stay scrollable by wheel, touch and keyboard. */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

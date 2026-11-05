@@ -8,6 +8,11 @@ import {
 } from "react";
 
 import { cn } from "../lib/utils";
+import {
+  captureFocusReturn,
+  type FocusReturn,
+  restoreFocusReturn,
+} from "./focus-return";
 
 export interface ModalProps {
   readonly open: boolean;
@@ -86,7 +91,7 @@ export function Modal({
   const slotRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const returnFocus = useRef<HTMLElement | null>(null);
+  const returnFocus = useRef<FocusReturn | null>(null);
   const openRef = useRef(open);
   openRef.current = open;
   const onCloseRef = useRef(onClose);
@@ -107,7 +112,7 @@ export function Modal({
       if (dialog.open) return;
       const show = () => {
         if (!openRef.current || dialog.open || !dialog.isConnected) return;
-        returnFocus.current ??= document.activeElement as HTMLElement | null;
+        returnFocus.current ??= captureFocusReturn();
         dialog.showModal();
         registerModalLayer(slot);
       };
@@ -189,8 +194,9 @@ export function Modal({
   );
 }
 
-function restoreFocus(target: { current: HTMLElement | null }) {
-  const element = target.current;
+/** Opener when it can take focus, else the fallback chain (focus-return.ts). */
+function restoreFocus(target: { current: FocusReturn | null }) {
+  const saved = target.current;
   target.current = null;
-  if (element?.isConnected) element.focus();
+  restoreFocusReturn(saved);
 }

@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 3
 reviewedRevision: 3
 verifiedAgainst: a77c9527329c3bf72fa8fab3687c7cd7bdbb5cf3
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 **Role:** every active account. Open **Aufgaben** (tasks) in the back office

@@ -8,6 +8,11 @@ export interface DataTableProps extends TableHTMLAttributes<HTMLTableElement> {
   readonly containerProps?: HTMLAttributes<HTMLDivElement>;
 }
 
+/**
+ * The prototype table (`.table-wrap` / `.table` in page-sections.css) with a
+ * caption and a labelled, focusable scroll region: scrollbars are hidden, so
+ * keyboard users scroll wide tables through the focused region.
+ */
 export function DataTable({
   caption,
   children,
@@ -19,11 +24,11 @@ export function DataTable({
     <div
       {...containerProps}
       aria-label={`${caption}, horizontaler Bildlaufbereich`}
-      className={cn("ui-table-scroll", containerProps?.className)}
+      className={cn("table-wrap", containerProps?.className)}
       role="region"
       tabIndex={0}
     >
-      <table className={cn("ui-table", className)} {...props}>
+      <table className={cn("table", className)} {...props}>
         <caption className="sr-only">{caption}</caption>
         {children}
       </table>
