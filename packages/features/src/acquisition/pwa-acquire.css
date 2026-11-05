@@ -420,7 +420,9 @@
   cursor: not-allowed;
 }
 .stepper-value {
+  align-self: stretch;
   width: 100%;
+  min-height: 56px;
   min-width: 0;
   border: 0;
   background: none;
