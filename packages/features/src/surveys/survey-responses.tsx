@@ -886,7 +886,8 @@ function SurveyResponses({
         />
         {chooser}
         <FreeTextDialog
-          key={selection.id}
+          // A sibling of the list, which is keyed by the same id (M44).
+          key={`free-text-${selection.id}`}
           client={client}
           initialQuestion={freeTextQuestion}
           onClose={() => {

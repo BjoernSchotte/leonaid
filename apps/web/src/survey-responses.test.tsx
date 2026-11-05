@@ -422,6 +422,30 @@ describe("SurveyResponsesPage", () => {
     expect(params.has("open")).toBe(false);
   });
 
+  it("choosing again shows one list and a fresh free-text dialog", async () => {
+    const client = fakeClient();
+    client.createSurveyResponseSelection.mockResolvedValueOnce({
+      ...selection,
+      id: "00000000-0000-4000-8000-0000000000bb",
+    });
+    await renderPage(`${base}?responseSelection=${snapshotId}`, client);
+    await screen.findByText("51 Antworten");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Antwortstand wählen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Antwortstand wählen",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antworten auswählen" }),
+    );
+    // The new view's heading takes the focus; the old list is gone.
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe("Einzelantworten"),
+    );
+    expect(document.querySelectorAll(".svr-applied")).toHaveLength(1);
+  });
+
   it("asks for a selection first, then lists every page of it", async () => {
     const client = await renderPage(base);
     await screen.findByRole("heading", {

@@ -200,6 +200,9 @@ test("leaving with unsaved settings asks once: in the page, not again by the bro
     "saved",
   );
   const surveyUrl = page.url();
+  await page
+    .getByText("Teilantworten nach Inaktivität", { exact: true })
+    .click();
   await page.getByLabel("Abweichender Zeitraum in Sekunden").fill("120");
   // Still protected: a reload asks through the browser (dismissed: stay).
   await page.reload({ timeout: 3_000 }).catch(() => {});
@@ -207,7 +210,8 @@ test("leaving with unsaved settings asks once: in the page, not again by the bro
   expect(page.url()).toBe(surveyUrl);
   // The in-page question, then no second dialog from the browser (I11).
   await page.getByRole("link", { name: "Alle Umfragen" }).click();
-  const discard = page.getByRole("dialog", { name: "Entwurf verwerfen?" });
+  const discard = page.getByRole("alertdialog");
+  await expect(discard).toContainText("Entwurf verwerfen?");
   await discard.getByRole("button", { name: "Verwerfen", exact: true }).click();
   await page.waitForURL(`${baseURL}/admin/surveys`);
   expect(browserDialogs).toEqual(["beforeunload"]);
