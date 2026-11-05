@@ -1332,7 +1332,17 @@ function TasksWorkspace({
           }
           identity={identity}
           lists={quickLists}
+          listsStatus={
+            listId
+              ? "ready"
+              : editableLists.isPending
+                ? "loading"
+                : editableLists.isError
+                  ? "error"
+                  : "ready"
+          }
           onClose={() => setAdding(false)}
+          onRetryLists={() => void editableLists.refetch()}
           onNeedList={() => setTool("lists")}
           planToday={!listId && listState?.viewId === "plan"}
         />

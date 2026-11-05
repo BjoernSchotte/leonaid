@@ -1,6 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Fragment, StrictMode } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -492,6 +499,27 @@ describe("tasks page", () => {
     expect(
       within(pane).getByRole("heading", { name: "Persönliche Planung" }),
     ).toBeTruthy();
+  });
+
+  it("quick add does not ask for a first list while the lists load or failed", async () => {
+    const client = harness({});
+    const lists = client.listTaskLists.getMockImplementation()!;
+    client.listTaskLists.mockRejectedValue(new Error("offline"));
+    renderPage(client);
+    await screen.findByText("Noch keine Aufgaben");
+    press("c");
+    const input = await screen.findByLabelText("Neue Aufgabe");
+    fireEvent.change(input, { target: { value: "Tische holen" } });
+    client.listTaskLists.mockImplementation(lists);
+    fireEvent.submit(input.closest("form")!);
+    expect(
+      await screen.findByText("Die Listen konnten nicht geladen werden."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Legen Sie zuerst eine Liste an.")).toBeNull();
+    expect(client.createTask).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(client.listTaskLists.mock.calls.length).toBeGreaterThan(1),
+    );
   });
 
   it("quick add creates in the chosen list and plans it for today in Mein Plan", async () => {
