@@ -3,6 +3,20 @@
  * (pages/pwa/Acquire.css, shell part; the "Mehr" sheet from styles/shell.css).
  * Phone-first: one column of at most 480 px, centred on wide screens.
  */
+/* WCAG 2.4.11 Focus Not Obscured: the page scrolls under the sticky app bar
+   and the fixed tab bar, so focus and scroll-into-view keep both clear. */
+:root {
+  --pwa-bar-h: 56px;
+  --pwa-tab-h: 60px;
+}
+html:has(.pwa) {
+  scroll-padding-top: calc(
+    var(--pwa-bar-h) + env(safe-area-inset-top) + var(--s-2)
+  );
+  scroll-padding-bottom: calc(
+    var(--pwa-tab-h) + var(--s-1) + env(safe-area-inset-bottom) + var(--s-2)
+  );
+}
 .pwa-stage {
   min-height: 100dvh;
   background: var(--surface-3);
@@ -47,7 +61,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  min-height: 56px;
+  min-height: var(--pwa-bar-h);
   padding: env(safe-area-inset-top) var(--s-2) 0 var(--s-4);
   background: var(--rail-bg);
   color: var(--rail-text);
@@ -185,7 +199,7 @@
   align-content: center;
   gap: 2px;
   min-width: 44px;
-  min-height: 60px;
+  min-height: var(--pwa-tab-h);
   color: var(--text-2);
   font-size: var(--fs-2xs);
   font-weight: var(--fw-semibold);

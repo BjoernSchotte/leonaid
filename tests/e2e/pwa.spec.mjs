@@ -1,5 +1,6 @@
 import { analyzeAccessibility, WCAG_TAGS } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
+import { expectTabNotObscured } from "./focus-obscured.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -401,6 +402,27 @@ test("Leitsystem mobile shell: tabs, 44 px targets and the Mehr sheet", async ({
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test("focus is not obscured by the app bar or the tab bar", async ({
+  context,
+  page,
+}) => {
+  // WCAG 2.4.11 in the PWA column: sticky app bar above, fixed tabs below.
+  await authenticate(context, annaSession);
+  await page.setViewportSize({ width: 390, height: 600 });
+  await page.goto(`${baseUrl}/app/sponsors`);
+  await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+  await expectTabNotObscured(page, {
+    scope: "main",
+    cover: ".pwa-bar",
+    edge: "top",
+  });
+  await expectTabNotObscured(page, {
+    scope: "main",
+    cover: ".pwa-tabs",
+    edge: "bottom",
+  });
 });
 
 test("POC-062 shows a real empty work queue", async ({

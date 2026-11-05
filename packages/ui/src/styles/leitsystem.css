@@ -62,6 +62,7 @@
   --sidebar-w: 248px;
   --pane-w: 440px;
   --topbar-h: 52px;
+  --bottom-nav-h: 58px; /* admin bottom nav item, ≤ 720 px */
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
