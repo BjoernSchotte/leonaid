@@ -21,6 +21,8 @@ async function openOrderForm(page) {
   });
   expect(response?.status()).toBe(200);
   expect(response?.headers()["cache-control"]).toContain("no-store");
+  // Styles ship as files; the footer links the page's privacy notice.
+  expect(await response?.text()).not.toMatch(/<style[\s>]/);
   await expect(page.locator("body")).toHaveClass("taxi-site");
   await expect(page.locator(".taxi-hero__logo")).toBeVisible();
   await page.getByRole("link", { name: "Jetzt bestellen" }).click();
@@ -30,6 +32,11 @@ async function openOrderForm(page) {
   await expect(
     page.locator('form[action*="lions-krapfentaxi.de"]'),
   ).toHaveCount(0);
+  const legal = page.locator("[data-footer-legal]");
+  await expect(
+    legal.getByRole("link", { name: "Datenschutz" }),
+  ).toHaveAttribute("href", "#datenschutz");
+  await expect(page.locator("#datenschutz")).toHaveCount(1);
   await expect(form.getByText("Menge und Bestellwert")).toBeVisible();
   await expect(
     form.getByText("Eine bestehende Firma wird automatisch erkannt."),
@@ -567,12 +574,65 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
       fullPage: true,
     });
 
-    // All full: the form says so.
+    // A free window left: ordering stays possible.
+    const submit = () => form.locator("[data-order-submit]");
+    const blocked = () => form.locator("[data-order-submit-blocked]");
+    await expect(submit()).toBeEnabled();
+    await expect(blocked()).toBeHidden();
+
+    // All full: the form says so and "Verbindlich bestellen" is off.
     await markFull(second, true);
     form = await openOrderForm(page);
     await expect(
       form.getByText("Alle Lieferfenster sind ausgebucht."),
     ).toBeVisible();
+    await expect(submit()).toBeDisabled();
+    await expect(blocked()).toBeVisible();
+    await expect(blocked()).toContainText(
+      "Bestellen ist gerade nicht möglich, weil kein Lieferfenster frei ist.",
+    );
+    await expect(submit()).toHaveAttribute(
+      "aria-describedby",
+      "order-submit-blocked",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/public-order-all-full-mobile.png`,
+      fullPage: true,
+    });
+
+    // The same without JavaScript: the server renders the button disabled.
+    const noScript = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      javaScriptEnabled: false,
+      userAgent: "LeonAid public-order proof (ausgebucht, no JavaScript)",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const plain = await noScript.newPage();
+      await plain.goto(`${baseUrl}/krapfentaxi`, { waitUntil: "networkidle" });
+      const plainForm = plain.locator("[data-order-form]");
+      await expect(plainForm.locator("[data-order-submit]")).toBeDisabled();
+      await expect(
+        plainForm.locator("[data-order-submit-blocked]"),
+      ).toBeVisible();
+      await expect(
+        plainForm.getByText("Alle Lieferfenster sind ausgebucht."),
+      ).toBeVisible();
+    } finally {
+      await noScript.close();
+    }
+
+    // A window frees up while the form is open: refreshing the windows
+    // enables ordering again.
+    await markFull(second, false);
+    await form.locator("[data-delivery-refresh]").click();
+    await expect(form.locator("[data-delivery-refresh-status]")).toContainText(
+      "Die Lieferfenster sind aktuell.",
+    );
+    await expect(radio(second)).toBeEnabled();
+    await expect(submit()).toBeEnabled();
+    await expect(blocked()).toBeHidden();
+    await expect(submit()).not.toHaveAttribute("aria-describedby", /.+/);
 
     // Stale form: the chosen window fills before the order is sent.
     await markFull(first, false);
