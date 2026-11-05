@@ -56,9 +56,9 @@ export function EpicPicker({
       className="task-fields task-picker task-epic-picker"
       disabled={save.isPending}
     >
-      <legend className="sr-only">Epic (optional)</legend>
+      <legend className="sr-only">Abschnitt (optional)</legend>
       <label className="field">
-        <span className="field-label">Epics suchen</span>
+        <span className="field-label">Abschnitte suchen</span>
         <input
           className="input"
           type="search"
@@ -71,7 +71,7 @@ export function EpicPicker({
         />
       </label>
       <label className="field">
-        <span className="field-label">Epic auswählen</span>
+        <span className="field-label">Vorhandener Abschnitt</span>
         <select
           className="input select"
           value={value}
@@ -81,7 +81,7 @@ export function EpicPicker({
             save.reset();
           }}
         >
-          <option value="">Kein Epic</option>
+          <option value="">Ohne Abschnitt</option>
           {value && !selected && (
             <option value={value}>Aktuelle Zuordnung beibehalten</option>
           )}
@@ -94,12 +94,12 @@ export function EpicPicker({
       </label>
       {epics.isPending && (
         <p className="field-hint" role="status">
-          Epics werden geladen …
+          Abschnitte werden geladen …
         </p>
       )}
       {epics.error && (
         <StatusMessage tone="error">
-          Epics konnten nicht geladen werden. Die aktuelle Zuordnung bleibt
+          Abschnitte konnten nicht geladen werden. Die aktuelle Zuordnung bleibt
           erhalten.{" "}
           <Button
             type="button"
@@ -119,7 +119,7 @@ export function EpicPicker({
           disabled={offset === 0 || epics.isFetching}
           onClick={() => setOffset(Math.max(0, offset - 50))}
         >
-          Vorherige Epics
+          Vorherige Abschnitte
         </Button>
         <Button
           type="button"
@@ -128,11 +128,11 @@ export function EpicPicker({
           disabled={epics.data?.nextOffset == null || epics.isFetching}
           onClick={() => setOffset(epics.data!.nextOffset!)}
         >
-          Weitere Epics
+          Weitere Abschnitte
         </Button>
       </div>
       <label className="field">
-        <span className="field-label">Epic-Titel</span>
+        <span className="field-label">Titel des Abschnitts</span>
         <input
           className="input"
           value={title}
@@ -145,17 +145,17 @@ export function EpicPicker({
         />
       </label>
       <p className="field-hint">
-        Ein Epic bündelt Aufgaben dieser Liste. Anlegen und Umbenennen werden
+        Ein Abschnitt bündelt Aufgaben dieser Liste. Anlegen und Umbenennen werden
         sofort gespeichert, unabhängig vom Aufgabenentwurf.
       </p>
       {save.error && (
         <StatusMessage tone="error">
           {save.error instanceof ApiError && save.error.status === 409
-            ? "Das Epic wurde inzwischen geändert. Lade die Epics neu und prüfe den Titel vor einem weiteren Versuch."
+            ? "Der Abschnitt wurde inzwischen geändert. Lade die Abschnitte neu und prüfe den Titel vor einem weiteren Versuch."
             : says(
                 address,
-                "Das Epic konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",
-                "Das Epic konnte nicht gespeichert werden. Prüfen Sie Ihre Berechtigung und Verbindung.",
+                "Der Abschnitt konnte nicht gespeichert werden. Prüfe deine Berechtigung und Verbindung.",
+                "Der Abschnitt konnte nicht gespeichert werden. Prüfen Sie Ihre Berechtigung und Verbindung.",
               )}
         </StatusMessage>
       )}
@@ -170,7 +170,7 @@ export function EpicPicker({
             void epics.refetch();
           }}
         >
-          Epics neu laden
+          Abschnitte neu laden
         </Button>
       )}
       <div className="task-form-actions">
@@ -181,7 +181,7 @@ export function EpicPicker({
           disabled={!title.trim()}
           onClick={() => save.mutate(false)}
         >
-          Epic anlegen
+          Abschnitt anlegen
         </Button>
         <Button
           type="button"
@@ -190,7 +190,7 @@ export function EpicPicker({
           disabled={!title.trim() || !selected || epics.isFetching}
           onClick={() => save.mutate(true)}
         >
-          Ausgewähltes Epic umbenennen
+          Ausgewähltes Abschnitt umbenennen
         </Button>
       </div>
     </fieldset>

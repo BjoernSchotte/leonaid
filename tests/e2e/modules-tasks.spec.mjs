@@ -97,7 +97,7 @@ for (const [surface, width] of [
     });
     const epicTitle = `S4 Abschnitt ${randomUUID()}`;
     await editor.getByText("Abschnitt auswählen", { exact: true }).click();
-    await editor.getByLabel("Epic-Titel", { exact: true }).fill(epicTitle);
+    await editor.getByLabel("Titel des Abschnitts", { exact: true }).fill(epicTitle);
     const createdEpicResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -105,7 +105,7 @@ for (const [surface, width] of [
         response.ok(),
     );
     await editor
-      .getByRole("button", { name: "Epic anlegen", exact: true })
+      .getByRole("button", { name: "Abschnitt anlegen", exact: true })
       .click();
     const createdEpic = await (await createdEpicResponse).json();
     await expect(editor.locator(".task-epic-picker select")).toHaveValue(
