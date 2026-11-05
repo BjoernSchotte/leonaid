@@ -150,11 +150,16 @@ test("two system admins activate a legal basis", async ({ browser }) => {
     await expect(simonePage.getByText("Kein offener Entwurf")).toBeVisible();
 
     // The activated carrier is the public Impressum provider.
+    // "None active yet" is cached for 10 s per process: reload until the
+    // activation shows.
     const imprintPage = await simoneContext.newPage();
-    await imprintPage.goto(`${baseUrl}/impressum`);
-    await expect(imprintPage.locator("[data-imprint-name]")).toHaveText(
-      "Golden Förderverein e. V.",
-    );
+    await expect(async () => {
+      await imprintPage.goto(`${baseUrl}/impressum`);
+      await expect(imprintPage.locator("[data-imprint-name]")).toHaveText(
+        "Golden Förderverein e. V.",
+        { timeout: 1_000 },
+      );
+    }).toPass({ timeout: 25_000, intervals: [1_000, 2_000] });
     await expect(imprintPage.locator("[data-imprint-address]")).toHaveText(
       "Testweg 44 · 86150 Augsburg",
     );

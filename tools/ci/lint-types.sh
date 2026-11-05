@@ -116,6 +116,8 @@ run_bun bun run typecheck
 run_bun bun run test:ui
 # PWA navigation and the column query rewrite of the PWA build.
 run_bun bun run test:pwa
+# Legal-notice cache of the public pages (footer and /impressum).
+run_bun bun run test:public
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
   .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features \
   tools/emdash_spike/*.mjs \
