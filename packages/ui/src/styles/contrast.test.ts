@@ -453,3 +453,37 @@ describe("old token aliases are gone", () => {
     });
   });
 });
+
+describe("diverging chart ramp", () => {
+  // Non-text contrast exception (WCAG 1.4.11): neighbouring segments only
+  // differ by 1.5–2.5:1 because the legend and the table carry every value.
+  // What must hold: both poles read as graphics (≥ 3:1 on --surface), and the
+  // ramp stays ordered, the grey middle closest to the surface.
+  describe.each(Object.entries(themes))("%s theme", (_, theme) => {
+    const onSurface = (name: string) =>
+      contrast(oklch(name, theme), oklch("--surface", theme));
+
+    test.each(["--chart-neg", "--chart-pos"])(
+      "%s pole on --surface ≥ 3:1",
+      (pole) => {
+        expect(onSurface(pole)).toBeGreaterThanOrEqual(UI);
+      },
+    );
+
+    test("steps stay ordered from each pole to the middle", () => {
+      const ratio = Object.fromEntries(
+        [
+          "--chart-neg",
+          "--chart-neg-soft",
+          "--chart-mid",
+          "--chart-pos-soft",
+          "--chart-pos",
+        ].map((name) => [name, onSurface(name)]),
+      );
+      expect(ratio["--chart-neg"]).toBeGreaterThan(ratio["--chart-neg-soft"]);
+      expect(ratio["--chart-neg-soft"]).toBeGreaterThan(ratio["--chart-mid"]);
+      expect(ratio["--chart-pos"]).toBeGreaterThan(ratio["--chart-pos-soft"]);
+      expect(ratio["--chart-pos-soft"]).toBeGreaterThan(ratio["--chart-mid"]);
+    });
+  });
+});
