@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQueries,
@@ -52,6 +53,7 @@ import {
   useActionContexts,
 } from "../shared/action-contexts";
 import { downloadMaterial } from "./download";
+import { useDebouncedValue } from "../shared/use-debounced-value";
 import "./materials.css";
 
 type Address = "Sie" | "du";
@@ -652,17 +654,21 @@ export function MaterialsPage({
   const [access, setAccess] = useState<Material | null>(null);
   const toggles = useRef(new Map<string, HTMLButtonElement>());
 
+  // Typing waits for a pause; the previous result stays while the next
+  // loads, so the list does not flash "loading" on every keystroke.
+  const query = useDebouncedValue(search);
   const list = useInfiniteQuery({
-    queryKey: ["materials", search, actionId],
+    queryKey: ["materials", query, actionId],
     queryFn: ({ pageParam }) =>
       client.listMaterials({
-        search,
+        search: query,
         offset: pageParam,
         limit: PAGE,
         actionId: actionId || undefined,
       }),
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextOffset ?? undefined,
+    placeholderData: keepPreviousData,
     retry: false,
   });
   // A deep link (/materials/<id>, search hits) shows that material first,

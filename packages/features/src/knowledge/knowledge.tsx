@@ -1,4 +1,8 @@
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+} from "@tanstack/react-query";
 import { BookOpen, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
@@ -18,6 +22,7 @@ import {
   ActionContextSearch,
   useActionContexts,
 } from "../shared/action-contexts";
+import { useDebouncedValue } from "../shared/use-debounced-value";
 import "./knowledge.css";
 
 type Address = "Sie" | "du";
@@ -197,16 +202,20 @@ export function KnowledgePage({
       run: () => setCreating(true),
     },
   ]);
+  // Typing waits for a pause; the previous result stays while the next
+  // loads, so the list does not flash "loading" on every keystroke.
+  const query = useDebouncedValue(search);
   const pages = useInfiniteQuery({
-    queryKey: ["knowledge-pages", search, actionFilter],
+    queryKey: ["knowledge-pages", query, actionFilter],
     queryFn: ({ pageParam }) =>
       client.listKnowledgePages({
-        search,
+        search: query,
         offset: pageParam,
         actionId: actionFilter || undefined,
       }),
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextOffset ?? undefined,
+    placeholderData: keepPreviousData,
     retry: false,
   });
   const items = pages.data?.pages.flatMap((page) => page.items) ?? [];

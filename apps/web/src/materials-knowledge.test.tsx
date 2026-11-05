@@ -183,6 +183,35 @@ describe("materials page", () => {
     ).toBeTruthy();
   });
 
+  it("searches after a pause in typing and keeps the list meanwhile", async () => {
+    const client = materialsClient();
+    wrap(
+      <MaterialsPage
+        basePath="/admin/materials"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+      />,
+      "/admin/materials",
+    );
+    expect(await screen.findByText("Flyer Adventskalender")).toBeTruthy();
+    const field = screen.getByLabelText("Materialien suchen");
+    for (const value of ["F", "Fl", "Fly"])
+      fireEvent.change(field, { target: { value } });
+    // The loaded rows stay while the search is pending.
+    expect(screen.getByText("Flyer Adventskalender")).toBeTruthy();
+    await waitFor(() =>
+      expect(client.listMaterials).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "Fly" }),
+      ),
+    );
+    const searched = (
+      client.listMaterials.mock.calls as unknown as [{ search: string }][]
+    ).map(([query]) => query.search);
+    expect(searched).not.toContain("F");
+    expect(searched).not.toContain("Fl");
+    expect(screen.getByText("Flyer Adventskalender")).toBeTruthy();
+  });
+
   it("names the campaign of campaign material (prototype subtitle)", async () => {
     const client = {
       ...materialsClient(),
