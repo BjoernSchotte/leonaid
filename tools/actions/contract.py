@@ -244,11 +244,15 @@ async def exercise(
         if (
             own_item is None
             or own_item["status"] != "draft"
-            or own_item["templateName"] is not None
+            # A blank action keeps the "Leere Charity-Aktion" template.
+            or own_item["templateName"] != "Leere Charity-Aktion"
             or own_item["goal"]["goalValue"] != "12500"
-            or not own_item["leadNames"]
+            or own_item["leadNames"] != ["Klara Kern"]
         ):
-            raise ContractFailure("own action is missing from the action list")
+            raise ContractFailure(
+                f"own action is missing from the action list: {own_item!r}, "
+                f"{len(klara_list)} listed"
+            )
         if str(action_id) in {
             item["id"] for item in await listed(FELIX_ID, "foreign-list")
         }:

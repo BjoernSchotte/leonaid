@@ -46,7 +46,8 @@ class ActionSummary:
     status: CharityActionStatus
     starts_on: date
     ends_on: date
-    # The template's display name ("Krapfentaxi"); None for blank actions.
+    # The template's display name ("Krapfentaxi", "Leere Charity-Aktion");
+    # None only for actions without a template snapshot.
     template_name: str | None
     # Display names of the active charity admins (the action's leads).
     lead_names: tuple[str, ...]
