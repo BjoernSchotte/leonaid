@@ -4,9 +4,9 @@ description: Create task lists, share them, assign tasks and plan your own day i
 docId: DOC-P041
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 0f6e2da74ab9bfc3bfc8007a0a5ac0861b70b405
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: a77c9527329c3bf72fa8fab3687c7cd7bdbb5cf3
 reviewer: Björn Schotte
 ---
 
@@ -43,16 +43,17 @@ browser.
    full page in the app. Set a description, a responsible person under
    **Zuständigkeit auswählen**, a section under **Abschnitt auswählen** and
    dates under **Termine und Wiedervorlage**. Select **Speichern**.
-3. In **Priorität, Tags und Checkliste**, mark **Hohe Priorität**, tick tags of
-   the list or create one with **Neuer Tag** and **Tag anlegen**, and add steps
-   with **Neuer Schritt** and **Schritt hinzufügen**. Select **Struktur
-   speichern**. The list then shows the priority, the tags and the progress
-   of the steps; you tick single steps under **Schritte** directly.
-4. Status (`S`), plan (`W`), assignee (`A`) and priority (`P`) also change
+3. Under **Schritte** (steps), add steps with **Neuer Schritt** and **Schritt
+   hinzufügen**, tick them or remove them. Every change is saved at once.
+4. In **Priorität und Schlagworte** (priority and tags), mark **Hohe
+   Priorität**, tick tags of the list or create one with **Neues Schlagwort**
+   and **Schlagwort anlegen**. Select **Speichern**. The list then shows the
+   priority, the tags and the progress of the steps.
+5. Status (`S`), plan (`W`), assignee (`A`) and priority (`P`) also change
    right in the list, for one row or all rows checked with `X`. **Erledigt**
    in the selection bar completes the checked tasks. After a change the
    message offers **Rückgängig** (undo).
-5. **Reihenfolge ändern** (reorder): in a list sorted by **Reihenfolge** and in
+6. **Reihenfolge ändern** (reorder): in a list sorted by **Reihenfolge** and in
    **Mein Plan**, drag a task by its grip, pick the grip up with the space bar
    and move it with the arrow keys, or use **Nach oben**, **Nach unten**, **In
    Abschnitt** and **Für Tag planen** in the details.
