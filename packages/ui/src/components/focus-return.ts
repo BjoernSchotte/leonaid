@@ -10,16 +10,22 @@
  * 2. the page's main heading (`main h1`), made focusable with tabIndex -1;
  * 3. `main` itself, made focusable with tabIndex -1.
  *
- * The opener can also lose focus a moment after the dialog closed, when the
- * request finishes and the list re-renders. For a short time after closing,
- * focus moves to the fallback if the opener is removed or disabled while it
- * still holds focus (or focus already fell to <body>).
+ * The fallback only fills a gap: it acts when focus is lost (on <body> or a
+ * removed element), after the app had its turn (FOCUS_SETTLE_MS), and for a
+ * short time after closing (FOCUS_WATCH_MS) in case the opener is removed
+ * later. It never takes focus from an element the app or the user focused.
  */
 
 export const FOCUS_FALLBACK_ATTRIBUTE = "data-focus-fallback";
 
-/** How long a restored opener is watched for late removal or disabling. */
+/** How long after closing a lost focus is still filled by the fallback. */
 export const FOCUS_WATCH_MS = 3000;
+
+/**
+ * Delay before the fallback fills a lost focus: the app's own deferred focus
+ * moves (effects, `setTimeout(0)`, a frame) come first.
+ */
+export const FOCUS_SETTLE_MS = 100;
 
 export interface FocusReturn {
   readonly opener: HTMLElement | null;
@@ -68,46 +74,57 @@ export function focusFallback(
   return false;
 }
 
-function watchOpener(
-  saved: FocusReturn & { opener: HTMLElement },
-  doc: Document,
-): void {
+/** Focus is lost when nothing (or <body>, or a removed element) holds it. */
+function focusIsLost(doc: Document): boolean {
+  const active = doc.activeElement;
+  return !active || active === doc.body || !active.isConnected;
+}
+
+/**
+ * Watches the moments after a dialog closed. The fallback only ever fills a
+ * gap: it acts when focus is lost, and only after the app had its turn (a
+ * list may move focus to a row in its own effect or timeout). It never moves
+ * focus away from an element that holds it, and any focus change by the app
+ * or the user ends the watch.
+ */
+function watchAfterClose(saved: FocusReturn, doc: Document): void {
   const view = doc.defaultView;
   if (!view) return;
-  const { opener } = saved;
   let done = false;
+  let pending: number | undefined;
   const stop = () => {
     if (done) return;
     done = true;
     observer.disconnect();
     doc.removeEventListener("focusin", onFocusIn, true);
     view.clearTimeout(timer);
+    view.clearTimeout(pending);
   };
-  const check = () => {
-    const active = doc.activeElement;
-    const holdsFocus = active === opener || active === doc.body || !active;
-    if (!holdsFocus) {
-      stop();
-      return;
-    }
-    if (!canTakeFocus(opener)) {
+  const settle = () => {
+    pending = undefined;
+    if (done) return;
+    if (focusIsLost(doc)) {
       stop();
       focusFallback(saved, doc);
     }
   };
-  const onFocusIn = (event: FocusEvent) => {
-    // The user (or the page) moved focus on: stop watching.
-    if (event.target !== opener) stop();
+  const later = () => {
+    if (pending === undefined)
+      pending = view.setTimeout(settle, FOCUS_SETTLE_MS);
   };
-  const observer = new view.MutationObserver(check);
-  observer.observe(doc.body, {
-    attributes: true,
-    attributeFilter: ["disabled", "hidden", "inert"],
-    childList: true,
-    subtree: true,
+  const onFocusIn = (event: FocusEvent) => {
+    // Focus went somewhere on purpose (the app or the user): leave it there.
+    if (event.target !== saved.opener) stop();
+  };
+  // The opener may be removed a moment later (a refetched list): check again
+  // then, still only if focus ends up lost.
+  const observer = new view.MutationObserver(() => {
+    if (focusIsLost(doc)) later();
   });
+  observer.observe(doc.body, { childList: true, subtree: true });
   doc.addEventListener("focusin", onFocusIn, true);
   const timer = view.setTimeout(stop, FOCUS_WATCH_MS);
+  later();
 }
 
 /** Returns focus after a dialog closed; see the module comment. */
@@ -116,13 +133,6 @@ export function restoreFocusReturn(
   doc: Document = document,
 ): void {
   if (!saved) return;
-  const { opener } = saved;
-  if (canTakeFocus(opener)) {
-    opener.focus();
-    if (doc.activeElement === opener) {
-      watchOpener({ ...saved, opener }, doc);
-      return;
-    }
-  }
-  focusFallback(saved, doc);
+  if (canTakeFocus(saved.opener)) saved.opener.focus();
+  watchAfterClose(saved, doc);
 }

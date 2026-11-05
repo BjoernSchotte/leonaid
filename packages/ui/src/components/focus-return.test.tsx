@@ -6,7 +6,12 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { installDialogPolyfill } from "../test-utils/dialog-polyfill";
 import { ConfirmDialog } from "./confirm-dialog";
-import { FOCUS_WATCH_MS } from "./focus-return";
+import { FOCUS_SETTLE_MS, FOCUS_WATCH_MS } from "./focus-return";
+
+const settle = () =>
+  act(
+    () => new Promise((resolve) => setTimeout(resolve, FOCUS_SETTLE_MS + 50)),
+  );
 
 beforeAll(installDialogPolyfill);
 afterEach(() => {
@@ -14,7 +19,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-type Outcome = "remove" | "disable" | "keep" | "late-remove";
+type Outcome = "remove" | "disable" | "keep" | "late-remove" | "app-focus";
 
 /** A list row whose "Widerrufen" button opens a confirm dialog. */
 function Screen({
@@ -34,6 +39,18 @@ function Screen({
     if (outcome === "late-remove") {
       window.setTimeout(() => setRowPresent(false), 50);
     }
+    if (outcome === "app-focus") {
+      // Like ListView closing its pane: the opener goes, and the app moves
+      // focus to the list row in a timeout of its own.
+      setRowPresent(false);
+      // Like ListView, only if nothing else took focus meanwhile.
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (!active || active === document.body) {
+          document.getElementById("row-2")?.focus();
+        }
+      }, 0);
+    }
   };
   return (
     <main>
@@ -46,6 +63,11 @@ function Screen({
           </button>
         ) : null}
       </section>
+      <ul>
+        <li id="row-2" tabIndex={-1}>
+          Zeile 2
+        </li>
+      </ul>
       <ConfirmDialog
         confirmLabel="Einladung widerrufen"
         description="Der Code wird ungültig."
@@ -77,6 +99,7 @@ describe("focus after a confirm dialog", () => {
 
   it("moves to the nearest data-focus-fallback when the opener is removed", async () => {
     await confirmFrom("remove");
+    await settle();
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { name: "Einladungen" }).parentElement,
     );
@@ -84,6 +107,7 @@ describe("focus after a confirm dialog", () => {
 
   it("moves to the fallback when the opener is disabled", async () => {
     await confirmFrom("disable");
+    await settle();
     expect(document.activeElement?.hasAttribute("data-focus-fallback")).toBe(
       true,
     );
@@ -91,6 +115,7 @@ describe("focus after a confirm dialog", () => {
 
   it("uses the page's main heading without a marked fallback", async () => {
     await confirmFrom("remove", false);
+    await settle();
     const heading = screen.getByRole("heading", { level: 1 });
     expect(document.activeElement).toBe(heading);
     expect(heading.tabIndex).toBe(-1);
@@ -101,7 +126,8 @@ describe("focus after a confirm dialog", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Widerrufen" }),
     );
-    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)));
+    await settle();
     expect(screen.queryByRole("button", { name: "Widerrufen" })).toBeNull();
     expect(document.activeElement?.hasAttribute("data-focus-fallback")).toBe(
       true,
@@ -126,5 +152,24 @@ describe("focus after a confirm dialog", () => {
       screen.getByRole("button", { name: "Weiter" }),
     );
     expect(FOCUS_WATCH_MS).toBeGreaterThan(100);
+  });
+
+  it("never overrides a focus the app set after closing", async () => {
+    await confirmFrom("app-focus");
+    await settle();
+    await settle();
+    expect(document.activeElement?.id).toBe("row-2");
+  });
+
+  it("leaves an element the app focused at once alone", async () => {
+    const user = userEvent.setup();
+    render(<Screen outcome="remove" />);
+    await user.click(screen.getByRole("button", { name: "Widerrufen" }));
+    await user.click(
+      screen.getByRole("button", { name: "Einladung widerrufen" }),
+    );
+    act(() => document.getElementById("row-2")?.focus());
+    await settle();
+    expect(document.activeElement?.id).toBe("row-2");
   });
 });

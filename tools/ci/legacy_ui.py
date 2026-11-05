@@ -57,6 +57,12 @@ OLD_TOKENS = (
     "warning",
     "warning-foreground",
     "warning-text",
+    # The pre-Leitsystem metric tokens; use --fs-* and --control-h(-lg).
+    "control-height",
+    "text-base",
+    "text-lg",
+    "text-sm",
+    "text-xs",
 )
 OLD_PACKAGES = ("@hugeicons/", "@base-ui/react")
 DEPENDENCY_FIELDS = (
