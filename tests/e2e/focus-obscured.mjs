@@ -32,8 +32,10 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         const box = target.getBoundingClientRect();
         const top = box.top + window.scrollY;
         if (box.height === 0 || box.height > 120) continue;
-        if (top < window.innerHeight || top > scrollHeight - window.innerHeight)
-          continue;
+        // Below the fold, and the page must be able to scroll it to the bar.
+        const maxScroll = scrollHeight - window.innerHeight;
+        if (top < window.innerHeight) continue;
+        if (edge === "top" && top - coverBottom / 2 > maxScroll) continue;
         document
           .querySelectorAll("[data-obscure-target], [data-obscure-before]")
           .forEach((element) => {
@@ -111,6 +113,10 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         barTop: bar.top,
         barBottom: bar.bottom,
         hitsTarget: Boolean(hit && (hit === element || element.contains(hit))),
+        hit: hit
+          ? `${hit.tagName.toLowerCase()}.${[...hit.classList].join(".")}`
+          : null,
+        target: `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} ${(element.textContent ?? "").trim().slice(0, 30)}`,
       };
     },
     { coverSelector: cover },

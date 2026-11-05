@@ -410,7 +410,7 @@ test("focus is not obscured by the app bar or the tab bar", async ({
 }) => {
   // WCAG 2.4.11 in the PWA column: sticky app bar above, fixed tabs below.
   await authenticate(context, annaSession);
-  await page.setViewportSize({ width: 390, height: 600 });
+  await page.setViewportSize({ width: 390, height: 480 });
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
   await expectTabNotObscured(page, {
