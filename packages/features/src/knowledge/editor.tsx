@@ -312,9 +312,9 @@ function PageEditor({
       ClassTextAlign,
       ReplaceSelectionInput,
       taskReference(client, basePath),
-      materialReference(client),
+      materialReference(client, address),
     ],
-    [client, basePath],
+    [client, basePath, address],
   );
   const changed = () => {
     setDirty(true);
@@ -784,6 +784,7 @@ function PageEditor({
       )}
       {taskOpen && (
         <TaskFromPage
+          address={address}
           client={client}
           userId={userId}
           onClose={() => {
@@ -831,6 +832,7 @@ function PageEditor({
         {accessOpen ? (
           <AccessMembersPanel
             actionScoped={!!page.actionId}
+            address={address}
             objectId={page.id}
             source={pageMemberSource(client, page.id)}
           />
