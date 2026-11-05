@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -24,6 +24,11 @@ from leonaid.domain.sessions import (
     SESSION_LIFETIME,
     session_token_digest,
 )
+from leonaid.domain.calendar import local_day
+
+# The service date must lie in the golden action period, which the seed
+# places around the seed day (tools/seed/golden.py); today always does.
+SERVICE_ON = local_day(datetime.now(timezone.utc)).isoformat()
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMMITMENT_ID = UUID("80000000-0000-4000-8000-000000000002")
@@ -114,7 +119,7 @@ async def issue(
     *,
     token: str,
     idempotency_key: str,
-    service_on: str = "2026-11-15",
+    service_on: str = SERVICE_ON,
 ) -> httpx.Response:
     return await api.post(
         f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}/invoice",
@@ -502,7 +507,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 "Idempotency-Key": "poc090:draft:forbidden",
                 "X-Request-ID": "poc090:draft:forbidden",
             },
-            json={"serviceOn": "2026-11-15"},
+            json={"serviceOn": SERVICE_ON},
         )
         if (
             draft_issue.status_code != 422
@@ -560,7 +565,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             api,
             token=tokens["klara_fresh"],
             idempotency_key="poc090:concurrent:first",
-            service_on="2026-11-14",
+            service_on=(date.fromisoformat(SERVICE_ON) - timedelta(days=1)).isoformat(),
         )
         if (
             conflicting_replay.status_code != 409

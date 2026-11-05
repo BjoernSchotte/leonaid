@@ -431,14 +431,13 @@ const windowRequest = ({ id, deliveryOn, startsAt, endsAt, retired }) => ({
 });
 
 // tools/public_orders/delivery_cleanup.py reads this file around the
-// browser step: the proof window IDs to retire and, when this spec extended
-// the action period, the period to restore.
+// browser step: the proof window IDs to retire.
 const deliveryProofPath =
   process.env.LEONAID_E2E_DELIVERY_STATE ??
   `${artifactDirectory}/public-orders-delivery.json`;
 
 async function recordDeliveryProof(change) {
-  let proof = { windowIds: [], periods: [] };
+  let proof = { windowIds: [] };
   try {
     proof = JSON.parse(await readFile(deliveryProofPath, "utf8"));
   } catch (error) {
@@ -456,53 +455,10 @@ function berlinDay(days) {
 
 /**
  * The proof windows lie two days ahead: a new window must start after now
- * and inside the action period. If the action ends before that day, its
- * period is extended by 30 days for the case; `restore` undoes it once the
- * windows are retired (retired windows do not bind the period).
+ * and inside the action period. The seed runs the golden action from 60
+ * days before to 75 days after the seed day (tools/seed/golden.py).
  */
-async function proofDeliveryDay(request, actionId) {
-  const url = `${baseUrl}/api/v1/actions/${actionId}`;
-  const headers = { Origin: new URL(baseUrl).origin };
-  const read = async () => {
-    const response = await request.get(url);
-    expect(response.status(), await response.text()).toBe(200);
-    return response.json();
-  };
-  const setPeriod = async (action, startsOn, endsOn) => {
-    const response = await request.put(`${url}/details`, {
-      headers,
-      data: {
-        revision: action.revision,
-        carrierName: action.carrierName,
-        name: action.name,
-        purpose: action.purpose,
-        startsOn,
-        endsOn,
-      },
-    });
-    expect(response.status(), await response.text()).toBe(200);
-  };
-  const day = berlinDay(2);
-  const action = await read();
-  if (action.startsOn <= day && day <= action.endsOn) {
-    return { day, restore: async () => {} };
-  }
-  const original = { startsOn: action.startsOn, endsOn: action.endsOn };
-  await recordDeliveryProof((proof) => ({
-    ...proof,
-    periods: [...proof.periods, { actionId, ...original }],
-  }));
-  await setPeriod(
-    action,
-    action.startsOn <= day ? action.startsOn : day,
-    berlinDay(30),
-  );
-  return {
-    day,
-    restore: async () =>
-      setPeriod(await read(), original.startsOn, original.endsOn),
-  };
-}
+const proofDeliveryDay = () => berlinDay(2);
 
 async function addProofWindows(request, actionId, day) {
   const configured = await deliveryConfiguration(
@@ -573,7 +529,7 @@ test("an unselected delivery window is listed and linked in the error summary", 
   ]);
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  const { day, restore } = await proofDeliveryDay(page.request, actionId);
+  const day = proofDeliveryDay();
   try {
     await addProofWindows(page.request, actionId, day);
     form = await openOrderForm(page);
@@ -601,11 +557,9 @@ test("an unselected delivery window is listed and linked in the error summary", 
     await link.click();
     await expect(windows.first()).toBeFocused();
   } finally {
-    // Retire the proof windows, then restore the period;
-    // tools/public_orders/delivery_cleanup.py then restores the golden state
-    // (planning cannot be switched off by API).
+    // Retire the proof windows; tools/public_orders/delivery_cleanup.py then
+    // restores the golden state (planning cannot be switched off by API).
     await retireAllWindows(page.request, actionId);
-    await restore();
   }
 });
 
@@ -634,7 +588,7 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
   const page = await context.newPage();
   let form = await openOrderForm(page);
   const actionId = await form.getAttribute("data-action-id");
-  const { day, restore } = await proofDeliveryDay(page.request, actionId);
+  const day = proofDeliveryDay();
   let first;
   let second;
   const markFull = async (window, fullyBooked) => {
@@ -756,10 +710,9 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
     await expect(radio(second)).toBeFocused();
     await expect(radio(second)).toBeEnabled();
   } finally {
-    // Retiring also clears "ausgebucht"; then the period is restored and
-    // delivery_cleanup.py restores the golden state.
+    // Retiring also clears "ausgebucht"; delivery_cleanup.py then restores
+    // the golden state.
     await retireAllWindows(page.request, actionId);
-    await restore();
     await context.close();
   }
 });
