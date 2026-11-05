@@ -45,13 +45,24 @@ from leonaid.domain.sessions import UserSession
 ADMIN_ACCESS_LOCK = "identity.admin_access"
 
 
-async def lock_admin_access(connection: asyncpg.Connection[Any]) -> None:
-    """Take the admin-access lock; call first in the transaction."""
+async def lock_admin_access(connection: asyncpg.Connection[Any]) -> datetime:
+    """Take the admin-access lock and return the command's time.
+
+    Call first in the transaction and use the returned time for every check
+    and every write of the command (``active_from``, ``active_until``,
+    revisions, audit). It is read from the database clock once the lock is
+    held, so it is later than the time of every command that committed
+    before: the commands' times follow their commit order. A time taken
+    before the lock did not (lead race of 2026-11-05: a removal that queued
+    first but stamped earlier saw a lead another removal had already ended).
+    """
 
     await connection.execute(
         "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
         ADMIN_ACCESS_LOCK,
     )
+    locked_at: datetime = await connection.fetchval("SELECT clock_timestamp()")
+    return locked_at
 
 
 async def load_admin_coverage(
@@ -63,7 +74,17 @@ async def load_admin_coverage(
 ) -> AdminCoverage:
     """Active system admins, and the active leads of the open actions where
     ``user_id`` currently leads (only ``action_id`` when given). Call under
-    :func:`lock_admin_access`."""
+    :func:`lock_admin_access`.
+
+    ``now`` is the time :func:`lock_admin_access` returned, so every role a
+    committed command granted has started and every role it ended has
+    ended. A role counts while it has started and has no end
+    (``active_until IS NULL``).
+
+    Assumption: no writer schedules a future ``active_from`` or
+    ``active_until``; grants and ends are always written with the command's
+    own locked time. A feature that plans start or end dates must revisit
+    this guard, :func:`actor_still_manages` and ``currently_enabled``."""
 
     system_admins = frozenset(
         row["user_id"]
@@ -86,7 +107,7 @@ async def load_admin_coverage(
         WHERE membership.role = 'charity_admin'
           AND account.status = 'active'
           AND membership.active_from <= $2
-          AND (membership.active_until IS NULL OR membership.active_until > $2)
+          AND membership.active_until IS NULL
           AND action.status = ANY($3::text[])
           AND ($4::uuid IS NULL OR membership.action_id = $4)
           AND membership.action_id IN (
@@ -95,7 +116,7 @@ async def load_admin_coverage(
             WHERE own.user_id = $1
               AND own.role = 'charity_admin'
               AND own.active_from <= $2
-              AND (own.active_until IS NULL OR own.active_until > $2)
+              AND own.active_until IS NULL
           )
         """,
         user_id,
@@ -166,10 +187,9 @@ async def actor_still_manages(
                               AND membership.action_id = $2
                               AND membership.role = 'charity_admin'
                               AND membership.active_from <= $3
-                              AND (
-                                membership.active_until IS NULL
-                                OR membership.active_until > $3
-                              )
+                              -- Ended by a committed command, whatever its
+                              -- stamp (see load_admin_coverage).
+                              AND membership.active_until IS NULL
                         )
                     )
                   )
@@ -709,7 +729,8 @@ class AsyncpgIdentityRepository:
     ) -> AccountStatusChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await lock_admin_access(connection)
+                # The command's time is taken once the lock is held.
+                occurred_at = await lock_admin_access(connection)
                 inserted = await connection.fetchval(
                     """
                     INSERT INTO command_receipt (
@@ -911,7 +932,8 @@ class AsyncpgIdentityRepository:
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await lock_admin_access(connection)
+                # The command's time is taken once the lock is held.
+                occurred_at = await lock_admin_access(connection)
                 replayed = await self._begin_role_command(
                     connection,
                     idempotency_key=idempotency_key,
@@ -1046,7 +1068,8 @@ class AsyncpgIdentityRepository:
     ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await lock_admin_access(connection)
+                # The command's time is taken once the lock is held.
+                occurred_at = await lock_admin_access(connection)
                 replayed = await self._begin_role_command(
                     connection,
                     idempotency_key=idempotency_key,
@@ -1117,13 +1140,11 @@ class AsyncpgIdentityRepository:
                     user_id,
                     role.value,
                 )
+                # The same rule as the guard (see load_admin_coverage).
                 currently_enabled = (
                     current is not None
                     and current["active_from"] <= occurred_at
-                    and (
-                        current["active_until"] is None
-                        or current["active_until"] > occurred_at
-                    )
+                    and current["active_until"] is None
                 )
                 if currently_enabled == enabled:
                     raise Conflict(
@@ -1176,7 +1197,11 @@ class AsyncpgIdentityRepository:
                     await connection.execute(
                         """
                         UPDATE action_membership
-                        SET active_until = $2,
+                        -- Never before the start (ck_action_membership_period),
+                        -- also if another clock wrote that start.
+                        SET active_until = GREATEST(
+                                $2, active_from + interval '1 microsecond'
+                            ),
                             updated_at = $2
                         WHERE id = $1
                         """,

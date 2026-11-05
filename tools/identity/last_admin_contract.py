@@ -19,7 +19,7 @@ import hashlib
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -59,8 +59,9 @@ SOLO_ACTION = UUID("29000000-0000-4000-8000-000000000001")
 SHARED_ACTION = UUID("29000000-0000-4000-8000-000000000002")
 CREATED_ACTION = UUID("29000000-0000-4000-8000-000000000003")
 REFUSED_ACTION = UUID("29000000-0000-4000-8000-000000000004")
+STAMPED_ACTION = UUID("29000000-0000-4000-8000-000000000005")
 USERS = (LEAD_ONE, LEAD_TWO, ADMIN_ONE, ADMIN_TWO)
-ACTIONS = (SOLO_ACTION, SHARED_ACTION, CREATED_ACTION, REFUSED_ACTION)
+ACTIONS = (SOLO_ACTION, SHARED_ACTION, CREATED_ACTION, REFUSED_ACTION, STAMPED_ACTION)
 RACE_ROUNDS = 12
 
 
@@ -356,6 +357,41 @@ async def reset_admins(connection: asyncpg.Connection[Any]) -> None:
         )
 
 
+async def two_leads_on_shared(
+    connection: asyncpg.Connection[Any],
+) -> tuple[int, int]:
+    """LEAD_ONE and LEAD_TWO are the only leads, of SHARED_ACTION only.
+    Returns their account revisions."""
+
+    await reset_admins(connection)
+    await connection.execute(
+        "UPDATE user_account SET status = 'active' WHERE id = ANY($1::uuid[])",
+        [LEAD_ONE, LEAD_TWO],
+    )
+    # SOLO_ACTION gets no lead role from these two here.
+    await connection.execute(
+        "UPDATE action_membership SET active_until = GREATEST(now(),"
+        " active_from + interval '1 microsecond')"
+        " WHERE action_id = $1 AND role = 'charity_admin'",
+        SOLO_ACTION,
+    )
+    await connection.execute(
+        "UPDATE action_membership SET active_until = GREATEST(now(),"
+        " active_from + interval '1 microsecond')"
+        " WHERE action_id <> $1 AND user_id = ANY($2::uuid[])"
+        " AND role = 'charity_admin'",
+        SHARED_ACTION,
+        [LEAD_ONE, LEAD_TWO],
+    )
+    occurred_at = datetime.now(timezone.utc)
+    for user_id in (LEAD_ONE, LEAD_TWO):
+        await grant_lead(connection, SHARED_ACTION, user_id, occurred_at)
+    return (
+        await revision(connection, LEAD_ONE),
+        await revision(connection, LEAD_TWO),
+    )
+
+
 async def prove_repository(
     pool: asyncpg.Pool[Any],
     identity: AsyncpgIdentityRepository,
@@ -606,29 +642,7 @@ async def prove_repository(
     # Race on an open action: its two leads leave at the same moment.
     for round_number in range(RACE_ROUNDS):
         async with pool.acquire() as connection:
-            await reset_admins(connection)
-            await connection.execute(
-                "UPDATE user_account SET status = 'active' WHERE id = ANY($1::uuid[])",
-                [LEAD_ONE, LEAD_TWO],
-            )
-            # SOLO_ACTION gets no lead role from these two here.
-            await connection.execute(
-                "UPDATE action_membership SET active_until = now()"
-                " WHERE action_id = $1 AND role = 'charity_admin'",
-                SOLO_ACTION,
-            )
-            await connection.execute(
-                "UPDATE action_membership SET active_until = now()"
-                " WHERE action_id <> $1 AND user_id = ANY($2::uuid[])"
-                " AND role = 'charity_admin'",
-                SHARED_ACTION,
-                [LEAD_ONE, LEAD_TWO],
-            )
-            occurred_at = datetime.now(timezone.utc)
-            for user_id in (LEAD_ONE, LEAD_TWO):
-                await grant_lead(connection, SHARED_ACTION, user_id, occurred_at)
-            one = await revision(connection, LEAD_ONE)
-            two = await revision(connection, LEAD_TWO)
+            one, two = await two_leads_on_shared(connection)
         actor = system_principal(ADMIN_ONE)
         results = await asyncio.gather(
             identity.transition_account_status(
@@ -674,6 +688,8 @@ async def prove_repository(
                     f"lead race round {round_number} left the action without a lead"
                 )
 
+    await prove_stamp_order(pool, identity, actions, template)
+
     # The responsible-admin replacement takes the same lock.
     async with pool.acquire() as holder:
         transaction = holder.transaction()
@@ -696,6 +712,232 @@ async def prove_repository(
         )
         await transaction.rollback()
     await asyncio.wait_for(replacing, timeout=10)
+
+
+async def end_leads(
+    connection: asyncpg.Connection[Any], user_id: UUID, *, except_action: UUID
+) -> None:
+    await connection.execute(
+        "UPDATE action_membership SET active_until = GREATEST(now(),"
+        " active_from + interval '1 microsecond')"
+        " WHERE user_id = $1 AND action_id <> $2 AND role = 'charity_admin'"
+        " AND active_until IS NULL",
+        user_id,
+        except_action,
+    )
+
+
+async def prove_stamp_order(
+    pool: asyncpg.Pool[Any],
+    identity: AsyncpgIdentityRepository,
+    actions: AsyncpgCharityActionRepository,
+    template: CharityAction,
+) -> None:
+    """A command that queued for the lock first must see what a command that
+    got the lock before it committed, whatever times their callers passed.
+
+    Each case passes the earlier time to the command that runs second, the
+    order of the lead race of 2026-11-05. The commands take their time once
+    they hold the lock (lock_admin_access), so the passed times must not
+    matter. All cases run; the failures are reported together.
+    """
+
+    failures: list[str] = []
+    actor = system_principal(ADMIN_ONE)
+
+    async def refused(name: str, call: Awaitable[object], code: str) -> None:
+        try:
+            await call
+        except Conflict as error:
+            if error.code != code:
+                failures.append(f"{name}: refused with {error.code}, not {code}")
+        except Exception as error:  # noqa: BLE001 - reported as a failure
+            failures.append(f"{name}: {error!r}")
+        else:
+            failures.append(f"{name}: accepted, expected {code}")
+
+    async def leads(name: str, action_id: UUID, expected: int) -> None:
+        async with pool.acquire() as connection:
+            count = await active_leads(connection, action_id)
+        if count != expected:
+            failures.append(f"{name}: {count} active leads, expected {expected}")
+
+    # 1. An ended role: a revoke runs first (later time), then a suspension
+    #    of the other lead (earlier time) must be refused.
+    async with pool.acquire() as connection:
+        one, two = await two_leads_on_shared(connection)
+    earlier = datetime.now(timezone.utc)
+    later = earlier + timedelta(seconds=5)
+    await identity.grant_action_membership(
+        LEAD_TWO,
+        SHARED_ACTION,
+        ActionRole.CHARITY_ADMIN,
+        enabled=False,
+        actor=actor,
+        actor_user_id=ADMIN_ONE,
+        expected_revision=two,
+        occurred_at=later,
+        **command("stamp-revoke"),
+    )
+    await refused(
+        "ended role",
+        identity.transition_account_status(
+            LEAD_ONE,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=one,
+            occurred_at=earlier,
+            **command("stamp-suspend"),
+        ),
+        "last_charity_admin_suspension_forbidden",
+    )
+    await leads("ended role", SHARED_ACTION, 1)
+
+    # 2. The suspended user's own new lead role: the responsible-admin
+    #    replacement makes LEAD_TWO the only lead (later time, no account
+    #    revision bump), then suspending LEAD_TWO (earlier time) must be
+    #    refused.
+    async with pool.acquire() as connection:
+        await two_leads_on_shared(connection)
+        await connection.execute(
+            "UPDATE action_membership SET active_until = GREATEST(now(),"
+            " active_from + interval '1 microsecond')"
+            " WHERE action_id = $1 AND user_id = $2 AND role = 'charity_admin'",
+            SHARED_ACTION,
+            LEAD_TWO,
+        )
+        two = await revision(connection, LEAD_TWO)
+    shared = await actions.get(SHARED_ACTION)
+    if shared is None:
+        raise ContractFailure("shared action disappeared")
+    earlier = datetime.now(timezone.utc)
+    later = earlier + timedelta(seconds=5)
+    await actions.replace_responsible_administrators(
+        shared,
+        responsible_user_ids=frozenset({LEAD_TWO}),
+        actor_user_id=ADMIN_ONE,
+        request_id=f"{PREFIX}:stamp-replace",
+        occurred_at=later,
+    )
+    await refused(
+        "replacement lead",
+        identity.transition_account_status(
+            LEAD_TWO,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=two,
+            occurred_at=earlier,
+            **command("stamp-replace-suspend"),
+        ),
+        "last_charity_admin_suspension_forbidden",
+    )
+    await leads("replacement lead", SHARED_ACTION, 1)
+
+    # 3. Action create: the creator becomes the only lead (later time), then
+    #    suspending the creator (earlier time) must be refused.
+    async with pool.acquire() as connection:
+        await two_leads_on_shared(connection)
+        await end_leads(connection, LEAD_TWO, except_action=STAMPED_ACTION)
+        two = await revision(connection, LEAD_TWO)
+    earlier = datetime.now(timezone.utc)
+    later = earlier + timedelta(seconds=5)
+    await actions.create(
+        copy_action(template, STAMPED_ACTION),
+        responsible_admin_user_id=LEAD_TWO,
+        request_id=f"{PREFIX}:stamp-create",
+        occurred_at=later,
+    )
+    await refused(
+        "created action",
+        identity.transition_account_status(
+            LEAD_TWO,
+            AccountStatus.SUSPENDED,
+            actor_user_id=ADMIN_ONE,
+            expected_revision=two,
+            occurred_at=earlier,
+            **command("stamp-create-suspend"),
+        ),
+        "last_charity_admin_suspension_forbidden",
+    )
+    await leads("created action", STAMPED_ACTION, 1)
+
+    # 4. The actor re-check: LEAD_ONE's lead role is revoked first (later
+    #    time), then LEAD_ONE acting as lead (earlier time) must be refused.
+    async with pool.acquire() as connection:
+        one, two = await two_leads_on_shared(connection)
+    earlier = datetime.now(timezone.utc)
+    later = earlier + timedelta(seconds=5)
+    await identity.grant_action_membership(
+        LEAD_ONE,
+        SHARED_ACTION,
+        ActionRole.CHARITY_ADMIN,
+        enabled=False,
+        actor=actor,
+        actor_user_id=ADMIN_ONE,
+        expected_revision=one,
+        occurred_at=later,
+        **command("stamp-actor-revoke"),
+    )
+    await refused(
+        "revoked actor",
+        identity.grant_action_membership(
+            LEAD_TWO,
+            SHARED_ACTION,
+            ActionRole.ACQUIRER,
+            enabled=True,
+            actor=actor,
+            actor_user_id=LEAD_ONE,
+            expected_revision=two,
+            occurred_at=earlier,
+            **command("stamp-actor-grant"),
+        ),
+        "role_action_scope_changed",
+    )
+
+    # 5. An end never lies before its start: a lead whose start another
+    #    clock wrote slightly ahead is ended by the replacement without a
+    #    period violation (no 500).
+    async with pool.acquire() as connection:
+        await two_leads_on_shared(connection)
+        await connection.execute(
+            "UPDATE action_membership SET active_from = clock_timestamp()"
+            " + interval '1 second'"
+            " WHERE action_id = $1 AND user_id = $2 AND role = 'charity_admin'",
+            SHARED_ACTION,
+            LEAD_ONE,
+        )
+    shared = await actions.get(SHARED_ACTION)
+    if shared is None:
+        raise ContractFailure("shared action disappeared")
+    try:
+        await actions.replace_responsible_administrators(
+            shared,
+            responsible_user_ids=frozenset({LEAD_TWO}),
+            actor_user_id=ADMIN_ONE,
+            request_id=f"{PREFIX}:stamp-clamp",
+            occurred_at=datetime.now(timezone.utc),
+        )
+    except Exception as error:  # noqa: BLE001 - reported as a failure
+        failures.append(f"end before start: {error!r}")
+    else:
+        async with pool.acquire() as connection:
+            if not await connection.fetchval(
+                "SELECT active_until > active_from FROM action_membership"
+                " WHERE action_id = $1 AND user_id = $2 AND role = 'charity_admin'",
+                SHARED_ACTION,
+                LEAD_ONE,
+            ):
+                failures.append("end before start: the end is not after the start")
+    async with pool.acquire() as connection:
+        # The stamped action's lead must not count for the later proofs.
+        await connection.execute(
+            "UPDATE action_membership SET active_until = GREATEST("
+            " clock_timestamp(), active_from + interval '1 microsecond')"
+            " WHERE action_id = $1 AND active_until IS NULL",
+            STAMPED_ACTION,
+        )
+    if failures:
+        raise ContractFailure("stamp order: " + "; ".join(failures))
 
 
 def copy_action(template: CharityAction, action_id: UUID) -> CharityAction:
@@ -824,7 +1066,9 @@ def main() -> int:
         "suspend, archive and revoke; suspended leads do not count; one lock "
         "serializes status, role, membership, responsible and creation "
         "commands; stale actors refused; "
-        f"{RACE_ROUNDS}+{RACE_ROUNDS} races keep an admin"
+        f"{RACE_ROUNDS}+{RACE_ROUNDS} races keep an admin; commands take their "
+        "time under the lock (ended role, replacement lead, created action, "
+        "revoked actor, end before start)"
     )
     return 0
 
