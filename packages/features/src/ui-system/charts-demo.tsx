@@ -31,11 +31,17 @@ const scores = [
   14,
   16,
 ] as const;
+// The segments add up the same answers: 0–6 (withheld above) are 6,
+// 7 (withheld) is 4 plus 12 for 8, and 9–10 are 14 + 16.
 const segments = [
   ["Kritiker (0–6)", 6],
-  ["Passive (7–8)", 8],
-  ["Förderer (9–10)", 16],
+  ["Passive (7–8)", 16],
+  ["Förderer (9–10)", 30],
 ] as const;
+const answers = segments.reduce((sum, [, count]) => sum + count, 0);
+const share = (count: number) => Math.round((count / answers) * 100);
+// NPS: promoters minus critics, in percent of all answers.
+const nps = Math.round(((segments[2][1] - segments[0][1]) / answers) * 100);
 const matrix = [
   { label: "Organisation", segments: [64, 18, 18] },
   { label: "Verpflegung", segments: [40, 30, 30] },
@@ -51,7 +57,7 @@ export function ChartsDemo() {
             label: "Empfehlung",
             segments: segments.map(([label, count]) => ({
               label,
-              percentage: (count / 30) * 100,
+              percentage: (count / answers) * 100,
             })),
           },
         ],
@@ -89,16 +95,18 @@ export function ChartsDemo() {
   return (
     <div className="ui-catalog-charts" data-testid="ui-catalog-charts">
       <figure className="ui-catalog-chart">
-        <figcaption>Net Promoter Score: 33</figcaption>
+        <figcaption>Net Promoter Score: {nps}</figcaption>
         <ChartCanvas
           config={segmentConfig}
           height={28}
-          label="Empfehlung: Kritiker (0–6) 6 (20 %), Passive (7–8) 8 (27 %), Förderer (9–10) 16 (53 %)."
+          label={`Empfehlung: ${segments
+            .map(([label, count]) => `${label} ${count} (${share(count)} %)`)
+            .join(", ")}.`}
         />
         <ChartLegend
           items={segments.map(([label, count], index) => ({
             label,
-            value: `${count} (${Math.round((count / 30) * 100)} %)`,
+            value: `${count} (${share(count)} %)`,
             step: npsSteps[index]!,
           }))}
           label="Legende: Empfehlung"

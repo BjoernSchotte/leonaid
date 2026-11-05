@@ -1238,7 +1238,7 @@ export function LegalConfigurationPage({
               ) : null}
             </ol>
           </section>
-          <p className="callout small legal-note">
+          <p className="callout small">
             <Icon icon={Info} size={16} />
             <span>
               Bereits ausgestellte Rechnungen behalten die Angaben der Version,
