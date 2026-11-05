@@ -49,21 +49,6 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
         target.dataset.obscureTarget = "";
         before.dataset.obscureBefore = "";
         before.focus({ preventScroll: true });
-        // Park the target half under the bar: still "in the viewport", so
-        // without scroll-padding a browser does not scroll on focus. Instant:
-        // the page sets scroll-behavior: smooth.
-        const now = target.getBoundingClientRect();
-        if (edge === "top") {
-          window.scrollBy({
-            top: now.top - (coverBottom - now.height / 2),
-            behavior: "instant",
-          });
-        } else {
-          window.scrollBy({
-            top: now.bottom - (coverTop + now.height / 2),
-            behavior: "instant",
-          });
-        }
         return { found: true };
       }
       const inScope = tabbables.filter((element) => element.closest(scope));
@@ -89,6 +74,26 @@ export async function expectTabNotObscured(page, { scope, cover, edge }) {
     prepared.found,
     `a tabbable pair below the fold in ${scope}: ${JSON.stringify(prepared)}`,
   ).toBe(true);
+  // Let the shell's focus reveal for the element before settle, then park
+  // the target half under the bar: still "in the viewport", so without
+  // scroll-padding a browser does not scroll on focus. Instant scrolling:
+  // the page sets scroll-behavior: smooth.
+  await page.waitForTimeout(500);
+  await page.evaluate(
+    ({ edge, coverTop, coverBottom }) => {
+      const now = document
+        .querySelector("[data-obscure-target]")
+        .getBoundingClientRect();
+      window.scrollBy({
+        top:
+          edge === "top"
+            ? now.top - (coverBottom - now.height / 2)
+            : now.bottom - (coverTop + now.height / 2),
+        behavior: "instant",
+      });
+    },
+    { edge, coverTop: coverBox.y, coverBottom: coverBox.y + coverBox.height },
+  );
   const target = page.locator("[data-obscure-target]");
   const startBox = await target.boundingBox();
   if (edge === "top") {
