@@ -13,6 +13,7 @@ import barlow700 from "@fontsource/barlow/files/barlow-latin-700-normal.woff2?ur
 import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
 
+import PublicAppLinks from "../components/PublicAppLinks.astro";
 import PublicMark from "../components/PublicMark.astro";
 import {
   providerAddress,
@@ -156,6 +157,7 @@ const header = theme.header;
             <span class="site-header__promise">Lions helfen vor Ort</span>
           )
         }
+        <PublicAppLinks />
       </div>
     </header>
     <main id="main-content" tabindex="-1">

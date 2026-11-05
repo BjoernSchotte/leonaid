@@ -376,6 +376,47 @@ a.site-header__promise {
   text-underline-offset: 3px;
 }
 
+/* Links into the signed-in apps (PublicAppLinks). Hidden until the identity
+   request names them, so signed-out visitors keep the header as it is. */
+.site-header__apps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 var(--s-2);
+}
+
+.site-header__apps[hidden] {
+  display: none;
+}
+
+.site-header__inner:has(> .site-header__apps:not([hidden])) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.site-header__inner:has(> .site-header__apps:not([hidden]))
+  > .site-header__home {
+  margin-inline-end: auto;
+}
+
+.site-header .site-header__app-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Phones: the apps get their own row under brand and page link. */
+@media (max-width: 47.99rem) {
+  .site-header__apps {
+    flex-basis: 100%;
+  }
+}
+
 .public-brand {
   display: inline-flex;
   align-items: center;

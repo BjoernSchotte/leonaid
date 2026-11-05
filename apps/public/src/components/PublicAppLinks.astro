@@ -1,0 +1,21 @@
+---
+// Links from the public header into the admin app and the acquisition PWA.
+// Public pages may be cached and shared, so the server HTML is the same for
+// every visitor: the container stays hidden and the script below asks the
+// API who is signed in after load. Signed-out visitors see no change.
+---
+
+<nav class="site-header__apps" aria-label="Ihre Bereiche" data-app-links hidden>
+</nav>
+
+<script>
+  import { LeonAidApiClient } from "@leonaid/api-client";
+  import { loadAppLinks, renderAppLinks } from "../lib/app-links";
+
+  const container = document.querySelector<HTMLElement>("[data-app-links]");
+  if (container) {
+    void loadAppLinks(new LeonAidApiClient(window.location.origin)).then(
+      (links) => renderAppLinks(container, links),
+    );
+  }
+</script>

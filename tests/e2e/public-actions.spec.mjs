@@ -12,6 +12,10 @@ if (!baseUrl || !artifactDirectory) {
 
 test.use({ ignoreHTTPSErrors: true });
 
+// Every public page loads this script for the header's app links.
+const headerScript = 'script[src*="/_astro/PublicAppLinks."]';
+const pageScripts = `script:not(${headerScript})`;
+
 async function expectNoHorizontalScroll(page) {
   expect(
     await page.evaluate(
@@ -106,9 +110,11 @@ test("active, inactive and archived public pages stay functionally identical in 
     );
   expect(unloadedImages).toEqual([]);
   await expect(page.locator('img[src*="lions-krapfentaxi.de"]')).toHaveCount(0);
-  // The inquiry form is the only enhanced element of this page.
-  await expect(page.locator("script")).toHaveCount(1);
-  await expect(page.locator("script")).toHaveAttribute(
+  // Besides the header's app links (headerScript), the inquiry form is the
+  // only enhanced element of this page.
+  await expect(page.locator(headerScript)).toHaveCount(1);
+  await expect(page.locator(pageScripts)).toHaveCount(1);
+  await expect(page.locator(pageScripts)).toHaveAttribute(
     "src",
     /\/_astro\/PublicInbox\./,
   );
@@ -142,7 +148,7 @@ test("active, inactive and archived public pages stay functionally identical in 
     0,
   );
   await expect(page.locator("body")).toHaveClass("taxi-site");
-  await expect(page.locator("script")).toHaveCount(0);
+  await expect(page.locator(pageScripts)).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     `${baseUrl}/archive/krapfentaxi-2027`,
@@ -264,5 +270,100 @@ test("the footer names the provider and links the Impressum on every public page
       path: `${artifactDirectory}/public-impressum-${width}.png`,
       fullPage: true,
     });
+  }
+});
+
+// Sessions seeded by tools/public_actions/contract.py: Finn may use the
+// admin app only, Anna the acquisition PWA only.
+const appSessions = {
+  admin: process.env.FINN_SESSION,
+  acquirer: process.env.ANNA_SESSION,
+};
+
+async function openWithIdentity(page, path) {
+  // The header asks the API after load; wait for that answer.
+  const identity = page.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/identity/me"),
+  );
+  await page.goto(`${baseUrl}${path}`);
+  return (await identity).status();
+}
+
+const appLinks = (page) =>
+  page.getByRole("navigation", { name: "Ihre Bereiche" }).getByRole("link");
+
+test("the public header links signed-in visitors to their apps", async ({
+  browser,
+  browserName,
+  page,
+}) => {
+  expect(appSessions.admin && appSessions.acquirer).toBeTruthy();
+
+  // Signed out: the header stays as it is, without app links.
+  expect(await openWithIdentity(page, "/krapfentaxi")).toBe(401);
+  await expect(
+    page.getByRole("navigation", { name: "Ihre Bereiche" }),
+  ).toBeHidden();
+  await expect(page.locator("[data-app-link]")).toHaveCount(0);
+
+  for (const [persona, expected] of [
+    ["admin", [["Zur Verwaltung", "/admin/"]]],
+    ["acquirer", [["Zur Akquise-App", "/app/"]]],
+  ]) {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    await context.addCookies([
+      {
+        name: "__Host-leonaid_session",
+        value: appSessions[persona],
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      },
+    ]);
+    const signedIn = await context.newPage();
+    for (const path of ["/krapfentaxi", "/"]) {
+      for (const [width, height] of [
+        [390, 844],
+        [768, 1024],
+        [1440, 900],
+      ]) {
+        await signedIn.setViewportSize({ width, height });
+        expect(await openWithIdentity(signedIn, path)).toBe(200);
+        const links = appLinks(signedIn);
+        await expect(links).toHaveCount(expected.length);
+        for (const [index, [label, href]] of expected.entries()) {
+          await expect(links.nth(index)).toHaveText(label);
+          await expect(links.nth(index)).toHaveAttribute("href", href);
+          await expect(links.nth(index)).toBeVisible();
+          const box = await links.nth(index).boundingBox();
+          expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+        }
+        await expectNoHorizontalScroll(signedIn);
+      }
+      if (browserName === "chromium") {
+        // Keyboard: Tab reaches the link after the header's own links, and
+        // the link shows its focus.
+        await signedIn.locator(".site-header__home").focus();
+        let focused = false;
+        for (let step = 0; step < 8 && !focused; step += 1) {
+          await signedIn.keyboard.press("Tab");
+          focused = await signedIn.evaluate(() =>
+            document.activeElement?.hasAttribute("data-app-link"),
+          );
+        }
+        expect(focused).toBe(true);
+        const outline = await signedIn.evaluate(() => {
+          const style = getComputedStyle(document.activeElement);
+          return { style: style.outlineStyle, width: style.outlineWidth };
+        });
+        expect(outline.style).not.toBe("none");
+        expect(Number.parseFloat(outline.width)).toBeGreaterThanOrEqual(2);
+        await signedIn.screenshot({
+          path: `${artifactDirectory}/public-header-${persona}${path === "/" ? "-home" : ""}-1440.png`,
+        });
+      }
+    }
+    await context.close();
   }
 });

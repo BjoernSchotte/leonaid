@@ -17,6 +17,9 @@ isolation_file="$proof/compose-isolation.yml"
 artifact_directory="$root/.artifacts/poc071"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
+# Seeded by tools/public_actions/contract.py (BROWSER_SESSIONS).
+finn_session="poc070-10000000-0000-4000-8000-000000000007-browser-session-token"
+anna_session="poc070-10000000-0000-4000-8000-000000000004-browser-session-token"
 
 compose() {
   LEONAID_HTTP_PORT="$http_port" \
@@ -101,6 +104,8 @@ docker run --rm \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env FINN_SESSION="$finn_session" \
+  --env ANNA_SESSION="$anna_session" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
