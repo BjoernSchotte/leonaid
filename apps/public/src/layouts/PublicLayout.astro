@@ -14,7 +14,11 @@ import { defaultTheme, type PublicTheme } from "../themes";
 import { Image } from "astro:assets";
 
 import PublicMark from "../components/PublicMark.astro";
-import { providerAddress, readLegalNotice } from "../lib/legal-notice";
+import {
+  providerAddress,
+  readLegalNotice,
+  type LegalNoticeResult,
+} from "../lib/legal-notice";
 
 interface Props {
   canonicalUrl: string;
@@ -28,6 +32,8 @@ interface Props {
   carrierName?: string;
   /** In-page target of the privacy notice, when the page renders one. */
   privacyHref?: string;
+  /** A legal notice the page read already (/impressum); read here otherwise. */
+  legalNotice?: LegalNoticeResult;
   campaignBrand?: {
     name: string;
     logo: { src: string; alt: string; width?: number; height?: number } | null;
@@ -45,9 +51,10 @@ const {
   canOrder = false,
   carrierName,
   privacyHref,
+  legalNotice: pageLegalNotice,
   campaignBrand,
 } = Astro.props;
-const legalNotice = await readLegalNotice();
+const legalNotice = pageLegalNotice ?? (await readLegalNotice());
 const provider = legalNotice.state === "ready" ? legalNotice.provider : null;
 const shareImage = imageMetadata ?? theme.shareImage;
 const header = theme.header;
