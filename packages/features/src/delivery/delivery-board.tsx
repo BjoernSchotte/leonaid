@@ -35,6 +35,7 @@ import {
   Popover,
   SkeletonRows,
   StatusIcon,
+  StatusMessage,
   cn,
   useHotkeys,
   useMediaQuery,
@@ -45,6 +46,7 @@ import {
 import { replaceActionInUrl } from "../action-admin/action-location";
 import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
+import { formatDateTime } from "../shared/dates";
 
 /*
  * The delivery day board (prototype pages/Delivery.tsx). Managers see every
@@ -152,6 +154,7 @@ const copy = {
     nothingAssigned: "Noch keine Lieferungen",
     notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
     error: "Die Auslieferung konnte nicht geladen werden.",
+    stale: "Die Auslieferung konnte nicht aktualisiert werden.",
     codes: {
       delivery_window_closed:
         "Dieses Lieferfenster ist abgeschlossen. Zum Zurücknehmen öffnen Sie es wieder.",
@@ -171,6 +174,7 @@ const copy = {
     nothingAssigned: "Dir ist noch keine Lieferung zugewiesen",
     notEnabled: "Für diese Aktion ist keine Lieferplanung aktiv.",
     error: "Deine Lieferungen konnten nicht geladen werden.",
+    stale: "Deine Lieferungen konnten nicht aktualisiert werden.",
     codes: {
       delivery_window_closed:
         "Dieses Lieferfenster ist abgeschlossen. Wende dich an die Aktionsleitung.",
@@ -693,6 +697,24 @@ export function DeliveryBoardPage({
         />
       ) : (
         <>
+          {board.isError ? (
+            // A failed poll keeps the last board; say how old it is.
+            <StatusMessage className="delivery-stale" tone="warning">
+              <strong>{text.stale}</strong>
+              <p>
+                Angezeigt wird der Stand von{" "}
+                {formatDateTime(new Date(board.dataUpdatedAt).toISOString())}.
+              </p>
+              <Button
+                loading={board.isFetching}
+                onClick={() => void board.refetch()}
+                size="sm"
+                variant="secondary"
+              >
+                Jetzt neu laden
+              </Button>
+            </StatusMessage>
+          ) : null}
           {lateBookings.length ? (
             <NextStep
               action={

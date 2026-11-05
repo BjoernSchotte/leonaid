@@ -712,14 +712,29 @@ describe("delivery board", () => {
   it("keeps the board on screen when a background reload fails", async () => {
     const client = fakeClient(board());
     const { queries } = await renderBoard(client);
-    vi.mocked(client.getDeliveryBoard).mockRejectedValueOnce(
-      new Error("offline"),
-    );
+    const answer = vi.mocked(client.getDeliveryBoard).getMockImplementation()!;
+    vi.mocked(client.getDeliveryBoard).mockRejectedValue(new Error("offline"));
     await act(() => queries.refetchQueries({ queryKey: ["delivery-board"] }));
     expect(screen.getAllByTestId("delivery-drop")).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: /Erneut versuchen/ }),
     ).toBeNull();
+    // ...and says that it shows an older state, with a reload.
+    expect(
+      await screen.findByText(
+        "Die Auslieferung konnte nicht aktualisiert werden.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/Angezeigt wird der Stand von/)).toBeTruthy();
+    vi.mocked(client.getDeliveryBoard).mockImplementation(answer);
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt neu laden" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Die Auslieferung konnte nicht aktualisiert werden.",
+        ),
+      ).toBeNull(),
+    );
   });
 
   it("reloads the managers' board on an interval, not the drivers'", async () => {
