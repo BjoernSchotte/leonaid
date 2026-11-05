@@ -56,9 +56,29 @@ test("visual page and question editing persists stable identities through the re
   // A wrapping label's name includes a filled textarea's text, hence /^…/.
   for (const label of [/^Fragetitel$/, /^Hinweis/, /^Eintrag 1$/]) {
     const field = editor.getByLabel(label);
-    await field.scrollIntoViewIfNeeded();
+    // Centre it instantly: "visible" for scrollIntoViewIfNeeded includes
+    // under the sticky top bar, and the page scrolls smoothly, so on a
+    // slow runner the measured box was stale and the drag started in the
+    // bar's search field (CI, PR #79).
+    await field.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
     const box = await field.boundingBox();
     const y = box.y + Math.min(box.height / 2, 18);
+    expect(
+      await field.evaluate(
+        (element, point) =>
+          document.elementFromPoint(point.x, point.y) === element,
+        { x: box.x + 8, y },
+      ),
+      `${label} is under the pointer`,
+    ).toBe(true);
     await page.mouse.move(box.x + 8, y);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width - 8, y, { steps: 8 });
