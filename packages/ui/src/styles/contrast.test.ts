@@ -383,23 +383,40 @@ describe("old token aliases are gone", () => {
     "--sidebar-accent": "--rail-marker",
   };
 
+  // Every rule of both token files, any selector or media query.
+  const declaredAnywhere = new Set(
+    [...parseRules(tokensCss), ...rules].flatMap((candidate) =>
+      Object.keys(candidate.declarations),
+    ),
+  );
+
   test.each(Object.entries(removed))(
-    "%s is no longer defined (use %s)",
+    "%s is defined nowhere in the token files (use %s)",
     (alias) => {
-      expect(aliases[alias]).toBeUndefined();
+      expect(declaredAnywhere.has(alias)).toBe(false);
     },
   );
 
-  test("tokens.css stays theme independent", () => {
-    expect(
-      aliasRules.filter(
-        (candidate) =>
-          candidate.media !== null ||
-          candidate.selectors.some((selector) =>
-            selector.includes("data-theme"),
-          ),
+  test("tokens.css holds only literal values, no token pointers", () => {
+    // An alias is a var() pointer; brand primitives and metrics are literals.
+    const pointers = aliasRules.flatMap((candidate) =>
+      Object.entries(candidate.declarations)
+        .filter(([, value]) => value.includes("var("))
+        .map(([name, value]) => `${name}: ${value}`),
+    );
+    expect(pointers).toEqual([]);
+  });
+
+  test("tokens.css does not redefine a Leitsystem token", () => {
+    const leitsystemNames = new Set(
+      rules.flatMap((candidate) => Object.keys(candidate.declarations)),
+    );
+    const shadowed = aliasRules.flatMap((candidate) =>
+      Object.keys(candidate.declarations).filter((name) =>
+        leitsystemNames.has(name),
       ),
-    ).toEqual([]);
+    );
+    expect(shadowed).toEqual([]);
   });
 
   // The pairs components rendered with the old names, now checked under the

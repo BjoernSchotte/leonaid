@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """Fail on UI code that predates the Leitsystem: Hugeicons, Base UI, old tokens.
 
-The Leitsystem uses Lucide through @leonaid/ui's Icon adapter, native
-dialogs/popovers and the token names of packages/ui/src/styles/leitsystem.css.
-The names below are the old aliases from packages/ui/src/styles/tokens.css.
+The Leitsystem renders icons from ``lucide-react``, uses native <dialog> and
+popover elements, and styles with the token names of
+packages/ui/src/styles/leitsystem.css. The old token names below were the
+aliases of packages/ui/src/styles/tokens.css; they are gone and stay gone.
+
+Checked in apps/ and packages/:
+- the packages as any string literal: ``import``/``from``, ``require()``,
+  dynamic ``import()``, ``vi.mock()``/``jest.mock()``, ``import x = require()``;
+- package.json dependency fields, including optional dependencies, overrides
+  and resolutions;
+- old token uses ``var(--name)``, also across lines, and definitions
+  ``--name:``, also several on one line (``a{--sidebar:red}``);
+- old token names as JavaScript strings (``style.setProperty("--primary")``).
 
 Runs in ./leonaid check. ``--report`` lists findings without failing.
 """
@@ -49,22 +59,47 @@ OLD_TOKENS = (
     "warning-text",
 )
 OLD_PACKAGES = ("@hugeicons/", "@base-ui/react")
-TOKEN_USE = re.compile(
-    r"var\(\s*--("
-    + "|".join(sorted(map(re.escape, OLD_TOKENS), key=len, reverse=True))
-    + r")\s*[,)]"
+DEPENDENCY_FIELDS = (
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+    "bundledDependencies",
+    "bundleDependencies",
+    "overrides",
+    "resolutions",
 )
-TOKEN_DEFINITION = re.compile(
-    r"^\s*--(" + "|".join(map(re.escape, OLD_TOKENS)) + r")\s*:"
-)
-IMPORT = re.compile(
-    r"""(?:from\s+|import\s*\(\s*|import\s+)["']("""
+
+# Longest first, and a name must end where the token ends: "--primary" must
+# not match "--primary-ish".
+_NAMES = "|".join(sorted(map(re.escape, OLD_TOKENS), key=len, reverse=True))
+TOKEN_USE = re.compile(rf"var\(\s*--({_NAMES})(?![\w-])\s*[,)]", re.S)
+TOKEN_DEFINITION = re.compile(rf"(?:^|[;{{\s])--({_NAMES})(?![\w-])\s*:", re.M)
+TOKEN_STRING = re.compile(rf"""["'`]--({_NAMES})["'`]""")
+PACKAGE_STRING = re.compile(
+    r"""["'`]("""
     + "|".join(re.escape(name) for name in OLD_PACKAGES)
-    + r""")[^"']*["']"""
+    + r""")[^"'`\s]*["'`]"""
 )
-SOURCE_SUFFIXES = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".astro"}
+
+SCRIPT_SUFFIXES = {
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".vue",
+    ".svelte",
+}
+STYLE_SUFFIXES = {".css", ".scss", ".sass", ".less"}
+MARKUP_SUFFIXES = {".astro", ".html", ".htm", ".svg", ".md", ".mdx"}
 ROOTS = ("apps", "packages")
-SKIPPED = {"node_modules", "dist", "build", ".astro", "test-results"}
+SKIPPED = {"node_modules", "dist", "build", ".astro", "test-results", "coverage"}
+# The contrast test names the old aliases to prove they stay undefined.
+ALLOWED = {Path("packages/ui/src/styles/contrast.test.ts")}
 
 
 def files(root: Path) -> Iterator[Path]:
@@ -79,33 +114,80 @@ def files(root: Path) -> Iterator[Path]:
                 yield path
 
 
+def _line(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def _dependency_names(value: object) -> Iterator[str]:
+    """Package names of a dependency field; overrides may nest objects."""
+
+    if isinstance(value, dict):
+        for name, nested in value.items():
+            yield str(name)
+            yield from _dependency_names(nested)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                yield item
+
+
+def _manifest_findings(path: Path, relative: Path) -> list[str]:
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    result: list[str] = []
+    for field in DEPENDENCY_FIELDS:
+        for name in _dependency_names(manifest.get(field)):
+            if name.startswith(OLD_PACKAGES):
+                result.append(f"{relative}: {field} lists {name}")
+    return result
+
+
+def _source_findings(text: str, relative: Path, suffix: str) -> list[str]:
+    result: list[str] = []
+    for match in PACKAGE_STRING.finditer(text):
+        result.append(f"{relative}:{_line(text, match.start())}: uses {match.group(1)}")
+    for match in TOKEN_USE.finditer(text):
+        result.append(
+            f"{relative}:{_line(text, match.start())}: old token --{match.group(1)}"
+        )
+    if (
+        suffix in STYLE_SUFFIXES
+        or suffix in MARKUP_SUFFIXES
+        or suffix in {".vue", ".svelte"}
+    ):
+        for match in TOKEN_DEFINITION.finditer(text):
+            result.append(
+                f"{relative}:{_line(text, match.start(1))}: "
+                f"defines old token --{match.group(1)}"
+            )
+    if suffix in SCRIPT_SUFFIXES or suffix in MARKUP_SUFFIXES:
+        for match in TOKEN_STRING.finditer(text):
+            result.append(
+                f"{relative}:{_line(text, match.start())}: "
+                f"old token --{match.group(1)} in a string"
+            )
+    return result
+
+
 def findings(root: Path) -> list[str]:
     result: list[str] = []
     for path in files(root):
         relative = path.relative_to(root)
-        if path.name == "package.json":
-            try:
-                manifest = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            for field in ("dependencies", "devDependencies", "peerDependencies"):
-                for name in manifest.get(field, {}) or {}:
-                    if name.startswith(OLD_PACKAGES):
-                        result.append(f"{relative}: {field} lists {name}")
+        if relative in ALLOWED:
             continue
-        if path.suffix not in SOURCE_SUFFIXES:
+        if path.name == "package.json":
+            result.extend(_manifest_findings(path, relative))
+            continue
+        suffix = path.suffix.lower()
+        if suffix not in SCRIPT_SUFFIXES | STYLE_SUFFIXES | MARKUP_SUFFIXES:
             continue
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for number, line in enumerate(text.splitlines(), 1):
-            for match in IMPORT.finditer(line):
-                result.append(f"{relative}:{number}: imports {match.group(1)}")
-            for match in TOKEN_USE.finditer(line):
-                result.append(f"{relative}:{number}: old token --{match.group(1)}")
-            if path.suffix == ".css" and TOKEN_DEFINITION.match(line):
-                result.append(f"{relative}:{number}: defines old token {line.strip()}")
+        result.extend(_source_findings(text, relative, suffix))
     return result
 
 
@@ -119,8 +201,9 @@ def main(argv: list[str]) -> int:
         print(f"legacy-ui: {'FOUND' if report else 'ERROR'}: {item}", file=stream)
     if found and not report:
         print(
-            "legacy-ui: FAILED: use Lucide via Icon from @leonaid/ui, native "
-            "dialogs/popovers and the Leitsystem tokens (leitsystem.css)",
+            "legacy-ui: FAILED: render icons from lucide-react, use native "
+            "<dialog>/popover elements and the Leitsystem tokens of "
+            "packages/ui/src/styles/leitsystem.css (--text, --accent, --r-md, ...)",
             file=sys.stderr,
         )
         return 1
