@@ -84,26 +84,36 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
         name: /^Guten (Morgen|Tag|Abend), Anna\.$/,
       }),
     ).toBeVisible();
-    await expect(page.getByTestId("dashboard-action")).toHaveValue(actionId);
+    // One campaign: no picker; the app bar names it (prototype Start).
+    await expect(page.getByTestId("acquirer-action")).toHaveCount(0);
     await expect(page.getByTestId("goal-status")).toContainText(
-      "Aktionsziel: 900,00 € von 1.000,00 € erreicht, 90 Prozent.",
+      "Aktionsziel: 900,00 € von 1.000,00 € erreicht, 90 Prozent.",
     );
+    const goal = page.getByTestId("dashboard-goal");
     await expect(
-      page.getByRole("progressbar", {
-        name: "Fortschritt des Aktionsziels",
-      }),
-    ).toHaveAttribute(
-      "aria-valuetext",
-      /^Aktionsziel: 900,00\s€ von 1\.000,00\s€ erreicht, 90 Prozent\.$/,
-    );
-    await expect(page.getByTestId("dashboard-next-step")).toContainText(
-      "Mit offenen Sponsoren weiterarbeiten",
-    );
-    await expect(page.getByTestId("dashboard-next-step")).toContainText(
-      "2 ohne Termin",
-    );
+      goal.getByRole("heading", { name: "Gemeinsames Ziel" }),
+    ).toBeVisible();
+    await expect(
+      goal.getByRole("meter", { name: "Fortschritt des Aktionsziels" }),
+    ).toHaveAttribute("aria-valuenow", "9000");
+    await expect(goal).toContainText("Noch 100,00 € bis zum Ziel.");
+    // "Heute dran": the follow-ups due today or overdue.
+    await expect(
+      page.getByRole("heading", { name: "Heute dran" }),
+    ).toBeVisible();
+    // This stack's sponsors have no follow-up yet (activities.spec proves
+    // the filled list on its own data).
+    await expect(page.getByTestId("due-today")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Heute ist nichts fällig" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Alle Wiedervorlagen" }),
+    ).toHaveAttribute("href", /\/app\/activities\?view=contacts/);
     const pipeline = page.getByTestId("dashboard-pipeline");
-    await expect(pipeline).toContainText("2 Zuordnungen");
+    await expect(
+      pipeline.getByRole("heading", { name: "Deine persönliche Pipeline" }),
+    ).toBeVisible();
     const open = pipeline.getByRole("link", { name: /Offen 2/ });
     await expect(open).toHaveAttribute("href", /status=open/);
 
@@ -116,13 +126,16 @@ test("acquirer works from the personal dashboard into the filtered pipeline", as
     await open.click();
     await expect(page).toHaveURL(/\/app\/sponsors\?.*status=open/);
     await expect(page.getByTestId("sponsor-status-open")).toHaveAttribute(
-      "aria-selected",
+      "aria-pressed",
       "true",
     );
+    // Handed-over sponsors leave the list, so "Übergeben" is no filter.
+    await expect(page.getByTestId("sponsor-status-handed_over")).toHaveCount(0);
     await expect(page.getByTestId("sponsor-row")).toHaveCount(2);
-    await expect(
-      page.getByTestId("sponsor-row").locator('[data-status="open"]'),
-    ).toHaveCount(2);
+    await expect(page.getByTestId("sponsor-row")).toContainText([
+      "Offen",
+      "Offen",
+    ]);
     expectNoUnexpectedPageErrors(pageErrors);
   } finally {
     await context.close();
@@ -204,6 +217,22 @@ test("charity admin sees next steps, delivery, goal, weekly value and pipeline",
     await expect(
       page.getByTestId("acquisition-admin-list").locator("tbody tr"),
     ).toHaveCount(5, { timeout: 75_000 });
+    // The status filter is a tab list: one tab stop, arrows move and select.
+    const openTab = page.getByTestId("admin-pipeline-filter-open");
+    await expect(openTab).toHaveAttribute("tabindex", "0");
+    await expect(page.getByTestId("admin-pipeline-filter-all")).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+    await openTab.focus();
+    await page.keyboard.press("ArrowRight");
+    const contacted = page.getByTestId("admin-pipeline-filter-contacted");
+    await expect(contacted).toBeFocused();
+    await expect(contacted).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/status=contacted/);
+    await page.keyboard.press("ArrowLeft");
+    await expect(openTab).toBeFocused();
+    await expect(openTab).toHaveAttribute("aria-selected", "true");
 
     // 390 px: one column, the primary action spans the width.
     await page.setViewportSize({ width: 390, height: 844 });

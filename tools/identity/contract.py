@@ -1593,7 +1593,6 @@ async def run(arguments: argparse.Namespace) -> None:
                     b"pilot011:last-system-admin:archive"
                 ).hexdigest(),
                 request_id="pilot011:last-system-admin:archive",
-                occurred_at=datetime.now(timezone.utc),
             )
         except Conflict as error:
             if error.code != "last_system_admin_archival_forbidden":

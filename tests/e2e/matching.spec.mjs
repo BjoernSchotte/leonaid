@@ -43,16 +43,20 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",
     );
-    await page.getByRole("tab", { name: "Sponsor erfassen" }).click();
+    // The "Neu" tab opens the prototype's NewSponsor screen.
+    await page
+      .getByRole("navigation", { name: "App-Navigation" })
+      .getByRole("link", { name: "Neu", exact: true })
+      .click();
     await expect(
-      page.getByRole("heading", { name: "Sponsor erfassen" }),
+      page.getByRole("heading", { level: 1, name: "Neuer Sponsor" }),
     ).toBeVisible();
-    await expect(page.locator("#sponsor-company-help")).toContainText(
-      "CRM-Prüfung",
+    await expect(page.locator("#sponsor-company-hint")).toContainText(
+      "prüft damit das CRM auf Dubletten",
     );
     await expect(page.getByTestId("sponsor-company")).toHaveAttribute(
       "aria-describedby",
-      "sponsor-company-help",
+      "sponsor-company-hint",
     );
 
     await page.getByRole("button", { name: "Privatperson" }).click();
@@ -70,8 +74,8 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     });
     await page.getByTestId("sponsor-cancel").click();
     await expect(
-      page.getByText("Noch keine CRM-Prüfung", { exact: true }),
-    ).toBeVisible();
+      page.getByRole("region", { name: "Ergebnis der CRM-Prüfung" }),
+    ).toContainText("Noch keine CRM-Prüfung.");
     await expect(page.locator("#sponsor-given-name")).toBeEnabled();
     expect(resolveBodies).toHaveLength(0);
 
@@ -95,7 +99,16 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
       "Bernd Binder",
     );
     const confirmation = page.locator('[data-testid="sponsor-resolve"]');
-    await expect(confirmation).toHaveText("Trotzdem ebenfalls zuordnen");
+    await expect(confirmation).toHaveText("Als weitere Akquise eintragen");
+    // Prototype: the acquirer confirms the shared care themselves.
+    await expect(confirmation).toBeDisabled();
+    const agreed = page.getByRole("checkbox", {
+      name: "Ja, ich spreche mich mit Bernd Binder ab und trage mich zusätzlich ein.",
+    });
+    await expect(agreed).not.toBeChecked();
+    // The whole label row is a 44 px target (prototype .pwa-confirm).
+    const agreeRow = await page.locator(".pwa-confirm").boundingBox();
+    expect(agreeRow.height).toBeGreaterThanOrEqual(44);
     // During match review nothing is saved yet: a tab asks first.
     const appTabs = page.getByRole("navigation", { name: "App-Navigation" });
     const leaveQuestion = page.getByRole("alertdialog", {
@@ -113,6 +126,8 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
       path: `${artifactDirectory}/matching-warning-mobile.png`,
       fullPage: true,
     });
+    await agreed.check();
+    await expect(confirmation).toBeEnabled();
 
     const resolutionResponse = page.waitForResponse(
       (response) =>
@@ -208,7 +223,13 @@ test("acquirer checks new record, ambiguity, cancel and multiple assignment", as
     );
     await page.waitForTimeout(300);
     expect(resolveBodies.length).toBeGreaterThanOrEqual(2);
+    // The shared assignment carries the ticked confirmation; the new
+    // sponsor has nobody to agree with, so nothing is confirmed for it.
+    expect(resolveBodies[0].confirmExistingAssignments).toBe(true);
     const creationBodies = resolveBodies.slice(1);
+    expect(
+      creationBodies.every((body) => body.confirmExistingAssignments === false),
+    ).toBe(true);
     expect(new Set(creationBodies.map((body) => body.commandId)).size).toBe(1);
     await page.screenshot({
       path: `${artifactDirectory}/matching-created-mobile.png`,

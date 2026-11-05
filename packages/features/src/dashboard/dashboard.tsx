@@ -1,9 +1,7 @@
 import { useActionInUrl } from "../action-admin/action-location";
 
 import {
-  Activity,
   ArrowRight,
-  Clock,
   Inbox,
   type LucideIcon,
   MailWarning,
@@ -24,7 +22,6 @@ import {
 import type {
   CurrentIdentityResponse,
   DashboardMetricDefinitionResponse,
-  DashboardPipelineResponse,
   DashboardResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
@@ -34,7 +31,6 @@ import {
   Icon,
   Meter,
   EmptyState,
-  NextStep,
   ErrorState,
   SkeletonRows,
   StatusIcon,
@@ -43,6 +39,8 @@ import {
 } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
+import { ActionChoice, useScreenHeading } from "../acquisition/pwa-common";
+import { AcquirerStart } from "../acquisition/pwa-start";
 import { snapshotWindowLabel } from "../commitments/order-format";
 import { formatQuantities } from "../commitments/quantities";
 
@@ -109,156 +107,6 @@ function definition(
   return dashboard.metricDefinitions.find((item) => item.key === key);
 }
 
-function GoalProgress({
-  dashboard,
-}: {
-  readonly dashboard: DashboardResponse;
-}) {
-  const { goal, beneficiaries = [] } = dashboard;
-  const actual = formatGoalValue(goal.actualValue, goal.unit, goal.currency);
-  const target =
-    goal.targetValue === null
-      ? null
-      : formatGoalValue(goal.targetValue, goal.unit, goal.currency);
-  const percentage =
-    goal.progressBasisPoints === null || goal.progressBasisPoints === undefined
-      ? null
-      : goal.progressBasisPoints / 100;
-  const spokenStatus =
-    target === null || percentage === null
-      ? `Aktionsstand: ${actual}. Ein Zielwert ist noch nicht vollständig gepflegt.`
-      : `Aktionsziel: ${actual} von ${target} erreicht, ${new Intl.NumberFormat(
-          "de-DE",
-          { maximumFractionDigits: 2 },
-        ).format(percentage)} Prozent.`;
-
-  return (
-    <section
-      aria-labelledby="dashboard-goal-heading"
-      className="dashboard-goal"
-      data-configured={goal.configured}
-      data-testid="dashboard-goal"
-    >
-      <div className="dashboard-goal__intro">
-        <span aria-hidden="true" className="dashboard-goal__icon">
-          <Icon icon={Target} size={20} />
-        </span>
-        <div>
-          <p>Gemeinsames Aktionsziel</p>
-          <h2 id="dashboard-goal-heading">
-            {goal.configured ? "Wir sind auf Kurs." : "Der Stand ist sichtbar."}
-          </h2>
-        </div>
-      </div>
-      <div className="dashboard-goal__value">
-        {percentage === null ? (
-          <strong>{actual}</strong>
-        ) : (
-          <>
-            <strong>
-              {new Intl.NumberFormat("de-DE").format(percentage)} %
-            </strong>
-            <span>
-              {actual} von {target}
-            </span>
-          </>
-        )}
-      </div>
-      {percentage === null ? (
-        <p className="dashboard-goal__configuration">
-          Sobald Zielwert und Einheit gepflegt sind, zeigt LeonAid hier den
-          Fortschritt.
-        </p>
-      ) : (
-        <progress
-          aria-label="Fortschritt des Aktionsziels"
-          aria-valuetext={spokenStatus}
-          max={100}
-          value={Math.min(percentage, 100)}
-        >
-          {percentage} %
-        </progress>
-      )}
-      <p className="sr-only" data-testid="goal-status">
-        {spokenStatus}
-      </p>
-      <div className="dashboard-goal__beneficiaries">
-        <span>Zugunsten von</span>
-        {beneficiaries.length === 0 ? (
-          <p>Noch keine Begünstigten hinterlegt.</p>
-        ) : (
-          <ul aria-label="Begünstigte">
-            {beneficiaries.map((name, index) => (
-              <li key={index}>{name}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Pipeline({
-  baseHref,
-  counts,
-  emptyDescription,
-  title,
-}: {
-  readonly baseHref: string;
-  readonly counts: DashboardPipelineResponse;
-  /** Du in the acquisition app, Sie in admin. */
-  readonly emptyDescription: string;
-  readonly title: string;
-}) {
-  return (
-    <section
-      aria-labelledby="dashboard-pipeline-heading"
-      className="dashboard-pipeline"
-      data-testid="dashboard-pipeline"
-    >
-      <header>
-        <div>
-          <p>Sponsor-Status</p>
-          <h2 id="dashboard-pipeline-heading">{title}</h2>
-        </div>
-        <span>{counts.total} Zuordnungen</span>
-      </header>
-      {counts.total === 0 ? (
-        <EmptyState
-          action={
-            <a
-              className={buttonClassName({ variant: "secondary" })}
-              href={baseHref}
-            >
-              Akquise öffnen
-            </a>
-          }
-          description={emptyDescription}
-          title="Die Pipeline ist noch leer"
-        />
-      ) : (
-        <ol>
-          {pipelineStages.map(([key, label]) => {
-            const count = counts[key];
-            const href = `${baseHref}${baseHref.includes("?") ? "&" : "?"}status=${
-              key === "handedOver" ? "handed_over" : key
-            }`;
-            return (
-              <li key={key}>
-                <a href={href}>
-                  <span>{label}</span>
-                  <strong>{count}</strong>
-                  <Icon icon={ArrowRight} size={16} />
-                </a>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </section>
-  );
-}
-
 function MetricDefinitions({
   figures,
   items,
@@ -288,101 +136,6 @@ function MetricDefinitions({
           ))}
         </dl>
       </details>
-    </>
-  );
-}
-
-function AcquirerDashboard({
-  dashboard,
-}: {
-  readonly dashboard: DashboardResponse;
-}) {
-  const data = dashboard.acquirer;
-  if (data === null) {
-    return (
-      <StatusMessage tone="error">
-        <strong>Persönliche Akquise-Sicht nicht verfügbar</strong>
-        <p>Für diese Aktion fehlt deine aktive Akquisiteur-Zuordnung.</p>
-      </StatusMessage>
-    );
-  }
-  const pipelineHref =
-    definition(dashboard, "acquirer.pipeline")?.href ?? "/app/sponsors";
-  const reminderHref =
-    definition(dashboard, "acquirer.reminders")?.href ??
-    "/app/activities?view=contacts";
-  const nextHref =
-    data.reminders.overdue > 0
-      ? withParam(reminderHref, "urgency", "overdue")
-      : data.reminders.today > 0
-        ? withParam(reminderHref, "urgency", "today")
-        : withParam(pipelineHref, "status", "open");
-  const nextLabel =
-    data.reminders.overdue > 0
-      ? `${data.reminders.overdue} überfällige ${
-          data.reminders.overdue === 1 ? "Wiedervorlage" : "Wiedervorlagen"
-        } klären`
-      : data.reminders.today > 0
-        ? `${data.reminders.today} heutige ${
-            data.reminders.today === 1 ? "Wiedervorlage" : "Wiedervorlagen"
-          } öffnen`
-        : "Mit offenen Sponsoren weiterarbeiten";
-  const actionLabel =
-    data.reminders.overdue > 0 || data.reminders.today > 0
-      ? "Wiedervorlagen öffnen"
-      : "Offene Sponsoren öffnen";
-
-  return (
-    <>
-      <NextStep
-        action={
-          <a
-            className={buttonClassName({ variant: "primary" })}
-            href={nextHref}
-          >
-            <span className="btn-label">{actionLabel}</span>
-            <Icon icon={ArrowRight} size={16} />
-          </a>
-        }
-        consequence={
-          <>
-            {nextLabel}. {data.reminders.upcoming} weitere geplant ·{" "}
-            {data.reminders.unscheduled} ohne Termin.
-          </>
-        }
-        data-testid="dashboard-next-step"
-        lead="Dein nächster Schritt:"
-      />
-
-      <div className="dashboard-personal-metrics">
-        <a href={`${reminderHref}&urgency=overdue`}>
-          <Icon icon={Clock} size={20} />
-          <span>Überfällig</span>
-          <strong>{data.reminders.overdue}</strong>
-        </a>
-        <a href={`${reminderHref}&urgency=today`}>
-          <Icon icon={Clock} size={20} />
-          <span>Heute</span>
-          <strong>{data.reminders.today}</strong>
-        </a>
-        <a
-          href={
-            definition(dashboard, "acquirer.activities")?.href ??
-            "/app/activities?view=contacts"
-          }
-        >
-          <Icon icon={Activity} size={20} />
-          <span>Dokumentiert</span>
-          <strong>{data.activityCount}</strong>
-        </a>
-      </div>
-
-      <Pipeline
-        baseHref={pipelineHref}
-        counts={data.pipeline}
-        emptyDescription="Lege den ersten Sponsor an oder ordne einen bestehenden Kontakt zu."
-        title="Deine persönliche Pipeline"
-      />
     </>
   );
 }
@@ -881,6 +634,7 @@ export function RoleDashboardPage({
     ],
     [identity.actionMemberships, mode],
   );
+  const screenHeading = useScreenHeading();
   const [actionId, setActionId] = useState(() =>
     selectedActionFromUrl(memberships),
   );
@@ -937,43 +691,39 @@ export function RoleDashboardPage({
     );
   }
 
+  // Acquisition app "Start" (prototype pwa/Acquire.tsx Start()).
   return (
-    <div className="dashboard-page" data-dashboard-mode={mode}>
-      <header className="dashboard-header">
-        <div>
-          <p>Dein Akquise-Tag</p>
-          <h1>{`${greeting()}, ${identity.displayName.split(" ")[0]}.`}</h1>
-          <span>Wiedervorlagen zuerst, Fortschritt immer im Blick.</span>
-        </div>
-        <label className="dashboard-action-picker">
-          <span>Charity-Aktion</span>
-          <select
-            data-testid="dashboard-action"
-            onChange={(event) => {
-              setActionId(event.target.value);
-            }}
-            value={actionId}
-          >
-            {memberships.map((membership) => (
-              <option key={membership.actionId} value={membership.actionId}>
-                {membership.actionName}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
+    <>
+      <h1 className="pwa-h1" ref={screenHeading} tabIndex={-1}>
+        {`${greeting()}, ${identity.displayName.split(" ")[0]}.`}
+      </h1>
       {dashboard.isPending ? (
         loading
       ) : dashboard.isError ? (
         failed
+      ) : dashboard.data.acquirer === null ? (
+        <StatusMessage tone="error">
+          <strong>Persönliche Akquise-Sicht nicht verfügbar</strong>
+          <p>Für diese Aktion fehlt deine aktive Akquisiteur-Zuordnung.</p>
+        </StatusMessage>
       ) : (
-        <>
-          <GoalProgress dashboard={dashboard.data} />
-          <AcquirerDashboard dashboard={dashboard.data} />
-          <MetricDefinitions items={dashboard.data.metricDefinitions} />
-        </>
+        <AcquirerStart
+          actionId={actionId}
+          choice={
+            <ActionChoice
+              actionId={actionId}
+              memberships={memberships}
+              onChange={setActionId}
+            />
+          }
+          client={client}
+          dashboard={dashboard.data}
+          definitions={
+            <MetricDefinitions items={dashboard.data.metricDefinitions} />
+          }
+          identity={identity}
+        />
       )}
-    </div>
+    </>
   );
 }

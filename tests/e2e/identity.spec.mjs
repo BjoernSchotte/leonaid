@@ -109,9 +109,14 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
     await expect(
       page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
+    // One campaign: the app bar names it; the choice appears only for
+    // several campaigns (ActionChoice in packages/features).
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Krapfentaxi 2026",
+    );
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
-    ).toContainText("Krapfentaxi 2026");
+    ).toHaveCount(0);
     await expect(mobileNavigation).toBeVisible();
     await expect(
       mobileNavigation.locator('[data-nav-key="sponsors"]'),
@@ -125,9 +130,6 @@ test("acquirer gets only their acquisition tasks on a smartphone", async ({
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="invoices"]')).toHaveCount(0);
-    await expect(
-      page.getByRole("combobox", { name: "Charity-Aktion" }).locator("option"),
-    ).toHaveCount(1);
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-mobile.png`,
       fullPage: true,
@@ -151,9 +153,14 @@ test("acquirer-only member is redirected from the back office to the PWA", async
     await expect(
       page.getByRole("heading", { name: /^Guten (Morgen|Tag|Abend), Anna\.$/ }),
     ).toBeVisible();
+    // One campaign: the app bar names it; the choice appears only for
+    // several campaigns (ActionChoice in packages/features).
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Krapfentaxi 2026",
+    );
     await expect(
       page.getByRole("combobox", { name: "Charity-Aktion" }),
-    ).toContainText("Krapfentaxi 2026");
+    ).toHaveCount(0);
     await expect(page.locator('[data-nav-key="overview-web"]')).toHaveCount(0);
 
     await page.goto(`${baseUrl}/admin/members`);

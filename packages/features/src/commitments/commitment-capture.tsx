@@ -1,38 +1,56 @@
-import {
-  ChevronLeft,
-  CircleCheck,
-  Package,
-  ReceiptText,
-  Users,
-} from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+/*
+ * Order capture of the acquisition app (prototype pwa/Acquire.tsx
+ * OrderFlow): Angebot → Lieferung → Prüfen, for one of the acquirer's
+ * sponsors, then the confirmation.
+ */
+import { ArrowLeft, Check, Minus, Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   ApiError,
   type AcquisitionActivityWorkItemResponse,
-  type CommitmentResponse,
   type CommitmentBuyerResponse,
+  type CommitmentResponse,
   type ConfiguredOfferingResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
-import { CompleteDraft } from "./complete-draft";
-import { quantityLabel } from "./quantities";
+import {
+  Button,
+  buttonClassName,
+  EmptyState,
+  Field,
+  Icon,
+  Input,
+  SkeletonRows,
+  StatusMessage,
+} from "@leonaid/ui";
+
 import { useActionInUrl } from "../action-admin/action-location";
+import {
+  ActionChoice,
+  SponsorRow,
+  followInPage,
+  sponsorHref,
+  useScreenHeading,
+} from "../acquisition/pwa-common";
+import { useLocationHref } from "../shared/location";
+import { CompleteDraft } from "./complete-draft";
 import {
   DeliveryFields,
   DeliverySummary,
   FullWindowConfirm,
   deliveryDraft,
-  fullWindowSelected,
-  isFullWindowError,
   deliveryPayload,
+  fullWindowSelected,
   hasDeliveryAddress,
-  selectableWindows,
   hasPartialDeliveryAddress,
+  isFullWindowError,
+  selectableWindows,
 } from "./delivery-fields";
+import { configuredWindowLabel } from "./order-format";
+import { quantityLabel, unitLabels } from "./quantities";
 
 interface CommitmentCapturePageProps {
   readonly client: LeonAidApiClient;
@@ -46,6 +64,9 @@ interface RecipientDraft {
   readonly recipientName: string;
   readonly streetLine1: string;
 }
+
+const STEPS = ["Angebot", "Lieferung", "Prüfen"] as const;
+const MAX_QUANTITY = 1_000_000;
 
 function formatMoney(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
@@ -85,17 +106,116 @@ function recipientFor(
   };
 }
 
+function hasRecipient(value: RecipientDraft) {
+  return [
+    value.recipientName,
+    value.streetLine1,
+    value.postalCode,
+    value.city,
+  ].every((item) => item.trim());
+}
+
+function Stepper({
+  label,
+  onChange,
+  value,
+}: {
+  readonly label: string;
+  readonly onChange: (value: number) => void;
+  readonly value: number;
+}) {
+  // The field may be empty while typing; the last valid number stays the
+  // value until the next one, and leaving the field shows it again.
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  return (
+    <div
+      aria-labelledby="commitment-quantity-label"
+      className="stepper"
+      role="group"
+    >
+      <span className="field-label" id="commitment-quantity-label">
+        {label}
+      </span>
+      <div className="stepper-controls">
+        <button
+          aria-label="Eine weniger"
+          disabled={value <= 1}
+          onClick={() => onChange(Math.max(1, value - 1))}
+          type="button"
+        >
+          <Icon icon={Minus} size={20} />
+        </button>
+        <input
+          aria-labelledby="commitment-quantity-label"
+          className="stepper-value num"
+          data-testid="commitment-quantity"
+          id="commitment-quantity"
+          inputMode="numeric"
+          max={MAX_QUANTITY}
+          min={1}
+          onBlur={() => setText(String(value))}
+          onChange={(event) => {
+            setText(event.target.value);
+            const next = Number.parseInt(event.target.value, 10);
+            if (Number.isFinite(next) && next >= 1) {
+              onChange(Math.min(MAX_QUANTITY, next));
+            }
+          }}
+          type="number"
+          value={text}
+        />
+        <button
+          aria-label="Eine mehr"
+          disabled={value >= MAX_QUANTITY}
+          onClick={() => onChange(Math.min(MAX_QUANTITY, value + 1))}
+          type="button"
+        >
+          <Icon icon={Plus} size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StepList({ step }: { readonly step: number }) {
+  return (
+    <ol aria-label="Schritte" className="pwa-steps">
+      {STEPS.map((label, index) => (
+        <li
+          aria-current={step === index + 1 ? "step" : undefined}
+          className={
+            step === index + 1
+              ? "is-current"
+              : step > index + 1
+                ? "is-done"
+                : undefined
+          }
+          key={label}
+        >
+          <span className="pwa-step-no">
+            {step > index + 1 ? <Icon icon={Check} size={12} /> : index + 1}
+          </span>
+          {label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function CaptureSuccess({
-  commitment,
-  onContinue,
+  actionId,
   client,
+  commitment,
   onCompleted,
+  sponsor,
   showDelivery,
 }: {
-  readonly commitment: CommitmentResponse;
-  readonly onContinue: () => void;
+  readonly actionId: string;
   readonly client: LeonAidApiClient;
+  readonly commitment: CommitmentResponse;
   readonly onCompleted: (order: CommitmentResponse) => void;
+  readonly sponsor: AcquisitionActivityWorkItemResponse | undefined;
   readonly showDelivery: boolean;
 }) {
   const ready = commitment.status === "review_ready";
@@ -104,63 +224,65 @@ function CaptureSuccess({
     window.scrollTo({ top: 0, behavior: "instant" });
     heading.current?.focus({ preventScroll: true });
   }, [commitment.id, commitment.status]);
+  const quantity = commitment.quantities
+    .map(
+      (item) =>
+        `${new Intl.NumberFormat("de-DE").format(item.quantity)} ${quantityLabel(item.quantity, item.unit)}`,
+    )
+    .join(", ");
   return (
     <section
       aria-labelledby="commitment-success-heading"
-      className="commitment-success"
+      className="pwa-done"
       data-commitment-id={commitment.id}
       data-testid="commitment-success"
     >
-      <span aria-hidden="true" className="commitment-success__icon">
-        <CircleCheck aria-hidden="true" size={26} />
+      <span aria-hidden="true" className="pwa-done-icon">
+        <Icon icon={Check} size={20} />
       </span>
-      <p className="commitment-eyebrow">Bestellung gespeichert</p>
-      <h1 id="commitment-success-heading" ref={heading} tabIndex={-1}>
-        {ready ? "Bereit für die Prüfung" : "Als Entwurf gesichert"}
+      <h1
+        className="pwa-h1"
+        id="commitment-success-heading"
+        ref={heading}
+        tabIndex={-1}
+      >
+        {ready ? "Bestellung erfasst" : "Als Entwurf gesichert"}
       </h1>
-      <p>
+      <p className="muted">
+        {quantity ? `${quantity} für ` : "Für "}
+        {commitment.buyer.displayName},{" "}
+        {formatMoney(commitment.totalMinor, commitment.currency)}.
+      </p>
+      <p className="small muted">
         {ready
-          ? "Der Charity-Admin sieht die Bestellung jetzt im Prüfbereich."
+          ? "Die Aktionsleitung prüft die Bestellung und stellt danach die Rechnung aus."
           : "Die Bestellung ist gespeichert, aber noch nicht zur Prüfung freigegeben."}
       </p>
-      <dl className="commitment-success__facts">
-        <div>
-          <dt>Status</dt>
-          <dd>
-            <span className="commitment-status" data-status={commitment.status}>
-              {ready ? "Prüfbereit" : "Entwurf"}
-            </span>
-          </dd>
-        </div>
-        <div>
-          <dt>Besteller</dt>
-          <dd>{commitment.buyer.displayName}</dd>
-        </div>
-        <div>
-          <dt>Gesamt</dt>
-          <dd>{formatMoney(commitment.totalMinor, commitment.currency)}</dd>
-        </div>
-      </dl>
       {showDelivery ? <DeliverySummary order={commitment} /> : null}
       {!ready && commitment.status === "draft" ? (
         <CompleteDraft
-          key={commitment.id}
           client={client}
-          order={commitment}
+          key={commitment.id}
           onCompleted={onCompleted}
+          order={commitment}
         />
       ) : null}
-      <div className="commitment-success__actions">
+      {sponsor ? (
         <a
-          className={buttonClassName({ variant: "secondary" })}
-          href="/app/sponsors"
+          className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
+          href={sponsorHref(actionId, sponsor.assignmentId)}
+          onClick={followInPage}
         >
-          Zurück zu meinen Sponsoren
+          Zurück zu {sponsor.partyDisplayName}
         </a>
-        <Button onClick={onContinue} variant="ghost">
-          Weitere Bestellung erfassen
-        </Button>
-      </div>
+      ) : null}
+      <a
+        className={`${buttonClassName({ size: "lg", variant: "secondary" })} pwa-wide`}
+        href={`/app/?action=${encodeURIComponent(actionId)}`}
+        onClick={followInPage}
+      >
+        Zur Startseite
+      </a>
     </section>
   );
 }
@@ -170,10 +292,13 @@ export function CommitmentCapturePage({
   identity,
 }: CommitmentCapturePageProps) {
   const memberships = useMemo(
-    () =>
-      identity.actionMemberships.filter(
-        (membership) => membership.role === "acquirer",
-      ),
+    () => [
+      ...new Map(
+        identity.actionMemberships
+          .filter((membership) => membership.role === "acquirer")
+          .map((membership) => [membership.actionId, membership]),
+      ).values(),
+    ],
     [identity.actionMemberships],
   );
   const initialParameters = useMemo(
@@ -181,28 +306,44 @@ export function CommitmentCapturePage({
     [],
   );
   const requestedActionId = initialParameters.get("action") ?? "";
-  const initialActionId = memberships.some(
-    (membership) => membership.actionId === requestedActionId,
-  )
-    ? requestedActionId
-    : (memberships[0]?.actionId ?? "");
-  const [actionId, setActionId] = useState(initialActionId);
-  useActionInUrl(actionId);
-  const [assignmentId, setAssignmentId] = useState(
-    initialParameters.get("assignment") ?? "",
+  const [actionId, setActionId] = useState(
+    memberships.some((membership) => membership.actionId === requestedActionId)
+      ? requestedActionId
+      : (memberships[0]?.actionId ?? ""),
   );
+  useActionInUrl(actionId);
+  // From the URL on every render: the sponsor picker links in-page.
+  const href = useLocationHref();
+  const assignmentId =
+    new URLSearchParams(href.split("?")[1] ?? "").get("assignment") ?? "";
+  const existingId = initialParameters.get("commitment") ?? "";
+  const [step, setStep] = useState(1);
   const [offeringId, setOfferingId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [delivery, setDelivery] = useState(() => deliveryDraft());
-  const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
-  const [confirmFull, setConfirmFull] = useState(false);
-  const existingId = initialParameters.get("commitment") ?? "";
-  const [resuming, setResuming] = useState(Boolean(existingId));
-  const appliedBuyer = useRef("");
   const [recipient, setRecipient] = useState<RecipientDraft>(() =>
     recipientFor(undefined),
   );
+  const [stepError, setStepError] = useState("");
+  const [showMissing, setShowMissing] = useState(false);
+  const heading = useScreenHeading();
+  // Each step change moves the focus to the step's heading (I3).
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const stepChanged = useRef(false);
+  function goToStep(next: number) {
+    stepChanged.current = true;
+    setStep(next);
+  }
+  useEffect(() => {
+    if (!stepChanged.current) return;
+    stepChanged.current = false;
+    stepHeading.current?.focus({ preventScroll: false });
+  }, [step]);
+  const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
+  const [confirmFull, setConfirmFull] = useState(false);
+  const appliedBuyer = useRef("");
   const commandId = useRef(crypto.randomUUID());
+  const queries = useQueryClient();
 
   const context = useQuery({
     enabled: Boolean(actionId),
@@ -211,7 +352,7 @@ export function CommitmentCapturePage({
     refetchOnWindowFocus: false,
   });
   const existing = useQuery({
-    enabled: resuming && Boolean(actionId && existingId),
+    enabled: Boolean(actionId && existingId),
     queryKey: ["commitment", actionId, existingId],
     queryFn: () => client.getCommitment(actionId, existingId),
   });
@@ -220,22 +361,21 @@ export function CommitmentCapturePage({
     queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 100 }),
     queryKey: ["acquisition-activity-board", actionId],
   });
-  const selectedSponsor = sponsors.data?.workItems.find(
+  const sponsor = sponsors.data?.workItems.find(
     (item) => item.assignmentId === assignmentId,
   );
-  const selectedOffering = context.data?.offerings.find(
-    (offering) => offering.id === offeringId,
-  );
-  const selectedBuyer: CommitmentBuyerResponse | undefined = selectedSponsor
+  const offerings = context.data?.offerings ?? [];
+  const offering = offerings.find((item) => item.id === offeringId);
+  const buyer: CommitmentBuyerResponse | undefined = sponsor
     ? {
-        displayName: selectedSponsor.partyDisplayName,
-        email: selectedSponsor.email,
-        partyKind: selectedSponsor.partyKind,
-        twentyId: selectedSponsor.partyId,
+        displayName: sponsor.partyDisplayName,
+        email: sponsor.email,
+        partyKind: sponsor.partyKind,
+        twentyId: sponsor.partyId,
       }
     : undefined;
-  const buyerKey = selectedBuyer ? `${actionId}:${selectedBuyer.twentyId}` : "";
   const configuration = context.data?.deliveryConfiguration;
+  const deliveryEnabled = Boolean(configuration?.enabled);
   const completeDelivery =
     !configuration?.enabled ||
     (hasDeliveryAddress(delivery) &&
@@ -243,59 +383,39 @@ export function CommitmentCapturePage({
         (item) => item.id === delivery.windowId,
       ));
 
-  function clearBuyerFields() {
-    appliedBuyer.current = "";
-    setRecipient(recipientFor(undefined));
-    setDelivery(deliveryDraft());
-    commandId.current = crypto.randomUUID();
-  }
-
   useEffect(() => {
-    if (
-      sponsors.data &&
-      !sponsors.data.workItems.some(
-        (item) => item.assignmentId === assignmentId,
-      )
-    ) {
-      setAssignmentId("");
-    }
-  }, [assignmentId, sponsors.data]);
+    if (offerings.length && !offering) setOfferingId(offerings[0]!.id);
+  }, [offerings, offering]);
 
-  useEffect(() => {
-    if (
-      context.data &&
-      !context.data.offerings.some((offering) => offering.id === offeringId)
-    ) {
-      setOfferingId(context.data.offerings[0]?.id ?? "");
-    }
-  }, [context.data, offeringId]);
-
+  // A new sponsor brings its own billing defaults and a new command.
+  const buyerKey = buyer ? `${actionId}:${buyer.twentyId}` : "";
   useEffect(() => {
     if (!buyerKey || appliedBuyer.current === buyerKey) return;
     appliedBuyer.current = buyerKey;
-    setRecipient(recipientFor(selectedSponsor));
+    setRecipient(recipientFor(sponsor));
     setDelivery(deliveryDraft());
+    setStep(1);
     commandId.current = crypto.randomUUID();
   }, [buyerKey]);
 
   const create = useMutation({
     mutationFn: ({
-      readyForReview,
-      buyer,
-      offering,
       allowFullWindow = false,
+      readyForReview,
+      selected,
+      selectedOffering,
     }: {
-      readonly readyForReview: boolean;
-      readonly buyer: CommitmentBuyerResponse;
-      readonly offering: ConfiguredOfferingResponse;
       readonly allowFullWindow?: boolean;
+      readonly readyForReview: boolean;
+      readonly selected: CommitmentBuyerResponse;
+      readonly selectedOffering: ConfiguredOfferingResponse;
     }) =>
       client.createCommitment(
         actionId,
         {
           allowFullWindow,
-          buyer,
-          ...(configuration?.enabled ? deliveryPayload(delivery) : {}),
+          buyer: selected,
+          ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
           invoiceRecipient: {
             city: recipient.city.trim(),
             countryCode: "DE",
@@ -306,24 +426,25 @@ export function CommitmentCapturePage({
           },
           lines: [
             {
-              offeringId: offering.id,
+              offeringId: selectedOffering.id,
               quantity,
-              quotedUnitPriceMinor: offering.unitPriceMinor,
-              unit: offering.unit,
+              quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
+              unit: selectedOffering.unit,
             },
           ],
           readyForReview,
           source: "acquisition",
         },
-        {
-          headers: {
-            "Idempotency-Key": `poc081:${commandId.current}`,
-          },
-        },
+        { headers: { "Idempotency-Key": `poc081:${commandId.current}` } },
       ),
     onSuccess: (order) => {
       setConfirmFull(false);
       setSavedOrder(order);
+      // The sponsor's status and the pipeline move with the order.
+      void queries.invalidateQueries({
+        queryKey: ["acquisition-activity-board", order.actionId],
+      });
+      void queries.invalidateQueries({ queryKey: ["dashboard"] });
       const url = new URL(window.location.href);
       url.searchParams.set("action", order.actionId);
       url.searchParams.set("commitment", order.id);
@@ -333,525 +454,506 @@ export function CommitmentCapturePage({
       if (
         error instanceof ApiError &&
         error.detail.code.startsWith("delivery_")
-      )
+      ) {
         void context.refetch();
+      }
       // Switched to "ausgebucht" meanwhile: ask, then book anyway.
       setConfirmFull(isFullWindowError(error));
     },
   });
   const fullWindow = fullWindowSelected(configuration, delivery.windowId);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent)
-      .submitter as HTMLButtonElement | null;
-    if (!selectedBuyer || !selectedOffering || !submitter) return;
-    if (submitter.value === "review_ready" && !completeDelivery) return;
-    // A draft books nothing yet; its completion asks.
-    if (submitter.value === "review_ready" && fullWindow) {
+  function save(readyForReview: boolean, allowFullWindow = false) {
+    if (!buyer || !offering) return;
+    if (readyForReview && !allowFullWindow && fullWindow) {
+      // A draft books nothing yet; its completion asks.
       setConfirmFull(true);
       return;
     }
     create.mutate({
-      offering: selectedOffering,
-      readyForReview: submitter.value === "review_ready",
-      buyer: selectedBuyer,
+      allowFullWindow,
+      readyForReview,
+      selected: buyer,
+      selectedOffering: offering,
     });
   }
 
-  function confirmFullWindow() {
-    if (!selectedBuyer || !selectedOffering) return;
-    create.mutate({
-      allowFullWindow: true,
-      buyer: selectedBuyer,
-      offering: selectedOffering,
-      readyForReview: true,
-    });
+  function toReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (deliveryEnabled && hasPartialDeliveryAddress(delivery)) {
+      setStepError("Bitte die Lieferadresse vollständig angeben.");
+      return;
+    }
+    if (!hasRecipient(recipient)) {
+      setShowMissing(true);
+      setStepError("Bitte Name, Straße, PLZ und Ort für die Rechnung angeben.");
+      return;
+    }
+    setShowMissing(false);
+    setStepError("");
+    goToStep(3);
   }
 
-  function reset() {
-    commandId.current = crypto.randomUUID();
-    setQuantity(1);
-    setSavedOrder(null);
-    setResuming(false);
-    setDelivery(deliveryDraft());
-    const url = new URL(window.location.href);
-    url.searchParams.delete("commitment");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
-    create.reset();
-  }
-
-  const result = savedOrder ?? (resuming ? existing.data : undefined);
+  const result = savedOrder ?? existing.data;
+  const showDelivery = (order: CommitmentResponse) =>
+    Boolean(
+      deliveryEnabled ||
+        order.deliveryRecipient ||
+        order.deliveryWindowSnapshot ||
+        order.deliveryContact,
+    );
   if (result) {
     return (
       <CaptureSuccess
+        actionId={actionId}
         client={client}
         commitment={result}
         onCompleted={setSavedOrder}
-        onContinue={reset}
-        showDelivery={Boolean(
-          configuration?.enabled ||
-            result.deliveryRecipient ||
-            result.deliveryWindowSnapshot ||
-            result.deliveryContact,
-        )}
+        showDelivery={showDelivery(result)}
+        sponsor={sponsor}
       />
     );
   }
-  if (resuming) {
+  if (existingId) {
     return existing.isError ? (
       <StatusMessage tone="error">
         <p>
           Diese Bestellung konnte nicht geöffnet werden. Du benötigst deine
-          ursprüngliche Erfassung und eine weiterhin bestehende Kundenzuordnung.
+          ursprüngliche Erfassung und eine weiterhin bestehende
+          Sponsorzuordnung.
         </p>
-        <Button onClick={() => void existing.refetch()}>
+        <Button onClick={() => void existing.refetch()} variant="secondary">
           Erneut versuchen
         </Button>
       </StatusMessage>
     ) : (
-      <p role="status">Bestellung wird geladen …</p>
+      <div aria-label="Bestellung wird geladen" role="status">
+        <SkeletonRows rows={3} />
+      </div>
     );
   }
 
-  const pending = context.isPending || sponsors.isPending;
-  const failed = context.isError || sponsors.isError;
-  const totalMinor = (selectedOffering?.unitPriceMinor ?? 0) * quantity;
-
-  return (
-    <div className="commitment-page commitment-page--capture">
-      <header className="commitment-page__header">
-        <a className="commitment-back-link" href="/app/sponsors">
-          <ChevronLeft aria-hidden="true" size={18} />
-          Meine Sponsoren
-        </a>
-        <p className="commitment-eyebrow">Bestellung oder Zusage</p>
-        <h1>Vom Gespräch zur klaren Bestellung.</h1>
-        <p>
-          Sponsor, Angebot und Rechnungsanschrift bleiben auf einer Seite.
-          LeonAid berechnet den verbindlichen Preis beim Speichern erneut.
-        </p>
-      </header>
-
-      {failed ? (
-        <StatusMessage tone="error">
-          <div>
-            <strong>Bestellerfassung nicht erreichbar</strong>
-            <p>
-              Angebote oder Sponsoren konnten nicht geladen werden. Prüfe deine
-              Verbindung und lade die Seite erneut.
-            </p>
-          </div>
+  if (memberships.length === 0) {
+    return (
+      <EmptyState
+        description="Sobald du einer Charity-Aktion als Akquisiteur zugeordnet bist, kannst du hier Bestellungen erfassen."
+        headingLevel={2}
+        title="Noch keine Akquise-Aktion"
+      />
+    );
+  }
+  if (context.isPending || sponsors.isPending) {
+    return (
+      <div aria-label="Bestellformular wird geladen" role="status">
+        <SkeletonRows rows={4} />
+      </div>
+    );
+  }
+  if (context.isError || sponsors.isError) {
+    return (
+      <StatusMessage tone="error">
+        <div>
+          <strong>Bestellangaben nicht erreichbar</strong>
+          <p>Prüfe deine Verbindung und lade die Angaben erneut.</p>
           <Button
-            variant="secondary"
             onClick={() => {
               void context.refetch();
               void sponsors.refetch();
             }}
+            variant="secondary"
           >
-            Erneut versuchen
+            Erneut laden
           </Button>
-        </StatusMessage>
-      ) : pending ? (
-        <div
-          aria-label="Bestellformular wird geladen"
-          className="commitment-loading"
-          role="status"
-        >
-          <span />
-          <span />
-          <span />
         </div>
-      ) : (
-        <form className="commitment-capture" onSubmit={submit}>
-          <div className="commitment-capture__form">
-            {memberships.length > 1 ? (
-              <div className="commitment-field">
-                <label htmlFor="commitment-action">Charity-Aktion</label>
-                <small id="commitment-action-help">
-                  Die Aktion bestimmt verfügbare Angebote und Zuständigkeiten.
-                </small>
-                <select
-                  aria-describedby="commitment-action-help"
-                  id="commitment-action"
-                  disabled={create.isPending}
-                  onChange={(event) => {
-                    setActionId(event.target.value);
-                    setAssignmentId("");
-                    clearBuyerFields();
-                    create.reset();
-                  }}
-                  value={actionId}
-                >
-                  {memberships.map((membership) => (
-                    <option
-                      key={membership.actionId}
-                      value={membership.actionId}
-                    >
-                      {membership.actionName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+      </StatusMessage>
+    );
+  }
 
-            <fieldset className="commitment-step" disabled={create.isPending}>
-              <legend>
-                <span>1</span>
-                Besteller
-              </legend>
-              <div className="commitment-field">
-                <label htmlFor="commitment-sponsor">Zugeordneter Sponsor</label>
-                <small id="commitment-sponsor-help">
-                  Die Bestellung wird diesem CRM-Kontakt und deiner
-                  Zuständigkeit zugeordnet.
-                </small>
-                <select
-                  aria-describedby="commitment-sponsor-help"
-                  data-testid="commitment-sponsor"
-                  id="commitment-sponsor"
-                  onChange={(event) => {
-                    if (event.target.value === assignmentId) return;
-                    clearBuyerFields();
-                    setAssignmentId(event.target.value);
-                    create.reset();
-                  }}
-                  required
-                  value={assignmentId}
-                >
-                  <option disabled value="">
-                    Sponsor auswählen
-                  </option>
-                  {(sponsors.data?.workItems ?? []).map((item) => (
-                    <option key={item.assignmentId} value={item.assignmentId}>
-                      {item.partyDisplayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {selectedSponsor ? (
-                <div
-                  className="commitment-party"
-                  data-testid="commitment-party"
-                >
-                  <span aria-hidden="true">
-                    <Users aria-hidden="true" size={20} />
-                  </span>
-                  <div>
-                    <strong>{selectedSponsor.partyDisplayName}</strong>
-                    <small>
-                      {[selectedSponsor.postalCode, selectedSponsor.city]
-                        .filter(Boolean)
-                        .join(" ") || "Keine Ortsangabe"}
-                    </small>
-                  </div>
-                </div>
-              ) : null}
-            </fieldset>
-
-            <fieldset className="commitment-step" disabled={create.isPending}>
-              <legend>
-                <span>2</span>
-                Angebot und Menge
-              </legend>
-              {context.data?.offerings.length ? (
-                <div className="commitment-offering-grid">
-                  <div className="commitment-field">
-                    <label htmlFor="commitment-offering">Angebot</label>
-                    <small id="commitment-offering-help">
-                      Es werden nur aktuell bestellbare Angebote angezeigt.
-                    </small>
-                    <select
-                      aria-describedby="commitment-offering-help"
-                      data-testid="commitment-offering"
-                      id="commitment-offering"
-                      onChange={(event) => setOfferingId(event.target.value)}
-                      required
-                      value={offeringId}
-                    >
-                      {context.data.offerings.map((offering) => (
-                        <option key={offering.id} value={offering.id}>
-                          {offering.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="commitment-field">
-                    <label htmlFor="commitment-quantity">Menge</label>
-                    <small id="commitment-quantity-help">
-                      Einheit:{" "}
-                      {selectedOffering
-                        ? quantityLabel(2, selectedOffering.unit)
-                        : "–"}
-                    </small>
-                    <input
-                      aria-describedby="commitment-quantity-help"
-                      data-testid="commitment-quantity"
-                      id="commitment-quantity"
-                      inputMode="numeric"
-                      max={1_000_000}
-                      min={1}
-                      onChange={(event) =>
-                        setQuantity(
-                          Math.max(
-                            1,
-                            Number.parseInt(event.target.value, 10) || 1,
-                          ),
-                        )
-                      }
-                      required
-                      type="number"
-                      value={quantity}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="commitment-empty">
-                  <Package aria-hidden="true" size={24} />
-                  <strong>Kein Angebot bestellbar</strong>
-                  <span>
-                    Bitte den Charity-Admin, Angebot und Zeitraum zu prüfen.
-                  </span>
-                </div>
-              )}
-            </fieldset>
-
-            <fieldset className="commitment-step" disabled={create.isPending}>
-              <legend>
-                <span>3</span>
-                Rechnungsempfänger
-              </legend>
-              <p className="commitment-step__intro">
-                Diese Anschrift wird als unveränderlicher Snapshot gespeichert
-                und kann vom Besteller abweichen.
-              </p>
-              <div className="commitment-recipient-grid">
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-recipient-name">Name</label>
-                  <input
-                    autoComplete="organization"
-                    id="commitment-recipient-name"
-                    maxLength={200}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        recipientName: event.target.value,
-                      })
-                    }
-                    required
-                    value={recipient.recipientName}
-                  />
-                </div>
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-street">
-                    Straße und Hausnummer
-                  </label>
-                  <input
-                    autoComplete="address-line1"
-                    data-testid="commitment-street"
-                    id="commitment-street"
-                    maxLength={200}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        streetLine1: event.target.value,
-                      })
-                    }
-                    placeholder="Musterstraße 12"
-                    required
-                    value={recipient.streetLine1}
-                  />
-                </div>
-                <div className="commitment-field">
-                  <label htmlFor="commitment-postal-code">PLZ</label>
-                  <input
-                    autoComplete="postal-code"
-                    id="commitment-postal-code"
-                    maxLength={20}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        postalCode: event.target.value,
-                      })
-                    }
-                    required
-                    value={recipient.postalCode}
-                  />
-                </div>
-                <div className="commitment-field">
-                  <label htmlFor="commitment-city">Ort</label>
-                  <input
-                    autoComplete="address-level2"
-                    id="commitment-city"
-                    maxLength={120}
-                    onChange={(event) =>
-                      setRecipient({ ...recipient, city: event.target.value })
-                    }
-                    required
-                    value={recipient.city}
-                  />
-                </div>
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-email">Rechnungs-E-Mail</label>
-                  <small id="commitment-email-help">
-                    Optional; kann von der Kontaktadresse abweichen.
-                  </small>
-                  <input
-                    aria-describedby="commitment-email-help"
-                    autoComplete="email"
-                    id="commitment-email"
-                    maxLength={320}
-                    onChange={(event) =>
-                      setRecipient({ ...recipient, email: event.target.value })
-                    }
-                    type="email"
-                    value={recipient.email}
-                  />
-                </div>
-              </div>
-            </fieldset>
-            {configuration?.enabled ? (
-              <DeliveryFields
-                configuration={configuration}
-                value={delivery}
-                onChange={(next) => {
-                  setDelivery(next);
-                  if (
-                    next.windowId &&
-                    next.windowId !== delivery.windowId &&
-                    create.isError
-                  )
-                    create.reset();
-                }}
-                disabled={create.isPending}
-                invoiceAddress={{
-                  recipientName: recipient.recipientName,
-                  streetLine1: recipient.streetLine1,
-                  postalCode: recipient.postalCode,
-                  city: recipient.city,
-                  countryCode: "DE",
-                }}
-                refresh={() => void context.refetch()}
-                refreshing={context.isFetching}
+  // No sponsor chosen: orders start from a sponsor, as in the prototype.
+  if (!sponsor || !buyer) {
+    const items = sponsors.data.workItems;
+    return (
+      <>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Bestellung erfassen
+        </h1>
+        <ActionChoice
+          actionId={actionId}
+          memberships={memberships}
+          onChange={(next) => {
+            setActionId(next);
+          }}
+        />
+        <p className="small muted">Für welchen Sponsor?</p>
+        {items.length ? (
+          <ul className="pwa-list" data-testid="commitment-sponsors">
+            {items.map((item) => (
+              <SponsorRow
+                actionId={actionId}
+                href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
+                item={item}
+                key={item.assignmentId}
+                userId={identity.userId}
               />
-            ) : null}
-          </div>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            action={
+              <a
+                className={buttonClassName({ variant: "primary" })}
+                href={`/app/sponsors?action=${encodeURIComponent(actionId)}&view=new`}
+              >
+                Sponsor erfassen
+              </a>
+            }
+            description="Eine Bestellung gehört immer zu einem deiner Sponsoren."
+            title="Noch kein Sponsor zugeordnet"
+          />
+        )}
+      </>
+    );
+  }
 
-          <aside
-            aria-labelledby="commitment-summary-heading"
-            className="commitment-summary"
-          >
-            <div className="commitment-summary__heading">
-              <span aria-hidden="true">
-                <ReceiptText aria-hidden="true" size={21} />
-              </span>
-              <div>
-                <h2 id="commitment-summary-heading">Bestellübersicht</h2>
-                <p>Vor dem Speichern noch einmal klar zusammengefasst.</p>
-              </div>
+  const total = (offering?.unitPriceMinor ?? 0) * quantity;
+  const unitPlural = offering ? unitLabels[offering.unit][1] : "Stück";
+  const chosenWindow = configuration?.windows.find(
+    (item) => item.id === delivery.windowId,
+  );
+  const back = sponsorHref(actionId, sponsor.assignmentId);
+
+  return (
+    <>
+      <a className="pwa-back" href={back} onClick={followInPage}>
+        <Icon icon={ArrowLeft} size={18} /> Abbrechen
+      </a>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Bestellung für {sponsor.partyDisplayName}
+      </h1>
+      <StepList step={step} />
+      <h2 className="sr-only" ref={stepHeading} tabIndex={-1}>
+        Schritt {step} von {STEPS.length}: {STEPS[step - 1]}
+      </h2>
+
+      {step === 1 ? (
+        <div className="stack">
+          {offerings.length ? (
+            <>
+              <fieldset
+                className="pwa-fieldset"
+                data-testid="commitment-offering"
+              >
+                <legend className="field-label">Angebot</legend>
+                <div className="pwa-options">
+                  {offerings.map((item) => (
+                    <label
+                      className={`pwa-option${offeringId === item.id ? " is-checked" : ""}`}
+                      key={item.id}
+                    >
+                      <input
+                        checked={offeringId === item.id}
+                        name="offering"
+                        onChange={() => setOfferingId(item.id)}
+                        type="radio"
+                        value={item.id}
+                      />
+                      <span className="pwa-option-text">
+                        {item.name}
+                        <span className="small muted">
+                          {item.piecesPerUnit
+                            ? `${item.piecesPerUnit} Stück · `
+                            : ""}
+                          {formatMoney(item.unitPriceMinor, item.currency)} je{" "}
+                          {unitLabels[item.unit][0]}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <Stepper
+                label={`Anzahl ${unitPlural}`}
+                onChange={setQuantity}
+                value={quantity}
+              />
+              <p
+                className="pwa-total num"
+                data-testid="commitment-preview-total"
+              >
+                Summe {offering ? formatMoney(total, offering.currency) : "–"}
+              </p>
+              <Button
+                className="pwa-wide"
+                disabled={!offering}
+                onClick={() => goToStep(2)}
+                size="lg"
+                variant="primary"
+              >
+                Weiter
+              </Button>
+            </>
+          ) : (
+            <EmptyState
+              description="Bitte die Aktionsleitung, Angebot und Zeitraum zu prüfen."
+              title="Kein Angebot bestellbar"
+            />
+          )}
+        </div>
+      ) : null}
+
+      {step === 2 ? (
+        <form className="stack" noValidate onSubmit={toReview}>
+          {deliveryEnabled && configuration ? (
+            <DeliveryFields
+              configuration={configuration}
+              invoiceAddress={{
+                city: recipient.city,
+                countryCode: "DE",
+                postalCode: recipient.postalCode,
+                recipientName: recipient.recipientName,
+                streetLine1: recipient.streetLine1,
+              }}
+              onChange={setDelivery}
+              refresh={() => void context.refetch()}
+              refreshing={context.isFetching}
+              value={delivery}
+            />
+          ) : null}
+          <fieldset className="pwa-fieldset stack">
+            <legend className="field-label">Rechnung</legend>
+            <p className="small muted">
+              Die Rechnung geht später an diese Anschrift. Bezahlt wird per
+              Überweisung.
+            </p>
+            <Field
+              error={
+                showMissing && !recipient.recipientName.trim()
+                  ? "Bitte ausfüllen."
+                  : undefined
+              }
+              label="Name"
+              required
+            >
+              <Input
+                autoComplete="organization"
+                id="commitment-recipient-name"
+                maxLength={200}
+                onChange={(event) =>
+                  setRecipient({
+                    ...recipient,
+                    recipientName: event.target.value,
+                  })
+                }
+                value={recipient.recipientName}
+              />
+            </Field>
+            <Field
+              error={
+                showMissing && !recipient.streetLine1.trim()
+                  ? "Bitte ausfüllen."
+                  : undefined
+              }
+              label="Straße und Hausnummer"
+              required
+            >
+              <Input
+                autoComplete="address-line1"
+                data-testid="commitment-street"
+                id="commitment-street"
+                maxLength={200}
+                onChange={(event) =>
+                  setRecipient({
+                    ...recipient,
+                    streetLine1: event.target.value,
+                  })
+                }
+                value={recipient.streetLine1}
+              />
+            </Field>
+            <div className="pwa-two">
+              <Field
+                error={
+                  showMissing && !recipient.postalCode.trim()
+                    ? "Bitte ausfüllen."
+                    : undefined
+                }
+                label="PLZ"
+                required
+              >
+                <Input
+                  autoComplete="postal-code"
+                  id="commitment-postal-code"
+                  maxLength={20}
+                  onChange={(event) =>
+                    setRecipient({
+                      ...recipient,
+                      postalCode: event.target.value,
+                    })
+                  }
+                  value={recipient.postalCode}
+                />
+              </Field>
+              <Field
+                error={
+                  showMissing && !recipient.city.trim()
+                    ? "Bitte ausfüllen."
+                    : undefined
+                }
+                label="Ort"
+                required
+              >
+                <Input
+                  autoComplete="address-level2"
+                  id="commitment-city"
+                  maxLength={120}
+                  onChange={(event) =>
+                    setRecipient({ ...recipient, city: event.target.value })
+                  }
+                  value={recipient.city}
+                />
+              </Field>
             </div>
-            <dl className="commitment-summary__facts">
-              <div>
-                <dt>Besteller</dt>
-                <dd>{selectedBuyer?.displayName ?? "Noch auswählen"}</dd>
-              </div>
+            <Field label="Rechnungs-E-Mail" optional>
+              <Input
+                autoComplete="email"
+                id="commitment-email"
+                maxLength={320}
+                onChange={(event) =>
+                  setRecipient({ ...recipient, email: event.target.value })
+                }
+                type="email"
+                value={recipient.email}
+              />
+            </Field>
+          </fieldset>
+          {stepError ? (
+            <StatusMessage tone="error">
+              <span id="commitment-step-error">{stepError}</span>
+            </StatusMessage>
+          ) : null}
+          <div className="pwa-two">
+            <Button onClick={() => goToStep(1)} size="lg" variant="secondary">
+              Zurück
+            </Button>
+            <Button
+              aria-describedby={stepError ? "commitment-step-error" : undefined}
+              size="lg"
+              type="submit"
+              variant="primary"
+            >
+              Weiter
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {step === 3 && offering ? (
+        <div className="stack">
+          <section className="pwa-card">
+            <dl className="pwa-dl">
               <div>
                 <dt>Angebot</dt>
-                <dd>{selectedOffering?.name ?? "Nicht verfügbar"}</dd>
-              </div>
-              <div>
-                <dt>Menge</dt>
                 <dd>
-                  {selectedOffering
-                    ? `${quantity} ${quantityLabel(quantity, selectedOffering.unit)}`
-                    : "–"}
+                  {quantity} × {offering.name}
                 </dd>
               </div>
-              {selectedOffering?.piecesPerUnit ? (
-                <div>
-                  <dt>Enthaltene Stückzahl</dt>
-                  <dd>{quantity * selectedOffering.piecesPerUnit} Stück</dd>
-                </div>
+              {deliveryEnabled ? (
+                <>
+                  <div>
+                    <dt>Lieferung</dt>
+                    <dd>
+                      {chosenWindow
+                        ? configuredWindowLabel(chosenWindow)
+                        : "Noch kein Lieferfenster"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Adresse</dt>
+                    <dd>
+                      {hasDeliveryAddress(delivery)
+                        ? `${delivery.streetLine1}, ${delivery.postalCode} ${delivery.city}`
+                        : "Noch keine Lieferadresse"}
+                    </dd>
+                  </div>
+                </>
               ) : null}
+              <div>
+                <dt>Rechnung</dt>
+                <dd>
+                  {recipient.recipientName}, {recipient.streetLine1},{" "}
+                  {recipient.postalCode} {recipient.city}
+                </dd>
+              </div>
+              <div>
+                <dt>Summe</dt>
+                <dd className="num">
+                  <strong>{formatMoney(total, offering.currency)}</strong>
+                </dd>
+              </div>
             </dl>
-            <div className="commitment-summary__total">
-              <span>Voraussichtlicher Gesamtbetrag</span>
-              <strong data-testid="commitment-preview-total">
-                {selectedOffering
-                  ? formatMoney(totalMinor, selectedOffering.currency)
-                  : "–"}
-              </strong>
-              <small>
-                Der Core übernimmt beim Speichern den aktuellen Angebotspreis.
-              </small>
-            </div>
-            {create.isError && !isFullWindowError(create.error) ? (
-              <StatusMessage tone="error">
-                {captureError(create.error)}
-              </StatusMessage>
-            ) : null}
-            <div className="commitment-submit-choices">
-              <div>
-                <Button
-                  data-testid="commitment-save-draft"
-                  disabled={
-                    create.isPending ||
-                    !selectedBuyer ||
-                    !selectedOffering ||
-                    (Boolean(configuration?.enabled) &&
-                      hasPartialDeliveryAddress(delivery))
-                  }
-                  name="readiness"
-                  type="submit"
-                  value="draft"
-                  variant="secondary"
-                >
-                  {create.isPending
-                    ? "Wird gespeichert …"
-                    : "Als Entwurf speichern"}
-                </Button>
-                <small>Bleibt intern und kann später geprüft werden.</small>
-              </div>
-              <div>
-                <Button
-                  data-testid="commitment-save-ready"
-                  disabled={
-                    create.isPending ||
-                    !selectedBuyer ||
-                    !selectedOffering ||
-                    !completeDelivery ||
-                    context.isFetching
-                  }
-                  name="readiness"
-                  type="submit"
-                  value="review_ready"
-                >
-                  {create.isPending
-                    ? "Wird gespeichert …"
-                    : "Prüfbereit erfassen"}
-                </Button>
-                <small>Erscheint sofort beim Charity-Admin.</small>
-              </div>
-            </div>
-          </aside>
-          <FullWindowConfirm
-            onCancel={() => {
-              setConfirmFull(false);
-              create.reset();
-            }}
-            onConfirm={confirmFullWindow}
-            pending={create.isPending}
-            window={
-              confirmFull
-                ? (fullWindow ??
-                  configuration?.windows.find(
-                    (item) => item.id === delivery.windowId,
-                  ))
-                : undefined
-            }
-          />
-        </form>
-      )}
-    </div>
+          </section>
+          <p className="small muted">
+            LeonAid berechnet den verbindlichen Preis beim Speichern erneut.
+          </p>
+          {!completeDelivery ? (
+            <StatusMessage tone="info">
+              Ohne Lieferadresse und Lieferfenster kannst du die Bestellung nur
+              als Entwurf speichern.
+            </StatusMessage>
+          ) : null}
+          {create.isError && !isFullWindowError(create.error) ? (
+            <StatusMessage tone="error">
+              {captureError(create.error)}
+            </StatusMessage>
+          ) : null}
+          <div className="pwa-two">
+            <Button
+              disabled={create.isPending}
+              onClick={() => goToStep(2)}
+              size="lg"
+              variant="secondary"
+            >
+              Zurück
+            </Button>
+            <Button
+              data-testid="commitment-save-ready"
+              disabled={!completeDelivery || context.isFetching}
+              loading={create.isPending}
+              onClick={() => save(true)}
+              size="lg"
+              variant="primary"
+            >
+              Verbindlich erfassen
+            </Button>
+          </div>
+          <Button
+            className="pwa-wide"
+            data-testid="commitment-save-draft"
+            disabled={create.isPending}
+            onClick={() => save(false)}
+            variant="ghost"
+          >
+            Als Entwurf speichern
+          </Button>
+        </div>
+      ) : null}
+
+      <FullWindowConfirm
+        onCancel={() => {
+          setConfirmFull(false);
+          create.reset();
+        }}
+        onConfirm={() => save(true, true)}
+        pending={create.isPending}
+        window={
+          confirmFull
+            ? (fullWindow ??
+              configuration?.windows.find(
+                (item) => item.id === delivery.windowId,
+              ))
+            : undefined
+        }
+      />
+    </>
   );
 }

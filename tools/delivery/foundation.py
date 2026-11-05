@@ -91,7 +91,6 @@ async def prove() -> None:
                 action,
                 responsible_admin_user_id=admin_id,
                 request_id="delivery-proof",
-                occurred_at=now,
                 configuration=template.configure(identifier),
             )
 
@@ -197,7 +196,6 @@ async def prove() -> None:
             copied_action,
             responsible_admin_user_id=admin_id,
             request_id="delivery-proof",
-            occurred_at=now,
             configuration=source_configuration.copy_for(
                 copied_id, source_action_id=action.id, capabilities=action.capabilities
             ),

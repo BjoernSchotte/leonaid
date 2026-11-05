@@ -257,6 +257,8 @@ function PwaShell({
 }
 
 export function App({ client }: AppProps) {
+  // In-page links between the acquirer screens switch the page here.
+  useLocationHref();
   const currentActionId = useCurrentActionId();
   const lifecycle = usePwaLifecycle();
   const identity = useQuery({

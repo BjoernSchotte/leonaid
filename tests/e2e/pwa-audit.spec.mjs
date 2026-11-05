@@ -176,23 +176,27 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
     },
   ]);
   await page.goto(`${baseUrl}/app/sponsors`);
+  // Prototype flow: sponsor → "Bestellung erfassen" → three steps.
   await page
     .getByTestId("sponsor-row")
     .filter({ hasText: "Musterwerk GmbH" })
-    .getByRole("link", { name: "Bestellung" })
     .click();
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await page.getByTestId("order-open").click();
+  const heading = page.getByRole("heading", {
+    level: 1,
+    name: "Bestellung für Musterwerk GmbH",
+  });
+  await expect(heading).toBeVisible();
   // Orders have no tab of their own ("Neu" creates a sponsor).
   await expect(
     page
       .getByRole("navigation", { name: "App-Navigation" })
       .locator('[aria-current="page"]'),
   ).toHaveCount(0);
+  await page.getByTestId("commitment-quantity").fill("3");
+  await page.getByRole("button", { name: "Weiter" }).click();
   const street = page.getByTestId("commitment-street");
   await street.fill("Offlineweg 7");
-  await page.getByTestId("commitment-quantity").fill("3");
 
   await context.setOffline(true);
   const banner = page.getByTestId("offline-banner");
@@ -202,10 +206,7 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   // What the acquirer already entered stays on screen and editable.
   await expect(street).toHaveValue("Offlineweg 7");
   await expect(street).toBeEditable();
-  await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(heading).toBeVisible();
   // The gold glyph stays in the sticky bar; the banner sits under the bar.
   await expect(page.getByRole("img", { name: "Offline" })).toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -228,15 +229,17 @@ test("Leitsystem shell keeps an open capture visible while offline", async ({
   });
 
   // Saving offline fails in Du wording and keeps every entry.
+  await page.getByRole("button", { name: "Weiter" }).click();
   await page.getByTestId("commitment-save-draft").click();
   await expect(page.locator("main")).toContainText(
     "Die Bestellung konnte nicht gespeichert werden. Prüfe deine Verbindung; deine Eingaben bleiben erhalten.",
   );
+  await page.getByRole("button", { name: "Zurück" }).click();
   await expect(street).toHaveValue("Offlineweg 7");
+  await page.getByRole("button", { name: "Zurück" }).click();
   await expect(page.getByTestId("commitment-quantity")).toHaveValue("3");
-  await expect(page.getByTestId("commitment-party")).toContainText(
-    "Musterwerk GmbH",
-  );
+  await expect(heading).toBeVisible();
+  await page.getByRole("button", { name: "Weiter" }).click();
 
   await context.setOffline(false);
   await expect(banner).toHaveCount(0);
