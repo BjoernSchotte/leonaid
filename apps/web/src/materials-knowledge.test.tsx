@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -174,6 +181,35 @@ describe("materials page", () => {
     expect(
       screen.getByRole("button", { name: /^Tourenplan/, expanded: false }),
     ).toBeTruthy();
+  });
+
+  it("names the campaign of campaign material (prototype subtitle)", async () => {
+    const client = {
+      ...materialsClient(),
+      listTaskActionContexts: vi.fn(async () => ({
+        items: [
+          { actionId: "a1", canCreateLists: false, name: "Krapfentaxi 2026" },
+        ],
+        nextOffset: null,
+      })),
+    };
+    wrap(
+      <MaterialsPage
+        basePath="/admin/materials"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+      />,
+      "/admin/materials",
+    );
+    const row = await screen.findByRole("button", { name: /^Tourenplan/ });
+    await waitFor(() =>
+      expect(row.textContent).toContain("Krapfentaxi 2026 · 1 Version"),
+    );
+    expect(row.textContent).not.toContain("Aktionsmaterial");
+    expect(
+      screen.getByRole("button", { name: /^Flyer Adventskalender/ })
+        .textContent,
+    ).toContain("Eigenständig · 2 Versionen");
   });
 
   it("j moves, u opens the upload for the focused material and checks the size", async () => {

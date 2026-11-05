@@ -382,6 +382,7 @@ function MaterialRow({
   client,
   expanded,
   focusable,
+  actionName,
   material,
   onAccess,
   onFocus,
@@ -390,6 +391,8 @@ function MaterialRow({
   registerToggle,
   userId,
 }: {
+  /** The campaign's name (prototype subtitle), or null for own material. */
+  readonly actionName: string | null;
   readonly address: Address;
   readonly client: LeonAidApiClient;
   readonly expanded: boolean;
@@ -486,7 +489,7 @@ function MaterialRow({
           <span className="material-text">
             <span className="material-title">{material.title}</span>
             <span className="small subtle">
-              {material.actionId ? "Aktionsmaterial" : "Eigenständig"} · {count}{" "}
+              {actionName ?? "Eigenständig"} · {count}{" "}
               {count === 1 ? "Version" : "Versionen"}
             </span>
           </span>
@@ -873,6 +876,13 @@ export function MaterialsPage({
         <ul className="materials">
           {items.map((item, index) => (
             <MaterialRow
+              actionName={
+                item.actionId
+                  ? (contexts.knownActions.find(
+                      ([known]) => known === item.actionId,
+                    )?.[1] ?? "Charity-Aktion")
+                  : null
+              }
               address={address}
               client={client}
               expanded={open.has(item.id)}
