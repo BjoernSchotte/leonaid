@@ -135,7 +135,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 async with connection.transaction():
                     # The creator becomes the only lead: it must still be
                     # active, under the lock that suspension also takes.
-                    await lock_admin_access(connection)
+                    # The command's time is taken once the lock is held.
+                    occurred_at = await lock_admin_access(connection)
                     if not await connection.fetchval(
                         """
                         SELECT true FROM user_account
@@ -581,7 +582,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             async with connection.transaction():
                 # Same lock as account status and role changes: the new
                 # leads must still be active when this commits.
-                await lock_admin_access(connection)
+                # The command's time is taken once the lock is held.
+                occurred_at = await lock_admin_access(connection)
                 if not await actor_still_manages(
                     connection, actor_user_id, now=occurred_at, action_id=action.id
                 ):
@@ -616,7 +618,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 await connection.execute(
                     """
                     UPDATE action_membership
-                    SET active_until = $2, updated_at = $2
+                    -- Never before the start (ck_action_membership_period).
+                    SET active_until = GREATEST(
+                            $2, active_from + interval '1 microsecond'
+                        ),
+                        updated_at = $2
                     WHERE action_id = $1
                       AND role = 'charity_admin'
                       AND active_until IS NULL
