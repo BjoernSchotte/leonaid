@@ -76,6 +76,13 @@
   background: var(--ok);
 }
 
+/* The catalog's jump nav is a second sticky bar under the top bar: focus
+   and scroll-into-view keep both clear (WCAG 2.4.11), like the sections'
+   scroll-margin-top for anchor jumps. */
+html:has(.ui-catalog-jumpnav) {
+  scroll-padding-top: 10rem;
+}
+
 .ui-catalog-jumpnav {
   position: sticky;
   z-index: 5;

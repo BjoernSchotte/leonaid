@@ -5,6 +5,12 @@
  * additions are marked "Product:".
  */
 /* ---------- Admin shell: Lions-blue rail + content ---------- */
+/* Product (WCAG 2.4.11 Focus Not Obscured): the document scrolls under the
+   sticky top bar, so focus and scroll-into-view keep a bar's height (plus a
+   little air) clear. The bottom nav (≤ 720 px) gets the same below. */
+html:has(.shell) {
+  scroll-padding-top: calc(var(--topbar-h) + var(--s-2));
+}
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
@@ -523,6 +529,12 @@
     width: 44px;
     height: 44px;
   }
+  html:has(.shell) {
+    scroll-padding-bottom: calc(
+      var(--bottom-nav-h) + var(--s-1) + env(safe-area-inset-bottom) +
+        var(--s-2)
+    );
+  }
   .bottom-nav {
     position: fixed;
     inset: auto 0 0 0;
@@ -537,7 +549,7 @@
     flex-direction: column;
     justify-content: center;
     gap: 2px;
-    height: 58px;
+    height: var(--bottom-nav-h);
     padding: 0;
     color: var(--text-2);
     font-size: var(--fs-2xs);

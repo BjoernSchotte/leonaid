@@ -131,8 +131,8 @@
     {
       "id": "python",
       "version": "3.13.18-slim-trixie",
-      "image": "docker.io/library/python:3.13.18-slim-trixie@sha256:d0a9e379c0c588befb0e427db17ca9731751d281f32c6cb1a90a1277b680bdad",
-      "digest": "sha256:d0a9e379c0c588befb0e427db17ca9731751d281f32c6cb1a90a1277b680bdad",
+      "image": "docker.io/library/python:3.13.18-slim-trixie@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc",
+      "digest": "sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc",
       "license": "PSF-2.0",
       "upstream": "https://github.com/docker-library/python/tree/152874b138f0b1c4699fbdcb52b174608cfbfff5",
       "roles": [

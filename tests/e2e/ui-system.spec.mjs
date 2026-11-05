@@ -1,5 +1,6 @@
 import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
+import { expectTabNotObscured } from "./focus-obscured.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -51,6 +52,40 @@ async function createCatalogPage(browser, viewport) {
   ).toBeVisible();
   return { context, page, pageErrors };
 }
+
+test("focus is not obscured by the sticky top bar or the bottom nav", async ({
+  browser,
+}) => {
+  // WCAG 2.4.11: Tab to an element parked under a bar scrolls it clear.
+  const desktop = await createCatalogPage(browser, {
+    width: 1440,
+    height: 700,
+  });
+  try {
+    await expectTabNotObscured(desktop.page, {
+      scope: "main",
+      cover: ".topbar",
+      edge: "top",
+    });
+  } finally {
+    await desktop.context.close();
+  }
+  const phone = await createCatalogPage(browser, { width: 390, height: 844 });
+  try {
+    await expectTabNotObscured(phone.page, {
+      scope: "main",
+      cover: ".topbar",
+      edge: "top",
+    });
+    await expectTabNotObscured(phone.page, {
+      scope: "main",
+      cover: ".bottom-nav",
+      edge: "bottom",
+    });
+  } finally {
+    await phone.context.close();
+  }
+});
 
 test("UI catalog proves all base states with real identity", async ({
   browser,
