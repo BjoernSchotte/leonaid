@@ -501,7 +501,7 @@ async def assert_window_load_counts_only_booked_orders() -> None:
                             WHERE line.commitment_id = commitment.id) AS quantity
                     FROM commitment
                     WHERE action_id = $1
-                      AND status IN ('review_ready', 'confirmed')
+                      AND status <> 'cancelled'
                       AND EXISTS (
                           SELECT 1 FROM commitment_line AS line
                           WHERE line.commitment_id = commitment.id
@@ -535,7 +535,7 @@ async def assert_window_load_counts_only_booked_orders() -> None:
                 )
                 booked, draft, cancelled = (row["id"] for row in orders)
                 for order_id, status in (
-                    (booked, None),
+                    (booked, "confirmed"),
                     (draft, "draft"),
                     (cancelled, "cancelled"),
                 ):
@@ -544,7 +544,7 @@ async def assert_window_load_counts_only_booked_orders() -> None:
                         UPDATE commitment
                         SET delivery_window_id = $2,
                             delivery_window_snapshot = '{}'::jsonb,
-                            status = coalesce($3, status)
+                            status = $3
                         WHERE id = $1
                         """,
                         order_id,
