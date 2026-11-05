@@ -6,8 +6,8 @@ audience: [user]
 diataxis: reference
 contentRevision: 3
 reviewedRevision: 3
-verifiedAgainst: 1c054b0fb55c59b9f884aee956b431a519ce521d
-reviewer: Björn Schotte
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Charity campaign

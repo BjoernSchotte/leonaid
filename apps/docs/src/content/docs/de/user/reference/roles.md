@@ -4,10 +4,10 @@ description: Referenz der implementierten globalen und aktionsbezogenen LeonAid-
 docId: DOC-P016
 audience: [user]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 | Rolle             | Bereich                    | Darf im aktuellen Stand                                                                 |
@@ -17,7 +17,7 @@ reviewer: Björn Schotte
 | `finance_manager` | global                     | Vollzahlungen buchen und Rechnungen kontrolliert stornieren                             |
 | `charity_admin`   | eine Aktion                | Aktion, Mitglieder, Bestellungen, Rechnungen und Finanzaktionen dieser Aktion verwalten |
 | `acquirer`        | eine Aktion                | zugeordnete Sponsoren, Aktivitäten und Bestellungen bearbeiten                          |
-| `driver`          | Aktion mit Lieferfähigkeit | Rolle ist modelliert; der produktive Fahrer-/Tourenworkflow ist zurückgestellt          |
+| `driver` (UI: **Ausfahrer**) | Aktion mit Lieferfähigkeit | in der App **Auslieferung** nur die eigenen zugewiesenen Lieferungen mit Adresse und Kontakt, ohne Beträge, sehen und abhaken, solange das Fenster offen ist |
 
 Eine Person kann mehrere Rollen besitzen. Aktionsrollen gelten nur für die
 angegebene Charity-Aktion. Ein Charity-Admin erhält dadurch keine Rechte auf

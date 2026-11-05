@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 2
 reviewedRevision: 2
 verifiedAgainst: 11720893881db3a1ebc4374a04d57e09a4fc61ec
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 LeonAid verwendet Magic Links und sechsstellige Einmalcodes statt eines
