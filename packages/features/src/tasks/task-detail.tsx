@@ -255,7 +255,17 @@ function TaskSteps({
   const toast = useOptionalToast();
   const inputId = useId();
   const [newStep, setNewStep] = useState("");
+  // The steps as just changed, shown until the task's next revision arrives.
+  const [shown, setShown] = useState<{
+    readonly revision: number;
+    readonly checklist: Task["checklist"];
+  } | null>(null);
+  const checklist =
+    shown && shown.revision === task.revision
+      ? shown.checklist
+      : task.checklist;
   const save = useMutation({
+    onMutate: (next) => setShown({ revision: task.revision, checklist: next }),
     mutationFn: (checklist: Task["checklist"]) =>
       client.setTaskStructure(task.id, {
         idempotencyKey: crypto.randomUUID(),
@@ -264,7 +274,8 @@ function TaskSteps({
         tagIds: task.tags.map((tag) => tag.id),
         checklist,
       }),
-    onError: (error) =>
+    onError: (error) => {
+      setShown(null);
       toast?.show({
         title: "Der Schritt wurde nicht gespeichert.",
         description:
@@ -276,15 +287,16 @@ function TaskSteps({
                 "Bitte versuchen Sie es erneut.",
               ),
         tone: "error",
-      }),
+      });
+    },
     onSettled: () => cache.invalidateQueries({ queryKey: ["tasks"] }),
   });
-  const done = task.checklist.filter((step) => step.done).length;
+  const done = checklist.filter((step) => step.done).length;
   const add = () => {
     const text = newStep.trim();
-    if (!text || task.checklist.length >= 100) return;
+    if (!text || checklist.length >= 100) return;
     save.mutate(
-      [...task.checklist, { id: crypto.randomUUID(), text, done: false }],
+      [...checklist, { id: crypto.randomUUID(), text, done: false }],
       {
         onSuccess: () => setNewStep(""),
       },
@@ -295,19 +307,19 @@ function TaskSteps({
       title={
         <>
           Schritte{" "}
-          {task.checklist.length ? (
+          {checklist.length ? (
             <span className="num">
-              · {done} von {task.checklist.length}
+              · {done} von {checklist.length}
             </span>
           ) : null}
         </>
       }
     >
-      {task.checklist.length === 0 ? (
+      {checklist.length === 0 ? (
         <p className="small subtle">Noch keine Schritte.</p>
       ) : (
         <ul className="steps">
-          {task.checklist.map((step, index) => (
+          {checklist.map((step, index) => (
             <li key={step.id}>
               <label className="checkbox">
                 <input
@@ -315,7 +327,7 @@ function TaskSteps({
                   disabled={!task.canEdit || save.isPending}
                   onChange={() =>
                     save.mutate(
-                      task.checklist.map((item) =>
+                      checklist.map((item) =>
                         item.id === step.id
                           ? { ...item, done: !item.done }
                           : item,
@@ -334,9 +346,7 @@ function TaskSteps({
                   icon={Trash2}
                   label={`Schritt ${index + 1} entfernen`}
                   onClick={() =>
-                    save.mutate(
-                      task.checklist.filter((item) => item.id !== step.id),
-                    )
+                    save.mutate(checklist.filter((item) => item.id !== step.id))
                   }
                   size="sm"
                 />
@@ -367,7 +377,7 @@ function TaskSteps({
           />
           <Button
             disabled={
-              !newStep.trim() || save.isPending || task.checklist.length >= 100
+              !newStep.trim() || save.isPending || checklist.length >= 100
             }
             size="sm"
             type="submit"

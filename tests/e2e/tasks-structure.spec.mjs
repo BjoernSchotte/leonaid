@@ -89,7 +89,10 @@ test("steps save at once; priority and a new Schlagwort save together and show o
   ).toBeEnabled();
   await first.check();
   await expect(first).toBeChecked();
-  await expect(first).toBeEnabled();
+  // The list row follows the saved steps (the refetched revision).
+  await expect(taskRow(page, task.id).locator(".row-secondary")).toContainText(
+    "1/2 Schritte",
+  );
 
   // Priority and Schlagworte are saved together in their own form.
   const panel = pane.getByRole("form", { name: "Priorität und Schlagworte" });
