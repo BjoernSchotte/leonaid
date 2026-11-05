@@ -15,9 +15,9 @@ The tokens have three layers:
   the rail (`--rail-*`), type, space, shape and motion scales, and the zone
   hues. `[data-zone="<navigation key>"]` on an area root sets `--zone-h`;
   `--zone`, `--zone-soft`, `--zone-line` and `--zone-ink` derive from it;
-- aliases in `tokens.css` that keep the older names (`--background`,
-  `--primary`, `--muted`, `--sidebar`, ...) pointing at Leitsystem tokens until
-  each component moves to the new names.
+- `tokens.css` with the Lions brand primitives and a few component metrics.
+  The pre-Leitsystem alias names are gone; `tools/ci/legacy_ui.py` in
+  `./leonaid check` rejects them and Hugeicons or Base UI imports.
 
 `src/styles/contrast.test.ts` (`bun run test:ui`) checks every text and control
 pair, in light and dark and for every zone, against its WCAG target.
