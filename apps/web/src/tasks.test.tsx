@@ -359,6 +359,34 @@ describe("tasks page", () => {
     expect(window.location.search).toBe("?view=open");
   });
 
+  it("says when the done tasks of a mixed view fail to load and reloads them", async () => {
+    const open = task("a", "Stände aufbauen");
+    const finished = task("b", "Kasse zählen", { status: "done" });
+    const client = harness({ open: [open], done: [finished] });
+    const listed = client.listTasks.getMockImplementation()!;
+    client.listTasks.mockImplementation(async (query: { status?: string }) => {
+      if (query.status === "done") throw new Error("offline");
+      return listed(query);
+    });
+    renderPage(client, { path: "/admin/tasks?view=lists" });
+    expect(await screen.findByText("Stände aufbauen")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        /Erledigte Aufgaben konnten nicht geladen werden/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Kasse zählen")).toBeNull();
+
+    client.listTasks.mockImplementation(listed);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erledigte erneut laden" }),
+    );
+    expect(await screen.findByText("Kasse zählen")).toBeTruthy();
+    expect(
+      screen.queryByText(/Erledigte Aufgaben konnten nicht geladen werden/),
+    ).toBeNull();
+  });
+
   it("changes the status with s and undoes it from the toast", async () => {
     const client = harness({ open: [task("a", "Stände aufbauen")] });
     renderPage(client, { path: "/admin/tasks?view=open" });

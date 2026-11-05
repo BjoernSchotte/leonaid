@@ -1411,6 +1411,24 @@ function TasksWorkspace({
           Erledigte Aufgaben werden geladen …
         </p>
       ) : null}
+      {status === "ready" && needsDone && done.failed ? (
+        // Mixed views still show the open tasks; say that the done ones
+        // and the count are missing instead of failing silently.
+        <StatusMessage tone="error">
+          <p>
+            Erledigte Aufgaben konnten nicht geladen werden. Die Liste zeigt nur
+            offene Aufgaben.
+          </p>
+          <Button
+            loading={done.query.isFetching}
+            onClick={() => void done.query.refetch()}
+            size="sm"
+            variant="secondary"
+          >
+            Erledigte erneut laden
+          </Button>
+        </StatusMessage>
+      ) : null}
       {status === "ready" && truncated.length > 0 ? (
         <StatusMessage tone="info">
           <p>
