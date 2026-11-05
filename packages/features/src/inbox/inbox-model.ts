@@ -1,3 +1,4 @@
+import { localIsoDate, shortDate, TIME_ZONE } from "../shared/dates";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   Case,
@@ -119,21 +120,23 @@ export function managesCase(
 export const actionKey = (item: Pick<Case, "actionId">) =>
   item.actionId ?? NONE;
 
-const pad = (value: number) => String(value).padStart(2, "0");
+const clock = new Intl.DateTimeFormat("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: TIME_ZONE,
+});
 
-/** "28.10." in the row, as in the prototype; older years get the year. */
+/**
+ * "28.10." in the row, as in the prototype; older years get the year.
+ * Days are the club's (Berlin) days, as on the other screens.
+ */
 export function shortDay(iso: string, now = new Date()): string {
-  const date = new Date(iso);
-  const day = `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.`;
-  return date.getFullYear() === now.getFullYear()
-    ? day
-    : `${day}${date.getFullYear()}`;
+  return shortDate(iso, localIsoDate(now));
 }
 
 /** "28.10. 09:14 Uhr" in the pane; older years get the year. */
 export function receivedLabel(iso: string, now = new Date()): string {
-  const date = new Date(iso);
-  return `${shortDay(iso, now)} ${pad(date.getHours())}:${pad(date.getMinutes())} Uhr`;
+  return `${shortDay(iso, now)} ${clock.format(new Date(iso))} Uhr`;
 }
 
 export function fullName(item: Pick<Case, "givenName" | "familyName">) {

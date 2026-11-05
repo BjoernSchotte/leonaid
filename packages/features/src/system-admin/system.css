@@ -218,3 +218,11 @@
     margin-bottom: 0;
   }
 }
+
+/* A failed refresh notice spans the whole Betrieb grid. */
+.system-grid > .system-refresh-notice {
+  grid-column: 1 / -1;
+}
+.system-refresh-notice p {
+  margin: var(--s-1) 0 var(--s-2);
+}

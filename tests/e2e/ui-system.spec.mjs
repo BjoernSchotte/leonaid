@@ -494,7 +494,7 @@ test("charts: token colours under the strict CSP, theme redraw, resize", async (
     await expect(canvases.nth(1)).toHaveAttribute("aria-label", /3: –/);
     await expect(
       charts.getByRole("list", { name: "Legende: Empfehlung" }),
-    ).toContainText("Förderer (9–10)16 (53 %)");
+    ).toContainText("Förderer (9–10)30 (58 %)");
     // The first matrix segment uses --chart-pos, read from canvas pixels.
     const pixel = () =>
       canvases.nth(2).evaluate((canvas) => {

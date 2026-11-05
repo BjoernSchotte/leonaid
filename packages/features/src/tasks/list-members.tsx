@@ -35,11 +35,13 @@ export function ListMembersPanel({
   listId,
   actionScoped,
   address,
+  embedded,
 }: {
   client: LeonAidApiClient;
   listId: string;
   actionScoped: boolean;
   address: Address;
+  embedded?: boolean;
 }) {
   return (
     <AccessMembersPanel
@@ -47,6 +49,7 @@ export function ListMembersPanel({
       source={taskListSource(client, listId)}
       actionScoped={actionScoped}
       address={address}
+      embedded={embedded}
     />
   );
 }

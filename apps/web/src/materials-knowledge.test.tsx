@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -174,6 +181,64 @@ describe("materials page", () => {
     expect(
       screen.getByRole("button", { name: /^Tourenplan/, expanded: false }),
     ).toBeTruthy();
+  });
+
+  it("searches after a pause in typing and keeps the list meanwhile", async () => {
+    const client = materialsClient();
+    wrap(
+      <MaterialsPage
+        basePath="/admin/materials"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+      />,
+      "/admin/materials",
+    );
+    expect(await screen.findByText("Flyer Adventskalender")).toBeTruthy();
+    const field = screen.getByLabelText("Materialien suchen");
+    for (const value of ["F", "Fl", "Fly"])
+      fireEvent.change(field, { target: { value } });
+    // The loaded rows stay while the search is pending.
+    expect(screen.getByText("Flyer Adventskalender")).toBeTruthy();
+    await waitFor(() =>
+      expect(client.listMaterials).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "Fly" }),
+      ),
+    );
+    const searched = (
+      client.listMaterials.mock.calls as unknown as [{ search: string }][]
+    ).map(([query]) => query.search);
+    expect(searched).not.toContain("F");
+    expect(searched).not.toContain("Fl");
+    expect(screen.getByText("Flyer Adventskalender")).toBeTruthy();
+  });
+
+  it("names the campaign of campaign material (prototype subtitle)", async () => {
+    const client = {
+      ...materialsClient(),
+      listTaskActionContexts: vi.fn(async () => ({
+        items: [
+          { actionId: "a1", canCreateLists: false, name: "Krapfentaxi 2026" },
+        ],
+        nextOffset: null,
+      })),
+    };
+    wrap(
+      <MaterialsPage
+        basePath="/admin/materials"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+      />,
+      "/admin/materials",
+    );
+    const row = await screen.findByRole("button", { name: /^Tourenplan/ });
+    await waitFor(() =>
+      expect(row.textContent).toContain("Krapfentaxi 2026 · 1 Version"),
+    );
+    expect(row.textContent).not.toContain("Aktionsmaterial");
+    expect(
+      screen.getByRole("button", { name: /^Flyer Adventskalender/ })
+        .textContent,
+    ).toContain("Eigenständig · 2 Versionen");
   });
 
   it("j moves, u opens the upload for the focused material and checks the size", async () => {
@@ -370,6 +435,56 @@ describe("knowledge", () => {
     await act(async () => {});
     expect(screen.queryByLabelText("Seitentitel")).toBeNull();
     expect(editor.getAttribute("contenteditable")).toBe("false");
+  });
+
+  it("keeps e off while the task panel is open", async () => {
+    const client = knowledgeClient();
+    wrap(
+      <KnowledgeEditorPage
+        basePath="/admin/knowledge"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        pageId="p1"
+      />,
+      "/admin/knowledge/p1",
+    );
+    const editor = await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aufgabe aus dieser Seite" }),
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+    press("e");
+    await act(async () => {});
+    // Editing would show the title field (the editor itself stays locked
+    // while the panel is open).
+    expect(screen.queryByLabelText("Seitentitel")).toBeNull();
+    expect(editor.getAttribute("contenteditable")).toBe("false");
+  });
+
+  it("closes the link form with Esc and stays in editing", async () => {
+    const client = knowledgeClient();
+    wrap(
+      <KnowledgeEditorPage
+        basePath="/admin/knowledge"
+        client={client as unknown as LeonAidApiClient}
+        identity={identity}
+        pageId="p1"
+      />,
+      "/admin/knowledge/p1",
+    );
+    const editor = await screen.findByRole("textbox", { name: "Seiteninhalt" });
+    press("e");
+    await act(async () => {});
+    expect(editor.getAttribute("contenteditable")).toBe("true");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Link bearbeiten" })[0]!,
+    );
+    const field = await screen.findByLabelText("Link-Adresse");
+    field.focus();
+    press("Escape");
+    await act(async () => {});
+    expect(screen.queryByLabelText("Link-Adresse")).toBeNull();
+    expect(editor.getAttribute("contenteditable")).toBe("true");
   });
 
   it("offers both fassungen after a conflict", async () => {

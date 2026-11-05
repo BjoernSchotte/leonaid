@@ -324,6 +324,15 @@ export function FormattingToolbar({
       {linkOpen && (
         <form
           className="knowledge-link-form"
+          onKeyDown={(event) => {
+            // Esc closes only this form; the page's Esc (end editing)
+            // skips handled events.
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            setLinkOpen(false);
+            editor.commands.focus();
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             try {

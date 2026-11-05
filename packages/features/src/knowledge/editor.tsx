@@ -458,7 +458,10 @@ function PageEditor({
       keys: "e",
       label: "Seite bearbeiten",
       group: "Wissen",
-      when: () => canEdit && !editing,
+      // Not while a side panel (task, material, access) is open: "e" there
+      // would swap the page under the panel.
+      when: () =>
+        canEdit && !editing && !taskOpen && !materialOpen && !accessOpen,
       run: startEditing,
     },
     {
