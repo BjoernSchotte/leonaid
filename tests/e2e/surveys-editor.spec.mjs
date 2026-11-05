@@ -161,3 +161,55 @@ test("visual page and question editing persists stable identities through the re
   });
   await context.close();
 });
+
+test("leaving with unsaved settings asks once: in the page, not again by the browser", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 1440, height: 1000 },
+  });
+  await context.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: token,
+      url: baseURL,
+      secure: true,
+      httpOnly: true,
+      sameSite: "Lax",
+    },
+  ]);
+  const page = await context.newPage();
+  const browserDialogs = [];
+  page.on("dialog", (dialog) => {
+    browserDialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await page.goto(`${baseURL}/admin/surveys/new`);
+  await page
+    .getByLabel("Titel der Umfrage", { exact: true })
+    .fill("Einmal fragen");
+  await page
+    .getByRole("button", { name: "Umfrage erstellen", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Fragebogen bearbeiten" }),
+  ).toBeVisible();
+  await expect(page.locator("[data-draft-state]")).toHaveAttribute(
+    "data-draft-state",
+    "saved",
+  );
+  const surveyUrl = page.url();
+  await page.getByLabel("Abweichender Zeitraum in Sekunden").fill("120");
+  // Still protected: a reload asks through the browser (dismissed: stay).
+  await page.reload({ timeout: 3_000 }).catch(() => {});
+  await expect.poll(() => browserDialogs).toEqual(["beforeunload"]);
+  expect(page.url()).toBe(surveyUrl);
+  // The in-page question, then no second dialog from the browser (I11).
+  await page.getByRole("link", { name: "Alle Umfragen" }).click();
+  const discard = page.getByRole("dialog", { name: "Entwurf verwerfen?" });
+  await discard.getByRole("button", { name: "Verwerfen", exact: true }).click();
+  await page.waitForURL(`${baseURL}/admin/surveys`);
+  expect(browserDialogs).toEqual(["beforeunload"]);
+  await context.close();
+});

@@ -91,7 +91,7 @@ function Bars({
           <span className="bars-label">{bucket.label}</span>
           <Meter
             label={`${bucket.label}: ${
-              bucket.count === null ? `weniger als ${k}` : countText(bucket, k)
+              bucket.count === null ? "verborgen" : countText(bucket, k)
             }`}
             max={max}
             value={bucket.count ?? 0}
@@ -296,8 +296,8 @@ function MatrixPanel({
       ) : null}
       {hidden.length ? (
         <p className="svs-note">
-          Ohne Auswertung (weniger als {k} gültige Antworten):{" "}
-          {hidden.map((row) => row.label).join(", ")}.
+          Ohne Auswertung (weniger als {k} gültige Antworten oder daraus
+          ableitbar): {hidden.map((row) => row.label).join(", ")}.
         </p>
       ) : null}
     </>
@@ -391,8 +391,8 @@ function QuestionPanel({
   } else if (question.suppressed) {
     body = (
       <p className="svs-note">
-        Weniger als {k} gültige Antworten: Diese Frage wird nicht ausgewertet,
-        damit niemand erkennbar wird.
+        Weniger als {k} gültige Antworten oder daraus ableitbar: nicht
+        ausgewertet, damit niemand erkennbar wird.
       </p>
     );
   } else if (TEXT_KINDS.has(question.kind)) {
@@ -512,7 +512,7 @@ export function SurveySummary({
           <h1>Auswertung</h1>
           <span className="page-count num">
             {aggregates.participationCount === null
-              ? "Weniger als 5 Teilnahmen"
+              ? `Weniger als ${k} Teilnahmen`
               : `${aggregates.participationCount} Teilnahmen`}
           </span>
         </div>

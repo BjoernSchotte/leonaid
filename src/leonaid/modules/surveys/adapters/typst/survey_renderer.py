@@ -112,7 +112,7 @@ def render_payload(source: SurveyExportSource) -> dict[str, Any]:
             metrics.append(
                 {
                     "label": "Hinweis",
-                    "value": f"Ohne Auswertung (weniger als {k} gültige Antworten): "
+                    "value": f"Ohne Auswertung (weniger als {k} gültige Antworten oder daraus ableitbar): "
                     + ", ".join(hidden_rows),
                 }
             )

@@ -53,7 +53,8 @@ const messages: AnalyticsMessages = {
   tooFewParticipants:
     "Weniger als {k} Teilnahmen: Ergebnisse werden nicht gezeigt, damit niemand erkennbar wird.",
   tooFewAnswers:
-    "Weniger als {k} gültige Antworten: Diese Frage wird nicht ausgewertet, damit niemand erkennbar wird.",
+    "Weniger als {k} gültige Antworten oder daraus ableitbar: nicht ausgewertet, damit niemand erkennbar wird.",
+  withheldLegend: "„–“ verborgen: unter {k} Personen oder daraus ableitbar.",
   unreleasedCondition:
     "Ausgeblendet: Frage hängt von einer Freitext- oder Zahlenantwort ab.",
 };
