@@ -429,7 +429,8 @@ a.site-header__promise {
   align-items: center;
   min-width: 44px;
   min-height: 44px;
-  color: var(--accent-ink);
+  /* The footer's text colour: themed footers (Krapfentaxi) are dark. */
+  color: inherit;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
