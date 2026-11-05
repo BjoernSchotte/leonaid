@@ -260,8 +260,7 @@ test("complete Krapfentaxi journey without database intervention", async ({
   );
   expect(forbiddenInvoices.status()).toBe(403);
 
-  await memberPage.goto(`${baseUrl}/app/sponsors`);
-  await memberPage.getByRole("tab", { name: "Sponsor erfassen" }).click();
+  await memberPage.goto(`${baseUrl}/app/sponsors?view=new`);
   await memberPage.getByTestId("sponsor-company").fill(identity.company);
   await memberPage.locator("#sponsor-given-name").fill("Jona");
   await memberPage.locator("#sponsor-family-name").fill(identity.familyName);
@@ -296,14 +295,16 @@ test("complete Krapfentaxi journey without database intervention", async ({
     .filter({ hasText: identity.company });
   await expect(sponsorRow).toHaveCount(1);
   await expect(sponsorRow.getByTestId("co-assignees")).toHaveCount(0);
-  await sponsorRow.getByRole("link", { name: "Aktivität" }).click();
-  await expect(memberPage.getByTestId("activity-party")).toContainText(
-    identity.company,
-  );
-  await memberPage.locator("#activity-channel").selectOption("in_person");
-  await memberPage.locator("#activity-outcome").selectOption("interested");
-  await memberPage
-    .locator("#activity-note")
+  // Prototype: the sponsor's detail records the contact in a sheet.
+  await sponsorRow.click();
+  await memberPage.getByTestId("contact-open").click();
+  const contactSheet = memberPage.getByRole("dialog", {
+    name: `Kontakt mit ${identity.company}`,
+  });
+  await contactSheet.getByRole("button", { name: "Persönlich" }).click();
+  await contactSheet.getByText("Interessiert", { exact: true }).click();
+  await contactSheet
+    .getByLabel("Notiz")
     .fill(`Golden Journey ${slug}: Bedarf besprochen.`);
   expect(
     await memberPage
@@ -318,20 +319,20 @@ test("complete Krapfentaxi journey without database intervention", async ({
   );
   await memberPage.getByTestId("activity-submit").click();
   expect((await activityResponse).status()).toBe(201);
-  await expect(memberPage.locator("#activity-status")).toContainText(
-    "wurde gespeichert",
+  await expect(contactSheet).toBeHidden();
+  await expect(memberPage.getByTestId("activity-entry").first()).toContainText(
+    "Bedarf besprochen.",
   );
 
-  await memberPage.goto(`${baseUrl}/app/sponsors`);
-  const refreshedSponsor = memberPage
-    .getByTestId("sponsor-row")
-    .filter({ hasText: identity.company });
-  await refreshedSponsor.getByRole("link", { name: "Bestellung" }).click();
+  // The order starts on the sponsor and runs through three steps.
+  await memberPage.getByTestId("order-open").click();
   await memberPage.getByTestId("commitment-quantity").fill("2");
+  await memberPage.getByRole("button", { name: "Weiter" }).click();
   await memberPage.getByTestId("commitment-street").fill("Löwenweg 12");
   await memberPage.locator("#commitment-postal-code").fill("86150");
   await memberPage.locator("#commitment-city").fill("Augsburg");
   await memberPage.locator("#commitment-email").fill(identity.email);
+  await memberPage.getByRole("button", { name: "Weiter" }).click();
   const commitmentPromise = memberPage.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -342,7 +343,7 @@ test("complete Krapfentaxi journey without database intervention", async ({
   expect(commitmentResponse.status()).toBe(201);
   const commitment = await commitmentResponse.json();
   await expect(memberPage.getByTestId("commitment-success")).toContainText(
-    "Bereit für die Prüfung",
+    "Bestellung erfasst",
   );
 
   const publicContext = await browser.newContext({

@@ -1,62 +1,74 @@
+/*
+ * Sponsors in the acquisition app (prototype pwa/Acquire.tsx SponsorList,
+ * SponsorDetail and NewSponsor): /app/sponsors lists them, ?assignment=
+ * opens one, ?view=new captures a new one with the CRM check.
+ */
 import {
-  ArrowRight,
-  ArrowRightLeft,
-  CircleCheck,
-  CircleX,
-  Clock,
-  type LucideIcon,
+  ArrowLeft,
+  CalendarClock,
+  CircleAlert,
   Mail,
-  PackagePlus,
   Phone,
-  Plus,
   Search,
+  ShoppingBasket,
+  UserPlus,
   Users,
 } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useRef, useState, type FormEvent } from "react";
 
 import {
   ApiError,
+  type AcquisitionActivityBoardResponse,
   type AcquisitionActivityWorkItemResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
   type SponsorDraftRequest,
-  type SponsorMatchCandidateResponse,
   type SponsorMatchResponse,
   type SponsorResolutionResponse,
 } from "@leonaid/api-client";
-import { Button, Icon, StatusMessage } from "@leonaid/ui";
+import {
+  Button,
+  buttonClassName,
+  EmptyState,
+  Field,
+  Icon,
+  Input,
+  StatusIcon,
+  StatusMessage,
+  isTypingTarget,
+  useHotkeys,
+} from "@leonaid/ui";
 
+import { formatDateTime, relativeDay, shortDate } from "../shared/dates";
 import { navigateInPage, useLocationHref } from "../shared/location";
+import { ContactSheet, channelLabels, outcomeLabels } from "./contact-sheet";
+import {
+  ASSIGNMENT_STATUSES,
+  ActionChoice,
+  BoardFailed,
+  BoardLoading,
+  SponsorRow,
+  assignmentStatusLabel,
+  assignmentStatusShape,
+  followInPage,
+  isAssignmentStatus,
+  navigateToScreen,
+  otherAcquirers,
+  sponsorHref,
+  telHref,
+  useAcquirerAction,
+  useScreenHeading,
+  useSponsorBoard,
+  type AssignmentStatus,
+} from "./pwa-common";
 
 interface SponsorWorkspaceProps {
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
 }
 
-type SponsorView = "list" | "new";
 type SponsorMode = "company" | "person";
-type SponsorStatusFilter =
-  | "all"
-  | "open"
-  | "contacted"
-  | "committed"
-  | "declined"
-  | "handed_over";
-
-const statusLabels = {
-  committed: "Zusage",
-  contacted: "Kontaktiert",
-  declined: "Absage",
-  handed_over: "Übergeben",
-  open: "Offen",
-} as const;
 
 function sponsorError(error: unknown) {
   if (
@@ -84,252 +96,394 @@ function sponsorError(error: unknown) {
   return "Der Sponsor konnte gerade nicht verarbeitet werden. Prüfe deine Verbindung und versuche es erneut.";
 }
 
-function dueLabel(item: AcquisitionActivityWorkItemResponse) {
-  if (!item.dueAt) return null;
-  if (item.urgency === "overdue") return "Überfällig";
-  if (item.urgency === "today") return "Heute";
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "short",
-    timeZone: "Europe/Berlin",
-  }).format(new Date(item.dueAt));
+function listHref(actionId: string, status?: AssignmentStatus | null) {
+  const query = new URLSearchParams({ action: actionId });
+  if (status) query.set("status", status);
+  return `/app/sponsors?${query.toString()}`;
 }
 
-function IconAction({
-  children,
-  href,
-  icon: Glyph,
-  label,
-}: {
-  readonly children: ReactNode;
-  readonly href: string;
-  readonly icon: LucideIcon;
-  readonly label: string;
-}) {
-  return (
-    <a aria-label={label} className="acq-contact-action" href={href}>
-      <Icon icon={Glyph} size={18} />
-      <span>{children}</span>
-    </a>
-  );
-}
-
-function SponsorRow({
-  actionId,
-  identity,
-  item,
-}: {
-  readonly actionId: string;
-  readonly identity: CurrentIdentityResponse;
-  readonly item: AcquisitionActivityWorkItemResponse;
-}) {
-  const others = item.assignedAcquirers.filter(
-    (assignee) => assignee.userId !== identity.userId,
-  );
-  const due = dueLabel(item);
-
-  return (
-    <article
-      className="acq-sponsor-row"
-      data-party-id={item.partyId}
-      data-party-kind={item.partyKind}
-      data-testid="sponsor-row"
-    >
-      <div className="acq-sponsor-row__main">
-        <div className="acq-sponsor-row__title">
-          <strong>{item.partyDisplayName}</strong>
-          <span data-status={item.status}>{statusLabels[item.status]}</span>
-        </div>
-        <p className="acq-sponsor-row__address">
-          {[item.postalCode, item.city].filter(Boolean).join(" ") ||
-            (item.partyKind === "person"
-              ? "Privatperson"
-              : "Keine Adresse hinterlegt")}
-        </p>
-        {item.contactName ? (
-          <p className="acq-sponsor-row__contact">
-            Kontakt: {item.contactName}
-          </p>
-        ) : null}
-        {others.length > 0 ? (
-          <p className="acq-sponsor-row__shared" data-testid="co-assignees">
-            <Icon icon={Users} size={16} />
-            Gemeinsam mit {others.map((item) => item.displayName).join(", ")}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="acq-sponsor-row__next">
-        <span>Nächster Schritt</span>
-        <strong>{item.nextAction ?? "Noch nicht geplant"}</strong>
-        {due ? <small data-urgency={item.urgency}>{due}</small> : null}
-      </div>
-
-      <div
-        aria-label="Kontaktmöglichkeiten"
-        className="acq-sponsor-row__actions"
-      >
-        {item.phone ? (
-          <IconAction
-            href={`tel:${item.phone}`}
-            icon={Phone}
-            label={`${item.partyDisplayName} anrufen`}
-          >
-            Anrufen
-          </IconAction>
-        ) : null}
-        {item.email ? (
-          <IconAction
-            href={`mailto:${item.email}`}
-            icon={Mail}
-            label={`E-Mail an ${item.partyDisplayName} schreiben`}
-          >
-            E-Mail
-          </IconAction>
-        ) : null}
-        <a
-          className="acq-contact-action"
-          href={`/app/activities?view=contacts&assignment=${encodeURIComponent(item.assignmentId)}`}
-        >
-          <span>Aktivität</span>
-          <Icon icon={ArrowRight} size={18} />
-        </a>
-        <a
-          className="acq-contact-action acq-contact-action--next"
-          href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
-        >
-          <Icon icon={PackagePlus} size={18} />
-          <span>Bestellung</span>
-        </a>
-      </div>
-    </article>
-  );
-}
+/* ---------- Sponsor list ---------- */
 
 function SponsorList({
   actionId,
   identity,
-  initialStatus,
   items,
-  onCreate,
+  status,
 }: {
   readonly actionId: string;
   readonly identity: CurrentIdentityResponse;
-  readonly initialStatus: SponsorStatusFilter;
   readonly items: ReadonlyArray<AcquisitionActivityWorkItemResponse>;
-  readonly onCreate: () => void;
+  readonly status: AssignmentStatus | null;
 }) {
-  const [filter, setFilter] = useState("");
-  const [status, setStatus] = useState<SponsorStatusFilter>(initialStatus);
-  const normalized = filter.trim().toLocaleLowerCase("de-DE");
-  const statusVisible =
-    status === "all" ? items : items.filter((item) => item.status === status);
-  const visible = normalized
-    ? statusVisible.filter((item) =>
-        [item.partyDisplayName, item.city, item.postalCode, item.contactName]
+  const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<"mine" | "shared">("mine");
+  const shared = items.filter(
+    (item) => otherAcquirers(item, identity.userId).length > 0,
+  );
+  const normalized = query.trim().toLocaleLowerCase("de-DE");
+  const rows = (scope === "shared" ? shared : items)
+    .filter((item) => !status || item.status === status)
+    .filter(
+      (item) =>
+        !normalized ||
+        [item.partyDisplayName, item.contactName, item.city, item.postalCode]
           .filter(Boolean)
-          .some((value) =>
-            value?.toLocaleLowerCase("de-DE").includes(normalized),
-          ),
-      )
-    : statusVisible;
-
-  if (items.length === 0) {
-    return (
-      <div className="acq-empty acq-empty--roomy" data-testid="sponsor-empty">
-        <Icon icon={Users} size={20} />
-        <strong>Noch kein Sponsor zugeordnet</strong>
-        <span>
-          Prüfe einen vorhandenen CRM-Kontakt oder lege den ersten Sponsor an.
-        </span>
-        <Button onClick={onCreate}>Ersten Sponsor erfassen</Button>
-      </div>
+          .join(" ")
+          .toLocaleLowerCase("de-DE")
+          .includes(normalized),
     );
-  }
+  const setStatus = (next: AssignmentStatus | null) =>
+    navigateInPage(listHref(actionId, next), { replace: true });
 
   return (
     <>
-      <div className="acq-list-toolbar">
-        <label className="acq-search" htmlFor="sponsor-filter">
-          <Icon icon={Search} size={18} />
-          <span className="sr-only">Sponsoren filtern</span>
-          <input
-            id="sponsor-filter"
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Name, Ort oder PLZ suchen"
-            type="search"
-            value={filter}
-          />
-        </label>
-        <span aria-live="polite" className="acq-result-count">
-          {visible.length} {visible.length === 1 ? "Sponsor" : "Sponsoren"}
-        </span>
-      </div>
-      <div
-        aria-label="Sponsoren nach Status filtern"
-        className="acq-tabs acq-tabs--status"
-        role="tablist"
-      >
-        {(
-          [
-            ["all", "Alle", Users],
-            ["open", "Offen", Clock],
-            ["contacted", "Kontaktiert", Phone],
-            ["committed", "Zugesagt", CircleCheck],
-            ["declined", "Abgesagt", CircleX],
-            ["handed_over", "Übergeben", ArrowRightLeft],
-          ] as const
-        ).map(([value, label, Glyph]) => (
+      <label className="pwa-search" role="search">
+        <Icon icon={Search} size={18} />
+        <span className="sr-only">Sponsoren suchen</span>
+        <input
+          id="sponsor-filter"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Name, Kontakt oder Ort"
+          type="search"
+          value={query}
+        />
+      </label>
+      <div aria-label="Nach Stand filtern" className="pwa-chips" role="group">
+        <button
+          aria-pressed={!status}
+          className="pwa-chip"
+          data-testid="sponsor-status-all"
+          onClick={() => setStatus(null)}
+          type="button"
+        >
+          Alle
+        </button>
+        {ASSIGNMENT_STATUSES.map((value) => (
           <button
-            aria-selected={status === value}
+            aria-pressed={status === value}
+            className="pwa-chip"
             data-testid={`sponsor-status-${value}`}
             key={value}
-            onClick={() => {
-              setStatus(value);
-              const url = new URL(window.location.href);
-              if (value === "all") url.searchParams.delete("status");
-              else url.searchParams.set("status", value);
-              window.history.replaceState(
-                {},
-                "",
-                `${url.pathname}${url.search}`,
-              );
-            }}
-            role="tab"
+            onClick={() => setStatus(status === value ? null : value)}
             type="button"
           >
-            <Icon icon={Glyph} size={20} />
-            <span>{label}</span>
+            <StatusIcon
+              label=""
+              size={13}
+              status={assignmentStatusShape[value]}
+            />
+            {assignmentStatusLabel[value]}
           </button>
         ))}
       </div>
-      {visible.length > 0 ? (
-        <div className="acq-sponsor-list" data-testid="sponsor-list">
-          {visible.map((item) => (
+      <div aria-label="Zuständigkeit" className="pwa-segment" role="group">
+        <button
+          aria-pressed={scope === "mine"}
+          onClick={() => setScope("mine")}
+          type="button"
+        >
+          Meine ({items.length})
+        </button>
+        <button
+          aria-pressed={scope === "shared"}
+          onClick={() => setScope("shared")}
+          type="button"
+        >
+          Gemeinsam betreut ({shared.length})
+        </button>
+      </div>
+      <p aria-live="polite" className="sr-only">
+        {rows.length} {rows.length === 1 ? "Sponsor" : "Sponsoren"}
+      </p>
+      {items.length === 0 ? (
+        <EmptyState
+          action={
+            <a
+              className={buttonClassName({ variant: "primary" })}
+              href={`/app/sponsors?action=${encodeURIComponent(actionId)}&view=new`}
+              onClick={followInPage}
+            >
+              Ersten Sponsor erfassen
+            </a>
+          }
+          description="Prüfe einen vorhandenen CRM-Kontakt oder lege den ersten Sponsor an."
+          icon={Users}
+          title="Noch kein Sponsor zugeordnet"
+        />
+      ) : rows.length ? (
+        <ul className="pwa-list" data-testid="sponsor-list">
+          {rows.map((item) => (
             <SponsorRow
               actionId={actionId}
-              identity={identity}
               item={item}
               key={item.assignmentId}
+              userId={identity.userId}
             />
           ))}
-        </div>
+        </ul>
       ) : (
-        <div className="acq-empty" data-testid="sponsor-filter-empty">
-          <Icon icon={Search} size={20} />
-          <strong>Kein passender Sponsor</strong>
-          <span>Ändere den Suchbegriff oder lösche den Filter.</span>
-        </div>
+        <EmptyState
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setQuery("");
+                setScope("mine");
+                setStatus(null);
+              }}
+            >
+              Filter zurücksetzen
+            </Button>
+          }
+          description="Passe Suche oder Filter an – oder lege den Sponsor neu an."
+          icon={Search}
+          title="Keine Sponsoren gefunden"
+        />
       )}
     </>
   );
 }
 
-function candidateAddress(candidate: SponsorMatchCandidateResponse) {
-  return [candidate.postalCode, candidate.city].filter(Boolean).join(" ");
+/* ---------- Sponsor detail ---------- */
+
+function SponsorDetail({
+  actionId,
+  board,
+  client,
+  identity,
+  item,
+}: {
+  readonly actionId: string;
+  readonly board: AcquisitionActivityBoardResponse;
+  readonly client: LeonAidApiClient;
+  readonly identity: CurrentIdentityResponse;
+  readonly item: AcquisitionActivityWorkItemResponse | undefined;
+}) {
+  const [sheet, setSheet] = useState(
+    () => new URLSearchParams(window.location.search).get("contact") === "1",
+  );
+  const heading = useScreenHeading();
+  const contactButton = useRef<HTMLButtonElement>(null);
+  const back = listHref(actionId);
+  const orderHref = item
+    ? `/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`
+    : back;
+  useHotkeys(
+    [
+      {
+        keys: "escape",
+        label: "Zurück zur Liste",
+        group: "Akquise-App",
+        run: () => navigateToScreen(back),
+        // Esc in a field leaves the field (shell rule), not the page.
+        when: () => !isTypingTarget(document.activeElement),
+      },
+      {
+        keys: "k",
+        label: "Kontaktversuch erfassen",
+        group: "Akquise-App",
+        run: () => setSheet(true),
+        when: () => Boolean(item),
+      },
+      {
+        keys: "b",
+        label: "Bestellung erfassen",
+        group: "Akquise-App",
+        run: () => navigateToScreen(orderHref),
+        when: () => Boolean(item),
+      },
+    ],
+    [back, orderHref, item?.assignmentId],
+  );
+
+  if (!item) {
+    return (
+      <>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Sponsor nicht gefunden
+        </h1>
+        <EmptyState
+          action={
+            <a
+              className={buttonClassName({ variant: "primary" })}
+              href={back}
+              onClick={followInPage}
+            >
+              Zur Liste
+            </a>
+          }
+          description="Vielleicht wurde der Sponsor zusammengeführt oder du bist nicht mehr zuständig."
+          icon={Users}
+          title="Nicht mehr in deiner Liste"
+        />
+      </>
+    );
+  }
+
+  const label = assignmentStatusLabel[item.status];
+  const others = otherAcquirers(item, identity.userId);
+  const phoneAllowed = item.phone && !item.suppressedChannels.includes("phone");
+  const emailAllowed = item.email && !item.suppressedChannels.includes("email");
+  const history = board.activities
+    .filter((activity) => activity.assignmentId === item.assignmentId)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+
+  return (
+    <>
+      <a className="pwa-back" href={back} onClick={followInPage}>
+        <Icon icon={ArrowLeft} size={18} /> Sponsoren
+      </a>
+      <header className="pwa-detail-head">
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          {item.partyDisplayName}
+        </h1>
+        <p className="pwa-detail-sub" data-status={item.status}>
+          <StatusIcon
+            label=""
+            size={14}
+            status={assignmentStatusShape[item.status]}
+          />
+          {label} · {item.partyKind === "company" ? "Firma" : "Privatperson"}
+        </p>
+        {others.length ? (
+          <p className="small muted" data-testid="co-assignees">
+            Gemeinsam mit {others.join(", ")}
+          </p>
+        ) : null}
+      </header>
+      <div aria-label="Kontaktmöglichkeiten" className="pwa-actions">
+        {phoneAllowed ? (
+          <a className="pwa-action" href={telHref(item.phone!)}>
+            <Icon icon={Phone} size={20} />
+            Anrufen
+          </a>
+        ) : null}
+        {emailAllowed ? (
+          <a className="pwa-action" href={`mailto:${item.email}`}>
+            <Icon icon={Mail} size={20} />
+            E-Mail
+          </a>
+        ) : null}
+        <button
+          className="pwa-action"
+          data-testid="contact-open"
+          onClick={() => setSheet(true)}
+          ref={contactButton}
+          type="button"
+        >
+          <Icon icon={CalendarClock} size={20} />
+          Kontakt erfassen
+        </button>
+      </div>
+      <a
+        className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
+        data-testid="order-open"
+        href={orderHref}
+        onClick={followInPage}
+      >
+        <Icon icon={ShoppingBasket} size={18} />
+        <span className="btn-label">Bestellung erfassen</span>
+      </a>
+
+      <section aria-labelledby="contact-title" className="pwa-card">
+        <h2 className="pwa-h2" id="contact-title">
+          Kontakt
+        </h2>
+        <dl className="pwa-dl">
+          <div>
+            <dt>Ansprechperson</dt>
+            <dd>{item.contactName ?? "Nicht hinterlegt"}</dd>
+          </div>
+          <div>
+            <dt>Telefon</dt>
+            <dd className="num">{item.phone ?? "Nicht hinterlegt"}</dd>
+          </div>
+          <div>
+            <dt>E-Mail</dt>
+            <dd>{item.email ?? "Nicht hinterlegt"}</dd>
+          </div>
+          <div>
+            <dt>Ort</dt>
+            <dd>
+              {[item.postalCode, item.city].filter(Boolean).join(" ") ||
+                "Nicht hinterlegt"}
+            </dd>
+          </div>
+          <div>
+            <dt>Wiedervorlage</dt>
+            <dd data-testid="detail-follow-up">
+              {item.dueAt
+                ? `${shortDate(item.dueAt)} (${relativeDay(item.dueAt)})${
+                    item.nextAction ? ` · ${item.nextAction}` : ""
+                  }`
+                : "Keine geplant"}
+            </dd>
+          </div>
+        </dl>
+        {item.suppressedChannels.length ? (
+          <p className="small muted">
+            Gesperrt:{" "}
+            {item.suppressedChannels
+              .map((channel) =>
+                channel === "email"
+                  ? "E-Mail"
+                  : channel === "phone"
+                    ? "Telefon"
+                    : "Post",
+              )
+              .join(", ")}
+          </p>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="history-title">
+        <h2 className="pwa-h2" id="history-title">
+          Verlauf
+        </h2>
+        {history.length ? (
+          <ol className="timeline pwa-timeline" data-testid="activity-timeline">
+            {history.map((entry) => (
+              <li
+                data-activity-id={entry.id}
+                data-testid="activity-entry"
+                key={entry.id}
+              >
+                <span>
+                  <strong>{outcomeLabels[entry.outcome]}</strong>
+                  {` · ${channelLabels[entry.channel]}`}
+                  {entry.note ? ` – ${entry.note}` : ""}
+                  <time dateTime={entry.occurredAt}>
+                    {formatDateTime(entry.occurredAt)}
+                    {entry.actorUserId === identity.userId
+                      ? ""
+                      : ` · ${entry.actorDisplayName}`}
+                  </time>
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="small muted">Noch kein Kontakt erfasst.</p>
+        )}
+      </section>
+
+      <ContactSheet
+        actionId={actionId}
+        client={client}
+        item={item}
+        onClose={() => setSheet(false)}
+        returnFocus={contactButton}
+        open={sheet}
+      />
+    </>
+  );
 }
 
+/* ---------- New sponsor with CRM check ---------- */
+
 function MatchResult({
+  actionId,
+  confirmed,
   currentUser,
   match,
   onCancel,
@@ -337,8 +491,10 @@ function MatchResult({
   resolving,
   resolution,
   selectedId,
+  setConfirmed,
   setSelectedId,
 }: {
+  readonly actionId: string;
   readonly currentUser: CurrentIdentityResponse;
   readonly match: SponsorMatchResponse | null;
   readonly onCancel: () => void;
@@ -347,6 +503,9 @@ function MatchResult({
   readonly resolution: SponsorResolutionResponse | null;
   readonly selectedId: string;
   readonly setSelectedId: (id: string) => void;
+  /** The acquirer's own "Ja, ich spreche mich … ab" (prototype). */
+  readonly confirmed: boolean;
+  readonly setConfirmed: (value: boolean) => void;
 }) {
   if (resolution) {
     const shared = [
@@ -358,8 +517,8 @@ function MatchResult({
         index,
     );
     return (
-      <div className="acq-match-success" data-testid="sponsor-success">
-        <strong>Zuordnung gespeichert</strong>
+      <div className="pwa-card" data-testid="sponsor-success">
+        <h2 className="pwa-h2">Zuordnung gespeichert</h2>
         <p>
           {resolution.displayName}
           {resolution.outcome === "created"
@@ -367,12 +526,24 @@ function MatchResult({
             : " wurde aus dem CRM übernommen."}
         </p>
         {shared.length > 1 ? (
-          <span data-testid="shared-assignees">
+          <p className="small muted" data-testid="shared-assignees">
             Gemeinsam betreut von{" "}
             {shared.map((item) => item.displayName).join(", ")}
-          </span>
+          </p>
         ) : null}
-        <Button onClick={onCancel} variant="secondary">
+        <a
+          className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
+          href={sponsorHref(actionId, resolution.assignmentId)}
+          onClick={followInPage}
+        >
+          Zum Sponsor
+        </a>
+        <Button
+          className="pwa-wide"
+          onClick={onCancel}
+          size="lg"
+          variant="secondary"
+        >
           Weiteren Sponsor erfassen
         </Button>
       </div>
@@ -381,24 +552,21 @@ function MatchResult({
 
   if (!match) {
     return (
-      <div className="acq-empty acq-empty--roomy">
-        <Icon icon={Search} size={20} />
-        <strong>Noch keine CRM-Prüfung</strong>
-        <span>
-          Nach der Prüfung siehst du Treffer, Zusatzdaten und vorhandene
-          Akquisiteure.
-        </span>
-      </div>
+      <p className="small muted">
+        Noch keine CRM-Prüfung. Danach siehst du Treffer und wer den Sponsor
+        schon betreut.
+      </p>
     );
   }
 
   const selected = match.candidates.find(
     (candidate) => candidate.twentyId === selectedId,
   );
-  const hasOtherAssignments =
-    selected?.assignedAcquirers.some(
-      (assignee) => assignee.userId !== currentUser.userId,
-    ) ?? false;
+  const others =
+    selected?.assignedAcquirers
+      .filter((assignee) => assignee.userId !== currentUser.userId)
+      .map((assignee) => assignee.displayName) ?? [];
+  const hasOtherAssignments = others.length > 0;
   const title =
     match.status === "no_match"
       ? "Kein gleichnamiger Sponsor gefunden"
@@ -407,69 +575,102 @@ function MatchResult({
         : "Mehrere mögliche Treffer";
 
   return (
-    <div className="acq-match-result">
-      <div className="acq-match-result__heading">
-        <h2>{title}</h2>
-        <span>
+    <div
+      className={
+        match.status === "no_match" ? "pwa-card" : "callout tone-warn pwa-match"
+      }
+    >
+      {match.status === "no_match" ? null : (
+        <Icon icon={CircleAlert} size={18} />
+      )}
+      <div className="stack">
+        <h2 className="pwa-h2">{title}</h2>
+        <p>
           {match.status === "no_match"
-            ? "LeonAid kann den neuen Datensatz jetzt kontrolliert anlegen."
-            : "Prüfe die Zusatzdaten, bevor du die Zuordnung bestätigst."}
-        </span>
-      </div>
-      {match.candidates.length > 0 ? (
-        <div className="acq-candidates">
-          {match.candidates.map((candidate) => (
-            <label className="candidate" key={candidate.twentyId}>
-              <input
-                checked={selectedId === candidate.twentyId}
-                name="candidate"
-                onChange={() => setSelectedId(candidate.twentyId)}
-                type="radio"
-                value={candidate.twentyId}
-              />
-              <span>
-                <strong>{candidate.displayName}</strong>
-                <small>
-                  {candidateAddress(candidate) ||
-                    candidate.email ||
-                    "Keine Zusatzdaten"}
-                </small>
-                {candidate.assignedAcquirers.length > 0 ? (
-                  <span className="assignment-warning">
-                    Bereits betreut von{" "}
-                    {candidate.assignedAcquirers
-                      .map((item) => item.displayName)
-                      .join(", ")}
+            ? "LeonAid kann den neuen Datensatz jetzt anlegen."
+            : "Prüfe die Angaben, bevor du die Zuordnung bestätigst."}
+        </p>
+        {match.candidates.length > 0 ? (
+          <fieldset className="pwa-fieldset">
+            <legend className="sr-only">Treffer</legend>
+            <div className="pwa-options">
+              {match.candidates.map((candidate) => (
+                <label
+                  className={`pwa-option candidate${selectedId === candidate.twentyId ? " is-checked" : ""}`}
+                  key={candidate.twentyId}
+                >
+                  <input
+                    checked={selectedId === candidate.twentyId}
+                    name="candidate"
+                    onChange={() => setSelectedId(candidate.twentyId)}
+                    type="radio"
+                    value={candidate.twentyId}
+                  />
+                  <span className="pwa-option-text">
+                    <strong>{candidate.displayName}</strong>
+                    <span className="small muted">
+                      {[candidate.postalCode, candidate.city]
+                        .filter(Boolean)
+                        .join(" ") ||
+                        candidate.email ||
+                        "Keine Zusatzdaten"}
+                    </span>
+                    {candidate.assignedAcquirers.length > 0 ? (
+                      <span className="small assignment-warning">
+                        Bereits betreut von{" "}
+                        {candidate.assignedAcquirers
+                          .map((item) => item.displayName)
+                          .join(", ")}
+                      </span>
+                    ) : (
+                      <span className="small muted">Noch nicht zugeordnet</span>
+                    )}
                   </span>
-                ) : (
-                  <span className="acq-unassigned">Noch nicht zugeordnet</span>
-                )}
-              </span>
-            </label>
-          ))}
-        </div>
-      ) : null}
-      <div className="acq-match-actions">
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+        {hasOtherAssignments ? (
+          <label className="checkbox pwa-confirm">
+            <input
+              checked={confirmed}
+              data-testid="sponsor-confirm-shared"
+              onChange={(event) => setConfirmed(event.target.checked)}
+              type="checkbox"
+            />
+            Ja, ich spreche mich mit {others.join(", ")} ab und trage mich
+            zusätzlich ein.
+          </label>
+        ) : null}
         <Button
+          className="pwa-wide"
           data-testid="sponsor-resolve"
           disabled={
             resolving ||
-            (match.status !== "no_match" && selectedId.length === 0)
+            (match.status !== "no_match" && selectedId.length === 0) ||
+            (hasOtherAssignments && !confirmed)
           }
+          icon={UserPlus}
+          loading={resolving}
           onClick={onResolve}
+          size="lg"
+          variant="primary"
         >
           {resolving
             ? "Zuordnung wird gespeichert …"
             : match.status === "no_match"
-              ? "Sponsor anlegen und mir zuordnen"
+              ? "Sponsor anlegen"
               : hasOtherAssignments
-                ? "Trotzdem ebenfalls zuordnen"
+                ? "Als weitere Akquise eintragen"
                 : "Diesen Sponsor mir zuordnen"}
         </Button>
         <Button
+          className="pwa-wide"
           data-testid="sponsor-cancel"
           disabled={resolving}
           onClick={onCancel}
+          size="lg"
           variant="secondary"
         >
           Prüfung abbrechen
@@ -479,30 +680,32 @@ function MatchResult({
   );
 }
 
-function SponsorCapture({
+function NewSponsor({
   actionId,
   client,
   identity,
   onAssigned,
-  visible,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
-  /** False while the list is shown; the capture stays mounted. */
-  readonly visible: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<SponsorMode>("company");
   const [match, setMatch] = useState<SponsorMatchResponse | null>(null);
   const [draft, setDraft] = useState<SponsorDraftRequest | null>(null);
   const [commandId, setCommandId] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedIdState] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  // Another candidate needs its own confirmation.
+  const setSelectedId = (id: string) => {
+    setSelectedIdState(id);
+    setConfirmed(false);
+  };
   const [resolution, setResolution] =
     useState<SponsorResolutionResponse | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
   const preview = useMutation({
     mutationFn: (nextDraft: SponsorDraftRequest) =>
       client.previewSponsorMatch(actionId, nextDraft),
@@ -526,8 +729,8 @@ function SponsorCapture({
       );
       return client.resolveSponsorMatch(actionId, {
         commandId,
-        confirmExistingAssignments:
-          (selected?.assignedAcquirers.length ?? 0) > 0,
+        // Only the acquirer's own tick confirms a shared assignment.
+        confirmExistingAssignments: confirmed,
         expectedStatus: match.status,
         selectedTwentyId: selected?.twentyId ?? null,
         sponsor: draft,
@@ -538,7 +741,6 @@ function SponsorCapture({
       await onAssigned();
     },
   });
-
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -549,13 +751,21 @@ function SponsorCapture({
     const givenName = optional("givenName");
     const familyName = optional("familyName");
     const email = optional("email");
+    if (mode === "company" && !optional("companyName")) {
+      setFormError("Bitte den Firmennamen angeben.");
+      return;
+    }
+    if (mode === "person" && (!givenName || !familyName)) {
+      setFormError("Bitte Vor- und Nachnamen angeben.");
+      return;
+    }
     if (
       mode === "company" &&
       (givenName || familyName || email) &&
       (!givenName || !familyName)
     ) {
       setFormError(
-        "Gib für den Ansprechpartner Vorname und Nachname gemeinsam an.",
+        "Gib für die Ansprechperson Vorname und Nachname gemeinsam an.",
       );
       return;
     }
@@ -570,19 +780,13 @@ function SponsorCapture({
             postalCode: optional("postalCode"),
             streetLine1: optional("streetLine1"),
           }
-        : {
-            companyName: null,
-            email,
-            familyName,
-            givenName,
-          };
+        : { companyName: null, email, familyName, givenName };
     setFormError(null);
     setMatch(null);
     setCommandId(null);
     setResolution(null);
     preview.mutate(nextDraft);
   }
-
   function resetCapture() {
     preview.reset();
     resolve.reset();
@@ -594,387 +798,267 @@ function SponsorCapture({
     setResolution(null);
     setFormError(null);
   }
-
   const formLocked =
     preview.isPending ||
     resolve.isPending ||
     match !== null ||
     resolution !== null;
-
   return (
-    <div className="acq-capture-layout">
-      <section aria-labelledby="sponsor-form-heading" className="acq-workflow">
-        <div className="acq-section-heading">
-          <span aria-hidden="true" className="acq-section-heading__icon">
-            <Icon icon={Plus} size={20} />
-          </span>
-          <div>
-            <h2 id="sponsor-form-heading">Wen möchtest du ansprechen?</h2>
-            <p>
-              Firma ist der führende Matchschlüssel. Ohne Firma werden Vor- und
-              Nachname verwendet.
-            </p>
-          </div>
-        </div>
-        <form
-          className="acq-form"
-          // Saved: the locked values are no unsaved input any more. During
-          // match review nothing is saved yet, so leaving still asks.
-          data-leave-guard={resolution ? "off" : undefined}
-          id="sponsor-form"
-          onSubmit={submit}
-          ref={formRef}
-        >
-          <fieldset className="acq-capture-fields" disabled={formLocked}>
-            <legend className="sr-only">Sponsor-Daten</legend>
-            <div
-              aria-label="Sponsorart"
-              className="acq-segment acq-field--wide"
-              role="group"
+    <>
+      <form
+        className="stack"
+        // Saved: the locked values are no unsaved input any more. During
+        // match review nothing is saved yet, so leaving still asks.
+        data-leave-guard={resolution ? "off" : undefined}
+        id="sponsor-form"
+        noValidate
+        onSubmit={submit}
+        ref={formRef}
+      >
+        <fieldset className="pwa-fieldset stack" disabled={formLocked}>
+          <legend className="sr-only">Sponsor-Daten</legend>
+          <div
+            aria-label="Art des Sponsors"
+            className="pwa-segment"
+            role="group"
+          >
+            <button
+              aria-pressed={mode === "company"}
+              onClick={() => setMode("company")}
+              type="button"
             >
-              <button
-                aria-pressed={mode === "company"}
-                onClick={() => setMode("company")}
-                type="button"
-              >
-                Firma
-              </button>
-              <button
-                aria-pressed={mode === "person"}
-                onClick={() => setMode("person")}
-                type="button"
-              >
-                Privatperson
-              </button>
-            </div>
-            {mode === "company" ? (
-              <div className="acq-field acq-field--wide">
-                <label htmlFor="sponsor-company">Firmenname</label>
-                <p id="sponsor-company-help">
-                  Der offizielle oder im Alltag verwendete Firmenname. LeonAid
-                  nutzt ihn für die CRM-Prüfung.
-                </p>
-                <input
-                  aria-describedby="sponsor-company-help"
-                  data-testid="sponsor-company"
-                  id="sponsor-company"
+              Firma
+            </button>
+            <button
+              aria-pressed={mode === "person"}
+              onClick={() => setMode("person")}
+              type="button"
+            >
+              Privatperson
+            </button>
+          </div>
+          {mode === "company" ? (
+            <Field
+              hint="So, wie die Firma im Alltag heißt. LeonAid prüft damit das CRM auf Dubletten."
+              label="Firmenname"
+            >
+              <Input
+                autoComplete="organization"
+                data-testid="sponsor-company"
+                id="sponsor-company"
+                maxLength={300}
+                name="companyName"
+                required
+              />
+            </Field>
+          ) : null}
+          <Field
+            label={
+              mode === "company" ? "Vorname der Ansprechperson" : "Vorname"
+            }
+            optional={mode === "company"}
+          >
+            <Input
+              autoComplete="given-name"
+              id="sponsor-given-name"
+              maxLength={200}
+              name="givenName"
+              required={mode === "person"}
+            />
+          </Field>
+          <Field
+            label={
+              mode === "company" ? "Nachname der Ansprechperson" : "Nachname"
+            }
+            optional={mode === "company"}
+          >
+            <Input
+              autoComplete="family-name"
+              id="sponsor-family-name"
+              maxLength={200}
+              name="familyName"
+              required={mode === "person"}
+            />
+          </Field>
+          <Field label="E-Mail" optional>
+            <Input
+              autoComplete="email"
+              id="sponsor-email"
+              maxLength={320}
+              name="email"
+              type="email"
+            />
+          </Field>
+          {mode === "company" ? (
+            <>
+              <Field label="Straße" optional>
+                <Input
+                  autoComplete="address-line1"
+                  id="sponsor-street"
                   maxLength={300}
-                  name="companyName"
-                  placeholder="Musterbetrieb GmbH"
-                  required
+                  name="streetLine1"
                 />
-              </div>
-            ) : null}
-            <div className="acq-field">
-              <label htmlFor="sponsor-given-name">
-                Vorname{mode === "company" ? " (optional)" : ""}
-              </label>
-              <p id="sponsor-given-name-help">
-                {mode === "company"
-                  ? "Ansprechpartner in der Firma; Name immer vollständig angeben."
-                  : "Gemeinsam mit dem Nachnamen der CRM-Matchschlüssel."}
-              </p>
-              <input
-                aria-describedby="sponsor-given-name-help"
-                id="sponsor-given-name"
-                maxLength={200}
-                name="givenName"
-                required={mode === "person"}
-              />
-            </div>
-            <div className="acq-field">
-              <label htmlFor="sponsor-family-name">
-                Nachname{mode === "company" ? " (optional)" : ""}
-              </label>
-              <p id="sponsor-family-name-help">
-                {mode === "company"
-                  ? "Wird zusammen mit dem Vornamen als Firmenkontakt angelegt."
-                  : "Erforderlich, damit die Person eindeutig geprüft werden kann."}
-              </p>
-              <input
-                aria-describedby="sponsor-family-name-help"
-                id="sponsor-family-name"
-                maxLength={200}
-                name="familyName"
-                required={mode === "person"}
-              />
-            </div>
-            <div className="acq-field acq-field--wide">
-              <label htmlFor="sponsor-email">E-Mail (optional)</label>
-              <p id="sponsor-email-help">
-                Hilft beim Kontakt und bei gleichnamigen Personen; sie ist kein
-                führender Matchschlüssel.
-              </p>
-              <input
-                aria-describedby="sponsor-email-help"
-                autoComplete="email"
-                id="sponsor-email"
-                maxLength={320}
-                name="email"
-                placeholder="kontakt@beispiel.de"
-                type="email"
-              />
-            </div>
-            {mode === "company" ? (
-              <>
-                <div className="acq-field acq-field--wide">
-                  <label htmlFor="sponsor-street">Straße (optional)</label>
-                  <p id="sponsor-street-help">
-                    Dient zur Unterscheidung und späteren Routenplanung.
-                  </p>
-                  <input
-                    aria-describedby="sponsor-street-help"
-                    id="sponsor-street"
-                    maxLength={300}
-                    name="streetLine1"
-                    placeholder="Musterstraße 12"
-                  />
-                </div>
-                <div className="acq-field">
-                  <label htmlFor="sponsor-postal-code">PLZ (optional)</label>
-                  <p id="sponsor-postal-code-help">
-                    Hilft bei Trefferprüfung und Auslieferung.
-                  </p>
-                  <input
-                    aria-describedby="sponsor-postal-code-help"
+              </Field>
+              <div className="pwa-two">
+                <Field label="PLZ" optional>
+                  <Input
+                    autoComplete="postal-code"
                     id="sponsor-postal-code"
                     maxLength={40}
                     name="postalCode"
-                    placeholder="80331"
                   />
-                </div>
-                <div className="acq-field">
-                  <label htmlFor="sponsor-city">Ort (optional)</label>
-                  <p id="sponsor-city-help">
-                    Wird zusammen mit der PLZ im Treffer angezeigt.
-                  </p>
-                  <input
-                    aria-describedby="sponsor-city-help"
+                </Field>
+                <Field label="Ort" optional>
+                  <Input
+                    autoComplete="address-level2"
                     id="sponsor-city"
                     maxLength={200}
                     name="city"
-                    placeholder="München"
                   />
-                </div>
-              </>
-            ) : null}
-          </fieldset>
-          <div className="acq-form__actions acq-field--wide">
-            <Button
-              data-testid="sponsor-preview"
-              disabled={formLocked}
-              type="submit"
-            >
-              {preview.isPending ? "CRM wird geprüft …" : "Im CRM prüfen"}
-            </Button>
-          </div>
-          <div
-            aria-live="polite"
-            className="acq-field--wide"
-            id="sponsor-status"
-            role="status"
+                </Field>
+              </div>
+            </>
+          ) : null}
+        </fieldset>
+        {match || resolution ? null : (
+          <Button
+            className="pwa-wide"
+            data-testid="sponsor-preview"
+            disabled={formLocked}
+            icon={Search}
+            loading={preview.isPending}
+            size="lg"
+            type="submit"
+            variant="primary"
           >
-            {/* Filled only while shown, so a result or error that arrived
-                while the list was open is announced on return. */}
-            {visible ? (
-              <>
-                {resolution ? (
-                  <StatusMessage tone="success">
-                    {resolution.displayName} ist jetzt dir zugeordnet.
-                  </StatusMessage>
-                ) : null}
-                {formError ? (
-                  <StatusMessage tone="error">{formError}</StatusMessage>
-                ) : null}
-                {preview.isError || resolve.isError ? (
-                  <StatusMessage tone="error">
-                    {sponsorError(preview.error ?? resolve.error)}
-                  </StatusMessage>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </form>
-      </section>
-
-      <section
-        aria-label="Ergebnis der CRM-Prüfung"
-        className="acq-match-panel"
-      >
+            {preview.isPending ? "CRM wird geprüft …" : "Im CRM prüfen"}
+          </Button>
+        )}
+        <div aria-live="polite" id="sponsor-status" role="status">
+          {resolution ? (
+            <StatusMessage tone="success">
+              {resolution.displayName} ist jetzt dir zugeordnet.
+            </StatusMessage>
+          ) : null}
+          {formError ? (
+            <StatusMessage tone="error">{formError}</StatusMessage>
+          ) : null}
+          {preview.isError || resolve.isError ? (
+            <StatusMessage tone="error">
+              {sponsorError(preview.error ?? resolve.error)}
+            </StatusMessage>
+          ) : null}
+        </div>
+      </form>
+      <section aria-label="Ergebnis der CRM-Prüfung">
         <MatchResult
+          actionId={actionId}
           currentUser={identity}
           match={match}
           onCancel={resetCapture}
           onResolve={() => resolve.mutate()}
           resolving={resolve.isPending}
           resolution={resolution}
+          confirmed={confirmed}
           selectedId={selectedId}
+          setConfirmed={setConfirmed}
           setSelectedId={setSelectedId}
         />
       </section>
-    </div>
+    </>
   );
 }
 
+/* ---------- Route ---------- */
+
 export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
-  const memberships = useMemo(
-    () =>
-      identity.actionMemberships.filter(
-        (membership) => membership.role === "acquirer",
-      ),
-    [identity.actionMemberships],
-  );
-  const query = new URLSearchParams(window.location.search);
-  const requestedAction = query.get("action");
-  const [actionId, setActionId] = useState(
-    memberships.find((item) => item.actionId === requestedAction)?.actionId ??
-      memberships[0]?.actionId ??
-      "",
-  );
-  const requestedStatus = query.get("status");
-  const initialStatus: SponsorStatusFilter = [
-    "open",
-    "contacted",
-    "committed",
-    "declined",
-    "handed_over",
-  ].includes(requestedStatus ?? "")
-    ? (requestedStatus as SponsorStatusFilter)
-    : "all";
-  // The view is part of the URL (?view=new), so the PWA's "Neu" tab and
-  // Back both reach the capture form.
+  const { actionId, memberships, choose } = useAcquirerAction(identity);
+  const heading = useScreenHeading();
   const href = useLocationHref();
-  const view: SponsorView =
-    new URLSearchParams(href.split("?")[1] ?? "").get("view") === "new"
-      ? "new"
-      : "list";
-  const [captureOpened, setCaptureOpened] = useState(view === "new");
-  if (view === "new" && !captureOpened) setCaptureOpened(true);
-  function setView(next: SponsorView) {
-    if (next === view) return;
-    const url = new URL(window.location.href);
-    if (next === "new") url.searchParams.set("view", "new");
-    else url.searchParams.delete("view");
-    navigateInPage(`${url.pathname}${url.search}`);
+  const query = new URLSearchParams(href.split("?")[1] ?? "");
+  const view = query.get("view") === "new" ? "new" : "list";
+  const assignmentId = query.get("assignment");
+  const requestedStatus = query.get("status");
+  const status = isAssignmentStatus(requestedStatus) ? requestedStatus : null;
+  const board = useSponsorBoard(client, actionId);
+  const choice = (
+    <ActionChoice
+      actionId={actionId}
+      memberships={memberships}
+      onChange={choose}
+    />
+  );
+
+  if (memberships.length === 0) {
+    return (
+      <EmptyState
+        description="Sobald du einer Charity-Aktion als Akquisiteur zugeordnet bist, erscheinen hier deine Sponsoren."
+        headingLevel={2}
+        icon={Users}
+        title="Noch keine Akquise-Aktion"
+      />
+    );
   }
-  const board = useQuery({
-    enabled: Boolean(actionId),
-    queryFn: () => client.getAcquisitionActivityBoard(actionId, { limit: 50 }),
-    queryKey: ["acquisition-activity-board", actionId],
-  });
+
+  if (view === "new") {
+    return (
+      <>
+        <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+          Neuer Sponsor
+        </h1>
+        {choice}
+        <NewSponsor
+          actionId={actionId}
+          client={client}
+          identity={identity}
+          key={actionId}
+          onAssigned={() => board.refetch()}
+        />
+      </>
+    );
+  }
+
+  const content = board.isPending ? (
+    <BoardLoading label="Sponsoren werden geladen" />
+  ) : board.isError ? (
+    <BoardFailed
+      onRetry={() => void board.refetch()}
+      retryLabel="Sponsoren neu laden"
+      title="Sponsorenliste nicht erreichbar"
+    />
+  ) : null;
+
+  if (assignmentId) {
+    return (
+      content ?? (
+        <SponsorDetail
+          actionId={actionId}
+          board={board.data!}
+          client={client}
+          identity={identity}
+          item={board.data!.workItems.find(
+            (item) => item.assignmentId === assignmentId,
+          )}
+          key={assignmentId}
+        />
+      )
+    );
+  }
 
   return (
-    <div className="acq-page">
-      <header className="acq-page__header acq-page__header--with-action">
-        <div>
-          <p className="acq-eyebrow">Sponsor-Akquise</p>
-          <h1>{view === "list" ? "Meine Sponsoren" : "Sponsor erfassen"}</h1>
-          <p>
-            {view === "list"
-              ? "Deine Zuständigkeiten, nächsten Schritte und Kontaktwege – ohne CRM-Suche."
-              : "Prüfe zuerst den CRM-Bestand. LeonAid zeigt vorhandene Zuständigkeiten vor der Übernahme."}
-          </p>
-        </div>
-        {view === "list" ? (
-          <Button
-            icon={<Icon icon={Plus} size={18} />}
-            onClick={() => setView("new")}
-          >
-            Sponsor erfassen
-          </Button>
-        ) : null}
-      </header>
-
-      <div className="acq-workspace-bar">
-        <div className="acq-field acq-action-picker">
-          <label htmlFor="sponsor-action">Charity-Aktion</label>
-          <select
-            data-testid="sponsor-action"
-            id="sponsor-action"
-            onChange={(event) => {
-              setActionId(event.target.value);
-              const url = new URL(window.location.href);
-              url.searchParams.set("action", event.target.value);
-              window.history.replaceState(
-                {},
-                "",
-                `${url.pathname}${url.search}`,
-              );
-            }}
-            value={actionId}
-          >
-            {memberships.map((membership) => (
-              <option key={membership.actionId} value={membership.actionId}>
-                {membership.actionName}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div aria-label="Sponsorenansicht" className="acq-tabs" role="tablist">
-          <button
-            aria-selected={view === "list"}
-            onClick={() => setView("list")}
-            role="tab"
-            type="button"
-          >
-            Übersicht
-          </button>
-          <button
-            aria-selected={view === "new"}
-            onClick={() => setView("new")}
-            role="tab"
-            type="button"
-          >
-            Sponsor erfassen
-          </button>
-        </div>
-      </div>
-
-      {captureOpened ? (
-        // Stays mounted once opened: switching to the list or going Back
-        // keeps what was typed, and "Neu" shows it again.
-        <div hidden={view !== "new"}>
-          <SponsorCapture
-            actionId={actionId}
-            client={client}
-            identity={identity}
-            key={actionId}
-            onAssigned={async () => {
-              await board.refetch();
-            }}
-            visible={view === "new"}
-          />
-        </div>
-      ) : null}
-      {view === "new" ? null : board.isPending ? (
-        <div aria-live="polite" className="acq-skeleton" role="status">
-          <span />
-          <span />
-          <span />
-          <p className="sr-only">Sponsoren werden geladen</p>
-        </div>
-      ) : board.isError ? (
-        <StatusMessage tone="error">
-          <div>
-            <strong>Sponsorenliste nicht erreichbar</strong>
-            <p>
-              Prüfe deine Verbindung. Bereits geöffnete Daten werden nicht
-              offline verändert.
-            </p>
-            <Button onClick={() => void board.refetch()} variant="secondary">
-              Sponsoren neu laden
-            </Button>
-          </div>
-        </StatusMessage>
-      ) : (
+    <>
+      <h1 className="pwa-h1" ref={heading} tabIndex={-1}>
+        Sponsoren
+      </h1>
+      {choice}
+      {content ?? (
         <SponsorList
           actionId={actionId}
           identity={identity}
-          initialStatus={initialStatus}
-          items={board.data?.workItems ?? []}
-          onCreate={() => setView("new")}
+          items={board.data!.workItems}
+          status={status}
         />
       )}
-    </div>
+    </>
   );
 }
