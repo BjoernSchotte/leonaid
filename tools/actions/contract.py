@@ -226,6 +226,41 @@ async def exercise(
         if error_signature(foreign) != error_signature(unknown):
             raise ContractFailure("foreign action is detectable from the error")
 
+        # "Aktionen verwalten": each manager lists only the actions they
+        # manage; an acquirer gets an empty list; no session is refused.
+        async def listed(user_id: UUID, label: str) -> list[dict[str, Any]]:
+            response = await client.get(
+                "/api/v1/actions",
+                cookies=cookies(tokens[user_id]),
+                headers=request_headers(label),
+            )
+            response.raise_for_status()
+            if response.headers.get("cache-control") != "no-store":
+                raise ContractFailure("action list may be cached")
+            return list(response.json()["items"])
+
+        klara_list = {item["id"]: item for item in await listed(KLARA_ID, "list")}
+        own_item = klara_list.get(str(action_id))
+        if (
+            own_item is None
+            or own_item["status"] != "draft"
+            or own_item["templateName"] is not None
+            or own_item["goal"]["goalValue"] != "12500"
+            or not own_item["leadNames"]
+        ):
+            raise ContractFailure("own action is missing from the action list")
+        if str(action_id) in {
+            item["id"] for item in await listed(FELIX_ID, "foreign-list")
+        }:
+            raise ContractFailure("action list shows a foreign action")
+        if await listed(ANNA_ID, "acquirer-list"):
+            raise ContractFailure("an acquirer lists managed actions")
+        anonymous = await client.get(
+            "/api/v1/actions", headers=request_headers("anonymous-list")
+        )
+        if anonymous.status_code != 401:
+            raise ContractFailure("action list answers without a session")
+
         goal_changed = await client.put(
             f"/api/v1/actions/{action_id}/goal",
             cookies=cookies(tokens[KLARA_ID]),
@@ -431,7 +466,7 @@ async def run(session_output: Path) -> None:
         await connection.close()
     print(
         "action-contract: neutral core, 1-n beneficiaries, targets, capabilities, "
-        "lifecycle and audit proven against real services"
+        "lifecycle, audit and the scoped action list proven against real services"
     )
 
 

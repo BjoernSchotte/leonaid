@@ -2473,6 +2473,23 @@
         "title": "CharityActionConfigurationResponse",
         "type": "object"
       },
+      "CharityActionListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CharityActionSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CharityActionListResponse",
+        "type": "object"
+      },
       "CharityActionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2609,6 +2626,75 @@
           "presentationTheme"
         ],
         "title": "CharityActionResponse",
+        "type": "object"
+      },
+      "CharityActionSummaryResponse": {
+        "additionalProperties": false,
+        "description": "One managed action in the \"Aktionen verwalten\" list.",
+        "properties": {
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/ActionGoalResponse"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "leadNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Leadnames",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "scheduled",
+              "active",
+              "completed",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "templateName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Templatename"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "startsOn",
+          "endsOn",
+          "templateName",
+          "leadNames",
+          "goal"
+        ],
+        "title": "CharityActionSummaryResponse",
         "type": "object"
       },
       "CharityAdminDashboardResponse": {
@@ -16589,6 +16675,85 @@
       }
     },
     "/api/v1/actions": {
+      "get": {
+        "operationId": "listCharityActions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Charity Actions",
+        "tags": [
+          "actions"
+        ]
+      },
       "post": {
         "operationId": "createCharityAction",
         "requestBody": {

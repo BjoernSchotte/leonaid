@@ -25,6 +25,7 @@ import {
   useHotkeys,
 } from "@leonaid/ui";
 
+import { goalText } from "./action-list";
 import { shortDate } from "../shared/dates";
 import {
   OffersTab,
@@ -102,30 +103,13 @@ function period(action: CharityActionResponse) {
   return `${shortDate(action.startsOn)} – ${shortDate(action.endsOn)}`;
 }
 
-function goalText(action: CharityActionResponse, value: string | null) {
-  if (value === null || value === "") return null;
-  const number = Number(value);
-  if (action.goal.currency) {
-    return Number.isFinite(number)
-      ? new Intl.NumberFormat("de-DE", {
-          currency: action.goal.currency,
-          style: "currency",
-        }).format(number)
-      : `${value} ${action.goal.currency}`;
-  }
-  const formatted = Number.isFinite(number)
-    ? new Intl.NumberFormat("de-DE").format(number)
-    : value;
-  return action.goal.unit ? `${formatted} ${action.goal.unit}` : formatted;
-}
-
 /** Überblick, read view (prototype Campaigns.tsx Overview). */
 function Overview({ state }: { readonly state: ActionManagementResponse }) {
   const action = state.action;
   const leads = state.administratorOptions
     .filter((option) => option.isResponsible)
     .map((option) => option.displayName);
-  const goal = goalText(action, action.goal.goalValue);
+  const goal = goalText(action.goal, action.goal.goalValue);
   return (
     <div className="overview" data-testid="action-overview">
       <section aria-labelledby="overview-purpose">
@@ -149,7 +133,7 @@ function Overview({ state }: { readonly state: ActionManagementResponse }) {
               label: "Bisher erreicht",
               value: (
                 <span className="num">
-                  {goalText(action, action.goal.actualValue) ?? "–"}
+                  {goalText(action.goal, action.goal.actualValue) ?? "–"}
                 </span>
               ),
             },

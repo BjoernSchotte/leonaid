@@ -392,7 +392,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     SessionAuthenticationResponse,
     SessionRevocationResponse,
     BeneficiaryResponse,
+    CharityActionListResponse,
     CharityActionResponse,
+    CharityActionSummaryResponse,
     CharityActionConfigurationResponse,
     OrderFormConfigurationResponse,
     SetActionBeneficiariesRequest,
@@ -3178,6 +3180,46 @@ async def create_charity_action_from_template(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Location"] = f"/api/v1/actions/{action.id}/configuration"
     return charity_action_configuration_response(action, configuration)
+
+
+@router.get(
+    "/api/v1/actions",
+    operation_id="listCharityActions",
+    response_model=CharityActionListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def list_charity_actions(
+    request: Request,
+    response: Response,
+) -> CharityActionListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    summaries = await action_service(request).list_managed(actor)
+    response.headers["Cache-Control"] = "no-store"
+    return CharityActionListResponse(
+        items=[
+            CharityActionSummaryResponse(
+                id=item.id,
+                name=item.name,
+                status=item.status.value,
+                starts_on=item.starts_on,
+                ends_on=item.ends_on,
+                template_name=item.template_name,
+                lead_names=list(item.lead_names),
+                goal=ActionGoalResponse(
+                    goal_value=(
+                        decimal_text(item.goal.goal_value)
+                        if item.goal.goal_value is not None
+                        else None
+                    ),
+                    actual_value=decimal_text(item.goal.actual_value),
+                    unit=item.goal.unit,
+                    currency=item.goal.currency,
+                ),
+            )
+            for item in summaries
+        ]
+    )
 
 
 @router.post(

@@ -784,6 +784,23 @@ class ActionGoalResponse(TransportModel):
     currency: str | None
 
 
+class CharityActionSummaryResponse(TransportModel):
+    """One managed action in the "Aktionen verwalten" list."""
+
+    id: UUID
+    name: str
+    status: Literal["draft", "scheduled", "active", "completed", "archived"]
+    starts_on: date
+    ends_on: date
+    template_name: str | None
+    lead_names: list[str]
+    goal: ActionGoalResponse
+
+
+class CharityActionListResponse(TransportModel):
+    items: list[CharityActionSummaryResponse]
+
+
 class BeneficiaryDraftRequest(TransportModel):
     organization_name: str = Field(min_length=1, max_length=200)
     public_description: str = Field(min_length=1, max_length=2_000)
