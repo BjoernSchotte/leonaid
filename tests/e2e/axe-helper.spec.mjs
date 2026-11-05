@@ -30,7 +30,7 @@ test("analyzeAccessibility fails fast with JavaScript disabled", async ({
     await page.setContent(PAGE);
     const started = Date.now();
     await expect(analyzeAccessibility(page)).rejects.toThrow(
-      /JavaScript disabled in this browser context/,
+      /page scripts did not run within 2 s/,
     );
     expect(Date.now() - started).toBeLessThan(10_000);
   } finally {

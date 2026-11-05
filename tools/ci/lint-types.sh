@@ -83,6 +83,34 @@ docker run --rm --network none \
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
   python /workspace/tools/ci/gate_test.py
+# Merge conflict markers.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/conflict_markers_test.py
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/conflict_markers.py /workspace
+# Browser specs scan through tests/e2e/axe.mjs (no direct AxeBuilder).
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/axe_helper_test.py
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/axe_helper.py /workspace
+# Leitsystem only: no Hugeicons, Base UI or old token aliases.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/legacy_ui_test.py
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/legacy_ui.py /workspace
+# Core one-off user containers.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/core_oneoff_user_test.py /workspace
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/core_oneoff_user.py /workspace
 run_bun bun run typecheck
 # Leitsystem token contrast (WCAG targets in light and dark, all zones).
 run_bun bun run test:ui

@@ -13,7 +13,9 @@ import sys
 from pathlib import Path
 
 HELPER = Path("tests/e2e/axe.mjs")
-DIRECT = re.compile(r"\bnew\s+AxeBuilder\b|from\s+[\"']@axe-core/playwright[\"']")
+# Any reference to the package (static import, import(), require()) or a
+# direct AxeBuilder construction.
+DIRECT = re.compile(r"\bnew\s+AxeBuilder\b|[\"'`]@axe-core/playwright[\"'`]")
 SUFFIXES = {".js", ".mjs", ".cjs", ".ts", ".mts"}
 
 
