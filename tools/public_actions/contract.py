@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import html
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -177,7 +178,13 @@ async def assert_astro_matches(
     if response.headers.get("X-LeonAid-Public-State") != expected_state:
         raise ContractFailure(f"Astro route {path} and Core decide differently")
     source = response.text
-    has_client_script = "<script" in source.casefold()
+    # Every public page loads the header script for the app links of
+    # signed-in visitors; form enhancement is any further script.
+    scripts = re.findall(r"<script\b[^>]*>", source, flags=re.IGNORECASE)
+    header_scripts = [tag for tag in scripts if "/PublicAppLinks.astro_" in tag]
+    if len(header_scripts) != 1:
+        raise ContractFailure(f"Astro route {path} lacks the header app-links script")
+    has_client_script = len(scripts) > len(header_scripts)
     submissions_allowed = direct.get("submissionsAllowed") is True
     # Only a live action takes contact requests; archive and inactive do not.
     inbox_allowed = expected_state == "published"
