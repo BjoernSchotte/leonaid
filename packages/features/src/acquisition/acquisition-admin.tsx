@@ -7,7 +7,7 @@ import type {
   CurrentIdentityResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
-import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
+import { Button, EmptyState, Icon, StatusMessage } from "@leonaid/ui";
 
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
 import { useActionInUrl } from "../action-admin/action-location";
@@ -182,7 +182,7 @@ export function AcquisitionAdminPage({
           ))}
         </div>
         <label className="acq-search">
-          <Search aria-hidden="true" size={19} />
+          <Icon icon={Search} size={18} />
           <span className="sr-only">Pipeline durchsuchen</span>
           <input
             onChange={(event) => setSearch(event.target.value)}
@@ -249,7 +249,7 @@ export function AcquisitionAdminPage({
                       </th>
                       <td>
                         <span className="acq-admin-assignees">
-                          <Users aria-hidden="true" size={17} />
+                          <Icon icon={Users} size={16} />
                           {item.assignedAcquirers
                             .map((person) => person.displayName)
                             .join(", ")}
@@ -268,7 +268,7 @@ export function AcquisitionAdminPage({
                           className="acq-admin-due"
                           data-urgency={item.urgency}
                         >
-                          <ClockAlert aria-hidden="true" size={16} />
+                          <Icon icon={ClockAlert} size={16} />
                           {formatDue(item)}
                         </span>
                       </td>

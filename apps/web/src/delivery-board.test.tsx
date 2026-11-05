@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +17,7 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
+  BOARD_POLL_MS,
   DeliveryBoardPage,
   deliveryWindowLabel,
   resetCommandPaletteState,
@@ -619,5 +621,125 @@ describe("delivery board", () => {
     );
     expect(changed).toHaveBeenCalled();
     window.removeEventListener("leonaid:action-changed", changed);
+  });
+
+  it("ignores the d key for cancelled drops and while a tick is running", async () => {
+    const client = fakeClient(
+      board({
+        windows: [
+          {
+            ...board().windows[0]!,
+            drops: [
+              drop("c1", "Bäckerei Kern", { orderStatus: "cancelled" }),
+              drop("c2", "Autohaus Nord", { revision: 2 }),
+            ],
+          },
+        ],
+      }),
+    );
+    await renderBoard(client);
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.keyDown(window, { key: "d" });
+    await act(() => Promise.resolve());
+    expect(client.setDeliveryState).not.toHaveBeenCalled();
+
+    let finish: (value: DeliveryDropResponse) => void = () => {};
+    vi.mocked(client.setDeliveryState).mockImplementationOnce(
+      () =>
+        new Promise<DeliveryDropResponse>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.keyDown(window, { key: "d" });
+    fireEvent.keyDown(window, { key: "d" });
+    await waitFor(() => expect(client.setDeliveryState).toHaveBeenCalled());
+    fireEvent.keyDown(window, { key: "d" });
+    expect(client.setDeliveryState).toHaveBeenCalledTimes(1);
+    finish(drop("c2", "Autohaus Nord", { revision: 3, state: "delivered" }));
+    // The first toast and its undo survive.
+    await screen.findByText("Autohaus Nord: geliefert.");
+    expect(screen.getByRole("button", { name: "Rückgängig" })).toBeTruthy();
+  });
+
+  it("reopens a window only once while the request runs", async () => {
+    const client = fakeClient(
+      board({
+        windows: [
+          {
+            ...board().windows[0]!,
+            closure: {
+              closedAt: "2026-11-11T09:00:00Z",
+              closedByName: "Klara Kern",
+              missedCount: 0,
+            },
+          },
+        ],
+      }),
+    );
+    vi.mocked(client.reopenDeliveryWindow).mockImplementationOnce(
+      () => new Promise(() => {}),
+    );
+    await renderBoard(client);
+    const reopen = screen.getByRole("button", { name: /Wieder öffnen/ });
+    fireEvent.click(reopen);
+    await waitFor(() =>
+      expect((reopen as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.click(reopen);
+    expect(client.reopenDeliveryWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a tick at once, before the board has reloaded", async () => {
+    const client = fakeClient(board());
+    await renderBoard(client);
+    // The reload after the tick does not answer yet.
+    vi.mocked(client.getDeliveryBoard).mockImplementation(
+      () => new Promise(() => {}),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Autohaus Nord, 3 Boxen: als geliefert/,
+      }),
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: /Autohaus Nord, 3 Boxen: geliefert/,
+      }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the board on screen when a background reload fails", async () => {
+    const client = fakeClient(board());
+    const { queries } = await renderBoard(client);
+    vi.mocked(client.getDeliveryBoard).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    await act(() => queries.refetchQueries({ queryKey: ["delivery-board"] }));
+    expect(screen.getAllByTestId("delivery-drop")).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: /Erneut versuchen/ }),
+    ).toBeNull();
+  });
+
+  it("reloads the managers' board on an interval, not the drivers'", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      for (const [surface, expected] of [
+        ["web", 1],
+        ["pwa", 0],
+      ] as const) {
+        const client = fakeClient(board({ manager: surface === "web" }));
+        await renderBoard(client, surface);
+        const before = vi.mocked(client.getDeliveryBoard).mock.calls.length;
+        await act(() => vi.advanceTimersByTimeAsync(BOARD_POLL_MS + 50));
+        expect(
+          vi.mocked(client.getDeliveryBoard).mock.calls.length - before,
+        ).toBe(expected);
+        cleanup();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

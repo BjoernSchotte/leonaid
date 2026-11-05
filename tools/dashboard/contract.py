@@ -7,7 +7,7 @@ import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 import asyncpg
 import httpx
@@ -367,7 +367,7 @@ async def assert_admin_aggregate(
         SELECT
             window_row.id,
             count(commitment.id) FILTER (
-                WHERE commitment.status <> 'cancelled'
+                WHERE commitment.status IN ('review_ready', 'confirmed', 'invoiced')
             ) AS commitments
         FROM action_delivery_window AS window_row
         LEFT JOIN commitment ON commitment.delivery_window_id = window_row.id
@@ -478,6 +478,106 @@ async def assert_reminder_buckets_use_the_berlin_day() -> None:
         await pool.close()
 
 
+class _Rollback(Exception):
+    """Ends a contract transaction without keeping its fixture."""
+
+
+async def assert_window_load_counts_only_booked_orders() -> None:
+    """The dashboard window load matches the delivery board.
+
+    Three golden orders are booked into a fresh window: one stays binding,
+    one becomes a draft and one is cancelled. Only the binding one counts,
+    in the order count and in the quantities. Everything is rolled back.
+    """
+
+    connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
+    try:
+        try:
+            async with connection.transaction():
+                orders = await connection.fetch(
+                    """
+                    SELECT commitment.id,
+                           (SELECT sum(line.quantity) FROM commitment_line AS line
+                            WHERE line.commitment_id = commitment.id) AS quantity
+                    FROM commitment
+                    WHERE action_id = $1
+                      AND status <> 'cancelled'
+                      AND EXISTS (
+                          SELECT 1 FROM commitment_line AS line
+                          WHERE line.commitment_id = commitment.id
+                      )
+                    ORDER BY id
+                    LIMIT 3
+                    """,
+                    ACTION_ID,
+                )
+                if len(orders) != 3:
+                    raise ContractFailure("Golden order fixture changed")
+                await connection.execute(
+                    """
+                    INSERT INTO action_delivery_configuration(action_id, enabled)
+                    VALUES ($1, true)
+                    ON CONFLICT (action_id) DO UPDATE SET enabled = true
+                    """,
+                    ACTION_ID,
+                )
+                window_id = uuid4()
+                starts_at = datetime.now(timezone.utc) + timedelta(days=1)
+                await connection.execute(
+                    """
+                    INSERT INTO action_delivery_window(id, action_id, starts_at, ends_at)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    window_id,
+                    ACTION_ID,
+                    starts_at,
+                    starts_at + timedelta(hours=2),
+                )
+                booked, draft, cancelled = (row["id"] for row in orders)
+                for order_id, status in (
+                    (booked, "confirmed"),
+                    (draft, "draft"),
+                    (cancelled, "cancelled"),
+                ):
+                    await connection.execute(
+                        """
+                        UPDATE commitment
+                        SET delivery_window_id = $2,
+                            delivery_window_snapshot = '{}'::jsonb,
+                            status = $3
+                        WHERE id = $1
+                        """,
+                        order_id,
+                        window_id,
+                        status,
+                    )
+                overview = await AsyncpgDashboardRepository._delivery(
+                    connection,
+                    ACTION_ID,
+                    evaluated_at=datetime.now(timezone.utc),
+                )
+                load = next(
+                    (item for item in overview.windows if item.id == window_id),
+                    None,
+                )
+                if load is None:
+                    raise ContractFailure("Fresh delivery window is missing")
+                if load.commitments != 1:
+                    raise ContractFailure(
+                        f"Window counts drafts or cancellations: {load.commitments}"
+                    )
+                total = sum(item.quantity for item in load.quantities)
+                if total != int(orders[0]["quantity"]):
+                    raise ContractFailure(
+                        f"Window quantities count drafts or cancellations: {total}"
+                    )
+                raise _Rollback
+        except _Rollback:
+            pass
+    finally:
+        await connection.close()
+
+
 async def run() -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
@@ -550,6 +650,13 @@ async def run() -> None:
                     "admin.delivery",
                 },
             )
+            delivery_definition = next(
+                item
+                for item in klara["metricDefinitions"]
+                if item.get("key") == "admin.delivery"
+            )
+            if delivery_definition.get("href") != f"/admin/delivery?action={ACTION_ID}":
+                raise ContractFailure("Delivery windows do not open the delivery board")
 
             concealed = await dashboard(
                 api,
@@ -586,6 +693,7 @@ async def run() -> None:
     finally:
         await connection.close()
     await assert_reminder_buckets_use_the_berlin_day()
+    await assert_window_load_counts_only_booked_orders()
 
     print("dashboard-contract: OK: roles, golden metrics, real SQL aggregates,")
     print(

@@ -31,7 +31,7 @@ import {
   type SponsorMatchResponse,
   type SponsorResolutionResponse,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, Icon, StatusMessage } from "@leonaid/ui";
 
 import { navigateInPage, useLocationHref } from "../shared/location";
 
@@ -108,7 +108,7 @@ function IconAction({
 }) {
   return (
     <a aria-label={label} className="acq-contact-action" href={href}>
-      <Glyph aria-hidden="true" size={18} />
+      <Icon icon={Glyph} size={18} />
       <span>{children}</span>
     </a>
   );
@@ -153,7 +153,7 @@ function SponsorRow({
         ) : null}
         {others.length > 0 ? (
           <p className="acq-sponsor-row__shared" data-testid="co-assignees">
-            <Users aria-hidden="true" size={17} />
+            <Icon icon={Users} size={16} />
             Gemeinsam mit {others.map((item) => item.displayName).join(", ")}
           </p>
         ) : null}
@@ -192,13 +192,13 @@ function SponsorRow({
           href={`/app/activities?view=contacts&assignment=${encodeURIComponent(item.assignmentId)}`}
         >
           <span>Aktivität</span>
-          <ArrowRight aria-hidden="true" size={18} />
+          <Icon icon={ArrowRight} size={18} />
         </a>
         <a
           className="acq-contact-action acq-contact-action--next"
           href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
         >
-          <PackagePlus aria-hidden="true" size={18} />
+          <Icon icon={PackagePlus} size={18} />
           <span>Bestellung</span>
         </a>
       </div>
@@ -237,7 +237,7 @@ function SponsorList({
   if (items.length === 0) {
     return (
       <div className="acq-empty acq-empty--roomy" data-testid="sponsor-empty">
-        <Users aria-hidden="true" size={22} />
+        <Icon icon={Users} size={20} />
         <strong>Noch kein Sponsor zugeordnet</strong>
         <span>
           Prüfe einen vorhandenen CRM-Kontakt oder lege den ersten Sponsor an.
@@ -251,7 +251,7 @@ function SponsorList({
     <>
       <div className="acq-list-toolbar">
         <label className="acq-search" htmlFor="sponsor-filter">
-          <Search aria-hidden="true" size={19} />
+          <Icon icon={Search} size={18} />
           <span className="sr-only">Sponsoren filtern</span>
           <input
             id="sponsor-filter"
@@ -298,7 +298,7 @@ function SponsorList({
             role="tab"
             type="button"
           >
-            <Glyph aria-hidden="true" size={22} />
+            <Icon icon={Glyph} size={20} />
             <span>{label}</span>
           </button>
         ))}
@@ -316,7 +316,7 @@ function SponsorList({
         </div>
       ) : (
         <div className="acq-empty" data-testid="sponsor-filter-empty">
-          <Search aria-hidden="true" size={22} />
+          <Icon icon={Search} size={20} />
           <strong>Kein passender Sponsor</strong>
           <span>Ändere den Suchbegriff oder lösche den Filter.</span>
         </div>
@@ -382,7 +382,7 @@ function MatchResult({
   if (!match) {
     return (
       <div className="acq-empty acq-empty--roomy">
-        <Search aria-hidden="true" size={22} />
+        <Icon icon={Search} size={20} />
         <strong>Noch keine CRM-Prüfung</strong>
         <span>
           Nach der Prüfung siehst du Treffer, Zusatzdaten und vorhandene
@@ -606,7 +606,7 @@ function SponsorCapture({
       <section aria-labelledby="sponsor-form-heading" className="acq-workflow">
         <div className="acq-section-heading">
           <span aria-hidden="true" className="acq-section-heading__icon">
-            <Plus aria-hidden="true" size={20} />
+            <Icon icon={Plus} size={20} />
           </span>
           <div>
             <h2 id="sponsor-form-heading">Wen möchtest du ansprechen?</h2>
@@ -877,7 +877,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         </div>
         {view === "list" ? (
           <Button
-            icon={<Plus aria-hidden="true" size={18} />}
+            icon={<Icon icon={Plus} size={18} />}
             onClick={() => setView("new")}
           >
             Sponsor erfassen
