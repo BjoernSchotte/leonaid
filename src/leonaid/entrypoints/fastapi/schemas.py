@@ -1210,7 +1210,8 @@ class CommitmentResponse(TransportModel):
     delivery_completion_version: str = Field(
         description=(
             "Optimistic version of status, delivery and billing details. "
-            "Send it back unchanged when completing delivery details."
+            "Send it back unchanged when completing delivery details or "
+            "cancelling the order."
         )
     )
 
@@ -1222,10 +1223,51 @@ class CommitmentCaptureContextResponse(TransportModel):
     offerings: list[ConfiguredOfferingResponse]
 
 
+class CommitmentInvoiceSummaryResponse(TransportModel):
+    id: UUID
+    number: str
+    status: Literal["issued", "sent", "paid", "cancelled"]
+    payment_recorded: bool = Field(
+        description="A payment is booked; it blocks the order cancellation."
+    )
+
+
+class CommitmentCancellationResponse(TransportModel):
+    id: UUID
+    previous_status: Literal["draft", "review_ready", "confirmed", "invoiced"]
+    reason: str
+    note: str | None = None
+    requested_by_display_name: str | None = None
+    requested_at: datetime
+    invoice_cancellation_id: UUID | None = Field(
+        default=None,
+        description="The invoice cancellation (ADR-0009) this order cancellation caused.",
+    )
+    invoice_number: str | None = None
+
+
 class CommitmentRecordResponse(TransportModel):
     commitment: CommitmentResponse
     created_at: datetime
     captured_by_display_name: str | None
+    cancellation: CommitmentCancellationResponse | None = None
+    invoice: CommitmentInvoiceSummaryResponse | None = None
+    delivered: bool = Field(
+        default=False,
+        description="Marked delivered on the delivery board; blocks cancellation.",
+    )
+
+
+class CancelCommitmentRequest(TransportModel):
+    expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    reason: str = Field(min_length=8, max_length=500)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class CommitmentCancellationResultResponse(TransportModel):
+    commitment: CommitmentResponse
+    cancellation: CommitmentCancellationResponse
+    replayed: bool
 
 
 class CommitmentCurrencyTotalResponse(TransportModel):

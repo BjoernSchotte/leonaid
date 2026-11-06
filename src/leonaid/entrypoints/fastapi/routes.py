@@ -101,6 +101,11 @@ from leonaid.application.invoice_deliveries import (
     InvoiceDeliveryService,
 )
 from leonaid.application.invoice_settlements import InvoiceSettlementService
+from leonaid.application.order_cancellation import (
+    OrderCancellationRequest,
+    OrderCancellationService,
+)
+from leonaid.domain.order_cancellation import OrderCancellation
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceList,
@@ -275,6 +280,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     CommitmentListResponse,
     CommitmentLineResponse,
     CommitmentRecordResponse,
+    CancelCommitmentRequest,
+    CommitmentCancellationResponse,
+    CommitmentCancellationResultResponse,
+    CommitmentInvoiceSummaryResponse,
     CommitmentResponse,
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
@@ -551,6 +560,13 @@ def invoice_delivery_service(request: Request) -> InvoiceDeliveryService:
     return cast(
         InvoiceDeliveryService,
         request.app.state.invoice_delivery_service,
+    )
+
+
+def order_cancellation_service(request: Request) -> OrderCancellationService:
+    return cast(
+        OrderCancellationService,
+        request.app.state.order_cancellation_service,
     )
 
 
@@ -1505,10 +1521,45 @@ def commitment_capture_context_response(
 def commitment_record_response(
     record: CommitmentRecord,
 ) -> CommitmentRecordResponse:
+    invoice = record.invoice
     return CommitmentRecordResponse(
         commitment=commitment_response(record.commitment),
         created_at=record.created_at,
         captured_by_display_name=record.captured_by_display_name,
+        cancellation=(
+            commitment_cancellation_response(record.cancellation)
+            if record.cancellation is not None
+            else None
+        ),
+        invoice=(
+            CommitmentInvoiceSummaryResponse(
+                id=invoice.id,
+                number=invoice.number,
+                status=invoice.status.value,
+                payment_recorded=invoice.payment_recorded,
+            )
+            if invoice is not None
+            else None
+        ),
+        delivered=record.delivered,
+    )
+
+
+def commitment_cancellation_response(
+    cancellation: OrderCancellation,
+) -> CommitmentCancellationResponse:
+    return CommitmentCancellationResponse(
+        id=cancellation.id,
+        previous_status=cast(
+            Literal["draft", "review_ready", "confirmed", "invoiced"],
+            cancellation.previous_status.value,
+        ),
+        reason=cancellation.reason,
+        note=cancellation.note,
+        requested_by_display_name=cancellation.requested_by_display_name,
+        requested_at=cancellation.requested_at,
+        invoice_cancellation_id=cancellation.invoice_cancellation_id,
+        invoice_number=cancellation.invoice_number,
     )
 
 
@@ -3776,6 +3827,55 @@ async def complete_commitment_delivery(
     )
     response.headers["Cache-Control"] = "private, no-store"
     return commitment_response(commitment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/cancellation",
+    operation_id="cancelCommitment",
+    response_model=CommitmentCancellationResultResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["commitments"],
+)
+async def cancel_commitment(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: CancelCommitmentRequest,
+    response: Response,
+) -> CommitmentCancellationResultResponse:
+    """Cancel an order that is not delivered yet, with a required reason.
+
+    Answers 409 for a stale ``expectedVersion``, a delivered order, a booked
+    payment or an order that is already cancelled. An issued, unpaid invoice
+    is cancelled with the order (ADR-0009); that needs a fresh login (401
+    ``fresh_login_required``).
+    """
+    actor, fresh = await identity_service(request).authenticate_with_freshness(
+        session_token(request)
+    )
+    result = await order_cancellation_service(request).cancel(
+        actor,
+        action_id,
+        commitment_id,
+        request=OrderCancellationRequest(
+            expected_version=body.expected_version,
+            reason=body.reason,
+            note=body.note,
+        ),
+        fresh_login=fresh,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/commitments/{commitment_id}/cancellation"
+    )
+    return CommitmentCancellationResultResponse(
+        commitment=commitment_response(result.commitment),
+        cancellation=commitment_cancellation_response(result.cancellation),
+        replayed=result.replayed,
+    )
 
 
 @router.get(

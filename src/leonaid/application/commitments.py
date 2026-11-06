@@ -27,6 +27,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.domain.order_cancellation import OrderCancellation, OrderInvoiceState
 from leonaid.domain.policies import may_manage_action
 
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
@@ -186,6 +187,9 @@ class CommitmentRecord:
     commitment: Commitment
     created_at: datetime
     captured_by_display_name: str | None
+    cancellation: OrderCancellation | None = None
+    invoice: OrderInvoiceState | None = None
+    delivered: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,8 +339,14 @@ class CommitmentService:
     ) -> CommitmentList:
         require_action_manager(actor, action_id)
         records = await self._repository.list_for_action(action_id=action_id)
+        # Cancelled orders stay in the list but count for nothing.
+        counted = tuple(
+            record
+            for record in records
+            if record.commitment.status is not CommitmentStatus.CANCELLED
+        )
         totals: dict[str, Money] = {}
-        for record in records:
+        for record in counted:
             total = record.commitment.total
             totals[total.currency] = totals.get(
                 total.currency,
@@ -349,11 +359,11 @@ class CommitmentService:
                 CommitmentCurrencyTotal(currency=currency, total=totals[currency])
                 for currency in sorted(totals)
             ),
-            total_boxes=sum(record.commitment.total_boxes for record in records),
-            total_pieces=sum(record.commitment.total_pieces for record in records),
+            total_boxes=sum(record.commitment.total_boxes for record in counted),
+            total_pieces=sum(record.commitment.total_pieces for record in counted),
             quantities=UnitQuantity.summarize(
                 (item.unit, item.quantity)
-                for record in records
+                for record in counted
                 for item in record.commitment.quantities
             ),
         )

@@ -9,7 +9,11 @@ from fastapi import APIRouter, FastAPI
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
+from leonaid.adapters.postgres.order_cancellation import (
+    AsyncpgOrderCancellationRepository,
+)
 from leonaid.application.delivery_board import DeliveryBoardService
+from leonaid.application.order_cancellation import OrderCancellationService
 from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
 )
@@ -159,6 +163,22 @@ def build_delivery_board_service(
             (lambda _connection: follow_up) if follow_up is not None else None,
         ),
         follow_up_tasks=tasks_enabled,
+    )
+
+
+def build_order_cancellation_service(
+    pool: asyncpg.Pool[Any], disabled: frozenset[str]
+) -> OrderCancellationService:
+    """Cancelling closes the order's "Nachliefern" task while tasks is on."""
+    tasks_enabled = any(
+        module.id == "tasks" for module in enabled_api_modules(disabled)
+    )
+    follow_up = TaskDeliveryFollowUp() if tasks_enabled else None
+    return OrderCancellationService(
+        AsyncpgOrderCancellationRepository(
+            pool,
+            (lambda _connection: follow_up) if follow_up is not None else None,
+        )
     )
 
 

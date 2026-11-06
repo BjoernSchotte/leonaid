@@ -41,6 +41,8 @@ from leonaid.domain.commitments import (
     Money,
     Offering,
 )
+from leonaid.domain.invoices import InvoiceStatus
+from leonaid.domain.order_cancellation import OrderCancellation, OrderInvoiceState
 
 COMMAND_TYPE = "create_commitment_v1"
 COMPLETE_COMMAND_TYPE = "complete_commitment_v1"
@@ -381,6 +383,23 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.idempotency_key,
                     commitment.created_at,
                     creator.display_name AS captured_by_display_name,
+                    invoice.id AS invoice_id,
+                    invoice.number AS invoice_number,
+                    invoice.status AS invoice_status,
+                    EXISTS (
+                        SELECT 1 FROM payment_record
+                        WHERE payment_record.invoice_id = invoice.id
+                    ) AS invoice_payment_recorded,
+                    COALESCE(delivery.state = 'delivered', false) AS delivered,
+                    cancellation.id AS cancellation_id,
+                    cancellation.previous_status AS cancellation_previous_status,
+                    cancellation.reason_snapshot AS cancellation_reason,
+                    cancellation.note_snapshot AS cancellation_note,
+                    cancellation.requested_by_user_id
+                        AS cancellation_requested_by_user_id,
+                    cancellation.requested_at AS cancellation_requested_at,
+                    cancellation.invoice_cancellation_id,
+                    canceller.display_name AS cancellation_requested_by_name,
                     commitment_line.id AS line_id,
                     commitment_line.offering_id,
                     commitment_line.description_snapshot,
@@ -403,6 +422,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 ) AS creation_event ON true
                 LEFT JOIN user_account AS creator
                   ON creator.id = creation_event.actor_user_id
+                LEFT JOIN invoice ON invoice.commitment_id = commitment.id
+                LEFT JOIN commitment_delivery AS delivery
+                  ON delivery.commitment_id = commitment.id
+                LEFT JOIN commitment_cancellation AS cancellation
+                  ON cancellation.commitment_id = commitment.id
+                LEFT JOIN user_account AS canceller
+                  ON canceller.id = cancellation.requested_by_user_id
                 WHERE commitment.action_id = $1
                 ORDER BY
                     commitment.created_at DESC,
@@ -815,6 +841,48 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 else None
             ),
         )
+        invoice = (
+            OrderInvoiceState(
+                id=header["invoice_id"],
+                number=str(header["invoice_number"]),
+                status=InvoiceStatus(str(header["invoice_status"])),
+                payment_recorded=bool(header["invoice_payment_recorded"]),
+            )
+            if header["invoice_id"] is not None
+            else None
+        )
+        cancellation = (
+            OrderCancellation(
+                id=header["cancellation_id"],
+                action_id=commitment.action_id,
+                commitment_id=commitment.id,
+                previous_status=CommitmentStatus(
+                    str(header["cancellation_previous_status"])
+                ),
+                reason=str(header["cancellation_reason"]),
+                note=(
+                    str(header["cancellation_note"])
+                    if header["cancellation_note"] is not None
+                    else None
+                ),
+                requested_by_user_id=header["cancellation_requested_by_user_id"],
+                requested_at=header["cancellation_requested_at"],
+                invoice_cancellation_id=header["invoice_cancellation_id"],
+                invoice_number=(
+                    invoice.number
+                    if invoice is not None
+                    and header["invoice_cancellation_id"] is not None
+                    else None
+                ),
+                requested_by_display_name=(
+                    str(header["cancellation_requested_by_name"])
+                    if header["cancellation_requested_by_name"] is not None
+                    else None
+                ),
+            )
+            if header["cancellation_id"] is not None
+            else None
+        )
         return CommitmentRecord(
             commitment=commitment,
             created_at=header["created_at"],
@@ -823,6 +891,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if header["captured_by_display_name"] is not None
                 else None
             ),
+            cancellation=cancellation,
+            invoice=invoice,
+            delivered=bool(header["delivered"]),
         )
 
     @staticmethod

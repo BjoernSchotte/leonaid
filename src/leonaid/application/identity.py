@@ -495,6 +495,20 @@ class IdentityQueryService:
             )
         return identity
 
+    async def authenticate_with_freshness(
+        self,
+        session_token: str | None,
+    ) -> tuple[IdentityPrincipal, bool]:
+        """The principal and whether its login is fresh, for commands that
+        need a fresh login only in some cases (decided inside their
+        transaction)."""
+        now = self._clock()
+        identity = await self.authenticate_session(session_token)
+        return (
+            identity.principal,
+            identity.session.fresh_at(now, self._fresh_login_window),
+        )
+
     async def fresh_until(self, session_token: str | None) -> datetime:
         identity = await self.authenticate_fresh_session(session_token)
         return identity.session.fresh_login_at + self._fresh_login_window

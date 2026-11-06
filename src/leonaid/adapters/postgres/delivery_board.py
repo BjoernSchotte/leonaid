@@ -452,10 +452,8 @@ class AsyncpgDeliveryBoardRepository:
     ) -> None:
         if self._follow_up is None:
             return
-        # TODO(cancel-follow-up): no cancel command exists yet. Cancelling a
-        # missed order must call this sync with needed=False so its
-        # "Nachliefern" task closes (specs/leonaid-poc/KNOWN-LIMITS.md).
-        # No personal data in the task (it would outlive the order's
+        # The order cancellation (adapters/postgres/order_cancellation.py)
+        # closes the task through the same port. No personal data in the task (it would outlive the order's
         # erasure): the order reference, the window and a link to the order,
         # whose pane shows the address to those allowed to see it.
         reference = await connection.fetchval(
