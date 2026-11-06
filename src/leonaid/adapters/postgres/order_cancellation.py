@@ -22,6 +22,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery_board import order_link, order_reference
+from leonaid.adapters.postgres.invoice_payment_state import PAYMENT_RECORDED_SQL
 from leonaid.adapters.postgres.invoice_settlements import (
     AsyncpgInvoiceSettlementRepository,
 )
@@ -60,23 +61,6 @@ def follow_up_closing_note(requested_at: datetime) -> str:
     return (
         f"Erledigt: Die Bestellung wurde am {day:%d.%m.%Y} storniert. "
         "Kein Nachliefern nötig; den Grund zeigt die Bestellung."
-    )
-
-
-async def invoice_payment_recorded(
-    connection: asyncpg.Connection[Any], invoice_id: UUID
-) -> bool:
-    """Whether any payment is booked on the invoice.
-
-    The one place the cancellation reads payments; payment recording itself
-    stays in the invoice settlement adapter.
-    """
-
-    return bool(
-        await connection.fetchval(
-            "SELECT EXISTS (SELECT 1 FROM payment_record WHERE invoice_id = $1)",
-            invoice_id,
-        )
     )
 
 
@@ -421,8 +405,11 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         connection: asyncpg.Connection[Any], commitment_id: UUID
     ) -> OrderInvoiceState | None:
         row = await connection.fetchrow(
-            "SELECT id, number, status FROM invoice WHERE commitment_id = $1"
-            " FOR UPDATE",
+            f"""
+            SELECT id, number, status, {PAYMENT_RECORDED_SQL} AS payment_recorded
+            FROM invoice WHERE commitment_id = $1
+            FOR UPDATE
+            """,
             commitment_id,
         )
         if row is None:
@@ -431,7 +418,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             id=row["id"],
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
-            payment_recorded=await invoice_payment_recorded(connection, row["id"]),
+            payment_recorded=bool(row["payment_recorded"]),
         )
 
     @staticmethod

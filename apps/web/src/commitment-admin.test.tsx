@@ -1031,7 +1031,7 @@ describe("order cancellation", () => {
     );
     const section = screen.getByTestId("order-cancellation");
     expect(section.textContent).toContain("Rückruf am Montag.");
-    expect(section.textContent).toContain("Keine Rechnung storniert");
+    expect(section.textContent).toContain("Keine Rechnung");
     expect(screen.getByText("Storniert von Klara Kern")).toBeTruthy();
     expect(screen.queryByTestId("open-order-cancellation")).toBeNull();
     // The list keeps it, struck through, with the status "Storniert".

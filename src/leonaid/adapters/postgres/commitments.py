@@ -12,6 +12,7 @@ from leonaid.adapters.postgres.retry import (
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
+from leonaid.adapters.postgres.invoice_payment_state import PAYMENT_RECORDED_SQL
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
@@ -366,7 +367,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
     ) -> tuple[CommitmentRecord, ...]:
         async with self._pool.acquire() as connection:
             rows = await connection.fetch(
-                """
+                f"""
                 SELECT
                     commitment.id,
                     commitment.action_id,
@@ -386,10 +387,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
                     invoice.status AS invoice_status,
-                    EXISTS (
-                        SELECT 1 FROM payment_record
-                        WHERE payment_record.invoice_id = invoice.id
-                    ) AS invoice_payment_recorded,
+                    {PAYMENT_RECORDED_SQL} AS invoice_payment_recorded,
                     COALESCE(delivery.state = 'delivered', false) AS delivered,
                     cancellation.id AS cancellation_id,
                     cancellation.previous_status AS cancellation_previous_status,
