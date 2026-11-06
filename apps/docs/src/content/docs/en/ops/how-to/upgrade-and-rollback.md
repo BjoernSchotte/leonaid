@@ -7,7 +7,7 @@ diataxis: how-to
 contentRevision: 8
 reviewedRevision: 8
 verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
-reviewer: Björn Schotte
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Review pins and vulnerability findings
