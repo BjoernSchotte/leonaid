@@ -357,10 +357,16 @@ export function ActivityFeedPage({ client, surface }: ActivityFeedPageProps) {
                       onClick={() => {
                         // Opening an entry reads it; the link still navigates.
                         if (!item.isRead) {
-                          // Navigation may cut it short; the next visit
-                          // refetches either way.
+                          // The link is a full-page navigation, which aborts
+                          // a normal fetch mid-request (the API then sees a
+                          // half-read body, 400). keepalive lets the write
+                          // finish after the page is gone.
                           void client
-                            .updateActivityFeedItem(item.id, { read: true })
+                            .updateActivityFeedItem(
+                              item.id,
+                              { read: true },
+                              { keepalive: true },
+                            )
                             .catch(() => undefined)
                             .finally(
                               () =>

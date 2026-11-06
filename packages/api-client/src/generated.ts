@@ -364,6 +364,11 @@ export type FetchLike = (
 export interface RequestOptions {
   readonly signal?: AbortSignal;
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * Lets the request outlive the page: a write fired just before a
+   * full-page navigation is otherwise aborted mid-request.
+   */
+  readonly keepalive?: boolean;
 }
 
 export class ApiError extends Error {
@@ -400,6 +405,7 @@ export class LeonAidApiClient {
         ...options.headers,
       },
       signal: options.signal,
+      keepalive: options.keepalive,
     });
     const body = await readJsonBody(response);
     if (!response.ok) {
@@ -429,6 +435,7 @@ export class LeonAidApiClient {
         ...options.headers,
       },
       signal: options.signal,
+      keepalive: options.keepalive,
     });
     if (!response.ok) {
       throw responseError(response, await readJsonBody(response));
