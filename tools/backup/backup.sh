@@ -108,7 +108,11 @@ cleanup() {
   status=$?
   if [ "$writers_stopped" = "true" ] && [ -n "$restart_services" ]; then
     echo "backup: resuming previously running services; waiting for readiness"
-    if ! compose start --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
+    # `compose start --wait` exists only since Compose v5; v2 (GitHub runners,
+    # many hosts) rejects the flag before starting anything. `up` restarts the
+    # stopped containers as they are and waits for their health on both.
+    if ! compose up --detach --no-deps --no-recreate --no-build --pull never \
+      --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
       echo "backup: ERROR: source services failed to resume; inspect service health before continuing" >&2
       if [ "$status" -eq 0 ]; then status=1; fi
     fi

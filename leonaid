@@ -1239,26 +1239,43 @@ pilot_compose_config() {
   fi
 }
 
+# Wait until a running service container is no longer "unhealthy". Docker
+# keeps that state until the next successful probe; `compose up --wait` fails
+# at once on an unhealthy dependency instead of waiting for it.
+pilot_wait_not_unhealthy() {
+  pilot_wait_service=$2
+  pilot_wait_deadline=$(($(date +%s) + $3))
+  pilot_wait_containers=$(docker ps -q \
+    --filter "label=com.docker.compose.project=$1" \
+    --filter "label=com.docker.compose.service=$pilot_wait_service" \
+    --filter label=com.docker.compose.oneoff=False) || return
+  [ -n "$pilot_wait_containers" ] || return 0
+  while :; do
+    # shellcheck disable=SC2086 # one ID per replica
+    pilot_wait_health=$(docker inspect \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+      $pilot_wait_containers) || return
+    case "$pilot_wait_health" in *unhealthy*) ;; *) return 0 ;; esac
+    if [ "$(date +%s)" -ge "$pilot_wait_deadline" ]; then
+      echo "pilot: ERROR: $pilot_wait_service stays unhealthy after Twenty is ready" >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 pilot_compose_up() {
   project=$1
   env_file=$2
-  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
-    overlay=$(pilot_test_overlay "$project") || return
-    docker compose \
-      --project-name "$project" \
-      --env-file "$env_file" \
-      --file "$root/infra/compose/compose.yml" \
-      --file "$root/infra/pilot/compose.yml" \
-      --file "$overlay" \
-      up --detach --no-build --pull missing --wait --wait-timeout 420
-  else
-    docker compose \
-      --project-name "$project" \
-      --env-file "$env_file" \
-      --file "$root/infra/compose/compose.yml" \
-      --file "$root/infra/pilot/compose.yml" \
-      up --detach --no-build --pull missing --wait --wait-timeout 420
-  fi
+  # The api readiness includes Twenty. A maintenance window longer than the
+  # api health budget (20 probes, 5 s apart) leaves the running api unhealthy
+  # until Twenty is back and the next probe passes; the proxy depends on it.
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    twenty-server || return
+  pilot_wait_not_unhealthy "$project" api 120 || return
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --wait --wait-timeout 420
 }
 
 pilot_compose_command() {

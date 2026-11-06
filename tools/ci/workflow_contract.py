@@ -72,6 +72,11 @@ PIN_DRIFT_PERMISSIONS = {
     ("contents", "write"),
     ("pull-requests", "write"),
 }
+# Scheduled runs on main have no pull request that shows their result; the
+# watchdog keeps an issue open while one is red or overdue. docs.yml has its
+# own publication watchdog.
+NIGHTLY_WATCHDOG = "nightly-watchdog.yml"
+OWN_WATCHDOG = {"docs.yml", "docs-watchdog.yml", NIGHTLY_WATCHDOG}
 # Image digests (not action SHAs) in a workflow; GITHUB_TOKEN cannot rewrite it.
 DIGEST_PIN = re.compile(r"[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}")
 
@@ -432,6 +437,64 @@ def check_pin_drift(root: Path) -> list[str]:
     return problems
 
 
+def workflow_name(text: str) -> str:
+    match = re.search(r"(?m)^name: (.+)$", text)
+    return match.group(1).strip() if match else ""
+
+
+def check_nightly_watchdog(root: Path) -> list[str]:
+    """Every scheduled workflow must alert when its scheduled run fails."""
+    workflows = root / ".github/workflows"
+    path = workflows / NIGHTLY_WATCHDOG
+    if not path.exists():
+        return [f"{NIGHTLY_WATCHDOG}: scheduled failures must open an issue."]
+    text = path.read_text(encoding="utf-8")
+    problems: list[str] = []
+    permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
+    granted = (
+        set(re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", permissions.group(1)))
+        if permissions
+        else set()
+    )
+    if granted != {("actions", "read"), ("issues", "write")}:
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: permissions must be exactly actions: read, issues: write"
+        )
+    if "GH_TOKEN: ${{ github.token }}" not in text or "secrets." in text:
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must use GITHUB_TOKEN and no other secret."
+        )
+    if not re.search(r"\n  schedule:\n    - cron: ", triggers(text)):
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must also run on a schedule (overdue runs)."
+        )
+    listened = re.search(r"(?m)^    workflows: \[([^\]]*)\]$", text)
+    names = (
+        {item.strip() for item in listened.group(1).split(",")} if listened else set()
+    )
+    watched = re.search(r'(?m)^      WATCHED: "([^"]*)"$', text)
+    files = (
+        {entry.split(":", 1)[0] for entry in watched.group(1).split()}
+        if watched
+        else set()
+    )
+    for candidate in sorted(workflows.glob("*.yml")):
+        if candidate.name in OWN_WATCHDOG:
+            continue
+        candidate_text = candidate.read_text(encoding="utf-8")
+        if not re.search(r"\n  schedule:\n    - cron: ", triggers(candidate_text)):
+            continue
+        if candidate.name not in files:
+            problems.append(
+                f"{NIGHTLY_WATCHDOG}: scheduled workflow {candidate.name} is not watched."
+            )
+        if workflow_name(candidate_text) not in names:
+            problems.append(
+                f"{NIGHTLY_WATCHDOG}: does not react to completed runs of {candidate.name}."
+            )
+    return problems
+
+
 def check_repository(root: Path) -> list[str]:
     workflows = root / ".github/workflows"
     problems = check(workflows / "ci.yml")
@@ -455,6 +518,7 @@ def check_repository(root: Path) -> list[str]:
     problems.extend(check_first_attempts(root))
     problems.extend(check_static_gates(root))
     problems.extend(check_pin_drift(root))
+    problems.extend(check_nightly_watchdog(root))
     return problems
 
 

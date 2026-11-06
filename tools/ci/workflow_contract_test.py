@@ -244,6 +244,30 @@ OTHER_MUTATIONS = (
         + "\n",
         "a digest in a workflow blocks the automatic re-pin",
     ),
+    (
+        "nightly-watchdog.yml",
+        'WATCHED: "ci.yml:30 surveys.yml:30',
+        'WATCHED: "ci.yml:30',
+        "scheduled workflow surveys.yml is not watched",
+    ),
+    (
+        "nightly-watchdog.yml",
+        "[LeonAid CI, Survey acceptance,",
+        "[LeonAid CI,",
+        "does not react to completed runs of surveys.yml",
+    ),
+    (
+        "nightly-watchdog.yml",
+        "  issues: write\n",
+        "  issues: write\n  contents: write\n",
+        "permissions must be exactly actions: read, issues: write",
+    ),
+    (
+        "nightly-watchdog.yml",
+        "GH_TOKEN: ${{ github.token }}",
+        "GH_TOKEN: ${{ secrets.ALERT_TOKEN }}",
+        "nightly-watchdog.yml: must use GITHUB_TOKEN",
+    ),
 )
 
 ACTION_MUTATIONS = (

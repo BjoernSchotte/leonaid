@@ -84,6 +84,24 @@ and `surveys.yml` (all events) and writes a table to the workflow summary:
 failures in the final attempt and failures that were followed by a rerun
 (the flake signal). Cancelled (superseded) jobs are ignored.
 
+### Nightly watchdog
+
+A red scheduled run has no pull request that shows it. `nightly-watchdog.yml`
+runs after every scheduled run of `ci.yml`, `surveys.yml`, `pins.yml` and
+`pin-drift.yml` on `main`, and once a day on its own schedule. For each
+workflow it reads the latest completed scheduled run on `main`:
+
+- not green: it opens the issue
+  `[nightly-watchdog] <workflow> scheduled run needs attention` with the run
+  link and the failed jobs, or adds one comment per new failed run;
+- older than its limit (30 hours; 8 days for the weekly `pins.yml`): the same
+  issue reports a stopped schedule;
+- green and current: it closes the issue.
+
+It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
+`tools/ci/workflow_contract.py` fails when a scheduled workflow is not watched.
+`docs.yml` keeps its own `docs-watchdog.yml`.
+
 ### Required checks
 
 The workflow side is above; the repository ruleset (merge queue with merge

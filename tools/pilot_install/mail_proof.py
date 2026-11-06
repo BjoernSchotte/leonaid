@@ -175,6 +175,11 @@ def twenty_reset(email: str) -> None:
     print("mail-proof: Twenty accepted the password reset request")
 
 
+def mailbox(address: str) -> str:
+    """Local part only: the public CI evidence rejects every e-mail address."""
+    return address.partition("@")[0]
+
+
 def assert_delivered(api: str, recipient: str, sender: str, word: str) -> None:
     query = urllib.parse.urlencode({"query": f"to:{recipient}"})
     deadline = time.monotonic() + 90
@@ -189,13 +194,14 @@ def assert_delivered(api: str, recipient: str, sender: str, word: str) -> None:
             ):
                 print(
                     f"mail-proof: relay accepted '{message['Subject']}' "
-                    f"from {sender} for {recipient}"
+                    f"from {mailbox(sender)} for {mailbox(recipient)}"
                 )
                 return
         if time.monotonic() > deadline:
             raise SystemExit(
-                f"mail-proof: no message from {sender} for {recipient} with "
-                f"'{word}' in the subject; {len(messages)} other message(s)"
+                f"mail-proof: no message from {mailbox(sender)} for "
+                f"{mailbox(recipient)} with '{word}' in the subject; "
+                f"{len(messages)} other message(s)"
             )
         time.sleep(2)
 
