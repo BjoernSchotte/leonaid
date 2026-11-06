@@ -185,8 +185,10 @@ export const statusShape: Readonly<Record<string, StatusShape>> = {
   Storniert: "cancelled",
   // invoices
   Offen: "open",
+  "Teilweise bezahlt": "progress",
   Überfällig: "alert",
   Bezahlt: "done",
+  Überzahlt: "review",
   // tasks
   "In Arbeit": "progress",
   Erledigt: "done",

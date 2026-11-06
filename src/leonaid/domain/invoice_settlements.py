@@ -1,9 +1,11 @@
-"""Full-payment and cancellation invariants for immutable invoices."""
+"""Payment entry, balance and cancellation invariants for immutable invoices."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
+from enum import StrEnum
 from uuid import UUID
 
 from leonaid.domain.commitments import Money
@@ -54,8 +56,76 @@ class InvoiceSettlementState:
             )
 
 
+class SettlementStatus(StrEnum):
+    """Payment state derived from the sum of the active payment entries."""
+
+    OPEN = "open"
+    PARTIALLY_PAID = "partially_paid"
+    PAID = "paid"
+    OVERPAID = "overpaid"
+    CANCELLED = "cancelled"
+
+
+def _optional_text(
+    value: str | None,
+    *,
+    code: str,
+    label: str,
+    maximum_length: int,
+) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.split())
+    if not normalized:
+        return None
+    if len(normalized) > maximum_length:
+        raise DomainInvariantError(
+            f"{code}_too_long",
+            f"{label} darf höchstens {maximum_length} Zeichen enthalten.",
+        )
+    return normalized
+
+
+REVERSAL_REASON_MINIMUM = 8
+
+
+@dataclass(frozen=True, slots=True)
+class PaymentReversal:
+    """Takes one payment entry out of the sum. The entry itself stays."""
+
+    id: UUID
+    action_id: UUID
+    invoice_id: UUID
+    payment_id: UUID
+    reason: str
+    reversed_by_user_id: UUID
+    reversed_at: datetime
+    reversed_by_display_name: str | None = None
+    replayed: bool = False
+
+    def __post_init__(self) -> None:
+        require_aware(self.reversed_at, "reversed_at")
+        object.__setattr__(
+            self,
+            "reason",
+            _required(
+                self.reason,
+                code="invoice_payment_reversal_reason_required",
+                label="Grund der Rückbuchung",
+                maximum_length=500,
+            ),
+        )
+        if len(self.reason) < REVERSAL_REASON_MINIMUM:
+            raise DomainInvariantError(
+                "invoice_payment_reversal_reason_too_short",
+                "Der Grund der Rückbuchung muss mindestens acht Zeichen enthalten.",
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class PaymentRecord:
+    """One received payment entry of an invoice; several may exist."""
+
     id: UUID
     action_id: UUID
     invoice_id: UUID
@@ -66,6 +136,8 @@ class PaymentRecord:
     recorded_at: datetime
     recorded_by_display_name: str | None = None
     replayed: bool = False
+    note: str | None = None
+    reversal: PaymentReversal | None = None
 
     def __post_init__(self) -> None:
         require_aware(self.recorded_at, "recorded_at")
@@ -84,9 +156,30 @@ class PaymentRecord:
                 maximum_length=160,
             ),
         )
+        object.__setattr__(
+            self,
+            "note",
+            _optional_text(
+                self.note,
+                code="invoice_payment_note",
+                label="Notiz",
+                maximum_length=500,
+            ),
+        )
+        if self.reversal is not None and self.reversal.payment_id != self.id:
+            raise DomainInvariantError(
+                "invoice_payment_reversal_mismatch",
+                "Die Rückbuchung gehört zu einem anderen Zahlungseingang.",
+            )
+
+    @property
+    def active(self) -> bool:
+        """Counts toward the paid sum: not reversed."""
+
+        return self.reversal is None
 
     @classmethod
-    def record_full(
+    def record(
         cls,
         *,
         id: UUID,
@@ -96,18 +189,20 @@ class PaymentRecord:
         reference: str,
         recorded_by_user_id: UUID,
         recorded_at: datetime,
+        note: str | None = None,
     ) -> PaymentRecord:
+        """A received amount of any positive size (ADR-0014)."""
+
         require_aware(recorded_at, "recorded_at")
-        invoice.require_transition(InvoiceStatus.PAID)
+        if invoice.status is InvoiceStatus.CANCELLED:
+            raise DomainInvariantError(
+                "invoice_payment_cancelled",
+                "Für eine stornierte Rechnung kann keine Zahlung erfasst werden.",
+            )
         if amount.currency != invoice.gross.currency:
             raise DomainInvariantError(
                 "invoice_payment_currency_mismatch",
                 "Die Zahlungswährung muss der Rechnungswährung entsprechen.",
-            )
-        if amount.amount_minor != invoice.gross.amount_minor:
-            raise DomainInvariantError(
-                "invoice_payment_full_amount_required",
-                "Im PoC kann nur der vollständige Rechnungsbetrag verbucht werden.",
             )
         if received_on < invoice.issued_on:
             raise DomainInvariantError(
@@ -128,7 +223,120 @@ class PaymentRecord:
             reference=reference,
             recorded_by_user_id=recorded_by_user_id,
             recorded_at=recorded_at,
+            note=note,
         )
+
+    def reverse(
+        self,
+        *,
+        id: UUID,
+        reason: str,
+        reversed_by_user_id: UUID,
+        reversed_at: datetime,
+    ) -> PaymentReversal:
+        if self.reversal is not None:
+            raise DomainInvariantError(
+                "invoice_payment_already_reversed",
+                "Dieser Zahlungseingang ist bereits zurückgebucht.",
+            )
+        return PaymentReversal(
+            id=id,
+            action_id=self.action_id,
+            invoice_id=self.invoice_id,
+            payment_id=self.id,
+            reason=reason,
+            reversed_by_user_id=reversed_by_user_id,
+            reversed_at=reversed_at,
+        )
+
+
+def settlement_version(payments: Iterable[PaymentRecord]) -> int:
+    """Optimistic version of an invoice's payments.
+
+    Entries and reversals are only ever added, never changed or removed, so
+    their count grows with every change: a stale form is recognised without a
+    stored counter.
+    """
+
+    return sum(1 if payment.active else 2 for payment in payments)
+
+
+@dataclass(frozen=True, slots=True)
+class InvoiceBalance:
+    """Sum of the active payment entries against the invoice total, in cents."""
+
+    gross: Money
+    paid: Money
+    cancelled: bool = False
+
+    def __post_init__(self) -> None:
+        if self.paid.currency != self.gross.currency:
+            raise DomainInvariantError(
+                "invoice_payment_currency_mismatch",
+                "Die Zahlungswährung muss der Rechnungswährung entsprechen.",
+            )
+
+    @classmethod
+    def of(
+        cls,
+        gross: Money,
+        payments: Iterable[PaymentRecord],
+        *,
+        cancelled: bool = False,
+    ) -> InvoiceBalance:
+        paid = Money(0, gross.currency)
+        for payment in payments:
+            if payment.active:
+                paid = paid.plus(payment.amount)
+        return cls(gross=gross, paid=paid, cancelled=cancelled)
+
+    @property
+    def open_amount(self) -> Money:
+        """The remainder still to be received; zero once cancelled."""
+
+        if self.cancelled:
+            return Money(0, self.gross.currency)
+        return Money(
+            max(self.gross.amount_minor - self.paid.amount_minor, 0),
+            self.gross.currency,
+        )
+
+    @property
+    def overpaid_amount(self) -> Money:
+        """What was received beyond the total; a refund is booked outside."""
+
+        if self.cancelled:
+            return Money(0, self.gross.currency)
+        return Money(
+            max(self.paid.amount_minor - self.gross.amount_minor, 0),
+            self.gross.currency,
+        )
+
+    @property
+    def status(self) -> SettlementStatus:
+        if self.cancelled:
+            return SettlementStatus.CANCELLED
+        if self.paid.amount_minor > self.gross.amount_minor:
+            return SettlementStatus.OVERPAID
+        if self.paid.amount_minor == self.gross.amount_minor:
+            return SettlementStatus.PAID
+        if self.paid.amount_minor == 0:
+            return SettlementStatus.OPEN
+        return SettlementStatus.PARTIALLY_PAID
+
+    def invoice_status(self, *, delivered: bool) -> InvoiceStatus:
+        """The stored invoice status for this balance.
+
+        `paid` means nothing is left to receive (also when overpaid). Below
+        the total the invoice falls back to `sent` or `issued`, depending on
+        whether a delivery was confirmed. A cancellation is never undone.
+        """
+
+        if self.cancelled:
+            return InvoiceStatus.CANCELLED
+        if self.paid.amount_minor >= self.gross.amount_minor:
+            return InvoiceStatus.PAID
+        return InvoiceStatus.SENT if delivered else InvoiceStatus.ISSUED
 
 
 @dataclass(frozen=True, slots=True)

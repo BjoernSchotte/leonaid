@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -22,7 +22,7 @@ allgemeine Produktionsfreigabe.
   [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)). Routen- und
   Tourenplanung gehört nicht zum aktuellen Funktionsumfang.
 - `finance_reader` darf Belege nur lesen. Der gepflegte Demo-Benutzer Finn
-  Finanzen beweist genau diesen Lesezugriff. Vollzahlung und Storno benötigen
+  Finanzen beweist genau diesen Lesezugriff. Zahlungen und Storno benötigen
   `finance_manager` oder den Charity-Admin der betroffenen Aktion.
 - Mitglieder können ihre Login-E-Mail nicht selbst ändern. Ein System-Admin
   stößt den Wechsel an; die neue Adresse muss ihn bestätigen.
@@ -31,8 +31,9 @@ allgemeine Produktionsfreigabe.
   Lieferplanung ist außerdem ein verfügbares Lieferfenster nötig.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
-- Teil- und Überzahlungen sind nicht implementiert; die Buchung akzeptiert nur
-  den exakten vollständigen Rechnungsbetrag.
+- Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
+  bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
+  Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.
 - Listmonk (Compose-Profil `mailing`) gehört nicht zum produktiven
   Pilot-Stack. Dort hat es weder öffentliche Route noch Backup noch
   Monitoring; alle drei müssen vor dem Aktivieren des Profils existieren.

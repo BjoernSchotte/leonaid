@@ -269,9 +269,18 @@ async def assert_admin_aggregate(
             coalesce(sum(gross_minor) FILTER (
                 WHERE status IN ('issued', 'sent', 'paid')
             ), 0) AS invoiced_amount_minor,
-            coalesce(sum(gross_minor) FILTER (
-                WHERE status IN ('issued', 'sent')
-            ), 0) AS open_amount_minor
+            -- Open receivables are remainders: gross minus active entries.
+            coalesce(sum(
+                greatest(gross_minor - (
+                    SELECT coalesce(sum(payment.amount_minor), 0)
+                    FROM payment_record AS payment
+                    WHERE payment.invoice_id = invoice.id
+                      AND NOT EXISTS (
+                          SELECT 1 FROM payment_reversal AS reversal
+                          WHERE reversal.payment_id = payment.id
+                      )
+                ), 0)
+            ) FILTER (WHERE status <> 'cancelled'), 0) AS open_amount_minor
         FROM invoice
         WHERE action_id = $1
         """,
@@ -302,10 +311,10 @@ async def assert_admin_aggregate(
         """
         SELECT
             count(*) FILTER (
-                WHERE invoice.status IN ('issued', 'sent') AND invoice.due_on < $2
+                WHERE remainder.minor > 0 AND invoice.due_on < $2
             ) AS overdue,
-            coalesce(sum(invoice.gross_minor) FILTER (
-                WHERE invoice.status IN ('issued', 'sent') AND invoice.due_on < $2
+            coalesce(sum(remainder.minor) FILTER (
+                WHERE invoice.due_on < $2
             ), 0) AS overdue_amount_minor,
             count(*) FILTER (
                 WHERE invoice.status <> 'cancelled'
@@ -321,6 +330,18 @@ async def assert_admin_aggregate(
                   )
             ) AS delivery_failed
         FROM invoice
+        CROSS JOIN LATERAL (
+            SELECT CASE
+                WHEN invoice.status = 'cancelled' THEN 0
+                ELSE greatest(invoice.gross_minor - coalesce(sum(payment.amount_minor), 0), 0)
+            END AS minor
+            FROM payment_record AS payment
+            WHERE payment.invoice_id = invoice.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM payment_reversal AS reversal
+                  WHERE reversal.payment_id = payment.id
+              )
+        ) AS remainder
         WHERE invoice.action_id = $1
         """,
         ACTION_ID,

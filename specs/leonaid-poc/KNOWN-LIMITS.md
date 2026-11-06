@@ -17,8 +17,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
   gehört aber nicht zum Pilot-Stack (`infra/pilot/compose.yml` hat keinen
   `campaign-site`-Dienst).
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
-  manuelle Vollzahlung. Buchhaltung, E-Rechnung, Mahnwesen, Payment Provider,
-  Spendenzahlungen und Spendenbescheinigungen fehlen.
+  manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
+  begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
+  wird nur angezeigt; die Erstattung läuft außerhalb von LeonAid und wird
+  nicht gebucht. Bankabgleich, Buchhaltung, E-Rechnung, Mahnwesen, Payment
+  Provider, Spendenzahlungen und Spendenbescheinigungen fehlen.
 - Lieferfenster, Fahrerzuweisung und Abhaken im Lieferboard sind gebaut.
   Tourenplanung, Karte und Navigation fehlen. Die Fenster-Kapazität ist keine
   Zahl: es gibt nur das manuelle Kennzeichen „ausgebucht“

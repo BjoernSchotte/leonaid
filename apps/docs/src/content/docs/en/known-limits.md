@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -21,7 +21,7 @@ general production approval.
   [Work the delivery board](/en/user/how-to/work-delivery-board/)). Route and tour
   planning is outside the current scope.
 - `finance_reader` can only read documents. The maintained demo user Finn
-  Finanzen proves this read-only access. Full payment and cancellation require
+  Finanzen proves this read-only access. Payments and cancellation require
   `finance_manager` or the charity administrator for the affected campaign.
 - Members cannot change their own login email. A system administrator starts
   the change and the new address must confirm it.
@@ -30,8 +30,9 @@ general production approval.
   window is also required.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
-- Partial payments and overpayments are not implemented; recording a payment
-  accepts only the exact full invoice amount.
+- Partial payments and overpayments are recorded as separate payment entries
+  and can be reversed with a reason. An overpayment is only shown; the refund
+  happens outside LeonAid. Bank reconciliation and dunning are missing.
 - Listmonk (Compose profile `mailing`) is not part of the pilot production
   stack. There it has no public route, no backup and no monitoring; all three
   must exist before the profile is enabled.

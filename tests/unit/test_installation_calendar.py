@@ -201,7 +201,7 @@ def _record(
     recorded_at: datetime,
     received_on: date,
 ) -> PaymentRecord:
-    return PaymentRecord.record_full(
+    return PaymentRecord.record(
         id=UUID("97000000-0000-4000-8000-000000000020"),
         invoice=InvoiceSettlementState(
             id=UUID("90000000-0000-4000-8000-000000000020"),
