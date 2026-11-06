@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -783,5 +790,256 @@ describe("bulk invoice release", () => {
     );
     expect(keys).toHaveLength(2);
     expect(keys[0]).not.toBe(keys[1]);
+  });
+});
+
+describe("order cancellation", () => {
+  const issuedInvoice = (number: string, paymentRecorded = false) => ({
+    id: "inv-c3",
+    number,
+    paidMinor: paymentRecorded ? 3000 : 0,
+    paymentRecorded,
+    // A partial payment leaves the invoice open (ADR-0014).
+    status: "issued" as const,
+  });
+
+  function clientWith(items: CommitmentRecordResponse[]) {
+    const client = fakeClient();
+    (client.listCommitments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...list,
+      items,
+    });
+    const cancel = vi.fn(
+      async (
+        _action: string,
+        commitmentId: string,
+        _body?: unknown,
+        _options?: unknown,
+      ) => ({
+        cancellation: {
+          id: "cx1",
+          invoiceNumber: commitmentId === "c3" ? "KT26-0001" : null,
+          previousStatus: "review_ready",
+          reason: "Sponsor hat die Bestellung zurückgezogen",
+          requestedAt: "2026-11-05T10:15:00Z",
+        },
+        commitment: { id: commitmentId, status: "cancelled" },
+        replayed: false,
+      }),
+    );
+    Object.assign(client, { cancelCommitment: cancel });
+    return { client, cancel };
+  }
+
+  const reasonField = (dialog: HTMLElement) =>
+    within(dialog).getByTestId(
+      "order-cancellation-reason",
+    ) as HTMLTextAreaElement;
+  const noteField = (dialog: HTMLElement) =>
+    within(dialog).getByTestId(
+      "order-cancellation-note",
+    ) as HTMLTextAreaElement;
+
+  it("cancels with reason, note, version and key and says nobody is e-mailed", async () => {
+    const { client, cancel } = clientWith(rows);
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "LeonAid benachrichtigt den Besteller nicht automatisch.",
+    );
+    // No invoice yet: nothing about an invoice.
+    expect(dialog.textContent).not.toContain("mitstorniert");
+    fireEvent.change(reasonField(dialog), { target: { value: "zu kurz" } });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    expect(
+      await within(dialog).findByText(
+        "Bitte geben Sie einen Grund mit mindestens 8 Zeichen an.",
+      ),
+    ).toBeTruthy();
+    expect(cancel).not.toHaveBeenCalled();
+    fireEvent.change(reasonField(dialog), {
+      target: { value: " Sponsor hat die Bestellung zurückgezogen " },
+    });
+    fireEvent.change(noteField(dialog), {
+      target: { value: "Rückruf am Montag." },
+    });
+    const listCalls = (client.listCommitments as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    expect(cancel).toHaveBeenCalledWith(
+      actionId,
+      "c1",
+      {
+        expectedVersion: "v1",
+        note: "Rückruf am Montag.",
+        reason: "Sponsor hat die Bestellung zurückgezogen",
+      },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^order-cancellation:/),
+        },
+      },
+    );
+    expect(
+      (client.listCommitments as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBeGreaterThan(listCalls);
+    // The key is used up: a new cancellation would get a new one.
+    expect(
+      window.sessionStorage.getItem("leonaid.order-cancellation.c1"),
+    ).toBeNull();
+  });
+
+  it("names the open invoice it cancels with the order", async () => {
+    const withInvoice = { ...rows[2]!, invoice: issuedInvoice("KT26-0001") };
+    const { client, cancel } = clientWith([withInvoice]);
+    await renderPage("?view=all&open=c3", client);
+    // The pane links the invoice in the journal.
+    const link = await screen.findByRole("link", { name: "KT26-0001" });
+    expect(link.getAttribute("href")).toBe(
+      `/admin/invoices?action=${actionId}&view=all&open=inv-c3`,
+    );
+    fireEvent.click(screen.getByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "Rechnung KT26-0001 wird mitstorniert.",
+    );
+    expect(dialog.textContent).toContain("Nummer, Daten und PDF");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await screen.findByText("Rechnung KT26-0001 ist ebenfalls storniert.");
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains why a delivered order cannot be cancelled", async () => {
+    const { client, cancel } = clientWith([{ ...rows[0]!, delivered: true }]);
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("alert").textContent).toContain(
+      "bereits geliefert",
+    );
+    expect(
+      (within(dialog).getByTestId("cancel-order") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      within(dialog).queryByTestId("order-cancellation-reason"),
+    ).toBeNull();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("asks to take back a booked payment first", async () => {
+    const paid = { ...rows[2]!, invoice: issuedInvoice("KT26-0002", true) };
+    const { client, cancel } = clientWith([paid]);
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("alert").textContent).toContain(
+      "Zur Rechnung KT26-0002 ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen)",
+    );
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's refusal and reloads the list", async () => {
+    const { client, cancel } = clientWith(rows);
+    cancel.mockRejectedValueOnce(
+      apiError(
+        409,
+        "commitment_cancellation_conflict",
+        "Die Bestellung wurde inzwischen geändert.",
+      ),
+    );
+    await renderPage("?view=all&open=c1", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    const listCalls = (client.listCommitments as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await within(dialog).findByText(/inzwischen geändert/);
+    expect(
+      (client.listCommitments as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBeGreaterThan(listCalls);
+    // What was typed stays for the next attempt.
+    expect(reasonField(dialog).value).toBe(
+      "Sponsor hat die Bestellung zurückgezogen",
+    );
+  });
+
+  it("keeps what was typed across the fresh sign-in", async () => {
+    const withInvoice = { ...rows[2]!, invoice: issuedInvoice("KT26-0001") };
+    const { client, cancel } = clientWith([withInvoice]);
+    cancel.mockRejectedValueOnce(
+      apiError(401, "fresh_login_required", "Anmeldung bestätigen"),
+    );
+    await renderPage("?view=all&open=c3", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.change(reasonField(dialog), {
+      target: { value: "Sponsor hat die Bestellung zurückgezogen" },
+    });
+    fireEvent.change(noteField(dialog), {
+      target: { value: "Notiz vor der Anmeldung" },
+    });
+    fireEvent.click(within(dialog).getByTestId("cancel-order"));
+    await within(dialog).findByText(
+      "Für diese Änderung wird Ihre Anmeldung erneut bestätigt.",
+    );
+    const key = window.sessionStorage.getItem("leonaid.order-cancellation.c3");
+    expect(key).toMatch(/^order-cancellation:/);
+    // Back from /fresh-login: the pane reopens the dialog with the draft.
+    cleanup();
+    await renderPage("?view=all&open=c3", client);
+    const restored = await screen.findByRole("alertdialog");
+    expect(reasonField(restored).value).toBe(
+      "Sponsor hat die Bestellung zurückgezogen",
+    );
+    expect(noteField(restored).value).toBe("Notiz vor der Anmeldung");
+    fireEvent.click(within(restored).getByTestId("cancel-order"));
+    await screen.findByText("Bestellung storniert.");
+    // The same command, the same key: the server applies it once.
+    expect(cancel.mock.calls[1]![3]).toEqual({
+      headers: { "Idempotency-Key": key },
+    });
+  });
+
+  it("shows a cancelled order with stamp, reason, note and history, without the action", async () => {
+    const cancelled: CommitmentRecordResponse = {
+      ...rows[0]!,
+      commitment: { ...rows[0]!.commitment, status: "cancelled" },
+      cancellation: {
+        id: "cx1",
+        invoiceNumber: null,
+        note: "Rückruf am Montag.\nKunde informiert.",
+        previousStatus: "review_ready",
+        reason: "Sponsor hat die Bestellung zurückgezogen.",
+        requestedAt: "2026-11-05T10:15:00Z",
+        requestedByDisplayName: "Klara Kern",
+      },
+    };
+    const { client } = clientWith([cancelled, rows[1]!]);
+    await renderPage("?view=all&open=c1", client);
+    const stamp = await screen.findByTestId("order-stamp");
+    expect(stamp.textContent).toContain("Storniert");
+    expect(stamp.textContent).toContain(
+      "Grund: Sponsor hat die Bestellung zurückgezogen. Die Bestellung bleibt",
+    );
+    const section = screen.getByTestId("order-cancellation");
+    expect(section.textContent).toContain("Rückruf am Montag.");
+    expect(section.textContent).toContain("Es gab keine Rechnung.");
+    expect(screen.getByText("Storniert von Klara Kern")).toBeTruthy();
+    expect(screen.queryByTestId("open-order-cancellation")).toBeNull();
+    // The list keeps it, struck through, with the status "Storniert".
+    const row = document
+      .querySelector('[data-order-id="c1"]')!
+      .closest("li") as HTMLElement;
+    expect(row.querySelector(".is-struck")).toBeTruthy();
   });
 });

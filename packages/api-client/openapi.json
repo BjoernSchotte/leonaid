@@ -2149,6 +2149,40 @@
         "title": "CampaignRendererResponse",
         "type": "object"
       },
+      "CancelCommitmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expectedversion",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
+        "title": "CancelCommitmentRequest",
+        "type": "object"
+      },
       "CancelInvoiceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2909,6 +2943,111 @@
         "title": "CommitmentBuyerResponse",
         "type": "object"
       },
+      "CommitmentCancellationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoiceCancellationId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice cancellation (ADR-0009) this order cancellation caused.",
+            "title": "Invoicecancellationid"
+          },
+          "invoiceNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoicenumber"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "previousStatus": {
+            "enum": [
+              "draft",
+              "review_ready",
+              "confirmed",
+              "invoiced"
+            ],
+            "title": "Previousstatus",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "requestedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestedbydisplayname"
+          }
+        },
+        "required": [
+          "id",
+          "previousStatus",
+          "reason",
+          "requestedAt"
+        ],
+        "title": "CommitmentCancellationResponse",
+        "type": "object"
+      },
+      "CommitmentCancellationResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cancellation": {
+            "$ref": "#/components/schemas/CommitmentCancellationResponse"
+          },
+          "commitment": {
+            "$ref": "#/components/schemas/CommitmentResponse"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commitment",
+          "cancellation",
+          "replayed"
+        ],
+        "title": "CommitmentCancellationResultResponse",
+        "type": "object"
+      },
       "CommitmentCaptureContextResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3067,6 +3206,50 @@
           "email"
         ],
         "title": "CommitmentInvoiceRecipientResponse",
+        "type": "object"
+      },
+      "CommitmentInvoiceSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "paidMinor": {
+            "default": 0,
+            "description": "Sum of the active (not reversed) payment entries.",
+            "minimum": 0.0,
+            "title": "Paidminor",
+            "type": "integer"
+          },
+          "paymentRecorded": {
+            "description": "An active payment entry is booked; it blocks the order cancellation.",
+            "title": "Paymentrecorded",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "issued",
+              "sent",
+              "paid",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "paymentRecorded"
+        ],
+        "title": "CommitmentInvoiceSummaryResponse",
         "type": "object"
       },
       "CommitmentLineRequest": {
@@ -3254,6 +3437,16 @@
       "CommitmentRecordResponse": {
         "additionalProperties": false,
         "properties": {
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitmentCancellationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "capturedByDisplayName": {
             "anyOf": [
               {
@@ -3272,6 +3465,22 @@
             "format": "date-time",
             "title": "Createdat",
             "type": "string"
+          },
+          "delivered": {
+            "default": false,
+            "description": "Marked delivered on the delivery board; blocks cancellation.",
+            "title": "Delivered",
+            "type": "boolean"
+          },
+          "invoice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitmentInvoiceSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3298,7 +3507,7 @@
             "type": "string"
           },
           "deliveryCompletionVersion": {
-            "description": "Optimistic version of status, delivery and billing details. Send it back unchanged when completing delivery details.",
+            "description": "Optimistic version of status, delivery and billing details. Send it back unchanged when completing delivery details or cancelling the order.",
             "title": "Deliverycompletionversion",
             "type": "string"
           },
@@ -19511,6 +19720,130 @@
           }
         },
         "summary": "Get Commitment",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/cancellation": {
+      "post": {
+        "description": "Cancel an order that is not delivered yet, with a required reason.\n\nAnswers 409 for a stale ``expectedVersion``, a delivered order, a booked\npayment or an order that is already cancelled. An issued, unpaid invoice\nis cancelled with the order (ADR-0009); that needs a fresh login (401\n``fresh_login_required``).",
+        "operationId": "cancelCommitment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelCommitmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentCancellationResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Cancel Commitment",
         "tags": [
           "commitments"
         ]

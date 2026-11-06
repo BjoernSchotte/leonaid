@@ -27,7 +27,10 @@ class DeliveryFollowUp(Protocol):
 
     Runs inside the board's transaction (``connection``). The task mirrors the
     drop: ``needed`` opens or creates it for ``assignee_user_id``, otherwise
-    it is marked done. Wired only while the tasks module is enabled.
+    it is marked done. A ``closing_note`` is appended to the description of a
+    task that this call marks done (an order cancellation says why). It must
+    not contain personal data: the task outlives the order's erasure. Wired
+    only while the tasks module is enabled.
     """
 
     async def sync(
@@ -43,6 +46,7 @@ class DeliveryFollowUp(Protocol):
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
+        closing_note: str | None = None,
     ) -> None: ...
 
 

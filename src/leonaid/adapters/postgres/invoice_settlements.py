@@ -16,6 +16,7 @@ from leonaid.adapters.postgres.invoice_payments import (
     payments_for_invoice,
 )
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -76,7 +77,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_payment_concurrent_retry",
@@ -117,7 +118,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_payment_concurrent_retry",
@@ -154,7 +155,7 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_cancellation_concurrent_retry",

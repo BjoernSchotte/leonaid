@@ -478,6 +478,15 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     ),
                     occurred_at,
                 )
+                # The free-text note may name people; the reason stays, as
+                # the invoice cancellation reason does (ADR-0009).
+                await connection.execute(
+                    """
+                    UPDATE commitment_cancellation SET note_snapshot = NULL
+                    WHERE commitment_id = ANY($1::uuid[])
+                    """,
+                    commitment_ids,
+                )
                 activity_status = await connection.execute(
                     """
                     UPDATE acquisition_activity

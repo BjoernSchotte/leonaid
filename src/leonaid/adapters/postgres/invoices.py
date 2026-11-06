@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -201,7 +202,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_concurrent_retry",

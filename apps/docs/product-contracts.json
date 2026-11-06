@@ -704,5 +704,37 @@
       "file": "packages/features/src/delivery/delivery-board.tsx",
       "contains": ["Ausgebucht"]
     }
+  ],
+  "DOC-P047": [
+    {
+      "file": "packages/features/src/commitments/commitment-admin.tsx",
+      "contains": [
+        "Bestellung stornieren",
+        "Storniert",
+        "Storno",
+        "Grund",
+        "Notiz",
+        "Storniert von"
+      ]
+    },
+    {
+      "file": "packages/features/src/commitments/order-cancellation.tsx",
+      "contains": [
+        "Grund der Stornierung",
+        "Notiz",
+        "Stornieren",
+        "wird mitstorniert.",
+        "LeonAid benachrichtigt den Besteller nicht automatisch.",
+        "bereits geliefert",
+        "Zahlung zurückbuchen"
+      ]
+    },
+    {
+      "file": "src/leonaid/domain/order_cancellation.py",
+      "contains": [
+        "REASON_MIN_LENGTH = 8",
+        "Zahlung erst in der Rechnung zurückbuchen"
+      ]
+    }
   ]
 }
