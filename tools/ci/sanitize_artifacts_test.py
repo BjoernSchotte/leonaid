@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import io
+import re
 import subprocess
 import sys
 import tempfile
@@ -86,9 +87,31 @@ def assert_rejected(
         )
 
 
+def assert_capture_copies_only_text(root: Path) -> None:
+    """capture-failure.sh copies exactly the proof types the sanitizer reads.
+
+    A copied binary makes the sanitizer discard the whole capture; a missing
+    text type silently drops evidence.
+    """
+    sys.path.insert(0, str(root / "tools/ci"))
+    from sanitize_artifacts import TEXT_SUFFIXES
+
+    script = (root / "tools/ci/capture-failure.sh").read_text(encoding="utf-8")
+    match = re.search(r"^\s*(\*\.[a-z]+(?: \| \*\.[a-z]+)*)\)$", script, re.M)
+    if match is None:
+        raise AssertionError("capture-failure.sh has no proof copy pattern")
+    copied = {pattern[1:] for pattern in match.group(1).split(" | ")}
+    if copied != TEXT_SUFFIXES:
+        raise AssertionError(
+            f"capture-failure.sh copies {sorted(copied)}, "
+            f"the sanitizer reads {sorted(TEXT_SUFFIXES)}"
+        )
+
+
 def main() -> None:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     sanitizer = root / "tools/ci/sanitize_artifacts.py"
+    assert_capture_copies_only_text(root)
     with tempfile.TemporaryDirectory() as temporary:
         workspace = Path(temporary)
         artifacts = workspace / "artifacts"

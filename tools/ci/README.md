@@ -162,7 +162,10 @@ The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the
 overlay-complete Compose log of each failed project under
 `runtime-<project>/`, sanitized against `.env.local` and the run's own order
-and CRM keys. Proof directories hold live session tokens and are never copied.
+and CRM keys. Of a proof directory only text files are copied: `*.env` files
+hold live session tokens, and screenshots, PDFs and other binaries are listed
+by name in `proof-omitted.txt` instead, because the sanitizer would reject them
+and discard the whole capture.
 
 The remaining cases stay local-only. They duplicate the two Krapfentaxi stacks
 in large parts, need further runner time each, or prove nightly recovery flows.
