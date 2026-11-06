@@ -16,6 +16,10 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
+from leonaid.application.invoice_deliveries import INVOICE_MAIL_SEND_REQUESTED
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -41,6 +45,8 @@ PAYMENT_KEY = "poc095:payment:browser-v1"
 CANCELLATION_KEY = "poc095:cancellation:browser-v1"
 LIFECYCLE_KEY = "poc095:lifecycle-v1"
 CANCELLED_PAYMENT_ID = UUID("97000000-0000-4000-8000-000000000095")
+DELIVERED_DELIVERY_ID = UUID("95000000-0000-4000-8000-000000000095")
+DELIVERED_OUTBOX_ID = UUID("e5000000-0000-4000-8000-000000000095")
 # The browser books a partial entry, reverses it, then the full payment.
 BROWSER_ENTRIES = 2
 BROWSER_REVERSALS = 1
@@ -739,20 +745,81 @@ async def assert_cancelled_invoice_is_closed(
         )
 
 
-async def queue_paid_invoice_delivery(
-    api: httpx.AsyncClient,
-    tokens: dict[str, str],
-) -> None:
-    """Sends the paid golden invoice; the worker run after prepare delivers it."""
+async def confirm_paid_invoice_delivery(connection: asyncpg.Connection[Any]) -> None:
+    """Confirms a mail delivery of the paid golden invoice.
 
-    response = await api.post(
-        f"/api/v1/actions/{ACTION_ID}/invoices/{PAID_INVOICE_ID}/deliveries",
-        headers={
-            **session_headers(tokens["klara"]),
-            "Idempotency-Key": "poc095:delivery:paid-invoice-v1",
-        },
+    The golden invoice has no recipient e-mail, so it cannot be sent through
+    SMTP here. The delivery rows are written as the delivery adapter writes
+    them, and the confirmation runs through the production `mark_sent`.
+    """
+
+    document_id = await connection.fetchval(
+        """
+        SELECT id FROM generated_document
+        WHERE invoice_id = $1 AND status = 'available'
+        ORDER BY version DESC
+        LIMIT 1
+        """,
+        PAID_INVOICE_ID,
     )
-    created(response, "delivery of the paid invoice")
+    if document_id is None:
+        raise ContractFailure("The paid golden invoice has no available PDF")
+    now = datetime.now(timezone.utc)
+    await connection.execute(
+        """
+        INSERT INTO outbox_event (
+            id, aggregate_type, aggregate_id, event_type,
+            idempotency_key, payload, status, completed_at,
+            available_at, created_at
+        )
+        VALUES (
+            $1, 'invoice_delivery', $2, $3, $4, $5::jsonb,
+            'completed', $6, $6, $6
+        )
+        """,
+        DELIVERED_OUTBOX_ID,
+        DELIVERED_DELIVERY_ID,
+        INVOICE_MAIL_SEND_REQUESTED,
+        f"invoice-delivery:{DELIVERED_DELIVERY_ID}:v1",
+        json.dumps({"deliveryId": str(DELIVERED_DELIVERY_ID)}),
+        now,
+    )
+    await connection.execute(
+        """
+        INSERT INTO invoice_delivery (
+            id, action_id, invoice_id, generated_document_id,
+            outbox_event_id, idempotency_key, recipient_email_snapshot,
+            subject_snapshot, text_snapshot, requested_by_user_id,
+            requested_at, created_at
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, 'poc095:delivered:paid-invoice',
+            'buchhaltung@leonaid.invalid', 'Ihre Rechnung', 'Rechnung anbei.',
+            $6, $7, $7
+        )
+        """,
+        DELIVERED_DELIVERY_ID,
+        ACTION_ID,
+        PAID_INVOICE_ID,
+        document_id,
+        DELIVERED_OUTBOX_ID,
+        KLARA_ID,
+        now,
+    )
+    pool = await asyncpg.create_pool(
+        require_env("CORE_DATABASE_URL"), min_size=1, max_size=1
+    )
+    try:
+        await AsyncpgInvoiceDeliveryRepository(pool).mark_sent(
+            delivery_id=DELIVERED_DELIVERY_ID,
+            outbox_event_id=DELIVERED_OUTBOX_ID,
+            idempotency_key=f"invoice-delivery:{DELIVERED_DELIVERY_ID}:v1",
+            message_id="<poc095-delivered@leonaid.invalid>",
+            recipient_sha256="0" * 64,
+            sent_at=now,
+        )
+    finally:
+        await pool.close()
 
 
 async def assert_delivered_invoice_reopens_as_sent(
@@ -760,6 +827,7 @@ async def assert_delivered_invoice_reopens_as_sent(
 ) -> None:
     """Reversing a delivered, paid invoice stores `sent`, not `issued`."""
 
+    await confirm_paid_invoice_delivery(connection)
     delivered = await connection.fetchval(
         """
         SELECT EXISTS (
@@ -869,7 +937,6 @@ async def prepare(
         await assert_negative_payment_cases(api, tokens)
         lifecycle_entries = await assert_partial_payment_lifecycle(api, tokens)
         await assert_cancelled_invoice_is_closed(connection, api, tokens)
-        await queue_paid_invoice_delivery(api, tokens)
 
         response = await api.post(
             f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}/invoice",
