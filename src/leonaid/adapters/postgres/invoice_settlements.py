@@ -450,7 +450,9 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
 
         if invoice.status is InvoiceStatus.CANCELLED:
             return invoice.status
-        delivered = bool(
+        # A sent invoice stays sent; a paid one was sent when the mail
+        # server confirmed one of its deliveries.
+        delivered = invoice.status is InvoiceStatus.SENT or bool(
             await connection.fetchval(
                 """
                 SELECT EXISTS (

@@ -169,6 +169,7 @@ docker run --rm \
 
 for screenshot in \
   invoice-open-and-paid.png \
+  invoice-partial-payment.png \
   invoice-payment-recorded.png \
   invoice-cancellation.png \
   invoice-finance-readonly-mobile.png \
@@ -192,5 +193,6 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 mkdir -p "$root/.artifacts/poc095"
 cp "$proof"/invoice-*.png "$root/.artifacts/poc095/"
 
-echo "invoice-settlement-test: OK: roles, full payment, cancellation, audit,"
+echo "invoice-settlement-test: OK: roles, partial/over/full payments, reversals,"
+echo "invoice-settlement-test:     cancellation, audit,"
 echo "invoice-settlement-test:     browser UX and unchanged Typst PDF proven"
