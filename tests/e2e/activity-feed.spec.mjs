@@ -150,6 +150,18 @@ test("Bernd sees the jointly managed sponsor with their own follow-up action", a
     await expect(
       page.getByRole("dialog", { name: "Kontakt mit Doppelkontakt AG" }),
     ).toBeVisible();
+    // Following the next action read the entry on the server, even though
+    // the click left the page at once. A fresh feed shows the stored state;
+    // the bound covers the keepalive write still finishing.
+    await expect(async () => {
+      await page.goto(`${baseUrl}/app/activities`);
+      await expect(entries).toHaveAttribute("data-read", "true", {
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 15_000 });
+    await expect(page.getByTestId("activity-feed-unread-count")).toHaveText(
+      "Alles gelesen",
+    );
   } finally {
     await context.close();
   }
