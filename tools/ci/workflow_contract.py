@@ -461,13 +461,23 @@ def check_nightly_watchdog(root: Path) -> list[str]:
             f"{NIGHTLY_WATCHDOG}: permissions must be exactly actions: read, issues: write"
         )
     if "GH_TOKEN: ${{ github.token }}" not in text or "secrets." in text:
-        problems.append(f"{NIGHTLY_WATCHDOG}: must use GITHUB_TOKEN and no other secret.")
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must use GITHUB_TOKEN and no other secret."
+        )
     if not re.search(r"\n  schedule:\n    - cron: ", triggers(text)):
-        problems.append(f"{NIGHTLY_WATCHDOG}: must also run on a schedule (overdue runs).")
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must also run on a schedule (overdue runs)."
+        )
     listened = re.search(r"(?m)^    workflows: \[([^\]]*)\]$", text)
-    names = {item.strip() for item in listened.group(1).split(",")} if listened else set()
+    names = (
+        {item.strip() for item in listened.group(1).split(",")} if listened else set()
+    )
     watched = re.search(r'(?m)^      WATCHED: "([^"]*)"$', text)
-    files = {entry.split(":", 1)[0] for entry in watched.group(1).split()} if watched else set()
+    files = (
+        {entry.split(":", 1)[0] for entry in watched.group(1).split()}
+        if watched
+        else set()
+    )
     for candidate in sorted(workflows.glob("*.yml")):
         if candidate.name in OWN_WATCHDOG:
             continue
