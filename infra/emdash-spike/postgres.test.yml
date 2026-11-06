@@ -1,6 +1,6 @@
 services:
   core-postgres:
-    image: docker.io/library/postgres:16.15-alpine3.24@sha256:e0e53cfa0884f3cc216a621033e4f38dceb49e52218ac77facc8e48f02973093
+    image: docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
     environment:
       POSTGRES_DB: leonaid
       POSTGRES_USER: leonaid
@@ -14,7 +14,7 @@ services:
       timeout: 3s
       retries: 30
   proof:
-    image: docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+    image: docker.io/library/node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
     environment:
       PGHOST: core-postgres
       PGDATABASE: leonaid
