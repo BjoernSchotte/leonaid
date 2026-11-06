@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -647,6 +654,100 @@ describe("InvoiceAdminPage", () => {
         }),
       }),
     );
+  });
+
+  it("books a later installment after a lost response under a new key", async () => {
+    // First installment: the server books it, but the response is lost.
+    const before = settled("i-rate", "KT26-0007", []);
+    let client = await renderPage({ items: [before] });
+    client.recordInvoicePayment.mockRejectedValueOnce(new TypeError("offline"));
+    let pane = await openRow("KT26-0007");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    let dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0007 erfassen",
+    });
+    fireEvent.change(within(dialog).getByTestId("payment-amount"), {
+      target: { value: "72,00" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    const lostKey = (
+      client.recordInvoicePayment.mock.calls[0] as unknown as [
+        string,
+        string,
+        unknown,
+        { headers: Record<string, string> },
+      ]
+    )[3].headers["Idempotency-Key"];
+    cleanup();
+
+    // After a reload the entry is there; the same amount again is a new
+    // installment, not a replay of the lost request.
+    const after = settled("i-rate", "KT26-0007", [
+      entry("p-rate-1", 7_200, "2026-10-04"),
+    ]);
+    client = await renderPage({ items: [after] });
+    client.recordInvoicePayment.mockResolvedValueOnce({ replayed: false });
+    pane = await openRow("KT26-0007");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0007 erfassen",
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    const [, , body, options] = client.recordInvoicePayment.mock
+      .calls[0] as unknown as [
+      string,
+      string,
+      { amountMinor: number; expectedSettlementVersion: number },
+      { headers: Record<string, string> },
+    ];
+    expect(body).toMatchObject({
+      amountMinor: 7_200,
+      expectedSettlementVersion: 1,
+    });
+    expect(options.headers["Idempotency-Key"]).not.toBe(lostKey);
+  });
+
+  it("tells the user when a payment was already booked", async () => {
+    const client = await renderPage();
+    client.recordInvoicePayment.mockResolvedValueOnce({ replayed: true });
+    const pane = await openRow("KT26-0003");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0003 erfassen",
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    expect(
+      await screen.findByText("Diese Zahlung war bereits erfasst."),
+    ).toBeTruthy();
+  });
+
+  it("states the real open change when reversing on an overpaid invoice", async () => {
+    // 360 € gross here is 144 €: paid 144 + 100 = 244, overpaid 100.
+    const overpaid = settled("i-over2", "KT26-0008", [
+      entry("p-e", 14_400, "2026-10-04"),
+      entry("p-f", 10_000, "2026-10-05"),
+    ]);
+    await renderPage({
+      items: [overpaid],
+      url: `/admin/invoices?action=${actionId}&view=paid`,
+    });
+    const pane = await openRow("KT26-0008");
+    const entries = pane.getAllByTestId("payment-entry");
+    fireEvent.click(within(entries[1]!).getByTestId("open-reversal-form"));
+    let dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "Der offene Betrag bleibt unverändert",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(within(entries[0]!).getByTestId("open-reversal-form"));
+    dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toMatch(/steigt um 44,00\s€/);
   });
 
   it("stamps an overpaid invoice and asks to refund the difference", async () => {

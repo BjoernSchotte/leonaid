@@ -103,8 +103,8 @@ bis zu Rechnung, Zahlung und Auswertung.
    unveränderliches PDF und ordnet es Aktion, Bestellung, Firma oder Kontakt
    sowie Rechnung zu.
 7. **Versand und Zahlung verfolgen:** Versandstatus, Wiederholungsversuche,
-   offene Rechnung, manuelle Vollzahlung und begründetes Storno sind im
-   Portal nachvollziehbar.
+   offene Rechnung, manuell erfasste Teil-, Voll- und Überzahlungen,
+   begründete Rückbuchungen und Stornos sind im Portal nachvollziehbar.
 8. **Fortschritt verstehen:** Die Übersichtsseite zeigt den Stand der
    Sponsorengewinnung, Bestellmenge, Bestellwert, den bereits in Rechnung
    gestellten Betrag, offene Posten und das
@@ -336,8 +336,8 @@ bis zu Rechnung, Zahlung und Auswertung.
   PDF-Dateien.
 - Erzeugte Dokumente werden sicher gespeichert und mit Firma oder Kontakt,
   Aktion, Bestellung und Rechnung verknüpft.
-- Rechnungsversand, Versandprotokoll, manuelle Vollzahlung und Storno sind
-  abgebildet.
+- Rechnungsversand, Versandprotokoll, manuelle Teil-, Voll- und
+  Überzahlungen mit Rückbuchung sowie Storno sind abgebildet.
 - Belege werden geschützt abgelegt und bleiben nur für berechtigte Personen
   im zugehörigen Vorgang abrufbar.
 

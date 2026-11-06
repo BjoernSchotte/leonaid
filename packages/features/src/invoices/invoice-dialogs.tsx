@@ -27,6 +27,7 @@ import {
   commandKey,
   forgetCommandKey,
   invoiceSettlement,
+  paymentCommandStorageKey,
   settlementCommandStorageKey,
 } from "./invoice-model";
 
@@ -74,7 +75,9 @@ function PaymentForm({
   const [amountError, setAmountError] = useState<string>();
   const [dateError, setDateError] = useState<string>();
   const [serverError, setServerError] = useState<string>();
-  const storageKey = settlementCommandStorageKey(invoice.id, "payment");
+  // One key per form and version: a retry of this form replays, a later
+  // installment after any change gets its own key.
+  const storageKey = paymentCommandStorageKey(invoice.id, openedVersion);
   const open = formatMoney(record.openMinor, invoice.currency);
   const minDate = isoDay(invoice.issuedAt);
   const today = localIsoDate();
@@ -101,12 +104,20 @@ function PaymentForm({
     onError(cause) {
       setServerError(actionErrorMessage(cause).message);
     },
-    onSuccess() {
+    onSuccess(result) {
       forgetCommandKey(storageKey);
-      toast?.show({
-        title: `Zahlung für ${invoice.number} erfasst.`,
-        tone: "success",
-      });
+      toast?.show(
+        result.replayed
+          ? {
+              title: `Diese Zahlung war bereits erfasst.`,
+              description: `Für ${invoice.number} wurde kein zweiter Eintrag angelegt.`,
+              tone: "info",
+            }
+          : {
+              title: `Zahlung für ${invoice.number} erfasst.`,
+              tone: "success",
+            },
+      );
       onChanged();
       onClose();
     },
