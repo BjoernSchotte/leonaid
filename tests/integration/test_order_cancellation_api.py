@@ -434,7 +434,9 @@ class Proof:
         )
 
     async def version(self, order: str) -> str:
-        return str((await self.record(order))["commitment"]["deliveryCompletionVersion"])
+        return str(
+            (await self.record(order))["commitment"]["deliveryCompletionVersion"]
+        )
 
     async def cancel(
         self,
@@ -814,8 +816,7 @@ class Proof:
         cancelled = [
             name
             for name in self.data.ORDERS
-            if by_id[str(self.data.orders[name])]["commitment"]["status"]
-            == "cancelled"
+            if by_id[str(self.data.orders[name])]["commitment"]["status"] == "cancelled"
         ]
         assert sorted(cancelled) == sorted(
             ["plain", "draft", "invoiced", "sent", "missed", "race", "stale"]
