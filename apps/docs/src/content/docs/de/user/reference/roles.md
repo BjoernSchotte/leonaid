@@ -4,9 +4,9 @@ description: Referenz der implementierten globalen und aktionsbezogenen LeonAid-
 docId: DOC-P016
 audience: [user]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -14,7 +14,7 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 | ----------------- | -------------------------- | --------------------------------------------------------------------------------------- |
 | `system_admin`    | global                     | Benutzer, globale Rollen, Integrationen, Datenschutz- und Betriebsfunktionen verwalten  |
 | `finance_reader`  | global oder Aktion         | Rechnungen, PDFs, Versand, Zahlungen und offene Posten lesen                            |
-| `finance_manager` | global                     | Vollzahlungen buchen und Rechnungen kontrolliert stornieren                             |
+| `finance_manager` | global                     | Zahlungen buchen und zurückbuchen, Rechnungen kontrolliert stornieren                   |
 | `charity_admin`   | eine Aktion                | Aktion, Mitglieder, Bestellungen, Rechnungen und Finanzaktionen dieser Aktion verwalten |
 | `acquirer`        | eine Aktion                | zugeordnete Sponsoren, Aktivitäten und Bestellungen bearbeiten                          |
 | `driver` (UI: **Ausfahrer**) | Aktion mit Lieferfähigkeit | in der App **Auslieferung** nur die eigenen zugewiesenen Lieferungen mit Adresse und Kontakt, ohne Beträge, sehen und abhaken, solange das Fenster offen ist |

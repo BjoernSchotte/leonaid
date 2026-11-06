@@ -184,6 +184,7 @@ class TaskDeliveryFollowUp:
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
+        closing_note: str | None = None,
     ) -> None:
         current, move_to = await self._lock_current(
             connection,
@@ -278,14 +279,22 @@ class TaskDeliveryFollowUp:
         elif current["status"] == target:
             return
         else:
+            # The note explains this closure; a later reopen keeps it as
+            # history of the task.
             await connection.execute(
                 """
-                UPDATE task SET status = $2, revision = revision + 1, updated_at = $3
+                UPDATE task SET status = $2, revision = revision + 1, updated_at = $3,
+                    description = CASE
+                        WHEN $4::text IS NULL THEN description
+                        WHEN coalesce(description, '') = '' THEN $4::text
+                        ELSE description || E'\n' || $4::text
+                    END
                 WHERE id = $1
                 """,
                 current["task_id"],
                 target,
                 occurred_at,
+                closing_note if not needed else None,
             )
         await self._audit(
             connection,

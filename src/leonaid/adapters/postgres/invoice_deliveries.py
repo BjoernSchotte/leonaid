@@ -462,12 +462,18 @@ class AsyncpgInvoiceDeliveryRepository:
                             "Der SMTP-Zustellnachweis ist widersprüchlich."
                         )
                     return
+                # Always writes the row, also when the status stays (paid,
+                # cancelled): a concurrent serializable payment or reversal
+                # that has not seen this delivery then fails its own invoice
+                # update, retries and stores `sent` instead of `issued`.
                 await connection.execute(
                     """
                     UPDATE invoice
-                    SET status = 'sent'
+                    SET status = CASE
+                        WHEN status = 'issued' THEN 'sent'
+                        ELSE status
+                    END
                     WHERE id = $1
-                      AND status = 'issued'
                     """,
                     delivery["invoice_id"],
                 )

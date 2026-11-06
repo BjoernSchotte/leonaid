@@ -53,6 +53,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.bootstrap.api import (
     build_delivery_board_service,
+    build_order_cancellation_service,
     build_inbox_service,
     build_knowledge_service,
     build_material_service,
@@ -307,6 +308,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
+        )
+        application.state.order_cancellation_service = build_order_cancellation_service(
+            pool, disabled_modules
         )
         feature_flag_provider = LeonAidFeatureProvider()
         feature_flag_evaluator = OpenFeatureBooleanEvaluator(feature_flag_provider)

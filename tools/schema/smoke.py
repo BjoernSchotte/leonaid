@@ -34,6 +34,7 @@ EXPECTED_TABLES = {
     "charity_action_capability",
     "command_receipt",
     "commitment",
+    "commitment_cancellation",
     "commitment_line",
     "consent_record",
     "generated_document",

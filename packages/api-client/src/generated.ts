@@ -52,6 +52,7 @@ export type CampaignAliasListResponse = { readonly actionId: string; readonly ca
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
 export type CampaignAliasTargetResponse = { readonly actionId: string; readonly canonicalPath: string; readonly name: string; };
 export type CampaignRendererResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
+export type CancelCommitmentRequest = { readonly expectedVersion: string; readonly note?: string | null; readonly reason: string; };
 export type CancelInvoiceRequest = { readonly reason: string; };
 export type Case = { readonly actionId: string | null; readonly assigneeUserId: string | null; readonly closedAt: string | null; readonly closureNote: string | null; readonly contactErrorCode: string | null; readonly contactRevision: number; readonly contactStatus: "pending" | "linked" | "needs_review" | "failed"; readonly email: string | null; readonly familyName: string; readonly givenName: string; readonly id: string; readonly message: string; readonly phone: string | null; readonly publicReference: string; readonly receivedAt: string; readonly revision: number; readonly status: "new" | "in_progress" | "closed"; readonly subject: string; readonly twentyPersonId: string | null; readonly updatedAt: string; };
 export type CasePermissions = { readonly canManage: boolean; };
@@ -68,14 +69,17 @@ export type Comment = { readonly authorUserId: string; readonly body: string; re
 export type Comments = { readonly items: Array<Comment>; readonly nextOffset: number | null; };
 export type CommitmentBuyerRequest = { readonly displayName: string; readonly email?: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentBuyerResponse = { readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
+export type CommitmentCancellationResponse = { readonly id: string; readonly invoiceCancellationId?: string | null; readonly invoiceNumber?: string | null; readonly note?: string | null; readonly previousStatus: "draft" | "review_ready" | "confirmed" | "invoiced"; readonly reason: string; readonly requestedAt: string; readonly requestedByDisplayName?: string | null; };
+export type CommitmentCancellationResultResponse = { readonly cancellation: CommitmentCancellationResponse; readonly commitment: CommitmentResponse; readonly replayed: boolean; };
 export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; };
 export type CommitmentCurrencyTotalResponse = { readonly currency: string; readonly totalMinor: number; };
 export type CommitmentInvoiceRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly email?: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type CommitmentInvoiceRecipientResponse = { readonly city: string; readonly countryCode: string; readonly email: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
+export type CommitmentInvoiceSummaryResponse = { readonly id: string; readonly number: string; readonly paidMinor?: number; readonly paymentRecorded: boolean; readonly status: "issued" | "sent" | "paid" | "cancelled"; };
 export type CommitmentLineRequest = { readonly offeringId: string; readonly quantity: number; readonly quotedUnitPriceMinor?: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type CommitmentLineResponse = { readonly boxCount: number; readonly currency: string; readonly description: string; readonly id: string; readonly lineTotalMinor: number; readonly offeringId: string; readonly pieceCount: number; readonly piecesPerUnit: number | null; readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
-export type CommitmentRecordResponse = { readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; };
+export type CommitmentRecordResponse = { readonly cancellation?: CommitmentCancellationResponse | null; readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; readonly delivered?: boolean; readonly invoice?: CommitmentInvoiceSummaryResponse | null; };
 export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly deliveryWindowSnapshot?: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly quantities: Array<UnitQuantityResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type CompleteCommitmentDeliveryRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; };
 export type CompleteCommitmentRequest = { readonly allowFullWindow?: boolean; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; };
@@ -176,9 +180,10 @@ export type InvoiceIssuerResponse = { readonly city: string; readonly countryCod
 export type InvoiceLineResponse = { readonly currency: string; readonly description: string; readonly grossMinor: number; readonly netMinor: number; readonly quantity: number; readonly taxMinor: number; readonly taxRateBasisPoints: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceGrossMinor: number; };
 export type InvoiceListResponse = { readonly actionId: string; readonly currencyTotals: Array<InvoiceCurrencyTotalResponse>; readonly items: Array<InvoiceRecordResponse>; };
 export type InvoicePaymentDetailsResponse = { readonly accountHolder: string; readonly bic: string | null; readonly iban: string; };
-export type InvoicePaymentResponse = { readonly actionId: string; readonly amountMinor: number; readonly currency: string; readonly id: string; readonly invoiceId: string; readonly receivedOn: string; readonly recordedAt: string; readonly recordedByDisplayName: string | null; readonly recordedByUserId: string; readonly reference: string; readonly replayed: boolean; };
+export type InvoicePaymentResponse = { readonly actionId: string; readonly amountMinor: number; readonly currency: string; readonly id: string; readonly invoiceId: string; readonly note?: string | null; readonly receivedOn: string; readonly recordedAt: string; readonly recordedByDisplayName: string | null; readonly recordedByUserId: string; readonly reference: string; readonly replayed: boolean; readonly reversal?: InvoicePaymentReversalResponse | null; };
+export type InvoicePaymentReversalResponse = { readonly actionId: string; readonly id: string; readonly invoiceId: string; readonly paymentId: string; readonly reason: string; readonly replayed: boolean; readonly reversedAt: string; readonly reversedByDisplayName: string | null; readonly reversedByUserId: string; };
 export type InvoiceProfileResponse = { readonly confirmedAt: string | null; readonly issuer: InvoiceIssuerResponse; readonly legalConfigurationVersionId: string | null; readonly nextInvoiceNumber: string; readonly paymentDetails: InvoicePaymentDetailsResponse | null; readonly paymentTermsDays: number; readonly readyToIssue: boolean; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
-export type InvoiceRecordResponse = { readonly buyerDisplayName: string; readonly cancellation: InvoiceCancellationResponse | null; readonly deliveries: Array<InvoiceDeliveryResponse>; readonly invoice: InvoiceResponse; readonly openMinor: number; readonly payment: InvoicePaymentResponse | null; };
+export type InvoiceRecordResponse = { readonly buyerDisplayName: string; readonly cancellation: InvoiceCancellationResponse | null; readonly deliveries: Array<InvoiceDeliveryResponse>; readonly invoice: InvoiceResponse; readonly openMinor: number; readonly overpaidMinor?: number; readonly paidMinor?: number; readonly payment: InvoicePaymentResponse | null; readonly payments?: Array<InvoicePaymentResponse>; readonly settlementStatus?: "open" | "partially_paid" | "paid" | "overpaid" | "cancelled"; readonly settlementVersion?: number; };
 export type InvoiceResponse = { readonly actionId: string; readonly approvedByUserId: string; readonly commitmentId: string; readonly currency: string; readonly dueOn: string; readonly grossMinor: number; readonly id: string; readonly issuedAt: string; readonly issuer: InvoiceIssuerResponse; readonly lines: Array<InvoiceLineResponse>; readonly netMinor: number; readonly number: string; readonly paymentDetails: InvoicePaymentDetailsResponse; readonly paymentReference: string; readonly recipient: CommitmentInvoiceRecipientResponse; readonly replayed: boolean; readonly serviceOn: string; readonly status: "issued" | "sent" | "paid" | "cancelled"; readonly taxMinor: number; readonly taxNote: string; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type IssueInvoiceRequest = { readonly serviceOn: string; };
 export type LastPageCount = { readonly count: number | null; readonly pageId: string | null; readonly title: string; };
@@ -267,7 +272,7 @@ export type QuestionAggregate = { readonly answered: number | null; readonly cou
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
 export type RecordAcquisitionActivityRequest = { readonly channel: "phone" | "email" | "in_person"; readonly dueOn?: string | null; readonly nextAction?: string | null; readonly note?: string | null; readonly outcome: "reached" | "no_answer" | "interested" | "follow_up" | "committed" | "declined"; readonly partyId: string; readonly partyKind: "company" | "person"; readonly revision: number; };
 export type RecordAcquisitionActivityResponse = { readonly activity: RecordedAcquisitionActivityResponse; readonly assignment: AcquisitionAssignmentResponse; };
-export type RecordInvoicePaymentRequest = { readonly amountMinor: number; readonly currency: string; readonly receivedOn: string; readonly reference: string; };
+export type RecordInvoicePaymentRequest = { readonly amountMinor: number; readonly currency: string; readonly expectedSettlementVersion?: number | null; readonly note?: string | null; readonly receivedOn: string; readonly reference: string; };
 export type RecordedAcquisitionActivityResponse = { readonly actionId: string; readonly actorDisplayName: string; readonly actorUserId: string; readonly assignmentId: string; readonly assignmentRevision: number; readonly channel: "phone" | "email" | "in_person"; readonly dueAt: string | null; readonly id: string; readonly nextAction: string | null; readonly note: string | null; readonly occurredAt: string; readonly outcome: "reached" | "no_answer" | "interested" | "follow_up" | "committed" | "declined"; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type RedeemInvitation = { readonly token: string; };
 export type RemoveCampaignAliasRequest = { readonly commandId: string; readonly revision: number; };
@@ -279,6 +284,7 @@ export type ResponseItem = { readonly choiceAnswers?: Record<string, Array<strin
 export type ResponseItems = { readonly items: Array<ResponseItem>; readonly offset: number; readonly snapshotId: string; readonly total: number; };
 export type ResponseQuestion = { readonly choices: Array<ResponseChoice>; readonly id: string; readonly kind: string; readonly rows: Array<ResponseChoice>; readonly title: string; };
 export type ResponseSelection = { readonly createdAt: string; readonly filter: ResolvedAnalysisFilter; readonly id: string; readonly questions: Array<ResponseQuestion>; readonly surveyId: string; readonly total: number; readonly versionNumber: number; };
+export type ReverseInvoicePaymentRequest = { readonly expectedSettlementVersion?: number | null; readonly reason: string; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly issuer: LegalIssuerRequest; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type SearchResponse = { readonly results: Array<SearchResultResponse>; };
@@ -362,6 +368,11 @@ export type FetchLike = (
 export interface RequestOptions {
   readonly signal?: AbortSignal;
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * Lets the request outlive the page: a write fired just before a
+   * full-page navigation is otherwise aborted mid-request.
+   */
+  readonly keepalive?: boolean;
 }
 
 export class ApiError extends Error {
@@ -398,6 +409,7 @@ export class LeonAidApiClient {
         ...options.headers,
       },
       signal: options.signal,
+      keepalive: options.keepalive,
     });
     const body = await readJsonBody(response);
     if (!response.ok) {
@@ -427,6 +439,7 @@ export class LeonAidApiClient {
         ...options.headers,
       },
       signal: options.signal,
+      keepalive: options.keepalive,
     });
     if (!response.ok) {
       throw responseError(response, await readJsonBody(response));
@@ -810,6 +823,23 @@ export class LeonAidApiClient {
     return this.request<CommitmentResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async cancelCommitment(
+    actionId: string,
+    commitmentId: string,
+    body: CancelCommitmentRequest,
+    options: RequestOptions = {},
+  ): Promise<CommitmentCancellationResultResponse> {
+    return this.request<CommitmentCancellationResultResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/cancellation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }
@@ -1204,6 +1234,24 @@ export class LeonAidApiClient {
   ): Promise<InvoicePaymentResponse> {
     return this.request<InvoicePaymentResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices/${encodeURIComponent(String(invoiceId))}/payments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async reverseInvoicePayment(
+    actionId: string,
+    invoiceId: string,
+    paymentId: string,
+    body: ReverseInvoicePaymentRequest,
+    options: RequestOptions = {},
+  ): Promise<InvoicePaymentReversalResponse> {
+    return this.request<InvoicePaymentReversalResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices/${encodeURIComponent(String(invoiceId))}/payments/${encodeURIComponent(String(paymentId))}/reversal`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

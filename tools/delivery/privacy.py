@@ -11,7 +11,13 @@ import httpx
 from leonaid.adapters.postgres.legal_configuration import (
     AsyncpgLegalConfigurationRepository,
 )
+from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.adapters.postgres.order_cancellation import (
+    AsyncpgOrderCancellationRepository,
+)
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
+from leonaid.application.delivery_completion import delivery_completion_version
+from leonaid.application.order_cancellation import OrderCancellationRequest
 from leonaid.application.privacy import PrivacyService
 from leonaid.domain.identity import (
     AccountStatus,
@@ -103,6 +109,33 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
             [item.commitment_id for item in exported.order_deliveries],
         )
     }
+    # A cancelled order's free-text note goes with the erasure; the reason
+    # stays, like an invoice cancellation reason (ADR-0009).
+    cancelled_id = exported.order_deliveries[0].commitment_id
+    async with pool.acquire() as connection:
+        cancelled_order = await AsyncpgCommitmentRepository._get(
+            connection, cancelled_id, replayed=False
+        )
+    cancel_request = OrderCancellationRequest(
+        delivery_completion_version(cancelled_order),
+        "Sponsor hat die Bestellung zurückgezogen",
+        "Rückruf bei customer@example.invalid, Tel. +49 123-45",
+    )
+    await AsyncpgOrderCancellationRepository(pool).cancel(
+        action_id=cancelled_order.action_id,
+        commitment_id=cancelled_id,
+        actor_user_id=admin_id,
+        request=cancel_request,
+        fresh_login=True,
+        idempotency_key=f"privacy-cancel:{cancelled_id}",
+        request_hash=cancel_request.fingerprint(
+            action_id=cancelled_order.action_id,
+            commitment_id=cancelled_id,
+            actor_user_id=admin_id,
+        ),
+        request_id="delivery-privacy-proof",
+        occurred_at=now,
+    )
     # No retained invoice is changed by the delivery extension or erasure path.
     invoices = await pool.fetch(
         "SELECT id,to_jsonb(invoice)::text AS snapshot FROM invoice"
@@ -130,6 +163,13 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
         await pool.fetch("SELECT id,to_jsonb(invoice)::text AS snapshot FROM invoice")
         == invoices
     )
+    cancellation = await pool.fetchrow(
+        "SELECT reason_snapshot, note_snapshot FROM commitment_cancellation"
+        " WHERE commitment_id=$1",
+        cancelled_id,
+    )
+    assert cancellation["note_snapshot"] is None
+    assert cancellation["reason_snapshot"] == cancel_request.reason
     assert not (await repo.subject_report(email)).order_deliveries
     legacy_result = await app.state.privacy_service.erase(
         actor,
@@ -143,5 +183,5 @@ async def prove_privacy(pool: asyncpg.Pool, admin_id: UUID) -> None:
         == invoices
     )
     print(
-        "KLF-030 privacy PASS: scoped HTTP lookup, export delivery snapshots/contact, historical nulls, 401/403, erasure removes contacts, windows and invoice snapshots retained"
+        "KLF-030 privacy PASS: scoped HTTP lookup, export delivery snapshots/contact, historical nulls, 401/403, erasure removes contacts and the cancellation note, windows and invoice snapshots retained"
     )

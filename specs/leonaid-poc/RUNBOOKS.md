@@ -1,6 +1,6 @@
 # LeonAid PoC – Betriebs- und Benutzer-Runbooks
 
-Stand: 2026-07-27
+Stand: 2026-11-06
 
 ## Runbook-Index
 
@@ -72,35 +72,43 @@ zu prüfen.
 ### Offene Einladung widerrufen
 
 Der kanonische, Fresh-Login-geschützte Vertrag ist
-`DELETE /api/v1/invitations/{invitation_id}`. Die aktuelle PoC-Oberfläche
-besitzt noch keine vollständige Einladungsliste; siehe
-[`KNOWN-LIMITS.md`](KNOWN-LIMITS.md). Ohne eindeutig bekannte
-Einladungs-ID wird nicht in PostgreSQL gesucht oder geändert.
+`DELETE /api/v1/invitations/{invitation_id}`. Die Oberfläche unter
+`/admin/members` bietet dafür eine Einladungsliste mit Widerrufen, erneutem
+Senden und Adresskorrektur. Ohne eindeutig bekannte Einladungs-ID wird nicht
+in PostgreSQL gesucht oder geändert.
 
 ### Sitzung sofort entziehen
 
 Bei verlorenem Gerät oder vermutetem Sessionmissbrauch:
 
 1. System-Admin frisch anmelden.
-2. Die eindeutige Benutzer-ID aus einem bereits autorisierten
-   Administrationsvorgang bestimmen.
-3. `DELETE /api/v1/admin/users/{user_id}/sessions` über den generierten
+2. `/admin/members` öffnen und das Mitglied wählen. Der Abschnitt
+   „Sitzungen“ zeigt die aktiven Sitzungen. „Zugang sperren“ beendet sie.
+3. Soll nur die Sitzung enden, ohne den Account zu sperren, den Endpunkt
+   `DELETE /api/v1/admin/users/{user_id}/sessions` über den generierten
    API-Client ausführen.
 4. `revoked_count` und das AuditEvent prüfen.
 5. Betroffene Person informieren und neuen Login beobachten.
 
-Die aktuelle PoC-UI bietet dafür noch keinen vollständigen
-Benutzerlisten-Workflow. Ist die ID nicht belastbar bestimmbar, wird der
-Zugriff über Wartungsmodus beziehungsweise Proxy vorübergehend gesperrt und
-als Incident behandelt. Direkte Datenbankänderung ist verboten.
+Ist das Mitglied nicht belastbar bestimmbar, wird der Zugriff über
+Wartungsmodus beziehungsweise Proxy vorübergehend gesperrt und als Incident
+behandelt. Direkte Datenbankänderung ist verboten.
 
 ### Austritt, Rollenwechsel und E-Mail-Änderung
 
-Diese Vorgänge besitzen im PoC noch keinen vollständigen Operator-Workflow.
-Vor einem realen Pilot müssen Account-Sperre, Membership-Entzug,
-Rollenwechsel und kontrollierte E-Mail-Korrektur mit Audit und Fresh Login
-ergänzt werden. Bis dahin ist der PoC nicht für reale Offboarding-Fälle
-freigegeben.
+Alle Vorgänge laufen mit Fresh Login und Audit über die Mitgliederdetailseite
+unter `/admin/members`:
+
+- Austritt: „Zugang sperren“ (oder archivieren) beendet alle Sitzungen.
+  Gesperrt wird nicht, wenn danach eine offene Aktion ohne aktiven
+  Charity-Admin bliebe (`409`). „Zugang reaktivieren“ hebt die Sperre auf.
+- Membership-Entzug und Rollenwechsel: Aktions- und globale Rollen werden je
+  Rolle entzogen oder vergeben.
+- E-Mail-Änderung: „Anmeldeadresse ändern“ sendet der neuen Adresse eine
+  Bestätigung. Erst danach gilt sie, und alle bisherigen Sitzungen enden.
+
+Das Mitglied kann die Login-E-Mail nicht selbst ändern. Direkte
+Datenbankänderung ist verboten.
 
 ## Incident-Runbook
 

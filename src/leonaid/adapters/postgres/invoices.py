@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -10,6 +11,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -17,6 +19,7 @@ from leonaid.adapters.postgres.delivery import lock_configuration
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
+from leonaid.adapters.postgres.invoice_payments import payments_for_action
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.invoice_deliveries import InvoiceDelivery
 from leonaid.application.invoices import (
@@ -116,14 +119,6 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 SELECT
                     invoice.*,
                     commitment.customer_snapshot,
-                    payment.id AS payment_id,
-                    payment.amount_minor AS payment_amount_minor,
-                    payment.currency AS payment_currency,
-                    payment.received_on AS payment_received_on,
-                    payment.reference AS payment_reference_recorded,
-                    payment.recorded_by_user_id,
-                    payment.created_at AS payment_recorded_at,
-                    payment_actor.display_name AS payment_recorded_by_display_name,
                     cancellation.id AS cancellation_id,
                     cancellation.original_status AS cancellation_original_status,
                     cancellation.reason_snapshot AS cancellation_reason,
@@ -133,10 +128,6 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                       AS cancellation_requested_by_display_name
                 FROM invoice
                 JOIN commitment ON commitment.id = invoice.commitment_id
-                LEFT JOIN payment_record AS payment
-                  ON payment.invoice_id = invoice.id
-                LEFT JOIN user_account AS payment_actor
-                  ON payment_actor.id = payment.recorded_by_user_id
                 LEFT JOIN invoice_cancellation AS cancellation
                   ON cancellation.invoice_id = invoice.id
                 LEFT JOIN user_account AS cancellation_actor
@@ -166,6 +157,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 """,
                 action_id,
             )
+            payments_by_invoice = await payments_for_action(connection, action_id)
         deliveries_by_invoice: dict[UUID, list[Any]] = {}
         for delivery_row in delivery_rows:
             deliveries_by_invoice.setdefault(
@@ -178,6 +170,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 deliveries=AsyncpgInvoiceDeliveryRepository.deliveries_from_rows(
                     tuple(deliveries_by_invoice.get(row["id"], []))
                 ),
+                payments=payments_by_invoice.get(row["id"], ()),
             )
             for row in rows
         )
@@ -209,7 +202,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "invoice_concurrent_retry",
@@ -851,6 +844,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         row: asyncpg.Record,
         *,
         deliveries: tuple[InvoiceDelivery, ...] = (),
+        payments: tuple[PaymentRecord, ...] = (),
     ) -> InvoiceRecord:
         buyer = BuyerSnapshot.from_payload(
             _json_object(
@@ -859,24 +853,6 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             )
         )
         invoice = cls._invoice_from_row(row)
-        payment = (
-            PaymentRecord(
-                id=row["payment_id"],
-                action_id=invoice.action_id,
-                invoice_id=invoice.id,
-                amount=Money(
-                    int(row["payment_amount_minor"]),
-                    str(row["payment_currency"]),
-                ),
-                received_on=row["payment_received_on"],
-                reference=str(row["payment_reference_recorded"]),
-                recorded_by_user_id=row["recorded_by_user_id"],
-                recorded_at=row["payment_recorded_at"],
-                recorded_by_display_name=str(row["payment_recorded_by_display_name"]),
-            )
-            if row["payment_id"] is not None
-            else None
-        )
         cancellation = (
             InvoiceCancellation(
                 id=row["cancellation_id"],
@@ -893,19 +869,20 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             if row["cancellation_id"] is not None
             else None
         )
-        open_amount = (
-            Money(0, invoice.gross.currency)
-            if invoice.status in {InvoiceStatus.PAID, InvoiceStatus.CANCELLED}
-            else invoice.gross
-        )
-        return InvoiceRecord(
+        record = InvoiceRecord(
             invoice=invoice,
             buyer_display_name=buyer.display_name,
-            open_amount=open_amount,
-            payment=payment,
+            open_amount=Money(0, invoice.gross.currency),
+            payment=next(
+                (item for item in reversed(payments) if item.active),
+                None,
+            ),
             cancellation=cancellation,
             deliveries=deliveries,
+            payments=payments,
         )
+        # The open amount is the remainder of the active payment entries.
+        return replace(record, open_amount=record.balance.open_amount)
 
     @classmethod
     async def _get(

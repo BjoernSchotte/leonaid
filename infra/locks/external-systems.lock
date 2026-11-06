@@ -29,8 +29,8 @@
     {
       "id": "postgres",
       "version": "16.15-alpine3.24",
-      "image": "docker.io/library/postgres:16.15-alpine3.24@sha256:e0e53cfa0884f3cc216a621033e4f38dceb49e52218ac77facc8e48f02973093",
-      "digest": "sha256:e0e53cfa0884f3cc216a621033e4f38dceb49e52218ac77facc8e48f02973093",
+      "image": "docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
+      "digest": "sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
       "license": "PostgreSQL",
       "upstream": "https://github.com/docker-library/postgres/tree/9d15534160ade17f2b6c455a39ee967c49b1937d",
       "roles": [
@@ -65,8 +65,8 @@
     {
       "id": "redis-upgrade-source",
       "version": "7.4.12-alpine3.21",
-      "image": "docker.io/library/redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
-      "digest": "sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "image": "docker.io/library/redis:7.4.12-alpine3.21@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b",
+      "digest": "sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b",
       "license": "RSALv2 OR SSPL-1.0",
       "upstream": "https://github.com/redis/docker-library-redis/tree/786872f8c248c1f0990f93244cbcb3949329016d",
       "roles": [
@@ -156,8 +156,8 @@
     {
       "id": "node",
       "version": "22.23.4-alpine3.24",
-      "image": "docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914",
-      "digest": "sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914",
+      "image": "docker.io/library/node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202",
+      "digest": "sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202",
       "license": "MIT",
       "upstream": "https://github.com/nodejs/node/releases/tag/v22.23.4",
       "roles": [

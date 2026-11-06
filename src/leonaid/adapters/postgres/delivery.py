@@ -83,6 +83,39 @@ async def lock_configuration(
     return await read_configuration(connection, action_id)
 
 
+async def lock_order_windows(
+    connection: asyncpg.Connection[Any],
+    *,
+    action_id: UUID,
+    commitment_id: UUID,
+    target_window_id: UUID | None,
+) -> None:
+    """Share-lock the order's booked window and the one it is about to book.
+
+    Taken before the order row (lock order in ``retry.py``), so a completion
+    and a cancellation or board command on the same window never deadlock.
+    """
+    booked = await connection.fetchval(
+        "SELECT delivery_window_id FROM commitment WHERE id = $1 AND action_id = $2",
+        commitment_id,
+        action_id,
+    )
+    window_ids = sorted(
+        {window for window in (booked, target_window_id) if window is not None},
+        key=str,
+    )
+    if window_ids:
+        await connection.execute(
+            """
+            SELECT id FROM action_delivery_window
+            WHERE action_id = $1 AND id = ANY($2::uuid[])
+            ORDER BY id FOR SHARE
+            """,
+            action_id,
+            window_ids,
+        )
+
+
 async def guard_window_booking(
     connection: asyncpg.Connection[Any],
     *,

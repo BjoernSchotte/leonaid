@@ -4,9 +4,9 @@ description: Reference for campaign, acquisition, order, invoice, and delivery s
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -37,6 +37,13 @@ contact itself.
 The source is `acquisition`, `public_form`, or `admin`. Prices, lines, invoice
 recipient, and delivery details are checked on the server; a booked delivery
 window is retained as a snapshot.
+
+**Storniert** (cancelled) is final and only possible while the order is not
+delivered and no payment is recorded on its invoice. The cancellation stores
+the reason, an optional note, the previous status, who cancelled and when. A
+cancelled order stays visible in lists but counts in no total and on no
+delivery board; an open invoice is cancelled with it (see
+[Cancel an order](/en/user/how-to/cancel-order/)).
 
 ## Delivery window
 

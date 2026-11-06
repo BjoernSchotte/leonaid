@@ -37,7 +37,7 @@ REQUIRED_CONTENT: dict[str, tuple[str, ...]] = {
     ),
     "specs/leonaid-poc/KNOWN-LIMITS.md": (
         "keine bekannten P0-/P1-Defekte",
-        "Account-Sperre",
+        "Sperren/Archivieren",
         "Mailpit ist ausschließlich lokales Testsystem",
         "Produktiv- oder Pilotfreigabe",
     ),

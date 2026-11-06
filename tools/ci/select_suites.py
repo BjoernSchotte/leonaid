@@ -304,7 +304,11 @@ RULES: tuple[Rule, ...] = (
     Rule(("tools/compose/**",), integration("compose", "profiles"), "Compose proofs"),
     Rule(("tools/core/**",), integration("core"), "Core proofs"),
     Rule(
-        ("tools/schema/**", "tools/outbox/**"),
+        (
+            "tools/schema/**",
+            "tools/outbox/**",
+            "tests/integration/test_order_cancellation_api.py",
+        ),
         integration("schema-outbox"),
         "schema/outbox proofs",
     ),
@@ -322,7 +326,11 @@ RULES: tuple[Rule, ...] = (
         "invoice proofs",
     ),
     Rule(
-        ("tools/commitments/**", "tests/e2e/commitments.spec.mjs"),
+        (
+            "tools/commitments/**",
+            "tests/e2e/commitments.spec.mjs",
+            "tests/e2e/order-cancellation.spec.mjs",
+        ),
         e2e("commitments"),
         "commitment proofs",
     ),

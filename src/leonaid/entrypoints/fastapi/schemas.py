@@ -1210,7 +1210,8 @@ class CommitmentResponse(TransportModel):
     delivery_completion_version: str = Field(
         description=(
             "Optimistic version of status, delivery and billing details. "
-            "Send it back unchanged when completing delivery details."
+            "Send it back unchanged when completing delivery details or "
+            "cancelling the order."
         )
     )
 
@@ -1222,10 +1223,56 @@ class CommitmentCaptureContextResponse(TransportModel):
     offerings: list[ConfiguredOfferingResponse]
 
 
+class CommitmentInvoiceSummaryResponse(TransportModel):
+    id: UUID
+    number: str
+    status: Literal["issued", "sent", "paid", "cancelled"]
+    payment_recorded: bool = Field(
+        description="An active payment entry is booked; it blocks the order cancellation."
+    )
+    paid_minor: int = Field(
+        default=0,
+        ge=0,
+        description="Sum of the active (not reversed) payment entries.",
+    )
+
+
+class CommitmentCancellationResponse(TransportModel):
+    id: UUID
+    previous_status: Literal["draft", "review_ready", "confirmed", "invoiced"]
+    reason: str
+    note: str | None = None
+    requested_by_display_name: str | None = None
+    requested_at: datetime
+    invoice_cancellation_id: UUID | None = Field(
+        default=None,
+        description="The invoice cancellation (ADR-0009) this order cancellation caused.",
+    )
+    invoice_number: str | None = None
+
+
 class CommitmentRecordResponse(TransportModel):
     commitment: CommitmentResponse
     created_at: datetime
     captured_by_display_name: str | None
+    cancellation: CommitmentCancellationResponse | None = None
+    invoice: CommitmentInvoiceSummaryResponse | None = None
+    delivered: bool = Field(
+        default=False,
+        description="Marked delivered on the delivery board; blocks cancellation.",
+    )
+
+
+class CancelCommitmentRequest(TransportModel):
+    expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    reason: str = Field(min_length=8, max_length=500)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class CommitmentCancellationResultResponse(TransportModel):
+    commitment: CommitmentResponse
+    cancellation: CommitmentCancellationResponse
+    replayed: bool
 
 
 class CommitmentCurrencyTotalResponse(TransportModel):
@@ -1247,10 +1294,20 @@ class IssueInvoiceRequest(TransportModel):
 
 
 class RecordInvoicePaymentRequest(TransportModel):
-    amount_minor: int = Field(ge=1)
+    # Any received amount in cents: partial and over payments are entries too.
+    amount_minor: int = Field(ge=1, le=10_000_000_000)
     currency: str = Field(pattern=r"^[A-Z]{3}$")
     received_on: date
     reference: str = Field(min_length=1, max_length=160)
+    note: str | None = Field(default=None, max_length=500)
+    # `settlementVersion` of the invoice the form was opened with; a stale
+    # value is rejected with 409 `invoice_settlement_stale`.
+    expected_settlement_version: int | None = Field(default=None, ge=0)
+
+
+class ReverseInvoicePaymentRequest(TransportModel):
+    reason: str = Field(min_length=8, max_length=500)
+    expected_settlement_version: int | None = Field(default=None, ge=0)
 
 
 class CancelInvoiceRequest(TransportModel):
@@ -1349,6 +1406,18 @@ class InvoiceDeliveryResponse(TransportModel):
     can_retry: bool
 
 
+class InvoicePaymentReversalResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    invoice_id: UUID
+    payment_id: UUID
+    reason: str
+    reversed_by_user_id: UUID
+    reversed_by_display_name: str | None
+    reversed_at: datetime
+    replayed: bool
+
+
 class InvoicePaymentResponse(TransportModel):
     id: UUID
     action_id: UUID
@@ -1361,6 +1430,9 @@ class InvoicePaymentResponse(TransportModel):
     recorded_by_display_name: str | None
     recorded_at: datetime
     replayed: bool
+    note: str | None = None
+    # Set once the entry is reversed; it then no longer counts as paid.
+    reversal: InvoicePaymentReversalResponse | None = None
 
 
 class InvoiceCancellationResponse(TransportModel):
@@ -1378,10 +1450,25 @@ class InvoiceCancellationResponse(TransportModel):
 class InvoiceRecordResponse(TransportModel):
     invoice: InvoiceResponse
     buyer_display_name: str
+    # Remainder still to be received: total minus active payment entries.
     open_minor: int = Field(ge=0)
-    payment: InvoicePaymentResponse | None
+    payment: InvoicePaymentResponse | None = Field(
+        description=(
+            "Deprecated: the newest active (not reversed) payment entry. Before "
+            "partial payments (ADR-0014) a non-null value meant fully paid; it "
+            "no longer does. Use `settlementStatus`, `openMinor` and `payments`."
+        ),
+    )
     cancellation: InvoiceCancellationResponse | None
     deliveries: list[InvoiceDeliveryResponse]
+    # Every payment entry, reversed ones included, oldest first.
+    payments: list[InvoicePaymentResponse] = Field(default_factory=list)
+    paid_minor: int = Field(default=0, ge=0)
+    overpaid_minor: int = Field(default=0, ge=0)
+    settlement_status: Literal[
+        "open", "partially_paid", "paid", "overpaid", "cancelled"
+    ] = "open"
+    settlement_version: int = Field(default=0, ge=0)
 
 
 class InvoiceCurrencyTotalResponse(TransportModel):

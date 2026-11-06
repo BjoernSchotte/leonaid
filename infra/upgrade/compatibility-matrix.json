@@ -62,7 +62,7 @@
     {
       "id": "twenty-queue-store",
       "sourceVersion": "redis-7.4.12",
-      "sourceImage": "docker.io/library/redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "sourceImage": "docker.io/library/redis:7.4.12-alpine3.21@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b",
       "targetVersion": "valkey-9.1.3",
       "targetImage": "docker.io/valkey/valkey:9.1.3-alpine3.24@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b",
       "releaseNotes": [
@@ -87,7 +87,7 @@
       "sourceVersion": "16.9-alpine3.21",
       "sourceImage": "docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
       "targetVersion": "16.15-alpine3.24",
-      "targetImage": "docker.io/library/postgres:16.15-alpine3.24@sha256:e0e53cfa0884f3cc216a621033e4f38dceb49e52218ac77facc8e48f02973093",
+      "targetImage": "docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
       "releaseNotes": [
         "https://www.postgresql.org/docs/release/16.15/",
         "https://www.postgresql.org/support/versioning/",

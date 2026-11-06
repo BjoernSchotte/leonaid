@@ -529,6 +529,32 @@
 .commitment-detail .pane-section {
   min-width: 0;
 }
+/* Stamp of a cancelled order, like the invoice journal's ("nothing
+   disappears, it cancels"). */
+.commitment-stamp-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.commitment-detail .stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px var(--s-2);
+  border: 1.5px solid currentColor;
+  border-radius: var(--r-xs);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.commitment-note {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
 .commitment-detail .pane-section-actions {
   display: flex;
   justify-content: flex-end;
