@@ -1,36 +1,30 @@
 #!/bin/sh
+# Usage: verify-image-digests.sh [ROOT] [BASE_REV]
+#
+# Every recorded digest in infra/locks/images.env must still be in its
+# registry. images.env is generated from external-systems.lock and
+# tools/pins/check.py enforces their parity and that every other file agrees
+# with the lock, so a new lock entry cannot escape this registry check.
+#
+# A moved tag alone does not fail: upstream rebuilds (Docker Official Images)
+# move tags without a new version, and the old digest stays pullable.
+# .github/workflows/pin-drift.yml detects that drift and opens a re-pin PR.
+# With BASE_REV, every pin that differs from BASE_REV must also be the digest
+# its tag resolves to right now. LEONAID_PIN_ALL_TAGS=1 requires that for all.
 set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-env_file="$root/infra/locks/images.env"
+base=${2:-}
 
-# Every locked image is verified. images.env is generated from
-# external-systems.lock and tools/pins/check.py enforces their parity, so a new
-# lock entry cannot silently escape this registry check.
-count=0
-while IFS= read -r line || [ -n "$line" ]; do
-  case "$line" in
-    '' | '#'*) continue ;;
-    *_IMAGE=*) ;;
-    *)
-      echo "image-digest: ERROR: unexpected line in $env_file: $line" >&2
-      exit 1
-      ;;
-  esac
-  image=${line#*=}
-  tagged=${image%@*}
-  expected=${image##*@}
-  actual=$(docker buildx imagetools inspect "$tagged" | awk '/^Digest:/ {print $2; exit}')
-  if [ "$actual" != "$expected" ]; then
-    echo "image-digest: ERROR: $tagged expected $expected, registry has $actual" >&2
-    exit 1
-  fi
-  count=$((count + 1))
-done <"$env_file"
-
-[ "$count" -gt 0 ] || {
-  echo "image-digest: ERROR: no images found in $env_file" >&2
-  exit 1
-}
-echo "image-digest: OK: $count version tags resolve to their recorded digests"
+set -- verify "$root"
+if [ -n "$base" ]; then
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+  git -C "$root" show "$base:infra/locks/images.env" >"$tmp/base-images.env"
+  set -- "$@" --base-env "$tmp/base-images.env"
+fi
+if [ "${LEONAID_PIN_ALL_TAGS:-0}" = 1 ]; then
+  set -- "$@" --all-tags
+fi
+python3 "$root/tools/pins/image_digests.py" "$@"

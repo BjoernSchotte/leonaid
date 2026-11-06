@@ -29,6 +29,9 @@ Commands:
   dev               Build and start the ready PoC core stack (plus local
                     extensions from .local/dev, see infra/compose/README.md)
   check             Run non-mutating quality and policy gates
+  repin-images [--image SYSTEM]...
+                    Move image pins whose tag an upstream rebuild moved to the
+                    current digest in every file (infra/locks/README.md)
   docs-dev          Serve the bilingual documentation source for authoring
   docs-check        Validate the documentation project and frontmatter schema
   docs-build        Build the static documentation website into apps/docs/dist
@@ -3158,6 +3161,21 @@ mail_domain_check() (
   fi
 )
 
+# Upstream rebuilds move tags such as python:3.13.18-slim-trixie to a new
+# digest. Rewrites every file carrying a moved digest from the lock and checks
+# the result; .github/workflows/pin-drift.yml does the same on a schedule.
+repin_images() {
+  require_docker
+  python3 "$root/tools/pins/image_digests.py" repin "$root" "$@"
+  if [ -z "$(git -C "$root" status --porcelain -- infra/locks)" ]; then
+    return 0
+  fi
+  repinned_python=$(sed -n 's/^PYTHON_IMAGE=//p' "$root/infra/locks/images.env")
+  docker run --rm -v "$root:/workspace:ro" "$repinned_python" \
+    python /workspace/tools/pins/check.py /workspace
+  echo "repin-images: review 'git diff', commit, then run './leonaid check'."
+}
+
 run_feature_tests() {
   require_docker
   if [ -n "${CI:-}" ] || [ "${LEONAID_TEST_FRESH:-0}" = 1 ]; then
@@ -3177,6 +3195,10 @@ case "$command" in
     exec /bin/sh "$root/tools/release/release.sh" "$@"
     ;;
   check) check_all ;;
+  repin-images)
+    shift
+    repin_images "$@"
+    ;;
   docs-dev) serve_docs dev ;;
   docs-check)
     run_python uv run --frozen --no-sync \
