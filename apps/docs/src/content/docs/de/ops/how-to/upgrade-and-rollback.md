@@ -4,10 +4,10 @@ description: Gepinnte Core-, Twenty-, RustFS- und EmDash-Versionen mit Wartungsg
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
-reviewer: Björn Schotte
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Pins und Schwachstellenbefunde prüfen
@@ -17,6 +17,17 @@ Container-Images, `uv.lock`, `bun.lock` und die Digests der GitHub Actions.
 Sicherheitskorrekturen kommen sofort als eigene PRs. Twenty, PostgreSQL, Valkey
 und RustFS erhalten eigene PRs mit dem Label `needs-upgrade-runbook`; für sie
 gelten die Schritte unten. Nichts wird automatisch gemergt.
+
+Upstream-Projekte bauen außerdem einen bestehenden Tag für Sicherheitskorrekturen
+neu, zum Beispiel `postgres:16.15-alpine3.24`. Die Version bleibt, der Digest
+ändert sich. Die CI von Pull-Requests scheitert daran nicht: Sie verlangt nur,
+dass jeder gepinnte Digest noch in der Registry liegt. Der tägliche Workflow
+`Image pin drift` findet verschobene Tags und öffnet einen PR vom Branch
+`pins/repin-images`. Dieser PR schreibt jede Datei um, die einen alten Digest
+enthält. Prüfe ihn wie jedes Image-Update: Auf ihm läuft die vollständige CI
+einschließlich des Security-Jobs. Lokal behebst du die Abweichung mit
+`./leonaid repin-images` (oder `--image postgres` für ein einzelnes System);
+committe danach und führe `./leonaid check` aus.
 
 `infra/locks/external-systems.lock` hält `reviewedAt` und `nextReviewOn` fest.
 `./leonaid check` schlägt fehl, sobald `nextReviewOn` überschritten ist. Für
