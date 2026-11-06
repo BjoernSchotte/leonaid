@@ -3,9 +3,11 @@ import {
   Ban,
   Download,
   FileText,
+  HandCoins,
   Lock,
   Mail,
   Send,
+  Undo2,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,6 +21,7 @@ import {
 import {
   Button,
   buttonClassName,
+  cn,
   DetailProps,
   DetailSection,
   Icon,
@@ -41,20 +44,25 @@ import {
   deliveryCommandStorageKey,
   forgetCommandKey,
   invoiceDispatchLabels,
+  invoiceSettlement,
   invoiceStatusLabels,
   type InvoiceRow,
 } from "./invoice-model";
 
-export type InvoiceCommand = "payment" | "cancellation";
+export type InvoiceCommand = "payment" | "cancellation" | "reversal";
 
 export interface InvoiceDetailProps {
   readonly row: InvoiceRow;
   readonly client: LeonAidApiClient;
   /** Server right `mayIssue`: send, resend and retry the e-mail delivery. */
   readonly canManageDelivery: boolean;
-  /** Server right `mayManageSettlements`: payment and cancellation. */
+  /** Server right `mayManageSettlements`: payments, reversals, cancellation. */
   readonly canManageSettlement: boolean;
-  readonly onCommand: (command: InvoiceCommand, row: InvoiceRow) => void;
+  readonly onCommand: (
+    command: InvoiceCommand,
+    row: InvoiceRow,
+    paymentId?: string,
+  ) => void;
   readonly onChanged: () => void;
   readonly today: string;
 }
@@ -98,13 +106,42 @@ export function InvoiceDetail({
   today,
 }: InvoiceDetailProps) {
   const { record } = row;
-  const { invoice, payment, cancellation } = record;
+  const { invoice, cancellation } = record;
+  const settlementState = invoiceSettlement(record);
   const settlement = cancellation
     ? "cancelled"
-    : payment
-      ? "paid"
-      : "outstanding";
+    : settlementState.status === "overpaid"
+      ? "overpaid"
+      : settlementState.status === "paid"
+        ? "paid"
+        : settlementState.status === "partially_paid"
+          ? "partial"
+          : "outstanding";
+  const latestPayment = settlementState.active.at(-1);
+  const money = (minor: number) => formatMoney(minor, invoice.currency);
   const latest = record.deliveries[0];
+  const recordPayment = (label: string, size?: "sm") => (
+    <Button
+      data-testid="open-payment-form"
+      icon={Wallet}
+      onClick={() => onCommand("payment", row)}
+      size={size}
+      variant={size ? "ghost" : "primary"}
+    >
+      {label}
+    </Button>
+  );
+  const cancelInvoice = (size?: "sm") => (
+    <Button
+      data-testid="open-cancellation-form"
+      icon={Ban}
+      onClick={() => onCommand("cancellation", row)}
+      size={size}
+      variant="ghost"
+    >
+      Stornieren
+    </Button>
+  );
 
   return (
     <div
@@ -121,58 +158,65 @@ export function InvoiceDetail({
             bleibt unverändert erhalten.
           </span>
         </div>
-      ) : payment ? (
+      ) : settlement === "paid" && latestPayment ? (
         <div className="inv-stamp-row" data-testid="invoice-stamp">
           <span className="stamp tone-ok">Bezahlt</span>
           <span className="small muted">
-            Zahlungseingang am {shortDate(payment.receivedOn, today)},
+            Zahlungseingang am {shortDate(latestPayment.receivedOn, today)},
             vollständig.
+          </span>
+        </div>
+      ) : settlement === "overpaid" ? (
+        <div className="inv-stamp-row" data-testid="invoice-stamp">
+          <span className="stamp tone-warn">Überzahlt</span>
+          <span className="small muted">
+            {money(settlementState.overpaidMinor)} mehr eingegangen als
+            berechnet.
           </span>
         </div>
       ) : null}
 
-      {canManageSettlement && settlement === "outstanding" ? (
+      {settlement === "overpaid" ? (
+        <div
+          className="callout tone-warn inv-callout"
+          data-testid="invoice-overpaid"
+          role="status"
+        >
+          <Icon icon={HandCoins} size={16} />
+          <span className="grow">
+            <strong>Differenz erstatten:</strong>{" "}
+            {money(settlementState.overpaidMinor)} an {record.buyerDisplayName}{" "}
+            zurücküberweisen. LeonAid bucht keine Erstattung; erfassen Sie die
+            Rücküberweisung bei Ihrer Bank.
+          </span>
+        </div>
+      ) : null}
+
+      {canManageSettlement &&
+      (settlement === "outstanding" || settlement === "partial") ? (
         <NextStep
-          action={
-            <Button
-              data-testid="open-payment-form"
-              icon={Wallet}
-              onClick={() => onCommand("payment", row)}
-              variant="primary"
-            >
-              Zahlung erfassen
-            </Button>
+          action={recordPayment("Zahlung erfassen")}
+          alternatives={cancelInvoice()}
+          consequence={
+            settlement === "partial"
+              ? `${money(settlementState.paidMinor)} von ${money(invoice.grossMinor)} eingegangen, ${money(record.openMinor)} offen. Erfassen Sie jeden weiteren Zahlungseingang.`
+              : "Erfassen Sie den Zahlungseingang, auch wenn erst ein Teil da ist."
           }
-          alternatives={
-            <Button
-              data-testid="open-cancellation-form"
-              icon={Ban}
-              onClick={() => onCommand("cancellation", row)}
-              variant="ghost"
-            >
-              Stornieren
-            </Button>
-          }
-          consequence="Erfassen Sie den Zahlungseingang, sobald der volle Betrag da ist."
           lead={
             row.status === "overdue"
               ? `Seit ${shortDate(invoice.dueOn, today)} überfällig.`
-              : `Fällig ${relativeDay(invoice.dueOn, today)}.`
+              : settlement === "partial"
+                ? "Teilweise bezahlt."
+                : `Fällig ${relativeDay(invoice.dueOn, today)}.`
           }
         />
       ) : null}
 
-      {canManageSettlement && settlement === "paid" ? (
+      {canManageSettlement &&
+      (settlement === "paid" || settlement === "overpaid") ? (
         <div className="cluster">
-          <Button
-            data-testid="open-cancellation-form"
-            icon={Ban}
-            onClick={() => onCommand("cancellation", row)}
-            size="sm"
-            variant="ghost"
-          >
-            Stornieren
-          </Button>
+          {recordPayment("Weitere Zahlung erfassen", "sm")}
+          {cancelInvoice("sm")}
         </div>
       ) : null}
 
@@ -227,14 +271,41 @@ export function InvoiceDetail({
                   invoice.taxNote
                 ),
             },
+            ...(settlementState.paidMinor > 0
+              ? [
+                  {
+                    label: "Eingegangen",
+                    value: (
+                      <span className="num" data-testid="invoice-paid-amount">
+                        {money(settlementState.paidMinor)}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
             {
               label: "Offen",
               value: (
                 <span className="num" data-testid="invoice-open-amount">
-                  {formatMoney(record.openMinor, invoice.currency)}
+                  {money(record.openMinor)}
                 </span>
               ),
             },
+            ...(settlementState.overpaidMinor > 0
+              ? [
+                  {
+                    label: "Überzahlt",
+                    value: (
+                      <span
+                        className="num"
+                        data-testid="invoice-overpaid-amount"
+                      >
+                        {money(settlementState.overpaidMinor)}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
             { label: "Ausgestellt", value: shortDate(invoice.issuedAt, today) },
             { label: "Leistungsdatum", value: formatDate(invoice.serviceOn) },
             {
@@ -311,28 +382,58 @@ export function InvoiceDetail({
         </ul>
       </DetailSection>
 
-      {payment ? (
-        <DetailSection title="Zahlung">
-          <div data-testid="payment-record">
-            <DetailProps
-              items={[
-                {
-                  label: "Betrag",
-                  value: (
-                    <span className="num">
-                      {formatMoney(payment.amountMinor, payment.currency)}
-                    </span>
-                  ),
-                },
-                { label: "Eingegangen", value: formatDate(payment.receivedOn) },
-                { label: "Verwendungszweck", value: payment.reference },
-                {
-                  label: "Erfasst",
-                  value: `${payment.recordedByDisplayName ?? "Berechtigte Finanzrolle"}, ${formatDateTime(payment.recordedAt)}`,
-                },
-              ]}
-            />
-          </div>
+      {settlementState.payments.length > 0 ? (
+        <DetailSection title="Zahlungen">
+          <ul className="inv-payments" data-testid="payment-record">
+            {settlementState.payments.map((payment) => (
+              <li
+                className={payment.reversal ? "is-reversed" : undefined}
+                data-payment-id={payment.id}
+                data-testid="payment-entry"
+                key={payment.id}
+              >
+                <div className="inv-payment-head">
+                  <span className={cn("num", payment.reversal && "is-struck")}>
+                    {formatMoney(payment.amountMinor, payment.currency)}
+                  </span>
+                  <span className="grow small muted">
+                    eingegangen am {formatDate(payment.receivedOn)}
+                  </span>
+                  {canManageSettlement && !payment.reversal && !cancellation ? (
+                    <Button
+                      data-testid="open-reversal-form"
+                      icon={Undo2}
+                      onClick={() => onCommand("reversal", row, payment.id)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      Zurückbuchen
+                    </Button>
+                  ) : null}
+                </div>
+                <DetailProps
+                  items={[
+                    { label: "Verwendungszweck", value: payment.reference },
+                    ...(payment.note
+                      ? [{ label: "Notiz", value: payment.note }]
+                      : []),
+                    {
+                      label: "Erfasst",
+                      value: `${payment.recordedByDisplayName ?? "Berechtigte Finanzrolle"}, ${formatDateTime(payment.recordedAt)}`,
+                    },
+                    ...(payment.reversal
+                      ? [
+                          {
+                            label: "Zurückgebucht",
+                            value: `${payment.reversal.reversedByDisplayName ?? "Berechtigte Finanzrolle"}, ${formatDateTime(payment.reversal.reversedAt)}: ${payment.reversal.reason}`,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </li>
+            ))}
+          </ul>
         </DetailSection>
       ) : null}
 

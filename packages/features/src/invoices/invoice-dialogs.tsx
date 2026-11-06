@@ -26,6 +26,7 @@ import {
 import {
   commandKey,
   forgetCommandKey,
+  invoiceSettlement,
   settlementCommandStorageKey,
 } from "./invoice-model";
 
@@ -37,7 +38,11 @@ interface SettlementDialogProps {
   readonly onChanged: () => void;
 }
 
-/** Explicit command: records the exact full payment of an open invoice. */
+/**
+ * Explicit command: records one received payment entry. The amount starts
+ * as the open remainder, so a full payment stays one click; a partial or an
+ * over payment is typed over it.
+ */
 export function PaymentDialog(props: SettlementDialogProps) {
   // A fresh form per invoice: the key resets every field.
   return props.record ? (
@@ -56,10 +61,16 @@ function PaymentForm({
   record,
 }: SettlementDialogProps & { readonly record: InvoiceRecordResponse }) {
   const { invoice } = record;
+  // The version the form was opened with: if another person books in the
+  // meantime, the server refuses this entry instead of double counting.
+  const [openedVersion] = useState(() => invoiceSettlement(record).version);
   const toast = useOptionalToast();
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(() =>
+    record.openMinor > 0 ? amountInput(record.openMinor) : "",
+  );
   const [receivedOn, setReceivedOn] = useState(localIsoDate);
   const [reference, setReference] = useState("");
+  const [note, setNote] = useState("");
   const [amountError, setAmountError] = useState<string>();
   const [dateError, setDateError] = useState<string>();
   const [serverError, setServerError] = useState<string>();
@@ -78,6 +89,8 @@ function PaymentForm({
           currency: invoice.currency,
           receivedOn,
           reference: reference.trim() || invoice.paymentReference,
+          note: note.trim() || null,
+          expectedSettlementVersion: openedVersion,
         },
         {
           headers: {
@@ -109,10 +122,8 @@ function PaymentForm({
       );
       return;
     }
-    if (minor !== record.openMinor) {
-      setAmountError(
-        `Nur die exakte Vollzahlung von ${open} kann erfasst werden. Eingegangen sind ${formatMoney(minor, invoice.currency)}. Klären Sie die Differenz mit dem Sponsor und erfassen Sie danach den vollen Betrag.`,
-      );
+    if (minor <= 0) {
+      setAmountError("Der eingegangene Betrag muss größer als 0,00 € sein.");
       return;
     }
     if (!receivedOn || receivedOn < minDate || receivedOn > today) {
@@ -162,7 +173,11 @@ function PaymentForm({
       >
         <Field
           error={amountError}
-          hint="Nur vollständige Zahlungen. Teilzahlungen sind im Pilot nicht vorgesehen."
+          hint={amountHint(
+            parseAmountMinor(amount),
+            record.openMinor,
+            invoice.currency,
+          )}
           id={`pay-amount-${invoice.id}`}
           label="Eingegangener Betrag in €"
         >
@@ -210,6 +225,15 @@ function PaymentForm({
             value={reference}
           />
         </Field>
+        <Field id={`pay-note-${invoice.id}`} label="Notiz" optional>
+          <Input
+            data-testid="payment-note"
+            maxLength={500}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="z. B. Rest kommt im Dezember"
+            value={note}
+          />
+        </Field>
         {serverError ? (
           <StatusMessage tone="error">{serverError}</StatusMessage>
         ) : null}
@@ -217,6 +241,28 @@ function PaymentForm({
       </form>
     </Modal>
   );
+}
+
+/** "360,00": an amount in the German format the field accepts. */
+function amountInput(minor: number) {
+  return new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(minor / 100);
+}
+
+/** What the typed amount does to the remainder, before it is booked. */
+function amountHint(minor: number | null, openMinor: number, currency: string) {
+  if (minor === null || minor <= 0) {
+    return "Teil- und Überzahlungen sind möglich.";
+  }
+  if (minor < openMinor) {
+    return `Teilzahlung: Danach bleiben ${formatMoney(openMinor - minor, currency)} offen.`;
+  }
+  if (minor > openMinor) {
+    return `Überzahlung um ${formatMoney(minor - openMinor, currency)}. Die Differenz erstatten Sie außerhalb von LeonAid.`;
+  }
+  return "Vollständige Zahlung des offenen Betrags.";
 }
 
 const MIN_REASON = 8;
