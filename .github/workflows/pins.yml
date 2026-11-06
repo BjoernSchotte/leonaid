@@ -63,8 +63,23 @@ jobs:
       - name: Execute pinned toolchains and browser artifacts
         run: /bin/sh tools/pins/verify-runtime-versions.sh "$PWD"
 
-      - name: Verify registry tag-to-digest mappings
-        run: /bin/sh tools/pins/verify-image-digests.sh "$PWD"
+      # Recorded digests must still resolve; a tag moved by an upstream rebuild
+      # does not fail here (pin-drift.yml re-pins it). Pins this change adds
+      # or alters must equal what their tag resolves to now. Other events
+      # compare with main, so a dispatched re-pin branch is checked strictly.
+      - name: Verify registry digests and changed tag mappings
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request) base=$PR_BASE ;;
+            merge_group) base=$QUEUE_BASE ;;
+            *) base=main ;;
+          esac
+          git fetch --no-tags --depth=1 origin "$base"
+          /bin/sh tools/pins/verify-image-digests.sh "$PWD" FETCH_HEAD
 
   sbom:
     name: Generate dependency and image SBOMs

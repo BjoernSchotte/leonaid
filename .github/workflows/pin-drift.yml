@@ -1,0 +1,111 @@
+name: Image pin drift
+
+# Docker Official Images and other upstreams rebuild a tag for security
+# patches without a new version, so the tag moves to a new digest. Pull
+# request CI only requires recorded digests to stay pullable (pins.yml); this
+# workflow detects tag drift on main and keeps one re-pin pull request open on
+# the bot-owned branch pins/repin-images. tools/pins/image_digests.py rewrites
+# every file that carries an old digest, with external-systems.lock as the
+# source of truth, and regenerates images.env.
+#
+# Pull requests and pushes made with GITHUB_TOKEN start no workflows. The job
+# therefore dispatches every required workflow on the branch; their checks run
+# on the head commit and satisfy branch protection like pull_request runs.
+# tools/ci/workflow_contract.py keeps that list equal to the required set.
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+# contents: push the re-pin branch; pull-requests: open or update the PR;
+# actions: dispatch the required workflows on that branch.
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: pin-drift
+  cancel-in-progress: false
+
+jobs:
+  repin:
+    name: Re-pin moved image tags
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: pins/repin-images
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Resolve every pinned tag and rewrite drifted digests
+        run: python3 tools/pins/image_digests.py repin "$PWD" --summary "$RUNNER_TEMP/repin.md"
+
+      - name: Close an obsolete re-pin pull request
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            exit 0
+          fi
+          number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr close "$number" --repo "$GITHUB_REPOSITORY" --delete-branch \
+              --comment "main pins the current digest of every tag again."
+          fi
+
+      - name: Check the rewritten pins
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            exit 0
+          fi
+          . infra/locks/images.env
+          docker run --rm -v "$PWD:/workspace:ro" "$PYTHON_IMAGE" \
+            python /workspace/tools/pins/check.py /workspace
+          LEONAID_PIN_ALL_TAGS=1 /bin/sh tools/pins/verify-image-digests.sh "$PWD"
+
+      - name: Push the re-pin branch, open or update its pull request, start CI
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "pin-drift: every pinned tag still resolves to its digest"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git commit --quiet --all \
+            --message "chore(pins): re-pin image digests after upstream rebuilds" \
+            --message "$(cat "$RUNNER_TEMP/repin.md")"
+
+          # Skip an identical branch so an unchanged drift does not rerun CI daily.
+          if git fetch --no-tags --depth=1 origin "$BRANCH" 2>/dev/null &&
+            [ "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')" ]; then
+            echo "pin-drift: $BRANCH already carries this re-pin"
+            exit 0
+          fi
+          # The branch belongs to this workflow and is rebuilt from main each run.
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+
+          {
+            cat "$RUNNER_TEMP/repin.md"
+            echo
+            echo "Opened by .github/workflows/pin-drift.yml. The required workflows were"
+            echo "dispatched on \`$BRANCH\`; their checks report on the head commit."
+            echo "Re-run them with \`gh workflow run <file> --ref $BRANCH\` if one is missing."
+          } >"$RUNNER_TEMP/body.md"
+          number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+              --title "chore(pins): re-pin image digests after upstream rebuilds" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+          for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          done
