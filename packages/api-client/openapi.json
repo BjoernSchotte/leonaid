@@ -7803,6 +7803,17 @@
             "title": "Invoiceid",
             "type": "string"
           },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
           "receivedOn": {
             "format": "date",
             "title": "Receivedon",
@@ -7836,6 +7847,16 @@
           "replayed": {
             "title": "Replayed",
             "type": "boolean"
+          },
+          "reversal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvoicePaymentReversalResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7852,6 +7873,73 @@
           "replayed"
         ],
         "title": "InvoicePaymentResponse",
+        "type": "object"
+      },
+      "InvoicePaymentReversalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoiceId": {
+            "format": "uuid",
+            "title": "Invoiceid",
+            "type": "string"
+          },
+          "paymentId": {
+            "format": "uuid",
+            "title": "Paymentid",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "reversedAt": {
+            "format": "date-time",
+            "title": "Reversedat",
+            "type": "string"
+          },
+          "reversedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversedbydisplayname"
+          },
+          "reversedByUserId": {
+            "format": "uuid",
+            "title": "Reversedbyuserid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "invoiceId",
+          "paymentId",
+          "reason",
+          "reversedByUserId",
+          "reversedByDisplayName",
+          "reversedAt",
+          "replayed"
+        ],
+        "title": "InvoicePaymentReversalResponse",
         "type": "object"
       },
       "InvoiceProfileResponse": {
@@ -7975,6 +8063,18 @@
             "title": "Openminor",
             "type": "integer"
           },
+          "overpaidMinor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Overpaidminor",
+            "type": "integer"
+          },
+          "paidMinor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Paidminor",
+            "type": "integer"
+          },
           "payment": {
             "anyOf": [
               {
@@ -7984,6 +8084,31 @@
                 "type": "null"
               }
             ]
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/InvoicePaymentResponse"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "settlementStatus": {
+            "default": "open",
+            "enum": [
+              "open",
+              "partially_paid",
+              "paid",
+              "overpaid",
+              "cancelled"
+            ],
+            "title": "Settlementstatus",
+            "type": "string"
+          },
+          "settlementVersion": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Settlementversion",
+            "type": "integer"
           }
         },
         "required": [
@@ -12580,6 +12705,7 @@
         "additionalProperties": false,
         "properties": {
           "amountMinor": {
+            "maximum": 10000000000.0,
             "minimum": 1.0,
             "title": "Amountminor",
             "type": "integer"
@@ -12588,6 +12714,30 @@
             "pattern": "^[A-Z]{3}$",
             "title": "Currency",
             "type": "string"
+          },
+          "expectedSettlementVersion": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedsettlementversion"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "receivedOn": {
             "format": "date",
@@ -13130,6 +13280,34 @@
           "questions"
         ],
         "title": "ResponseSelection",
+        "type": "object"
+      },
+      "ReverseInvoicePaymentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedSettlementVersion": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedsettlementversion"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReverseInvoicePaymentRequest",
         "type": "object"
       },
       "RevokePrivacyConsentRequest": {
@@ -22442,6 +22620,139 @@
           }
         },
         "summary": "Record Invoice Payment",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/payments/{payment_id}/reversal": {
+      "post": {
+        "operationId": "reverseInvoicePayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseInvoicePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePaymentReversalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Reverse Invoice Payment",
         "tags": [
           "invoices"
         ]

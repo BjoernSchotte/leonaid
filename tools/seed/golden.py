@@ -1135,6 +1135,10 @@ async def seed_operational_golden(
         scoped_delivery_outbox_ids,
     )
     await connection.execute(
+        "DELETE FROM payment_reversal WHERE invoice_id = ANY($1::uuid[])",
+        scoped_invoice_ids,
+    )
+    await connection.execute(
         "DELETE FROM payment_record WHERE invoice_id = ANY($1::uuid[])",
         scoped_invoice_ids,
     )

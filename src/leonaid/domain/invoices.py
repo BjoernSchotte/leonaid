@@ -43,7 +43,10 @@ ALLOWED_INVOICE_TRANSITIONS: dict[InvoiceStatus, frozenset[InvoiceStatus]] = {
         {InvoiceStatus.SENT, InvoiceStatus.PAID, InvoiceStatus.CANCELLED}
     ),
     InvoiceStatus.SENT: frozenset({InvoiceStatus.PAID, InvoiceStatus.CANCELLED}),
-    InvoiceStatus.PAID: frozenset({InvoiceStatus.CANCELLED}),
+    # A reversed payment entry can bring the remainder back (ADR-0014).
+    InvoiceStatus.PAID: frozenset(
+        {InvoiceStatus.ISSUED, InvoiceStatus.SENT, InvoiceStatus.CANCELLED}
+    ),
     InvoiceStatus.CANCELLED: frozenset(),
 }
 
