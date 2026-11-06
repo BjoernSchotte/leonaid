@@ -60,7 +60,8 @@ Der Produktverantwortliche führt mindestens diesen Weg aus:
 5. eine Box über `/krapfentaxi` öffentlich bestellen.
 6. Feed-Eintrag beim zugeordneten Akquisiteur prüfen.
 7. Fresh Login durchführen, Rechnung freigeben und Typst-PDF öffnen.
-8. Rechnung versenden, Vollzahlung erfassen und Dashboard prüfen.
+8. Rechnung versenden, Zahlungseingang erfassen (Teil-, Voll- oder
+   Überzahlung, ADR-0014) und Dashboard prüfen.
 9. [`KNOWN-LIMITS.md`](KNOWN-LIMITS.md) als akzeptierte PoC-Grenze lesen.
 
 - [x] Produktverantwortlicher nimmt diesen PoC-Schnitt ausdrücklich ab.

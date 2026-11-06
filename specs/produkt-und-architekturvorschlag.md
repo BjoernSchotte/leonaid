@@ -1249,9 +1249,10 @@ zurückgestellt.
 Die Rechnung wird erst nach expliziter Freigabe aus einer Bestellung erzeugt.
 `Commitment` und `Invoice` bleiben getrennte Aggregate.
 
-Der PoC akzeptiert ausschließlich die exakte Vollzahlung in der
-Rechnungswährung. Teil- und Überzahlungen werden nicht implizit verrechnet,
-sondern serverseitig abgewiesen. Ein Storno benötigt eine nachvollziehbare
+Der PoC akzeptierte ursprünglich ausschließlich die exakte Vollzahlung in der
+Rechnungswährung. Seit ADR-0014 hält eine Rechnung mehrere manuell erfasste
+Zahlungseinträge; offen, teilweise bezahlt, bezahlt und überzahlt folgen aus
+ihrer Summe, und ein Eintrag wird begründet zurückgebucht statt gelöscht. Ein Storno benötigt eine nachvollziehbare
 Begründung und explizite Bestätigung. Nummer, Empfänger-, Positions- und
 Steuersnapshot sowie die konkrete Typst-PDF-Version bleiben dabei
 unverändert; eine spätere Korrektur ist ein neuer, separat nummerierter

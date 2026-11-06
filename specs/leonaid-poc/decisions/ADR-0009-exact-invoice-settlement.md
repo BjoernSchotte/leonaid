@@ -1,6 +1,8 @@
 # ADR-0009: Exakte Vollzahlung und begründetes Rechnungsstorno
 
-- Status: für den PoC angenommen
+- Status: für den PoC angenommen; Zahlungsteil ersetzt durch
+  [ADR-0014](ADR-0014-invoice-partial-payments.md) (Teil- und
+  Überzahlungen), Stornoteil gilt weiter
 - Datum: 2026-07-27
 - Entscheider: Produktverantwortlicher und Implementierung
 - Referenz: Produkt- und Architekturvorschlag, Kapitel 7.1 und 7.3

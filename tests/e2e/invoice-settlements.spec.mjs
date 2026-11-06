@@ -59,7 +59,7 @@ async function expectNoSeriousAccessibilityViolations(page) {
   ).toEqual([]);
 }
 
-test("charity admin books payments exactly and reverses them traceably", async ({
+test("charity admin books partial and full payments and reverses an entry", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -104,28 +104,76 @@ test("charity admin books payments exactly and reverses them traceably", async (
       fullPage: true,
     });
 
+    // A partial payment: the amount starts as the open remainder.
     await open.getByTestId("open-payment-form").click();
     const paymentDialog = page.getByRole("dialog", {
       name: /Zahlung für .* erfassen/,
     });
     await expect(paymentDialog).toBeVisible();
-    await paymentDialog.getByTestId("payment-amount").fill("359,99");
-    await paymentDialog.getByTestId("record-payment").click();
-    await expect(paymentDialog).toContainText(
-      "Nur die exakte Vollzahlung von 360,00",
+    await expect(paymentDialog.getByTestId("payment-amount")).toHaveValue(
+      "360,00",
     );
-    await expect(open).toHaveAttribute("data-settlement", "outstanding");
+    await paymentDialog.getByTestId("payment-amount").fill("100,00");
+    await expect(paymentDialog).toContainText("Danach bleiben 260,00");
+    await paymentDialog.getByTestId("payment-date").fill(paymentDate);
+    await paymentDialog
+      .getByTestId("payment-note")
+      .fill("Anzahlung per Überweisung");
+    await paymentDialog.getByTestId("record-payment").click();
+    await expect(paymentDialog).toBeHidden();
+    await expect(open).toHaveAttribute("data-settlement", "partial");
+    await expect(open.getByTestId("invoice-open-amount")).toContainText(
+      "260,00",
+    );
+    await expect(page.getByTestId("invoice-open-total")).toContainText(
+      "368,00",
+    );
+    const partialEntry = open
+      .getByTestId("payment-entry")
+      .filter({ hasText: "Anzahlung per Überweisung" });
+    await expect(partialEntry).toHaveCount(1);
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-partial-payment.png`,
+      fullPage: true,
+    });
 
+    // Reverse the partial entry: it stays, struck through, outside the sum.
+    await partialEntry.getByTestId("open-reversal-form").click();
+    const reversalDialog = page.getByRole("alertdialog", {
+      name: /zurückbuchen\?/,
+    });
+    await expect(reversalDialog).toBeVisible();
+    await reversalDialog
+      .getByTestId("reversal-reason")
+      .fill("Betrag gehört zu einer anderen Rechnung");
+    await reversalDialog.getByTestId("reverse-payment").click();
+    await expect(reversalDialog).toBeHidden();
+    await expect(open).toHaveAttribute("data-settlement", "outstanding");
+    await expect(partialEntry.getByTestId("open-reversal-form")).toHaveCount(0);
+    await expect(partialEntry).toContainText(
+      "Betrag gehört zu einer anderen Rechnung",
+    );
+    await expect(page.getByTestId("invoice-open-total")).toContainText(
+      "468,00",
+    );
+
+    // The full payment stays one click on the prefilled remainder.
+    // The form's command key is bound to the settlement version it opens on.
+    const version = await open.getAttribute("data-settlement-version");
     await page.evaluate(
-      ([invoiceId, key]) => {
+      ([invoiceId, key, settlementVersion]) => {
         window.sessionStorage.setItem(
-          `leonaid.invoice-payment-command.${invoiceId}`,
+          `leonaid.invoice-payment-command.${invoiceId}.v${settlementVersion}`,
           key,
         );
       },
-      [openInvoiceId, paymentKey],
+      [openInvoiceId, paymentKey, version],
     );
-    await paymentDialog.getByTestId("payment-amount").fill("360.00");
+    await open.getByTestId("open-payment-form").click();
+    await expect(paymentDialog).toBeVisible();
+    await expect(paymentDialog.getByTestId("payment-amount")).toHaveValue(
+      "360,00",
+    );
     await paymentDialog.getByTestId("payment-date").fill(paymentDate);
     await paymentDialog.getByTestId("payment-reference").fill(paymentReference);
     await paymentDialog.getByTestId("record-payment").click();

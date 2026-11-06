@@ -87,8 +87,13 @@
         "Eingegangener Betrag in €",
         "Eingangsdatum",
         "Verwendungszweck",
-        "Nur die exakte Vollzahlung"
+        "Notiz",
+        "Teil- und Überzahlungen sind möglich."
       ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-payment-reversal.tsx",
+      "contains": ["Zurückbuchen", "Grund der Rückbuchung"]
     },
     {
       "file": "packages/features/src/invoices/invoice-detail.tsx",
@@ -96,6 +101,10 @@
         "Zahlung erfassen",
         "stamp tone-ok",
         "Bezahlt",
+        "Überzahlt",
+        "Differenz erstatten",
+        "Weitere Zahlung erfassen",
+        "Zurückbuchen",
         "mayManageSettlements"
       ]
     },

@@ -1,4 +1,4 @@
-"""Authorized full-payment and invoice-cancellation use cases."""
+"""Authorized payment, payment-reversal and invoice-cancellation use cases."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from leonaid.domain.identity import GlobalRole, IdentityPrincipal
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     PaymentRecord,
+    PaymentReversal,
 )
 from leonaid.domain.policies import may_manage_action
 
@@ -31,12 +32,29 @@ class InvoiceSettlementRepository(Protocol):
         amount: Money,
         received_on: date,
         reference: str,
+        note: str | None,
+        expected_version: int | None,
         actor_user_id: UUID,
         idempotency_key: str,
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
     ) -> PaymentRecord: ...
+
+    async def reverse_payment(
+        self,
+        *,
+        action_id: UUID,
+        invoice_id: UUID,
+        payment_id: UUID,
+        reason: str,
+        expected_version: int | None,
+        actor_user_id: UUID,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> PaymentReversal: ...
 
     async def cancel(
         self,
@@ -60,6 +78,22 @@ def may_manage_invoice_settlements(
         may_manage_action(actor, action_id)
         or GlobalRole.FINANCE_MANAGER in actor.global_roles
     )
+
+
+def _normalized(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return " ".join(value.split()) or None
+
+
+def _request_hash(payload: dict[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 class InvoiceSettlementService:
@@ -96,34 +130,74 @@ class InvoiceSettlementService:
         reference: str,
         idempotency_key: str,
         request_id: str,
+        note: str | None = None,
+        expected_version: int | None = None,
         occurred_at: datetime | None = None,
     ) -> PaymentRecord:
         self._require_manage(actor, action_id)
         self._validate_idempotency_key(idempotency_key)
         amount = Money(amount_minor, currency)
-        request_hash = hashlib.sha256(
-            json.dumps(
-                {
-                    "actionId": str(action_id),
-                    "invoiceId": str(invoice_id),
-                    "amountMinor": amount.amount_minor,
-                    "currency": amount.currency,
-                    "receivedOn": received_on.isoformat(),
-                    "reference": " ".join(reference.split()),
-                },
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
-        ).hexdigest()
+        normalized_note = _normalized(note)
+        payload: dict[str, object] = {
+            "actionId": str(action_id),
+            "invoiceId": str(invoice_id),
+            "amountMinor": amount.amount_minor,
+            "currency": amount.currency,
+            "receivedOn": received_on.isoformat(),
+            "reference": " ".join(reference.split()),
+        }
+        # Only present when given, so commands without a note keep the hash
+        # they had before notes existed. The expected version is a
+        # precondition, not command content: a replay ignores it.
+        if normalized_note is not None:
+            payload["note"] = normalized_note
         return await self._repository.record_payment(
             action_id=action_id,
             invoice_id=invoice_id,
             amount=amount,
             received_on=received_on,
             reference=reference,
+            note=normalized_note,
+            expected_version=expected_version,
             actor_user_id=actor.account.id,
             idempotency_key=idempotency_key,
-            request_hash=request_hash,
+            request_hash=_request_hash(payload),
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+        )
+
+    async def reverse_payment(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        invoice_id: UUID,
+        payment_id: UUID,
+        *,
+        reason: str,
+        idempotency_key: str,
+        request_id: str,
+        expected_version: int | None = None,
+        occurred_at: datetime | None = None,
+    ) -> PaymentReversal:
+        self._require_manage(actor, action_id)
+        self._validate_idempotency_key(idempotency_key)
+        normalized_reason = " ".join(reason.split())
+        return await self._repository.reverse_payment(
+            action_id=action_id,
+            invoice_id=invoice_id,
+            payment_id=payment_id,
+            reason=reason,
+            expected_version=expected_version,
+            actor_user_id=actor.account.id,
+            idempotency_key=idempotency_key,
+            request_hash=_request_hash(
+                {
+                    "actionId": str(action_id),
+                    "invoiceId": str(invoice_id),
+                    "paymentId": str(payment_id),
+                    "reason": normalized_reason,
+                }
+            ),
             request_id=request_id,
             occurred_at=occurred_at or datetime.now(timezone.utc),
         )

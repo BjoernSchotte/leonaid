@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -241,7 +248,10 @@ function identity(
   } as unknown as CurrentIdentityResponse;
 }
 
-function fakeClient(manage: boolean) {
+function fakeClient(
+  manage: boolean,
+  items: readonly InvoiceRecordResponse[] = records,
+) {
   const context: InvoiceContextResponse = {
     actionId,
     actionName: "Adventskalender 2026",
@@ -258,16 +268,17 @@ function fakeClient(manage: boolean) {
       currencyTotals: [
         { currency: "EUR", grossMinor: 57_600, openMinor: 28_800 },
       ],
-      items: records,
+      items,
     })),
     listActionDocuments: vi.fn(async () => ({
       actionId,
-      items: records.map((record) =>
+      items: items.map((record) =>
         documentFor(record.invoice.id, record.invoice.number),
       ),
       reference: {},
     })),
     recordInvoicePayment: vi.fn(async () => ({})),
+    reverseInvoicePayment: vi.fn(async () => ({})),
     cancelInvoice: vi.fn(async () => ({})),
     retryInvoiceDelivery: vi.fn(async () => ({})),
     sendInvoice: vi.fn(async () => ({})),
@@ -276,13 +287,19 @@ function fakeClient(manage: boolean) {
   return client;
 }
 
-async function renderPage(options: { manage?: boolean; url?: string } = {}) {
+async function renderPage(
+  options: {
+    manage?: boolean;
+    url?: string;
+    items?: readonly InvoiceRecordResponse[];
+  } = {},
+) {
   window.history.replaceState(
     null,
     "",
     options.url ?? `/admin/invoices?action=${actionId}`,
   );
-  const client = fakeClient(options.manage ?? true);
+  const client = fakeClient(options.manage ?? true, options.items);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -316,6 +333,77 @@ function rowLink(number: string) {
 async function openRow(number: string) {
   fireEvent.click(rowLink(number));
   return within(await screen.findByTestId("invoice-detail"));
+}
+
+function entry(
+  id: string,
+  amountMinor: number,
+  receivedOn: string,
+  options: { reversed?: boolean } = {},
+): NonNullable<InvoiceRecordResponse["payments"]>[number] {
+  return {
+    actionId,
+    amountMinor,
+    currency: "EUR",
+    id,
+    invoiceId: "i",
+    note: null,
+    receivedOn,
+    recordedAt: `${receivedOn}T12:00:00Z`,
+    recordedByDisplayName: "Finn Finanzen",
+    recordedByUserId: "u7",
+    reference: "Bankumsatz",
+    replayed: false,
+    reversal: options.reversed
+      ? {
+          actionId,
+          id: `r-${id}`,
+          invoiceId: "i",
+          paymentId: id,
+          reason: "Lastschrift zurückgegeben",
+          replayed: false,
+          reversedAt: "2026-10-07T09:00:00Z",
+          reversedByDisplayName: "Finn Finanzen",
+          reversedByUserId: "u7",
+        }
+      : null,
+  };
+}
+
+/** A record as the current server sends it, with every payment entry. */
+function settled(
+  id: string,
+  number: string,
+  payments: NonNullable<InvoiceRecordResponse["payments"]>,
+): InvoiceRecordResponse {
+  const paidMinor = payments
+    .filter((payment) => !payment.reversal)
+    .reduce((sum, payment) => sum + payment.amountMinor, 0);
+  const base = invoice(id, number);
+  return {
+    ...base,
+    invoice: {
+      ...base.invoice,
+      status: paidMinor >= 14_400 ? "paid" : "issued",
+    },
+    openMinor: Math.max(14_400 - paidMinor, 0),
+    overpaidMinor: Math.max(paidMinor - 14_400, 0),
+    paidMinor,
+    payment: payments.filter((payment) => !payment.reversal).at(-1) ?? null,
+    payments,
+    settlementStatus:
+      paidMinor > 14_400
+        ? "overpaid"
+        : paidMinor === 14_400
+          ? "paid"
+          : paidMinor === 0
+            ? "open"
+            : "partially_paid",
+    settlementVersion: payments.reduce(
+      (sum, payment) => sum + (payment.reversal ? 2 : 1),
+      0,
+    ),
+  };
 }
 
 describe("invoice helpers", () => {
@@ -388,22 +476,20 @@ describe("InvoiceAdminPage", () => {
     ).toBe(false);
   });
 
-  it("records only the exact full payment, with the invoice reference by default", async () => {
+  it("prefills the remainder so a full payment stays one click", async () => {
     const client = await renderPage();
     const pane = await openRow("KT26-0003");
     fireEvent.click(pane.getByTestId("open-payment-form"));
     const dialog = await screen.findByRole("dialog", {
       name: "Zahlung für KT26-0003 erfassen",
     });
-    const amount = within(dialog).getByTestId("payment-amount");
-    fireEvent.change(amount, { target: { value: "100,00" } });
-    fireEvent.click(within(dialog).getByTestId("record-payment"));
+    const amount = within(dialog).getByTestId(
+      "payment-amount",
+    ) as HTMLInputElement;
+    expect(amount.value).toBe("144,00");
     expect(
-      within(dialog).getByText(/Nur die exakte Vollzahlung von 144,00/),
+      within(dialog).getByText("Vollständige Zahlung des offenen Betrags."),
     ).toBeTruthy();
-    expect(client.recordInvoicePayment).not.toHaveBeenCalled();
-
-    fireEvent.change(amount, { target: { value: "144,00" } });
     await act(async () => {
       fireEvent.click(within(dialog).getByTestId("record-payment"));
     });
@@ -412,7 +498,7 @@ describe("InvoiceAdminPage", () => {
       .recordInvoicePayment.mock.calls[0] as unknown as [
       string,
       string,
-      { amountMinor: number; reference: string; currency: string },
+      Record<string, unknown>,
       { headers: Record<string, string> },
     ];
     expect(calledAction).toBe(actionId);
@@ -421,8 +507,44 @@ describe("InvoiceAdminPage", () => {
       amountMinor: 14_400,
       currency: "EUR",
       reference: "KT26-0003",
+      note: null,
+      expectedSettlementVersion: 0,
     });
     expect(options.headers["Idempotency-Key"]).toMatch(/^poc095:payment:/);
+  });
+
+  it("records a partial and an over payment with live remainder hints", async () => {
+    const client = await renderPage();
+    const pane = await openRow("KT26-0003");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0003 erfassen",
+    });
+    const amount = within(dialog).getByTestId("payment-amount");
+    fireEvent.change(amount, { target: { value: "0" } });
+    fireEvent.click(within(dialog).getByTestId("record-payment"));
+    expect(within(dialog).getByText(/größer als 0,00/)).toBeTruthy();
+    fireEvent.change(amount, { target: { value: "150,00" } });
+    expect(within(dialog).getByText(/Überzahlung um 6,00/)).toBeTruthy();
+    fireEvent.change(amount, { target: { value: "100,00" } });
+    expect(
+      within(dialog).getByText(/Danach bleiben 44,00\s€ offen/),
+    ).toBeTruthy();
+    fireEvent.change(within(dialog).getByTestId("payment-note"), {
+      target: { value: "Rest folgt im Dezember" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    expect(client.recordInvoicePayment).toHaveBeenCalledWith(
+      actionId,
+      "i-open",
+      expect.objectContaining({
+        amountMinor: 10_000,
+        note: "Rest folgt im Dezember",
+      }),
+      expect.anything(),
+    );
   });
 
   it("cancels only with a reason of at least eight characters", async () => {
@@ -467,6 +589,189 @@ describe("InvoiceAdminPage", () => {
       actionId,
       "i-open",
       "delivery-i-open",
+    );
+  });
+
+  it("shows a partial payment as open remainder and reverses an entry", async () => {
+    const partial = settled("i-part", "KT26-0005", [
+      entry("p-a", 5_000, "2026-10-04"),
+      entry("p-b", 2_000, "2026-10-06", { reversed: true }),
+    ]);
+    const client = await renderPage({ items: [partial] });
+    expect(invoiceListStatus(partial, "2026-11-03")).toBe("partial");
+    expect(rowLink("KT26-0005").textContent).toMatch(/94,00\s€ offen/);
+    // The "Offen" view groups by status: the partial invoice has its own.
+    expect(screen.getAllByText("Teilweise bezahlt").length).toBeGreaterThan(0);
+    const pane = await openRow("KT26-0005");
+    expect(pane.getByTestId("invoice-paid-amount").textContent).toContain(
+      "50,00",
+    );
+    expect(pane.getByTestId("invoice-open-amount").textContent).toContain(
+      "94,00",
+    );
+    expect(pane.getByText(/Teilweise bezahlt\./)).toBeTruthy();
+    const entries = pane.getAllByTestId("payment-entry");
+    expect(entries).toHaveLength(2);
+    expect(within(entries[1]!).getByText(/Lastschrift zurück/)).toBeTruthy();
+    expect(within(entries[1]!).queryByTestId("open-reversal-form")).toBeNull();
+
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    const payDialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0005 erfassen",
+    });
+    expect(
+      (within(payDialog).getByTestId("payment-amount") as HTMLInputElement)
+        .value,
+    ).toBe("94,00");
+    fireEvent.click(
+      within(payDialog).getByRole("button", { name: "Abbrechen" }),
+    );
+
+    fireEvent.click(within(entries[0]!).getByTestId("open-reversal-form"));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Zahlung für KT26-0005 zurückbuchen?",
+    });
+    fireEvent.change(within(dialog).getByTestId("reversal-reason"), {
+      target: { value: "kurz" },
+    });
+    fireEvent.click(within(dialog).getByTestId("reverse-payment"));
+    expect(within(dialog).getByText(/mindestens 8 Zeichen/)).toBeTruthy();
+    expect(client.reverseInvoicePayment).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByTestId("reversal-reason"), {
+      target: { value: "Falscher Sponsor zugeordnet" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("reverse-payment"));
+    });
+    expect(client.reverseInvoicePayment).toHaveBeenCalledWith(
+      actionId,
+      "i-part",
+      "p-a",
+      { reason: "Falscher Sponsor zugeordnet", expectedSettlementVersion: 3 },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.stringMatching(/^invoice:reversal:/),
+        }),
+      }),
+    );
+  });
+
+  it("books a later installment after a lost response under a new key", async () => {
+    // First installment: the server books it, but the response is lost.
+    const before = settled("i-rate", "KT26-0007", []);
+    let client = await renderPage({ items: [before] });
+    client.recordInvoicePayment.mockRejectedValueOnce(new TypeError("offline"));
+    let pane = await openRow("KT26-0007");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    let dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0007 erfassen",
+    });
+    fireEvent.change(within(dialog).getByTestId("payment-amount"), {
+      target: { value: "72,00" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    const lostKey = (
+      client.recordInvoicePayment.mock.calls[0] as unknown as [
+        string,
+        string,
+        unknown,
+        { headers: Record<string, string> },
+      ]
+    )[3].headers["Idempotency-Key"];
+    cleanup();
+
+    // After a reload the entry is there; the same amount again is a new
+    // installment, not a replay of the lost request.
+    const after = settled("i-rate", "KT26-0007", [
+      entry("p-rate-1", 7_200, "2026-10-04"),
+    ]);
+    client = await renderPage({ items: [after] });
+    client.recordInvoicePayment.mockResolvedValueOnce({ replayed: false });
+    pane = await openRow("KT26-0007");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0007 erfassen",
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    const [, , body, options] = client.recordInvoicePayment.mock
+      .calls[0] as unknown as [
+      string,
+      string,
+      { amountMinor: number; expectedSettlementVersion: number },
+      { headers: Record<string, string> },
+    ];
+    expect(body).toMatchObject({
+      amountMinor: 7_200,
+      expectedSettlementVersion: 1,
+    });
+    expect(options.headers["Idempotency-Key"]).not.toBe(lostKey);
+  });
+
+  it("tells the user when a payment was already booked", async () => {
+    const client = await renderPage();
+    client.recordInvoicePayment.mockResolvedValueOnce({ replayed: true });
+    const pane = await openRow("KT26-0003");
+    fireEvent.click(pane.getByTestId("open-payment-form"));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zahlung für KT26-0003 erfassen",
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByTestId("record-payment"));
+    });
+    expect(
+      await screen.findByText("Diese Zahlung war bereits erfasst."),
+    ).toBeTruthy();
+  });
+
+  it("states the real open change when reversing on an overpaid invoice", async () => {
+    // 360 € gross here is 144 €: paid 144 + 100 = 244, overpaid 100.
+    const overpaid = settled("i-over2", "KT26-0008", [
+      entry("p-e", 14_400, "2026-10-04"),
+      entry("p-f", 10_000, "2026-10-05"),
+    ]);
+    await renderPage({
+      items: [overpaid],
+      url: `/admin/invoices?action=${actionId}&view=paid`,
+    });
+    const pane = await openRow("KT26-0008");
+    const entries = pane.getAllByTestId("payment-entry");
+    fireEvent.click(within(entries[1]!).getByTestId("open-reversal-form"));
+    let dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "Der offene Betrag bleibt unverändert",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(within(entries[0]!).getByTestId("open-reversal-form"));
+    dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toMatch(/steigt um 44,00\s€/);
+  });
+
+  it("stamps an overpaid invoice and asks to refund the difference", async () => {
+    const overpaid = settled("i-over", "KT26-0006", [
+      entry("p-c", 14_400, "2026-10-04"),
+      entry("p-d", 14_400, "2026-10-05"),
+    ]);
+    await renderPage({
+      items: [overpaid],
+      url: `/admin/invoices?action=${actionId}&view=paid`,
+    });
+    expect(invoiceListStatus(overpaid, "2026-11-03")).toBe("overpaid");
+    const pane = await openRow("KT26-0006");
+    expect(pane.getByTestId("invoice-stamp").textContent).toContain(
+      "Überzahlt",
+    );
+    expect(pane.getByTestId("invoice-overpaid").textContent).toContain(
+      "Differenz erstatten",
+    );
+    expect(pane.getByTestId("invoice-overpaid-amount").textContent).toContain(
+      "144,00",
+    );
+    expect(pane.getByTestId("open-payment-form").textContent).toContain(
+      "Weitere Zahlung erfassen",
     );
   });
 
