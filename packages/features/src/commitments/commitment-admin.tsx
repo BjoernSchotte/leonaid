@@ -17,6 +17,10 @@ import {
   type ReleaseSelection,
 } from "./bulk-release";
 import { normalizeOrdersUrl, setInvoiceSelection } from "./orders-url";
+import {
+  OrderCancellationDialog,
+  takeCancellationDraft,
+} from "./order-cancellation";
 
 export { legacyOrdersSearch } from "./orders-url";
 export { releaseSelection, runRelease } from "./bulk-release";
@@ -39,6 +43,7 @@ import {
 import { formatQuantities } from "./quantities";
 
 import {
+  Ban,
   Calendar,
   CalendarClock,
   CircleDot,
@@ -397,6 +402,8 @@ function InvoiceReview({
 interface OrderDetailProps {
   readonly client: LeonAidApiClient;
   readonly record: OrderRow;
+  /** The signed-in account; a cancellation draft belongs to it. */
+  readonly userId: string;
   readonly deliveryEnabled: boolean;
   readonly context?: InvoiceContextResponse;
   readonly reviewOpen: boolean;
@@ -418,8 +425,13 @@ function OrderDetail({
   onToggleReview,
   record,
   reviewOpen,
+  userId,
 }: OrderDetailProps) {
-  const { commitment } = record;
+  const { commitment, cancellation, invoice } = record;
+  // Back from the fresh sign-in: the dialog reopens with what was typed.
+  const [cancelling, setCancelling] = useState<
+    ReturnType<typeof takeCancellationDraft> | false
+  >(() => takeCancellationDraft(commitment.id, userId) ?? false);
   const editable =
     commitment.status === "draft" || commitment.status === "review_ready";
   const missing = detailsMissing(commitment, deliveryEnabled);
@@ -437,6 +449,15 @@ function OrderDetail({
 
   return (
     <div className="commitment-detail" data-commitment-id={commitment.id}>
+      {cancellation ? (
+        <div className="commitment-stamp-row" data-testid="order-stamp">
+          <span className="stamp">Storniert</span>
+          <span className="small muted">
+            Grund: {cancellation.reason.replace(/[.!?]\s*$/, "")}. Die
+            Bestellung bleibt mit allen Angaben erhalten.
+          </span>
+        </div>
+      ) : null}
       {/* While the form is open its "Angaben speichern" is the one primary
           action, so the block steps aside (DESIGN.md: one primary, ghost
           alternatives). */}
@@ -495,6 +516,30 @@ function OrderDetail({
         <ReadOnlyNotice>
           Die Rechnung gibt eine Person frei, die diese Aktion verwaltet.
         </ReadOnlyNotice>
+      ) : null}
+
+      {commitment.status !== "cancelled" && !editing && !reviewOpen ? (
+        <div className="cluster">
+          <Button
+            data-testid="open-order-cancellation"
+            icon={Ban}
+            onClick={() => setCancelling(null)}
+            size="sm"
+            variant="ghost"
+          >
+            Bestellung stornieren
+          </Button>
+        </div>
+      ) : null}
+      {cancelling !== false ? (
+        <OrderCancellationDialog
+          client={client}
+          initial={cancelling}
+          onChanged={onSaved}
+          onClose={() => setCancelling(false)}
+          record={record}
+          userId={userId}
+        />
       ) : null}
 
       {reviewOpen && context && reviewable ? (
@@ -579,18 +624,18 @@ function OrderDetail({
             },
             {
               label: "Rechnung",
-              value:
-                commitment.status === "invoiced" ? (
-                  <a className="commitment-link" href="/admin/invoices">
-                    Rechnung ansehen
-                  </a>
-                ) : commitment.status === "cancelled" ? (
-                  <a className="commitment-link" href="/admin/invoices">
-                    Stornierte Rechnung ansehen
-                  </a>
-                ) : (
-                  "Noch keine"
-                ),
+              value: invoice ? (
+                <a
+                  className="commitment-link"
+                  href={`/admin/invoices?action=${encodeURIComponent(commitment.actionId)}&view=all&open=${encodeURIComponent(invoice.id)}`}
+                >
+                  {invoice.status === "cancelled"
+                    ? `${invoice.number} · storniert`
+                    : invoice.number}
+                </a>
+              ) : (
+                "Noch keine"
+              ),
             },
           ]}
         />
@@ -652,6 +697,40 @@ function OrderDetail({
         />
       </DetailSection>
 
+      {cancellation ? (
+        <DetailSection title="Storno">
+          <div data-testid="order-cancellation">
+            <DetailProps
+              items={[
+                { label: "Grund", value: cancellation.reason },
+                ...(cancellation.note
+                  ? [
+                      {
+                        label: "Notiz",
+                        value: (
+                          <span className="commitment-note">
+                            {cancellation.note}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Storniert",
+                  value: `${cancellation.requestedByDisplayName ?? "Aktionsverwaltung"}, ${berlinDateTime.format(new Date(cancellation.requestedAt))}`,
+                },
+                {
+                  label: "Rechnung",
+                  value: cancellation.invoiceNumber
+                    ? `${cancellation.invoiceNumber} mit storniert`
+                    : "Keine Rechnung storniert",
+                },
+              ]}
+            />
+          </div>
+        </DetailSection>
+      ) : null}
+
       <DetailSection title="Verlauf">
         <DetailTimeline
           items={[
@@ -661,6 +740,18 @@ function OrderDetail({
               time: berlinDateTime.format(new Date(record.createdAt)),
               dateTime: record.createdAt,
             },
+            ...(cancellation
+              ? [
+                  {
+                    id: "cancelled",
+                    text: `Storniert von ${cancellation.requestedByDisplayName ?? "der Aktionsverwaltung"}`,
+                    time: berlinDateTime.format(
+                      new Date(cancellation.requestedAt),
+                    ),
+                    dateTime: cancellation.requestedAt,
+                  },
+                ]
+              : []),
           ]}
         />
       </DetailSection>
@@ -1299,6 +1390,7 @@ export function CommitmentAdminPage({
             }
             record={row}
             reviewOpen={reviewId === row.commitment.id}
+            userId={identity.userId}
           />
         )}
         rows={rows}
