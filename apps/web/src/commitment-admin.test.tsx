@@ -849,7 +849,7 @@ describe("order cancellation", () => {
       "LeonAid benachrichtigt den Besteller nicht automatisch.",
     );
     // No invoice yet: nothing about an invoice.
-    expect(dialog.textContent).not.toContain("mit storniert");
+    expect(dialog.textContent).not.toContain("mitstorniert");
     fireEvent.change(reasonField(dialog), { target: { value: "zu kurz" } });
     fireEvent.click(within(dialog).getByTestId("cancel-order"));
     expect(
@@ -903,7 +903,7 @@ describe("order cancellation", () => {
     fireEvent.click(screen.getByTestId("open-order-cancellation"));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(
-      "Rechnung KT26-0001 wird mit storniert.",
+      "Rechnung KT26-0001 wird mitstorniert.",
     );
     expect(dialog.textContent).toContain("Nummer, Daten und PDF");
     fireEvent.change(reasonField(dialog), {
@@ -1033,7 +1033,7 @@ describe("order cancellation", () => {
     );
     const section = screen.getByTestId("order-cancellation");
     expect(section.textContent).toContain("Rückruf am Montag.");
-    expect(section.textContent).toContain("Keine Rechnung");
+    expect(section.textContent).toContain("Es gab keine Rechnung.");
     expect(screen.getByText("Storniert von Klara Kern")).toBeTruthy();
     expect(screen.queryByTestId("open-order-cancellation")).toBeNull();
     // The list keeps it, struck through, with the status "Storniert".

@@ -224,7 +224,7 @@ export function OrderCancellationDialog({
           <>
             {invoice ? (
               <StatusMessage tone="warning">
-                <strong>Rechnung {invoice.number} wird mit storniert.</strong>{" "}
+                <strong>Rechnung {invoice.number} wird mitstorniert.</strong>{" "}
                 Sie bleibt mit Nummer, Daten und PDF unverändert erhalten und
                 ist danach als storniert markiert. Dafür bestätigen Sie Ihre
                 Anmeldung gegebenenfalls erneut.

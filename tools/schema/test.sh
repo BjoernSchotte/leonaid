@@ -121,6 +121,38 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
+echo "poc021-test: 0051 downgrade refuses recorded order cancellations"
+cancellation_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+cancellation_sql <<'SQL'
+INSERT INTO commitment_cancellation (
+    id, action_id, commitment_id, previous_status, reason_snapshot,
+    requested_by_user_id, requested_at
+)
+SELECT '97700000-0000-4000-8000-000000000001', action_id, id, 'review_ready',
+    'Schema-Nachweis: Storno bleibt erhalten',
+    '10000000-0000-4000-8000-000000000001', CURRENT_TIMESTAMP
+FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';
+SQL
+if output=$(compose run --rm --no-deps --entrypoint alembic api \
+  downgrade 0050_invoice_partial_payments 2>&1); then
+  echo "poc021-test: ERROR: downgrade dropped a recorded order cancellation" >&2
+  exit 1
+fi
+case "$output" in
+  *"downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0051 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM commitment_cancellation;" | cancellation_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade 0050_invoice_partial_payments
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
 payment_guard() {
   compose run --rm --user "$(id -u):$(id -g)" --no-deps \

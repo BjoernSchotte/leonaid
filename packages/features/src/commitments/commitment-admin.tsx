@@ -722,10 +722,10 @@ function OrderDetail({
                 {
                   label: "Rechnung",
                   value: cancellation.invoiceNumber
-                    ? `${cancellation.invoiceNumber} mit storniert`
+                    ? `Rechnung ${cancellation.invoiceNumber} wurde mitstorniert.`
                     : invoice?.status === "cancelled"
-                      ? `${invoice.number} war bereits storniert`
-                      : "Keine Rechnung",
+                      ? `Rechnung ${invoice.number} war bereits storniert.`
+                      : "Es gab keine Rechnung.",
                 },
               ]}
             />

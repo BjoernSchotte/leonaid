@@ -42,7 +42,7 @@ Lieferfenster bleibt als Snapshot erhalten.
 geliefert und zu ihrer Rechnung keine Zahlung erfasst ist. Das Storno speichert
 Grund, optionale Notiz, Vorstatus, Person und Zeitpunkt. Eine stornierte
 Bestellung bleibt in Listen sichtbar, zählt aber in keiner Summe und auf keiner
-Liefertafel; eine offene Rechnung wird mit storniert (siehe
+Liefertafel; eine offene Rechnung wird mitstorniert (siehe
 [Bestellung stornieren](/de/user/how-to/cancel-order/)).
 
 ## Lieferfenster

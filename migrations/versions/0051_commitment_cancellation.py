@@ -55,4 +55,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # A recorded cancellation is the only reason and author of a cancelled
+    # order; the old schema cannot hold it, so the downgrade refuses.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM commitment_cancellation) THEN
+                RAISE EXCEPTION
+                    'order cancellations exist; downgrade refused';
+            END IF;
+        END;
+        $$;
+        """
+    )
     op.execute("DROP TABLE commitment_cancellation")
