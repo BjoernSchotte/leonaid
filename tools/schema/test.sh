@@ -121,4 +121,32 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
+echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
+payment_guard() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --volume "$root:/repo:ro" \
+    --entrypoint python \
+    api /repo/tools/invoice_settlements/downgrade_guard.py "$@"
+}
+for scenario in several reversal note partial overpaid; do
+  payment_guard seed "$scenario"
+  if output=$(compose run --rm --no-deps --entrypoint alembic api \
+    downgrade 0049_window_fully_booked 2>&1); then
+    echo "poc021-test: ERROR: downgrade accepted payment case $scenario" >&2
+    exit 1
+  fi
+  case "$output" in
+    *"downgrade refused"*) ;;
+    *)
+      printf '%s\n' "$output" >&2
+      echo "poc021-test: ERROR: downgrade of case $scenario failed for another reason" >&2
+      exit 1
+      ;;
+  esac
+done
+payment_guard seed exact
+compose run --rm --no-deps --entrypoint alembic api downgrade 0049_window_fully_booked
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+payment_guard verify-exact
+
 echo "poc021-test: OK: build from empty, upgrade, constraints and data retention proven"

@@ -158,14 +158,16 @@ test("charity admin books partial and full payments and reverses an entry", asyn
     );
 
     // The full payment stays one click on the prefilled remainder.
+    // The form's command key is bound to the settlement version it opens on.
+    const version = await open.getAttribute("data-settlement-version");
     await page.evaluate(
-      ([invoiceId, key]) => {
+      ([invoiceId, key, settlementVersion]) => {
         window.sessionStorage.setItem(
-          `leonaid.invoice-payment-command.${invoiceId}`,
+          `leonaid.invoice-payment-command.${invoiceId}.v${settlementVersion}`,
           key,
         );
       },
-      [openInvoiceId, paymentKey],
+      [openInvoiceId, paymentKey, version],
     );
     await open.getByTestId("open-payment-form").click();
     await expect(paymentDialog).toBeVisible();

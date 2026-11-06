@@ -148,6 +148,7 @@ export function InvoiceDetail({
       className="inv-detail"
       data-invoice-id={invoice.id}
       data-settlement={settlement}
+      data-settlement-version={settlementState.version}
       data-testid="invoice-detail"
     >
       {cancellation ? (

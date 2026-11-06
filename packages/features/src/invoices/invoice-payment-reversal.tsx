@@ -74,6 +74,15 @@ function PaymentReversalForm({
   const [openedVersion] = useState(() => invoiceSettlement(record).version);
   const storageKey = reversalCommandStorageKey(payment.id);
   const amount = formatMoney(payment.amountMinor, payment.currency);
+  // Only the part not covering an overpayment reopens the invoice.
+  const reopened = Math.max(
+    payment.amountMinor - invoiceSettlement(record).overpaidMinor,
+    0,
+  );
+  const openEffect =
+    reopened > 0
+      ? `Der offene Betrag steigt um ${formatMoney(reopened, payment.currency)}.`
+      : "Der offene Betrag bleibt unverändert; die Überzahlung sinkt.";
   const received = shortDate(payment.receivedOn);
 
   const reversal = useMutation({
@@ -123,7 +132,7 @@ function PaymentReversalForm({
   return (
     <Modal
       className="inv-dialog"
-      description={`${amount}, eingegangen am ${received}. Der Eintrag bleibt in der Historie erhalten und zählt nicht mehr zum bezahlten Betrag. Der offene Betrag steigt um ${amount}.`}
+      description={`${amount}, eingegangen am ${received}. Der Eintrag bleibt in der Historie erhalten und zählt nicht mehr zum bezahlten Betrag. ${openEffect}`}
       footer={
         <>
           <Button

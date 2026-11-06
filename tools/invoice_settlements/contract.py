@@ -7,7 +7,8 @@ import argparse
 import asyncio
 import json
 import os
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
@@ -15,6 +16,10 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
+from leonaid.application.invoice_deliveries import INVOICE_MAIL_SEND_REQUESTED
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -39,8 +44,9 @@ SESSION_NAMESPACE = UUID("be0408f6-66eb-43ec-9353-c8a7d480951e")
 PAYMENT_KEY = "poc095:payment:browser-v1"
 CANCELLATION_KEY = "poc095:cancellation:browser-v1"
 LIFECYCLE_KEY = "poc095:lifecycle-v1"
-# Entries the API lifecycle books on the open invoice (all reversed again).
-LIFECYCLE_ENTRIES = 3
+CANCELLED_PAYMENT_ID = UUID("97000000-0000-4000-8000-000000000095")
+DELIVERED_DELIVERY_ID = UUID("95000000-0000-4000-8000-000000000095")
+DELIVERED_OUTBOX_ID = UUID("e5000000-0000-4000-8000-000000000095")
 # The browser books a partial entry, reverses it, then the full payment.
 BROWSER_ENTRIES = 2
 BROWSER_REVERSALS = 1
@@ -333,7 +339,7 @@ def refused(response: httpx.Response, status: int, code: str, label: str) -> Non
 async def assert_partial_payment_lifecycle(
     api: httpx.AsyncClient,
     tokens: dict[str, str],
-) -> None:
+) -> int:
     """Partial, over and reversed entries; sums, versions, replay, races."""
 
     klara = tokens["klara"]
@@ -556,32 +562,67 @@ async def assert_partial_payment_lifecycle(
         open_total=0,
     )
 
+    # A payment and a reversal opened on the same version: exactly one lands.
+    mixed = await asyncio.gather(
+        post_reversal(
+            api,
+            klara,
+            payment_id=str(winner.json()["id"]),
+            key=f"{LIFECYCLE_KEY}:mixed-reversal",
+            version=version_raced,
+        ),
+        post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:mixed-payment",
+            amount=1_000,
+            version=version_raced,
+        ),
+    )
+    expect_one_winner(mixed, "payment racing a reversal")
+    version_mixed = invoice_record(await ledger(api, klara), OPEN_INVOICE_ID)[
+        "settlementVersion"
+    ]
+
+    # Two reversals of the same entry: it is reversed exactly once.
+    doubled = await asyncio.gather(
+        *(
+            post_reversal(
+                api,
+                klara,
+                payment_id=str(second["id"]),
+                key=f"{LIFECYCLE_KEY}:double-reversal-{index}",
+                version=None,
+            )
+            for index in range(2)
+        )
+    )
+    expect_one_winner(doubled, "double reversal")
+
     # Back to unpaid, so the browser starts from the golden open invoice.
-    version_now = version_raced
-    for label, payment_id in (
-        ("race", str(winner.json()["id"])),
-        ("second", str(second["id"])),
-    ):
+    current = invoice_record(await ledger(api, klara), OPEN_INVOICE_ID)
+    for entry in current.get("payments", []):
+        if entry.get("reversal") is not None:
+            continue
         created(
             await post_reversal(
                 api,
                 klara,
-                payment_id=payment_id,
-                key=f"{LIFECYCLE_KEY}:reset-{label}",
-                version=version_now,
+                payment_id=str(entry["id"]),
+                key=f"{LIFECYCLE_KEY}:reset-{entry['id']}",
+                version=current["settlementVersion"],
             ),
-            f"reset {label}",
+            "reset",
         )
-        version_now = invoice_record(await ledger(api, klara), OPEN_INVOICE_ID)[
-            "settlementVersion"
-        ]
+        current = invoice_record(await ledger(api, klara), OPEN_INVOICE_ID)
     versions = [
         version,
         version_after_first,
         version_overpaid,
         version_reversed,
         version_raced,
-        version_now,
+        version_mixed,
+        current["settlementVersion"],
     ]
     if versions != sorted(set(versions)):
         raise ContractFailure(f"Settlement versions do not grow: {versions}")
@@ -597,14 +638,264 @@ async def assert_partial_payment_lifecycle(
         open_total=36_000,
     )
     entries = invoice_record(final, OPEN_INVOICE_ID).get("payments", [])
+    # first, second, the race winner, and the mixed-race payment if it won.
     if (
-        len(entries) != LIFECYCLE_ENTRIES
+        len(entries) not in (3, 4)
         or any(entry.get("reversal") is None for entry in entries)
         or invoice_record(final, OPEN_INVOICE_ID).get("payment") is not None
     ):
         raise ContractFailure(f"Reversed entries are not all kept: {entries}")
     if await ledger(api, tokens["finn"]) != final:
         raise ContractFailure("Finance reader sees another ledger than the admin")
+    return len(entries)
+
+
+def expect_one_winner(responses: Sequence[httpx.Response], label: str) -> None:
+    statuses = sorted(response.status_code for response in responses)
+    codes = {
+        error_code(response) for response in responses if response.status_code == 409
+    }
+    if statuses != [201, 409] or not codes <= {
+        "invoice_settlement_stale",
+        "invoice_payment_already_reversed",
+    }:
+        raise ContractFailure(
+            f"{label} was not serialized: "
+            f"{[(response.status_code, response.text) for response in responses]}"
+        )
+
+
+async def assert_cancelled_invoice_is_closed(
+    connection: asyncpg.Connection[Any],
+    api: httpx.AsyncClient,
+    tokens: dict[str, str],
+) -> None:
+    """Neither a payment nor a reversal touches a cancelled invoice."""
+
+    invoice = await connection.fetchrow(
+        "SELECT gross_minor, currency FROM invoice WHERE id = $1",
+        CANCELLED_INVOICE_ID,
+    )
+    if invoice is None:
+        raise ContractFailure("Golden cancelled invoice is missing")
+    # An entry booked before the cancellation, written directly: the API
+    # itself refuses every booking once the invoice is cancelled.
+    await connection.execute(
+        """
+        INSERT INTO payment_record (
+            id, invoice_id, amount_minor, currency, received_on,
+            recorded_by_user_id, reference, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'Vor dem Storno', now())
+        """,
+        CANCELLED_PAYMENT_ID,
+        CANCELLED_INVOICE_ID,
+        int(invoice["gross_minor"]),
+        str(invoice["currency"]),
+        date.fromisoformat(PAYMENT_DATE),
+        KLARA_ID,
+    )
+    try:
+        headers = {**session_headers(tokens["klara"])}
+        payment = await api.post(
+            f"/api/v1/actions/{ACTION_ID}/invoices/{CANCELLED_INVOICE_ID}/payments",
+            headers={**headers, "Idempotency-Key": "poc095:cancelled:payment"},
+            json={
+                "amountMinor": 100,
+                "currency": str(invoice["currency"]),
+                "receivedOn": PAYMENT_DATE,
+                "reference": PAYMENT_REFERENCE,
+            },
+        )
+        refused(payment, 409, "invoice_payment_cancelled", "payment on cancelled")
+        reversal = await api.post(
+            (
+                f"/api/v1/actions/{ACTION_ID}/invoices/{CANCELLED_INVOICE_ID}/"
+                f"payments/{CANCELLED_PAYMENT_ID}/reversal"
+            ),
+            headers={**headers, "Idempotency-Key": "poc095:cancelled:reversal"},
+            json={"reason": "Nach dem Storno zurückbuchen."},
+        )
+        refused(reversal, 409, "invoice_payment_cancelled", "reversal on cancelled")
+        written = await connection.fetchval(
+            """
+            SELECT
+              (SELECT count(*) FROM payment_reversal WHERE invoice_id = $1)
+              + (SELECT count(*) FROM payment_record
+                 WHERE invoice_id = $1 AND id <> $2)
+              + (SELECT count(*) FROM audit_event
+                 WHERE payload->>'invoiceId' = $1::text
+                   AND event_type IN (
+                       'invoice_payment_recorded', 'invoice_payment_reversed'
+                   ))
+            """,
+            CANCELLED_INVOICE_ID,
+            CANCELLED_PAYMENT_ID,
+        )
+        if written != 0:
+            raise ContractFailure("A refused command wrote to a cancelled invoice")
+        status = await connection.fetchval(
+            "SELECT status FROM invoice WHERE id = $1", CANCELLED_INVOICE_ID
+        )
+        if status != "cancelled":
+            raise ContractFailure(f"Cancelled invoice changed to {status}")
+    finally:
+        await connection.execute(
+            "DELETE FROM payment_record WHERE id = $1", CANCELLED_PAYMENT_ID
+        )
+
+
+async def confirm_paid_invoice_delivery(connection: asyncpg.Connection[Any]) -> None:
+    """Confirms a mail delivery of the paid golden invoice.
+
+    The golden invoice has no recipient e-mail, so it cannot be sent through
+    SMTP here. The delivery rows are written as the delivery adapter writes
+    them, and the confirmation runs through the production `mark_sent`.
+    """
+
+    document_id = await connection.fetchval(
+        """
+        SELECT id FROM generated_document
+        WHERE invoice_id = $1 AND status = 'available'
+        ORDER BY version DESC
+        LIMIT 1
+        """,
+        PAID_INVOICE_ID,
+    )
+    if document_id is None:
+        raise ContractFailure("The paid golden invoice has no available PDF")
+    now = datetime.now(timezone.utc)
+    await connection.execute(
+        """
+        INSERT INTO outbox_event (
+            id, aggregate_type, aggregate_id, event_type,
+            idempotency_key, payload, status, completed_at,
+            available_at, created_at
+        )
+        VALUES (
+            $1, 'invoice_delivery', $2, $3, $4, $5::jsonb,
+            'completed', $6, $6, $6
+        )
+        """,
+        DELIVERED_OUTBOX_ID,
+        DELIVERED_DELIVERY_ID,
+        INVOICE_MAIL_SEND_REQUESTED,
+        f"invoice-delivery:{DELIVERED_DELIVERY_ID}:v1",
+        json.dumps({"deliveryId": str(DELIVERED_DELIVERY_ID)}),
+        now,
+    )
+    await connection.execute(
+        """
+        INSERT INTO invoice_delivery (
+            id, action_id, invoice_id, generated_document_id,
+            outbox_event_id, idempotency_key, recipient_email_snapshot,
+            subject_snapshot, text_snapshot, requested_by_user_id,
+            requested_at, created_at
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, 'poc095:delivered:paid-invoice',
+            'buchhaltung@leonaid.invalid', 'Ihre Rechnung', 'Rechnung anbei.',
+            $6, $7, $7
+        )
+        """,
+        DELIVERED_DELIVERY_ID,
+        ACTION_ID,
+        PAID_INVOICE_ID,
+        document_id,
+        DELIVERED_OUTBOX_ID,
+        KLARA_ID,
+        now,
+    )
+    pool = await asyncpg.create_pool(
+        require_env("CORE_DATABASE_URL"), min_size=1, max_size=1
+    )
+    try:
+        await AsyncpgInvoiceDeliveryRepository(pool).mark_sent(
+            delivery_id=DELIVERED_DELIVERY_ID,
+            outbox_event_id=DELIVERED_OUTBOX_ID,
+            idempotency_key=f"invoice-delivery:{DELIVERED_DELIVERY_ID}:v1",
+            message_id="<poc095-delivered@leonaid.invalid>",
+            recipient_sha256="0" * 64,
+            sent_at=now,
+        )
+    finally:
+        await pool.close()
+
+
+async def assert_delivered_invoice_reopens_as_sent(
+    connection: asyncpg.Connection[Any],
+) -> None:
+    """Reversing a delivered, paid invoice stores `sent`, not `issued`."""
+
+    await confirm_paid_invoice_delivery(connection)
+    delivered = await connection.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM invoice_delivery AS delivery
+            JOIN mail_delivery AS mail
+              ON mail.outbox_event_id = delivery.outbox_event_id
+            WHERE delivery.invoice_id = $1 AND mail.status = 'sent'
+        )
+        """,
+        PAID_INVOICE_ID,
+    )
+    if delivered is not True:
+        raise ContractFailure("The paid golden invoice was not delivered")
+    token = token_for("klara", KLARA_ID)
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"),
+        timeout=30,
+    ) as api:
+        record = invoice_record(await ledger(api, token), PAID_INVOICE_ID)
+        if record.get("invoice", {}).get("status") != "paid":
+            raise ContractFailure(f"Delivery changed a paid invoice: {record}")
+        payment = record.get("payment")
+        if not isinstance(payment, dict):
+            raise ContractFailure("The paid golden invoice has no payment entry")
+        endpoint = f"/api/v1/actions/{ACTION_ID}/invoices/{PAID_INVOICE_ID}"
+        created(
+            await api.post(
+                f"{endpoint}/payments/{payment['id']}/reversal",
+                headers={
+                    **session_headers(token),
+                    "Idempotency-Key": "poc095:delivered:reversal",
+                },
+                json={"reason": "Gutschrift von der Bank zurückgeholt."},
+            ),
+            "reversal of a delivered invoice",
+        )
+        reopened = invoice_record(await ledger(api, token), PAID_INVOICE_ID)
+        if (
+            reopened.get("invoice", {}).get("status") != "sent"
+            or reopened.get("settlementStatus") != "open"
+        ):
+            raise ContractFailure(
+                f"Delivered invoice did not reopen as sent: {reopened}"
+            )
+        created(
+            await api.post(
+                f"{endpoint}/payments",
+                headers={
+                    **session_headers(token),
+                    "Idempotency-Key": "poc095:delivered:payment",
+                },
+                json={
+                    "amountMinor": int(record["invoice"]["grossMinor"]),
+                    "currency": str(record["invoice"]["currency"]),
+                    "receivedOn": PAYMENT_DATE,
+                    "reference": str(payment["reference"]),
+                },
+            ),
+            "payment of a delivered invoice",
+        )
+        repaid = invoice_record(await ledger(api, token), PAID_INVOICE_ID)
+        if repaid.get("invoice", {}).get("status") != "paid":
+            raise ContractFailure(f"Delivered invoice was not paid again: {repaid}")
+    print(
+        "invoice-settlement-contract: delivered invoice reopens as sent and "
+        "is paid again"
+    )
 
 
 async def prepare(
@@ -644,7 +935,8 @@ async def prepare(
             )
 
         await assert_negative_payment_cases(api, tokens)
-        await assert_partial_payment_lifecycle(api, tokens)
+        lifecycle_entries = await assert_partial_payment_lifecycle(api, tokens)
+        await assert_cancelled_invoice_is_closed(connection, api, tokens)
 
         response = await api.post(
             f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}/invoice",
@@ -662,6 +954,7 @@ async def prepare(
         )
     state = {
         "cancellationInvoiceId": str(invoice["id"]),
+        "lifecycleEntries": lifecycle_entries,
         "openInvoiceId": str(OPEN_INVOICE_ID),
     }
     write_state(state_path, state)
@@ -683,6 +976,7 @@ async def capture(
     connection: asyncpg.Connection[Any],
     state_path: Path,
 ) -> None:
+    await assert_delivered_invoice_reopens_as_sent(connection)
     state = read_state(state_path)
     invoice_id = UUID(str(state["cancellationInvoiceId"]))
     invoice_snapshot = await connection.fetchval(
@@ -821,8 +1115,9 @@ async def assert_after_browser(
         OPEN_INVOICE_ID,
         cancellation_invoice_id,
     )
-    entries = LIFECYCLE_ENTRIES + BROWSER_ENTRIES
-    reversals = LIFECYCLE_ENTRIES + BROWSER_REVERSALS
+    lifecycle_entries = int(state["lifecycleEntries"])
+    entries = lifecycle_entries + BROWSER_ENTRIES
+    reversals = lifecycle_entries + BROWSER_REVERSALS
     if counts is None or dict(counts) != {
         "payments": entries,
         "cancellations": 1,

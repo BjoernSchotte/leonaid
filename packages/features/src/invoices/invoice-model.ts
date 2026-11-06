@@ -240,5 +240,9 @@ export const settlementCommandStorageKey = (
   kind: "cancellation" | "payment",
 ) => `leonaid.invoice-${kind}-command.${invoiceId}`;
 
+/** The payment form's key, bound to the settlement version it opened with. */
+export const paymentCommandStorageKey = (invoiceId: string, version: number) =>
+  `${settlementCommandStorageKey(invoiceId, "payment")}.v${version}`;
+
 export const reversalCommandStorageKey = (paymentId: string) =>
   `leonaid.invoice-payment-reversal-command.${paymentId}`;

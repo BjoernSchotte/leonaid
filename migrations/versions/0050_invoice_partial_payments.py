@@ -27,8 +27,9 @@ DATA_MIGRATION_REFERENCE = (
     "Only the one-payment-per-invoice unique constraint is dropped; no row is "
     "changed or removed. Every existing payment_record row stays as exactly "
     "one payment entry of its invoice, and invoice.status keeps its value. "
-    "The downgrade refuses to run while an invoice holds more than one entry "
-    "or any reversal exists, so it never discards a booked payment."
+    "The downgrade refuses to run while any entry is not one exact full "
+    "payment without a note (several entries, a reversal, a note, a partial "
+    "or an over payment), so it never discards or misstates a booked payment."
 )
 BACKUP_REFERENCE = "infra/backup/README.md#schema-changing-migrations"
 
@@ -51,6 +52,13 @@ def upgrade() -> None:
         "ck_payment_note",
         "payment_record",
         "note IS NULL OR length(btrim(note)) BETWEEN 1 AND 500",
+    )
+    # Target of the composite key below: a reversal names its entry and the
+    # entry's own invoice, never another one.
+    op.create_unique_constraint(
+        "uq_payment_record_id_invoice",
+        "payment_record",
+        ["id", "invoice_id"],
     )
 
     op.create_table(
@@ -92,6 +100,12 @@ def upgrade() -> None:
             "length(btrim(reason_snapshot)) BETWEEN 8 AND 500",
             name="ck_payment_reversal_reason",
         ),
+        sa.ForeignKeyConstraint(
+            ["payment_id", "invoice_id"],
+            ["payment_record.id", "payment_record.invoice_id"],
+            name="fk_payment_reversal_payment_invoice",
+            ondelete="RESTRICT",
+        ),
     )
     op.create_index(
         "ix_payment_reversal_invoice",
@@ -105,6 +119,9 @@ def downgrade() -> None:
         """
         DO $$
         BEGIN
+            -- The previous schema knows only one exact full payment per
+            -- invoice and no notes. Anything else would be lost or would
+            -- show a partial or over payment as paid.
             IF EXISTS (SELECT 1 FROM payment_reversal)
                OR EXISTS (
                    SELECT 1
@@ -112,9 +129,16 @@ def downgrade() -> None:
                    GROUP BY invoice_id
                    HAVING count(*) > 1
                )
+               OR EXISTS (SELECT 1 FROM payment_record WHERE note IS NOT NULL)
+               OR EXISTS (
+                   SELECT 1
+                   FROM payment_record AS payment
+                   JOIN invoice ON invoice.id = payment.invoice_id
+                   WHERE payment.amount_minor <> invoice.gross_minor
+                      OR payment.currency <> invoice.currency
+               )
             THEN
-                RAISE EXCEPTION
-                    'partial payments or reversals exist; downgrade refused';
+                RAISE EXCEPTION 'downgrade refused: payment entries beyond one exact full payment without note exist';
             END IF;
         END;
         $$;
@@ -122,6 +146,11 @@ def downgrade() -> None:
     )
     op.drop_index("ix_payment_reversal_invoice", table_name="payment_reversal")
     op.drop_table("payment_reversal")
+    op.drop_constraint(
+        "uq_payment_record_id_invoice",
+        "payment_record",
+        type_="unique",
+    )
     op.drop_constraint("ck_payment_note", "payment_record", type_="check")
     op.drop_column("payment_record", "note")
     op.drop_index(
