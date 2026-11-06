@@ -4,10 +4,10 @@ description: Update pinned Core, Twenty, RustFS, and EmDash versions behind a ma
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
-verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
-reviewer: Björn Schotte
+contentRevision: 8
+reviewedRevision: 8
+verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 ## Review pins and vulnerability findings
@@ -17,6 +17,16 @@ container images, `uv.lock`, `bun.lock`, and GitHub Actions digests. Security
 fixes arrive at once in separate PRs. Twenty, PostgreSQL, Valkey, and RustFS
 get their own PRs with the label `needs-upgrade-runbook`; follow the steps
 below for them. Nothing merges automatically.
+
+Upstream projects also rebuild an existing tag for security patches, for
+example `postgres:16.15-alpine3.24`. The version stays, the digest changes.
+Pull-request CI does not fail on this: it only requires that every pinned
+digest is still in the registry. The daily `Image pin drift` workflow finds
+moved tags and opens one PR from the branch `pins/repin-images`. That PR
+rewrites every file that carries an old digest. Review it like any image
+update: the full CI, including the security job, runs on it. To fix drift
+locally, run `./leonaid repin-images` (or `--image postgres` for one system),
+then commit and run `./leonaid check`.
 
 `infra/locks/external-systems.lock` records `reviewedAt` and `nextReviewOn`.
 `./leonaid check` fails once `nextReviewOn` has passed. To re-review, compare

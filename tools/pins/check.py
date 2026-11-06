@@ -571,33 +571,32 @@ def normalize_image(image: str) -> str:
 def check_locked_image_usage(
     root: Path, systems: dict[str, dict[str, Any]], problems: Problems
 ) -> None:
-    """Every digest-pinned image used by builds, stacks, CI or tools is locked.
+    """Every digest-pinned image anywhere in the checkout is locked.
 
     The lock is the single source of truth. A pinned reference elsewhere that
     is not listed there silently escapes upgrades (for example an outdated
-    toolchain image inside a CI workflow command).
+    toolchain image inside a CI workflow command) or keeps an old digest after
+    a re-pin (a README example, the upgrade compatibility matrix). Proofs
+    under specs/ are historical records and stay as they were.
     """
-    locked = {
-        normalize_image(str(item.get("image", ""))) for item in systems.values()
-    }
+    locked = {normalize_image(str(item.get("image", ""))) for item in systems.values()}
     pinned = re.compile(
         r"(?<![\w./-])(?P<image>[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)*"
         r":[A-Za-z0-9._-]+@sha256:[0-9a-f]{64})"
     )
     for path in checkout_files(root):
         relative = path.relative_to(root)
-        name = path.name.lower()
-        if not (
-            name.startswith("dockerfile")
-            or name == "leonaid"
-            or path.suffix.lower() in {".yml", ".yaml", ".sh", ".hcl", ".env"}
-        ):
-            continue
         if relative.parts and relative.parts[0] == "specs":
             continue
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if b"@sha256:" not in data:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
             continue
         for line_number, line in enumerate(text.splitlines(), 1):
             for match in pinned.finditer(line):

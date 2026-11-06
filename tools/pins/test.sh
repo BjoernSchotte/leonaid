@@ -8,6 +8,7 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 python "$checker" "$root"
 PYTHONPATH="$root" python "$root/tools/pins/peer_policy_test.py"
+PYTHONPATH="$root" python "$root/tools/pins/image_digests_test.py"
 
 make_fixture() {
   name=$1
@@ -87,4 +88,12 @@ printf '%s\n' \
   >"$tmp/unlocked-image/.github/workflows/stale.yml"
 expect_failure unlocked-image "pinned image is not listed in infra/locks/external-systems.lock"
 
-echo "pin-test: OK: positive and seven policy-rejection cases passed"
+# A re-pin must reach documentation and data files too, not only builds.
+make_fixture stale-data-digest
+mkdir -p "$tmp/stale-data-digest/infra/upgrade"
+printf '{"targetImage": "%s"}\n' \
+  "docker.io/library/postgres:16.15-alpine3.24@sha256:$stale_digest" \
+  >"$tmp/stale-data-digest/infra/upgrade/compatibility-matrix.json"
+expect_failure stale-data-digest "compatibility-matrix.json:1: pinned image is not listed"
+
+echo "pin-test: OK: positive and eight policy-rejection cases passed"
