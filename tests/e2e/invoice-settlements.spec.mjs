@@ -2,6 +2,7 @@ import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
 import {
   closeInvoice,
+  invoiceListHeading,
   invoiceRow,
   invoiceRows,
   openInvoice,
@@ -73,9 +74,7 @@ test("charity admin books partial and full payments and reverses an entry", asyn
 
   try {
     await page.goto(`${baseUrl}/admin/invoices`);
-    await expect(
-      page.getByRole("heading", { name: "Rechnungen" }),
-    ).toBeVisible();
+    await expect(invoiceListHeading(page)).toBeVisible();
     await expect(page.getByTestId("invoice-read-only")).toHaveCount(0);
     await expect(page.getByTestId("invoice-open-total")).toContainText(
       "468,00",
@@ -255,13 +254,25 @@ test("finance reader understands the status on mobile without booking rights", a
 
   try {
     await page.goto(`${baseUrl}/admin/invoices`);
-    await expect(
-      page.getByRole("heading", { name: "Rechnungen" }),
-    ).toBeVisible();
+    await expect(invoiceListHeading(page)).toBeVisible();
     await expect(page.getByTestId("invoice-read-only")).toContainText(
       "Nur lesen.",
     );
     await expect(page.getByTestId("invoice-open-total")).toContainText("0,00");
+    // The admin test above paid one open invoice and cancelled the other, so
+    // the default view "Offen" has nothing left to show.
+    await expect(
+      page
+        .getByRole("navigation", { name: "Gespeicherte Ansichten" })
+        .getByRole("button", { name: "Offen", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(invoiceRows(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", {
+        level: 2,
+        name: "Keine Rechnungen passen zu dieser Ansicht",
+      }),
+    ).toBeVisible();
     await showInvoiceView(page, "Alle");
     await expect(invoiceRows(page)).toHaveCount(4);
     await expect(page.getByTestId("mobile-menu")).toBeVisible();
