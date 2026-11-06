@@ -93,8 +93,8 @@ def assert_capture_copies_only_text(root: Path) -> None:
     A copied binary makes the sanitizer discard the whole capture; a missing
     text type silently drops evidence.
     """
-    sys.path.insert(0, str(root / "tools/ci"))
-    from sanitize_artifacts import TEXT_SUFFIXES
+    sys.path.insert(0, str(root))
+    from tools.ci.sanitize_artifacts import TEXT_SUFFIXES
 
     script = (root / "tools/ci/capture-failure.sh").read_text(encoding="utf-8")
     match = re.search(r"^\s*(\*\.[a-z]+(?: \| \*\.[a-z]+)*)\)$", script, re.M)
