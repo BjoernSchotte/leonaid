@@ -24,11 +24,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   members. It does not find sponsors: they live only in Twenty, and the
   search does not call the CRM per keystroke. The `sponsor` result type is
   reserved for a later local sponsor index.
-- Orders cannot be cancelled yet (no cancel command). The future cancel
-  feature must close the open "Nachliefern" task of a missed order it
-  cancels and must leave cancelled orders out of the delivery board's
-  commands (`TODO(cancel-follow-up)` in
-  `src/leonaid/adapters/postgres/delivery_board.py`).
+- Orders can be cancelled until they are delivered (`cancelCommitment`):
+  they leave the delivery board, an open "Nachliefern" task closes and an
+  issued, unpaid invoice is cancelled under ADR-0009 (status `cancelled`,
+  number, snapshot and PDF unchanged). Not implemented: a separately
+  numbered cancellation document (Stornorechnung) with its own PDF; its
+  number and link contract is an open decision for Björn (ADR-0004/0009
+  defer it). A booked payment blocks the cancellation; LeonAid books no
+  refunds. The buyer is not e-mailed about the cancellation, and a
+  cancelled order cannot be reopened.
 
 ## Identität und Administration
 

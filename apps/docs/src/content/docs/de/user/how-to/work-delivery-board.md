@@ -4,9 +4,9 @@ description: Am Liefertag Ausfahrer zuweisen, Lieferungen abhaken, Fenster absch
 docId: DOC-P046
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: a255af208a20325a525d9fa2f88f6e5642ad5c73
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -39,9 +39,11 @@ Ausfahrer sehen nur die Lieferungen, die ihnen zugewiesen sind. Mit
    bietet **Rückgängig** an.
 2. Mit der Tastatur bewegst du dich mit **J** und **K** und hakst mit **D** ab.
 
-Solange das Fenster offen ist, kannst du jeden Haken zurücknehmen. Stornierte
-Bestellungen bleiben durchgestrichen sichtbar, lassen sich aber nicht abhaken
-und zählen nicht mit.
+Solange das Fenster offen ist, kannst du jeden Haken zurücknehmen. Eine
+stornierte Bestellung verschwindet sofort von der Tafel und zählt nicht mehr
+mit; ihre Aufgabe **Nachliefern** wird erledigt (siehe
+[Bestellung stornieren](/de/user/how-to/cancel-order/)). Eine gelieferte
+Bestellung lässt sich nicht stornieren.
 
 ## Fenster abschließen
 

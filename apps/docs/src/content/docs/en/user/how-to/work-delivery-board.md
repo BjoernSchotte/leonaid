@@ -4,9 +4,9 @@ description: On the delivery day, assign drivers, tick off deliveries, close win
 docId: DOC-P046
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: a255af208a20325a525d9fa2f88f6e5642ad5c73
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -42,8 +42,10 @@ service) to filter the board by driver or **Ohne Fahrer** (no driver).
    (delivered) offers **Rückgängig** (undo).
 2. With the keyboard, move with **J** and **K** and tick with **D**.
 
-While the window is open, you can take back any tick. Cancelled orders stay
-visible struck through, but cannot be ticked and do not count.
+While the window is open, you can take back any tick. A cancelled order
+leaves the board at once and no longer counts; its **Nachliefern** task is
+done (see [Cancel an order](/en/user/how-to/cancel-order/)). A delivered order
+cannot be cancelled.
 
 ## Close a window
 

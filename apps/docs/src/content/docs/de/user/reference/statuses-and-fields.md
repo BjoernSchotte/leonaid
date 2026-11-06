@@ -4,9 +4,9 @@ description: Nachschlagewerk für Aktions-, Akquise-, Bestell-, Rechnungs- und L
 docId: DOC-P017
 audience: [user]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -37,6 +37,13 @@ CRM-Kontakt selbst.
 Quelle ist `acquisition`, `public_form` oder `admin`. Preise, Positionen,
 Rechnungs- und Lieferangaben werden serverseitig geprüft; ein gebuchtes
 Lieferfenster bleibt als Snapshot erhalten.
+
+**Storniert** ist endgültig und nur möglich, solange die Bestellung nicht
+geliefert und zu ihrer Rechnung keine Zahlung erfasst ist. Das Storno speichert
+Grund, optionale Notiz, Vorstatus, Person und Zeitpunkt. Eine stornierte
+Bestellung bleibt in Listen sichtbar, zählt aber in keiner Summe und auf keiner
+Liefertafel; eine offene Rechnung wird mit storniert (siehe
+[Bestellung stornieren](/de/user/how-to/cancel-order/)).
 
 ## Lieferfenster
 
