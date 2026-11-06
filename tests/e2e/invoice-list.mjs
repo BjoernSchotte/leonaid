@@ -1,6 +1,19 @@
 // Helpers for the invoice list (ListView rows and the detail pane or sheet).
 import { expect } from "@playwright/test";
 
+/**
+ * The page title of the invoice list. Exact level-1 match: the empty state of
+ * a view ("Keine Rechnungen passen zu dieser Ansicht", h2) also contains the
+ * word and is rendered as soon as the data of an empty view has loaded.
+ */
+export function invoiceListHeading(page) {
+  return page.getByRole("heading", {
+    level: 1,
+    name: "Rechnungen",
+    exact: true,
+  });
+}
+
 /** Every visible invoice row. */
 export function invoiceRows(page) {
   return page.locator(".listview .row");
