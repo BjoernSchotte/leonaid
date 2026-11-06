@@ -1,6 +1,6 @@
 import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
-import { openInvoice } from "./invoice-list.mjs";
+import { invoiceListHeading, openInvoice } from "./invoice-list.mjs";
 import { readFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
@@ -45,7 +45,7 @@ function sessionCookie(value) {
 
 async function openDocumentRow(page) {
   await page.goto(`${baseUrl}/admin/invoices?view=all`);
-  await expect(page.getByRole("heading", { name: "Rechnungen" })).toBeVisible();
+  await expect(invoiceListHeading(page)).toBeVisible();
   const row = await openInvoice(page, { number: "KT26-0001" });
   await expect(row.getByTestId("invoice-document")).toHaveAttribute(
     "data-state",

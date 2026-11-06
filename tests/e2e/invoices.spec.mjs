@@ -1,6 +1,11 @@
 import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
-import { invoiceRows, openInvoice, showInvoiceView } from "./invoice-list.mjs";
+import {
+  invoiceListHeading,
+  invoiceRows,
+  openInvoice,
+  showInvoiceView,
+} from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
@@ -327,9 +332,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
     await page.locator('[data-nav-key="invoices"]').first().click();
     // The rail link carries the campaign the admin is working in.
     await page.waitForURL(/\/admin\/invoices\?action=[0-9a-f-]{36}$/);
-    await expect(
-      page.getByRole("heading", { name: "Rechnungen" }),
-    ).toBeVisible();
+    await expect(invoiceListHeading(page)).toBeVisible();
     await expect(page.getByTestId("invoice-profile-incomplete")).toHaveCount(0);
     await expect(page.getByTestId("invoice-open-total")).toContainText("€");
     // List pages are full-bleed: the list starts at the rail and runs to the
@@ -386,9 +389,7 @@ test("fresh login protects approval and finance role sees the invoice unchanged"
   const financePage = await financeContext.newPage();
   try {
     await financePage.goto(`${baseUrl}/admin/invoices`);
-    await expect(
-      financePage.getByRole("heading", { name: "Rechnungen" }),
-    ).toBeVisible();
+    await expect(invoiceListHeading(financePage)).toBeVisible();
     await expect(financePage.getByTestId("invoice-read-only")).toContainText(
       "Nur lesen.",
     );
