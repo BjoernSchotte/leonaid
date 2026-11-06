@@ -65,6 +65,15 @@ GATED_WORKFLOWS = {
 }
 # Required without a gate: a single always-running job.
 UNGATED_REQUIRED = {"docs.yml": "Bilingual site artifact"}
+# Scheduled re-pin of moved image tags (tools/pins/image_digests.py).
+PIN_DRIFT = "pin-drift.yml"
+PIN_DRIFT_PERMISSIONS = {
+    ("actions", "write"),
+    ("contents", "write"),
+    ("pull-requests", "write"),
+}
+# Image digests (not action SHAs) in a workflow; GITHUB_TOKEN cannot rewrite it.
+DIGEST_PIN = re.compile(r"[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}")
 
 # The only commands tools/ci/retry-infra.sh may wrap; tests are never retried.
 RETRYABLE = re.compile(
@@ -376,6 +385,53 @@ def check_static_gates(root: Path) -> list[str]:
     ]
 
 
+def check_pin_drift(root: Path) -> list[str]:
+    """The re-pin PR must get every required check, and must be pushable.
+
+    Pushes and PRs made with GITHUB_TOKEN start no workflows, so pin-drift.yml
+    dispatches each required workflow on its branch. GITHUB_TOKEN also cannot
+    change workflow files, so no workflow may carry a digest of its own.
+    """
+    workflows = root / ".github/workflows"
+    text = (workflows / PIN_DRIFT).read_text(encoding="utf-8")
+    problems: list[str] = []
+    permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
+    granted = (
+        set(re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", permissions.group(1)))
+        if permissions
+        else set()
+    )
+    if granted != PIN_DRIFT_PERMISSIONS:
+        problems.append(
+            f"{PIN_DRIFT}: permissions must be exactly "
+            + ", ".join(
+                f"{scope}: {level}" for scope, level in sorted(PIN_DRIFT_PERMISSIONS)
+            )
+        )
+    if "GH_TOKEN: ${{ github.token }}" not in text or "secrets." in text:
+        problems.append(f"{PIN_DRIFT}: must use GITHUB_TOKEN and no other secret.")
+    dispatch = re.search(r"for workflow in ([^;\n]+); do\n\s+gh workflow run ", text)
+    dispatched = set(dispatch.group(1).split()) if dispatch else set()
+    required = set(GATED_WORKFLOWS) | set(UNGATED_REQUIRED)
+    if dispatched != required:
+        problems.append(
+            f"{PIN_DRIFT}: must dispatch exactly the required workflows "
+            f"{', '.join(sorted(required))}; dispatches {', '.join(sorted(dispatched)) or 'none'}"
+        )
+    for name in sorted(required):
+        if "\n  workflow_dispatch:" not in triggers(
+            (workflows / name).read_text(encoding="utf-8")
+        ):
+            problems.append(f"{name}: needs workflow_dispatch for the re-pin PR.")
+    for path in sorted(workflows.glob("*.y*ml")):
+        if DIGEST_PIN.search(path.read_text(encoding="utf-8")):
+            problems.append(
+                f"{path.name}: read images from infra/locks/images.env; a digest "
+                "in a workflow blocks the automatic re-pin."
+            )
+    return problems
+
+
 def check_repository(root: Path) -> list[str]:
     workflows = root / ".github/workflows"
     problems = check(workflows / "ci.yml")
@@ -398,6 +454,7 @@ def check_repository(root: Path) -> list[str]:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
     problems.extend(check_first_attempts(root))
     problems.extend(check_static_gates(root))
+    problems.extend(check_pin_drift(root))
     return problems
 
 
