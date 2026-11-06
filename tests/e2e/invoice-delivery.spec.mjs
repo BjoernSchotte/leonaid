@@ -1,6 +1,10 @@
 import { analyzeAccessibility } from "./axe.mjs";
 import { expect, test } from "./csp-guard.mjs";
-import { invoiceRow, openInvoice } from "./invoice-list.mjs";
+import {
+  invoiceListHeading,
+  invoiceRow,
+  openInvoice,
+} from "./invoice-list.mjs";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -45,9 +49,7 @@ test("charity admin sees an SMTP outage and restarts exactly that delivery", asy
 
   try {
     await page.goto(`${baseUrl}/admin/invoices?view=all`);
-    await expect(
-      page.getByRole("heading", { name: "Rechnungen" }),
-    ).toBeVisible();
+    await expect(invoiceListHeading(page)).toBeVisible();
     const row = invoiceRow(page, invoiceId);
     await expect(row).toContainText("Versand fehlgeschlagen");
     const invoice = await openInvoice(page, { id: invoiceId });

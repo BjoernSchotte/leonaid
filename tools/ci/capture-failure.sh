@@ -19,11 +19,21 @@ esac
 destination="$artifact_directory/runtime-$project"
 mkdir -p "$destination/proof"
 
+# Copy only the text evidence of the proof directory. Session files (*.env)
+# hold live tokens; screenshots, PDFs, traces and other binaries are private
+# or opaque, and sanitize_artifacts.py rejects them, which would discard the
+# whole capture (Compose logs included). Their names are listed instead.
 if [ -d "$proof" ]; then
-  find "$proof" -type f ! -name '*.env' | while IFS= read -r source; do
+  omitted="$destination/proof-omitted.txt"
+  find "$proof" -type f ! -name '*.env' | sort | while IFS= read -r source; do
     relative=${source#"$proof/"}
-    mkdir -p "$destination/proof/$(dirname "$relative")"
-    cp "$source" "$destination/proof/$relative"
+    case "$relative" in
+      *.html | *.json | *.log | *.md | *.txt | *.xml | *.yaml | *.yml)
+        mkdir -p "$destination/proof/$(dirname "$relative")"
+        cp "$source" "$destination/proof/$relative"
+        ;;
+      *) printf '%s\n' "$relative" >>"$omitted" ;;
+    esac
   done
 fi
 
