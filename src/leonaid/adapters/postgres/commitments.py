@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -17,6 +18,7 @@ from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
     lock_configuration,
+    lock_order_windows,
     decode_window_snapshot,
     decode_contact_snapshot,
     write_order_delivery,
@@ -110,7 +112,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
@@ -202,6 +204,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 "Die Charity-Aktion wurde nicht gefunden.",
             )
         delivery = await lock_configuration(connection, action_id)
+        # Lock order (retry.py): windows before the order row.
+        await lock_order_windows(
+            connection,
+            action_id=action_id,
+            commitment_id=commitment_id,
+            target_window_id=completion.delivery_window_id,
+        )
         row = await self._authorize_order(
             connection,
             action_id=action_id,
@@ -475,7 +484,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",

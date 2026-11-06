@@ -19,6 +19,7 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import httpx
@@ -78,7 +79,14 @@ class Fixture:
         "sent",
         "race",
         "stale",
+        "race_delivered",
+        "race_closure",
     )
+    # Pairs of concurrent commands per order: cancel vs delivery completion
+    # (drafts booked into the window) and cancel vs invoice cancellation.
+    PAIRS = 8
+    DRAFTS = tuple(f"completion_{index}" for index in range(PAIRS))
+    INVOICED = tuple(f"journal_{index}" for index in range(PAIRS))
 
     def __init__(self) -> None:
         self.tag = f"oc{uuid4().hex[:10]}"
@@ -90,9 +98,20 @@ class Fixture:
         self.tokens = {name: uuid4().hex + uuid4().hex for name in self.USERS}
         # The charity admin also holds a session whose login is not fresh.
         self.stale_token = uuid4().hex + uuid4().hex
-        self.orders = {name: uuid4() for name in self.ORDERS}
-        self.invoices = {name: uuid4() for name in ("invoiced", "paid", "sent")}
-        self.parties = {name: uuid4() for name in self.ORDERS}
+        names = (*self.ORDERS, *self.DRAFTS, *self.INVOICED)
+        self.orders = {name: uuid4() for name in names}
+        self.invoices = {
+            name: uuid4() for name in ("invoiced", "paid", "sent", *self.INVOICED)
+        }
+        self.parties = {name: uuid4() for name in names}
+        # A bookable window in the future: drafts complete into it.
+        start_day = date.today() + timedelta(days=30)
+        self.window_starts_at = datetime(
+            start_day.year, start_day.month, start_day.day, 7, tzinfo=timezone.utc
+        )
+        self.board_day = self.window_starts_at.astimezone(
+            ZoneInfo("Europe/Berlin")
+        ).date()
 
     async def create(self, connection: asyncpg.Connection[Any]) -> None:
         now = datetime.now(timezone.utc)
@@ -132,7 +151,7 @@ class Fixture:
                     archive_slug
                 )
                 VALUES ($1, 'Cancel proof', $2, 'Proof', 'active',
-                        '2026-01-01', '2026-12-31', $3)
+                        '2026-01-01', '2099-12-31', $3)
                 """,
                 action_id,
                 f"Aktion {self.tag} {name}",
@@ -153,7 +172,7 @@ class Fixture:
                 """,
                 action_id,
             )
-        starts_at = datetime(2026, 11, 11, 7, tzinfo=timezone.utc)
+        starts_at = self.window_starts_at
         await connection.execute(
             "INSERT INTO action_delivery_window (id, action_id, starts_at, ends_at) "
             "VALUES ($1, $2, $3, $4)",
@@ -206,8 +225,19 @@ class Fixture:
             "sent": "invoiced",
             "race": "review_ready",
             "stale": "review_ready",
+            "race_delivered": "review_ready",
+            "race_closure": "review_ready",
+            **{name: "draft" for name in self.DRAFTS},
+            **{name: "invoiced" for name in self.INVOICED},
         }
-        with_window = {"missed", "delivered", "race"}
+        with_window = {
+            "missed",
+            "delivered",
+            "race",
+            "race_delivered",
+            "race_closure",
+            *self.DRAFTS,
+        }
         for name, order_id in self.orders.items():
             await self._order(
                 connection,
@@ -250,6 +280,7 @@ class Fixture:
             ("invoiced", "issued"),
             ("paid", "issued"),
             ("sent", "sent"),
+            *((name, "issued") for name in self.INVOICED),
         ):
             await self._invoice(connection, name, status)
 
@@ -340,7 +371,7 @@ class Fixture:
         )
 
     def invoice_number(self, name: str) -> str:
-        return f"{self.tag.upper()}-{name.upper()}"
+        return f"{self.tag.upper()}-{name.upper().replace('_', '-')}"
 
     async def _invoice(
         self, connection: asyncpg.Connection[Any], name: str, status: str
@@ -481,6 +512,8 @@ class Proof:
         await self.invoice_cases()
         await self.board_and_follow_up()
         await self.concurrency()
+        await self.board_races()
+        await self.lock_order_races()
         await self.listing_counts()
 
     async def authorization(self) -> None:
@@ -752,7 +785,8 @@ class Proof:
 
     async def board_and_follow_up(self) -> None:
         board = await self.sessions["charity"].get(
-            f"/api/v1/actions/{self.data.action}/delivery-board", day="2026-11-11"
+            f"/api/v1/actions/{self.data.action}/delivery-board",
+            day=self.data.board_day.isoformat(),
         )
         assert board.status_code == 200, board.text
         drops = {
@@ -770,7 +804,8 @@ class Proof:
         response = await self.cancel("missed", note="Privat: Frau Muster, Tel. 0821")
         assert response.status_code == 201, response.text
         board = await self.sessions["charity"].get(
-            f"/api/v1/actions/{self.data.action}/delivery-board", day="2026-11-11"
+            f"/api/v1/actions/{self.data.action}/delivery-board",
+            day=self.data.board_day.isoformat(),
         )
         drops = {
             drop["commitmentId"]
@@ -854,6 +889,165 @@ class Proof:
             == 1
         )
 
+    async def board_races(self) -> None:
+        """A board command holding the window commits first; the cancel that
+        waited for the window then sees what the board wrote."""
+
+        async def board_then_cancel(order: str, board: Any) -> httpx.Response:
+            version = await self.version(order)
+            raw = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
+            try:
+                transaction = raw.transaction()
+                await transaction.start()
+                await raw.execute(
+                    "SELECT id FROM action_delivery_window WHERE id=$1 FOR UPDATE",
+                    self.data.window,
+                )
+                await board(raw)
+                cancelling = asyncio.create_task(self.cancel(order, version=version))
+                await asyncio.sleep(0.5)
+                assert not cancelling.done(), "the cancel must wait for the window"
+                await transaction.commit()
+                return await asyncio.wait_for(cancelling, timeout=15)
+            finally:
+                await raw.close()
+
+        delivered_id = self.data.orders["race_delivered"]
+
+        async def tick_off(raw: asyncpg.Connection[Any]) -> None:
+            # First state row of the drop, as the board's set_state writes it.
+            await raw.execute(
+                """
+                INSERT INTO commitment_delivery (
+                    commitment_id, action_id, state, state_changed_at,
+                    state_changed_by_user_id
+                )
+                VALUES ($1, $2, 'delivered', now(), $3)
+                """,
+                delivered_id,
+                self.data.action,
+                self.data.users["charity"],
+            )
+
+        response = await board_then_cancel("race_delivered", tick_off)
+        self.error(response, 409, "commitment_cancellation_delivered")
+        assert await self.status("race_delivered") == "review_ready"
+
+        closure_id = self.data.orders["race_closure"]
+
+        async def close_window(raw: asyncpg.Connection[Any]) -> None:
+            # The closure marks the drop missed and opens its task.
+            await raw.execute(
+                """
+                INSERT INTO commitment_delivery (
+                    commitment_id, action_id, state, state_changed_at,
+                    state_changed_by_user_id, missed_at_closure
+                )
+                VALUES ($1, $2, 'missed', now(), $3, true)
+                """,
+                closure_id,
+                self.data.action,
+                self.data.users["charity"],
+            )
+            await TaskDeliveryFollowUp().sync(
+                raw,
+                action_id=self.data.action,
+                commitment_id=closure_id,
+                title=f"Nachliefern: Bestellung {self.data.tag} closure",
+                description="Nicht geliefert.",
+                needed=True,
+                assignee_user_id=self.data.users["charity"],
+                actor_user_id=self.data.users["charity"],
+                request_id="cancel-proof",
+                occurred_at=datetime.now(timezone.utc),
+            )
+
+        response = await board_then_cancel("race_closure", close_window)
+        assert response.status_code == 201, response.text
+        task = await self.db.fetchval(
+            "SELECT task.status FROM task_delivery_follow_up AS f"
+            " JOIN task ON task.id = f.task_id WHERE f.commitment_id=$1",
+            closure_id,
+        )
+        assert task == "done", task
+
+    async def lock_order_races(self) -> None:
+        """Cancel against delivery completion and against the invoice
+        journal's cancellation, all at once: no 500, one consistent result."""
+
+        charity = self.sessions["charity"]
+        recipient = {
+            "recipientName": "Firma Proof",
+            "streetLine1": "Werkstraße 1",
+            "postalCode": "86150",
+            "city": "Augsburg",
+            "countryCode": "DE",
+        }
+        versions = {
+            name: await self.version(name)
+            for name in (*self.data.DRAFTS, *self.data.INVOICED)
+        }
+
+        async def complete(name: str) -> httpx.Response:
+            return await charity.post(
+                f"/api/v1/actions/{self.data.action}/commitments/"
+                f"{self.data.orders[name]}/delivery-completion",
+                {
+                    "expectedVersion": versions[name],
+                    "invoiceRecipient": {**recipient, "email": None},
+                    "deliveryRecipient": recipient,
+                    "deliveryWindowId": str(self.data.window),
+                },
+                f"cancel-proof:completion:{uuid4()}",
+            )
+
+        async def journal(name: str) -> httpx.Response:
+            return await charity.post(
+                f"/api/v1/actions/{self.data.action}/invoices/"
+                f"{self.data.invoices[name]}/cancellation",
+                {"reason": "Rechnung im Journal storniert"},
+                f"cancel-proof:journal:{uuid4()}",
+            )
+
+        calls = []
+        for name in self.data.DRAFTS:
+            calls += [self.cancel(name, version=versions[name]), complete(name)]
+        for name in self.data.INVOICED:
+            calls += [self.cancel(name, version=versions[name]), journal(name)]
+        responses = await asyncio.gather(*calls)
+        errors = [r for r in responses if r.status_code >= 500]
+        assert not errors, [r.text for r in errors]
+        for index, name in enumerate(self.data.DRAFTS):
+            cancel, completion = responses[2 * index], responses[2 * index + 1]
+            # Exactly one wins; the other sees the changed order.
+            assert sorted((cancel.status_code, completion.status_code)) in (
+                [200, 409],
+                [201, 409],
+            ), (cancel.text, completion.text)
+            expected = "cancelled" if cancel.status_code == 201 else "review_ready"
+            assert await self.status(name) == expected
+        offset = 2 * len(self.data.DRAFTS)
+        for index, name in enumerate(self.data.INVOICED):
+            cancel = responses[offset + 2 * index]
+            invoice_cancel = responses[offset + 2 * index + 1]
+            assert cancel.status_code == 201, cancel.text
+            assert invoice_cancel.status_code in (201, 409), invoice_cancel.text
+            assert await self.status(name) == "cancelled"
+            invoice_id = self.data.invoices[name]
+            assert (
+                await self.db.fetchval(
+                    "SELECT status FROM invoice WHERE id=$1", invoice_id
+                )
+                == "cancelled"
+            )
+            assert (
+                await self.count(
+                    "SELECT count(*) FROM invoice_cancellation WHERE invoice_id=$1",
+                    invoice_id,
+                )
+                == 1
+            )
+
     async def listing_counts(self) -> None:
         listing = await self.listing()
         by_id = {item["commitment"]["id"]: item for item in listing["items"]}
@@ -863,16 +1057,34 @@ class Proof:
             if by_id[str(self.data.orders[name])]["commitment"]["status"] == "cancelled"
         ]
         assert sorted(cancelled) == sorted(
-            ["plain", "draft", "invoiced", "sent", "paid", "missed", "race", "stale"]
+            [
+                "plain",
+                "draft",
+                "invoiced",
+                "sent",
+                "paid",
+                "missed",
+                "race",
+                "stale",
+                "race_closure",
+            ]
         )
         plain = by_id[str(self.data.orders["plain"])]
         assert plain["cancellation"]["reason"] == REASON
         assert by_id[str(self.data.orders["delivered"])]["delivered"] is True
         assert by_id[str(self.data.orders["delivered"])]["cancellation"] is None
-        # Only the delivered order still counts: 2 boxes.
-        assert listing["currencyTotals"] == [{"currency": "EUR", "totalMinor": 7200}]
-        assert listing["quantities"] == [{"unit": "box", "quantity": 2}]
-        assert listing["totalPieces"] == 48
+        # Every order is 2 boxes for 72 EUR; only the active ones count.
+        active = [
+            item
+            for item in listing["items"]
+            if item["commitment"]["status"] != "cancelled"
+        ]
+        assert len(active) >= 2
+        assert listing["currencyTotals"] == [
+            {"currency": "EUR", "totalMinor": 7200 * len(active)}
+        ]
+        assert listing["quantities"] == [{"unit": "box", "quantity": 2 * len(active)}]
+        assert listing["totalPieces"] == 48 * len(active)
 
 
 async def main() -> None:

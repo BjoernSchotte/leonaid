@@ -1,12 +1,15 @@
 """Atomic order cancellation in PostgreSQL.
 
-Lock order: idempotency key, action row (shared), the order's delivery window
-(like every delivery board command), the order row, its delivery row and its
-invoice. A mark-delivered on the board and this command therefore serialize
-on the window: the board then sees the cancelled status, or the cancellation
-sees the delivery. Commands that lock the order before its window (draft and
-delivery completion) can deadlock with this one; PostgreSQL aborts one side
-and the command retries like a serialization failure.
+Runs at READ COMMITTED and reads every fact only after it holds the lock that
+guards it, in the global lock order of ``leonaid.adapters.postgres.retry``:
+idempotency key, action row (shared), the invoice's payment and cancellation
+advisory locks, the order's delivery window (FOR UPDATE, as every delivery
+board command takes it), the order row, its delivery row, its invoice row.
+
+A board tick-off or window closure that holds the window either commits
+first (the cancellation then reads its delivered or missed row and its
+"Nachliefern" task) or waits and then reads the cancelled status. A payment
+or invoice cancellation of the same invoice waits on its advisory lock.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from leonaid.adapters.postgres.invoice_settlements import (
     AsyncpgInvoiceSettlementRepository,
 )
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -52,6 +56,16 @@ from leonaid.domain.order_cancellation import (
 )
 
 COMMAND_TYPE = "cancel_commitment_v1"
+
+
+class _LockTargetsChanged(Exception):
+    """The order gained an invoice between the first read and its lock."""
+
+
+CANCEL_RETRYABLE: tuple[type[BaseException], ...] = (
+    *RETRYABLE_ERRORS,
+    _LockTargetsChanged,
+)
 
 
 def follow_up_closing_note(requested_at: datetime) -> str:
@@ -90,7 +104,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         async with self._pool.acquire() as connection:
             for attempt in range(SERIALIZABLE_ATTEMPTS):
                 try:
-                    async with connection.transaction(isolation="serializable"):
+                    async with connection.transaction():
                         return await self._cancel_once(
                             connection,
                             action_id=action_id,
@@ -103,10 +117,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except (
-                    asyncpg.SerializationError,
-                    asyncpg.DeadlockDetectedError,
-                ):
+                except CANCEL_RETRYABLE:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
@@ -167,26 +178,43 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
                 "commitment_cancellation_action_archived",
                 "Bestellungen archivierter Aktionen können nicht storniert werden.",
             )
-        window_id = await self._window_of(connection, action_id, commitment_id)
+        # Unlocked first reads: which window and invoice to lock, in order.
+        window_id, invoice_id = await self._lock_targets(
+            connection, action_id, commitment_id
+        )
+        if invoice_id is not None:
+            for key in (
+                f"invoice-payment:{invoice_id}",
+                f"invoice-cancellation:{invoice_id}",
+            ):
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key
+                )
         if window_id is not None:
             await connection.execute(
                 "SELECT id FROM action_delivery_window WHERE id = $1 FOR UPDATE",
                 window_id,
             )
-        locked_window = await connection.fetchrow(
+        locked = await connection.fetchrow(
             """
-            SELECT delivery_window_id FROM commitment
+            SELECT delivery_window_id,
+                (SELECT id FROM invoice WHERE commitment_id = commitment.id)
+                    AS invoice_id
+            FROM commitment
             WHERE id = $1 AND action_id = $2
             FOR UPDATE
             """,
             commitment_id,
             action_id,
         )
-        if locked_window is None:
+        if locked is None:
             raise ResourceNotFound(
                 "commitment_not_found", "Die Bestellung wurde nicht gefunden."
             )
-        if locked_window["delivery_window_id"] != window_id:
+        if locked["invoice_id"] != invoice_id:
+            # An invoice was issued in between: take its locks first.
+            raise _LockTargetsChanged
+        if locked["delivery_window_id"] != window_id:
             # A completion booked a window in between: the view is stale.
             raise Conflict(
                 "commitment_cancellation_conflict",
@@ -385,11 +413,16 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
         )
 
     @staticmethod
-    async def _window_of(
+    async def _lock_targets(
         connection: asyncpg.Connection[Any], action_id: UUID, commitment_id: UUID
-    ) -> UUID | None:
+    ) -> tuple[UUID | None, UUID | None]:
         row = await connection.fetchrow(
-            "SELECT delivery_window_id FROM commitment WHERE id = $1 AND action_id = $2",
+            """
+            SELECT delivery_window_id,
+                (SELECT id FROM invoice WHERE commitment_id = commitment.id)
+                    AS invoice_id
+            FROM commitment WHERE id = $1 AND action_id = $2
+            """,
             commitment_id,
             action_id,
         )
@@ -397,29 +430,32 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             raise ResourceNotFound(
                 "commitment_not_found", "Die Bestellung wurde nicht gefunden."
             )
-        value = row["delivery_window_id"]
-        return value if isinstance(value, UUID) or value is None else UUID(str(value))
+        return row["delivery_window_id"], row["invoice_id"]
 
     @staticmethod
     async def _invoice_of(
         connection: asyncpg.Connection[Any], commitment_id: UUID
     ) -> OrderInvoiceState | None:
         row = await connection.fetchrow(
-            f"""
-            SELECT id, number, status, {ACTIVE_PAID_MINOR_SQL} AS paid_minor
-            FROM invoice WHERE commitment_id = $1
-            FOR UPDATE
-            """,
+            "SELECT id, number, status FROM invoice WHERE commitment_id = $1"
+            " FOR UPDATE",
             commitment_id,
         )
         if row is None:
             return None
+        # Read after the lock, in its own statement: sees every committed entry.
+        paid_minor = int(
+            await connection.fetchval(
+                f"SELECT {ACTIVE_PAID_MINOR_SQL} FROM invoice WHERE id = $1",
+                row["id"],
+            )
+        )
         return OrderInvoiceState(
             id=row["id"],
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
-            payment_recorded=int(row["paid_minor"]) > 0,
-            paid_minor=int(row["paid_minor"]),
+            payment_recorded=paid_minor > 0,
+            paid_minor=paid_minor,
         )
 
     @staticmethod

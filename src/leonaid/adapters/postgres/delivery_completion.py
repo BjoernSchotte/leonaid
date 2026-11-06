@@ -1,7 +1,7 @@
 """Atomic manager completion of delivery and billing details.
 
-Lock order matches order capture and schedule writes: action row first,
-delivery configuration second, order row third. Booked windows stay immutable.
+Lock order (``retry.py``): action row, delivery configuration, the order's
+windows, then the order row. Booked windows stay immutable.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
@@ -21,6 +22,7 @@ from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     lock_configuration,
+    lock_order_windows,
     write_order_delivery,
 )
 from leonaid.application.delivery_completion import (
@@ -66,7 +68,7 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                             request_id=request_id,
                             occurred_at=occurred_at,
                         )
-                except asyncpg.SerializationError:
+                except RETRYABLE_ERRORS:
                     if attempt == SERIALIZABLE_ATTEMPTS - 1:
                         raise Conflict(
                             "commitment_concurrent_retry",
@@ -129,6 +131,13 @@ class AsyncpgDeliveryCompletionRepository(DeliveryCompletionRepository):
                 "delivery_action_archived",
                 "Bestellungen archivierter Aktionen können nicht ergänzt werden.",
             )
+        # Lock order (retry.py): windows before the order row.
+        await lock_order_windows(
+            connection,
+            action_id=action_id,
+            commitment_id=commitment_id,
+            target_window_id=draft.delivery_window_id,
+        )
         found = await connection.fetchval(
             """
             SELECT id FROM commitment WHERE id = $1 AND action_id = $2
