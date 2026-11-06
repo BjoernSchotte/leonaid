@@ -22,7 +22,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.delivery_board import order_link, order_reference
-from leonaid.adapters.postgres.invoice_payment_state import PAYMENT_RECORDED_SQL
+from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.adapters.postgres.invoice_settlements import (
     AsyncpgInvoiceSettlementRepository,
 )
@@ -406,7 +406,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
     ) -> OrderInvoiceState | None:
         row = await connection.fetchrow(
             f"""
-            SELECT id, number, status, {PAYMENT_RECORDED_SQL} AS payment_recorded
+            SELECT id, number, status, {ACTIVE_PAID_MINOR_SQL} AS paid_minor
             FROM invoice WHERE commitment_id = $1
             FOR UPDATE
             """,
@@ -418,7 +418,8 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             id=row["id"],
             number=str(row["number"]),
             status=InvoiceStatus(str(row["status"])),
-            payment_recorded=bool(row["payment_recorded"]),
+            payment_recorded=int(row["paid_minor"]) > 0,
+            paid_minor=int(row["paid_minor"]),
         )
 
     @staticmethod

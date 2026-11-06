@@ -797,8 +797,10 @@ describe("order cancellation", () => {
   const issuedInvoice = (number: string, paymentRecorded = false) => ({
     id: "inv-c3",
     number,
+    paidMinor: paymentRecorded ? 3000 : 0,
     paymentRecorded,
-    status: paymentRecorded ? ("paid" as const) : ("issued" as const),
+    // A partial payment leaves the invoice open (ADR-0014).
+    status: "issued" as const,
   });
 
   function clientWith(items: CommitmentRecordResponse[]) {
@@ -937,7 +939,7 @@ describe("order cancellation", () => {
     fireEvent.click(await screen.findByTestId("open-order-cancellation"));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByRole("alert").textContent).toContain(
-      "Zur Rechnung KT26-0002 ist bereits eine Zahlung erfasst. Nehmen Sie die Zahlung erst zurück",
+      "Zur Rechnung KT26-0002 ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen)",
     );
     fireEvent.click(within(dialog).getByTestId("cancel-order"));
     expect(cancel).not.toHaveBeenCalled();

@@ -210,6 +210,7 @@ from leonaid.domain.invoices import (
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     PaymentRecord,
+    PaymentReversal,
 )
 from leonaid.domain.privacy import ConsentRecord, PrivacySubjectReport
 from leonaid.domain.legal_configuration import (
@@ -338,6 +339,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvoiceLineResponse,
     InvoiceListResponse,
     InvoicePaymentResponse,
+    InvoicePaymentReversalResponse,
     InvoiceProfileResponse,
     InvoicePaymentDetailsResponse,
     InvoiceRecordResponse,
@@ -397,6 +399,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
     RecordInvoicePaymentRequest,
+    ReverseInvoicePaymentRequest,
     RecordAcquisitionActivityResponse,
     RecordedAcquisitionActivityResponse,
     RequestLoginRequest,
@@ -1027,8 +1030,9 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="admin.open_receivables",
                     label="Offene Posten",
                     description=(
-                        "Bruttosumme der aktuell offenen Rechnungen; bezahlte "
-                        "und stornierte Rechnungen zählen nicht mit."
+                        "Offener Restbetrag aller Rechnungen: Bruttobetrag "
+                        "abzüglich erfasster Zahlungseingänge. Bezahlte, "
+                        "überzahlte und stornierte Rechnungen zählen nicht mit."
                     ),
                     href=f"/admin/invoices?action={action}&status=open",
                 ),
@@ -1036,8 +1040,8 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     key="admin.overdue",
                     label="Überfällige Rechnungen",
                     description=(
-                        "Offene Rechnungen, deren Fälligkeitstag nach "
-                        "Kalendertag des Clubs vorbei ist; Bruttosumme."
+                        "Rechnungen mit Restbetrag, deren Fälligkeitstag nach "
+                        "Kalendertag des Clubs vorbei ist; Summe der Restbeträge."
                     ),
                     href=f"/admin/invoices?action={action}&view=overdue",
                 ),
@@ -1537,6 +1541,7 @@ def commitment_record_response(
                 number=invoice.number,
                 status=invoice.status.value,
                 payment_recorded=invoice.payment_recorded,
+                paid_minor=invoice.paid_minor,
             )
             if invoice is not None
             else None
@@ -1693,10 +1698,16 @@ def invoice_context_response(context: InvoiceContext) -> InvoiceContextResponse:
 
 
 def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
+    balance = record.balance
     return InvoiceRecordResponse(
         invoice=invoice_response(record.invoice),
         buyer_display_name=record.buyer_display_name,
         open_minor=record.open_amount.amount_minor,
+        payments=[invoice_payment_response(item) for item in record.payments],
+        paid_minor=balance.paid.amount_minor,
+        overpaid_minor=balance.overpaid_amount.amount_minor,
+        settlement_status=balance.status.value,
+        settlement_version=record.settlement_version,
         payment=(
             invoice_payment_response(record.payment)
             if record.payment is not None
@@ -1747,6 +1758,28 @@ def invoice_payment_response(payment: PaymentRecord) -> InvoicePaymentResponse:
         recorded_by_display_name=payment.recorded_by_display_name,
         recorded_at=payment.recorded_at,
         replayed=payment.replayed,
+        note=payment.note,
+        reversal=(
+            invoice_payment_reversal_response(payment.reversal)
+            if payment.reversal is not None
+            else None
+        ),
+    )
+
+
+def invoice_payment_reversal_response(
+    reversal: PaymentReversal,
+) -> InvoicePaymentReversalResponse:
+    return InvoicePaymentReversalResponse(
+        id=reversal.id,
+        action_id=reversal.action_id,
+        invoice_id=reversal.invoice_id,
+        payment_id=reversal.payment_id,
+        reason=reversal.reason,
+        reversed_by_user_id=reversal.reversed_by_user_id,
+        reversed_by_display_name=reversal.reversed_by_display_name,
+        reversed_at=reversal.reversed_at,
+        replayed=reversal.replayed,
     )
 
 
@@ -3967,6 +4000,8 @@ async def record_invoice_payment(
         currency=body.currency,
         received_on=body.received_on,
         reference=body.reference,
+        note=body.note,
+        expected_version=body.expected_settlement_version,
         idempotency_key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
     )
@@ -3975,6 +4010,41 @@ async def record_invoice_payment(
         f"/api/v1/actions/{action_id}/invoices/{invoice_id}/payments/{payment.id}"
     )
     return invoice_payment_response(payment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/payments/{payment_id}/reversal",
+    operation_id="reverseInvoicePayment",
+    response_model=InvoicePaymentReversalResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def reverse_invoice_payment(
+    action_id: UUID,
+    invoice_id: UUID,
+    payment_id: UUID,
+    request: Request,
+    body: ReverseInvoicePaymentRequest,
+    response: Response,
+) -> InvoicePaymentReversalResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    reversal = await invoice_settlement_service(request).reverse_payment(
+        actor,
+        action_id,
+        invoice_id,
+        payment_id,
+        reason=body.reason,
+        expected_version=body.expected_settlement_version,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/payments/"
+        f"{payment_id}/reversal"
+    )
+    return invoice_payment_reversal_response(reversal)
 
 
 @router.post(

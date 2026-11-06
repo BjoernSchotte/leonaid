@@ -76,8 +76,10 @@ Nicht enthalten:
 - allgemeiner Formular-, Workflow- oder CMS-Builder;
 - listmonk-Kampagnenbetrieb;
 - allgemeines DMS;
-- Banking, automatische Zahlungszuordnung, Mahnwesen, Teilzahlungen,
-  Spendenbescheinigungen oder vollständige Buchhaltung;
+- Banking, automatische Zahlungszuordnung, Mahnwesen, Payment Provider,
+  Erstattungsbuchungen, Spendenbescheinigungen oder vollständige
+  Buchhaltung (manuell erfasste Teil- und Überzahlungen sind seit ADR-0014
+  enthalten);
 - Hochverfügbarkeit, Kubernetes, Multi-Region oder mehrere Clubs in einer
   Installation;
 - Passkeys, SSO, Social Login oder öffentliche Selbstregistrierung.

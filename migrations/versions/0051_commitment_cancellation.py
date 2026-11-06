@@ -1,7 +1,7 @@
 """Durable, reasoned order cancellation.
 
-Revision ID: 0050_commitment_cancellation
-Revises: 0049_window_fully_booked
+Revision ID: 0051_commitment_cancellation
+Revises: 0050_invoice_partial_payments
 
 One cancellation per order. It keeps the status the order had, the reason,
 an optional note, who cancelled it and when, and the invoice cancellation it
@@ -15,8 +15,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0050_commitment_cancellation"
-down_revision: str | None = "0049_window_fully_booked"
+revision: str = "0051_commitment_cancellation"
+down_revision: str | None = "0050_invoice_partial_payments"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

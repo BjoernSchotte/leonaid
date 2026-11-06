@@ -12,7 +12,7 @@ from leonaid.adapters.postgres.retry import (
     SERIALIZABLE_ATTEMPTS,
     serialization_pause,
 )
-from leonaid.adapters.postgres.invoice_payment_state import PAYMENT_RECORDED_SQL
+from leonaid.adapters.postgres.invoice_payment_state import ACTIVE_PAID_MINOR_SQL
 from leonaid.adapters.postgres.delivery import (
     guard_window_booking,
     read_configuration,
@@ -387,7 +387,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
                     invoice.status AS invoice_status,
-                    {PAYMENT_RECORDED_SQL} AS invoice_payment_recorded,
+                    {ACTIVE_PAID_MINOR_SQL} AS invoice_paid_minor,
                     COALESCE(delivery.state = 'delivered', false) AS delivered,
                     cancellation.id AS cancellation_id,
                     cancellation.previous_status AS cancellation_previous_status,
@@ -844,7 +844,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 id=header["invoice_id"],
                 number=str(header["invoice_number"]),
                 status=InvoiceStatus(str(header["invoice_status"])),
-                payment_recorded=bool(header["invoice_payment_recorded"]),
+                payment_recorded=int(header["invoice_paid_minor"] or 0) > 0,
+                paid_minor=int(header["invoice_paid_minor"] or 0),
             )
             if header["invoice_id"] is not None
             else None

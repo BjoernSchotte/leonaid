@@ -354,13 +354,40 @@ class AsyncpgDashboardRepository(DashboardRepository):
                     delivery.requested_at DESC,
                     delivery.created_at DESC,
                     delivery.id DESC
+            ),
+            -- Sum of the active (not reversed) payment entries per invoice.
+            received AS (
+                SELECT payment.invoice_id, sum(payment.amount_minor) AS paid_minor
+                FROM payment_record AS payment
+                JOIN invoice AS paid_invoice ON paid_invoice.id = payment.invoice_id
+                WHERE paid_invoice.action_id = $1
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM payment_reversal AS reversal
+                      WHERE reversal.payment_id = payment.id
+                  )
+                GROUP BY payment.invoice_id
+            ),
+            balance AS (
+                SELECT
+                    invoice.*,
+                    CASE
+                        WHEN invoice.status = 'cancelled' THEN 0
+                        ELSE greatest(
+                            invoice.gross_minor - coalesce(received.paid_minor, 0),
+                            0
+                        )
+                    END AS remainder_minor
+                FROM invoice
+                LEFT JOIN received ON received.invoice_id = invoice.id
+                WHERE invoice.action_id = $1
             )
             SELECT
                 count(*) FILTER (
-                    WHERE status IN ('issued', 'sent') AND due_on < $2
+                    WHERE remainder_minor > 0 AND due_on < $2
                 ) AS overdue,
-                coalesce(sum(gross_minor) FILTER (
-                    WHERE status IN ('issued', 'sent') AND due_on < $2
+                coalesce(sum(remainder_minor) FILTER (
+                    WHERE due_on < $2
                 ), 0) AS overdue_amount_minor,
                 count(*) FILTER (
                     WHERE status <> 'cancelled'
@@ -374,14 +401,11 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 coalesce(sum(gross_minor) FILTER (
                     WHERE status IN ('issued', 'sent', 'paid')
                 ), 0) AS invoiced_amount_minor,
-                coalesce(sum(gross_minor) FILTER (
-                    WHERE status IN ('issued', 'sent')
-                ), 0) AS open_amount_minor,
+                coalesce(sum(remainder_minor), 0) AS open_amount_minor,
                 array_remove(array_agg(DISTINCT currency), NULL) AS currencies
-            FROM invoice
+            FROM balance AS invoice
             LEFT JOIN latest_delivery
               ON latest_delivery.invoice_id = invoice.id
-            WHERE invoice.action_id = $1
             """,
             action_id,
             today,

@@ -18,10 +18,12 @@ from leonaid.domain.commitments import Money
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, GlobalRole, IdentityPrincipal
 from leonaid.domain.invoice_settlements import (
+    InvoiceBalance,
     InvoiceCancellation,
     PaymentRecord,
+    settlement_version,
 )
-from leonaid.domain.invoices import Invoice, InvoiceProfile
+from leonaid.domain.invoices import Invoice, InvoiceProfile, InvoiceStatus
 from leonaid.domain.policies import may_manage_action
 
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
@@ -43,9 +45,25 @@ class InvoiceRecord:
     invoice: Invoice
     buyer_display_name: str
     open_amount: Money
+    # The newest active payment entry; kept for older clients.
     payment: PaymentRecord | None = None
     cancellation: InvoiceCancellation | None = None
     deliveries: tuple[InvoiceDelivery, ...] = ()
+    # Every payment entry, reversed ones included, oldest first.
+    payments: tuple[PaymentRecord, ...] = ()
+
+    @property
+    def balance(self) -> InvoiceBalance:
+        return InvoiceBalance.of(
+            self.invoice.gross,
+            self.payments,
+            cancelled=self.cancellation is not None
+            or self.invoice.status is InvoiceStatus.CANCELLED,
+        )
+
+    @property
+    def settlement_version(self) -> int:
+        return settlement_version(self.payments)
 
 
 @dataclass(frozen=True, slots=True)

@@ -21,7 +21,7 @@ import {
   shortDate,
 } from "./invoice-format";
 import { useDocumentDownload } from "./invoice-detail";
-import type { InvoiceRow } from "./invoice-model";
+import { invoiceSettlement, type InvoiceRow } from "./invoice-model";
 
 export interface LedgerState {
   readonly status: "loading" | "error" | "ready";
@@ -65,14 +65,23 @@ export function PaymentsLedger({
   readonly rows: readonly InvoiceRow[];
   readonly state: LedgerState;
 }) {
-  const paid = rows
-    .filter((row) => row.record.payment)
-    .sort((a, b) =>
-      b.record.payment!.receivedOn.localeCompare(a.record.payment!.receivedOn),
+  // Every entry, newest first. Reversed entries stay visible but do not
+  // count toward the number of receipts or the total.
+  const entries = rows
+    .flatMap((row) =>
+      invoiceSettlement(row.record).payments.map((payment) => ({
+        payment,
+        row,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        b.payment.receivedOn.localeCompare(a.payment.receivedOn) ||
+        b.payment.recordedAt.localeCompare(a.payment.recordedAt),
     );
+  const paid = entries.filter(({ payment }) => !payment.reversal);
   const totals = new Map<string, number>();
-  for (const row of paid) {
-    const payment = row.record.payment!;
+  for (const { payment } of paid) {
     totals.set(
       payment.currency,
       (totals.get(payment.currency) ?? 0) + payment.amountMinor,
@@ -96,7 +105,7 @@ export function PaymentsLedger({
         </div>
       </header>
       <LedgerBody state={state}>
-        {paid.length === 0 ? (
+        {entries.length === 0 ? (
           <EmptyState
             description="Erfasste Zahlungseingänge erscheinen hier mit Datum und Rechnung."
             headingLevel={2}
@@ -124,30 +133,36 @@ export function PaymentsLedger({
                 </tr>
               </thead>
               <tbody>
-                {paid.map((row) => {
-                  const payment = row.record.payment!;
-                  return (
-                    <tr key={payment.id}>
-                      <td className="num">{shortDate(payment.receivedOn)}</td>
-                      <td>
-                        <a
-                          className="mono"
-                          href={invoiceHref(actionId, row.id)}
-                        >
-                          {row.record.invoice.number}
-                        </a>
-                      </td>
-                      <td>{row.record.buyerDisplayName}</td>
-                      <td>
-                        {payment.recordedByDisplayName ??
-                          "Berechtigte Finanzrolle"}
-                      </td>
-                      <td className="right num">
+                {entries.map(({ payment, row }) => (
+                  <tr
+                    data-reversed={payment.reversal ? "true" : undefined}
+                    key={payment.id}
+                  >
+                    <td className="num">{shortDate(payment.receivedOn)}</td>
+                    <td>
+                      <a className="mono" href={invoiceHref(actionId, row.id)}>
+                        {row.record.invoice.number}
+                      </a>
+                    </td>
+                    <td>{row.record.buyerDisplayName}</td>
+                    <td>
+                      {payment.recordedByDisplayName ??
+                        "Berechtigte Finanzrolle"}
+                    </td>
+                    <td className="right num">
+                      <span
+                        className={payment.reversal ? "is-struck" : undefined}
+                      >
                         {formatMoney(payment.amountMinor, payment.currency)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </span>
+                      {payment.reversal ? (
+                        <span className="small subtle inv-ledger-note">
+                          zurückgebucht
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

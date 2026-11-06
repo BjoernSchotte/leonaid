@@ -4,8 +4,8 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -15,7 +15,7 @@ people who manage the campaign's orders. Acquirers, drivers and finance roles
 do not see the function; the server refuses it for them.
 
 **Prerequisite:** the order is not delivered yet, and no payment is recorded
-on its invoice.
+on its invoice (or every recorded payment is reversed).
 
 1. In the back office, open **Bestellungen** and select the order. The detail
    pane opens.
@@ -53,8 +53,10 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   The dialog says so. If the tick was set by mistake, take it back on the
   **Auslieferung** board (see
   [Work the delivery board](/en/user/how-to/work-delivery-board/)).
-- **Payment recorded:** if a payment is booked on the invoice, the dialog asks
-  you to take the payment back first. LeonAid books no refunds.
+- **Payment recorded:** if a payment is booked on the invoice, a partial one
+  included, the dialog asks you to reverse it first. Open the invoice under
+  **Rechnungen** and select **Zurückbuchen** on the payment. Once every payment
+  is reversed, you can cancel the order. LeonAid books no refunds.
 - **Changed in the meantime:** if someone changed the order at the same time,
   the server refuses and the list reloads. Check the current state and cancel
   again; your reason stays in the dialog.

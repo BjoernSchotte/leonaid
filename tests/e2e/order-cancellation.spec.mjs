@@ -194,7 +194,7 @@ test("a paid order explains that the payment comes back first", async ({
   await pane.getByTestId("open-order-cancellation").click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByRole("alert")).toContainText(
-    "Zur Rechnung KT26-0002 ist bereits eine Zahlung erfasst. Nehmen Sie die Zahlung erst zurück",
+    "Zur Rechnung KT26-0002 ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen)",
   );
   await expect(dialog.getByTestId("cancel-order")).toBeDisabled();
   await assertNoSeriousAxeFindings(page);

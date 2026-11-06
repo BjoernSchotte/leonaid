@@ -81,7 +81,7 @@ Security-, Betriebs- und Recoveryentscheidungen sind in
 | Core- und API-Grenze | [ADR-0003](decisions/ADR-0003-core-architecture.md)                                                                                     |
 | Rechnung und Typst   | [ADR-0004](decisions/ADR-0004-invoice-issuing.md), [ADR-0005](decisions/ADR-0005-typst-invoice-renderer.md)                             |
 | Dokumente und S3     | [ADR-0006](decisions/ADR-0006-provider-neutral-object-storage.md), [ADR-0007](decisions/ADR-0007-contextual-document-access.md)         |
-| Mail und Zahlung     | [ADR-0008](decisions/ADR-0008-durable-invoice-delivery.md), [ADR-0009](decisions/ADR-0009-exact-invoice-settlement.md)                  |
+| Mail und Zahlung     | [ADR-0008](decisions/ADR-0008-durable-invoice-delivery.md), [ADR-0009](decisions/ADR-0009-exact-invoice-settlement.md), [ADR-0014](decisions/ADR-0014-invoice-partial-payments.md)                  |
 | Feature Flags        | [ADR-0010](decisions/ADR-0010-openfeature-rollout-controls.md)                                                                          |
 | Recovery und Upgrade | [ADR-0011](decisions/ADR-0011-encrypted-cross-system-backups.md), [ADR-0012](decisions/ADR-0012-pinned-upgrades-and-backup-rollback.md) |
 | Betriebssignale      | [ADR-0013](decisions/ADR-0013-operational-signals-and-safe-retry.md)                                                                    |

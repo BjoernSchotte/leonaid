@@ -39,8 +39,9 @@ export function cancellationBlock(
   if (record.delivered) {
     return "Die Bestellung ist bereits geliefert und kann nicht mehr storniert werden.";
   }
-  if (record.invoice?.paymentRecorded || record.invoice?.status === "paid") {
-    return `Zur Rechnung ${record.invoice.number} ist bereits eine Zahlung erfasst. Nehmen Sie die Zahlung erst zurück, dann können Sie die Bestellung stornieren.`;
+  // Active (not reversed) payment entries, ADR-0014.
+  if ((record.invoice?.paidMinor ?? 0) > 0) {
+    return `Zur Rechnung ${record.invoice!.number} ist eine Zahlung erfasst. Buchen Sie die Zahlung in der Rechnung erst zurück (Zahlung zurückbuchen), dann können Sie die Bestellung stornieren.`;
   }
   return null;
 }

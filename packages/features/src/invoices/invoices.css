@@ -183,6 +183,9 @@
 .inv-page .stamp.tone-ok {
   color: var(--ok);
 }
+.inv-page .stamp.tone-warn {
+  color: var(--warn);
+}
 
 /* ---------- product parts the prototype has no data for ---------- */
 .inv-note {
@@ -253,4 +256,35 @@
 }
 .inv-detail a:not(.btn):hover {
   text-decoration-thickness: 2px;
+}
+
+/* Payment entries of one invoice; a reversed entry stays, struck through. */
+.inv-payments {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.inv-payments > li {
+  display: grid;
+  gap: var(--s-2);
+  padding-bottom: var(--s-3);
+  border-bottom: var(--hair) solid var(--border);
+}
+.inv-payments > li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.inv-payment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.inv-payment-head .num {
+  font-weight: var(--fw-semibold);
+}
+.inv-ledger-note {
+  display: block;
 }

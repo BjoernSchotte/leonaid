@@ -4,8 +4,8 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -15,7 +15,8 @@ die die Bestellungen der Aktion verwalten. Akquisiteure, Ausfahrer und
 Finanzrollen sehen die Funktion nicht; der Server lehnt sie für sie ab.
 
 **Voraussetzung:** Die Bestellung ist noch nicht geliefert, und zu ihrer
-Rechnung ist keine Zahlung erfasst.
+Rechnung ist keine Zahlung erfasst (oder jede erfasste Zahlung ist
+zurückgebucht).
 
 1. Öffne im Backoffice **Bestellungen** und wähle die Bestellung. Der
    Detailbereich öffnet sich.
@@ -56,8 +57,11 @@ Menge und Betrag zählen sie nicht mehr mit.
   nicht stornieren. Der Dialog sagt das. Wurde der Haken versehentlich gesetzt,
   nimm ihn auf der Tafel **Auslieferung** zurück (siehe
   [Auslieferung abhaken](/de/user/how-to/work-delivery-board/)).
-- **Zahlung erfasst:** Ist zur Rechnung eine Zahlung gebucht, bittet der Dialog,
-  die Zahlung erst zurückzunehmen. LeonAid bucht keine Erstattungen.
+- **Zahlung erfasst:** Ist zur Rechnung eine Zahlung gebucht, auch eine
+  Teilzahlung, bittet der Dialog, sie erst zurückzubuchen. Öffne die Rechnung
+  unter **Rechnungen** und wähle bei der Zahlung **Zurückbuchen**. Sind alle
+  Zahlungen zurückgebucht, kannst du die Bestellung stornieren. LeonAid bucht
+  keine Erstattungen.
 - **Inzwischen geändert:** Hat jemand die Bestellung gleichzeitig bearbeitet,
   lehnt der Server ab, und die Liste lädt neu. Prüfe den aktuellen Stand und
   storniere dann erneut; dein Grund bleibt im Dialog stehen.

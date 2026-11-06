@@ -87,8 +87,13 @@
         "Eingegangener Betrag in €",
         "Eingangsdatum",
         "Verwendungszweck",
-        "Nur die exakte Vollzahlung"
+        "Notiz",
+        "Teil- und Überzahlungen sind möglich."
       ]
+    },
+    {
+      "file": "packages/features/src/invoices/invoice-payment-reversal.tsx",
+      "contains": ["Zurückbuchen", "Grund der Rückbuchung"]
     },
     {
       "file": "packages/features/src/invoices/invoice-detail.tsx",
@@ -96,6 +101,10 @@
         "Zahlung erfassen",
         "stamp tone-ok",
         "Bezahlt",
+        "Überzahlt",
+        "Differenz erstatten",
+        "Weitere Zahlung erfassen",
+        "Zurückbuchen",
         "mayManageSettlements"
       ]
     },
@@ -717,14 +726,14 @@
         "wird mit storniert.",
         "LeonAid benachrichtigt den Besteller nicht automatisch.",
         "bereits geliefert",
-        "Nehmen Sie die Zahlung erst zurück"
+        "Zahlung zurückbuchen"
       ]
     },
     {
       "file": "src/leonaid/domain/order_cancellation.py",
       "contains": [
         "REASON_MIN_LENGTH = 8",
-        "Bitte die Zahlung erst zurücknehmen"
+        "Zahlung erst in der Rechnung zurückbuchen"
       ]
     }
   ]

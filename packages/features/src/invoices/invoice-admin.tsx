@@ -36,6 +36,7 @@ import {
 import { useContextCommands } from "../command-palette/store";
 import { CancellationDialog, PaymentDialog } from "./invoice-dialogs";
 import { InvoiceDetail, type InvoiceCommand } from "./invoice-detail";
+import { PaymentReversalDialog } from "./invoice-payment-reversal";
 import {
   formatMoney,
   localIsoDate,
@@ -48,6 +49,7 @@ import {
   INVOICE_STATUSES,
   invoiceDispatchLabels,
   invoiceRows,
+  invoiceSettlement,
   invoiceStatusLabels,
   migrateLegacyStatusParam,
   type InvoiceRow,
@@ -402,14 +404,15 @@ function InvoiceList({
   const [dialog, setDialog] = useState<{
     readonly command: InvoiceCommand;
     readonly invoiceId: string;
+    readonly paymentId?: string;
   } | null>(null);
   const dialogRecord = dialog
     ? (rows.find((row) => row.id === dialog.invoiceId)?.record ?? null)
     : null;
   const closeDialog = useCallback(() => setDialog(null), []);
   const onCommand = useCallback(
-    (command: InvoiceCommand, row: InvoiceRow) =>
-      setDialog({ command, invoiceId: row.id }),
+    (command: InvoiceCommand, row: InvoiceRow, paymentId?: string) =>
+      setDialog({ command, invoiceId: row.id, paymentId }),
     [],
   );
 
@@ -485,7 +488,7 @@ function InvoiceList({
       {
         id: "open",
         label: "Offen",
-        filters: [{ prop: "status", values: ["open", "overdue"] }],
+        filters: [{ prop: "status", values: ["open", "partial", "overdue"] }],
         groupBy: "status",
         sort: "due",
       },
@@ -499,7 +502,7 @@ function InvoiceList({
       {
         id: "paid",
         label: "Bezahlt",
-        filters: [{ prop: "status", values: ["paid"] }],
+        filters: [{ prop: "status", values: ["paid", "overpaid"] }],
         groupBy: null,
         sort: "number",
       },
@@ -530,9 +533,19 @@ function InvoiceList({
         </span>
       ),
       secondary: (row) => {
-        const { invoice, payment, cancellation } = row.record;
+        const { invoice, cancellation } = row.record;
         if (cancellation) return `storniert · ${cancellation.reason}`;
-        if (payment) return `bezahlt ${shortDate(payment.receivedOn, today)}`;
+        const settlement = invoiceSettlement(row.record);
+        const latest = settlement.active.at(-1);
+        if (settlement.status === "overpaid") {
+          return `überzahlt · ${formatMoney(settlement.overpaidMinor, invoice.currency)} zu viel`;
+        }
+        if (settlement.status === "paid" && latest) {
+          return `bezahlt ${shortDate(latest.receivedOn, today)}`;
+        }
+        if (settlement.status === "partially_paid") {
+          return `${formatMoney(settlement.openMinor, invoice.currency)} offen · fällig ${relativeDay(invoice.dueOn, today)}`;
+        }
         return `fällig ${relativeDay(invoice.dueOn, today)}`;
       },
       trailing: (row) => (
@@ -620,6 +633,13 @@ function InvoiceList({
         onChanged={onChanged}
         onClose={closeDialog}
         record={dialog?.command === "cancellation" ? dialogRecord : null}
+      />
+      <PaymentReversalDialog
+        client={client}
+        onChanged={onChanged}
+        onClose={closeDialog}
+        paymentId={dialog?.paymentId ?? null}
+        record={dialog?.command === "reversal" ? dialogRecord : null}
       />
     </>
   );

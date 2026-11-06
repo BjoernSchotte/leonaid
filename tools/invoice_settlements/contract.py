@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real API/PostgreSQL contract for exact payments and invoice cancellations."""
+"""Real API/PostgreSQL contract for payment entries, reversals and cancellations."""
 
 from __future__ import annotations
 
@@ -38,6 +38,12 @@ FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 SESSION_NAMESPACE = UUID("be0408f6-66eb-43ec-9353-c8a7d480951e")
 PAYMENT_KEY = "poc095:payment:browser-v1"
 CANCELLATION_KEY = "poc095:cancellation:browser-v1"
+LIFECYCLE_KEY = "poc095:lifecycle-v1"
+# Entries the API lifecycle books on the open invoice (all reversed again).
+LIFECYCLE_ENTRIES = 3
+# The browser books a partial entry, reverses it, then the full payment.
+BROWSER_ENTRIES = 2
+BROWSER_REVERSALS = 1
 PAYMENT_DATE = "2026-07-20"
 PAYMENT_REFERENCE = "Bankumsatz KT26-0001 / 20.07.2026"
 CANCELLATION_REASON = "Bestellung nach Rechnungsfreigabe vollständig zurückgenommen."
@@ -180,25 +186,16 @@ async def assert_negative_payment_cases(
         ):
             raise ContractFailure(f"Persona {label} could record a payment")
 
-    for amount, key in (
-        (35_999, "poc095:partial:rejected"),
-        (36_001, "poc095:overpayment:rejected"),
-    ):
-        response = await api.post(
-            endpoint,
-            headers={
-                **session_headers(tokens["klara"]),
-                "Idempotency-Key": key,
-            },
-            json={**payload, "amountMinor": amount},
-        )
-        if (
-            response.status_code != 422
-            or error_code(response) != "invoice_payment_full_amount_required"
-        ):
-            raise ContractFailure(
-                f"Partial/over payment {amount} was not rejected with a stable error"
-            )
+    zero = await api.post(
+        endpoint,
+        headers={
+            **session_headers(tokens["klara"]),
+            "Idempotency-Key": "poc095:zero:rejected",
+        },
+        json={**payload, "amountMinor": 0},
+    )
+    if zero.status_code != 422:
+        raise ContractFailure("A payment of 0,00 € was not rejected")
 
     wrong_currency = await api.post(
         endpoint,
@@ -213,6 +210,401 @@ async def assert_negative_payment_cases(
         or error_code(wrong_currency) != "invoice_payment_currency_mismatch"
     ):
         raise ContractFailure("Mismatched payment currency was not rejected")
+
+
+async def ledger(api: httpx.AsyncClient, token: str) -> dict[str, Any]:
+    response = await api.get(
+        f"/api/v1/actions/{ACTION_ID}/invoices",
+        headers=session_headers(token),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ContractFailure("Invoice ledger is not an object")
+    return payload
+
+
+def expect_settlement(
+    payload: dict[str, Any],
+    *,
+    label: str,
+    status: str,
+    paid: int,
+    open_: int,
+    overpaid: int,
+    invoice_status: set[str],
+    open_total: int,
+) -> int:
+    record = invoice_record(payload, OPEN_INVOICE_ID)
+    observed = {
+        "settlementStatus": record.get("settlementStatus"),
+        "paidMinor": record.get("paidMinor"),
+        "openMinor": record.get("openMinor"),
+        "overpaidMinor": record.get("overpaidMinor"),
+        "invoiceStatus": record.get("invoice", {}).get("status"),
+        "openTotal": [
+            item.get("openMinor")
+            for item in payload.get("currencyTotals", [])
+            if item.get("currency") == "EUR"
+        ],
+    }
+    if (
+        observed["settlementStatus"] != status
+        or observed["paidMinor"] != paid
+        or observed["openMinor"] != open_
+        or observed["overpaidMinor"] != overpaid
+        or observed["invoiceStatus"] not in invoice_status
+        or observed["openTotal"] != [open_total]
+    ):
+        raise ContractFailure(f"{label}: unexpected settlement {observed}")
+    version = record.get("settlementVersion")
+    if not isinstance(version, int):
+        raise ContractFailure(f"{label}: settlement version missing")
+    return version
+
+
+async def post_payment(
+    api: httpx.AsyncClient,
+    token: str,
+    *,
+    key: str,
+    amount: int,
+    version: int | None,
+    note: str | None = None,
+) -> httpx.Response:
+    body: dict[str, Any] = {
+        "amountMinor": amount,
+        "currency": "EUR",
+        "receivedOn": PAYMENT_DATE,
+        "reference": PAYMENT_REFERENCE,
+    }
+    if version is not None:
+        body["expectedSettlementVersion"] = version
+    if note is not None:
+        body["note"] = note
+    return await api.post(
+        f"/api/v1/actions/{ACTION_ID}/invoices/{OPEN_INVOICE_ID}/payments",
+        headers={**session_headers(token), "Idempotency-Key": key},
+        json=body,
+    )
+
+
+async def post_reversal(
+    api: httpx.AsyncClient,
+    token: str,
+    *,
+    payment_id: str,
+    key: str,
+    version: int | None,
+    reason: str = "Bank hat die Gutschrift zurückgeholt.",
+) -> httpx.Response:
+    body: dict[str, Any] = {"reason": reason}
+    if version is not None:
+        body["expectedSettlementVersion"] = version
+    return await api.post(
+        (
+            f"/api/v1/actions/{ACTION_ID}/invoices/{OPEN_INVOICE_ID}/"
+            f"payments/{payment_id}/reversal"
+        ),
+        headers={**session_headers(token), "Idempotency-Key": key},
+        json=body,
+    )
+
+
+def created(response: httpx.Response, label: str) -> dict[str, Any]:
+    if response.status_code != 201:
+        raise ContractFailure(
+            f"{label}: expected 201, got {response.status_code} {response.text}"
+        )
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ContractFailure(f"{label}: response is not an object")
+    return payload
+
+
+def refused(response: httpx.Response, status: int, code: str, label: str) -> None:
+    if response.status_code != status or error_code(response) != code:
+        raise ContractFailure(
+            f"{label}: expected {status} {code}, got "
+            f"{response.status_code} {response.text}"
+        )
+
+
+async def assert_partial_payment_lifecycle(
+    api: httpx.AsyncClient,
+    tokens: dict[str, str],
+) -> None:
+    """Partial, over and reversed entries; sums, versions, replay, races."""
+
+    klara = tokens["klara"]
+    # The golden open invoice is unpaid and, in this stack, never delivered.
+    unpaid = {"issued", "sent"}
+    version = expect_settlement(
+        await ledger(api, klara),
+        label="start",
+        status="open",
+        paid=0,
+        open_=36_000,
+        overpaid=0,
+        invoice_status=unpaid,
+        open_total=36_000,
+    )
+    if version != 0:
+        raise ContractFailure(f"Unpaid invoice starts at version {version}")
+
+    first = created(
+        await post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:first",
+            amount=10_000,
+            version=version,
+            note="Erste Rate",
+        ),
+        "partial payment",
+    )
+    if first.get("note") != "Erste Rate" or first.get("replayed") is not False:
+        raise ContractFailure(f"Partial payment response is incomplete: {first}")
+    version_after_first = expect_settlement(
+        await ledger(api, klara),
+        label="partial",
+        status="partially_paid",
+        paid=10_000,
+        open_=26_000,
+        overpaid=0,
+        invoice_status=unpaid,
+        open_total=26_000,
+    )
+
+    replay = created(
+        await post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:first",
+            amount=10_000,
+            version=version,
+            note="Erste Rate",
+        ),
+        "partial payment replay",
+    )
+    if replay.get("id") != first.get("id") or replay.get("replayed") is not True:
+        raise ContractFailure("Replaying a payment command booked it again")
+    refused(
+        await post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:first",
+            amount=10_001,
+            version=version_after_first,
+        ),
+        409,
+        "idempotency_conflict",
+        "reused payment key",
+    )
+    refused(
+        await post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:stale",
+            amount=26_000,
+            version=version,
+        ),
+        409,
+        "invoice_settlement_stale",
+        "stale payment form",
+    )
+    refused(
+        await post_reversal(
+            api,
+            tokens["finn"],
+            payment_id=str(first["id"]),
+            key=f"{LIFECYCLE_KEY}:finn-reversal",
+            version=version_after_first,
+        ),
+        403,
+        "invoice_settlement_required",
+        "finance reader reversal",
+    )
+
+    second = created(
+        await post_payment(
+            api,
+            klara,
+            key=f"{LIFECYCLE_KEY}:second",
+            amount=30_000,
+            version=version_after_first,
+        ),
+        "over payment",
+    )
+    version_overpaid = expect_settlement(
+        await ledger(api, klara),
+        label="overpaid",
+        status="overpaid",
+        paid=40_000,
+        open_=0,
+        overpaid=4_000,
+        invoice_status={"paid"},
+        open_total=0,
+    )
+
+    refused(
+        await post_reversal(
+            api,
+            klara,
+            payment_id=str(first["id"]),
+            key=f"{LIFECYCLE_KEY}:reverse-stale",
+            version=version_after_first,
+        ),
+        409,
+        "invoice_settlement_stale",
+        "stale reversal form",
+    )
+    reversal = created(
+        await post_reversal(
+            api,
+            klara,
+            payment_id=str(first["id"]),
+            key=f"{LIFECYCLE_KEY}:reverse-first",
+            version=version_overpaid,
+        ),
+        "reversal",
+    )
+    if reversal.get("paymentId") != first.get("id"):
+        raise ContractFailure(f"Reversal names another entry: {reversal}")
+    version_reversed = expect_settlement(
+        await ledger(api, klara),
+        label="after reversal",
+        status="partially_paid",
+        paid=30_000,
+        open_=6_000,
+        overpaid=0,
+        invoice_status=unpaid,
+        open_total=6_000,
+    )
+    reversal_replay = created(
+        await post_reversal(
+            api,
+            klara,
+            payment_id=str(first["id"]),
+            key=f"{LIFECYCLE_KEY}:reverse-first",
+            version=version_overpaid,
+        ),
+        "reversal replay",
+    )
+    if (
+        reversal_replay.get("id") != reversal.get("id")
+        or reversal_replay.get("replayed") is not True
+    ):
+        raise ContractFailure("Replaying a reversal reversed it again")
+    refused(
+        await post_reversal(
+            api,
+            klara,
+            payment_id=str(first["id"]),
+            key=f"{LIFECYCLE_KEY}:reverse-again",
+            version=version_reversed,
+        ),
+        409,
+        "invoice_payment_already_reversed",
+        "second reversal",
+    )
+    refused(
+        await post_reversal(
+            api,
+            klara,
+            payment_id=str(UUID(int=0)),
+            key=f"{LIFECYCLE_KEY}:reverse-unknown",
+            version=None,
+        ),
+        404,
+        "invoice_payment_not_found",
+        "unknown entry",
+    )
+
+    # Two forms opened on the same version: exactly one entry is booked.
+    racers = await asyncio.gather(
+        *(
+            post_payment(
+                api,
+                klara,
+                key=f"{LIFECYCLE_KEY}:race-{index}",
+                amount=6_000,
+                version=version_reversed,
+            )
+            for index in range(2)
+        )
+    )
+    statuses = sorted(response.status_code for response in racers)
+    if statuses != [201, 409] or any(
+        response.status_code == 409
+        and error_code(response) != "invoice_settlement_stale"
+        for response in racers
+    ):
+        raise ContractFailure(
+            f"Concurrent payments were not serialized: "
+            f"{[(r.status_code, r.text) for r in racers]}"
+        )
+    winner = next(response for response in racers if response.status_code == 201)
+    version_raced = expect_settlement(
+        await ledger(api, klara),
+        label="after race",
+        status="paid",
+        paid=36_000,
+        open_=0,
+        overpaid=0,
+        invoice_status={"paid"},
+        open_total=0,
+    )
+
+    # Back to unpaid, so the browser starts from the golden open invoice.
+    version_now = version_raced
+    for label, payment_id in (
+        ("race", str(winner.json()["id"])),
+        ("second", str(second["id"])),
+    ):
+        created(
+            await post_reversal(
+                api,
+                klara,
+                payment_id=payment_id,
+                key=f"{LIFECYCLE_KEY}:reset-{label}",
+                version=version_now,
+            ),
+            f"reset {label}",
+        )
+        version_now = invoice_record(await ledger(api, klara), OPEN_INVOICE_ID)[
+            "settlementVersion"
+        ]
+    versions = [
+        version,
+        version_after_first,
+        version_overpaid,
+        version_reversed,
+        version_raced,
+        version_now,
+    ]
+    if versions != sorted(set(versions)):
+        raise ContractFailure(f"Settlement versions do not grow: {versions}")
+    final = await ledger(api, klara)
+    expect_settlement(
+        final,
+        label="reset",
+        status="open",
+        paid=0,
+        open_=36_000,
+        overpaid=0,
+        invoice_status=unpaid,
+        open_total=36_000,
+    )
+    entries = invoice_record(final, OPEN_INVOICE_ID).get("payments", [])
+    if (
+        len(entries) != LIFECYCLE_ENTRIES
+        or any(entry.get("reversal") is None for entry in entries)
+        or invoice_record(final, OPEN_INVOICE_ID).get("payment") is not None
+    ):
+        raise ContractFailure(f"Reversed entries are not all kept: {entries}")
+    if await ledger(api, tokens["finn"]) != final:
+        raise ContractFailure("Finance reader sees another ledger than the admin")
 
 
 async def prepare(
@@ -252,6 +644,7 @@ async def prepare(
             )
 
         await assert_negative_payment_cases(api, tokens)
+        await assert_partial_payment_lifecycle(api, tokens)
 
         response = await api.post(
             f"/api/v1/actions/{ACTION_ID}/commitments/{COMMITMENT_ID}/invoice",
@@ -281,8 +674,8 @@ async def prepare(
         output.write(f"PAYMENT_KEY={PAYMENT_KEY}\n")
         output.write(f"CANCELLATION_KEY={CANCELLATION_KEY}\n")
     print(
-        "invoice-settlement-contract: roles, golden status and server-side "
-        "full-payment rule proven"
+        "invoice-settlement-contract: roles, golden status, partial and over "
+        "payments, reversals, versions, replay and races proven"
     )
 
 
@@ -351,7 +744,9 @@ async def assert_after_browser(
             payload.get("currencyTotals")
             != [{"currency": "EUR", "grossMinor": 64_800, "openMinor": 0}]
             or open_record.get("invoice", {}).get("status") != "paid"
+            or open_record.get("settlementStatus") != "paid"
             or open_record.get("openMinor") != 0
+            or open_record.get("paidMinor") != 36_000
             or open_record.get("payment", {}).get("reference") != PAYMENT_REFERENCE
             or cancellation_record.get("invoice", {}).get("status") != "cancelled"
             or cancellation_record.get("openMinor") != 0
@@ -412,16 +807,29 @@ async def assert_after_browser(
             FROM audit_event
             WHERE event_type = 'invoice_cancelled'
               AND payload->>'invoiceId' = $2::text
-          ) AS cancellation_audits
+          ) AS cancellation_audits,
+          (
+            SELECT count(*) FROM payment_reversal WHERE invoice_id = $1
+          ) AS reversals,
+          (
+            SELECT count(*)
+            FROM audit_event
+            WHERE event_type = 'invoice_payment_reversed'
+              AND payload->>'invoiceId' = $1::text
+          ) AS reversal_audits
         """,
         OPEN_INVOICE_ID,
         cancellation_invoice_id,
     )
+    entries = LIFECYCLE_ENTRIES + BROWSER_ENTRIES
+    reversals = LIFECYCLE_ENTRIES + BROWSER_REVERSALS
     if counts is None or dict(counts) != {
-        "payments": 1,
+        "payments": entries,
         "cancellations": 1,
-        "payment_audits": 1,
+        "payment_audits": entries,
         "cancellation_audits": 1,
+        "reversals": reversals,
+        "reversal_audits": reversals,
     }:
         raise ContractFailure(f"Finance audit is inconsistent: {dict(counts or {})}")
 
@@ -454,8 +862,8 @@ async def assert_after_browser(
             "Cancellation changed the historical invoice or Typst document state"
         )
     print(
-        "invoice-settlement-contract: full payment, cancellation, audit, replay and "
-        "unchanged Typst PDF durably proven"
+        "invoice-settlement-contract: partial, over and full payments, reversals, "
+        "cancellation, audit, replay and unchanged Typst PDF durably proven"
     )
 
 

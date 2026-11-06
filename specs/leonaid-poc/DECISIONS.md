@@ -24,6 +24,7 @@ unabhängige Implementierung.
 | LEG-002 | Steuerfall und Rechtstext sind explizit; Golden nutzt ausschließlich den synthetischen Kleinunternehmerfall | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-003 | Nummern werden transaktional eindeutig vergeben und nie wiederverwendet; Storno/Korrektur überschreibt keinen Beleg | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-006 | Im PoC wird nur eine exakte Vollzahlung verbucht; Storno ist ein eigener begründeter Vorgang und verändert Rechnung oder PDF nicht | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0009 |
+| LEG-007 | Eine Rechnung hält mehrere Zahlungseinträge; offen, teilweise bezahlt, bezahlt und überzahlt folgen aus der Summe; Einträge werden begründet zurückgebucht statt gelöscht. Ersetzt den Vollzahlungsteil von LEG-006 | Produktverantwortlicher / Implementierung | 2026-11-06 | ADR-0014 |
 
 ## Offene Entscheidungen mit spätestem Klärpunkt
 

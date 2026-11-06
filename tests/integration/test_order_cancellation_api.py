@@ -680,30 +680,74 @@ class Proof:
             )
             == "cancelled"
         )
-        # A recorded payment blocks the cancellation; no refund is invented.
+        # Active payment entries block the cancellation (ADR-0014): a partial
+        # one already does, and so does the rest after one entry is reversed.
+        # Once every entry is reversed the order can be cancelled; no refund
+        # is invented.
         paid_invoice = self.data.invoices["paid"]
-        payment = await self.sessions["charity"].post(
-            f"/api/v1/actions/{self.data.action}/invoices/{paid_invoice}/payments",
-            {
-                "amountMinor": 7200,
-                "currency": "EUR",
-                "receivedOn": date.today().isoformat(),
-                "reference": self.data.invoice_number("paid"),
-            },
-            f"cancel-proof:payment:{uuid4()}",
+        payments = (
+            f"/api/v1/actions/{self.data.action}/invoices/{paid_invoice}/payments"
         )
-        assert payment.status_code == 201, payment.text
-        record = await self.record("paid")
-        assert record["invoice"]["paymentRecorded"] is True
-        blocked = await self.cancel("paid")
-        self.error(blocked, 409, "commitment_cancellation_payment_recorded")
-        assert "Zahlung erst zurücknehmen" in blocked.json()["error"]["message"]
-        assert await self.status("paid") == "invoiced"
+        entries = []
+        for amount in (3000, 4200):
+            payment = await self.sessions["charity"].post(
+                payments,
+                {
+                    "amountMinor": amount,
+                    "currency": "EUR",
+                    "receivedOn": date.today().isoformat(),
+                    "reference": self.data.invoice_number("paid"),
+                },
+                f"cancel-proof:payment:{uuid4()}",
+            )
+            assert payment.status_code == 201, payment.text
+            entries.append(payment.json()["id"])
+            record = await self.record("paid")
+            assert record["invoice"]["paymentRecorded"] is True
+            assert record["invoice"]["paidMinor"] == (3000 if amount == 3000 else 7200)
+            blocked = await self.cancel("paid")
+            self.error(blocked, 409, "commitment_cancellation_payment_recorded")
+            assert "Zahlung zurückbuchen" in blocked.json()["error"]["message"]
         assert (
             await self.db.fetchval(
                 "SELECT status FROM invoice WHERE id=$1", paid_invoice
             )
             == "paid"
+        )
+        for index, entry in enumerate(entries):
+            reversal = await self.sessions["charity"].post(
+                f"{payments}/{entry}/reversal",
+                {"reason": "Doppelt erfasster Zahlungseingang"},
+                f"cancel-proof:reversal:{uuid4()}",
+            )
+            assert reversal.status_code == 201, reversal.text
+            record = await self.record("paid")
+            if index == 0:
+                assert record["invoice"]["paidMinor"] == 4200
+                still = await self.cancel("paid")
+                self.error(still, 409, "commitment_cancellation_payment_recorded")
+        assert record["invoice"]["paidMinor"] == 0
+        assert record["invoice"]["paymentRecorded"] is False
+        assert await self.status("paid") == "invoiced"
+        released = await self.cancel("paid")
+        assert released.status_code == 201, released.text
+        assert released.json()["cancellation"]["invoiceNumber"] == (
+            self.data.invoice_number("paid")
+        )
+        assert (
+            await self.db.fetchval(
+                "SELECT status FROM invoice WHERE id=$1", paid_invoice
+            )
+            == "cancelled"
+        )
+        # The payment history stays: two entries, both reversed.
+        assert (
+            await self.count(
+                "SELECT count(*) FROM payment_record AS p JOIN payment_reversal AS r"
+                " ON r.payment_id = p.id WHERE p.invoice_id=$1",
+                paid_invoice,
+            )
+            == 2
         )
 
     async def board_and_follow_up(self) -> None:
@@ -819,16 +863,16 @@ class Proof:
             if by_id[str(self.data.orders[name])]["commitment"]["status"] == "cancelled"
         ]
         assert sorted(cancelled) == sorted(
-            ["plain", "draft", "invoiced", "sent", "missed", "race", "stale"]
+            ["plain", "draft", "invoiced", "sent", "paid", "missed", "race", "stale"]
         )
         plain = by_id[str(self.data.orders["plain"])]
         assert plain["cancellation"]["reason"] == REASON
         assert by_id[str(self.data.orders["delivered"])]["delivered"] is True
         assert by_id[str(self.data.orders["delivered"])]["cancellation"] is None
-        # Two orders still count: delivered and paid, 2 boxes each.
-        assert listing["currencyTotals"] == [{"currency": "EUR", "totalMinor": 14400}]
-        assert listing["quantities"] == [{"unit": "box", "quantity": 4}]
-        assert listing["totalPieces"] == 96
+        # Only the delivered order still counts: 2 boxes.
+        assert listing["currencyTotals"] == [{"currency": "EUR", "totalMinor": 7200}]
+        assert listing["quantities"] == [{"unit": "box", "quantity": 2}]
+        assert listing["totalPieces"] == 48
 
 
 async def main() -> None:

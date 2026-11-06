@@ -159,7 +159,7 @@ def test_blocks_are_reported_most_final_first() -> None:
     )
     assert block is not None
     assert block.code == "commitment_cancellation_payment_recorded"
-    assert "Zahlung erst zurücknehmen" in block.message
+    assert "Zahlung zurückbuchen" in block.message
     assert "KT26-0009" in block.message
 
 

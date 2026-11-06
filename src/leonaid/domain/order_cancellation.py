@@ -80,6 +80,8 @@ class OrderInvoiceState:
     number: str
     status: InvoiceStatus
     payment_recorded: bool
+    # Sum of the active (not reversed) payment entries, ADR-0014.
+    paid_minor: int = 0
 
     @property
     def needs_cancellation(self) -> bool:
@@ -115,8 +117,9 @@ def cancellation_block(
     ):
         return CancellationBlock(
             "commitment_cancellation_payment_recorded",
-            f"Zur Rechnung {invoice.number} ist bereits eine Zahlung erfasst. "
-            "Bitte die Zahlung erst zurücknehmen, dann die Bestellung stornieren.",
+            f"Zur Rechnung {invoice.number} ist eine Zahlung erfasst. Bitte die "
+            "Zahlung erst in der Rechnung zurückbuchen (Zahlung zurückbuchen), "
+            "dann die Bestellung stornieren.",
         )
     return None
 
