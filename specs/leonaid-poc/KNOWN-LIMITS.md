@@ -1,6 +1,6 @@
 # Bekannte Grenzen des PoC
 
-Stand: 2026-07-27
+Stand: 2026-11-06 (abgeglichen mit `main` bei `af276b7f`)
 
 Diese Liste trennt bewusst verschobenen Scope von Defekten. Die
 Krapfentaxi-Golden-Journey ist technisch vollständig bewiesen; die folgenden
@@ -9,19 +9,31 @@ Punkte sind keine stillschweigenden Produktzusagen.
 ## Produkt und Fachlichkeit
 
 - Krapfentaxi ist der einzige implementierte End-to-End-Use-Case. Lions Open
-  und Weihnachtsmarkt folgen erst nach der PoC-Abnahme.
+  und Weihnachtsmarkt haben weder Vorlagen noch Capabilities (Code kennt nur
+  die Vorlagen `blank` und `krapfentaxi`).
 - Öffentliche Seiten verwenden versionierte Standardformulare. Es gibt
-  keinen CMS-, Form-Builder- oder freien Workflow-Editor.
+  keinen Form-Builder und keinen freien Workflow-Editor. Die
+  Kampagnen-Microsite ist im EmDash-CMS (`apps/campaign-site`) bearbeitbar,
+  gehört aber nicht zum Pilot-Stack (`infra/pilot/compose.yml` hat keinen
+  `campaign-site`-Dienst).
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
   manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
   wird nur angezeigt; die Erstattung läuft außerhalb von LeonAid und wird
   nicht gebucht. Bankabgleich, Buchhaltung, E-Rechnung, Mahnwesen, Payment
   Provider, Spendenzahlungen und Spendenbescheinigungen fehlen.
-- Tourenplanung, Fahrerdisposition, Offline-Sync, Push-Nachrichten,
-  Etikettendruck, Herstellerabrechnung und Materialbestand fehlen.
-- Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege. Ein
-  allgemeines DMS mit freiem Upload, Versionierung und Volltextsuche fehlt.
+- Lieferfenster, Fahrerzuweisung und Abhaken im Lieferboard sind gebaut.
+  Tourenplanung, Karte und Navigation fehlen. Die Fenster-Kapazität ist keine
+  Zahl: es gibt nur das manuelle Kennzeichen „ausgebucht“
+  (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
+- Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
+  und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
+  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Push-Nachrichten,
+  Etikettendruck, Druck-/Packliste, Herstellerabrechnung und Materialbestand
+  fehlen.
+- Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
+  das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
+  Volltextsuche fehlt.
 - listmonk und Canva sind nicht Teil des Core-PoC.
 - Core search (`GET /api/v1/search`) finds actions, orders, invoices and
   members. It does not find sponsors: they live only in Twenty, and the
@@ -38,16 +50,26 @@ Punkte sind keine stillschweigenden Produktzusagen.
   LeonAid books no refunds. The buyer is not e-mailed about the cancellation, and a
   cancelled order cannot be reopened.
 
+- Impressum (`apps/public/src/pages/impressum.astro`) zeigt nur Name,
+  Anschrift und E-Mail des Anbieters. Vertretungsberechtigte, Registereintrag,
+  gegebenenfalls USt-ID und ein zweiter Kontaktweg nach § 5 DDG fehlen
+  (`src/leonaid/domain/legal_configuration.py` hat keine Felder dafür).
+- Es gibt keine eigene Datenschutzseite. Der Datenschutzhinweis steht nur auf
+  Aktionsseiten (`apps/public/src/pages/[...path].astro`); Login, Einladung,
+  Umfragen und Impressum verlinken nicht darauf.
+
 ## Identität und Administration
 
 - Passwortloser Login unterstützt E-Mail-Link und sechsstelligen Code.
   Passkeys, SSO, Social Login und öffentliche Selbstregistrierung fehlen.
-- Mitglieder können ihre Login-E-Mail nicht selbst ändern.
-- Einladungen und Sitzungsentzug sind implementiert. Für Account-Sperre,
-  Membership-Entzug, Rollenwechsel und E-Mail-Korrektur gibt es noch keinen
-  vollständigen Admin-Workflow. Diese Vorgänge sind vor einem realen Pilot
-  umzusetzen; direkte produktive Datenbankänderungen sind kein akzeptierter
-  Ersatz.
+- Mitglieder können ihre Login-E-Mail nicht selbst ändern. Ein Admin stößt
+  die Änderung an, die neue Adresse muss sie bestätigen
+  (`POST /api/v1/identity/members/{user_id}/email-change`).
+- Einladungen (Liste, erneut senden, Adresse korrigieren, widerrufen),
+  Sitzungsentzug, Sperren/Archivieren, Entzug von Aktions- und globalen
+  Rollen, Rollenwechsel und E-Mail-Korrektur sind als Admin-Workflow
+  implementiert (`/api/v1/admin/members/*`, UI `/admin/members`). Direkte
+  produktive Datenbankänderungen sind kein akzeptierter Ersatz.
 - Eine Installation bildet genau einen Club/Träger ab. Mehrere Clubs
   benötigen getrennte Installationen.
 
@@ -56,14 +78,25 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Der PoC ist für einen einzelnen Docker-Compose-Host ausgelegt. Es gibt
   keine Hochverfügbarkeit, automatische horizontale Skalierung oder
   unterbrechungsfreie Multi-Region-Wiederherstellung.
-- Mailpit ist ausschließlich lokales Testsystem. Der produktive
-  SMTP-/API-Relay ist noch auszuwählen und zu konfigurieren.
+- Mailpit ist ausschließlich lokales Testsystem. Der SMTP-Adapter ist
+  gebaut; der produktive Relay (Anbieter, SPF/DKIM/DMARC, Bounces) ist noch
+  auszuwählen und zu konfigurieren (Entscheidung OPS-001).
 - Backups, Restore und Upgrade sind technisch bewiesen. Der konkrete
   Off-VPS-Storage, Secret-Manager, DNS-Betrieb und Alarmkanal bleiben
   Betreiberentscheidungen.
 - Rechtliche Aufbewahrungs-/Löschfristen, produktive Trägerdaten,
   Steuerfall und E-Rechnungsbedarf benötigen Datenschutz-, Rechts- und
   Steuerfreigabe.
+- Updates laufen über `pilot-release` im Wartungsmodus. Es gibt keinen
+  Schutz für laufende Aktionen: offenes Bestellformular oder Liefertag werden
+  nicht geprüft, `POST`-Anfragen im Wartungsmodus liefern `503`. Ändert ein
+  Club eine von LeonAid verwaltete Twenty-Ansicht, bricht der Provisioner mit
+  `SchemaDrift` ab (`specs/release-updates/PLAN.md`, Risiken R3 und R7).
+  `./leonaid update` und signierte Releases sind nur spezifiziert.
+- Eine Installation bedient einen Host. Backend-Host mit eigenen
+  Kampagnen-Domains ist nur spezifiziert (`specs/multi-domain/PLAN.md`).
+- Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
+  durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts
   fehlen.
