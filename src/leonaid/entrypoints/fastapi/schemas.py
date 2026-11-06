@@ -1405,8 +1405,13 @@ class InvoiceRecordResponse(TransportModel):
     buyer_display_name: str
     # Remainder still to be received: total minus active payment entries.
     open_minor: int = Field(ge=0)
-    # The newest active payment entry; `payments` holds all of them.
-    payment: InvoicePaymentResponse | None
+    payment: InvoicePaymentResponse | None = Field(
+        description=(
+            "Deprecated: the newest active (not reversed) payment entry. Before "
+            "partial payments (ADR-0014) a non-null value meant fully paid; it "
+            "no longer does. Use `settlementStatus`, `openMinor` and `payments`."
+        ),
+    )
     cancellation: InvoiceCancellationResponse | None
     deliveries: list[InvoiceDeliveryResponse]
     # Every payment entry, reversed ones included, oldest first.
