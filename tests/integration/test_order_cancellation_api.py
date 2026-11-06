@@ -81,12 +81,15 @@ class Fixture:
         "stale",
         "race_delivered",
         "race_closure",
+        "race_issue",
     )
     # Pairs of concurrent commands per order: cancel vs delivery completion
     # (drafts booked into the window) and cancel vs invoice cancellation.
     PAIRS = 8
     DRAFTS = tuple(f"completion_{index}" for index in range(PAIRS))
     INVOICED = tuple(f"journal_{index}" for index in range(PAIRS))
+    # Deliverable orders that overlapping bulk driver assignments share.
+    ASSIGNED = tuple(f"assign_{index}" for index in range(6))
 
     def __init__(self) -> None:
         self.tag = f"oc{uuid4().hex[:10]}"
@@ -98,10 +101,11 @@ class Fixture:
         self.tokens = {name: uuid4().hex + uuid4().hex for name in self.USERS}
         # The charity admin also holds a session whose login is not fresh.
         self.stale_token = uuid4().hex + uuid4().hex
-        names = (*self.ORDERS, *self.DRAFTS, *self.INVOICED)
+        names = (*self.ORDERS, *self.DRAFTS, *self.INVOICED, *self.ASSIGNED)
         self.orders = {name: uuid4() for name in names}
         self.invoices = {
-            name: uuid4() for name in ("invoiced", "paid", "sent", *self.INVOICED)
+            name: uuid4()
+            for name in ("invoiced", "paid", "sent", "race_issue", *self.INVOICED)
         }
         self.parties = {name: uuid4() for name in names}
         # A bookable window in the future: drafts complete into it.
@@ -227,6 +231,8 @@ class Fixture:
             "stale": "review_ready",
             "race_delivered": "review_ready",
             "race_closure": "review_ready",
+            "race_issue": "review_ready",
+            **{name: "review_ready" for name in self.ASSIGNED},
             **{name: "draft" for name in self.DRAFTS},
             **{name: "invoiced" for name in self.INVOICED},
         }
@@ -237,6 +243,7 @@ class Fixture:
             "race_delivered",
             "race_closure",
             *self.DRAFTS,
+            *self.ASSIGNED,
         }
         for name, order_id in self.orders.items():
             await self._order(
@@ -514,6 +521,8 @@ class Proof:
         await self.concurrency()
         await self.board_races()
         await self.lock_order_races()
+        await self.invoice_issue_race()
+        await self.overlapping_assignments()
         await self.listing_counts()
 
     async def authorization(self) -> None:
@@ -1048,12 +1057,86 @@ class Proof:
                 == 1
             )
 
+    async def invoice_issue_race(self) -> None:
+        """An invoice issue holding the order while a cancel waits: the
+        cancel cancels that invoice too or answers 409; never a cancelled
+        order with a live invoice."""
+
+        name = "race_issue"
+        version = await self.version(name)
+        raw = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
+        try:
+            transaction = raw.transaction()
+            await transaction.start()
+            await raw.execute(
+                "SELECT id FROM commitment WHERE id=$1 FOR UPDATE",
+                self.data.orders[name],
+            )
+            await raw.execute(
+                "UPDATE commitment SET status='invoiced' WHERE id=$1",
+                self.data.orders[name],
+            )
+            await self.data._invoice(raw, name, "issued")
+            cancelling = asyncio.create_task(self.cancel(name, version=version))
+            await asyncio.sleep(0.5)
+            assert not cancelling.done(), "the cancel must wait for the order"
+            await transaction.commit()
+            response = await asyncio.wait_for(cancelling, timeout=15)
+        finally:
+            await raw.close()
+        invoice_status = await self.db.fetchval(
+            "SELECT status FROM invoice WHERE id=$1", self.data.invoices[name]
+        )
+        if response.status_code == 201:
+            assert invoice_status == "cancelled", invoice_status
+        else:
+            self.error(response, 409, "commitment_cancellation_conflict")
+            assert await self.status(name) == "invoiced"
+            assert invoice_status == "issued"
+
+    async def overlapping_assignments(self) -> None:
+        """Bulk driver assignments over the same orders in opposite orders,
+        all at once: every one answers 200, none 500."""
+
+        orders = [str(self.data.orders[name]) for name in self.data.ASSIGNED]
+        driver = str(self.data.users["driver"])
+        charity = self.sessions["charity"]
+        headers = {**charity.headers, "Origin": BASE_URL}
+        path = f"/api/v1/actions/{self.data.action}/delivery-board/drivers"
+        calls = [
+            charity.client.put(
+                path,
+                headers=headers,
+                json={
+                    "commitmentIds": orders if index % 2 else orders[::-1],
+                    "driverUserId": driver if index % 3 else None,
+                },
+            )
+            for index in range(40)
+        ]
+        responses = await asyncio.gather(*calls)
+        assert [r.status_code for r in responses] == [200] * 40, [
+            r.text for r in responses if r.status_code != 200
+        ]
+        assigned = {
+            row["driver_user_id"]
+            for row in await self.db.fetch(
+                "SELECT driver_user_id FROM commitment_delivery"
+                " WHERE commitment_id = ANY($1::uuid[])",
+                [self.data.orders[name] for name in self.data.ASSIGNED],
+            )
+        }
+        # One assignment ran last over all of them: one driver (or none).
+        assert len(assigned) <= 1, assigned
+
     async def listing_counts(self) -> None:
         listing = await self.listing()
         by_id = {item["commitment"]["id"]: item for item in listing["items"]}
         cancelled = [
             name
             for name in self.data.ORDERS
+            # race_issue ends either way (proven in invoice_issue_race).
+            if name != "race_issue"
             if by_id[str(self.data.orders[name])]["commitment"]["status"] == "cancelled"
         ]
         assert sorted(cancelled) == sorted(

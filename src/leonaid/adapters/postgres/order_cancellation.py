@@ -197,10 +197,7 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             )
         locked = await connection.fetchrow(
             """
-            SELECT delivery_window_id,
-                (SELECT id FROM invoice WHERE commitment_id = commitment.id)
-                    AS invoice_id
-            FROM commitment
+            SELECT delivery_window_id FROM commitment
             WHERE id = $1 AND action_id = $2
             FOR UPDATE
             """,
@@ -211,7 +208,13 @@ class AsyncpgOrderCancellationRepository(OrderCancellationRepository):
             raise ResourceNotFound(
                 "commitment_not_found", "Die Bestellung wurde nicht gefunden."
             )
-        if locked["invoice_id"] != invoice_id:
+        # A separate statement: after a wait for the order lock it sees what
+        # the waited-for transaction committed (a subquery in the locking
+        # statement would still read the old snapshot).
+        current_invoice_id = await connection.fetchval(
+            "SELECT id FROM invoice WHERE commitment_id = $1", commitment_id
+        )
+        if current_invoice_id != invoice_id:
             # An invoice was issued in between: take its locks first.
             raise _LockTargetsChanged
         if locked["delivery_window_id"] != window_id:

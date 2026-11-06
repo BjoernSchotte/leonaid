@@ -18,6 +18,11 @@ from zoneinfo import ZoneInfo
 
 import asyncpg
 
+from leonaid.adapters.postgres.retry import (
+    RETRYABLE_ERRORS,
+    SERIALIZABLE_ATTEMPTS,
+    serialization_pause,
+)
 from leonaid.application.delivery_board import DeliveryFollowUp
 from leonaid.application.errors import ResourceNotFound
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE, local_day
@@ -663,72 +668,118 @@ class AsyncpgDeliveryBoardRepository:
         if not commitment_ids:
             return 0
         async with self._pool.acquire() as connection:
-            async with connection.transaction():
-                await self._context(connection, action_id)
-                if driver_user_id is not None and not await connection.fetchval(
-                    f"SELECT EXISTS ({_ACTIVE_DRIVER})", action_id, driver_user_id
-                ):
-                    raise DeliveryBoardError(
-                        "delivery_driver_invalid",
-                        "Diese Person ist für die Aktion nicht als Ausfahrer eingetragen.",
-                    )
-                rows = await connection.fetch(
-                    """
-                    SELECT id FROM commitment
-                    WHERE action_id = $1 AND id = ANY($2::uuid[])
-                      AND delivery_window_id IS NOT NULL
-                      AND status = ANY($3::text[])
-                    FOR UPDATE
-                    """,
-                    action_id,
-                    list(commitment_ids),
-                    _DELIVERABLE,
-                )
-                if len(rows) != len(set(commitment_ids)):
-                    raise DeliveryBoardError(
-                        "delivery_order_not_deliverable",
-                        "Mindestens eine Bestellung wird nicht ausgeliefert.",
-                    )
-                status = await connection.execute(
-                    """
-                    INSERT INTO commitment_delivery (
-                        commitment_id, action_id, driver_user_id,
-                        driver_assigned_by_user_id, driver_assigned_at
-                    )
-                    SELECT id, $2, $3, $4, $5 FROM unnest($1::uuid[]) AS id
-                    ON CONFLICT (commitment_id) DO UPDATE SET
-                        driver_user_id = EXCLUDED.driver_user_id,
-                        driver_assigned_by_user_id = EXCLUDED.driver_assigned_by_user_id,
-                        driver_assigned_at = EXCLUDED.driver_assigned_at,
-                        revision = commitment_delivery.revision + 1
-                    WHERE commitment_delivery.driver_user_id
-                        IS DISTINCT FROM EXCLUDED.driver_user_id
-                    """,
-                    [row["id"] for row in rows],
-                    action_id,
-                    driver_user_id,
-                    actor_user_id if driver_user_id else None,
-                    occurred_at if driver_user_id else None,
-                )
-                changed = int(status.rsplit(" ", 1)[-1])
-                if changed:
-                    await self._audit(
-                        connection,
-                        action_id=action_id,
-                        actor_user_id=actor_user_id,
-                        event_type="delivery.drivers_assigned",
-                        entity_type="charity_action",
-                        entity_id=action_id,
-                        request_id=request_id,
-                        payload={
-                            "driverUserId": (
-                                str(driver_user_id) if driver_user_id else None
-                            ),
-                            "commitmentIds": sorted(str(row["id"]) for row in rows),
-                        },
-                        occurred_at=occurred_at,
-                    )
-                return changed
+            for attempt in range(SERIALIZABLE_ATTEMPTS):
+                try:
+                    async with connection.transaction():
+                        return await self._assign_driver_once(
+                            connection,
+                            action_id=action_id,
+                            commitment_ids=commitment_ids,
+                            driver_user_id=driver_user_id,
+                            actor_user_id=actor_user_id,
+                            request_id=request_id,
+                            occurred_at=occurred_at,
+                        )
+                except RETRYABLE_ERRORS:
+                    if attempt == SERIALIZABLE_ATTEMPTS - 1:
+                        raise DeliveryBoardError(
+                            "delivery_concurrent_retry",
+                            "Die Lieferungen wurden gleichzeitig geändert. "
+                            "Bitte erneut zuweisen.",
+                        ) from None
+                    await serialization_pause(attempt)
+        raise RuntimeError("Die Fahrerzuweisung wurde nicht ausgeführt.")
+
+    async def _assign_driver_once(
+        self,
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        commitment_ids: tuple[UUID, ...],
+        driver_user_id: UUID | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> int:
+        await self._context(connection, action_id)
+        if driver_user_id is not None and not await connection.fetchval(
+            f"SELECT EXISTS ({_ACTIVE_DRIVER})", action_id, driver_user_id
+        ):
+            raise DeliveryBoardError(
+                "delivery_driver_invalid",
+                "Diese Person ist für die Aktion nicht als Ausfahrer eingetragen.",
+            )
+        # Lock order (retry.py): the orders' windows, then the order
+        # rows, each in id order, so overlapping bulk assignments and
+        # cancellations never wait on each other in a cycle.
+        await connection.execute(
+            """
+            SELECT id FROM action_delivery_window
+            WHERE id IN (
+                SELECT delivery_window_id FROM commitment
+                WHERE action_id = $1 AND id = ANY($2::uuid[])
+            )
+            ORDER BY id FOR SHARE
+            """,
+            action_id,
+            list(commitment_ids),
+        )
+        rows = await connection.fetch(
+            """
+            SELECT id FROM commitment
+            WHERE action_id = $1 AND id = ANY($2::uuid[])
+              AND delivery_window_id IS NOT NULL
+              AND status = ANY($3::text[])
+            ORDER BY id
+            FOR UPDATE
+            """,
+            action_id,
+            list(commitment_ids),
+            _DELIVERABLE,
+        )
+        if len(rows) != len(set(commitment_ids)):
+            raise DeliveryBoardError(
+                "delivery_order_not_deliverable",
+                "Mindestens eine Bestellung wird nicht ausgeliefert.",
+            )
+        status = await connection.execute(
+            """
+            INSERT INTO commitment_delivery (
+                commitment_id, action_id, driver_user_id,
+                driver_assigned_by_user_id, driver_assigned_at
+            )
+            SELECT id, $2, $3, $4, $5 FROM unnest($1::uuid[]) AS id
+            ON CONFLICT (commitment_id) DO UPDATE SET
+                driver_user_id = EXCLUDED.driver_user_id,
+                driver_assigned_by_user_id = EXCLUDED.driver_assigned_by_user_id,
+                driver_assigned_at = EXCLUDED.driver_assigned_at,
+                revision = commitment_delivery.revision + 1
+            WHERE commitment_delivery.driver_user_id
+                IS DISTINCT FROM EXCLUDED.driver_user_id
+            """,
+            [row["id"] for row in rows],
+            action_id,
+            driver_user_id,
+            actor_user_id if driver_user_id else None,
+            occurred_at if driver_user_id else None,
+        )
+        changed = int(status.rsplit(" ", 1)[-1])
+        if changed:
+            await self._audit(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                event_type="delivery.drivers_assigned",
+                entity_type="charity_action",
+                entity_id=action_id,
+                request_id=request_id,
+                payload={
+                    "driverUserId": (str(driver_user_id) if driver_user_id else None),
+                    "commitmentIds": sorted(str(row["id"]) for row in rows),
+                },
+                occurred_at=occurred_at,
+            )
+        return changed
 
     async def close_window(
         self,
