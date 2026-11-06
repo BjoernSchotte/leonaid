@@ -4,9 +4,9 @@ description: Reference for the implemented global and campaign-scoped LeonAid ro
 docId: DOC-P016
 audience: [user]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -14,7 +14,7 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 | ----------------- | --------------------------------- | --------------------------------------------------------------------------- |
 | `system_admin`    | global                            | manage users, global roles, integrations, privacy, and operations functions |
 | `finance_reader`  | global or campaign                | read invoices, PDFs, delivery, payments, and open amounts                   |
-| `finance_manager` | global                            | record full payments and cancel invoices in a controlled way                |
+| `finance_manager` | global                            | record and reverse payments, cancel invoices in a controlled way            |
 | `charity_admin`   | one campaign                      | manage that campaign, members, orders, invoices, and finance actions        |
 | `acquirer`        | one campaign                      | work with assigned sponsors, activities, and orders                         |
 | `driver` (UI: **Ausfahrer**) | campaign with delivery capability | in the app's **Auslieferung**, see only their own assigned deliveries with address and contact, without amounts, and tick them off while the window is open |

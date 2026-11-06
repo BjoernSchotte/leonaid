@@ -13,8 +13,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Öffentliche Seiten verwenden versionierte Standardformulare. Es gibt
   keinen CMS-, Form-Builder- oder freien Workflow-Editor.
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
-  manuelle Vollzahlung. Buchhaltung, E-Rechnung, Mahnwesen, Payment Provider,
-  Spendenzahlungen und Spendenbescheinigungen fehlen.
+  manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
+  begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
+  wird nur angezeigt; die Erstattung läuft außerhalb von LeonAid und wird
+  nicht gebucht. Bankabgleich, Buchhaltung, E-Rechnung, Mahnwesen, Payment
+  Provider, Spendenzahlungen und Spendenbescheinigungen fehlen.
 - Tourenplanung, Fahrerdisposition, Offline-Sync, Push-Nachrichten,
   Etikettendruck, Herstellerabrechnung und Materialbestand fehlen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege. Ein
