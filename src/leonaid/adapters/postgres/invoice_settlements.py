@@ -318,6 +318,13 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
             action_id=action_id,
             invoice_id=invoice_id,
         )
+        if invoice.status is InvoiceStatus.CANCELLED:
+            # A cancelled invoice is closed: its payment history stays as is.
+            raise Conflict(
+                "invoice_payment_cancelled",
+                "Bei einer stornierten Rechnung kann keine Zahlung "
+                "zurückgebucht werden.",
+            )
         payments = await payments_for_invoice(connection, invoice_id)
         payment = next((item for item in payments if item.id == payment_id), None)
         if payment is None:
@@ -359,7 +366,6 @@ class AsyncpgInvoiceSettlementRepository(InvoiceSettlementRepository):
                 replace(item, reversal=reversal) if item.id == payment_id else item
                 for item in payments
             ),
-            cancelled=invoice.status is InvoiceStatus.CANCELLED,
         )
         status = await self._settle_status(
             connection,
