@@ -45,6 +45,9 @@ Each gated workflow ends in one aggregate job: `CI gate`, `Survey gate`,
 succeeded, every unselected job was skipped (not failed or cancelled) and every
 other job succeeded. A skipped job therefore never hides an upstream failure.
 These gates plus `Bilingual site artifact` (Documentation) are the required checks.
+`.github/workflows/pin-drift.yml` dispatches exactly these workflows on its
+re-pin branch, because its `GITHUB_TOKEN` PR starts none by itself; the
+workflow contract fails when the two lists differ (`infra/locks/README.md`).
 The older summary checks (`Integration`, `E2E / <group>`, `EmDash proofs`,
 `Golden journey`, `Surveys / <group>`) apply the same selected-or-skipped rule.
 

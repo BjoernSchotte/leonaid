@@ -212,6 +212,38 @@ OTHER_MUTATIONS = (
         "only infrastructure commands may be retried",
     ),
     ("docs.yml", "  merge_group:\n", "", "must run on merge_group"),
+    (
+        "pin-drift.yml",
+        "for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do",
+        "for workflow in ci.yml pins.yml; do",
+        "must dispatch exactly the required workflows",
+    ),
+    (
+        "pin-drift.yml",
+        "  actions: write\n",
+        "  actions: write\n  packages: write\n",
+        "permissions must be exactly",
+    ),
+    (
+        "pin-drift.yml",
+        "GH_TOKEN: ${{ github.token }}",
+        "GH_TOKEN: ${{ secrets.REPIN_TOKEN }}",
+        "must use GITHUB_TOKEN",
+    ),
+    (
+        "surveys.yml",
+        "  workflow_dispatch:\n",
+        "",
+        "surveys.yml: needs workflow_dispatch for the re-pin PR",
+    ),
+    (
+        "api-contract.yml",
+        '          "$UV_IMAGE"\n',
+        "          ghcr.io/astral-sh/uv:0.13.6-python3.13-trixie-slim@sha256:"
+        + "e" * 64
+        + "\n",
+        "a digest in a workflow blocks the automatic re-pin",
+    ),
 )
 
 ACTION_MUTATIONS = (
