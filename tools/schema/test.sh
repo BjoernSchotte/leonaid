@@ -104,7 +104,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_offline_capture_api.py \
     /repo/tests/integration/test_public_origins_api.py \
     /repo/tests/integration/test_public_campaigns_api.py \
-    /repo/tests/integration/test_preferred_surface_service.py
+    /repo/tests/integration/test_preferred_surface_service.py \
+    /repo/tests/integration/test_site_hosts_api.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans
@@ -313,6 +314,34 @@ fi
 compose run --rm --no-deps --entrypoint alembic api downgrade "$preference_parent"
 [ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.columns WHERE table_name = 'user_account' AND column_name = 'preferred_surface';" | preference_sql)" ] || {
   echo "poc021-test: ERROR: 0055 downgrade kept preferred_surface" >&2
+  exit 1
+}
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+echo "poc021-test: 0056 downgrade refuses existing site hosts"
+site_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0056_site_hosts.py")
+[ -n "$site_parent" ] || {
+  echo "poc021-test: ERROR: 0056 names no down_revision" >&2
+  exit 1
+}
+printf '%s\n' "INSERT INTO site_host (id, hostname, verification_token, created_by) VALUES ('95500000-0000-4000-8000-000000000001', 'downgrade-proof.example.org', repeat('t', 40), '10000000-0000-4000-8000-000000000001');" | preference_sql
+if output=$(compose run --rm --no-deps --entrypoint alembic api downgrade "$site_parent" 2>&1); then
+  echo "poc021-test: ERROR: 0056 downgrade dropped an existing site host" >&2
+  exit 1
+fi
+case "$output" in
+  *"0056 downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0056 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM site_host WHERE id = '95500000-0000-4000-8000-000000000001';" | preference_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade "$site_parent"
+[ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.tables WHERE table_name IN ('site_host', 'site_binding');" | preference_sql)" ] || {
+  echo "poc021-test: ERROR: 0056 downgrade kept its tables" >&2
   exit 1
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head

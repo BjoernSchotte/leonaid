@@ -9,16 +9,34 @@ mode=$4
 shift 4
 fail() { echo "cms-migration-controller: refused; do not reopen CMS traffic" >&2; exit 1; }
 case "$project" in ''|*[!a-z0-9_-]*) fail ;; esac
-case "$mode" in verify|upgrade-v1|upgrade-v2|upgrade-emdash) ;; *) fail ;; esac
+case "$mode" in install|verify|upgrade-v1|upgrade-v2|upgrade-emdash) ;; *) fail ;; esac
 [ "$#" -gt 0 ] || fail
+# An isolated pilot test project may add exactly the generated overlay that
+# its caller declared in LEONAID_PILOT_TEST_COMPOSE_OVERLAY (./leonaid
+# pilot-cms-provision under the pilot install proof); the project name alone
+# admits nothing. A product project only takes the checkout's infra files.
+test_overlay=
+case "$project" in
+  leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*)
+    test_overlay=${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}
+    ;;
+esac
 # Explicit ordered Compose files, confined to this checkout. Never infer a
 # project from the working directory or mutate another project's deployment.
 for file in "$@"; do
-  case "$file" in "$root"/infra/*) ;; *) fail ;; esac
+  case "$file" in
+    "$root"/infra/*) ;;
+    "$root"/.artifacts/*) [ -n "$test_overlay" ] && [ "$file" = "$test_overlay" ] || fail ;;
+    *) fail ;;
+  esac
   case "$file" in *[[:space:]]*) fail ;; esac
   [ -f "$file" ] && [ ! -L "$file" ] || fail
   parent=$(cd "$(dirname "$file")" && pwd -P)
-  case "$parent" in "$root"/infra/*|"$root"/infra) ;; *) fail ;; esac
+  case "$parent" in
+    "$root"/infra/*|"$root"/infra) ;;
+    "$root"/.artifacts/*) [ -n "$test_overlay" ] || fail ;;
+    *) fail ;;
+  esac
 done
 LEONAID_CMS_MIGRATION_IMAGE=$(/bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" "$reference")
 export LEONAID_CMS_MIGRATION_IMAGE

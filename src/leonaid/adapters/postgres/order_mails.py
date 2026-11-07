@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -16,6 +18,7 @@ from leonaid.application.order_mails import (
     OrderCancellationFacts,
     OrderMailFacts,
     OrderMailKind,
+    mailbox_key,
 )
 from leonaid.domain.outbox import PendingOutboxEvent
 
@@ -110,21 +113,49 @@ class AsyncpgOrderMailReader:
                 )
             )
 
-    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
+    async def recent_order_mails(
+        self, *, recipient_sha256: str, mailbox: str, since: datetime
+    ) -> int:
+        # Order mails of the window with the address of their order; the
+        # ledger keeps only a digest of the exact address, so the mailbox
+        # comparison (``+tag``, Gmail dots) needs the order's address.
         async with self._pool.acquire() as connection:
-            return int(
-                await connection.fetchval(
-                    """
-                    SELECT count(*) FROM mail_delivery
-                    WHERE recipient_sha256 = $1
-                      AND sent_at >= $2
-                      AND (idempotency_key LIKE $3 OR idempotency_key LIKE $4)
-                    """,
-                    recipient_sha256,
-                    since,
-                    *(f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES),
-                )
+            rows = await connection.fetch(
+                """
+                SELECT mail.recipient_sha256,
+                    commitment.customer_snapshot->>'email' AS email
+                FROM mail_delivery AS mail
+                LEFT JOIN commitment
+                  ON commitment.id::text = split_part(mail.idempotency_key, ':', 2)
+                WHERE mail.sent_at >= $1
+                  AND mail.status = 'sent'
+                  AND (mail.idempotency_key LIKE $2 OR mail.idempotency_key LIKE $3)
+                """,
+                since,
+                *(f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES),
             )
+        return sum(
+            1
+            for row in rows
+            if row["recipient_sha256"] == recipient_sha256
+            or (row["email"] is not None and mailbox_key(str(row["email"])) == mailbox)
+        )
+
+    @asynccontextmanager
+    async def recipient_lock(self, digest: str) -> AsyncIterator[None]:
+        # A session lock on its own connection, held across the count and
+        # the SMTP send; released even when the send fails.
+        async with self._pool.acquire() as connection:
+            key = f"order-mail-recipient:{digest}"
+            await connection.execute(
+                "SELECT pg_advisory_lock(hashtextextended($1, 0))", key
+            )
+            try:
+                yield
+            finally:
+                await connection.execute(
+                    "SELECT pg_advisory_unlock(hashtextextended($1, 0))", key
+                )
 
 
 class PublicCampaignLinks:

@@ -39,6 +39,7 @@ PRETTIER_SCOPE = (
     "packages/features/",
     "packages/ui/",
     "tools/emdash_spike/",
+    "tools/pilot_cms/",
     "tests/contract/",
     "tests/e2e/",
 )
