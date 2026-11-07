@@ -30,6 +30,13 @@ FAILURE_LINE = re.compile(
     r"(✘|✗|×|\bFAIL|\bfailed\b|Error\b|error:|AssertionError|Traceback|"
     r"expect\(|Expected|Received|Timeout|timed out|unhealthy|exit code|exited with)",
 )
+# Compose progress lines carry no diagnosis and would fill the whole tail.
+COMPOSE_PROGRESS = re.compile(
+    r"^\s*(?:Container|Volume|Network|Image)\s+\S+\s+"
+    r"(?:Creating|Created|Starting|Started|Waiting|Healthy|Stopping|Stopped|"
+    r"Removing|Removed|Recreate|Recreated|Running|Exited|Pulling|Pulled)\s*$"
+    r"|^\s*\S+\s+(?:Built|Pulled|Pulling)\s*$"
+)
 MAX_FAILURE_LINES = 80
 TAIL_LINES = 150
 MAX_LINE = 400
@@ -69,17 +76,24 @@ def read_tail(path: Path) -> str:
 
 
 def excerpt(text: str) -> str:
-    lines = [ANSI.sub("", line)[:MAX_LINE] for line in text.splitlines()]
+    lines = [
+        clean
+        for line in text.splitlines()
+        if not COMPOSE_PROGRESS.match(clean := ANSI.sub("", line)[:MAX_LINE])
+    ]
     tail_start = max(0, len(lines) - TAIL_LINES)
     failures = [
-        f"{number + 1}: {line}"
-        for number, line in enumerate(lines[:tail_start])
+        line
+        for line in lines[:tail_start]
         if FAILURE_LINE.search(line)
     ][-MAX_FAILURE_LINES:]
     parts = []
     if failures:
-        parts += ["--- failure lines before the tail (line: text) ---", *failures]
-    parts += [f"--- last {len(lines) - tail_start} lines ---", *lines[tail_start:]]
+        parts += ["--- failure lines before the tail ---", *failures]
+    parts += [
+        f"--- last {len(lines) - tail_start} lines (Compose progress omitted) ---",
+        *lines[tail_start:],
+    ]
     return "\n".join(parts) + "\n"
 
 

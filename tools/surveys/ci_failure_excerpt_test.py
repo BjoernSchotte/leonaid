@@ -64,6 +64,19 @@ class ExcerptTests(unittest.TestCase):
             written["excerpts"], [{"source": "1-permissions", "text": text}]
         )
 
+    def test_compose_progress_does_not_crowd_out_the_tail(self):
+        self.report({"id": "runner", "pass": 1, "exitCode": 1})
+        noise = "".join(
+            f" Container leonaid-surveys-1-2-api-{n}  Started\n"
+            f' Volume "leonaid-surveys-1-2_data-{n}"  Created\n api  Built\n'
+            for n in range(300)
+        )
+        self.log("1-runner", "Error: runner page never rendered\n" + noise)
+        text = module.export(self.root, self.destination)[0][1]
+        self.assertIn("Error: runner page never rendered", text)
+        self.assertNotIn("Started", text)
+        self.assertNotIn("Built", text)
+
     def test_personal_data_withholds_the_excerpt(self):
         self.report({"id": "editor", "pass": 1, "exitCode": 1})
         self.log("1-editor", "Error: mail to person@example.com failed\n")
