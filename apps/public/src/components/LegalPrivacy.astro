@@ -1,0 +1,110 @@
+---
+import type { PublicPrivacyPolicyContentResponse } from "@leonaid/api-client";
+
+import LegalText from "./LegalText.astro";
+import {
+  IMPRINT_PATH,
+  providerAddress,
+  telephoneHref,
+} from "../lib/legal-notice";
+
+// The privacy page content of the active legal configuration. The single
+// source for /datenschutz; a later per-host rendering (multi-domain stage 2,
+// §7.5) reuses it unchanged. Anchors #bestellungen and #mitglieder are
+// stable link targets (action pages, admin web, PWA).
+interface Props {
+  policy: PublicPrivacyPolicyContentResponse;
+}
+
+const { policy } = Astro.props;
+const controller = policy.controller;
+---
+
+<div class="site-shell legal-page__body">
+  <h1 id="privacy-page-heading">Datenschutzerklärung</h1>
+  <p class="legal-page__lead" data-privacy-version>
+    Stand: Version {policy.version} der rechtlichen Angaben
+  </p>
+  <nav class="legal-page__toc" aria-label="Abschnitte">
+    <a href="#bestellungen">Bestellungen über Aktionsseiten</a>
+    <a href="#mitglieder">Für Mitglieder</a>
+  </nav>
+  <dl class="legal-page__facts" data-privacy-controller>
+    <div>
+      <dt>Verantwortlich</dt>
+      <dd data-privacy-controller-name>
+        {controller.legalName} · {providerAddress(controller)}
+      </dd>
+    </div>
+    <div>
+      <dt>Datenschutz-Kontakt</dt>
+      <dd>
+        <a href={`mailto:${policy.privacyContactEmail}`} data-privacy-contact>
+          {policy.privacyContactEmail}
+        </a>
+      </dd>
+    </div>
+    {
+      controller.phone && (
+        <div>
+          <dt>Telefon</dt>
+          <dd>
+            <a href={telephoneHref(controller.phone)}>{controller.phone}</a>
+          </dd>
+        </div>
+      )
+    }
+  </dl>
+
+  <section class="legal-page__section" data-privacy-policy>
+    {
+      policy.policyText ? (
+        <LegalText text={policy.policyText} />
+      ) : (
+        <p data-privacy-policy-pending>
+          Die ausführliche Datenschutzerklärung richtet der Club gerade ein.
+          Fragen zum Datenschutz beantworten wir gern über die
+          Datenschutz-Kontaktadresse.
+        </p>
+      )
+    }
+  </section>
+
+  <section
+    class="legal-page__section"
+    id="bestellungen"
+    aria-labelledby="privacy-orders-heading"
+    data-privacy-orders
+  >
+    <h2 id="privacy-orders-heading">Bestellungen über Aktionsseiten</h2>
+    <p>{policy.orderNoticeText}</p>
+    <dl class="legal-page__facts">
+      <div>
+        <dt>Rechtsgrundlage</dt>
+        <dd>{policy.orderLegalBasis}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section
+    class="legal-page__section"
+    id="mitglieder"
+    aria-labelledby="privacy-members-heading"
+    data-privacy-members
+  >
+    <h2 id="privacy-members-heading">Für Mitglieder</h2>
+    {
+      policy.memberNoticeText ? (
+        <LegalText text={policy.memberNoticeText} headingLevel={3} />
+      ) : (
+        <p data-privacy-members-pending>
+          Der Datenschutzhinweis für Mitglieder wird gerade eingerichtet.
+        </p>
+      )
+    }
+  </section>
+
+  <p class="legal-page__note">
+    Anbieter dieser Seiten: siehe <a href={IMPRINT_PATH}>Impressum</a>.
+  </p>
+</div>
