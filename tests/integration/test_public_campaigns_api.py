@@ -89,6 +89,13 @@ class Fixture:
                 starts,
                 ends,
             )
+            await connection.execute(
+                "INSERT INTO beneficiary "
+                "(id, action_id, organization_name, public_description, sort_order) "
+                "VALUES ($1, $2, 'Home proof beneficiary', 'Proof', 0)",
+                uuid4(),
+                action_id,
+            )
             if alias is not None:
                 await connection.execute(
                     "INSERT INTO public_action_alias "
@@ -103,6 +110,9 @@ class Fixture:
         ids = list(self.actions.values())
         await connection.execute(
             "DELETE FROM public_action_alias WHERE action_id = ANY($1::uuid[])", ids
+        )
+        await connection.execute(
+            "DELETE FROM beneficiary WHERE action_id = ANY($1::uuid[])", ids
         )
         await connection.execute(
             "DELETE FROM charity_action WHERE id = ANY($1::uuid[])", ids
