@@ -147,7 +147,9 @@ describe("admin host link (specs/multi-domain)", () => {
 
   it("keeps the identity-based links on the admin host and with one host", () => {
     expect(adminHostLink("https://app.club.org", "app.club.org")).toBeNull();
-    expect(adminHostLink("https://portal.club.org/", "portal.club.org")).toBeNull();
+    expect(
+      adminHostLink("https://portal.club.org/", "portal.club.org"),
+    ).toBeNull();
     expect(adminHostLink(undefined, "club.org")).toBeNull();
     expect(adminHostLink("", "club.org")).toBeNull();
   });
