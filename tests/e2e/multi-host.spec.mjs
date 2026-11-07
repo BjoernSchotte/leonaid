@@ -152,7 +152,9 @@ test("member paths move to the admin host and sign-in works there", async ({
   page,
 }) => {
   for (const path of ["/admin/", "/app/", "/login?returnTo=%2Fadmin%2F"]) {
-    await page.goto(`${publicUrl}${path}`);
+    // The 308 is done at commit; the signed-out app then moves on to the
+    // login by script, which would abort a wait for "load".
+    await page.goto(`${publicUrl}${path}`, { waitUntil: "commit" });
     expect(new URL(page.url()).origin).toBe(adminUrl);
   }
   // The sign-in page on the admin host loads its own styles and scripts.
