@@ -1,0 +1,13 @@
+#!/bin/sh
+# leonaid-pre-push-hook: installed by ./leonaid bootstrap --pre-push-hook.
+# Runs ./leonaid check-fast in the checkout being pushed (the hook is shared by
+# all worktrees of the repository). Skip once with: git push --no-verify
+root=$(git rev-parse --show-toplevel) || exit 1
+# The CLI runs its own git commands against $root.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+if ! grep -q '^  check-fast)' "$root/leonaid" 2>/dev/null; then
+  # A branch from before check-fast existed: nothing to run.
+  exit 0
+fi
+echo "pre-push: ./leonaid check-fast (skip once with git push --no-verify)" >&2
+exec "$root/leonaid" check-fast </dev/null
