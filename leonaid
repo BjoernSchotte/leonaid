@@ -1845,7 +1845,7 @@ pilot_cms_provision() {
       # interrupted install traffic is closed and /health/ready answers 503.
       pilot_compose_command "$project" "$env_file" \
         up --no-start --no-build --pull missing campaign-site
-      cms_container=$(pilot_compose_command "$project" "$env_file" ps --quiet campaign-site)
+      cms_container=$(pilot_compose_command "$project" "$env_file" ps --all --quiet campaign-site)
       cms_image=$(docker inspect --format '{{.Image}}' "$cms_container")
       set -- "$root/infra/compose/compose.yml" "$root/infra/pilot/compose.yml"
       if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then

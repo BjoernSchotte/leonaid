@@ -95,9 +95,7 @@ def main() -> int:
         status, _, _ = call("POST", "/_emdash/api/setup", raw=b"{")
         # 503 is the gate's own denial; any other error is EmDash's refusal.
         if not 400 <= status < 600 or status == 503:
-            raise SystemExit(
-                f"cms-proof: ERROR: a malformed setup answered {status}"
-            )
+            raise SystemExit(f"cms-proof: ERROR: a malformed setup answered {status}")
         expect(200, "GET", "/_emdash/api/setup/status")
         print("cms-proof: a refused setup request kept the grant")
     elif mode == "publish":
