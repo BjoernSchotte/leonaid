@@ -364,9 +364,13 @@ mount = (
     "      - source: smtp-test-ca\n"
     "        target: /run/leonaid-test/smtp-ca.pem\n"
 )
+# The core worker's default TLS context (no MAIL_SMTP_CA_FILE in the pilot)
+# reads the trust store from SSL_CERT_FILE: test relay CA only, test only.
 text = text.replace(
     anchor,
     anchor
+    + "    environment:\n"
+    + "      SSL_CERT_FILE: /run/leonaid-test/smtp-ca.pem\n"
     + mount
     + "\n  twenty-worker:\n"
     + "    environment:\n"
