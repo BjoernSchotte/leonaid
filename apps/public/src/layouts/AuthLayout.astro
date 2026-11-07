@@ -4,6 +4,7 @@ import "@leonaid/ui/fonts.css";
 import "@leonaid/ui/leitsystem.css";
 import "../styles/global.css";
 import "../styles/auth.css";
+import { IMPRINT_PATH, PRIVACY_PATH } from "../lib/legal-notice";
 
 interface Props {
   title: string;
@@ -49,6 +50,11 @@ const club = process.env.LEONAID_CLUB_NAME?.trim() ?? "";
         <main id="main" class="login-main" tabindex="-1">
           <slot />
         </main>
+        <nav class="login-legal" aria-label="Rechtliches" data-auth-legal>
+          <a href={IMPRINT_PATH}>Impressum</a>
+          <span aria-hidden="true">·</span>
+          <a href={PRIVACY_PATH}>Datenschutz</a>
+        </nav>
       </div>
     </div>
   </body>

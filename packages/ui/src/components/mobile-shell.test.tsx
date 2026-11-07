@@ -196,6 +196,21 @@ describe("MobileShell", () => {
         .getAttribute("aria-pressed"),
     ).toBe("true");
 
+    // Impressum and the members' privacy notice stay one tap away.
+    const legal = within(sheet).getByRole("navigation", {
+      name: "Impressum und Datenschutz",
+    });
+    expect(
+      within(legal)
+        .getByRole("link", { name: "Impressum" })
+        .getAttribute("href"),
+    ).toBe("/impressum");
+    expect(
+      within(legal)
+        .getByRole("link", { name: "Datenschutz" })
+        .getAttribute("href"),
+    ).toBe("/datenschutz#mitglieder");
+
     await user.click(within(sheet).getByRole("button", { name: "Abmelden" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
 
