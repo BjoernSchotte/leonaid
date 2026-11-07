@@ -430,9 +430,7 @@ def main() -> None:
         write_backup(directory, project)
         (directory / "manifest.json").unlink()
         (directory / "caddy-data.tar").write_bytes(b"synthetic-certificates\n")
-        with_certificates = create(
-            directory, source_project=project, topology="legacy"
-        )
+        with_certificates = create(directory, source_project=project, topology="legacy")
         assert "caddy-data.tar" in with_certificates["files"]
         verify(directory, source_project=project, topology="legacy")
         (directory / "caddy-data.tar").write_bytes(b"tampered-certificates\n")
