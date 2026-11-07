@@ -270,6 +270,13 @@ async def main() -> None:
                         422,
                         "site_host_reserved",
                     )
+                await admin.refused(
+                    "POST",
+                    "",
+                    command(hostname="nas.local"),
+                    422,
+                    "site_host_special_use",
+                )
                 for invalid in (
                     "https://x.example.org",
                     "x.example.org:8443",
@@ -611,6 +618,41 @@ async def main() -> None:
         await unique_violation(
             connection, insert, other, upcoming, "d", False, True, admin_id
         )
+
+        # A verified host without verified_at; redirect host with editions;
+        # a redirect to a redirect host (M5).
+        async def check_violation(sql: str, *args: object) -> None:
+            try:
+                async with connection.transaction():
+                    await connection.execute(sql, *args)
+            except asyncpg.CheckViolationError:
+                return
+            raise AssertionError(f"PostgreSQL accepted: {sql}")
+
+        await check_violation(
+            "INSERT INTO site_host(hostname,status,verification_token,created_by) "
+            "VALUES($1,'verified',$2,$3)",
+            fixture.host("unverified"),
+            "t" * 40,
+            admin_id,
+        )
+        await check_violation(
+            "UPDATE site_host SET redirect_to_host_id=$2 WHERE id=$1", raw, other
+        )
+        target = await connection.fetchval(
+            "INSERT INTO site_host(hostname,verification_token,created_by) "
+            "VALUES($1,$2,$3) RETURNING id",
+            fixture.host("raw3"),
+            "t" * 40,
+            admin_id,
+        )
+        await connection.execute(
+            "UPDATE site_host SET redirect_to_host_id=$2 WHERE id=$1", other, target
+        )
+        await check_violation(
+            "UPDATE site_host SET redirect_to_host_id=$2 WHERE id=$1", target, raw
+        )
+        await check_violation(insert, other, running, "e", False, False, admin_id)
         for bad in ("Upper.example.org", "no_underscore.example.org", "single"):
             try:
                 async with connection.transaction():

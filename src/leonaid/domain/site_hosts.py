@@ -54,6 +54,15 @@ RESERVED_EDITION_SEGMENTS = frozenset(
 )
 
 
+# Special-use top-level names (RFC 6761, 6762, 7686, 8375, 9476 and common
+# private suffixes): they never resolve publicly, so such a host could never
+# pass the check. Development and tests may use the first set.
+TEST_TLDS = frozenset({"test", "localhost", "invalid"})
+SPECIAL_USE_TLDS = TEST_TLDS | frozenset(
+    {"local", "internal", "example", "onion", "arpa", "alt", "home", "lan", "corp"}
+)
+
+
 class SiteHostStatus(StrEnum):
     PENDING = "pending"
     VERIFIED = "verified"
@@ -151,12 +160,20 @@ class ConfiguredHosts:
     admin: str
     public: str | None = None
     aliases: tuple[str, ...] = ()
+    # Development and tests: .test, .localhost and .invalid names.
+    allow_test_names: bool = False
 
     @property
     def has_public_host(self) -> bool:
         return self.public is not None
 
     def refusal(self, hostname: str) -> DomainInvariantError | None:
+        tld = hostname.rsplit(".", 1)[-1]
+        if tld in SPECIAL_USE_TLDS and not (self.allow_test_names and tld in TEST_TLDS):
+            return DomainInvariantError(
+                "site_host_special_use",
+                f"Namen unter .{tld} sind im Internet nicht erreichbar.",
+            )
         if hostname == self.admin:
             return DomainInvariantError(
                 "site_host_reserved", "Das ist der Host der Verwaltung."
