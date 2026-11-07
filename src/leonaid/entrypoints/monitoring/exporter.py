@@ -90,6 +90,18 @@ def _certificate_metrics(
         return 0, 0.0
 
 
+def tls_hosts(value: str) -> tuple[str, ...]:
+    """Every public name of the installation (admin host, public host, aliases)."""
+    return tuple(dict.fromkeys(name for name in re.split(r"[\s,]+", value) if name))
+
+
+def combined_certificate_metrics(results: list[tuple[int, float]]) -> tuple[int, float]:
+    """All certificates must validate; the earliest expiry counts."""
+    if not results or not all(valid for valid, _ in results):
+        return 0, 0.0
+    return 1, min(remaining for _, remaining in results)
+
+
 def collect_status() -> dict[str, Any]:
     backup_valid, backup_age = _backup_metrics(
         Path(os.environ["PILOT_BACKUP_MANIFEST_PATH"]),
@@ -98,10 +110,15 @@ def collect_status() -> dict[str, Any]:
     disk_valid, disk_free, disk_ratio = _disk_metrics(
         Path(os.environ["PILOT_MONITORED_DISK_PATH"])
     )
-    certificate_valid, certificate_remaining = _certificate_metrics(
-        os.environ["PILOT_TLS_HOST"],
-        port=int(os.environ.get("PILOT_TLS_PORT", "443")),
-        ca_file=os.environ.get("PILOT_TLS_CA_FILE") or None,
+    certificate_valid, certificate_remaining = combined_certificate_metrics(
+        [
+            _certificate_metrics(
+                host,
+                port=int(os.environ.get("PILOT_TLS_PORT", "443")),
+                ca_file=os.environ.get("PILOT_TLS_CA_FILE") or None,
+            )
+            for host in tls_hosts(os.environ["PILOT_TLS_HOST"])
+        ]
     )
     return {
         "checkedAt": datetime.now(timezone.utc).isoformat(),

@@ -1,9 +1,9 @@
 # Multiple domains — admin host, public host, campaign hosts
 
-Status: 2026-11-03. Specification and feasibility spike. Nothing in this
-document is implemented. Björn answered the open questions on 2026-11-03
-([§13](#13-decisions-björn-2026-11-03)); this version includes those
-decisions. Implementation needs a separate go.
+Status: 2026-11-07. Björn answered the open questions on 2026-11-03
+([§13](#13-decisions-björn-2026-11-03)). Implementation started on
+2026-11-07: stages 0 and 1 are built ([§16](#16-implementation-status-and-rulings));
+1a and 1b follow, 1c is dropped, stage 2 comes after 1b.
 
 ## 1. Context
 
@@ -947,8 +947,10 @@ use `tls internal`, as the spike did.
   `infra/pilot/compose.yml`). Port 80 serves the host check and HTTP-01;
   TLS-ALPN-01 runs on 443.
 - CAA records, if the domain has any, must allow `letsencrypt.org`.
-- Certificates live in the Caddy data volume (already persistent and in
-  backups). Each host costs ~10 KB and one renewal every ~60 days.
+- Certificates live in the Caddy data volume. It is persistent and, since
+  stage 1, part of every pilot backup (`caddy-data.tar`, restored into the
+  target's volume), so a restore needs no new issuance and does not hit the
+  stage-2 `ask` limit. Each host costs ~10 KB and one renewal every ~60 days.
 
 ### 10.2 Pilot install
 
@@ -1121,6 +1123,8 @@ multi-host public pages; the CMS admin stays single-host by design.
 
 Follow-up decision needed before the stage-1 go: the final PWA path
 (`/app/` or a new name), so acquirers reinstall only once (§6.7).
+**Ruled 2026-11-07 (lead, for Björn): keep `/app/`.** Nobody has installed
+the PWA yet, so the host switch costs no reinstall and stage 1c is dropped.
 
 ## 14. Test plan
 
@@ -1157,3 +1161,129 @@ role-based entry (D2), recurring campaigns with domain reuse (D6, about
 Stage 2 depends on stage 1. A club without a public host needs stages 1 and
 2 together (§6.6). Real-ACME acceptance needs one real test subdomain and
 one test domain owned by the club.
+
+## 16. Implementation status and rulings
+
+### 16.1 Stages 0 and 1 (PR `md/stage0-1`)
+
+| Item (§6.4) | Where |
+| --- | --- |
+| Route table, generated Caddyfiles (pilot + dev, one host and split) | `tools/proxy/caddyfiles.py` → `infra/pilot/Caddyfile{,.split}`, `infra/proxy/Caddyfile{,.split}`; `LEONAID_PROXY_CADDYFILE` selects the file |
+| Routing proof against a running Caddy | `tools/proxy/routing-test.sh` + `routing_proof.py` (pilot single, pilot split with alias, dev split); `./leonaid check` and the CI lint job |
+| Origin split CMS | `apps/campaign-site/src/auth/public-origin.ts`: `hasSecureAdminOrigin`, `hasSecureSiteOrigin`, `siteOriginOf` |
+| Allowed domains list | `apps/public/runtime-allowed-domains.mjs` (several variables, comma/space lists, port ignored) |
+| Canonical / Open Graph | `[slug].astro` uses the validated site origin |
+| Live View | `leonaidLiveUrl` (absolute, public host) in `apps/campaign-site/src/middleware.ts`; patch regex in `emdash-editor-patch.mjs` |
+| Core public allowlist | `LEONAID_PUBLIC_ORIGINS`, `StaticPublicOrigins` behind the `PublicOrigins` protocol (`security.py`); CORS without credentials on `/api/v1/public/*` only |
+| Mail link builder | `src/leonaid/application/links.py` (`admin_url`, `site_url`); `LEONAID_SITE_BASE_URL` |
+| Installer/env | `pilot-secrets --public-domain … [--admin-domain …] [--alias …] [--single-host]`; `production.env.example`; pilot contract (`validate.py`) and doctor checks |
+| Stage 0 CMS in the pilot | `campaign-site` release image, pilot compose service (profile `emdash`, `EMDASH_SITE_URL` = admin origin), `LEONAID_CMS_ENABLED`, `release-manifest-cms.json` (schema 2), backup/restore topology `emdash` |
+
+### 16.2 Rulings
+
+- R1: the admin host also serves `/_astro/*`, `/favicon.svg` and the two
+  `community-routes` images of `apps/public`. The sign-in pages need them, and
+  a cross-host redirect of a stylesheet or script would break `'self'` CSP.
+  §6.2 listed them as 308.
+- R2: `/` on the admin host 302s to `/admin/` until stage 1b ships the
+  role-based entry; the web app already forwards acquirers to the PWA.
+- R3: Caddy reads `LEONAID_PUBLIC_DOMAIN_ALIASES` as site addresses, which
+  need ", " between names. The env value therefore uses ", "; the pilot
+  contract rejects a bare comma, and every LeonAid parser accepts commas
+  and spaces.
+- R4: the dev split uses `app.localhost` (admin) and `localhost` (public);
+  `proxy:8443` stays an admin name for in-network tests and the healthcheck.
+  Aliases have no dev equivalent. Plain HTTP in dev split mode only answers
+  `/_health`.
+- R5: `LEONAID_PUBLIC_BASE_URL` keeps its name and now means the admin base
+  URL; the dev compose maps an optional `LEONAID_ADMIN_BASE_URL` to it.
+- R6: the derived origin of `LEONAID_PUBLIC_BASE_URL` no longer carries the
+  scheme's default port (`https://host:443` never matched a browser Origin).
+- R7: production refuses a public origin that is also a credentialed admin
+  origin.
+- R8: the pilot TLS monitor (`PILOT_TLS_HOST`) checks every host: public,
+  admin and aliases; the earliest expiry counts.
+- R9: the campaign site adds 384 MiB. To keep the 1.5 GiB host reserve,
+  `worker` (512→384), `twenty-worker` (1400→1280) and `survey-validator`
+  (128→96) got lower limits, each well above its measured peak (DOC-P027).
+- R10: both member pages and editor deep links keep using relative paths;
+  admin links to a public campaign path rely on the 308 until stage 2 returns
+  absolute canonical URLs.
+- R11: the production CMS provisioning (database role, media bucket, editor
+  setup) has no `pilot-*` command yet; `LEONAID_CMS_ENABLED` stays `false`
+  until it exists. Open point for the launch.
+
+### 16.3 Stage 1a (PR `md/stage1a`)
+
+- `GET /api/v1/public/campaigns?availability=active` (`listPublicCampaigns`):
+  archive slug, name, purpose, carrier, theme key, period, `canonicalPath` and
+  absolute `canonicalUrl` (site base URL); `public, max-age=60`. Source:
+  `CharityActionService.list_active_public_campaigns`, newest publication
+  start first.
+- Home page of `apps/public`: section "Aktuelle Aktionen" with one card per
+  campaign (theme share image, carrier, name, purpose, period); without an
+  active campaign the page stays as before. Core unreachable: no list, the
+  page still renders.
+- R12: the card links the page that shows the running campaign: the CMS page
+  `/campaigns/<slug>/` when published there, else the primary alias page
+  `/<alias>` with its order form, else `/archive/<slug>`. §6.5 named only the
+  canonical URL; the alias page's canonical (`/archive/<slug>`) shows no order
+  form.
+- R25: the card links `canonicalPath` (relative): in stage 1 every listed
+  page lives on the public host, and a relative link works under each name of
+  that host. Stage 2 uses `canonicalUrl` for campaign hosts.
+- R13: the theme image is the theme's share image (`resolvePublicTheme`);
+  Core returns only the theme key, no media id.
+- R30 (review #98): `apps/public` caches the list per process (60 s, a
+  failure 10 s and the last known list kept); equal publication starts sort
+  A→Z; a primary alias is always enabled (constraint since 0028), so the CMS
+  link never depends on a disabled alias.
+- Deferred: the §6.5 bullet "the public host's sitemap" is not built; no
+  `sitemap.xml` exists in `apps/public` yet. It comes with stage 2's per-host
+  sitemap/robots (§7.5).
+
+
+### 16.4 Review of #97 (rv-md1)
+
+- R14 (I1): Core accepts a public origin only when it names the request's own
+  host (`same_host` in `security.py`); a page of the public host can never
+  write to the admin host's public API with the admin cookies.
+- R15 (M3): `LEONAID_PUBLIC_ORIGINS` is exactly the public host origin.
+  Aliases 308 at the edge, so no page runs on them.
+- R16 (I2): the public host block imports `public_host_headers`: HSTS without
+  `includeSubDomains`, because the public host is usually the club's apex.
+  Admin and single hosts keep `includeSubDomains`.
+- R17 (I3): `caddy-data` is backed up and restored when the volume exists
+  (pilot); `caddy-data.tar` is an optional, verified manifest entry. Restore
+  takes it only with `pilot-restore --with-tls-state` (N2): staging and drill
+  targets never receive the production keys or ACME account.
+- R18 (I5): the public host cannot ask who is signed in: the session is
+  host-only on the admin host, the public host serves no identity API, and the
+  build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
+  header shows a static "Mitgliederbereich" link to the admin host there and sends no
+  identity request; the admin host and single hosts keep the personal links.
+- R19 (M1): the admin host refuses every Astro form action
+  (`?_action=…`) before any page route (rewrite to a 404 handler).
+- R20 (M8): the public host serves a self-unregistering worker at
+  `/app/sw.js` (no redirect); stage 1b moves it to the base-path constant.
+- R21 (M9): `infra/pilot/Caddyfile.admin-only` is generated and proven; the
+  pilot contract refuses it until stage 2 (no campaign hosts yet).
+- R22 (M5): `./leonaid pilot-revoke-sessions` signs every member out after
+  the switch; the install guide has a "Switch to an admin host" section.
+- R23 (M6): `pilot-doctor` probes every alias (certificate, 308 to the public
+  host) and port 80 (`/_health`) of every host.
+- R24 (M7): the dev compose takes `LEONAID_ALLOWED_ORIGINS` from the
+  environment; the dev split sets only the admin origin there.
+- Open: the split-mode stack proof (`./leonaid test-multi-host`) runs public
+  app, Core and web/PWA behind `Caddyfile.split`, without the CMS. The CMS
+  part (native order POST on the public host, Live View in the editor) needs
+  the EmDash spike harness and follows with stage 2's `multi-host` case.
+
+### 16.6 Stage 2 preconditions from the reviews
+
+- N4 (rv-md1): `Caddyfile.admin-only` routes `/campaigns/*`, aliases and
+  `/archive/*` to `public:3000`, which today renders campaign and alias pages.
+  Before the contract may accept the admin-only mode, the public app must
+  answer these paths on the admin host with 308 to the canonical URL or 404
+  only (§6.6).
+

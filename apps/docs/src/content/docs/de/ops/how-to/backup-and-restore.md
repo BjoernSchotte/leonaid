@@ -4,10 +4,10 @@ description: LeonAid-Daten verschlüsselt sichern und einen kontrollierten Fresh
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Benötigt werden ein externes Restic-Ziel, eine Passwortdatei und optional eine
@@ -18,8 +18,14 @@ außerhalb von Git und Backup-Repository.
 --backup-manifest MANIFEST --password-file PASSWORD --credentials-file
 CREDENTIALS`.
 2. Prüfe das erzeugte Manifest und den erfolgreichen `restic check --read-data`.
-   Gesichert werden beide PostgreSQL-Datenbanken, Twenty-Dateien und das ganze
-   RustFS-Volume. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
+   Gesichert werden beide PostgreSQL-Datenbanken, Twenty-Dateien, das ganze
+   RustFS-Volume und im Pilot das Caddy-Datenvolume mit den Zertifikaten und
+   dem ACME-Konto jedes Hosts. Ein restaurierter Proxy startet daher ohne neue
+   Zertifikatsanfragen, aber nur mit `pilot-restore --with-tls-state`: nutze
+   es, wenn du die Installation selbst auf einen neuen Server mit denselben
+   Hostnamen zurückspielst. Staging- und Übungsziele bekommen keine
+   Produktionsschlüssel und holen eigene Zertifikate. Das Archiv enthält
+   private Schlüssel; schütze das Repository-Passwort entsprechend. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
    und Klartext-Secrets sind ausgeschlossen. Ein restauriertes Projekt startet
    mit leerem Queue-Speicher; `twenty-server` registriert seine Cron-Jobs neu.
 3. Erstelle für einen Drill ein leeres Projekt namens `leonaid-restore-<name>`

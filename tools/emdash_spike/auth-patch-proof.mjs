@@ -141,27 +141,33 @@ const liveView = new Function(
   "i18n",
   `${urlFunction[0]}\nreturn ${liveViewExpression[1]};`,
 );
-const canonical = "/campaigns/krapfentaxi-2026/";
-assert.equal(
-  liveView("campaign_pages", true, { leonaidLivePath: canonical }),
-  canonical,
-);
-assert.equal(
-  liveView("campaign_pages", false, { leonaidLivePath: canonical }),
-  null,
-);
-for (const path of [
-  undefined,
-  "https://evil.invalid/",
-  "//evil.invalid/",
-  "/campaigns/../admin/",
-  "/campaigns/a/?preview=1",
-  "/campaign_pages/binding-id",
+// Absolute: the editor runs on the admin host, the page on the public host.
+for (const canonical of [
+  "https://leonaid.invalid/campaigns/krapfentaxi-2026/",
+  "https://localhost:8443/campaigns/krapfentaxi-2026/",
 ]) {
   assert.equal(
-    liveView("campaign_pages", true, { leonaidLivePath: path }),
+    liveView("campaign_pages", true, { leonaidLiveUrl: canonical }),
+    canonical,
+  );
+  assert.equal(
+    liveView("campaign_pages", false, { leonaidLiveUrl: canonical }),
     null,
   );
+}
+for (const url of [
+  undefined,
+  "/campaigns/krapfentaxi-2026/",
+  "https://evil.invalid/",
+  "http://leonaid.invalid/campaigns/krapfentaxi-2026/",
+  "javascript:alert(1)//leonaid.invalid/campaigns/a/",
+  "//evil.invalid/campaigns/a/",
+  "https://user@evil.invalid/campaigns/a/",
+  "https://leonaid.invalid/campaigns/../admin/",
+  "https://leonaid.invalid/campaigns/a/?preview=1",
+  "https://leonaid.invalid/campaign_pages/binding-id",
+]) {
+  assert.equal(liveView("campaign_pages", true, { leonaidLiveUrl: url }), null);
 }
 const repeater = revisioned.slice(
   revisioned.indexOf("function RepeaterField("),

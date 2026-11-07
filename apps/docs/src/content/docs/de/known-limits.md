@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -34,6 +34,19 @@ allgemeine Produktionsfreigabe.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
   bei Bedarf begründet zurückgebucht. Eine Überzahlung wird nur angezeigt; die
   Erstattung läuft außerhalb von LeonAid. Bankabgleich und Mahnwesen fehlen.
+- Eine Installation bedient einen Host oder einen Verwaltungshost
+  (`app.<domain>`) plus einen öffentlichen Host mit weiterleitenden
+  Zusatznamen (Stufe 1 von `specs/multi-domain/PLAN.md`). Eigene
+  Kampagnen-Domains und eine Installation ohne öffentlichen Host sind nur
+  spezifiziert. Bis der rollenbasierte Einstieg kommt, leitet `/` auf dem
+  Verwaltungshost auf `/admin/`. Beim Umstellen auf zwei Hosts meldet sich
+  jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
+  öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen
+  festen Link „Mitgliederbereich“: die Sitzung gehört zum Verwaltungshost.
+- Aktionsseiten laufen in einer Pilotinstallation mit
+  `LEONAID_CMS_ENABLED=true`. Ihre einmalige Einrichtung in Produktion
+  (CMS-Datenbankrolle, Medien-Bucket, Editor-Setup) hat noch keinen
+  `pilot-*`-Befehl.
 - Listmonk (Compose-Profil `mailing`) gehört nicht zum produktiven
   Pilot-Stack. Dort hat es weder öffentliche Route noch Backup noch
   Monitoring; alle drei müssen vor dem Aktivieren des Profils existieren.

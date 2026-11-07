@@ -25,6 +25,7 @@ from leonaid.domain.invitations import (
 )
 from leonaid.domain.outbox import JsonValue, PendingOutboxEvent
 from leonaid.domain.policies import PolicySurface
+from leonaid.application.links import LinkBuilder
 
 INVITATION_MAIL_NAMESPACE = UUID("cd8925bf-7111-4cce-b12d-e217f76ec68d")
 
@@ -177,7 +178,7 @@ class InvitationService:
         mail_payload: InvitationMailPayloadProtector,
         *,
         hmac_secret: str,
-        public_base_url: str,
+        links: LinkBuilder,
         ttl: timedelta = timedelta(minutes=30),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -187,12 +188,10 @@ class InvitationService:
             raise ValueError(
                 "Die Einladungsdauer muss zwischen 5 Minuten und 1 Tag liegen."
             )
-        if not public_base_url.startswith(("http://", "https://")):
-            raise ValueError("Die öffentliche Basis-URL ist ungültig.")
         self._repository = repository
         self._mail_payload = mail_payload
         self._hmac_secret = hmac_secret
-        self._public_base_url = public_base_url.rstrip("/")
+        self._links = links
         self._ttl = ttl
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -440,7 +439,7 @@ class InvitationService:
         code: InvitationCode,
     ) -> PendingOutboxEvent:
         role_label = ROLE_LABELS[invitation.role_snapshot]
-        magic_link = f"{self._public_base_url}/invite?token={magic_token}"
+        magic_link = self._links.admin_url(f"/invite?token={magic_token}")
         subject = f"Einladung zu {invitation.action_name_snapshot}"
         text = (
             f"Hallo {invitation.display_name_snapshot},\n\n"

@@ -4,10 +4,10 @@ description: Change the text and images of your campaign's public microsite in t
 docId: DOC-P042
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 You need the Charity-Admin role for the campaign. The microsite editor is part
@@ -26,7 +26,10 @@ quotes them unchanged.
    the field.
 4. To publish, select **Publish now** (first publication) or **Publish
    changes**. Confirm the same button in the dialog. The page is visible at
-   once; **Live View** opens it.
+   once; **Live View** opens it at the club's public
+   address, also when the editor runs on the admin host. While the action is
+   active in its publication period, the public home page also lists it under
+   **Aktuelle Aktionen**.
 5. **Discard changes** in the **Publish** panel drops the draft and returns
    to the published version.
 6. Select **Zurück zu LeonAid** to return to the LeonAid administration.

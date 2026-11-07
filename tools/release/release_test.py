@@ -22,7 +22,15 @@ from tools.release.release_assets import (  # noqa: E402
 LIB = HERE / "release-lib.sh"
 SCRIPT = HERE / "release.sh"
 COMMIT = "a" * 40
-TARGETS = ("core", "web", "pwa", "public", "proxy", "survey-validator")
+TARGETS = (
+    "core",
+    "web",
+    "pwa",
+    "public",
+    "proxy",
+    "survey-validator",
+    "campaign-site",
+)
 
 
 def git(repository: Path, *arguments: str) -> str:

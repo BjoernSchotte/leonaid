@@ -16,6 +16,8 @@ case "$shard" in
     ;;
   public-catalog)
     python3 "$root/tools/testing/shared_stack.py" golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    # Admin host + public host on their own stack (specs/multi-domain stage 1).
+    /bin/sh "$root/tools/multi_host/test.sh" "$root"
     ;;
   invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
     python3 "$root/tools/testing/shared_stack.py" golden "tools/$shard/test.sh"

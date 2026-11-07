@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 17
-reviewedRevision: 17
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 18
+reviewedRevision: 18
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -121,12 +121,38 @@ and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
 of both values, because they wait on purpose. A growing wait with a running
 worker points to a stuck or overloaded queue.
 
+
+## Hosts and routes
+
+One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
+`infra/pilot/Caddyfile` and `infra/proxy/Caddyfile` for one host,
+`Caddyfile.split` for an admin host plus a public host.
+`LEONAID_PROXY_CADDYFILE` selects the file; `./leonaid check` fails when a
+file differs from the table and proves every route against a running Caddy.
+
+| Path                                                    | Admin host (`app.<domain>`)  | Public host (`<domain>`)            |
+| ------------------------------------------------------- | ---------------------------- | ----------------------------------- |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served | 308 to the admin host |
+| `/api/*`                                                | full API                     | only `/api/v1/public/*` and `/api/health/*` |
+| `/_emdash/*` (CMS editor)                               | served                       | 404                                 |
+| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`     | 308 to the public host       | served                              |
+| `/impressum`, `/datenschutz`                            | served                       | served                              |
+| `/`                                                     | 302 to `/admin/`             | public home page                    |
+
+Every further name in `LEONAID_PUBLIC_DOMAIN_ALIASES` answers 308 to the
+public host with path and query. The session cookie stays on the admin host.
+The public host calls the API without credentials (`LEONAID_PUBLIC_ORIGINS`);
+member mails link to `LEONAID_PUBLIC_BASE_URL` (admin host), survey
+invitations to `LEONAID_SITE_BASE_URL` (public host). The dev stack runs the
+split with `LEONAID_PROXY_CADDYFILE=Caddyfile.split` and `app.localhost` /
+`localhost` (`infra/compose/README.md`).
+
 ## Runtime limits and identity
 
 Every long-running service has a memory, CPU, and process limit
 (`mem_limit`, `cpus`, `pids_limit`) and rotated logs (`local` driver, 5 × 10 MB).
 The limits are ceilings, not reservations. The pilot set, including the
-monitoring profile, fits an 8 GB VPS and leaves about 1.6 GiB for the operating
+monitoring profile, fits an 8 GB VPS and leaves about 1.9 GiB (1.5 GiB with the campaign site) for the operating
 system and Docker. The deployment contract (`pilot-doctor`, `pilot-deploy`)
 rejects limits whose sum leaves less than 1.5 GiB. "Peak" is the highest working set
 measured under load (upgrade, installation, CRM import of 3000 rows, golden
@@ -136,26 +162,29 @@ journey, backup and restore; measured on 2 November 2026 with Twenty 2.54).
 | Service                       | Observed (idle) | Peak (load) | Memory limit | CPUs | PIDs |
 | ----------------------------- | --------------- | ----------- | ------------ | ---- | ---- |
 | twenty-server                 | 330–680 MiB     | 1223 MiB    | 1728 MiB     | 2    | 512  |
-| twenty-worker                 | 590–640 MiB     | 960 MiB     | 1400 MiB     | 1.5  | 512  |
-| worker (incl. Typst)          | 70 MiB          | 94 MiB      | 512 MiB      | 1.5  | 256  |
+| twenty-worker                 | 590–640 MiB     | 960 MiB     | 1280 MiB     | 1.5  | 512  |
+| worker (incl. Typst)          | 70 MiB          | 94 MiB      | 384 MiB      | 1.5  | 256  |
 | api                           | 105–110 MiB     | 151 MiB     | 384 MiB      | 1.5  | 256  |
 | core-postgres                 | 20–22 MiB       | 70 MiB      | 384 MiB      | 1.5  | 256  |
 | twenty-postgres               | 29–65 MiB       | 139 MiB     | 384 MiB      | 1.5  | 256  |
 | twenty-redis (Valkey)         | 4–15 MiB        | 30 MiB      | 512 MiB      | 0.5  | 64   |
 | rustfs                        | 22–23 MiB       | 49 MiB      | 256 MiB      | 1    | 256  |
-| survey-validator              | 14–17 MiB       | 27 MiB      | 128 MiB      | 1    | 64   |
+| survey-validator              | 14–17 MiB       | 27 MiB      | 96 MiB       | 1    | 64   |
 | proxy (Caddy)                 | 13–18 MiB       | 31 MiB      | 128 MiB      | 1    | 128  |
 | public                        | 23–25 MiB       | 75 MiB      | 128 MiB      | 1    | 64   |
 | web, pwa                      | 13–14 MiB each  | 20 MiB      | 64 MiB each  | 0.5  | 64   |
-| **Core sum**                  | ~1.7 GiB        | 2.4 GiB¹    | **5.9 GiB**  |      |      |
+| **Core sum**                  | ~1.7 GiB        | 2.4 GiB¹    | **5.7 GiB**  |      |      |
 | prometheus                    | 59–63 MiB       | 69 MiB      | 256 MiB      | 0.5  | 128  |
 | pilot-exporter                | 18–19 MiB       | 30 MiB      | 128 MiB      | 0.5  | 64   |
 | alertmanager                  | 22–25 MiB       | 27 MiB      | 64 MiB       | 0.25 | 64   |
-| **Pilot sum with monitoring** |                 |             | **6.4 GiB**  |      |      |
+| **Pilot sum with monitoring** |                 |             | **6.1 GiB**  |      |      |
 
 ¹ Highest sum of all working sets at the same moment, not the sum of the peaks.
 
-The optional campaign site (`emdash` profile) adds 384 MiB. If a service is
+The optional campaign site (`emdash` profile, `LEONAID_CMS_ENABLED=true`)
+adds 384 MiB; with it, exactly the 1.5 GiB reserve stays free. For this,
+`worker`, `twenty-worker` and `survey-validator` have lower limits since
+November 2026, each well above its measured peak. If a service is
 OOM-killed (`docker inspect` shows `OOMKilled: true`), raise its limit and
 lower another one so that the sum still fits the host.
 

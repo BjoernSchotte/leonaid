@@ -99,3 +99,31 @@ export function renderAppLinks(
   container.replaceChildren(...anchors);
   container.hidden = anchors.length === 0;
 }
+
+/**
+ * The static header link of a public host that is not the admin host
+ * (specs/multi-domain): one sign-in link to the admin host's entry. Null on
+ * the admin host itself, in a single-host installation and for an admin base
+ * URL that is not a plain HTTPS origin.
+ */
+export function adminHostLink(
+  adminBaseUrl: string | undefined,
+  requestHost: string,
+): { readonly href: string; readonly label: string } | null {
+  let admin: URL;
+  try {
+    admin = new URL(adminBaseUrl?.trim() ?? "");
+  } catch {
+    return null;
+  }
+  if (
+    admin.protocol !== "https:" ||
+    admin.username ||
+    admin.password ||
+    admin.search ||
+    admin.hash ||
+    admin.host.toLowerCase() === requestHost.toLowerCase()
+  )
+    return null;
+  return { href: `${admin.origin}/`, label: "Mitgliederbereich" };
+}

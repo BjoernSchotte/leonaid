@@ -21,6 +21,7 @@ import {
   isCampaignUnpublishRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
+import { publicCampaignUrl } from "./auth/public-origin";
 import { campaignCreateBody } from "./auth/campaign-create-body";
 import { createCampaignWithRuntime } from "./auth/campaign-create-runtime";
 import {
@@ -85,13 +86,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const runtimeDiscard = emdash.handleContentDiscardDraft;
     const runtimePublish = emdash.handleContentPublish;
     const runtimeUnpublish = emdash.handleContentUnpublish;
-    const livePath = async (actionId: unknown) => {
+    // The editor's Live View opens the public page on its own host, never a
+    // relative path on the admin host (specs/multi-domain §6.4 item 4).
+    const liveUrl = async (actionId: unknown) => {
       const campaign = await requireCurrentCampaignActor(
         request,
         actor,
         String(actionId),
       );
-      return `/campaigns/${campaign.archiveSlug}/`;
+      return publicCampaignUrl(campaign.archiveSlug);
     };
     // EmDash creates this object per request. Never mutate the shared runtime.
     emdash.handleContentList = async (collection, parameters) => {
@@ -105,7 +108,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         for (const item of result.data.items)
           if (item.status === "published")
             Object.assign(item, {
-              leonaidLivePath: await livePath(item.data.action_id),
+              leonaidLiveUrl: await liveUrl(item.data.action_id),
             });
       return result;
     };
@@ -178,7 +181,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
           );
         // Response-only metadata, never an editable field or a stored slug.
         Object.assign(item, {
-          leonaidLivePath: await livePath(data.action_id),
+          leonaidLiveUrl: await liveUrl(data.action_id),
         });
       }
       return result;
