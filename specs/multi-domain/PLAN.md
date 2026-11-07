@@ -1235,7 +1235,6 @@ one test domain owned by the club.
 - R13: the theme image is the theme's share image (`resolvePublicTheme`);
   Core returns only the theme key, no media id.
 
-||||||| 6ce71d8b
 
 ### 16.4 Review of #97 (rv-md1)
 
