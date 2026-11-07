@@ -214,8 +214,8 @@ def check(path: Path) -> list[str]:
         ("golden-parts", "golden"),
     ):
         block = job_block(text, job)
-        condition = re.search(r"(?m)^    if: (.*)$", block)
-        condition = condition.group(1) if condition else ""
+        found = re.search(r"(?m)^    if: (.*)$", block)
+        condition = found.group(1) if found else ""
         if "select" not in needs_of(block) or not re.search(
             rf"needs\.select\.outputs\.{re.escape(key)} (?:!= '\[\]'|== 'true')",
             condition,

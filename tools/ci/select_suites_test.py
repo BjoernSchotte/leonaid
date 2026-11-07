@@ -48,7 +48,7 @@ def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
 
 
 # Path -> exactly the suites it must start (flags that are true, shard lists).
-PRECISE = (
+PRECISE: tuple[tuple[str, dict[str, Any]], ...] = (
     # Gate data of always-running jobs: Security judges the allowlist, the
     # pins workflow checks the policy; no stack suite reads it.
     ("infra/security/vulnerability-allowlist.json", {"pins": True}),
@@ -209,7 +209,7 @@ def main() -> int:
     # Precise selection: each path starts exactly its own suites.
     for path, expected in PRECISE:
         got = stack_suites(outputs(path))
-        want = {key: [] for key in BINNED} | expected
+        want: dict[str, Any] = {key: [] for key in BINNED} | expected
         got = {k: sorted(v) if isinstance(v, list) else v for k, v in got.items()}
         expect(got == want, f"{path}: expected {want}, got {got}")
     # Fewer, fatter jobs: the complete run packs every shard exactly once
