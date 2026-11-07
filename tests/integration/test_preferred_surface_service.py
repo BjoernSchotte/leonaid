@@ -173,9 +173,7 @@ async def main() -> None:
             # A charity admin oversees acquisition in the PWA ("Akquise"), so
             # both apps are open to the choice; the default stays the admin app.
             assert (await service.current_identity(admin)).landing_path == "/admin/"
-            chose_pwa = await service.set_preferred_surface(
-                admin, PreferredSurface.PWA
-            )
+            chose_pwa = await service.set_preferred_surface(admin, PreferredSurface.PWA)
             assert chose_pwa.landing_path == "/app/", chose_pwa.landing_path
             assert await proof.stored(admin) == "pwa"
 
