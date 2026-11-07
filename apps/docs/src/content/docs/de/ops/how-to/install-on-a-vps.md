@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -173,6 +173,18 @@ dig +short club.org
 
 Caddy holt die TLS-Zertifikate beim ersten Start. Dafür muss Port 80 aus dem
 Internet erreichbar sein.
+
+**Domains für einzelne Aktionen** (`krapfentaxi.org`) brauchen keine
+Änderung an der Installation. Die System-Administration trägt sie unter
+**System** › **Domains** ein; der Club legt `A`/`AAAA` (eigene Domain) oder
+einen `CNAME` (Subdomain) auf diesen Server an. Caddy holt ihr Zertifikat beim
+ersten Aufruf, aber nur für eine Domain, die LeonAid geprüft hat (höchstens
+zehn neue pro Stunde). Port 80 muss dafür offen bleiben, und ein `CAA`-Record
+der Domain muss `letsencrypt.org` erlauben. Den Nachweis von außen liefert:
+
+```sh
+python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org
+```
 
 ## Verzeichnisse anlegen
 

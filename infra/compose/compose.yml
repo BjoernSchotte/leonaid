@@ -191,6 +191,16 @@ services:
       LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
       # Credential-free origins for /api/v1/public/* (the public host).
       LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
+      # Campaign hosts in the dev stack (specs/multi-domain §7.4): names
+      # resolve to Docker addresses, the HTTP listener is 8080, TLS uses
+      # Caddy's internal CA (LEONAID_SITE_HOST_TLS_CA_FILE, set by tests).
+      LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
+      LEONAID_PUBLIC_HOST_ENABLED: ${LEONAID_PUBLIC_HOST_ENABLED:-true}
+      LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "true"
+      LEONAID_SITE_HOST_CHECK_HTTP_PORT: "8080"
+      LEONAID_SITE_HOST_TLS_EDGE: proxy:8443
+      LEONAID_SITE_HOST_TLS_CA_FILE: ${LEONAID_SITE_HOST_TLS_CA_FILE:-}
+      LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS: ${LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS:-0}
       # Credentialed origins. The dev split sets only the admin host here, so
       # the public host takes the credential-free path as in production.
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:-http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443,http://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443},http://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}}

@@ -21,6 +21,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from leonaid.application.links import LinkBuilder
+from leonaid.adapters.site_host_checks import HostCheckSettings
 from leonaid.domain.site_hosts import ConfiguredHosts
 
 
@@ -121,6 +122,29 @@ class Settings(BaseSettings):
     # False: the installation has no general public host, only the admin host
     # and campaign hosts (§6.6). Path-based campaign URLs then do not exist.
     public_host_enabled: bool = Field(default=True, alias="LEONAID_PUBLIC_HOST_ENABLED")
+    # Host check of campaign hosts (specs/multi-domain §7.4). The HTTP check
+    # goes to port 80 of every public address of the name; the TLS check
+    # shakes hands with the edge proxy. Private addresses and a test CA are
+    # for the dev stack and tests only.
+    site_host_check_http_port: int = Field(
+        default=80, ge=1, le=65535, alias="LEONAID_SITE_HOST_CHECK_HTTP_PORT"
+    )
+    site_host_check_allow_private: bool = Field(
+        default=False, alias="LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE"
+    )
+    site_host_tls_edge: str = Field(
+        default="proxy:443",
+        pattern=r"^[a-z0-9.-]+:[0-9]{1,5}$",
+        alias="LEONAID_SITE_HOST_TLS_EDGE",
+    )
+    site_host_tls_ca_file: Path | None = Field(
+        default=None, alias="LEONAID_SITE_HOST_TLS_CA_FILE"
+    )
+    # Periodic re-check in the API process (it has the egress the check
+    # needs); 0 switches it off (tests).
+    site_host_recheck_interval_seconds: float = Field(
+        default=0, ge=0, le=86400, alias="LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS"
+    )
     trust_proxy_headers: bool = Field(
         default=False,
         alias="LEONAID_TRUST_PROXY_HEADERS",
@@ -196,7 +220,7 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("site_base_url_value", mode="before")
+    @field_validator("site_base_url_value", "site_host_tls_ca_file", mode="before")
     @classmethod
     def empty_site_base_url_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -295,6 +319,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "A public origin must not also be a credentialed admin origin."
             )
+        if self.site_host_check_allow_private or self.site_host_tls_ca_file:
+            raise ValueError(
+                "Production checks campaign hosts on public addresses with the "
+                "system trust store only."
+            )
         if (self.mail_health_url.host or "").casefold() == "mailpit":
             raise ValueError("Mailpit is not allowed in production.")
         if self.object_storage_bucket == "leonaid":
@@ -387,6 +416,19 @@ class Settings(BaseSettings):
             else None
         )
         return ConfiguredHosts(admin=admin, public=public, aliases=aliases)
+
+    @property
+    def host_check_settings(self) -> HostCheckSettings:
+        edge_host, _, edge_port = self.site_host_tls_edge.rpartition(":")
+        return HostCheckSettings(
+            http_port=self.site_host_check_http_port,
+            allow_private_addresses=self.site_host_check_allow_private,
+            tls_edge_host=edge_host,
+            tls_edge_port=int(edge_port),
+            tls_ca_file=(
+                str(self.site_host_tls_ca_file) if self.site_host_tls_ca_file else None
+            ),
+        )
 
     @property
     def public_origins(self) -> tuple[str, ...]:

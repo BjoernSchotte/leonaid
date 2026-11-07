@@ -4,8 +4,8 @@ description: Show a campaign under its own domain or subdomain, hand the domain 
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -32,6 +32,24 @@ The admin UI is German; this guide names its labels unchanged.
 
 The admin host, the public host and its extra names cannot be added, nor
 names below the admin host.
+
+## Check a domain
+
+1. Wait until the DNS record is visible (often minutes, sometimes hours).
+2. Choose **Prüfen** (check) on the domain card.
+
+LeonAid calls the check address of the card through every public address of
+the domain. If this server answers everywhere, the domain shows **Geprüft**
+(verified). On the first HTTPS request the server gets a certificate from
+Let's Encrypt; then it shows **Aktiv** (active). If it still shows
+**Geprüft**, check again after a minute. Only a verified domain gets a
+certificate; no restart is needed.
+
+LeonAid checks active domains daily. If the check fails three times over at
+least 72 hours, the domain becomes **Abgeschaltet** (disabled) and gets no
+certificate anymore. **System** › **Betrieb** lists such domains under
+**Domains für Aktionen**. When the check passes again, the domain becomes
+active again; its editions stay bound in the meantime.
 
 ## Bind a campaign
 

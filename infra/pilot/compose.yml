@@ -63,6 +63,17 @@ services:
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS is missing}
       # Public host and its aliases: credential-free origins of /api/v1/public/*.
       LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
+      # Campaign hosts (specs/multi-domain §7.4): reserved names of the
+      # public host, the daily re-check in the API process, TLS via the edge.
+      LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
+      LEONAID_PUBLIC_HOST_ENABLED: ${LEONAID_PUBLIC_HOST_ENABLED:-true}
+      LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS: "600"
+      LEONAID_SITE_HOST_TLS_EDGE: proxy:443
+      # Overrides of the dev values of the base file: public addresses on
+      # port 80 only, the system trust store only.
+      LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "false"
+      LEONAID_SITE_HOST_CHECK_HTTP_PORT: "80"
+      LEONAID_SITE_HOST_TLS_CA_FILE: ""
       TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL is missing}
       WORKER_HEALTH_URL: http://worker:8010/health/ready

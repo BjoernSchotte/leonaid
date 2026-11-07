@@ -3,6 +3,11 @@
 {
 	email {$CADDY_ACME_EMAIL}
 	admin off
+	# Campaign hosts (specs/multi-domain §7): a certificate only for a host
+	# Core approves; Caddy 2.11 has no own rate limit, Core has (§9.1).
+	on_demand_tls {
+		ask http://api:8000/internal/tls/ask
+	}
 	servers {
 		strict_sni_host on
 		# Disabled here, applied per request by body_read_timeouts.
@@ -140,6 +145,10 @@
 # A host-specific HTTP route precedes Caddy's automatic HTTPS redirect.
 http://{$LEONAID_PUBLIC_DOMAIN} {
 	import body_read_timeouts
+	handle /.well-known/leonaid-host-check/* {
+		import leonaid_headers
+		reverse_proxy api:8000
+	}
 	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
 	handle @internal_orders {
 		header Cache-Control no-store
@@ -153,8 +162,14 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 	}
 }
 
+# Every other name, campaign hosts included: the host check of
+# specs/multi-domain §7.4 (Caddy answers ACME HTTP-01 itself), else HTTPS.
 :80 {
 	import body_read_timeouts
+	handle /.well-known/leonaid-host-check/* {
+		import leonaid_headers
+		reverse_proxy api:8000
+	}
 	handle /_health {
 		respond "ready" 200
 	}
@@ -166,6 +181,13 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 {$LEONAID_PUBLIC_DOMAIN} {
 	import body_read_timeouts
 	import common_headers
+
+	@internal path /internal /internal/* /api/internal /api/internal/*
+	handle @internal {
+		import astro_headers
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
 
 	handle /_health {
 		respond "ready" 200
@@ -236,6 +258,139 @@ http://{$LEONAID_PUBLIC_DOMAIN} {
 				header Connection close
 				copy_response
 			}
+		}
+	}
+}
+
+# Campaign hosts (specs/multi-domain §7): every other name Core approved.
+# Unknown names get no certificate; the TLS handshake fails.
+https:// {
+	import body_read_timeouts
+	tls {
+		on_demand
+	}
+	import common_headers
+
+	@internal path /internal /internal/* /api/internal /api/internal/*
+	handle @internal {
+		import astro_headers
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
+
+	handle /_health {
+		respond "ready" 200
+	}
+
+	handle /api/health/* {
+		import leonaid_headers
+		uri strip_prefix /api
+		reverse_proxy api:8000
+	}
+
+	handle /api/v1/public/* {
+		import leonaid_headers
+		# Explicit order prevents the generic API proxy from exposing orders.
+		route {
+			@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+			header @internal_orders Cache-Control no-store
+			respond @internal_orders "Not Found" 404
+			reverse_proxy api:8000
+		}
+	}
+
+	handle /api/* {
+		import leonaid_headers
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
+
+	@campaign_routes path /_emdash /_emdash/*
+	handle @campaign_routes {
+		import astro_headers
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
+
+	# Preserve CMS paths. The service is optional and cannot block proxy startup.
+	@campaigns path /campaigns /campaigns/* /_campaign-assets/*
+	handle @campaigns {
+		import astro_headers
+		import astro_asset_encoding
+		import order_declared_body_limit
+		reverse_proxy campaign-site:3000 {
+			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
+			# This affects only CMS body-limit responses, not other applications.
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+			# common_headers supplies one unambiguous nosniff value at the edge.
+			header_down -X-Content-Type-Options
+			header_up -Forwarded
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	@slashless_service_roots path /app /admin
+	handle @slashless_service_roots {
+		redir https://{$LEONAID_PUBLIC_DOMAIN}{uri} 308
+	}
+
+	@member_routes path /app/* /admin/* /login /login/* /invite /email-change /fresh-login
+	handle @member_routes {
+		redir https://{$LEONAID_PUBLIC_DOMAIN}{uri} 308
+	}
+
+	@admin_public_pages path /impressum /datenschutz /_astro/* /favicon.ico /favicon.svg /community-routes.png /community-routes.webp
+	handle @admin_public_pages {
+		import astro_headers
+		import astro_asset_encoding
+		import order_declared_body_limit
+		reverse_proxy public:3000 {
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+		}
+	}
+
+	@public_order path /_actions/createPublicOrder /_actions/createPublicOrder/
+	handle @public_order {
+		import astro_headers
+		import astro_asset_encoding
+		import order_declared_body_limit
+		reverse_proxy public:3000 {
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+		}
+	}
+
+	handle {
+		import astro_headers
+		import astro_asset_encoding
+		import order_declared_body_limit
+		reverse_proxy campaign-site:3000 {
+			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
+			# This affects only CMS body-limit responses, not other applications.
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+			# common_headers supplies one unambiguous nosniff value at the edge.
+			header_down -X-Content-Type-Options
+			header_up -Forwarded
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 }

@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, Globe, Info, Link2, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Globe,
+  Info,
+  Link2,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import {
@@ -355,6 +363,9 @@ function SiteHostPanel({
           </details>
         ) : null}
         <div className="cluster site-host-actions">
+          {!disabled || host.bindings.length ? (
+            <CheckButton client={client} host={host} />
+          ) : null}
           {host.kind === "campaign" && !disabled ? (
             <>
               <Button
@@ -401,6 +412,41 @@ function SiteHostPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function CheckButton({
+  client,
+  host,
+}: {
+  readonly client: LeonAidApiClient;
+  readonly host: SiteHostResponse;
+}) {
+  const queryClient = useQueryClient();
+  const toast = useOptionalToast();
+  const mutation = useMutation({
+    mutationFn: () => client.checkSiteHost(host.id),
+    onSuccess: async (checked) => {
+      toast?.show({
+        title: `${checked.displayHostname}: ${STATUS[checked.status].label}`,
+        description: checked.lastCheckResult ?? undefined,
+        tone: checked.status === "active" ? "success" : "info",
+      });
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+    onError: (cause) =>
+      toast?.show({ title: actionErrorMessage(cause).message, tone: "error" }),
+  });
+  return (
+    <Button
+      data-testid="site-host-check"
+      disabled={mutation.isPending}
+      icon={RefreshCw}
+      onClick={() => mutation.mutate()}
+      size="sm"
+    >
+      {mutation.isPending ? "Wird geprüft …" : "Prüfen"}
+    </Button>
   );
 }
 

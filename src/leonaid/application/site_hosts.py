@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -21,6 +21,7 @@ from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.site_hosts import (
     ConfiguredHosts,
     EditionAvailability,
+    HostCheckOutcome,
     SiteHostStatus,
     validate_edition_segment,
     validate_site_hostname,
@@ -259,6 +260,8 @@ class SiteHostRepository(Protocol):
         self, actor_id: UUID, host_id: UUID
     ) -> RemovalPreview: ...
 
+    async def host(self, host_id: UUID) -> SiteHostView: ...
+
     async def execute(
         self,
         actor_id: UUID,
@@ -269,12 +272,83 @@ class SiteHostRepository(Protocol):
     ) -> SiteHostView: ...
 
 
+class SiteHostChecks(Protocol):
+    """The host check of §7.4 and where its outcome is stored."""
+
+    async def target(self, host_id: UUID) -> CheckTarget: ...
+
+    async def due(self, now: datetime) -> list[CheckTarget]: ...
+
+    async def record(
+        self,
+        target: CheckTarget,
+        outcome: HostCheckOutcome,
+        *,
+        now: datetime,
+        actor_id: UUID | None,
+        request_id: str,
+    ) -> object: ...
+
+
+class HostProbe(Protocol):
+    async def check(
+        self, hostname: str, token: str, *, tls: bool = True
+    ) -> HostCheckOutcome: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CheckTarget:
+    id: UUID
+    hostname: str
+    token: str
+    status: SiteHostStatus
+    has_live_bindings: bool
+
+
 class SiteHostService:
     def __init__(
-        self, repository: SiteHostRepository, configured: ConfiguredHosts
+        self,
+        repository: SiteHostRepository,
+        configured: ConfiguredHosts,
+        checks: SiteHostChecks | None = None,
+        probe: HostProbe | None = None,
     ) -> None:
         self._repository = repository
         self._configured = configured
+        self._checks = checks
+        self._probe = probe
+
+    async def check(
+        self, actor: IdentityPrincipal, host_id: UUID, *, request_id: str
+    ) -> SiteHostView:
+        """Prüfen (§7.4): HTTP check, then TLS; the status follows the result."""
+        require_system_admin(actor)
+        if self._checks is None or self._probe is None:
+            raise RuntimeError("site host checks are not configured")
+        target = await self._checks.target(host_id)
+        await self.run_check(target, actor_id=actor.account.id, request_id=request_id)
+        return await self._repository.host(host_id)
+
+    async def run_check(
+        self, target: CheckTarget, *, actor_id: UUID | None, request_id: str
+    ) -> None:
+        assert self._checks is not None and self._probe is not None
+        outcome = await self._probe.check(target.hostname, target.token, tls=True)
+        await self._checks.record(
+            target,
+            outcome,
+            now=datetime.now(timezone.utc),
+            actor_id=actor_id,
+            request_id=request_id,
+        )
+
+    async def recheck_due(self, *, request_id: str) -> int:
+        """The periodic re-check; returns how many hosts were checked."""
+        assert self._checks is not None and self._probe is not None
+        targets = await self._checks.due(datetime.now(timezone.utc))
+        for target in targets:
+            await self.run_check(target, actor_id=None, request_id=request_id)
+        return len(targets)
 
     @property
     def configured(self) -> ConfiguredHosts:
@@ -310,6 +384,9 @@ class SiteHostService:
 
 __all__ = [
     "AddSiteHost",
+    "CheckTarget",
+    "HostProbe",
+    "SiteHostChecks",
     "BindEdition",
     "BindableAction",
     "ChangeEditionSegment",
