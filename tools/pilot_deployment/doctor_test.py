@@ -301,16 +301,17 @@ def main() -> None:
                 mismatch["files"][name] = {"sha256": "d" * 64, "size": 1}
             mismatch_path = temporary_root / f"mismatch-{version}.json"
             mismatch_path.write_text(json.dumps(mismatch), encoding="utf-8")
-            rejected(
-                label,
-                lambda path=mismatch_path: validate_backup(
+
+            def validate_mismatch(path: Path = mismatch_path) -> None:
+                validate_backup(
                     path,
                     project=project,
                     maximum_age_hours=26,
                     cms_enabled=True,
                     allow_backup_without_cms=True,
-                ),
-            )
+                )
+
+            rejected(label, validate_mismatch)
 
     print(
         "pilot-deployment-doctor-test: OK: unsafe real file and parameter "

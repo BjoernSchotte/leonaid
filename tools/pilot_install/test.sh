@@ -690,8 +690,10 @@ core_sql() {
 cms_provision() {
   leonaid_test pilot-cms-provision --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
-    --release-manifest "$cms_release_manifest" "$@"
+    --release-manifest "$cms_manifest_argument" "$@"
 }
+# The CMS release manifest exists only once the CMS is enabled below.
+cms_manifest_argument=$release_manifest
 # Runs cms_provision and keeps its output and exit status for assertions.
 cms_provision_capture() {
   set +e
@@ -751,6 +753,7 @@ cms_expect "refused while LEONAID_CMS_ENABLED=false" 1 \
 # Enable the CMS: the release now needs the CMS contract (manifest schema 2).
 sed -i 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' "$env_file"
 grep -qx 'LEONAID_CMS_ENABLED=true' "$env_file"
+cms_manifest_argument=$cms_release_manifest
 runtime_compose --profile emdash config --format json >"$workspace/runtime-compose-cms.json"
 docker run --rm --interactive \
   --user "$(id -u):$(id -g)" \
@@ -874,7 +877,7 @@ echo "pilot-install-test: restores the CMS from the backup (restore drill)"
 leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
   --password-file "$restic_password_file" --credentials-file "$backup_credentials_file"
 assert_cms_backup
-restore_project="$project-restore"
+restore_project="leonaid-restore-pilot-cms-$suffix"
 verify_project_absent "$restore_project"
 restore_overlay="$overlay_directory/restore-overlay.yml"
 LEONAID_TEST_EXTRA_NETWORKS=mail-egress,crm-admin \

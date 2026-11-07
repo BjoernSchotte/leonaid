@@ -213,15 +213,13 @@ async function status() {
     await createStorage({}).list({ limit: 1 });
     result.storage = "ready";
   } catch (error) {
-    const name = error?.cause?.name ?? "";
-    result.storage = [
-      "NoSuchBucket",
-      "InvalidAccessKeyId",
-      "AccessDenied",
-      "SignatureDoesNotMatch",
-    ].includes(name)
-      ? "missing"
-      : "unavailable";
+    // RustFS answered with a client error (no bucket, unknown or refused
+    // key): the storage step has not run. No answer at all is an outage.
+    const status = error?.cause?.$metadata?.httpStatusCode;
+    result.storage =
+      Number.isInteger(status) && status >= 400 && status < 500
+        ? "missing"
+        : "unavailable";
   }
   try {
     result.bootstrap = (await inspectBootstrap(bootstrapDirectory)).status;
