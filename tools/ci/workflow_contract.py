@@ -69,6 +69,8 @@ GATED_WORKFLOWS = {
 UNGATED_REQUIRED = {"docs.yml": "Bilingual site artifact"}
 # Scheduled re-pin of moved image tags (tools/pins/image_digests.py).
 PIN_DRIFT = "pin-drift.yml"
+# Scheduled workflows that open a pull request with GITHUB_TOKEN.
+PR_BOTS = ("pin-drift.yml", "refit-timings.yml")
 PIN_DRIFT_PERMISSIONS = {
     ("actions", "write"),
     ("contents", "write"),
@@ -579,6 +581,20 @@ def check_pin_drift(root: Path) -> list[str]:
     change workflow files, so no workflow may carry a digest of its own.
     """
     workflows = root / ".github/workflows"
+    problems: list[str] = []
+    for bot in PR_BOTS:
+        problems.extend(check_pr_bot(workflows, bot))
+    for path in sorted(workflows.glob("*.y*ml")):
+        if DIGEST_PIN.search(path.read_text(encoding="utf-8")):
+            problems.append(
+                f"{path.name}: read images from infra/locks/images.env; a digest "
+                "in a workflow blocks the automatic re-pin."
+            )
+    return problems
+
+
+def check_pr_bot(workflows: Path, PIN_DRIFT: str) -> list[str]:
+    """One GITHUB_TOKEN pull-request bot: exact permissions, dispatches."""
     text = (workflows / PIN_DRIFT).read_text(encoding="utf-8")
     problems: list[str] = []
     permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
@@ -609,12 +625,6 @@ def check_pin_drift(root: Path) -> list[str]:
             (workflows / name).read_text(encoding="utf-8")
         ):
             problems.append(f"{name}: needs workflow_dispatch for the re-pin PR.")
-    for path in sorted(workflows.glob("*.y*ml")):
-        if DIGEST_PIN.search(path.read_text(encoding="utf-8")):
-            problems.append(
-                f"{path.name}: read images from infra/locks/images.env; a digest "
-                "in a workflow blocks the automatic re-pin."
-            )
     return problems
 
 
@@ -649,7 +659,7 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         problems.append(
             f"{NIGHTLY_WATCHDOG}: must also run on a schedule (overdue runs)."
         )
-    listened = re.search(r"(?m)^    workflows: \[([^\]]*)\]$", text)
+    listened = re.search(r"(?ms)^    workflows:\s*\[([^\]]*)\]$", text)
     names = (
         {item.strip() for item in listened.group(1).split(",")} if listened else set()
     )

@@ -7,7 +7,8 @@ name: Nightly watchdog
 # tools/ci/workflow_contract.py requires every other scheduled workflow here.
 on:
   workflow_run:
-    workflows: [LeonAid CI, Survey acceptance, Dependency pins, Image pin drift]
+    workflows:
+      [LeonAid CI, Survey acceptance, Dependency pins, Image pin drift, Refit CI timings]
     types: [completed]
   # Also catches a schedule that stopped firing or a missed workflow_run.
   schedule:
@@ -36,7 +37,7 @@ jobs:
       # main every 3 hours (no push runs); their nightly runs (ci.yml: every
       # E2E leaf; surveys.yml: recovery and backup) are tracked on their own.
       # Runs after every completed scheduled run (workflow_run), not daily.
-      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192"
+      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192 refit-timings.yml:192"
     steps:
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |
