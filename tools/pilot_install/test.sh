@@ -1142,9 +1142,10 @@ USER root
 RUN set -eu; \
   probe='const LEONAID_PROBE_MIGRATIONS = Object.freeze({ ...MIGRATIONS, "999_leonaid_release_probe": { async up(db) { await db.schema.createTable("leonaid_release_probe").addColumn("id", "integer").execute(); }, async down(db) { await db.schema.dropTable("leonaid_release_probe").execute(); } } });'; \
   for file in /app/node_modules/emdash/dist/runner-*.mjs /app/dist/server/chunks/runner-*.mjs; do \
-    [ "$(grep -c 'const MIGRATION_NAMES = Object.freeze(Object.keys(MIGRATIONS));' "$file")" = 1 ]; \
+    [ "$(grep -cE '(const|var) MIGRATION_NAMES = Object\.freeze\(Object\.keys\(MIGRATIONS\)\);' "$file")" = 1 ]; \
     [ "$(grep -c 'return MIGRATIONS;' "$file")" = 1 ]; \
-    sed -i "s|const MIGRATION_NAMES = Object.freeze(Object.keys(MIGRATIONS));|$probe const MIGRATION_NAMES = Object.freeze(Object.keys(LEONAID_PROBE_MIGRATIONS));|; s|return MIGRATIONS;|return LEONAID_PROBE_MIGRATIONS;|" "$file"; \
+    sed -E -i "s/(const|var) MIGRATION_NAMES = Object\.freeze\(Object\.keys\(MIGRATIONS\)\);/$probe \1 MIGRATION_NAMES = Object.freeze(Object.keys(LEONAID_PROBE_MIGRATIONS));/; s/return MIGRATIONS;/return LEONAID_PROBE_MIGRATIONS;/" "$file"; \
+    [ "$(grep -o 'LEONAID_PROBE_MIGRATIONS' "$file" | wc -l)" = 3 ]; \
   done
 USER node
 NEXT
