@@ -6,11 +6,14 @@ import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
  * the list changes only with a publication window.
  * - a list for 60 s (the Core response says `max-age=60`);
  * - a failed read for 10 s: renders do not each wait for the timeout, and a
- *   failure after a known list keeps serving that list.
+ *   failure keeps serving the last known list, but only while it is at most
+ *   15 minutes old: a longer Core outage must not keep showing campaigns
+ *   whose publication window has closed since.
  * One request is shared by concurrent renders.
  */
 const listMilliseconds = 60_000;
 const failureMilliseconds = 10_000;
+export const lastKnownMaxAgeMilliseconds = 15 * 60_000;
 
 type Campaigns = readonly PublicCampaignListItemResponse[];
 type LoadCampaigns = () => Promise<Campaigns>;
@@ -20,17 +23,23 @@ export function createCampaignListReader(
   clock: () => number = Date.now,
 ) {
   let cached: { campaigns: Campaigns; until: number } | null = null;
-  let lastKnown: Campaigns = [];
+  let lastKnown: { campaigns: Campaigns; loadedAt: number } | null = null;
   let pending: Promise<Campaigns> | null = null;
 
   async function refresh(): Promise<Campaigns> {
     try {
       const campaigns = await load();
-      lastKnown = campaigns;
+      lastKnown = { campaigns, loadedAt: clock() };
       cached = { campaigns, until: clock() + listMilliseconds };
     } catch {
       console.warn("public_campaign_list_unavailable");
-      cached = { campaigns: lastKnown, until: clock() + failureMilliseconds };
+      const fresh =
+        lastKnown !== null &&
+        clock() - lastKnown.loadedAt <= lastKnownMaxAgeMilliseconds;
+      cached = {
+        campaigns: fresh && lastKnown ? lastKnown.campaigns : [],
+        until: clock() + failureMilliseconds,
+      };
     }
     return cached.campaigns;
   }

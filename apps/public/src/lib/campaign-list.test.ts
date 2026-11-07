@@ -1,6 +1,9 @@
 import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
 import { describe, expect, it } from "vitest";
-import { createCampaignListReader } from "./campaign-list";
+import {
+  createCampaignListReader,
+  lastKnownMaxAgeMilliseconds,
+} from "./campaign-list";
 
 const campaign = (slug: string): PublicCampaignListItemResponse => ({
   archiveSlug: slug,
@@ -58,6 +61,28 @@ describe("cached home campaign list", () => {
     fail = false;
     await read();
     expect(calls).toBe(3);
+  });
+
+  it("drops the last list once it is older than 15 minutes", async () => {
+    let now = 0;
+    let fail = false;
+    const read = createCampaignListReader(
+      async () => {
+        if (fail) throw new Error("core down");
+        return [campaign("a")];
+      },
+      () => now,
+    );
+    await read();
+    fail = true;
+    now = lastKnownMaxAgeMilliseconds;
+    expect((await read()).map((item) => item.archiveSlug)).toEqual(["a"]);
+    now = lastKnownMaxAgeMilliseconds + 10_001;
+    expect(await read()).toEqual([]);
+    // Core back: the list returns.
+    fail = false;
+    now += 10_000;
+    expect((await read()).map((item) => item.archiveSlug)).toEqual(["a"]);
   });
 
   it("yields an empty list when Core was never reachable", async () => {
