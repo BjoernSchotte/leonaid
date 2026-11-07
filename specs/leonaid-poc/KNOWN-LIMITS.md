@@ -105,8 +105,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Eine Installation bedient einen Host oder einen Verwaltungshost
   (`app.<domain>`) plus einen öffentlichen Host mit Weiterleitungsnamen
   (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
-  Eigene Kampagnen-Domains (Stufe 2) und eine Installation ohne öffentlichen
-  Host sind nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  Eigene Kampagnen-Domains (Stufe 2) sind in Arbeit: System-Admins tragen
+  Domains unter **System › Domains** ein und binden Ausgaben
+  (`site_host`, `site_binding`, Migration 0055); Hostprüfung, Zertifikate
+  und Auslieferung der Kampagnenseiten auf diesen Domains fehlen noch. Eine
+  Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
@@ -118,7 +121,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
   Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
   (Stufe 2).
-- Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
+- Die Hilfe-Doku trägt auf 20 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts

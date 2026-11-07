@@ -64,6 +64,8 @@ EXPECTED_TABLES = {
     "outbox_event",
     "payment_record",
     "public_action_alias",
+    "site_binding",
+    "site_host",
     "privacy_erasure_case",
     "suppression_entry",
     "task",

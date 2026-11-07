@@ -38,6 +38,7 @@ export * from "./system-admin/feature-flag-admin";
 export * from "./system-admin/legal-configuration";
 export * from "./system-admin/operations-admin";
 export * from "./system-admin/privacy-admin";
+export * from "./system-admin/site-hosts-admin";
 export * from "./system-admin/support-diagnostics";
 export * from "./system-admin/system-page";
 export * from "./ui-system/ui-system-catalog";

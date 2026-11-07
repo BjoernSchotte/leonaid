@@ -1,0 +1,429 @@
+"""System-admin HTTP adapter for campaign hosts (specs/multi-domain §7.1).
+
+Reads need a session of a system admin; every change additionally needs
+the fresh sign-in step-up, like the other installation-wide settings.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Literal, cast
+from uuid import UUID
+
+from fastapi import APIRouter, Request, Response
+from pydantic import Field
+
+from leonaid.application.identity import IdentityQueryService
+from leonaid.application.site_hosts import (
+    AddSiteHost,
+    BindEdition,
+    ChangeEditionSegment,
+    MoveRootToEdition,
+    RemovalPreview,
+    RemoveSiteHost,
+    SetPrimaryEdition,
+    SetRedirectHost,
+    SiteBindingView,
+    SiteHostCommand,
+    SiteHostOverview,
+    SiteHostService,
+    SiteHostView,
+    UnbindEdition,
+)
+from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.sessions import SESSION_COOKIE_NAME
+from leonaid.entrypoints.fastapi.schemas import AUTHENTICATED_CONFLICT_ERROR_RESPONSES
+from leonaid.platform.http import TransportModel
+
+HOST_CHECK_PREFIX = "/.well-known/leonaid-host-check/"
+
+router = APIRouter(
+    prefix="/api/v1/admin/site-hosts",
+    tags=["site-hosts"],
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+)
+
+EditionAvailabilityValue = Literal["published", "archive", "inactive"]
+SiteHostStatusValue = Literal["pending", "verified", "active", "disabled"]
+
+
+class SiteBindingResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    action_name: str
+    archive_slug: str
+    segment: str
+    at_root: bool
+    is_primary: bool
+    availability: EditionAvailabilityValue
+    edition_url: str
+    campaign_page: bool
+    valid_from: datetime
+    valid_to: datetime | None
+    ended_reason: Literal["segment_changed", "unbound", "host_removed"] | None
+    revision: int
+    target_url: str | None
+
+
+class SiteHostResponse(TransportModel):
+    id: UUID
+    hostname: str
+    display_hostname: str
+    status: SiteHostStatusValue
+    kind: Literal["campaign", "redirect"]
+    redirect_to_host_id: UUID | None
+    redirect_to_hostname: str | None
+    # Served by Core on port 80 of the host itself (§7.4).
+    verification_path: str
+    verified_at: datetime | None
+    last_checked_at: datetime | None
+    last_check_result: str | None
+    failed_checks: int
+    revision: int
+    created_at: datetime
+    bindings: list[SiteBindingResponse]
+    history: list[SiteBindingResponse]
+
+
+class BindableActionResponse(TransportModel):
+    id: UUID
+    name: str
+    archive_slug: str
+    status: str
+    availability: EditionAvailabilityValue
+    campaign_page: bool
+
+
+class SiteHostListResponse(TransportModel):
+    admin_host: str
+    public_host: str | None
+    public_host_aliases: list[str]
+    hosts: list[SiteHostResponse]
+    actions: list[BindableActionResponse]
+
+
+class SiteHostRemovalItemResponse(TransportModel):
+    binding_id: UUID
+    action_id: UUID
+    action_name: str
+    current_url: str
+    new_url: str | None
+
+
+class SiteHostRemovalPreviewResponse(TransportModel):
+    host_id: UUID
+    revision: int
+    items: list[SiteHostRemovalItemResponse]
+    redirect_hosts: list[str]
+
+
+class AddSiteHostRequest(TransportModel):
+    command_id: UUID
+    hostname: str = Field(min_length=1, max_length=300)
+
+
+class SiteHostRevisionRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+
+
+class SetSiteHostRedirectRequest(SiteHostRevisionRequest):
+    target_host_id: UUID | None
+
+
+class BindSiteEditionRequest(SiteHostRevisionRequest):
+    action_id: UUID
+    segment: str | None = Field(default=None, min_length=1, max_length=63)
+    at_root: bool = Field(default=False, strict=True)
+
+
+class ChangeSiteEditionSegmentRequest(SiteHostRevisionRequest):
+    segment: str = Field(min_length=1, max_length=63)
+
+
+class MoveSiteRootRequest(SiteHostRevisionRequest):
+    action_id: UUID
+    segment: str | None = Field(default=None, min_length=1, max_length=63)
+
+
+class UnbindSiteEditionRequest(SiteHostRevisionRequest):
+    confirm_root_removal: bool = Field(default=False, strict=True)
+
+
+def binding_response(view: SiteBindingView) -> SiteBindingResponse:
+    return SiteBindingResponse(
+        id=view.id,
+        action_id=view.action_id,
+        action_name=view.action_name,
+        archive_slug=view.archive_slug,
+        segment=view.segment,
+        at_root=view.at_root,
+        is_primary=view.is_primary,
+        availability=view.availability.value,
+        edition_url=view.edition_url,
+        campaign_page=view.campaign_page,
+        valid_from=view.valid_from,
+        valid_to=view.valid_to,
+        ended_reason=cast(
+            Literal["segment_changed", "unbound", "host_removed"] | None,
+            view.ended_reason,
+        ),
+        revision=view.revision,
+        target_url=view.target_url,
+    )
+
+
+def host_response(view: SiteHostView) -> SiteHostResponse:
+    return SiteHostResponse(
+        id=view.id,
+        hostname=view.hostname,
+        display_hostname=view.display_hostname,
+        status=view.status.value,
+        kind=view.kind,
+        redirect_to_host_id=view.redirect_to_host_id,
+        redirect_to_hostname=view.redirect_to_hostname,
+        verification_path=HOST_CHECK_PREFIX + view.verification_token,
+        verified_at=view.verified_at,
+        last_checked_at=view.last_checked_at,
+        last_check_result=view.last_check_result,
+        failed_checks=view.failed_checks,
+        revision=view.revision,
+        created_at=view.created_at,
+        bindings=[binding_response(item) for item in view.bindings],
+        history=[binding_response(item) for item in view.history],
+    )
+
+
+def overview_response(overview: SiteHostOverview) -> SiteHostListResponse:
+    return SiteHostListResponse(
+        admin_host=overview.configured.admin,
+        public_host=overview.configured.public,
+        public_host_aliases=list(overview.configured.aliases),
+        hosts=[host_response(host) for host in overview.hosts],
+        actions=[
+            BindableActionResponse(
+                id=action.id,
+                name=action.name,
+                archive_slug=action.archive_slug,
+                status=action.status,
+                availability=action.availability.value,
+                campaign_page=action.campaign_page,
+            )
+            for action in overview.actions
+        ],
+    )
+
+
+def preview_response(preview: RemovalPreview) -> SiteHostRemovalPreviewResponse:
+    return SiteHostRemovalPreviewResponse(
+        host_id=preview.host_id,
+        revision=preview.revision,
+        items=[
+            SiteHostRemovalItemResponse(
+                binding_id=item.binding_id,
+                action_id=item.action_id,
+                action_name=item.action_name,
+                current_url=item.current_url,
+                new_url=item.new_url,
+            )
+            for item in preview.items
+        ],
+        redirect_hosts=list(preview.redirect_hosts),
+    )
+
+
+def _service(request: Request) -> SiteHostService:
+    return cast(SiteHostService, request.app.state.site_host_service)
+
+
+def _identity(request: Request) -> IdentityQueryService:
+    return cast(IdentityQueryService, request.app.state.identity_service)
+
+
+async def _reader(request: Request, response: Response) -> IdentityPrincipal:
+    response.headers["Cache-Control"] = "no-store"
+    return await _identity(request).authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+
+
+async def _execute(
+    request: Request, response: Response, command: SiteHostCommand
+) -> SiteHostResponse:
+    response.headers["Cache-Control"] = "no-store"
+    actor = await _identity(request).authenticate_fresh(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    view = await _service(request).execute(
+        actor, command, request_id=cast(str, request.state.request_id)
+    )
+    return host_response(view)
+
+
+@router.get("", operation_id="listSiteHosts", response_model=SiteHostListResponse)
+async def list_site_hosts(request: Request, response: Response) -> SiteHostListResponse:
+    actor = await _reader(request, response)
+    return overview_response(await _service(request).overview(actor))
+
+
+@router.post("", operation_id="addSiteHost", response_model=SiteHostResponse)
+async def add_site_host(
+    request: Request, response: Response, body: AddSiteHostRequest
+) -> SiteHostResponse:
+    return await _execute(
+        request, response, AddSiteHost(body.command_id, body.hostname)
+    )
+
+
+@router.put(
+    "/{host_id}/redirect",
+    operation_id="setSiteHostRedirect",
+    response_model=SiteHostResponse,
+)
+async def set_site_host_redirect(
+    host_id: UUID,
+    request: Request,
+    response: Response,
+    body: SetSiteHostRedirectRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        SetRedirectHost(body.command_id, host_id, body.revision, body.target_host_id),
+    )
+
+
+@router.post(
+    "/{host_id}/bindings",
+    operation_id="bindSiteEdition",
+    response_model=SiteHostResponse,
+)
+async def bind_site_edition(
+    host_id: UUID,
+    request: Request,
+    response: Response,
+    body: BindSiteEditionRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        BindEdition(
+            body.command_id,
+            host_id,
+            body.revision,
+            body.action_id,
+            body.segment,
+            body.at_root,
+        ),
+    )
+
+
+@router.put(
+    "/{host_id}/bindings/{binding_id}/segment",
+    operation_id="changeSiteEditionSegment",
+    response_model=SiteHostResponse,
+)
+async def change_site_edition_segment(
+    host_id: UUID,
+    binding_id: UUID,
+    request: Request,
+    response: Response,
+    body: ChangeSiteEditionSegmentRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        ChangeEditionSegment(
+            body.command_id, host_id, body.revision, binding_id, body.segment
+        ),
+    )
+
+
+@router.put(
+    "/{host_id}/bindings/{binding_id}/primary",
+    operation_id="setPrimarySiteEdition",
+    response_model=SiteHostResponse,
+)
+async def set_primary_site_edition(
+    host_id: UUID,
+    binding_id: UUID,
+    request: Request,
+    response: Response,
+    body: SiteHostRevisionRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        SetPrimaryEdition(body.command_id, host_id, body.revision, binding_id),
+    )
+
+
+@router.delete(
+    "/{host_id}/bindings/{binding_id}",
+    operation_id="unbindSiteEdition",
+    response_model=SiteHostResponse,
+)
+async def unbind_site_edition(
+    host_id: UUID,
+    binding_id: UUID,
+    request: Request,
+    response: Response,
+    body: UnbindSiteEditionRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        UnbindEdition(
+            body.command_id,
+            host_id,
+            body.revision,
+            binding_id,
+            body.confirm_root_removal,
+        ),
+    )
+
+
+@router.put(
+    "/{host_id}/root", operation_id="moveSiteRoot", response_model=SiteHostResponse
+)
+async def move_site_root(
+    host_id: UUID,
+    request: Request,
+    response: Response,
+    body: MoveSiteRootRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        MoveRootToEdition(
+            body.command_id, host_id, body.revision, body.action_id, body.segment
+        ),
+    )
+
+
+@router.get(
+    "/{host_id}/removal-preview",
+    operation_id="previewSiteHostRemoval",
+    response_model=SiteHostRemovalPreviewResponse,
+)
+async def preview_site_host_removal(
+    host_id: UUID, request: Request, response: Response
+) -> SiteHostRemovalPreviewResponse:
+    actor = await _reader(request, response)
+    return preview_response(await _service(request).removal_preview(actor, host_id))
+
+
+@router.delete(
+    "/{host_id}", operation_id="removeSiteHost", response_model=SiteHostResponse
+)
+async def remove_site_host(
+    host_id: UUID,
+    request: Request,
+    response: Response,
+    body: SiteHostRevisionRequest,
+) -> SiteHostResponse:
+    return await _execute(
+        request,
+        response,
+        RemoveSiteHost(body.command_id, host_id, body.revision),
+    )
