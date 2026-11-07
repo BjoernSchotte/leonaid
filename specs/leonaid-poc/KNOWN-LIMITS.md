@@ -19,12 +19,16 @@ Punkte sind keine stillschweigenden Produktzusagen.
   einmalige Einrichtung in Produktion (CMS-Datenbankrolle, Medien-Bucket,
   Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
   einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
+  Die erste LeonAid-Systemadministration legt `./leonaid
+  pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
   Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
   `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
-  das CMS erst ab abgeschlossener Einrichtung. `pilot-release` migriert das
-  CMS-Schema nicht; ein Release mit neuen EmDash-Migrationen blockiert am
-  Provisionierungs-Check.
+  das CMS erst ab abgeschlossener Einrichtung. `pilot-release` migriert neue
+  EmDash-Migrationen unter geschlossenem CMS-Verkehr; ein Anheben der
+  redaktionellen Schemaversion (`upgrade-v<N>` unter dem vorherigen Image)
+  gehört noch nicht dazu, und ein Rollback ist ein Restore aus dem
+  Release-Backup.
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
   manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung

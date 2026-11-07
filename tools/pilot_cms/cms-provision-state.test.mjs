@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   databaseErrorState,
   migrationState,
+  releaseDatabaseState,
   schemaState,
   storageErrorState,
 } from "../../apps/campaign-site/src/cms-provision-state.mjs";
@@ -55,6 +56,15 @@ test("migrations: exact list ready, gapless prefix open, anything else refused",
   assert.equal(migrationState(status(["001", "003"]), names), "refused");
   assert.equal(migrationState(status(names, ["999"]), names), "refused");
   assert.equal(migrationState(status([], ["999"]), names), "refused");
+});
+
+test("release: a live CMS behind this image's migrations is pending", () => {
+  assert.equal(releaseDatabaseState("missing", 72, "complete"), "pending");
+  // Never provisioned, provisioning under way or an empty database: open.
+  assert.equal(releaseDatabaseState("missing", 72, "armed"), "missing");
+  assert.equal(releaseDatabaseState("missing", 0, "complete"), "missing");
+  for (const state of ["ready", "refused", "unavailable"])
+    assert.equal(releaseDatabaseState(state, 72, "complete"), state);
 });
 
 test("schema: missing, partial after an interrupted install, ready, refused", () => {

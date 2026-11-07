@@ -367,5 +367,42 @@ class CheckoutIsolationTests(unittest.TestCase):
                 self.assertIn("refusing Docker mutations", result.stderr)
 
 
+class SharedPackageCacheTests(unittest.TestCase):
+    def test_toolchain_containers_use_the_private_host_cache(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            checkout = base / "checkout"
+            for name in ("leonaid", "tools/testing/phase.sh", "infra/locks/images.env"):
+                (checkout / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(source / name, checkout / name)
+            stub = base / "bin"
+            stub.mkdir()
+            log = base / "docker.log"
+            # Records the arguments of each Docker call and reports success.
+            (stub / "docker").write_text(
+                f'#!/bin/sh\nfor a in "$@"; do echo "$a"; done >>"{log}"\n'
+            )
+            (stub / "docker").chmod(0o755)
+            cache = base / "packages"
+            result = subprocess.run(
+                [str(checkout / "leonaid"), "test-unit"],
+                env={
+                    **os.environ,
+                    "PATH": f"{stub}:{os.environ['PATH']}",
+                    "LEONAID_PACKAGE_CACHE": str(cache),
+                },
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            arguments = log.read_text().splitlines()
+            self.assertIn(f"{cache}/uv:/cache/uv", arguments)
+            self.assertIn("UV_CACHE_DIR=/cache/uv", arguments)
+            self.assertIn("UV_LINK_MODE=clone", arguments)
+            self.assertEqual((cache / "uv").stat().st_mode & 0o777, 0o700)
+            self.assertEqual(cache.stat().st_mode & 0o777, 0o700)
+
+
 if __name__ == "__main__":
     unittest.main()

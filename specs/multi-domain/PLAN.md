@@ -1438,6 +1438,20 @@ the CMS; a campaign page created and published in the editor and served at
 `https://portal.leonaid.org/campaigns/<slug>/`; restore drill into a second
 project with the page and the complete setup state.
 
-Open: `pilot-release` does not run CMS migrations (verify/upgrade) yet; a
-release with new EmDash migrations blocks at the provisioning check until the
-release spec adds the CMS migration step.
+CMS release step (launch follow-up F): `pilot-release` migrates the CMS in
+maintenance after Core (`pilot_release_cms_migrate`): `status` of the release
+image reports `database=pending` for a live CMS behind its EmDash migrations
+(`releaseDatabaseState`); the step recreates `campaign-site` on the release
+image without starting it and runs `migrate-cms.sh upgrade-emdash` (else
+`verify`), reopens traffic after the state verifies, then the deploy starts
+it. `pilot-deploy` refuses `pending`. Not covered: editorial schema version
+changes (`upgrade-v<N>` under the previous image, release spec §6.2 step 2);
+rollback is the restore of the release backup (RELEASE-RUNBOOK §4).
+Review #113: CMS traffic closes when maintenance starts
+(`pilot_release_cms_close`), so no editor write follows the recovery point;
+the release doctor gate accepts `traffic=closed` without a migration lock
+(retry forward). Proof: a release image whose EmDash migration throws stops
+the release with maintenance on, the CMS closed and stopped and no lock; the
+migration rolled back (one transaction); `pilot-deploy` of the previous
+release refuses the closed CMS; the release's recovery point restores the
+CMS; after lifting maintenance the corrected release goes through.

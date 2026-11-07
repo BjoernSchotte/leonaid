@@ -90,7 +90,7 @@ owned=true
 mkdir -p "$browser_results"
 chmod 700 "$browser_results"
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-compose build api public pwa web
+build_shared_images api public pwa web
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
