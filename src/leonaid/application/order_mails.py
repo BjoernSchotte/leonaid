@@ -27,8 +27,9 @@ contact, the cancellation reason and note, CRM names. Every stored text is
 put on one line without control or format characters (``_clean``), so data
 entered before the input check cannot forge a paragraph or hide text.
 
-At most ``RECIPIENT_LIMIT`` order mails go to one address per
-``RECIPIENT_WINDOW``: the unauthenticated form must not make the club flood
+At most ``RECIPIENT_LIMIT`` order mails go to one mailbox per
+``RECIPIENT_WINDOW`` (``+tags`` and Gmail dots count as one mailbox, and an
+advisory lock per mailbox keeps parallel workers under the limit): the unauthenticated form must not make the club flood
 an address it does not own. A job over the limit is dead-lettered with
 ``order_mail_recipient_limit`` and shows in the operations view, where an
 operator can retry it later.
@@ -38,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
@@ -463,6 +465,33 @@ def recipient_sha256(address: str) -> str:
     return hashlib.sha256(address.strip().casefold().encode()).hexdigest()
 
 
+# Providers that ignore dots in the local part of an address.
+DOTLESS_DOMAINS = {"gmail.com": "gmail.com", "googlemail.com": "gmail.com"}
+
+
+def mailbox_key(address: str) -> str:
+    """The mailbox an address reaches, for the per-recipient limit only.
+
+    ``victim+1@…`` and ``victim+2@…`` reach the same mailbox, and Gmail
+    ignores dots (``v.ictim@gmail.com``). The mail still goes to the address
+    as entered; only the limit counts them together.
+    """
+
+    normalized = address.strip().casefold()
+    local, separator, domain = normalized.rpartition("@")
+    if not separator:
+        return normalized
+    local = local.split("+", 1)[0]
+    if domain in DOTLESS_DOMAINS:
+        domain = DOTLESS_DOMAINS[domain]
+        local = local.replace(".", "")
+    return f"{local}@{domain}"
+
+
+def limit_digest(address: str) -> str:
+    return hashlib.sha256(mailbox_key(address).encode()).hexdigest()
+
+
 def mail_due(commitment: Commitment) -> bool:
     """Only public orders whose buyer address still exists get a mail.
 
@@ -484,8 +513,16 @@ class OrderMailReader(Protocol):
 
     async def was_sent(self, idempotency_key: str) -> bool: ...
 
-    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
-        """Order mails sent to this recipient digest since the moment."""
+    async def recent_order_mails(
+        self, *, recipient_sha256: str, mailbox: str, since: datetime
+    ) -> int:
+        """Order mails sent since the moment to this exact address (ledger
+        digest) or to any address of the same mailbox (``mailbox_key``)."""
+        ...
+
+    def recipient_lock(self, digest: str) -> AbstractAsyncContextManager[None]:
+        """Serializes the limit check and the send per mailbox, so parallel
+        workers cannot each see room below the limit."""
         ...
 
 
@@ -510,8 +547,10 @@ class OrderMailHandler:
         legal_configuration: ActiveLegalConfiguration,
         sender: MailSender,
         clock: Callable[[], datetime] | None = None,
+        recipient_limit: int = RECIPIENT_LIMIT,
     ) -> None:
         self._kind = kind
+        self._recipient_limit = recipient_limit
         self._reader = reader
         self._legal_configuration = legal_configuration
         self._sender = sender
@@ -543,12 +582,6 @@ class OrderMailHandler:
             # A re-run of a sent job (lost completion): nothing to send, and
             # the limit must not dead-letter it.
             return
-        recent = await self._reader.recent_order_mails(
-            recipient_sha256(_recipient(facts.commitment)),
-            self._clock() - RECIPIENT_WINDOW,
-        )
-        if recent >= RECIPIENT_LIMIT:
-            raise OrderMailError("order_mail_recipient_limit", retryable=False)
         legal = await self._legal_configuration.active_configuration()
         if legal is None:
             # Retried: the mail must name the club; it waits for a version.
@@ -559,14 +592,24 @@ class OrderMailHandler:
             else render_order_cancellation
         )
         mail = render(facts, legal, links)
-        # The rendered text lives only in memory; the stored job keeps ids.
-        await self._sender.handle(
-            replace(
-                event,
-                payload={
-                    "to": mail.recipient,
-                    "subject": mail.subject,
-                    "text": mail.text,
-                },
+        async with self._reader.recipient_lock(limit_digest(mail.recipient)):
+            if await self._reader.was_sent(event.idempotency_key):
+                return
+            recent = await self._reader.recent_order_mails(
+                recipient_sha256=recipient_sha256(mail.recipient),
+                mailbox=mailbox_key(mail.recipient),
+                since=self._clock() - RECIPIENT_WINDOW,
             )
-        )
+            if recent >= self._recipient_limit:
+                raise OrderMailError("order_mail_recipient_limit", retryable=False)
+            # The rendered text lives only in memory; the stored job keeps ids.
+            await self._sender.handle(
+                replace(
+                    event,
+                    payload={
+                        "to": mail.recipient,
+                        "subject": mail.subject,
+                        "text": mail.text,
+                    },
+                )
+            )
