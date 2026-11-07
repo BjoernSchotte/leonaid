@@ -483,6 +483,27 @@ workspaces (for example `apps/campaign-site` → `apps/public`) count as
 dependencies for check-fast, and a new workspace with its own check that
 `fast_plan.py` does not know selects every package.
 
+## Shared image tags
+
+Test stacks and standalone suites (`build_shared_images` in
+`tools/testing/owned_teardown.sh`) reuse images across checkouts by content.
+`python3 tools/testing/image_tags.py <service>` hashes the Docker platform, the
+build section, the Dockerfile, `.dockerignore` and every file the Dockerfile
+copies from its context (after `.dockerignore`, with file modes); the harness
+hashes the build section from the project's own `docker compose config`, so
+overlays with other args, targets or Dockerfiles get their own tags. A stack
+whose hash exists as `leonaid-local/<service>:<hash>` and is younger than seven
+days (`LEONAID_IMAGE_MAX_AGE_DAYS`; the Dockerfiles upgrade OS packages) only
+tags it as `<project>-<service>` (about 0.8 s for seven images instead of 8–25 s
+of `compose build`). Otherwise it builds, then records the tag under the
+pre-build hash only if the inputs still hash the same (not in CI). A FROM or
+`COPY --from` without digest, `ADD` of a URL, mounts other than `type=cache`,
+build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
+syntax make it build without sharing (the CLI exits non-zero). Teardown removes
+only `<project>-*` tags; the four most recently used content tags per service
+are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+
 ## Shared package caches
 
 `./leonaid` toolchain containers (`bootstrap`, `check`, `test-unit`, …) share

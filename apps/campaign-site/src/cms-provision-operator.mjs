@@ -30,6 +30,7 @@ import { cmsMaintenanceClosed } from "./cms-maintenance.mjs";
 import {
   databaseErrorState,
   migrationState,
+  releaseDatabaseState,
   schemaState,
   storageErrorState,
 } from "./cms-provision-state.mjs";
@@ -49,7 +50,9 @@ import {
 //                the mapped users go too (the next sign-in maps again).
 //   complete-setup  mark the grant complete when EmDash completed the setup
 //                but the grant was not marked (crash or a raced reset).
-//   status       read-only state of every step, one "key=value" line each.
+//   status       read-only state of every step, one "key=value" line each;
+//                database=pending: a live CMS waits for this image's EmDash
+//                migrations (pilot-release applies them).
 // The campaign schema itself is installed by cms-migration-operator.mjs
 // ("install") under closed CMS traffic.
 const bootstrapDirectory = "/app/bootstrap-state";
@@ -281,12 +284,28 @@ async function status() {
     schema: "missing",
     traffic: "closed",
   };
+  let grant = null;
+  try {
+    grant = await inspectBootstrap(bootstrapDirectory);
+    result.bootstrap = grant.status;
+  } catch {
+    result.bootstrap = "invalid";
+  }
   try {
     await withCmsDatabase(async (connection) => {
-      result.database = migrationState(
-        await getExactMigrationStatus(connection),
-        MIGRATION_NAMES,
+      const migrations = await getExactMigrationStatus(connection);
+      result.database = releaseDatabaseState(
+        migrationState(migrations, MIGRATION_NAMES),
+        migrations.knownApplied.length,
+        result.bootstrap,
       );
+      if (result.database === "pending") {
+        // This image's schema registry may read columns that only its own
+        // migrations add: the campaign schema is checked after them.
+        if (await setupComplete(connection)) result.setup = "complete";
+        result.schema = "pending";
+        return;
+      }
       const mapping =
         await sql`SELECT to_regclass('public.leonaid_external_identity') IS NOT NULL AS present`.execute(
           connection,
@@ -332,13 +351,6 @@ async function status() {
     result.storage = "ready";
   } catch (error) {
     result.storage = storageErrorState(error);
-  }
-  let grant = null;
-  try {
-    grant = await inspectBootstrap(bootstrapDirectory);
-    result.bootstrap = grant.status;
-  } catch {
-    result.bootstrap = "invalid";
   }
   result.traffic = (await cmsMaintenanceClosed()) ? "closed" : "open";
   for (const [key, value] of Object.entries(result))
