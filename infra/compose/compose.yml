@@ -107,7 +107,11 @@ services:
       - "${LEONAID_BIND_ADDRESS:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}:8443"
     volumes:
       # Caddyfile (one host) or Caddyfile.split (admin + public host).
-      - ../proxy/${LEONAID_PROXY_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      # Long syntax: the ":-" default would split the short volume syntax.
+      - type: bind
+        source: ../proxy/${LEONAID_PROXY_CADDYFILE:-Caddyfile}
+        target: /etc/caddy/Caddyfile
+        read_only: true
     networks:
       - edge
     depends_on:

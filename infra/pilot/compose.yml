@@ -38,7 +38,11 @@ services:
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
     volumes: !override
-      - ../pilot/${LEONAID_PROXY_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      # Long syntax: the ":-" default would split the short volume syntax.
+      - type: bind
+        source: ../pilot/${LEONAID_PROXY_CADDYFILE:-Caddyfile}
+        target: /etc/caddy/Caddyfile
+        read_only: true
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
