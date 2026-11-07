@@ -33,6 +33,7 @@ import {
   useActionConfiguration,
 } from "./action-templates";
 import { CampaignAliasesSection } from "./campaign-aliases";
+import { ActionPublicUrls } from "./public-urls";
 import { DeliverySection } from "./delivery-section";
 import {
   AdministratorsSection,
@@ -539,6 +540,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
                   : "Nach dem Abschluss lassen sich die Aliase nicht mehr ändern; die dauerhafte Adresse bleibt erreichbar."}
               </ReadOnlyNotice>
             ) : null}
+            <ActionPublicUrls actionId={actionId} client={client} />
             <CampaignAliasesSection
               actionId={actionId}
               client={client}

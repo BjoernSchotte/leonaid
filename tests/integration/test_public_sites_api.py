@@ -13,6 +13,7 @@ CORE_DATABASE_URL, under pytest.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -258,6 +259,45 @@ async def main() -> None:
                         response.text,
                     )
 
+                # Action managers see the public addresses read only (§7.1).
+                token = f"public-sites-proof-{tag}-{uuid4().hex}"
+                await db.execute(
+                    "INSERT INTO user_global_role (user_id, role) "
+                    "VALUES ($1, 'system_admin')",
+                    admin_id,
+                )
+                await db.execute(
+                    "INSERT INTO user_session (id, user_id, token_digest, expires_at, "
+                    "last_seen_at, fresh_login_at, created_at, updated_at) "
+                    "VALUES ($1, $2, $3, now() + interval '90 days', now(), now(), "
+                    "now(), now())",
+                    uuid4(),
+                    admin_id,
+                    hashlib.sha256(token.encode()).hexdigest(),
+                )
+                cookie = {"Cookie": f"__Host-leonaid_session={token}"}
+                urls = await client.get(
+                    f"/api/v1/actions/{actions['2026']}/public-urls", headers=cookie
+                )
+                assert urls.status_code == 200, urls.text
+                assert urls.json()["canonicalUrl"] == f"https://{name('lionsopen')}/"
+                assert {item["hostname"] for item in urls.json()["editions"]} == {
+                    name("lionsopen"),
+                    name("mirror"),
+                }
+                urls = (
+                    await client.get(
+                        f"/api/v1/actions/{actions['solo']}/public-urls",
+                        headers=cookie,
+                    )
+                ).json()
+                assert urls["editions"][0]["hostStatus"] == "pending"
+                assert urls["canonicalUrl"] == f"{PUBLIC}/campaigns/{slug('solo')}/"
+                anonymous = await client.get(
+                    f"/api/v1/actions/{actions['solo']}/public-urls"
+                )
+                assert anonymous.status_code == 401
+
                 # D8: the order confirmation links the permanent edition URL.
                 directory = app.state.site_directory
                 assert await directory.edition_link(actions["2026"]) == (
@@ -299,6 +339,8 @@ async def main() -> None:
         await db.execute(
             "DELETE FROM charity_action WHERE id = ANY($1::uuid[])", values
         )
+        await db.execute("DELETE FROM user_session WHERE user_id=$1", admin_id)
+        await db.execute("DELETE FROM user_global_role WHERE user_id=$1", admin_id)
         await db.execute("DELETE FROM user_account WHERE id=$1", admin_id)
         await db.close()
     print(

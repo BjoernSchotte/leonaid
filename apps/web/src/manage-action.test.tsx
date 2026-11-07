@@ -196,6 +196,19 @@ function fakeClient(state: ActionManagementResponse = management()) {
       totalBoxes: 6,
       totalPieces: 0,
     })),
+    getActionPublicUrls: vi.fn(async () => ({
+      canonicalUrl: "https://krapfentaxi.org/" as string | null,
+      editions: [
+        {
+          atRoot: true,
+          editionUrl: "https://krapfentaxi.org/2099/",
+          hostStatus: "active",
+          hostname: "krapfentaxi.org",
+          isPrimary: true,
+          segment: "2099",
+        },
+      ],
+    })),
     listCampaignAliases: vi.fn(async () => ({
       actionId,
       canonicalPath: "/campaigns/krapfentaxi-2099/",
@@ -470,6 +483,28 @@ describe("action detail: drafts and revisions", () => {
     const next = await screen.findByTestId("delivery-next-step");
     expect(next.textContent).toContain("Alle Lieferfenster sind stillgelegt.");
     expect(next.textContent).not.toContain("Erstes Lieferfenster");
+  });
+
+  it("shows the action's public addresses read only (multi-domain §7.1)", async () => {
+    const client = fakeClient();
+    await renderPage("#aliases", client);
+    const section = await screen.findByTestId("action-public-urls");
+    expect(section.textContent).toContain("https://krapfentaxi.org/");
+    expect(section.textContent).toContain("krapfentaxi.org/2099/");
+    expect(section.textContent).toContain("aktuell auf /");
+    expect(within(section).queryByRole("button")).toBeNull();
+  });
+
+  it("names an action without public address (multi-domain §6.6)", async () => {
+    const client = fakeClient();
+    client.getActionPublicUrls.mockResolvedValue({
+      canonicalUrl: null,
+      editions: [],
+    });
+    await renderPage("#aliases", client);
+    expect(
+      (await screen.findByTestId("action-public-urls")).textContent,
+    ).toContain("Nicht öffentlich erreichbar");
   });
 
   it("marks the aliases of an archived action as read-only", async () => {
