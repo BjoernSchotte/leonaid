@@ -42,6 +42,8 @@ class SharedStack:
         self.ready = False
         self.used = False
         self.volumes: list[str] = []
+        # Set by the local fixture cache after it validated the entry it holds.
+        self.fixture_metadata: dict | None = None
         self.env = dict(
             os.environ,
             LEONAID_HTTP_PORT="8080",
@@ -122,6 +124,35 @@ class SharedStack:
                 raise RuntimeError(f"Owned {resource} could not be removed")
         return found
 
+    def build_images(self, targets):
+        """Build this project's images, reusing content-hash tags of all checkouts.
+
+        `leonaid-local/<service>:<hash>` covers every build input
+        (tools/testing/image_tags.py); a hit is only tagged as
+        `<project>-<service>`, a miss is built and recorded. CI builds without
+        recording, so job disks keep freeing images at teardown.
+        """
+        if __package__:
+            from . import image_tags
+        else:
+            import image_tags
+        config = json.loads(
+            self.call([*self.compose, "config", "--format", "json"], capture=True)
+        )
+        # The effective build sections, as this project's Compose files define them.
+        builds = image_tags.effective_builds(config)
+        services = [
+            name
+            for name in (targets or sorted(config["services"]))
+            if "build" in config["services"].get(name, {})
+        ]
+        missing = image_tags.adopt(self.root, self.project, builds, services)
+        if missing:
+            self.call([*self.compose, "build", *missing])
+            if not self.env.get("CI"):
+                # Recorded under the pre-build hash, only if inputs did not change.
+                image_tags.record(self.root, self.project, builds, missing)
+
     def remove_built_images(self):
         """Remove the `<project>-<service>` images Compose built for this project."""
         tags = self.call(
@@ -199,7 +230,7 @@ class SharedStack:
             if self.kind == "survey"
             else []
         )
-        self.call([*self.compose, "build", *targets])
+        self.build_images(targets)
         fixture = self.env.get("LEONAID_CI_FIXTURE")
         if fixture:
             self.import_fixture(Path(fixture))
@@ -349,12 +380,16 @@ class SharedStack:
 
     def import_fixture(self, directory):
         if __package__:
-            from .ci_fixture import environment, validate
+            from .ci_fixture import is_synthetic, validate
         else:
-            from ci_fixture import environment, validate
-        if (self.root / ".env.local").read_text() != environment(self.root):
+            from ci_fixture import is_synthetic, validate
+        if not is_synthetic(self.root, (self.root / ".env.local").read_text()):
             raise RuntimeError("Prepared CI fixture requires its synthetic environment")
-        metadata = validate(self.root, directory)
+        metadata = (
+            self.fixture_metadata
+            if self.fixture_metadata is not None
+            else validate(self.root, directory)
+        )
         self.env["TWENTY_INTEGRATION_API_KEY"] = metadata["integrationKey"]
         self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
         # Volumes are cheap to create directly. Do not pull/start unused services

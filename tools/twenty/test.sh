@@ -77,7 +77,7 @@ run_tool() {
     api tools/twenty/provision.py "$@"
 }
 
-compose build api
+build_shared_images api
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 
 echo "twenty-test: provisions an empty Twenty instance via the Metadata API"

@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 9
-reviewedRevision: 9
+contentRevision: 11
+reviewedRevision: 11
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -431,6 +431,38 @@ message shows the `docker compose ... down --volumes` command that removes
 them before a new attempt. If the key was already written, set
 `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` again; the message says so.
 
+## Create the first System Admin
+
+A new installation has no LeonAid account. As `leonaid` in `/opt/leonaid`:
+
+```sh
+./leonaid pilot-create-system-admin --env-file /etc/leonaid/production.env \
+  --email admin@club.org --display-name "Ada Admin"
+```
+
+The command creates the account with the System Admin role and sends the
+normal sign-in mail with a link and a code; there is no password. The
+System Admin signs in at `https://app.club.org/login` (or the one host) and
+invites everyone else in the admin area.
+
+- A second run for the same address changes nothing and sends no mail.
+- Once a System Admin exists, another address is refused. Add a deliberate
+  second System Admin (for example a deputy) with `--additional`.
+- An existing active account with that address is promoted instead of
+  duplicated; it keeps its name (`--display-name` is ignored, the output
+  says so). A suspended or archived account is refused (only a System Admin
+  changes that in the admin area).
+- If every System Admin is suspended or archived, no active one is left: the
+  command then creates the new one without `--additional` and says so
+  (recovery of access).
+- Each change is written to the LeonAid audit log without a person as actor
+  (`identity.account.created`, `identity.global_role.granted`); the payload
+  names the operator account and host that ran the command.
+
+If the mail does not arrive, check the relay (see
+[Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty)); the address can
+request a new sign-in mail at `/login`.
+
 ## Open the CRM
 
 The Twenty CRM is for the system administrator only. It has no public
@@ -555,7 +587,8 @@ You need:
 - a running installation from `pilot-install` and a backup younger than 26
   hours;
 - `release-manifest-cms.json` of the same release (from the release files);
-- the e-mail address of an active LeonAid System Admin who can sign in now.
+- the e-mail address of an active LeonAid System Admin who can sign in now
+  (see [Create the first System Admin](#create-the-first-system-admin)).
 
 As `leonaid` in `/opt/leonaid`:
 

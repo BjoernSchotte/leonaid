@@ -101,7 +101,7 @@ start_golden() {
     python3 "$root/tools/surveys/network_override.py" "$isolation_file"
   fi
   compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-  compose build api worker public pwa web
+  build_shared_images api worker public pwa web
   prepare_installation() (
     phase golden-pdf-prepare /bin/sh "$root/tools/typst/render_golden.sh" \
       "$root" "$proof/pdfs" "${project}-api" &
