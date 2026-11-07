@@ -38,8 +38,9 @@ names below the admin host.
 1. Wait until the DNS record is visible (often minutes, sometimes hours).
 2. Choose **Prüfen** (check) on the domain card.
 
-LeonAid calls the check address of the card through every public address of
-the domain. If this server answers everywhere, the domain shows **Geprüft**
+LeonAid checks that every `A`/`AAAA` record of the domain points to this
+server and calls the check address of the card through each of these
+addresses. If this server answers everywhere, the domain shows **Geprüft**
 (verified). On the first HTTPS request the server gets a certificate from
 Let's Encrypt; then it shows **Aktiv** (active). If it still shows
 **Geprüft**, check again after a minute. Only a verified domain gets a

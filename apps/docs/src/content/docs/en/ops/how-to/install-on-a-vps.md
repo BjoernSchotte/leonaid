@@ -177,7 +177,9 @@ installation. The system administration adds them under **System** ›
 (subdomain) pointing to this server. Caddy gets their certificate on the
 first request, but only for a domain LeonAid has checked (at most ten new ones
 per hour). Port 80 must stay open for this, and a `CAA` record of the domain
-must allow `letsencrypt.org`. The outside proof:
+must allow `letsencrypt.org`. Every `A`/`AAAA` record of the domain must
+name an address of this server; LeonAid takes the addresses of the admin host
+or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. The outside proof:
 
 ```sh
 python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org

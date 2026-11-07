@@ -14,6 +14,7 @@ indexes.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import ipaddress
 import re
 from collections.abc import Iterable, Sequence
@@ -52,6 +53,15 @@ RESERVED_EDITION_SEGMENTS = frozenset(
         "internal",
     }
     | RESERVED_PUBLIC_ALIASES
+)
+
+
+# Special-use top-level names (RFC 6761, 6762, 7686, 8375, 9476 and common
+# private suffixes): they never resolve publicly, so such a host could never
+# pass the check. Development and tests may use the first set.
+TEST_TLDS = frozenset({"test", "localhost", "invalid"})
+SPECIAL_USE_TLDS = TEST_TLDS | frozenset(
+    {"local", "internal", "example", "onion", "arpa", "alt", "home", "lan", "corp"}
 )
 
 
@@ -152,12 +162,20 @@ class ConfiguredHosts:
     admin: str
     public: str | None = None
     aliases: tuple[str, ...] = ()
+    # Development and tests: .test, .localhost and .invalid names.
+    allow_test_names: bool = False
 
     @property
     def has_public_host(self) -> bool:
         return self.public is not None
 
     def refusal(self, hostname: str) -> DomainInvariantError | None:
+        tld = hostname.rsplit(".", 1)[-1]
+        if tld in SPECIAL_USE_TLDS and not (self.allow_test_names and tld in TEST_TLDS):
+            return DomainInvariantError(
+                "site_host_special_use",
+                f"Namen unter .{tld} sind im Internet nicht erreichbar.",
+            )
         if hostname == self.admin:
             return DomainInvariantError(
                 "site_host_reserved", "Das ist der Host der Verwaltung."
@@ -402,14 +420,18 @@ class HostCheckOutcome:
     message: str
 
 
-def check_answer(hostname: str, token: str) -> str:
+def check_answer(secret: str, hostname: str, token: str, nonce: str) -> str:
     """The body this installation serves on the check path of ``hostname``.
 
-    Only this installation knows which token belongs to which name, so no
-    other server can produce it. Hashed, so the response never reflects the
-    request path.
+    An HMAC under the installation secret over host, token and the checker's
+    fresh nonce: nobody else can produce it, and a captured answer is worth
+    nothing for the next check (§7.4).
     """
-    digest = hashlib.sha256(f"{hostname}\n{token}".encode("utf-8")).hexdigest()
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        f"{hostname}\n{token}\n{nonce}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     return f"leonaid-host-check:{digest}"
 
 

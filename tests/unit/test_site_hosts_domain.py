@@ -93,6 +93,33 @@ def test_configured_hosts_are_refused(raw: str) -> None:
     assert error.value.code == "site_host_reserved"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "foo.localhost",
+        "krapfen.test",
+        "x.invalid",
+        "nas.local",
+        "db.internal",
+        "a.example",
+        "abc.onion",
+        "1.in-addr.arpa",
+        "router.home.arpa",
+    ],
+)
+def test_special_use_names_are_refused(raw: str) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        validate_site_hostname(raw, CONFIGURED)
+    assert error.value.code == "site_host_special_use"
+
+
+def test_test_names_only_in_development() -> None:
+    development = ConfiguredHosts(admin="app.example.org", allow_test_names=True)
+    assert validate_site_hostname("krapfentaxi.test", development) == "krapfentaxi.test"
+    with pytest.raises(DomainInvariantError):
+        validate_site_hostname("nas.local", development)
+
+
 def test_sibling_subdomain_of_the_club_domain_is_allowed() -> None:
     # A campaign subdomain is a sibling of the admin host, not below it.
     assert (

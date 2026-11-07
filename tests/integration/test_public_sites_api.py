@@ -100,7 +100,8 @@ async def main() -> None:
         hosts[label] = host_id
         await db.execute(
             "INSERT INTO site_host (id, hostname, status, verification_token, "
-            "created_by, redirect_to_host_id) VALUES ($1, $2, $3, $4, $5, $6)",
+            "created_by, redirect_to_host_id, verified_at) VALUES ($1, $2, $3, $4, "
+            "$5, $6, CASE WHEN $3 IN ('verified','active') THEN now() END)",
             host_id,
             name(label),
             status,

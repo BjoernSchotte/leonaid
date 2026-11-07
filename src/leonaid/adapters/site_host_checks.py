@@ -1,10 +1,16 @@
 """Host verification for campaign hosts (specs/multi-domain §7.4).
 
-The check proves that a hostname reaches this installation: Core fetches
-``http://<host>/.well-known/leonaid-host-check/<token>`` from every public
-address the name resolves to (never a private or loopback address) and
-expects this installation's answer. A TLS handshake with the edge proxy then
-proves the certificate (Caddy obtains it on demand, §9.1).
+The check proves that a hostname points to this installation's edge:
+
+1. every address the name resolves to is one of the edge's own addresses
+   (configured, or the addresses of the admin host) — so a lapsed domain
+   that someone else re-registered fails, even if they relay requests;
+2. ``http://<address>/.well-known/leonaid-host-check/<token>?nonce=<n>``
+   answers with an HMAC of host, token and a fresh nonce under a server
+   secret, so a captured answer cannot be replayed (never a private or
+   loopback address, no redirects, at most 1 KiB);
+3. a TLS handshake with the edge proxy for that name proves the certificate
+   (Caddy obtains it on demand, §9.1).
 """
 
 from __future__ import annotations
@@ -12,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import ipaddress
+import secrets
 import socket
 import ssl
 from collections.abc import Awaitable, Callable, Sequence
@@ -25,11 +32,18 @@ HOST_CHECK_PREFIX = "/.well-known/leonaid-host-check/"
 MAX_RESPONSE_BYTES = 1024
 HTTP_TIMEOUT_SECONDS = 5.0
 TLS_TIMEOUT_SECONDS = 20.0
+NAT64 = ipaddress.ip_network("64:ff9b::/96")
 
 
 @dataclass(frozen=True, slots=True)
 class HostCheckSettings:
+    # Keys the check answer (derived from the installation secret).
+    secret: str = ""
     http_port: int = 80
+    # The edge's own addresses. Empty: the addresses of ``edge_name``.
+    edge_addresses: tuple[str, ...] = ()
+    # The name whose addresses are the edge's (the admin host).
+    edge_name: str = ""
     # Development and tests only: the dev stack resolves to Docker addresses.
     allow_private_addresses: bool = False
     # The edge proxy that terminates TLS for every site host.
@@ -49,21 +63,25 @@ async def system_resolver(hostname: str, port: int) -> Sequence[str]:
 
 
 def forbidden_address(address: str) -> bool:
-    """Private, loopback and special ranges (the SSRF rule of §7.4)."""
+    """Every address that is not globally routable (the SSRF rule of §7.4).
+
+    IPv6 forms that embed an IPv4 address (mapped, 6to4, Teredo, NAT64)
+    count as that IPv4 address.
+    """
     ip = ipaddress.ip_address(address)
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+    if not ip.is_global or ip.is_multicast:
         return True
-    return bool(
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
-
-
-_UNREACHABLE_V6 = "unreachable-v6"
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = [ip.ipv4_mapped, ip.sixtofour]
+        if ip.teredo is not None:
+            embedded.append(ip.teredo[1])
+        if ip in NAT64:
+            embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        return (
+            any(item is not None and forbidden_address(str(item)) for item in embedded)
+            or ip.ipv4_mapped is not None
+        )
+    return False
 
 
 class HostChecker:
@@ -91,8 +109,22 @@ class HostChecker:
             return HostCheckOutcome(True, False, problem)
         return HostCheckOutcome(True, True, "Host und Zertifikat sind in Ordnung.")
 
+    async def _edge(self) -> set[str] | None:
+        if self._settings.edge_addresses:
+            return {str(ipaddress.ip_address(a)) for a in self._settings.edge_addresses}
+        if not self._settings.edge_name:
+            return None
+        try:
+            found = await asyncio.wait_for(
+                self._resolve(self._settings.edge_name, self._settings.http_port),
+                HTTP_TIMEOUT_SECONDS,
+            )
+        except (OSError, asyncio.TimeoutError):
+            return None
+        return {str(ipaddress.ip_address(a)) for a in found}
+
     async def _http(self, hostname: str, token: str) -> str | None:
-        """None when every reachable public address answers correctly."""
+        """None when every address is ours and answers correctly."""
         try:
             addresses = await asyncio.wait_for(
                 self._resolve(hostname, self._settings.http_port),
@@ -100,31 +132,42 @@ class HostChecker:
             )
         except (OSError, asyncio.TimeoutError):
             return "Der Name ist im DNS nicht auflösbar."
-        allowed = [
-            address
-            for address in addresses
-            if self._settings.allow_private_addresses or not forbidden_address(address)
-        ]
-        if not allowed:
-            return "Der Name zeigt auf keine öffentliche Adresse."
-        expected = check_answer(hostname, token)
-        passed = 0
-        for address in allowed:
-            problem = await self._fetch(address, hostname, token, expected)
+        addresses = [str(ipaddress.ip_address(a)) for a in addresses]
+        if not self._settings.allow_private_addresses and any(
+            forbidden_address(address) for address in addresses
+        ):
+            return "Der Name zeigt (auch) auf eine nicht öffentliche Adresse."
+        if not addresses:
+            return "Der Name ist im DNS nicht auflösbar."
+        edge = await self._edge()
+        if edge is None:
+            return "Die Adressen dieses Servers sind nicht bekannt."
+        foreign = [address for address in addresses if address not in edge]
+        if foreign:
+            kind = "AAAA" if ":" in foreign[0] else "A"
+            return (
+                f"{kind}-Eintrag {foreign[0]} zeigt nicht auf diesen Server "
+                f"({', '.join(sorted(edge))})."
+            )
+        reached = 0
+        for address in addresses:
+            problem = await self._fetch(address, hostname, token)
             if problem is None:
-                passed += 1
+                reached += 1
             elif problem != _UNREACHABLE_V6:
                 return problem
-        if passed == 0:
+        if reached == 0:
             return "Der Server ist unter diesem Namen nicht erreichbar."
         return None
 
-    async def _fetch(
-        self, address: str, hostname: str, token: str, expected: str
-    ) -> str | None:
+    async def _fetch(self, address: str, hostname: str, token: str) -> str | None:
         ip = ipaddress.ip_address(address)
         literal = f"[{address}]" if ip.version == 6 else address
-        url = f"http://{literal}:{self._settings.http_port}{HOST_CHECK_PREFIX}{token}"
+        nonce = secrets.token_hex(16)
+        url = (
+            f"http://{literal}:{self._settings.http_port}"
+            f"{HOST_CHECK_PREFIX}{token}?nonce={nonce}"
+        )
         body = b""
         try:
             async with httpx.AsyncClient(
@@ -143,17 +186,17 @@ class HostChecker:
                     if response.status_code != 200:
                         return (
                             f"{address}: Antwort {response.status_code} statt der "
-                            "LeonAid-Prüfseite. Zeigt der DNS-Eintrag auf diesen "
-                            "Server?"
+                            "LeonAid-Prüfseite."
                         )
         except httpx.TimeoutException:
             return f"{address}: keine Antwort innerhalb von 5 Sekunden."
         except httpx.HTTPError as error:
-            # Containers often have no IPv6 egress; only a wrong answer over
-            # IPv6 fails the check, an unreachable route does not.
+            # The address is ours (checked above); this container may just
+            # have no IPv6 route. Another address must answer.
             if ip.version == 6 and isinstance(error, httpx.ConnectError):
                 return _UNREACHABLE_V6
             return f"{address}: Port {self._settings.http_port} nicht erreichbar."
+        expected = check_answer(self._settings.secret, hostname, token, nonce)
         answer = body.decode("utf-8", "replace").strip()
         if not hmac.compare_digest(answer.encode(), expected.encode()):
             return f"{address}: Antwort stammt nicht von dieser Installation."
@@ -186,3 +229,6 @@ class HostChecker:
         except (ssl.SSLError, OSError):
             pass
         return None
+
+
+_UNREACHABLE_V6 = "unreachable-v6"

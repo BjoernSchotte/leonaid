@@ -37,16 +37,22 @@ def addresses(hostname: str) -> list[str]:
     return list(dict.fromkeys(str(info[4][0]) for info in infos))
 
 
+NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
 def public(address: str) -> bool:
+    """Globally routable, also for IPv6 forms that embed an IPv4 address."""
     ip = ipaddress.ip_address(address)
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
+    if not ip.is_global or ip.is_multicast:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return False
+        embedded = [ip.sixtofour, ip.teredo[1] if ip.teredo else None]
+        if ip in NAT64:
+            embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        return all(item is None or public(str(item)) for item in embedded)
+    return True
 
 
 def http_get(

@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("astro:middleware", () => ({
-  defineMiddleware: (handler: unknown) => handler,
-}));
-
 import { hasSecureSiteOrigin, siteOriginOf } from "./auth/public-origin";
-import { campaignHostOf, lookupSite } from "./site-host";
+import { campaignHostOf, lookupSite } from "./site-host-lookup";
 
 // specs/multi-domain §7.2, §9.2: a campaign host is a candidate only through
 // the edge, never a configured host, and counts as site origin only after

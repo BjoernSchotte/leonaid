@@ -199,6 +199,8 @@ services:
       LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "true"
       LEONAID_SITE_HOST_CHECK_HTTP_PORT: "8080"
       LEONAID_SITE_HOST_TLS_EDGE: proxy:8443
+      # Dev campaign hosts are network aliases of the proxy container.
+      LEONAID_SITE_HOST_EDGE_NAME: proxy
       LEONAID_SITE_HOST_TLS_CA_FILE: ${LEONAID_SITE_HOST_TLS_CA_FILE:-}
       LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS: ${LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS:-0}
       # Credentialed origins. The dev split sets only the admin host here, so

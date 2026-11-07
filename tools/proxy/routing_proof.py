@@ -334,6 +334,11 @@ def main() -> int:
                     f"{probe.method} https://{probe.host}{probe.path}: header "
                     f"{name} lacks {text!r}: {received.get(name.casefold())!r}"
                 )
+    # Campaign hosts are often apex domains: no includeSubDomains (§9).
+    _, _, received = request(Probe(CAMPAIGN, "/_health", 0, ""))
+    hsts = received.get("strict-transport-security", "")
+    if "max-age=" not in hsts or "includesubdomains" in hsts.casefold():
+        failures.append(f"https://{CAMPAIGN}/_health: HSTS {hsts!r}")
     if mode == "split":
         for host, path in NO_SUBDOMAIN_HSTS + (((ALIAS, "/x"),) if PORT == 443 else ()):
             _, _, received = request(Probe(host, path, 0, ""))

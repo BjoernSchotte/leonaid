@@ -362,6 +362,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.public_origins = SiteHostPublicOrigins(
             settings.public_origins, site_directory
         )
+        application.state.site_host_check_secret = settings.site_host_check_secret
         site_host_verification = AsyncpgSiteHostVerification(pool)
         application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(

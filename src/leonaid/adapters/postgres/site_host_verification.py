@@ -7,7 +7,10 @@ ignores the result when hostname or token changed in between (a re-add).
 
 from __future__ import annotations
 
+import asyncio
+import hmac
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -29,6 +32,7 @@ TLS_NEW_APPROVALS_PER_HOUR = 10
 TLS_APPROVAL_LOCK = 527062
 # A host is re-checked when its last check is older than this.
 RECHECK_AFTER = timedelta(hours=20)
+SNAPSHOT_SECONDS = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,9 +54,21 @@ class SiteHostIssue:
     live_bindings: int
 
 
+@dataclass(frozen=True, slots=True)
+class _HostState:
+    status: SiteHostStatus
+    token: str
+    tls_approved: bool
+
+
 class AsyncpgSiteHostVerification:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
+        self._snapshot: dict[str, _HostState] | None = None
+        self._snapshot_at = 0.0
+        self._snapshot_lock = asyncio.Lock()
+        # Observable for tests: one query per refresh.
+        self.snapshot_queries = 0
 
     async def target(self, host_id: UUID) -> CheckTarget:
         async with self._pool.acquire() as db:
@@ -70,8 +86,11 @@ class AsyncpgSiteHostVerification:
     async def due(self, now: datetime) -> list[CheckTarget]:
         """Hosts for the periodic re-check.
 
-        Verified hosts every run (they wait for their certificate); active
-        hosts and disabled hosts with live bindings once per day.
+        Verified hosts wait for their certificate: 20 min in the first hour,
+        then hourly, then every 6 h, then daily, so failed issuance stays well
+        below Let's Encrypt's 5 failed validations per name and hour (each TLS
+        check may start an ACME order). Active hosts and disabled hosts with
+        live bindings once per day.
         """
         async with self._pool.acquire() as db:
             rows = await db.fetch(
@@ -80,7 +99,13 @@ class AsyncpgSiteHostVerification:
                        EXISTS(SELECT 1 FROM site_binding b WHERE b.site_host_id=h.id
                               AND b.valid_to IS NULL) AS live
                 FROM site_host h
-                WHERE h.status = 'verified'
+                WHERE (h.status = 'verified' AND (
+                        h.last_checked_at IS NULL
+                        OR h.last_checked_at < $2::timestamptz - CASE
+                          WHEN h.verified_at > $2::timestamptz - interval '1 hour' THEN interval '20 minutes'
+                          WHEN h.verified_at > $2::timestamptz - interval '6 hours' THEN interval '1 hour'
+                          WHEN h.verified_at > $2::timestamptz - interval '24 hours' THEN interval '6 hours'
+                          ELSE interval '20 hours' END))
                    OR (h.status = 'active'
                        AND (h.last_checked_at IS NULL OR h.last_checked_at < $1))
                    OR (h.status = 'disabled'
@@ -91,6 +116,7 @@ class AsyncpgSiteHostVerification:
                 LIMIT 50
                 """,
                 now - RECHECK_AFTER,
+                now,
             )
         return [_target(row) for row in rows]
 
@@ -173,19 +199,54 @@ class AsyncpgSiteHostVerification:
                             }
                         ),
                     )
+                self.invalidate()
                 return CheckRecord(transition.status, previous, message)
+
+    # ---------- in-process snapshot (§9.1) ----------
+    #
+    # Caddy asks on every handshake for a name it has no certificate for, and
+    # port 80 answers the check path for any requester. Both read this
+    # snapshot of the few site hosts instead of the database, so a flood of
+    # junk names or tokens costs no query. Refreshed at most every
+    # SNAPSHOT_SECONDS by one request at a time; commands and checks of this
+    # process invalidate it.
+
+    async def _hosts(self) -> dict[str, _HostState]:
+        now = time.monotonic()
+        if self._snapshot is not None and now - self._snapshot_at < SNAPSHOT_SECONDS:
+            return self._snapshot
+        async with self._snapshot_lock:
+            if (
+                self._snapshot is not None
+                and time.monotonic() - self._snapshot_at < SNAPSHOT_SECONDS
+            ):
+                return self._snapshot
+            async with self._pool.acquire() as db:
+                rows = await db.fetch(
+                    "SELECT hostname, status, verification_token, tls_approved_at "
+                    "FROM site_host"
+                )
+            self.snapshot_queries += 1
+            self._snapshot = {
+                row["hostname"]: _HostState(
+                    SiteHostStatus(row["status"]),
+                    row["verification_token"],
+                    row["tls_approved_at"] is not None,
+                )
+                for row in rows
+            }
+            self._snapshot_at = time.monotonic()
+            return self._snapshot
+
+    def invalidate(self) -> None:
+        self._snapshot = None
 
     async def answers(self, hostname: str, token: str) -> bool:
         """The check path of ``hostname`` with ``token`` belongs to us."""
-        async with self._pool.acquire() as db:
-            return bool(
-                await db.fetchval(
-                    "SELECT EXISTS(SELECT 1 FROM site_host WHERE hostname=$1 "
-                    "AND verification_token=$2)",
-                    hostname,
-                    token,
-                )
-            )
+        state = (await self._hosts()).get(hostname)
+        return state is not None and hmac.compare_digest(
+            state.token.encode(), token.encode()
+        )
 
     async def approve_tls(self, hostname: str, now: datetime) -> bool:
         """Caddy's on-demand ``ask`` (§9.1): verified or active hosts only.
@@ -193,39 +254,34 @@ class AsyncpgSiteHostVerification:
         A host that never had a certificate counts against at most
         TLS_NEW_APPROVALS_PER_HOUR new approvals per hour.
         """
-        async with self._pool.acquire() as db:
-            row = await db.fetchrow(
-                "SELECT id, status, tls_approved_at FROM site_host WHERE hostname=$1",
-                hostname,
-            )
-            if (
-                row is None
-                or SiteHostStatus(row["status"]) not in TLS_APPROVED_STATUSES
-            ):
-                return False
-            if row["tls_approved_at"] is not None:
-                return True
-            async with db.transaction():
-                await db.execute("SET LOCAL lock_timeout='3s'")
-                await db.execute("SELECT pg_advisory_xact_lock($1)", TLS_APPROVAL_LOCK)
-                recent = await db.fetchval(
-                    "SELECT count(*) FROM site_host WHERE tls_approved_at > $1",
-                    now - timedelta(hours=1),
-                )
-                if int(recent) >= TLS_NEW_APPROVALS_PER_HOUR:
-                    return False
-                updated = await db.execute(
-                    "UPDATE site_host SET tls_approved_at=$2 WHERE id=$1 "
-                    "AND tls_approved_at IS NULL AND status IN ('verified','active')",
-                    row["id"],
-                    now,
-                )
-                return updated == "UPDATE 1" or bool(
-                    await db.fetchval(
-                        "SELECT tls_approved_at IS NOT NULL FROM site_host WHERE id=$1",
-                        row["id"],
+        state = (await self._hosts()).get(hostname)
+        if state is None or state.status not in TLS_APPROVED_STATUSES:
+            return False
+        if state.tls_approved:
+            return True
+        try:
+            async with self._pool.acquire() as db:
+                async with db.transaction():
+                    await db.execute("SET LOCAL lock_timeout='3s'")
+                    await db.execute(
+                        "SELECT pg_advisory_xact_lock($1)", TLS_APPROVAL_LOCK
                     )
-                )
+                    recent = await db.fetchval(
+                        "SELECT count(*) FROM site_host WHERE tls_approved_at > $1",
+                        now - timedelta(hours=1),
+                    )
+                    if int(recent) >= TLS_NEW_APPROVALS_PER_HOUR:
+                        return False
+                    approved = await db.fetchval(
+                        "UPDATE site_host SET tls_approved_at=COALESCE(tls_approved_at,$2) "
+                        "WHERE hostname=$1 AND status IN ('verified','active') "
+                        "RETURNING true",
+                        hostname,
+                        now,
+                    )
+                    return bool(approved)
+        finally:
+            self.invalidate()
 
     async def issues(self) -> tuple[SiteHostIssue, ...]:
         async with self._pool.acquire() as db:

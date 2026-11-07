@@ -727,7 +727,8 @@ def _site(addresses: str, role: str, target: Target, extra: list[str]) -> list[s
         lines.append("\ttls internal")
     lines.append(
         "\timport public_host_headers"
-        if role == "public"
+        # A campaign host is often an apex domain, like the public host.
+        if role in ("public", "site")
         else "\timport common_headers"
     )
     lines.append("")

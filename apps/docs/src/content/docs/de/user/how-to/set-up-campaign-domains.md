@@ -38,8 +38,9 @@ nicht eintragen, ebenso keine Namen unterhalb des Verwaltungshosts.
 1. Warte, bis der DNS-Eintrag sichtbar ist (oft Minuten, manchmal Stunden).
 2. Wähle auf der Domain-Karte **Prüfen**.
 
-LeonAid ruft die Prüfadresse der Karte über jede öffentliche Adresse der
-Domain auf. Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
+LeonAid prüft, dass jeder `A`/`AAAA`-Eintrag der Domain auf diesen Server
+zeigt, und ruft die Prüfadresse der Karte über jede dieser Adressen auf.
+Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
 Beim ersten Aufruf über HTTPS holt der Server ein Zertifikat von Let's
 Encrypt; danach steht sie auf **Aktiv**. Steht sie noch auf **Geprüft**,
 prüfe nach einer Minute erneut. Erst eine geprüfte Domain erhält ein

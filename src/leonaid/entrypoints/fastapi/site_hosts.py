@@ -449,7 +449,11 @@ async def check_site_host(
     host_id: UUID, request: Request, response: Response
 ) -> SiteHostResponse:
     """Prüfen (§7.4): the host check runs now; the answer has its result."""
-    actor = await _reader(request, response)
+    response.headers["Cache-Control"] = "no-store"
+    # It changes the host's status, like every other write on hosts.
+    actor = await _identity(request).authenticate_fresh(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
     view = await _service(request).check(
         actor, host_id, request_id=cast(str, request.state.request_id)
     )
@@ -476,17 +480,33 @@ def _request_hostname(request: Request) -> str | None:
 
 
 @infrastructure_router.get(HOST_CHECK_PREFIX + "{token}")
-async def host_check_answer(token: str, request: Request) -> Response:
-    """Answered on port 80 of every name; proves the name reaches us (§7.4)."""
+async def host_check_answer(
+    token: str,
+    request: Request,
+    nonce: str = Query(default="", max_length=64),
+) -> Response:
+    """Answered on port 80 of every name; proves the name reaches us (§7.4).
+
+    The answer is an HMAC over host, token and the checker's nonce, keyed
+    with the installation secret. Lookups come from an in-process snapshot.
+    """
     hostname = _request_hostname(request)
     if (
         hostname is None
         or not 32 <= len(token) <= 128
+        or not 16 <= len(nonce) <= 64
+        or not all(character in "0123456789abcdef" for character in nonce)
         or not await _verification(request).answers(hostname, token)
     ):
         raise ResourceNotFound("site_host_check_unknown", "Unbekannte Host-Prüfung.")
     return PlainTextResponse(
-        check_answer(hostname, token), headers={"Cache-Control": "no-store"}
+        check_answer(
+            cast(str, request.app.state.site_host_check_secret),
+            hostname,
+            token,
+            nonce,
+        ),
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -507,6 +527,9 @@ async def tls_ask(request: Request, domain: str = Query(max_length=300)) -> Resp
         hostname = normalize_hostname(domain)
     except DomainInvariantError:
         raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.") from None
+    # Configured hosts have their own site blocks; never on demand.
+    if _service(request).configured.refusal(hostname) is not None:
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
     if not await _verification(request).approve_tls(
         hostname, datetime.now(timezone.utc)
     ):
