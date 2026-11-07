@@ -15,7 +15,6 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, Request, Response, status
 
-from leonaid.adapters.postgres.site_directory import AsyncpgSiteDirectory
 from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
@@ -88,6 +87,7 @@ from leonaid.application.documents import (
     GeneratedDocumentService,
 )
 from leonaid.application.email_changes import EmailChangeService
+from leonaid.application.site_hosts import CampaignHostUrls
 from leonaid.application.campaign_aliases import (
     CampaignAliasCommand,
     CampaignAliasService,
@@ -1249,7 +1249,7 @@ async def campaign_host_url(
     request: Request, action: CharityAction | None, archive_slug: str | None
 ) -> str | None:
     """The action's canonical URL on a campaign host, or None (§7.7.3)."""
-    directory = cast(AsyncpgSiteDirectory, request.app.state.site_directory)
+    directory = cast(CampaignHostUrls, request.app.state.site_directory)
     if action is not None:
         return (await directory.campaign_host_urls([action.id])).get(action.id)
     if archive_slug:
@@ -2099,7 +2099,7 @@ async def list_public_campaigns(
     listings = await action_service(request).list_active_public_campaigns()
     links = cast(LinkBuilder, request.app.state.links)
     hosted = await cast(
-        AsyncpgSiteDirectory, request.app.state.site_directory
+        CampaignHostUrls, request.app.state.site_directory
     ).campaign_host_urls(listing.action.id for listing in listings)
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
     return PublicCampaignListResponse(
