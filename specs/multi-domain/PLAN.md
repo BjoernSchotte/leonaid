@@ -1464,7 +1464,7 @@ Rulings:
 - R39: the edition list is the internal page `/site-editions`, reachable only through the host middleware.
 - R40: scheduled editions are not in the public site response; their segment answers 404 until public.
 - R41: a campaign host shows CMS campaign pages only; legacy alias pages stay on the public host. Consequence without a public host (R46): an action without a published CMS page has no public order page at all.
-- R42: D8 open: there is no customer order-confirmation mail yet. `edition_link` (permanent edition URL, never the root) is ready for it.
+- R42: D8: the buyer's order mails (confirmation, cancellation) link `edition_link`: the permanent edition URL on the campaign host, never the root, else the public host page, else none.
 - R43: `ask` and the check path read a 10 s in-process snapshot; site-host admission in the campaign site, the public app and Core public origins caches 30 s. A lapsed host may serve up to 30 s more; a new one may show 404 for up to 30 s.
 - R44: redirect hosts redirect as a whole in every app and are no public origins.
 - R45: public origins accept the request's own host on port 443 only in production (other ports in dev).

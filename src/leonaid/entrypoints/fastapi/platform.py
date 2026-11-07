@@ -25,7 +25,6 @@ from leonaid.adapters.feature_flags.openfeature import (
 )
 from leonaid.adapters.http_readiness import HttpReadinessProbe
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.postgres.order_mails import PublicCampaignLinks
 from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.acquisition import (
     AsyncpgAcquisitionPolicyRepository,
@@ -405,10 +404,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
         )
-        # The buyer's order mails link the campaign and the legal pages.
+        # The buyer's order mails link the campaign and the legal pages. The
+        # campaign link is the permanent edition URL on the campaign host
+        # (decision D8), else the public host page, else none (§7.6).
         order_mail_links = OrderMailLinkResolver(
-            settings.links,
-            PublicCampaignLinks(pool, settings.links).campaign_link,
+            settings.links, site_directory.edition_link
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links
