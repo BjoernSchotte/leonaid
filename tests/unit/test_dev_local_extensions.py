@@ -126,6 +126,7 @@ def _compose_files(
             f"default_project='{default_project}'",
             "dev_project=${LEONAID_COMPOSE_PROJECT:-$default_project}",
             "compose_queue_store_guard() { :; }",
+            "require_recorded_main() { :; }",
             "docker() { printf '%s\\n' \"$@\"; }",
             _cli_functions(),
             "compose up --detach",

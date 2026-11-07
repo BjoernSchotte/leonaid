@@ -21,7 +21,7 @@
 # unless LEONAID_QUEUE_DISCARD_PENDING=true is set.
 #
 # Usage: infra/upgrade/twenty-queue-store.sh <status|migrate|require-current> [ROOT]
-# The Compose project comes from LEONAID_COMPOSE_PROJECT (default leonaid).
+# The Compose project comes from LEONAID_COMPOSE_PROJECT (required).
 # The script addresses containers by their Compose labels, so it works with
 # whatever compose files and overlays created them.
 set -eu
@@ -31,7 +31,7 @@ root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
 action=${1:-}
-project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+project=${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is required (use ./leonaid, never a default project)}
 volume="${project}_twenty-redis-data"
 drain_timeout=${LEONAID_QUEUE_DRAIN_TIMEOUT:-300}
 discard_pending=${LEONAID_QUEUE_DISCARD_PENDING:-false}

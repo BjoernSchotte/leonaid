@@ -1,4 +1,4 @@
-name: leonaid
+name: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing; run ./leonaid bootstrap}
 
 x-logging: &default-logging
   driver: local

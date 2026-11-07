@@ -6,7 +6,7 @@ root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
 action=${1:-}
-project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+project=${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is required (use ./leonaid, never a default project)}
 compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_MAINTENANCE_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_MAINTENANCE_COMPOSE_OVERLAY_SECONDARY:-}

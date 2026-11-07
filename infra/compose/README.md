@@ -73,13 +73,26 @@ files live in the git-ignored `.local/dev/` directory. Create it to opt in:
 mkdir -p .local/dev/caddy.d .local/dev/static
 ```
 
-Each checkout has its own dev project. The main checkout uses `leonaid`; a
-linked worktree (for example an agent worktree under `.claude/worktrees/`)
-uses `leonaid-wt-<checksum of its path>` and never the main checkout's ports
-(nor 28080/28081), so `dev`, `seed`, `reset` or `doctor` in a worktree never
-touch the main instance. `./leonaid local-instance` prints the project;
-`LEONAID_COMPOSE_PROJECT` overrides it. A worktree whose `.env.local` still
-holds the main checkout's ports gets a new pair on the next `./leonaid bootstrap`.
+Each checkout has its own dev project, and only one checkout may address the
+long-running main instance (project `leonaid`):
+
+- Record the main checkout once: `./leonaid bootstrap --main-instance` (writes
+  `.local/main-instance`; `LEONAID_MAIN_CHECKOUT=<path>` does the same).
+  Until then, a checkout that already runs the `leonaid` stack refuses Compose
+  commands with this hint instead of starting a second stack.
+- Every other checkout (linked worktree, clone, exported tree, or one where
+  `git` fails) uses `leonaid-wt-<cksum of its physical path>`. It never uses the
+  main instance's ports, 8080/8443 or 28080/28081: `./leonaid dev` refuses them
+  and `./leonaid bootstrap` picks a free pair. `LEONAID_COMPOSE_PROJECT=leonaid`
+  is refused outside the main checkout; other values override the project.
+- `bootstrap` writes the project to `.env.local` (`LEONAID_COMPOSE_PROJECT`), so
+  plain `docker compose --env-file .env.local --file infra/compose/compose.yml …`
+  addresses the checkout's own stack; without the setting `compose.yml` refuses
+  to load. `backup`, `maintenance` and the Twenty queue-store migration require
+  an explicit project too.
+- `./leonaid local-instance` prints the project, checkout kind and reserved
+  ports. Moving or renaming a checkout changes its project; remove the old
+  stack with `docker compose --project-name <old> down --volumes`.
 
 When `.local/dev/` exists, every `./leonaid` command that runs Compose for the
 checkout's default dev project adds these files:
