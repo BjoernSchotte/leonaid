@@ -4,10 +4,11 @@
  * the runtime while the flag `pwa.offline_queue` is on
  * (specs/pwa-offline-queue §16).
  */
-import { createContext, useContext } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 import { ApiError } from "@leonaid/api-client";
 
+import type { QueueController, QueueSnapshot } from "./controller";
 import type { CacheKind, DeviceStore } from "./device-store";
 import { cacheFreshness } from "./read-cache";
 
@@ -15,10 +16,13 @@ export interface OfflineRuntime {
   /** The flag is on and the device storage is open. */
   readonly enabled: boolean;
   readonly store: DeviceStore | null;
+  /** The capture queue (stage 3); null while the flag is off. */
+  readonly queue: QueueController | null;
 }
 
 export const DISABLED_OFFLINE_RUNTIME: OfflineRuntime = {
   enabled: false,
+  queue: null,
   store: null,
 };
 
@@ -28,6 +32,23 @@ export const OfflineRuntimeContext = createContext<OfflineRuntime>(
 
 export function useOfflineRuntime(): OfflineRuntime {
   return useContext(OfflineRuntimeContext);
+}
+
+const EMPTY_SNAPSHOT: QueueSnapshot = {
+  entries: [],
+  evictable: false,
+  paused: false,
+  sending: false,
+  sent: [],
+};
+
+/** The queue's current state; empty without a queue. */
+export function useQueueSnapshot(): QueueSnapshot {
+  const { queue } = useOfflineRuntime();
+  return useSyncExternalStore(
+    (listener) => queue?.subscribe(listener) ?? (() => undefined),
+    () => queue?.snapshot ?? EMPTY_SNAPSHOT,
+  );
 }
 
 /** The cached document is older than 7 days: offline capture is blocked (D3). */

@@ -13,6 +13,7 @@ import {
   type CommitmentBuyerResponse,
   type CommitmentResponse,
   type ConfiguredOfferingResponse,
+  type CreateCommitmentRequest,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
@@ -36,6 +37,7 @@ import {
   useScreenHeading,
   useSponsorBoard,
 } from "../acquisition/pwa-common";
+import type { SubmitOutcome } from "../offline/controller";
 import { minimizeCaptureContext } from "../offline/read-cache";
 import {
   STALE_READ_CACHE_TEXT,
@@ -212,6 +214,72 @@ function StepList({ step }: { readonly step: number }) {
   );
 }
 
+/** An order kept on the device: not yet (or not cleanly) at Core. */
+interface QueuedOrder {
+  readonly queued: Exclude<SubmitOutcome["state"], "accepted">;
+  readonly readyForReview: boolean;
+  readonly totalMinor: number;
+  readonly currency: string;
+}
+
+/** §12.3: "Bestellung gespeichert. Wird gesendet, …" (prototype copy). */
+function QueuedConfirmation({
+  actionId,
+  buyer,
+  order,
+  sponsor,
+}: {
+  readonly actionId: string;
+  readonly buyer: CommitmentBuyerResponse;
+  readonly order: QueuedOrder;
+  readonly sponsor: AcquisitionActivityWorkItemResponse | undefined;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    heading.current?.focus({ preventScroll: true });
+  }, []);
+  const decision = order.queued !== "queued";
+  return (
+    <section
+      aria-labelledby="commitment-queued-heading"
+      className="pwa-done"
+      data-testid="commitment-queued"
+    >
+      <span aria-hidden="true" className="pwa-done-icon">
+        <Icon icon={Check} size={20} />
+      </span>
+      <h1
+        className="pwa-h1"
+        id="commitment-queued-heading"
+        ref={heading}
+        tabIndex={-1}
+      >
+        Bestellung gespeichert
+      </h1>
+      <p className="muted">
+        Für {buyer.displayName}, {formatMoney(order.totalMinor, order.currency)}.
+      </p>
+      <p className="small muted" data-testid="commitment-queued-text">
+        {decision
+          ? "Sie liegt auf diesem Gerät und braucht deine Entscheidung. Öffne die Warteschlange über das Netz-Symbol oben."
+          : order.readyForReview
+            ? "Wird gesendet, sobald du wieder online bist. Die Aktionsleitung prüft die Bestellung und stellt danach die Rechnung aus."
+            : "Wird als Entwurf gesendet, sobald du wieder online bist."}
+      </p>
+      {sponsor ? (
+        <a
+          className={`${buttonClassName({ size: "lg", variant: "primary" })} pwa-wide`}
+          href={sponsorHref(actionId, sponsor.assignmentId)}
+          onClick={followInPage}
+        >
+          Zurück zu {sponsor.partyDisplayName}
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
 function CaptureSuccess({
   actionId,
   client,
@@ -349,6 +417,7 @@ export function CommitmentCapturePage({
     stepHeading.current?.focus({ preventScroll: false });
   }, [step]);
   const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
+  const [queuedOrder, setQueuedOrder] = useState<QueuedOrder | null>(null);
   const [confirmFull, setConfirmFull] = useState(false);
   const appliedBuyer = useRef("");
   const commandId = useRef(crypto.randomUUID());
@@ -414,7 +483,7 @@ export function CommitmentCapturePage({
   }, [buyerKey]);
 
   const create = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       allowFullWindow = false,
       readyForReview,
       selected,
@@ -424,10 +493,8 @@ export function CommitmentCapturePage({
       readonly readyForReview: boolean;
       readonly selected: CommitmentBuyerResponse;
       readonly selectedOffering: ConfiguredOfferingResponse;
-    }) =>
-      client.createCommitment(
-        actionId,
-        {
+    }): Promise<CommitmentResponse | QueuedOrder> => {
+      const body: CreateCommitmentRequest = {
           allowFullWindow,
           buyer: selected,
           ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
@@ -449,11 +516,51 @@ export function CommitmentCapturePage({
           ],
           readyForReview,
           source: "acquisition",
+        };
+      if (!runtime.queue || !sponsor) {
+        return client.createCommitment(actionId, body, {
+          headers: { "Idempotency-Key": `poc081:${commandId.current}` },
+        });
+      }
+      // Offline capture on: saved on the device first, sent at once when
+      // online (specs/pwa-offline-queue §9.1); the price and window it was
+      // made against are the entry's base (§9.3, §11.3).
+      const chosenWindow = configuration?.windows.find(
+        (item) => item.id === delivery.windowId,
+      );
+      const outcome = await runtime.queue.submit({
+        actionId,
+        assignmentId: sponsor.assignmentId,
+        base: {
+          unitPriceMinor: selectedOffering.unitPriceMinor,
+          windowFullyBooked: chosenWindow?.fullyBooked ?? false,
+          windowId: deliveryEnabled ? delivery.windowId || null : null,
         },
-        { headers: { "Idempotency-Key": `poc081:${commandId.current}` } },
-      ),
-    onSuccess: (order) => {
+        kind: "commitment",
+        party: {
+          displayName: sponsor.partyDisplayName,
+          id: sponsor.partyId,
+          kind: sponsor.partyKind,
+        },
+        request: body,
+      });
+      if (outcome.state === "accepted" && outcome.result.kind === "commitment") {
+        return outcome.result.response;
+      }
+      return {
+        currency: selectedOffering.currency,
+        queued: outcome.state === "accepted" ? "queued" : outcome.state,
+        readyForReview,
+        totalMinor: quantity * selectedOffering.unitPriceMinor,
+      };
+    },
+    onSuccess: (saved) => {
       setConfirmFull(false);
+      if ("queued" in saved) {
+        setQueuedOrder(saved);
+        return;
+      }
+      const order = saved;
       setSavedOrder(order);
       // The sponsor's status and the pipeline move with the order.
       void queries.invalidateQueries({
@@ -509,6 +616,16 @@ export function CommitmentCapturePage({
     goToStep(3);
   }
 
+  if (queuedOrder && buyer) {
+    return (
+      <QueuedConfirmation
+        actionId={actionId}
+        buyer={buyer}
+        order={queuedOrder}
+        sponsor={sponsor}
+      />
+    );
+  }
   const result = savedOrder ?? existing.data;
   const showDelivery = (order: CommitmentResponse) =>
     Boolean(

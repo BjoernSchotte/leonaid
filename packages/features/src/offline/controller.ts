@@ -1,0 +1,356 @@
+/*
+ * The capture queue as the page uses it (specs/pwa-offline-queue §9.1):
+ * write a capture, send it at once when online, retry on `online`, focus,
+ * visibility and a backoff timer, and keep every tab's view current. One
+ * tab sends at a time (Web Lock); the others follow over a
+ * BroadcastChannel and re-read the store.
+ */
+import {
+  drainQueue,
+  type SyncDependencies,
+  type SyncReport,
+} from "./sync";
+import {
+  capturedAtNow,
+  idempotencyKeyFor,
+  nextDueAt,
+  newEntryId,
+  type QueueEntry,
+  type QueueStore,
+  type SendResult,
+} from "./queue";
+
+/** What the page fills in; the controller adds the bookkeeping. */
+export type QueueDraft = QueueEntry extends infer Entry
+  ? Entry extends QueueEntry
+    ? Omit<
+        Entry,
+        | "entryId"
+        | "sequence"
+        | "idempotencyKey"
+        | "previousKeys"
+        | "capturedAt"
+        | "state"
+        | "attempts"
+        | "nextAttemptAt"
+        | "lastError"
+        | "settledAt"
+        | "dependsOn"
+      > & { readonly capturedAt?: string }
+    : never
+  : never;
+
+export type SubmitOutcome =
+  | { readonly state: "accepted"; readonly result: SendResult }
+  | { readonly state: "queued" | "conflict" | "failed" | "blocked" | "expired" };
+
+export interface QueueSnapshot {
+  readonly entries: readonly QueueEntry[];
+  readonly sending: boolean;
+  /** A 401 paused the queue until the same user signs in again (§8.5). */
+  readonly paused: boolean;
+  /** Accepted in this page life; shown as "Gesendet" (§8.5). */
+  readonly sent: readonly QueueEntry[];
+  /** navigator.storage.persist() refused: the browser may evict (§8.5). */
+  readonly evictable: boolean;
+}
+
+export interface QueueControllerOptions {
+  readonly store: QueueStore;
+  readonly userId: string;
+  readonly send: SyncDependencies["send"];
+  /** After accepted entries: refresh the read cache and the pages. */
+  readonly onAccepted?: (report: SyncReport) => void;
+  readonly now?: () => Date;
+}
+
+type Listener = (snapshot: QueueSnapshot) => void;
+
+export class QueueController {
+  readonly #options: QueueControllerOptions;
+  readonly #listeners = new Set<Listener>();
+  readonly #channel: BroadcastChannel | null;
+  #snapshot: QueueSnapshot = {
+    entries: [],
+    evictable: false,
+    paused: false,
+    sending: false,
+    sent: [],
+  };
+  #timer: ReturnType<typeof setTimeout> | null = null;
+  #running: Promise<SyncReport | null> | null = null;
+  #rerun = false;
+  #stopped = false;
+  #accepted = new Map<string, SendResult>();
+  #persistAsked = false;
+
+  constructor(options: QueueControllerOptions) {
+    this.#options = options;
+    this.#channel =
+      typeof BroadcastChannel === "function"
+        ? new BroadcastChannel(`leonaid-queue-${options.userId}`)
+        : null;
+    if (this.#channel) {
+      this.#channel.onmessage = () => void this.reload();
+    }
+  }
+
+  get snapshot(): QueueSnapshot {
+    return this.#snapshot;
+  }
+
+  subscribe(listener: Listener): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  #publish(partial: Partial<QueueSnapshot>) {
+    this.#snapshot = { ...this.#snapshot, ...partial };
+    for (const listener of this.#listeners) listener(this.#snapshot);
+  }
+
+  #announce() {
+    this.#channel?.postMessage("changed");
+  }
+
+  async reload(): Promise<void> {
+    if (this.#stopped) return;
+    const entries = await this.#options.store.list();
+    this.#publish({ entries });
+    this.#schedule(entries);
+  }
+
+  /** Saves a capture on the device; online it is sent at once. */
+  async submit(draft: QueueDraft): Promise<SubmitOutcome> {
+    const entry = await this.#write(draft);
+    if (navigator.onLine === false || this.#snapshot.paused) {
+      return { state: "queued" };
+    }
+    await this.run();
+    // A run already under way when the entry was written ends with a rerun.
+    while (this.#running) await this.#running;
+    const result = this.#accepted.get(entry.entryId);
+    if (result) return { state: "accepted", result };
+    const current = (await this.#options.store.list()).find(
+      (item) => item.entryId === entry.entryId,
+    );
+    if (!current || current.state === "sending" || current.state === "queued") {
+      return { state: "queued" };
+    }
+    return { state: current.state };
+  }
+
+  async #write(draft: QueueDraft): Promise<QueueEntry> {
+    const { store } = this.#options;
+    const now = this.#options.now?.() ?? new Date();
+    const entryId = newEntryId();
+    for (let attempt = 0; ; attempt += 1) {
+      const existing = await store.list();
+      const highest = existing.reduce(
+        (max, item) => Math.max(max, item.sequence),
+        0,
+      );
+      const entry = {
+        ...draft,
+        attempts: 0,
+        capturedAt: draft.capturedAt ?? capturedAtNow(now),
+        dependsOn: null,
+        entryId,
+        idempotencyKey: idempotencyKeyFor(entryId),
+        lastError: null,
+        nextAttemptAt: null,
+        previousKeys: [],
+        sequence: Math.max(highest + 1, now.getTime()) + attempt,
+        settledAt: null,
+        state: "queued",
+      } as QueueEntry;
+      try {
+        await store.put(entry);
+        await this.#askPersistence();
+        this.#announce();
+        await this.reload();
+        return entry;
+      } catch (error) {
+        // Another tab took the same sequence number: take the next.
+        if (attempt >= 5) throw error;
+      }
+    }
+  }
+
+  /** The entry changes content: new body, new key, the old key kept. */
+  async replace(
+    entryId: string,
+    change: (entry: QueueEntry) => QueueEntry,
+    { newKey }: { readonly newKey: boolean },
+  ): Promise<void> {
+    const current = (await this.#options.store.list()).find(
+      (item) => item.entryId === entryId,
+    );
+    if (!current) return;
+    const changed = change(current);
+    const key = newKey
+      ? idempotencyKeyFor(`${entryId.slice(0, 8)}-${crypto.randomUUID()}`)
+      : current.idempotencyKey;
+    await this.#options.store.put({
+      ...changed,
+      attempts: 0,
+      idempotencyKey: key,
+      lastError: null,
+      nextAttemptAt: null,
+      previousKeys: newKey
+        ? [...current.previousKeys, current.idempotencyKey]
+        : current.previousKeys,
+      state: "queued",
+    } as QueueEntry);
+    this.#announce();
+    await this.reload();
+    void this.run();
+  }
+
+  async discard(entryId: string): Promise<void> {
+    await this.#options.store.delete(entryId);
+    this.#announce();
+    await this.reload();
+    void this.run();
+  }
+
+  /** "Erneut versuchen" of a failed entry. */
+  async retry(entryId: string): Promise<void> {
+    const current = (await this.#options.store.list()).find(
+      (item) => item.entryId === entryId,
+    );
+    if (!current) return;
+    await this.#options.store.put({
+      ...current,
+      attempts: 0,
+      nextAttemptAt: null,
+      state: "queued",
+    });
+    this.#announce();
+    await this.reload();
+    void this.run();
+  }
+
+  /** "Jetzt senden", `online` and a new sign-in reset the backoff. */
+  async sendNow(): Promise<void> {
+    this.#publish({ paused: false });
+    for (const entry of await this.#options.store.list()) {
+      if (entry.state === "queued" && entry.nextAttemptAt) {
+        await this.#options.store.put({
+          ...entry,
+          attempts: entry.lastError ? entry.attempts : 0,
+          nextAttemptAt: null,
+        });
+      }
+    }
+    await this.run();
+  }
+
+  /** Runs the loop under the user's Web Lock; one run at a time. */
+  run(): Promise<SyncReport | null> {
+    if (this.#stopped) return Promise.resolve(null);
+    if (this.#running) {
+      this.#rerun = true;
+      return this.#running;
+    }
+    this.#running = this.#runLocked().finally(() => {
+      this.#running = null;
+      if (this.#rerun && !this.#stopped) {
+        this.#rerun = false;
+        void this.run();
+      }
+    });
+    return this.#running;
+  }
+
+  async #runLocked(): Promise<SyncReport | null> {
+    if (navigator.onLine === false || this.#snapshot.paused) {
+      await this.reload();
+      return null;
+    }
+    const work = async () => {
+      this.#publish({ sending: true });
+      try {
+        const report = await drainQueue({
+          now: this.#options.now,
+          send: this.#options.send,
+          store: this.#options.store,
+        });
+        for (const { entry, result } of report.accepted) {
+          this.#accepted.set(entry.entryId, result);
+        }
+        if (report.accepted.length) {
+          this.#publish({
+            sent: [
+              ...this.#snapshot.sent,
+              ...report.accepted.map(({ entry }) => entry),
+            ],
+          });
+          this.#options.onAccepted?.(report);
+        }
+        if (report.paused) this.#publish({ paused: true });
+        return report;
+      } finally {
+        this.#publish({ sending: false });
+        this.#announce();
+        await this.reload();
+      }
+    };
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (!locks) return work();
+    return locks.request(
+      `leonaid-sync-${this.#options.userId}`,
+      { ifAvailable: true },
+      // Another tab holds the lock and sends; this one follows its news.
+      async (lock) => (lock ? work() : null),
+    );
+  }
+
+  #schedule(entries: readonly QueueEntry[]) {
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = null;
+    const due = nextDueAt(entries);
+    if (due === null || this.#stopped) return;
+    const delay = Math.max(0, due - Date.now()) + 50;
+    this.#timer = setTimeout(() => {
+      this.#timer = null;
+      // Only while visible (§9.4); `visibilitychange` restarts it.
+      if (document.visibilityState === "visible") void this.run();
+    }, delay);
+  }
+
+  async #askPersistence() {
+    if (this.#persistAsked) return;
+    this.#persistAsked = true;
+    const storage = navigator.storage;
+    if (!storage?.persist) return;
+    try {
+      const persisted =
+        (await storage.persisted?.()) || (await storage.persist());
+      this.#publish({ evictable: !persisted });
+    } catch {
+      this.#publish({ evictable: true });
+    }
+  }
+
+  /** Starts the triggers of §9.1; returns the stop function. */
+  start(): () => void {
+    const onOnline = () => void this.sendNow();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void this.run();
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    void this.reload().then(() => this.run());
+    return () => {
+      this.#stopped = true;
+      if (this.#timer) clearTimeout(this.#timer);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      this.#channel?.close();
+      this.#listeners.clear();
+    };
+  }
+}

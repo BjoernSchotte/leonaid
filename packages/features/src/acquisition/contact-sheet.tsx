@@ -30,6 +30,8 @@ import {
   type StatusShape,
 } from "@leonaid/ui";
 
+import type { SubmitOutcome } from "../offline/controller";
+import { useOfflineRuntime } from "../offline/runtime";
 import { localIsoDate } from "../shared/dates";
 
 type Outcome = RecordAcquisitionActivityRequest["outcome"];
@@ -94,6 +96,24 @@ function errorCopy(error: unknown) {
   return "Der Kontakt konnte nicht gespeichert werden. Prüfe deine Verbindung; deine Eingaben bleiben erhalten.";
 }
 
+/** The confirmation of §12.3: sent, kept on the device, or a decision. */
+function queuedToast(outcome: SubmitOutcome | null) {
+  if (!outcome || outcome.state === "accepted") {
+    return { title: "Kontakt erfasst.", tone: "success" as const };
+  }
+  if (outcome.state === "queued") {
+    return {
+      title: "Kontakt gespeichert. Wird gesendet, sobald du wieder online bist.",
+      tone: "success" as const,
+    };
+  }
+  return {
+    title:
+      "Kontakt gespeichert. Er braucht deine Entscheidung in der Warteschlange.",
+    tone: "info" as const,
+  };
+}
+
 export function ContactSheet({
   actionId,
   client,
@@ -146,16 +166,37 @@ export function ContactSheet({
     }
   }, [open]);
 
+  const { queue } = useOfflineRuntime();
   const record = useMutation({
-    mutationFn: (body: RecordAcquisitionActivityRequest) =>
-      client.recordAcquisitionActivity(actionId, body),
+    // With offline capture on, every contact goes through the queue, also
+    // online (specs/pwa-offline-queue §9.1): saved first, then sent.
+    mutationFn: async (
+      body: RecordAcquisitionActivityRequest,
+    ): Promise<SubmitOutcome | null> => {
+      if (!queue) {
+        await client.recordAcquisitionActivity(actionId, body);
+        return null;
+      }
+      return queue.submit({
+        actionId,
+        assignmentId: item.assignmentId,
+        base: { assignmentRevision: body.revision },
+        kind: "activity",
+        party: {
+          displayName: item.partyDisplayName,
+          id: item.partyId,
+          kind: item.partyKind,
+        },
+        request: body,
+      });
+    },
     onError: () => {
       void queries.invalidateQueries({
         queryKey: ["acquisition-activity-board", actionId],
       });
     },
-    onSuccess: async () => {
-      toast?.show({ title: "Kontakt erfasst.", tone: "success" });
+    onSuccess: async (outcome) => {
+      toast?.show(queuedToast(outcome));
       setNote("");
       await queries.invalidateQueries({
         queryKey: ["acquisition-activity-board", actionId],
