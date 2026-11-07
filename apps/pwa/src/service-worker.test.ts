@@ -165,6 +165,7 @@ describe("service worker", () => {
       `${BASE}sponsors`,
       `${BASE}activities/`,
       `${BASE}commitments`,
+      `${BASE}commitments/new`,
     ]) {
       const answer = await worker.navigate(path);
       expect(await answer?.text()).toBe(`cached ${BASE}`);

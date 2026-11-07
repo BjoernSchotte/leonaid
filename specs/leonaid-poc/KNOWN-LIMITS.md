@@ -39,25 +39,28 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Tourenplanung, Karte und Navigation fehlen. Die Fenster-Kapazität ist keine
   Zahl: es gibt nur das manuelle Kennzeichen „ausgebucht“
   (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
-- Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
-  und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
-  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Stufe 1 ist gebaut, aber
-  hinter dem Feature-Flag `pwa.offline_queue` (Standard aus): mit Flag startet
-  die PWA offline aus dem Cache des Service Workers und zeigt die eigene
+- Offline-Erfassung (`specs/pwa-offline-queue/PLAN.md`) ist bis Stufe 3
+  gebaut, aber hinter dem Feature-Flag `pwa.offline_queue` (Standard aus);
+  ohne Flag zeigt die PWA offline nur bereits geladene Inhalte und speichert
+  nichts (`packages/ui/src/components/mobile-shell.tsx`). Mit Flag startet
+  die PWA offline aus dem Cache des Service Workers, zeigt die eigene
   Sponsorenliste und die Bestellangaben aus einer verschlüsselten Kopie auf
-  dem Gerät (IndexedDB je Nutzer, AES-GCM mit nicht exportierbarem Schlüssel;
-  7 Tage anzeigen, 14 Tage behalten; Löschen bei Abmelden, Kontowechsel und
-  Flag aus). Die Startseite (Aktionsstand), Module und das Lieferboard bleiben
-  offline gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher
-  einer Home-Screen-App) steht aus; bewiesen ist WebKit in Playwright. Der Core nimmt
-  nachgereichte Erfassungen schon an (Stufe 2, PLAN §11): `Idempotency-Key`
-  für Kontakte (noch optional), `capturedAt` für Kontakte und Bestellungen
-  (höchstens 14 Tage zurück, 5 Minuten voraus), Preisprüfung
-  `commitment_price_changed` und Kontakt trotz geänderter Zuordnung
-  (`assignmentUpdated: false`). Die Bestelldetails zeigen `capturedAt` noch
-  nicht an; das kommt mit der Warteschlange (Stufe 3). Push-Nachrichten,
-  Etikettendruck, Druck-/Packliste, Herstellerabrechnung und Materialbestand
-  fehlen.
+  dem Gerät (IndexedDB je Nutzer, AES-GCM mit nicht exportierbarem
+  Schlüssel; 7 Tage anzeigen, 14 Tage behalten) und legt Kontakte,
+  Wiedervorlagen und Bestellungen in eine Warteschlange, die sie mit
+  `Idempotency-Key` und `capturedAt` sendet, auch online. Abgelehnte
+  Einträge zeigt die Warteschlange mit Grund; die Auswahl der Lösungen
+  (PLAN §10), Sponsor-Entwürfe, die Abmelde-Warnung und die Hilfe folgen mit
+  Stufe 4. Schaltet die System-Administration das Flag aus, sendet die App
+  noch wartende Einträge und löscht danach die Daten auf dem Gerät. Die
+  Startseite (Aktionsstand), Module und das Lieferboard bleiben offline
+  gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher einer
+  Home-Screen-App) steht aus; bewiesen ist WebKit in Playwright. Die
+  Bestelldetails im Backoffice zeigen „Erfasst offline“, wenn eine Erfassung
+  mehr als 5 Minuten nach `capturedAt` ankam. Der Core verlangt den
+  `Idempotency-Key` für Kontakte noch nicht (PLAN §11.1, eine Version
+  Übergang). Push-Nachrichten, Etikettendruck, Druck-/Packliste,
+  Herstellerabrechnung und Materialbestand fehlen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
   das Material-Modul (Upload mit Versionen). Ein allgemeines DMS mit
   Volltextsuche fehlt.

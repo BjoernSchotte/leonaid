@@ -64,6 +64,12 @@ export interface QueueControllerOptions {
 
 type Listener = (snapshot: QueueSnapshot) => void;
 
+/**
+ * "Gesendet" lives for this page only (§8.5), across the controllers a
+ * page goes through (offline start, then online with fresh storage).
+ */
+const sentThisPage = new Map<string, readonly QueueEntry[]>();
+
 export class QueueController {
   readonly #options: QueueControllerOptions;
   readonly #listeners = new Set<Listener>();
@@ -114,7 +120,10 @@ export class QueueController {
   async reload(): Promise<void> {
     if (this.#stopped) return;
     const entries = await this.#options.store.list();
-    this.#publish({ entries });
+    this.#publish({
+      entries,
+      sent: sentThisPage.get(this.#options.userId) ?? [],
+    });
     this.#schedule(entries);
   }
 
@@ -278,12 +287,12 @@ export class QueueController {
           this.#accepted.set(entry.entryId, result);
         }
         if (report.accepted.length) {
-          this.#publish({
-            sent: [
-              ...this.#snapshot.sent,
-              ...report.accepted.map(({ entry }) => entry),
-            ],
-          });
+          const sent = [
+            ...(sentThisPage.get(this.#options.userId) ?? []),
+            ...report.accepted.map(({ entry }) => entry),
+          ];
+          sentThisPage.set(this.#options.userId, sent);
+          this.#publish({ sent });
           this.#options.onAccepted?.(report);
         }
         if (report.paused) this.#publish({ paused: true });
@@ -297,11 +306,11 @@ export class QueueController {
     const locks =
       typeof navigator !== "undefined" ? navigator.locks : undefined;
     if (!locks) return work();
-    return locks.request(
-      `leonaid-sync-${this.#options.userId}`,
-      { ifAvailable: true },
-      // Another tab holds the lock and sends; this one follows its news.
-      async (lock) => (lock ? work() : null),
+    // Another tab (or this page's previous controller) may be sending: wait
+    // for it, then drain what is left and read the store fresh. The holder
+    // never keeps the lock longer than one drain (each send times out).
+    return locks.request(`leonaid-sync-${this.#options.userId}`, () =>
+      this.#stopped ? Promise.resolve(null) : work(),
     );
   }
 
@@ -348,8 +357,13 @@ export class QueueController {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
-      this.#channel?.close();
       this.#listeners.clear();
+      // A send under way still tells the other tabs (and this page's next
+      // controller) what it changed before the channel closes.
+      const channel = this.#channel;
+      void (this.#running ?? Promise.resolve(null)).finally(() =>
+        channel?.close(),
+      );
     };
   }
 }

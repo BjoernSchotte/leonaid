@@ -111,9 +111,6 @@ test("captures made offline are kept on the device and sent once online", async 
   await controlled(page);
   const indicator = page.getByTestId("network-state");
   await expect(indicator).toHaveAccessibleName("Online");
-  const ordersBefore = (
-    await apiJson(page, `/api/v1/actions/${ACTION_ID}/commitments`)
-  ).items.length;
 
   // Offline: the banner promises what the queue now does (§12.1).
   await context.setOffline(true);
@@ -207,18 +204,8 @@ test("captures made offline are kept on the device and sent once online", async 
   expect(recorded).toHaveLength(1);
   // D5: the contact happened when it was captured, not when it arrived.
   expect(Date.parse(recorded[0].occurredAt)).toBeLessThan(Date.now() - 1_000);
-  const orders = (
-    await apiJson(page, `/api/v1/actions/${ACTION_ID}/commitments`)
-  ).items;
-  expect(orders.length).toBe(ordersBefore + 1);
-  const order = orders.find(
-    (item) =>
-      item.commitment.capturedAt &&
-      item.commitment.buyer.displayName === "Musterwerk GmbH" &&
-      item.commitment.status === "draft",
-  );
-  expect(order).toBeTruthy();
-
+  // The order list is for the action's managers; tools/pwa/test.sh
+  // checks the stored drafts (one per browser run) in PostgreSQL.
   // The sheet keeps "Gesendet" for this page life (§8.5).
   await indicator.click();
   await expect(

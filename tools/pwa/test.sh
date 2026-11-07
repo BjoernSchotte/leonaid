@@ -194,6 +194,15 @@ for browser in chromium webkit; do
     --reporter=line
 done
 offline_flag false
+# Each browser run of pwa-offline-queue.spec.mjs sent one offline draft
+# order, exactly once, with the device's capture time.
+offline_orders=$(printf "SELECT count(*) FROM commitment WHERE source = 'acquisition' AND status = 'draft' AND captured_at IS NOT NULL AND captured_at < created_at;\n" |
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
+if [ "$offline_orders" != 2 ]; then
+  echo "pwa-test: ERROR: expected 2 offline orders, found $offline_orders" >&2
+  exit 1
+fi
 
 compose stop twenty-server
 
