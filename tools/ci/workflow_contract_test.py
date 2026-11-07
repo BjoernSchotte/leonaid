@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
+        "    name: E2E / ${{ matrix.bin.title }}\n",
+        "e2e: the leg name must be stable",
+    ),
+    (
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    runs-on: ubuntu-24.04\n    timeout-minutes: 90\n",
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    runs-on: ubuntu-24.04\n    timeout-minutes: 30\n",
+        "e2e: timeout-minutes must equal",
+    ),
+    (
         "run: sh tools/ci/free-runner-disk.sh wait",
         "run: true",
         "job integration-shards must free runner disk",
@@ -38,24 +48,34 @@ CI_MUTATIONS = (
         "evidence artifacts",
     ),
     (
-        "        shard: ${{ fromJSON(needs.select.outputs.e2e) }}\n",
-        "        shard: [tasks]\n",
+        "        bin: ${{ fromJSON(needs.select.outputs.e2e) }}\n",
+        "        bin: [{id: '1', shards: tasks}]\n",
         "E2E leaves must come from the suite selector",
     ),
     (
-        "        shard: ${{ fromJSON(needs.select.outputs.integration) }}\n",
-        "        shard: [delivery]\n",
+        "        bin: ${{ fromJSON(needs.select.outputs.integration) }}\n",
+        "        bin: [{id: '1', shards: delivery}]\n",
         "Integration shards must come from the suite selector",
     ),
     (
-        "needs: [select, integration-shards]\n    if: ${{ !cancelled()",
-        "needs: [select, integration-shards]\n    if: ${{ always()",
-        "integration summary check",
+        "tools/ci/integration.sh $SHARDS",
+        "tools/ci/integration.sh core",
+        "Integration bins must run every shard of the bin",
     ),
     (
-        "needs: [select, integration-shards]",
-        "needs: [select, unit]",
-        "integration summary check",
+        "tools/ci/e2e.sh $SHARDS",
+        "tools/ci/e2e.sh tasks",
+        "E2E bins must run every leaf of the bin",
+    ),
+    (
+        "  security:\n",
+        "  e2e-summary:\n    needs: [select, e2e]\n    runs-on: ubuntu-24.04\n\n  security:\n",
+        "Summary job e2e-summary duplicates the CI gate",
+    ),
+    (
+        "needs: [select, golden-parts]\n    if: ${{ !cancelled()",
+        "needs: [select, golden-parts]\n    if: ${{ always()",
+        "Golden summary check",
     ),
     (
         'then test "$RESULT" = success; else test "$RESULT" = skipped; fi\n',
@@ -88,13 +108,18 @@ CI_MUTATIONS = (
         "dress-rehearsal evidence",
     ),
     (
-        "        group: ${{ fromJSON(needs.select.outputs.emdash) }}\n",
-        "        group: [static]\n",
+        "        bin: ${{ fromJSON(needs.select.outputs.emdash) }}\n",
+        "        bin: [{id: '1', shards: static}]\n",
         "EmDash proof groups must come from the suite selector",
     ),
     (
-        "    name: EmDash proof / ${{ matrix.group }}\n",
-        "    name: EmDash proof / ${{ matrix.group }}\n    continue-on-error: true\n",
+        "sh tools/ci/emdash.sh $EMDASH_GROUPS",
+        "sh tools/ci/emdash.sh static",
+        "EmDash proofs do not run through tools/ci/emdash.sh",
+    ),
+    (
+        "    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
+        "    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    continue-on-error: true\n",
         "retry or ignore",
     ),
     (
@@ -108,19 +133,9 @@ CI_MUTATIONS = (
         "must run on merge_group",
     ),
     (
-        "needs: [select, emdash-cases]\n    if: ${{ !cancelled()",
-        "needs: [select, emdash-cases]\n    if: ${{ always()",
-        "EmDash summary check",
-    ),
-    (
-        "needs.emdash-cases.result",
-        "needs.emdash-cases.outputs.result",
-        "EmDash summary check",
-    ),
-    (
-        "needs.select.outputs.contract == 'true'",
+        "needs.select.outputs.emdash != '[]'",
         "true",
-        "contract must depend on the suite selector",
+        "emdash-cases must depend on the suite selector output emdash",
     ),
     (
         "&& needs.select.result == 'success' && needs.select.outputs.golden",
@@ -188,9 +203,9 @@ OTHER_MUTATIONS = (
     ("surveys.yml", "  merge_group:\n", "", "must run on merge_group"),
     (
         "surveys.yml",
-        "acceptance, backup-recovery]",
-        "backup-recovery]",
-        "gate does not require: acceptance",
+        "inventory, surveys, backup-recovery]",
+        "inventory, backup-recovery]",
+        "gate does not require: surveys",
     ),
     (
         "api-contract.yml",
