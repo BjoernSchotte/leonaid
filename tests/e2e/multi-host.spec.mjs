@@ -6,15 +6,67 @@ import { expect, test } from "./csp-guard.mjs";
 
 const adminUrl = process.env.LEONAID_E2E_ADMIN_URL;
 const publicUrl = process.env.LEONAID_E2E_PUBLIC_URL;
+const mailpitUrl = process.env.LEONAID_E2E_MAILPIT_URL;
+// Golden charity admin of Krapfentaxi (tests/fixtures/golden/v1).
+const charityAdminEmail = "klara.kern@leonaid.invalid";
 const sessions = {
   admin: process.env.FINN_SESSION,
   acquirer: process.env.ANNA_SESSION,
 };
 
-if (!adminUrl || !publicUrl || !sessions.admin || !sessions.acquirer) {
+if (
+  !adminUrl ||
+  !publicUrl ||
+  !mailpitUrl ||
+  !sessions.admin ||
+  !sessions.acquirer
+) {
   throw new Error(
-    "LEONAID_E2E_ADMIN_URL, LEONAID_E2E_PUBLIC_URL, FINN_SESSION and ANNA_SESSION are required",
+    "LEONAID_E2E_ADMIN_URL, LEONAID_E2E_PUBLIC_URL, LEONAID_E2E_MAILPIT_URL, FINN_SESSION and ANNA_SESSION are required",
   );
+}
+
+function addressesOf(value) {
+  if (typeof value === "string") return [value.toLowerCase()];
+  if (Array.isArray(value)) return value.flatMap(addressesOf);
+  if (value && typeof value === "object")
+    return Object.values(value).flatMap(addressesOf);
+  return [];
+}
+
+/** The newest real login mail to the recipient, read from Mailpit. */
+async function loginLink(request, previous, recipient) {
+  let link;
+  await expect
+    .poll(
+      async () => {
+        const list = await request.get(`${mailpitUrl}/api/v1/messages`);
+        if (!list.ok()) return "mailpit-unavailable";
+        for (const summary of (await list.json()).messages ?? []) {
+          if (previous.has(summary.ID)) continue;
+          if (!addressesOf(summary.To).includes(recipient)) continue;
+          const detail = await request.get(
+            `${mailpitUrl}/api/v1/message/${summary.ID}`,
+          );
+          const text = (await detail.json()).Text ?? "";
+          const match = text.match(/https:\/\/\S+\/login\?token=\S+/);
+          if (match) {
+            link = match[0];
+            return "ready";
+          }
+        }
+        return "pending";
+      },
+      { message: "Login-Mail in Mailpit", timeout: 30_000 },
+    )
+    .toBe("ready");
+  return link;
+}
+
+async function mailIds(request) {
+  const list = await request.get(`${mailpitUrl}/api/v1/messages`);
+  expect(list.ok()).toBeTruthy();
+  return new Set(((await list.json()).messages ?? []).map((item) => item.ID));
 }
 
 test.use({ ignoreHTTPSErrors: true });
@@ -141,4 +193,86 @@ test("the admin host refuses public order actions and sends campaign pages away"
   expect(status).toBe(404);
   await page.goto(`${adminUrl}/krapfentaxi`);
   expect(new URL(page.url()).origin).toBe(publicUrl);
+});
+
+test("a magic link signs in on the admin host and a survey saves on the public host", async ({
+  browser,
+  browserName,
+}) => {
+  // One engine is enough for the cross-host mail and survey flow.
+  test.skip(browserName !== "chromium", "chromium proves the flow");
+  const admin = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await admin.newPage();
+  const previous = await mailIds(admin.request);
+  await page.goto(
+    `${adminUrl}/login?returnTo=${encodeURIComponent("/admin/surveys/new")}`,
+  );
+  await page.locator("#login-email").fill(charityAdminEmail);
+  await page.locator('[data-testid="request-login"]').click();
+  await expect(page.locator("#complete-login-form")).toBeVisible();
+  // The member mail links the admin host (LinkBuilder.admin_url).
+  const link = await loginLink(admin.request, previous, charityAdminEmail);
+  expect(new URL(link).origin).toBe(adminUrl);
+  await page.goto(link);
+  await page.locator('[data-testid="complete-login"]').click();
+  // The mailed link carries no returnTo: the member lands in the admin app.
+  await page.waitForURL((url) => url.pathname.startsWith("/admin/"));
+  expect(new URL(page.url()).origin).toBe(adminUrl);
+  await page.goto(`${adminUrl}/admin/surveys/new`);
+
+  await page
+    .getByLabel("Titel der Umfrage", { exact: true })
+    .fill("Mehrere Hosts");
+  await page
+    .getByLabel("Fragebogenvorlage", { exact: true })
+    .selectOption("krapfentaxi");
+  await page
+    .getByRole("button", { name: "Umfrage erstellen", exact: true })
+    .click();
+  const editor = page.getByRole("region", { name: "Fragebogen bearbeiten" });
+  await expect(editor).toBeVisible();
+  const surveyId = page.url().split("/").at(-1);
+  await editor
+    .getByRole("button", { name: "Veröffentlichen", exact: true })
+    .click();
+  await expect(page.locator("[data-survey-status]")).toHaveAttribute(
+    "data-survey-status",
+    "active",
+  );
+
+  // The survey runs on the public host; its API calls stay on that host.
+  const respondent = await browser.newContext({ ignoreHTTPSErrors: true });
+  const survey = await respondent.newPage();
+  await survey.goto(`${publicUrl}/surveys/${surveyId}`);
+  expect(new URL(survey.url()).origin).toBe(publicUrl);
+  await survey
+    .getByRole("button", { name: "Umfrage beginnen", exact: true })
+    .click();
+  const rating = survey.locator("[data-name=delivery_rating]");
+  await expect(async () => {
+    const dropdown = rating.getByRole("combobox");
+    if (await dropdown.isVisible()) {
+      await dropdown.click({ timeout: 1000 });
+      await survey
+        .getByRole("option", { name: "5", exact: true })
+        .click({ timeout: 1000 });
+    } else {
+      const radio = rating.locator('input[type=radio][value="5"]');
+      await radio.press("Space", { timeout: 1000 });
+      await expect(radio).toBeChecked({ timeout: 1000 });
+    }
+  }).toPass({ timeout: 15_000, intervals: [100, 250] });
+  await survey.getByRole("button", { name: "Weiter", exact: true }).click();
+  await survey
+    .locator("[data-name=notes] textarea")
+    .fill("Gespeichert über den öffentlichen Host");
+  await expect(survey.locator("[data-save-state]")).toHaveAttribute(
+    "data-save-state",
+    "saved",
+  );
+  // Participation cookies belong to the public host, never the admin host.
+  const cookies = await respondent.cookies(adminUrl);
+  expect(cookies).toEqual([]);
+  await respondent.close();
+  await admin.close();
 });

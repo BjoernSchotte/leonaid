@@ -1234,6 +1234,13 @@ one test domain owned by the club.
   that host. Stage 2 uses `canonicalUrl` for campaign hosts.
 - R13: the theme image is the theme's share image (`resolvePublicTheme`);
   Core returns only the theme key, no media id.
+- R30 (review #98): `apps/public` caches the list per process (60 s, a
+  failure 10 s and the last known list kept); equal publication starts sort
+  A→Z; a primary alias is always enabled (constraint since 0028), so the CMS
+  link never depends on a disabled alias.
+- Deferred: the §6.5 bullet "the public host's sitemap" is not built; no
+  `sitemap.xml` exists in `apps/public` yet. It comes with stage 2's per-host
+  sitemap/robots (§7.5).
 
 
 ### 16.4 Review of #97 (rv-md1)
@@ -1269,4 +1276,12 @@ one test domain owned by the club.
   app, Core and web/PWA behind `Caddyfile.split`, without the CMS. The CMS
   part (native order POST on the public host, Live View in the editor) needs
   the EmDash spike harness and follows with stage 2's `multi-host` case.
+
+### 16.6 Stage 2 preconditions from the reviews
+
+- N4 (rv-md1): `Caddyfile.admin-only` routes `/campaigns/*`, aliases and
+  `/archive/*` to `public:3000`, which today renders campaign and alias pages.
+  Before the contract may accept the admin-only mode, the public app must
+  answer these paths on the admin host with 308 to the canonical URL or 404
+  only (§6.6).
 

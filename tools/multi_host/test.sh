@@ -54,7 +54,7 @@ cleanup() {
     compose logs --no-color --tail=120 api public proxy >&2 || true
   fi
   if [ "$owned" = true ]; then
-    if ! compose down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    if ! compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
     if ! verify_owned_project_removed "$project"; then status=1; fi
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
@@ -88,7 +88,9 @@ services:
         - wget -qO- http://localhost:8080/_health && wget -qO- https://proxy:8443/_health
 EOF
 owned=true
-compose up --build --detach --wait --wait-timeout 420 proxy
+# Mailpit and the worker deliver the real login mail of the magic-link proof.
+compose --profile dev-mail up --build --detach --wait --wait-timeout 420 \
+  proxy worker mailpit
 
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
@@ -117,6 +119,7 @@ docker run --rm \
   --env HOME=/tmp \
   --env LEONAID_E2E_ADMIN_URL="$admin_url" \
   --env LEONAID_E2E_PUBLIC_URL="$public_url" \
+  --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
   --env FINN_SESSION="$finn_session" \
   --env ANNA_SESSION="$anna_session" \
   --volume "$root:/workspace:ro" \

@@ -109,7 +109,9 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Sitzung gehört zum Verwaltungshost, und die CSP (`connect-src 'self'`)
   erlaubt keine Abfrage dort. Die Live-Abnahme der Aktionsseiten im
   Split-Modus (CMS hinter `Caddyfile.split`) fehlt; der Stack-Beweis
-  `test-multi-host` läuft ohne CMS.
+  `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
+  Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
+  (Stufe 2).
 - Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
