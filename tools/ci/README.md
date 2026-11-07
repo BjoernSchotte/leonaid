@@ -176,6 +176,18 @@ Inside a leg every shard keeps its own isolation:
 (`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
 state.
 
+Measured on PR #103 (run 42368175283, complete selection, busy runner pool):
+19 jobs, 132 runner minutes, 112 queue minutes, longest job 12.8 min, legs of
+7.6–11.6 min; Security 6.5 min (was 10.6). Before: 56 jobs, 177–214 runner
+minutes, 385–461 queue minutes. `surveys.yml`: 11 jobs and 50 runner minutes
+(was 26 jobs, 82 runner minutes).
+
+A failed survey check prints a sanitized excerpt (failure lines, log tail,
+foundation harness log) to the job log and uploads it as
+`failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The text
+passes `tools/ci/sanitize_artifacts.py`; an excerpt with personal data is
+withheld.
+
 The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
 sets the wall time of a complete run. Re-measure with
 `gh run view <id> --json jobs` and update the seconds tables when a shard's
