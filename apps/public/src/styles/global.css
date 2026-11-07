@@ -1296,6 +1296,90 @@ main {
   object-fit: cover;
 }
 
+/* ---------- Active campaigns on the home page ---------- */
+.campaign-list {
+  padding-block: var(--s-10);
+  border-top: var(--hair) solid var(--border);
+}
+
+.campaign-list__inner {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.campaign-list h2 {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+}
+
+.campaign-list__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--s-6);
+  padding: 0;
+  list-style: none;
+}
+
+.campaign-card {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border: var(--hair) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.campaign-card:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.campaign-card__image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.campaign-card__body {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-5);
+}
+
+.campaign-card h3 {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+
+/* The whole card is the link target (>= 44 px), the heading names it. */
+.campaign-card__link {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+.campaign-card__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.campaign-card__link:focus-visible {
+  outline: none;
+}
+
+.campaign-card__body > p:not(.eyebrow) {
+  color: var(--text-2);
+}
+
+.campaign-card__period {
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Contact form (PublicInbox) ---------- */
 .inbox-public {
   display: grid;

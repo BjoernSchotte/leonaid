@@ -973,6 +973,26 @@ class PublicLegalNoticeResponse(TransportModel):
     provider: PublicLegalProviderResponse | None
 
 
+class PublicCampaignListItemResponse(TransportModel):
+    """An active campaign for the public home page (no internal ids)."""
+
+    archive_slug: str
+    name: str
+    purpose: str
+    carrier_name: str
+    presentation_theme: str | None
+    starts_on: date
+    ends_on: date
+    # Path of the campaign's page on the public host, and the same page as an
+    # absolute URL (stage 2: possibly on a campaign host).
+    canonical_path: str
+    canonical_url: str
+
+
+class PublicCampaignListResponse(TransportModel):
+    items: list[PublicCampaignListItemResponse]
+
+
 class PublicPrivacyPolicyContentResponse(TransportModel):
     """The privacy page of the active legal configuration version."""
 

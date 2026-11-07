@@ -289,18 +289,11 @@ docker run --rm \
   -v "$backup_root:/backup:ro" \
   "$ALPINE_IMAGE" \
   tar -C /target -xf /backup/rustfs-data.tar
-# The manifest verified this archive above. The new proxy then starts with
-# the certificates of every host instead of requesting them again.
-if [ -f "$backup_root/caddy-data.tar" ]; then
-  docker volume create \
-    --label "com.docker.compose.project=$target_project" \
-    --label "com.docker.compose.volume=caddy-data" \
-    "${target_project}_caddy-data" >/dev/null
-  docker run --rm --network none \
-    -v "${target_project}_caddy-data:/target" \
-    -v "$backup_root:/backup:ro" "$ALPINE_IMAGE" \
-    tar -C /target -xf /backup/caddy-data.tar
-fi
+# The manifest verified caddy-data.tar above; restore-tls-state.sh decides
+# whether the target takes the production TLS keys (N2).
+. "$root/tools/backup/restore-tls-state.sh"
+restore_tls_state "$backup_root" "$target_project" ||
+  fail "TLS state of the source could not be restored"
 
 
 if [ "$restore_scope" = full ]; then

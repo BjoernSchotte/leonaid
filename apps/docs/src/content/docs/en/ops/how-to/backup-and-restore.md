@@ -21,7 +21,10 @@ CREDENTIALS`.
    point contains both PostgreSQL databases, Twenty files, the entire RustFS
    volume and, in a pilot, the Caddy data volume with the certificates and
    the ACME account of every host. A restored proxy therefore starts without
-   requesting new certificates. The archive holds private keys; treat the
+   requesting new certificates, but only with `pilot-restore --with-tls-state`:
+   use it when you restore the installation itself onto a new server with the
+   same host names. Staging and drill targets get no production keys and
+   request their own certificates. The archive holds private keys; treat the
    repository password accordingly. It excludes the Valkey queue store (`twenty-redis`), Mailpit,
    images, and plaintext secrets. A restored project starts with an empty
    queue store; `twenty-server` registers its cron jobs again.
