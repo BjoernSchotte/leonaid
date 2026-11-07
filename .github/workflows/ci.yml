@@ -58,22 +58,20 @@ jobs:
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
       - name: Run lint, type and contract-generation checks
         env:
-          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-types
+          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/lint-types
         run: bash tools/ci/run-job.sh lint-types bash tools/ci/lint-types.sh
       # Runs after a lint failure too, so one run reports both gates.
       - name: Run unit tests with real domain objects
         if: ${{ !cancelled() }}
         env:
-          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/unit
+          LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-unit/unit
         run: bash tools/ci/run-job.sh unit ./leonaid test-unit
       - name: Publish lint, type and unit evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ci-lint-unit
-          path: |
-            .artifacts/ci/lint-types
-            .artifacts/ci/unit
+          path: .artifacts/ci/lint-unit
           if-no-files-found: error
           retention-days: 14
 
