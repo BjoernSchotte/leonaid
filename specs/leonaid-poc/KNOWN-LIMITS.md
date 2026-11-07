@@ -162,8 +162,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
   Eigene Kampagnen-Domains (Stufe 2) sind in Arbeit: System-Admins tragen
   Domains unter **System › Domains** ein und binden Ausgaben
-  (`site_host`, `site_binding`, Migration 0056); Hostprüfung, Zertifikate
-  und Auslieferung der Kampagnenseiten auf diesen Domains fehlen noch. Eine
+  (`site_host`, `site_binding`, Migration 0056), prüfen sie (Port 80,
+  danach TLS über Caddys On-Demand-Zertifikate; höchstens zehn neue pro
+  Stunde; tägliche Nachprüfung). Die Auslieferung der Kampagnenseiten auf
+  diesen Domains fehlt noch. Die Abnahme mit echtem ACME und einer echten
+  Domain ist offen (`tools/site_hosts/acme_probe.py`). Eine
   Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei

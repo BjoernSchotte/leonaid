@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 10
-reviewedRevision: 10
+contentRevision: 11
+reviewedRevision: 11
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -170,6 +170,23 @@ dig +short club.org
 
 Caddy requests the TLS certificates on the first start. Port 80 must be
 reachable from the internet for that.
+
+**Domains for single campaigns** (`krapfentaxi.org`) need no change to the
+installation. The system administration adds them under **System** ›
+**Domains**; the club creates `A`/`AAAA` (own domain) or a `CNAME`
+(subdomain) pointing to this server. Caddy gets their certificate on the
+first request, but only for a domain LeonAid has checked (at most ten new ones
+per hour). Port 80 must stay open for this, and a `CAA` record of the domain
+must allow `letsencrypt.org`. Every `A`/`AAAA` record of the domain must
+name an address of this server; LeonAid takes the addresses of the admin host
+or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. LeonAid also asks public DNS
+servers (default `1.1.1.1` and `9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`);
+outgoing port 53 must be open for this. A domain whose certificate has less
+than 20 days left fails the check. The outside proof:
+
+```sh
+python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org
+```
 
 ## Create the directories
 

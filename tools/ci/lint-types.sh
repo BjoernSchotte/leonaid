@@ -36,6 +36,8 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/testing/shared_stack_live.py tools/testing/owned_teardown_live.py tools/surveys/gate.py tools/surveys/gate_test.py tools/testing/module_browser_seed.py tools/testing/run_python_contracts.py
 # Host fixture cache: locking, pruning and the synthetic environment (no Docker).
 python3 "$root/tools/testing/fixture_cache_test.py"
+# Opt-in pre-push hook (check-fast, --no-verify).
+python3 "$root/tools/dx/pre_push_test.py"
 
 run_python uv run --frozen --no-sync ruff check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \

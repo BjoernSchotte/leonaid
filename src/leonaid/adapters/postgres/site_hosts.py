@@ -228,6 +228,13 @@ class AsyncpgSiteHostRepository:
         except BUSY:
             raise _busy() from None
 
+    async def host(self, host_id: UUID) -> SiteHostView:
+        async with self._pool.acquire() as db:
+            views = await self._views(db, [host_id], datetime.now(timezone.utc))
+        if not views:
+            raise _host_not_found()
+        return views[0]
+
     async def removal_preview(self, actor_id: UUID, host_id: UUID) -> RemovalPreview:
         try:
             async with self._pool.acquire() as db:

@@ -85,6 +85,16 @@ const overview: OperationsOverviewResponse = {
   monitoring: { activeAlerts: [], checks: [], status: "ready" },
   outbox: { completed: 10, deadLetter: 1, pending: 2, processing: 0 },
   requestId: "req-overview",
+  siteHosts: [
+    {
+      failedChecks: 2,
+      hostname: "lionsopen.de",
+      lastCheckResult: "Der Name ist im DNS nicht auflösbar.",
+      lastCheckedAt: "2026-11-03T03:00:00Z",
+      liveBindings: 1,
+      status: "active",
+    },
+  ],
 };
 
 const flag: FeatureFlagAdminResponse = {
@@ -236,6 +246,10 @@ describe("SystemPage", () => {
         "Version 2026.11.1 · eine Installation für Lions Club Musterstadt",
       ),
     ).toBeTruthy();
+    const hosts = await screen.findByTestId("operations-site-hosts");
+    expect(hosts.textContent).toContain("lionsopen.de");
+    expect(hosts.textContent).toContain("2 Prüfung(en) fehlgeschlagen");
+    expect(hosts.textContent).toContain("nicht auflösbar");
     const jobsTab = await screen.findByRole("tab", {
       name: /Hintergrundaufgaben/,
     });

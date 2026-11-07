@@ -5,6 +5,8 @@ from __future__ import annotations
 from email.utils import parseaddr
 from ipaddress import ip_address
 from pathlib import Path
+import hashlib
+import hmac
 import re
 import unicodedata
 from typing import Literal
@@ -21,6 +23,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from leonaid.application.links import LinkBuilder
+from leonaid.adapters.site_host_checks import HostCheckSettings
 from leonaid.domain.site_hosts import ConfiguredHosts
 
 
@@ -121,6 +124,41 @@ class Settings(BaseSettings):
     # False: the installation has no general public host, only the admin host
     # and campaign hosts (§6.6). Path-based campaign URLs then do not exist.
     public_host_enabled: bool = Field(default=True, alias="LEONAID_PUBLIC_HOST_ENABLED")
+    # Host check of campaign hosts (specs/multi-domain §7.4). The HTTP check
+    # goes to port 80 of every public address of the name; the TLS check
+    # shakes hands with the edge proxy. Private addresses and a test CA are
+    # for the dev stack and tests only.
+    site_host_check_http_port: int = Field(
+        default=80, ge=1, le=65535, alias="LEONAID_SITE_HOST_CHECK_HTTP_PORT"
+    )
+    site_host_check_allow_private: bool = Field(
+        default=False, alias="LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE"
+    )
+    site_host_tls_edge: str = Field(
+        default="proxy:443",
+        pattern=r"^[a-z0-9.-]+:[0-9]{1,5}$",
+        alias="LEONAID_SITE_HOST_TLS_EDGE",
+    )
+    # The edge's own public addresses; a campaign host must resolve to
+    # these only. Empty: the addresses of LEONAID_SITE_HOST_EDGE_NAME, by
+    # default the admin host (§7.4).
+    site_host_edge_addresses_value: str = Field(
+        default="", alias="LEONAID_SITE_HOST_EDGE_ADDRESSES"
+    )
+    site_host_edge_name: str = Field(default="", alias="LEONAID_SITE_HOST_EDGE_NAME")
+    # Public resolvers that must agree with ours (split-view DNS, §7.4).
+    # Unset: 1.1.1.1 and 9.9.9.9 in production, none elsewhere; "none" off.
+    site_host_public_resolvers_value: str = Field(
+        default="", alias="LEONAID_SITE_HOST_PUBLIC_RESOLVERS"
+    )
+    site_host_tls_ca_file: Path | None = Field(
+        default=None, alias="LEONAID_SITE_HOST_TLS_CA_FILE"
+    )
+    # Periodic re-check in the API process (it has the egress the check
+    # needs); 0 switches it off (tests).
+    site_host_recheck_interval_seconds: float = Field(
+        default=0, ge=0, le=86400, alias="LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS"
+    )
     trust_proxy_headers: bool = Field(
         default=False,
         alias="LEONAID_TRUST_PROXY_HEADERS",
@@ -196,7 +234,35 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("site_base_url_value", mode="before")
+    @field_validator("site_host_edge_addresses_value")
+    @classmethod
+    def valid_edge_addresses(cls, value: str) -> str:
+        for item in re.split(r"[\s,]+", value):
+            if item:
+                try:
+                    ip_address(item)
+                except ValueError:
+                    raise ValueError(
+                        f"LEONAID_SITE_HOST_EDGE_ADDRESSES: {item} is no IP address"
+                    ) from None
+        return value
+
+    @field_validator("site_host_public_resolvers_value")
+    @classmethod
+    def valid_public_resolvers(cls, value: str) -> str:
+        if value.strip().casefold() == "none":
+            return value
+        for item in re.split(r"[\s,]+", value):
+            if item:
+                try:
+                    ip_address(item)
+                except ValueError:
+                    raise ValueError(
+                        f"LEONAID_SITE_HOST_PUBLIC_RESOLVERS: {item} is no IP address"
+                    ) from None
+        return value
+
+    @field_validator("site_base_url_value", "site_host_tls_ca_file", mode="before")
     @classmethod
     def empty_site_base_url_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -295,6 +361,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "A public origin must not also be a credentialed admin origin."
             )
+        for item in self.host_check_settings.edge_addresses:
+            if not ip_address(item).is_global:
+                raise ValueError("Production edge addresses must be public: " + item)
+        if self.site_host_check_allow_private or self.site_host_tls_ca_file:
+            raise ValueError(
+                "Production checks campaign hosts on public addresses with the "
+                "system trust store only."
+            )
         if (self.mail_health_url.host or "").casefold() == "mailpit":
             raise ValueError("Mailpit is not allowed in production.")
         if self.object_storage_bucket == "leonaid":
@@ -391,6 +465,46 @@ class Settings(BaseSettings):
             public=public,
             aliases=aliases,
             allow_test_names=self.environment != "production",
+        )
+
+    @property
+    def site_host_public_resolvers(self) -> tuple[str, ...]:
+        value = self.site_host_public_resolvers_value.strip()
+        if value.casefold() == "none":
+            return ()
+        if not value:
+            return ("1.1.1.1", "9.9.9.9") if self.environment == "production" else ()
+        return tuple(item for item in re.split(r"[\s,]+", value) if item)
+
+    @property
+    def site_host_check_secret(self) -> str:
+        """A key of its own for the host check answer, from the HMAC secret."""
+        return hmac.new(
+            self.invitation_hmac_secret.get_secret_value().encode("utf-8"),
+            b"leonaid.site-host-check.v1",
+            hashlib.sha256,
+        ).hexdigest()
+
+    @property
+    def host_check_settings(self) -> HostCheckSettings:
+        edge_host, _, edge_port = self.site_host_tls_edge.rpartition(":")
+        return HostCheckSettings(
+            secret=self.site_host_check_secret,
+            edge_addresses=tuple(
+                item
+                for item in re.split(r"[\s,]+", self.site_host_edge_addresses_value)
+                if item
+            ),
+            edge_name=self.site_host_edge_name.strip()
+            or (self.public_base_url.host or ""),
+            http_port=self.site_host_check_http_port,
+            allow_private_addresses=self.site_host_check_allow_private,
+            tls_edge_host=edge_host,
+            tls_edge_port=int(edge_port),
+            tls_ca_file=(
+                str(self.site_host_tls_ca_file) if self.site_host_tls_ca_file else None
+            ),
+            public_resolvers=self.site_host_public_resolvers,
         )
 
     @property

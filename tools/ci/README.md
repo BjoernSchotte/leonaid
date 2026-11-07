@@ -571,6 +571,32 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
 
+## Local checks
+
+`./leonaid check` keeps every gate but runs independent groups in parallel and
+prints each group's buffered output with its duration: the stdlib-only checks
+in one container (`tools/dx/stdlib_checks.sh`), browser-image checks, ruff,
+mypy, Python contracts, the exhaustive survey disclosure solver proof in four
+deterministic pytest shards (`tools/dx/pytest_shard.py`), frontend typecheck
+(all packages concurrently, `tools/dx/run-parallel.mjs`) and prettier, node and
+infra checks. Any failed group fails the check.
+
+`./leonaid check-fast` is the pre-push subset (about 20–30 s): ruff, mypy, unit
+tests without the solver proof, the TypeScript packages changed against
+`origin/main` (`LEONAID_CHECK_BASE`) plus their dependents
+(`tools/dx/fast_plan.py`), prettier on changed files and conflict markers. It
+does not replace `check` before a PR. `./leonaid install-pre-push-hook`
+installs it as a git pre-push hook for every worktree of the clone (never over a
+foreign hook or into a `core.hooksPath` outside the repository); `git push
+--no-verify` skips it once. The hook checks the working tree and warns when that
+differs from what is pushed (uncommitted changes, another ref than `HEAD`).
+
+Both commands run at most `LEONAID_CHECK_JOBS` groups at once (default: half the
+CPUs, at least 2); lower it on a busy shared host. Relative imports between
+workspaces (for example `apps/campaign-site` → `apps/public`) count as
+dependencies for check-fast, and a new workspace with its own check that
+`fast_plan.py` does not know selects every package.
+
 ## Shared image tags
 
 Test stacks and standalone suites (`build_shared_images` in
@@ -602,6 +628,20 @@ filesystem with reflinks (ZFS block cloning, btrfs) `.venv` and `node_modules`
 share blocks with the cache. On this host a fresh worktree's `bootstrap` takes
 about 7 s instead of 33 s, and its `node_modules` allocates 75 MB instead of
 640 MB. `bootstrap` removes the old checkout-local `.cache/uv` and `.cache/bun`.
+
+## Stale dependency guard
+
+`./leonaid bootstrap` stamps `.venv` and `node_modules` with a checksum of
+what decides their content: the lockfile (`uv.lock`, `bun.lock`; installs are
+`--frozen`, so every dependency change in `pyproject.toml` or a `package.json`
+changes it, while scripts, versions and tool config do not) and the pinned
+toolchain image (`UV_IMAGE`, `BUN_IMAGE`). Commands that run the Python or Bun
+toolchain (`check`, `check-fast`, `test-unit`, …) stop with "… is stale … run
+`./leonaid bootstrap`" when a merge, branch switch or Renovate update changed
+them, instead of failing later with missing modules. An install without a
+stamp (from before this guard) or a missing install only warns, in commands
+and in `doctor`; a stale stamp is an error in both.
+`LEONAID_SKIP_DEPENDENCY_CHECK=1` skips the guard.
 
 ## Persistent GitHub BuildKit cache
 
