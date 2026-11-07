@@ -13,8 +13,8 @@ day: pull requests run only the E2E leaves their change reaches, the
 | `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, EmDash proofs, Golden Journey, Surveys, API contract, pins) when their inputs changed; shared infrastructure and unmapped paths select all of them. E2E leaves only when mapped (module paths and specs, or the import graph for `src/leonaid/**`), plus the short `smoke` leg for every shared or unmapped change. |
 | `pull_request` with the `full-e2e` label | As above plus every E2E leaf. The label is read from the event, so it takes effect at the next push (or start `ci.yml` by `workflow_dispatch` on the branch for a complete run now). A `labeled` trigger is deliberately absent: a run for an unrelated label would replace the PR's gate result. |
 | draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; `flake_summary.py` ignores such runs. |
-| `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's newest real gate check run (by id, so a queued newer run wins over an older green one) and waits up to 100 minutes while it is queued or running; after that it fails with "re-run this gate after the real run finishes" (`gate.py`). `docs.yml` simply rebuilds. |
-| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). Defence in depth: such a gate fails when the PR's current base, read from the API, is no longer the stack base. |
+| `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's newest **completed** gate of a **real** run (draft and title-edit runs are skipped, so mirrors never copy each other) and fails fast when there is none yet. GitHub creates a gate's check run only when its jobs finish, so the real run's later gate supersedes the mirror; re-running the real run's gate job or pushing also does. `docs.yml` simply rebuilds. |
+| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). The gates of a stacked run never pass ("retarget to main for the real gate"): GitHub creates a later run's gate only when its jobs finish, so a stacked green would stay the newest result for 20–60 minutes after a retarget. The ruleset applies only to `main`, so merging into the parent branch is not blocked. |
 | `schedule` every 3 hours on `main` (`37 */3 * * *`) | Every suite except the E2E leaves, plus the smoke leg. |
 | nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. |
 
@@ -513,6 +513,25 @@ not an application backup/restore test. When the invocation ends, the fixture's
 containers are stopped (volumes, images and the saved data stay), so an idle
 checkout holds no Twenty, database or application memory.
 
+Checkouts with the synthetic `.env.local` (`./leonaid bootstrap --synthetic-env`,
+the default for a fresh agent worktree under `.claude/worktrees/`) initialize
+from a host-wide cache instead of a full setup: `~/.cache/leonaid/fixtures/<key>`
+(or `$LEONAID_FIXTURE_CACHE`), keyed by `tools/testing/ci_fixture.py key`, in
+the CI fixture format with synthetic data and public synthetic credentials only.
+The first checkout builds an entry under an exclusive lock; concurrent checkouts
+wait for it instead of building it again. Each stack imports the entry into its
+own volumes, so isolation is unchanged. An entry holds the volume archives and
+golden PDFs (about 130 MB today). Pruning keeps at most the three most recently
+used entries (`LEONAID_FIXTURE_CACHE_KEEP`) and 4096 MB
+(`LEONAID_FIXTURE_CACHE_MAX_MB`); entries in use or used within the last hour
+are never pruned. `./leonaid fixture-cache` shows the cache;
+`./leonaid fixture-cache clear` removes every entry not in use.
+Host ports and `LEONAID_COMPOSE_PROJECT` are per checkout; every other value must match.
+When `.env.example` gains a setting, the test run asks for `./leonaid bootstrap`,
+which rewrites the synthetic file with the new setting.
+`LEONAID_FIXTURE_CACHE=off` forces a private setup. Bootstrap never replaces an
+`.env.local` with generated secrets; delete it (and the checkout's dev data) first.
+
 The existing development stack is never adopted or reset. The test fixture uses
 its own project, volumes and networks without host ports. One process holds the
 checkout lock for the whole invocation; another local test refuses immediately
@@ -531,6 +550,38 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 `--group recovery` or an explicit nightly shard opt into recovery. Compatible
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
+
+## Shared image tags
+
+Test stacks and standalone suites (`build_shared_images` in
+`tools/testing/owned_teardown.sh`) reuse images across checkouts by content.
+`python3 tools/testing/image_tags.py <service>` hashes the Docker platform, the
+build section, the Dockerfile, `.dockerignore` and every file the Dockerfile
+copies from its context (after `.dockerignore`, with file modes); the harness
+hashes the build section from the project's own `docker compose config`, so
+overlays with other args, targets or Dockerfiles get their own tags. A stack
+whose hash exists as `leonaid-local/<service>:<hash>` and is younger than seven
+days (`LEONAID_IMAGE_MAX_AGE_DAYS`; the Dockerfiles upgrade OS packages) only
+tags it as `<project>-<service>` (about 0.8 s for seven images instead of 8–25 s
+of `compose build`). Otherwise it builds, then records the tag under the
+pre-build hash only if the inputs still hash the same (not in CI). A FROM or
+`COPY --from` without digest, `ADD` of a URL, mounts other than `type=cache`,
+build secrets/ssh, symlinks leaving the context or unknown `.dockerignore`
+syntax make it build without sharing (the CLI exits non-zero). Teardown removes
+only `<project>-*` tags; the four most recently used content tags per service
+are kept (`LEONAID_IMAGE_KEEP`). CI may push the same hash as
+`ghcr.io/bjoernschotte/leonaid-ci/<service>:<hash>`.
+
+## Shared package caches
+
+`./leonaid` toolchain containers (`bootstrap`, `check`, `test-unit`, …) share
+one uv and one bun download cache per user: `~/.cache/leonaid/packages/{uv,bun}`
+(0700; `LEONAID_PACKAGE_CACHE` moves it). Installs stay `--frozen`; uv installs
+with `UV_LINK_MODE=clone` and bun copies with `copy_file_range`, so on a
+filesystem with reflinks (ZFS block cloning, btrfs) `.venv` and `node_modules`
+share blocks with the cache. On this host a fresh worktree's `bootstrap` takes
+about 7 s instead of 33 s, and its `node_modules` allocates 75 MB instead of
+640 MB. `bootstrap` removes the old checkout-local `.cache/uv` and `.cache/bun`.
 
 ## Persistent GitHub BuildKit cache
 

@@ -4,7 +4,10 @@
 # S3/Restic backup target, real TLS proxy, real Prometheus/Alertmanager, a real
 # implicit-TLS+AUTH SMTP relay (Mailpit, port 465) that receives mail from
 # Twenty and the core worker over the mail egress network, and the scheduled
-# CRM match key repair including its maintenance-mode skip.
+# CRM match key repair including its maintenance-mode skip. Then
+# the CMS: pilot-cms-provision with a failure halfway and its resumption, the
+# System Admin's setup, a published campaign page on the public host, a
+# repeat without changes, backups with the CMS data and a restore drill.
 set -eu
 
 root=${1:-$(pwd)}
@@ -22,7 +25,7 @@ operator_mail_project="leonaid-pilot-install-mail-$suffix"
 operator_mail_container="$operator_mail_project-mailpit"
 set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
   "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" \
-  "${LEONAID_PILOT_TEST_ADMIN_PORT:-0}" <<'PORTS'
+  "${LEONAID_PILOT_TEST_ADMIN_PORT:-0}" 0 <<'PORTS'
 import socket, sys
 sockets = []
 for value in sys.argv[1:]:
@@ -32,13 +35,15 @@ for value in sys.argv[1:]:
 print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
 PORTS
 )
-[ "$#" -eq 3 ] || { echo 'pilot-install-test: port allocation failed' >&2; exit 1; }
+[ "$#" -eq 4 ] || { echo 'pilot-install-test: port allocation failed' >&2; exit 1; }
 export LEONAID_PILOT_TEST_HTTP_PORT="$1"
 export LEONAID_PILOT_TEST_HTTPS_PORT="$2"
 # Loopback port of the admin-only Twenty UI (TWENTY_ADMIN_PORT).
 admin_port=$3
+# Twenty admin port of the CMS restore drill's target project.
+restore_admin_port=$4
 workspace=$(mktemp -d)
-mkdir -p "$workspace/evidence" "$root/.artifacts"
+mkdir -p "$workspace/evidence" "$workspace/session" "$root/.artifacts"
 overlay_directory=$(mktemp -d "$root/.artifacts/pilot-install.XXXXXX")
 overlay="$overlay_directory/overlay.yml"
 env_file="$workspace/production.env"
@@ -52,8 +57,10 @@ release_manifest="$workspace/release-manifest.json"
 accepted_decisions="$workspace/accepted-decisions.md"
 install_log="$workspace/pilot-install.log"
 release_commit=$(git -C "$root" rev-parse HEAD)
-image_services="api web pwa public survey-validator proxy"
+image_services="api web pwa public survey-validator proxy campaign-site"
 runtime_owned=false
+restore_owned=false
+restore_project=
 backup_owned=false
 build_owned=false
 mail_owned=false
@@ -91,11 +98,16 @@ cleanup() {
   if [ "$status" -ne 0 ] && [ "$runtime_owned" = true ]; then
     echo "pilot-install-test: diagnosis of the failed project:" >&2
     runtime_compose --profile monitoring ps --all >&2 || true
-    runtime_compose --profile monitoring logs --no-color --tail=60 \
-      twenty-server api proxy alertmanager >&2 || true
+    runtime_compose --profile '*' logs --no-color --tail=60 \
+      twenty-server api proxy alertmanager campaign-site >&2 || true
   fi
   if [ "$mail_owned" = true ]; then
     docker rm --force "$operator_mail_container" >/dev/null 2>&1 || status=1
+  fi
+  if [ "$restore_owned" = true ]; then
+    restore_compose --profile '*' down --volumes --remove-orphans \
+      >/dev/null 2>&1 || status=1
+    verify_owned_project_removed "$restore_project" || status=1
   fi
   if [ "$runtime_owned" = true ]; then
     runtime_compose --profile '*' down --volumes --remove-orphans \
@@ -105,6 +117,10 @@ cleanup() {
   if [ "$backup_owned" = true ]; then
     docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
     docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || status=1
+  fi
+  if [ "${next_owned:-false}" = true ]; then
+    docker image rm "$build_project-campaign-site-next:latest" >/dev/null 2>&1 || status=1
+    docker image rm "$build_project-campaign-site-broken:latest" >/dev/null 2>&1 || status=1
   fi
   if [ "$build_owned" = true ]; then
     for service in $image_services; do
@@ -141,12 +157,13 @@ for owned in "$project" "$build_project" "$operator_backup_project" "$operator_m
   verify_project_absent "$owned"
 done
 
-echo "pilot-install-test: builds the six release images"
+echo "pilot-install-test: builds the seven release images"
 build_owned=true
 docker compose \
   --project-name "$build_project" \
   --env-file "$root/.env.local" \
   --file "$root/infra/compose/compose.yml" \
+  --profile emdash \
   build $image_services
 image_id() {
   docker image inspect --format '{{.Id}}' "$build_project-$1:latest"
@@ -157,9 +174,10 @@ LEONAID_TEST_PWA_IMAGE=$(image_id pwa)
 LEONAID_TEST_PUBLIC_IMAGE=$(image_id public)
 LEONAID_TEST_SURVEY_VALIDATOR_IMAGE=$(image_id survey-validator)
 LEONAID_TEST_PROXY_IMAGE=$(image_id proxy)
+LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(image_id campaign-site)
 export LEONAID_TEST_CORE_IMAGE LEONAID_TEST_WEB_IMAGE LEONAID_TEST_PWA_IMAGE \
   LEONAID_TEST_PUBLIC_IMAGE LEONAID_TEST_SURVEY_VALIDATOR_IMAGE \
-  LEONAID_TEST_PROXY_IMAGE
+  LEONAID_TEST_PROXY_IMAGE LEONAID_TEST_CAMPAIGN_SITE_IMAGE
 
 LEONAID_TEST_EXTRA_NETWORKS=mail-egress,crm-admin \
   python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
@@ -327,13 +345,22 @@ docker run --detach \
   "$MAILPIT_IMAGE" >/dev/null
 rm -f "$workspace/mailpit.env"
 
+# The proxy runs the product's own single-host route table (the generated
+# infra/pilot/Caddyfile, campaign routes included) with an internal CA instead
+# of ACME.
+python3 "$root/tools/proxy/caddyfiles.py" --render pilot-single --tls-internal \
+  >"$overlay_directory/Caddyfile.pilot-single-test"
 # Test-only additions: Twenty and the core worker trust the relay's test CA.
 # Production relays need a certificate from a public CA.
-python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$overlay" "$mail_directory/ca.pem" <<'OVERLAY'
+write_overlay() {
+python3 - "$root/infra/pilot/compose.test.yml" "$1" "$2" "$mail_directory/ca.pem" "$overlay_directory/Caddyfile.pilot-single-test" <<'OVERLAY'
 from pathlib import Path
 import sys
-base, network, target, ca = sys.argv[1:]
+base, network, target, ca, caddyfile = sys.argv[1:]
 text = Path(base).read_text()
+mounted = "      - ../pilot/Caddyfile.test:/etc/caddy/Caddyfile:ro\n"
+assert text.count(mounted) == 1
+text = text.replace(mounted, f"      - {caddyfile}:/etc/caddy/Caddyfile:ro\n")
 anchor = "  worker:\n    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}\n"
 assert text.count(anchor) == 1
 mount = (
@@ -341,9 +368,13 @@ mount = (
     "      - source: smtp-test-ca\n"
     "        target: /run/leonaid-test/smtp-ca.pem\n"
 )
+# The core worker's default TLS context (no MAIL_SMTP_CA_FILE in the pilot)
+# reads the trust store from SSL_CERT_FILE: test relay CA only, test only.
 text = text.replace(
     anchor,
     anchor
+    + "    environment:\n"
+    + "      SSL_CERT_FILE: /run/leonaid-test/smtp-ca.pem\n"
     + mount
     + "\n  twenty-worker:\n"
     + "    environment:\n"
@@ -356,6 +387,8 @@ text += (
 )
 Path(target).write_text(text)
 OVERLAY
+}
+write_overlay "$overlay_directory/networks.yml" "$overlay"
 
 docker run --rm \
   --user "$(id -u):$(id -g)" \
@@ -425,6 +458,13 @@ sed 's/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=already-provisi
 chmod 600 "$workspace/provisioned.env"
 expect_refusal "provisioned integration key" "is not PENDING_PILOT_INSTALL" \
   --env-file "$workspace/provisioned.env" --release-manifest "$release_manifest" \
+  --twenty-bootstrap-file "$bootstrap_file" --password-file "$restic_password_file"
+sed 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' \
+  "$env_file" >"$workspace/cms-install.env"
+chmod 600 "$workspace/cms-install.env"
+grep -qx 'LEONAID_CMS_ENABLED=true' "$workspace/cms-install.env"
+expect_refusal "CMS enabled at the first install" "install with LEONAID_CMS_ENABLED=false" \
+  --env-file "$workspace/cms-install.env" --release-manifest "$release_manifest" \
   --twenty-bootstrap-file "$bootstrap_file" --password-file "$restic_password_file"
 verify_project_absent "$project" || {
   echo 'pilot-install-test: ERROR: a refused install left resources behind' >&2
@@ -642,9 +682,720 @@ for secret in alert-webhook-url alert-heartbeat-url; do
   }
 done
 
+echo "pilot-install-test: proves the first System Admin (pilot-create-system-admin)"
+create_admin() {
+  set +e
+  admin_output=$(leonaid_test pilot-create-system-admin --env-file "$env_file" "$@" 2>&1)
+  admin_status=$?
+  set -e
+  printf '%s\n' "$admin_output" >>"$workspace/system-admin.log"
+}
+expect_admin() {
+  label=$1
+  expected_status=$2
+  expected_text=$3
+  shift 3
+  create_admin "$@"
+  if [ "$admin_status" -ne "$expected_status" ] ||
+    ! printf '%s' "$admin_output" | grep -Fq -- "$expected_text"; then
+    echo "pilot-install-test: ERROR: system admin $label: status $admin_status, expected $expected_status with '$expected_text':" >&2
+    printf '%s\n' "$admin_output" | tail -n 15 >&2
+    exit 1
+  fi
+  echo "pilot-install-test: system admin $label"
+}
+expect_admin "needs an address" 64 "--email is missing" --display-name "CMS System Admin"
+expect_admin "creates the first one on an empty installation" 0 \
+  "System Admin created; the sign-in mail for cms-admin@leonaid.org is queued" \
+  --email Cms-Admin@leonaid.org --display-name "CMS System Admin"
+# The normal sign-in mail through the relay: code and link, no password.
+assert_delivered cms-admin@leonaid.org noreply@leonaid.org "LeonAid-Login"
+expect_admin "repeats without a change" 0 "already is an active System Admin; nothing changed" \
+  --email cms-admin@leonaid.org --display-name "CMS System Admin"
+expect_admin "refuses a second one without --additional" 1 \
+  "an active System Admin exists already; pass --additional" \
+  --email cms-second-admin@leonaid.org --display-name "Second System Admin"
+expect_admin "adds a second one with --additional" 0 "System Admin created" \
+  --email cms-second-admin@leonaid.org --display-name "Second System Admin" --additional
+assert_delivered cms-second-admin@leonaid.org noreply@leonaid.org "LeonAid-Login"
+admin_audit=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
+  --tuples-only --no-align --command \
+  "SELECT event_type || ':' || (actor_user_id IS NULL)::text FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' ORDER BY occurred_at")
+[ "$admin_audit" = "$(printf '%s\n' identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true)" ] || {
+  echo "pilot-install-test: ERROR: unexpected system admin audit trail:" >&2
+  printf '%s\n' "$admin_audit" >&2
+  exit 1
+}
+# No run printed a sign-in code, a magic link or its token.
+if grep -Eq '(^|[^0-9])[0-9]{6}([^0-9]|$)|token=|/login\?' "$workspace/system-admin.log"; then
+  echo "pilot-install-test: ERROR: pilot-create-system-admin printed sign-in data" >&2
+  exit 1
+fi
+operators=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
+  --tuples-only --no-align --command \
+  "SELECT DISTINCT payload->>'operator' FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' AND entity_type IN ('user_account', 'user_global_role')")
+[ "$operators" = "$(id -un)@$(hostname)" ] || {
+  echo "pilot-install-test: ERROR: the audit does not name the operator: $operators" >&2
+  exit 1
+}
+
+echo "pilot-install-test: proves CMS provisioning (pilot-cms-provision) end to end"
+cms_release_manifest="$workspace/release-manifest-cms.json"
+cms_admin_id=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid \
+  --dbname leonaid --tuples-only --no-align \
+  --command "SELECT id FROM user_account WHERE email = 'cms-admin@leonaid.org'")
+cms_admin_email=cms-admin@leonaid.org
+cms_action_id=20000000-0000-4000-8000-0000000000c1
+cms_slug=pilot-cms-proof
+cms_title="Pilot CMS proof campaign"
+core_sql() {
+  runtime_compose exec -T core-postgres psql --quiet --set ON_ERROR_STOP=1 \
+    --username leonaid --dbname leonaid "$@"
+}
+cms_provision() {
+  leonaid_test pilot-cms-provision --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --release-manifest "$cms_manifest_argument" "$@"
+}
+# The CMS release manifest exists only once the CMS is enabled below.
+cms_manifest_argument=$release_manifest
+# Runs cms_provision and keeps its output and exit status for assertions.
+cms_provision_capture() {
+  set +e
+  cms_output=$(cms_provision "$@" 2>&1)
+  cms_status=$?
+  set -e
+  printf '%s\n' "$cms_output" >>"$workspace/cms-provision.log"
+}
+cms_expect() {
+  label=$1
+  expected_status=$2
+  expected_text=$3
+  shift 3
+  cms_provision_capture "$@"
+  if [ "$cms_status" -ne "$expected_status" ] ||
+    ! printf '%s' "$cms_output" | grep -Fq -- "$expected_text"; then
+    echo "pilot-install-test: ERROR: CMS $label: status $cms_status, expected $expected_status with '$expected_text':" >&2
+    printf '%s\n' "$cms_output" | tail -n 25 >&2
+    exit 1
+  fi
+  echo "pilot-install-test: CMS $label"
+}
+cms_state() {
+  runtime_compose --profile emdash run --rm --no-deps --entrypoint node \
+    campaign-site /app/operator/cms-provision-operator.mjs status
+}
+assert_backup_schema() {
+  cp "$backup_manifest" "$workspace/manifest-copy.json"
+  docker run --rm \
+    --env "EXPECTED_SCHEMA=$1" \
+    --volume "$workspace/manifest-copy.json:/proof/manifest.json:ro" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json, os, pathlib
+value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
+assert value["schemaVersion"] == int(os.environ["EXPECTED_SCHEMA"]), value["schemaVersion"]'
+}
+# real_sign_in EMAIL: the real code sign-in of a member through the edge with
+# the code of its newest sign-in mail; prints the session.
+real_sign_in() {
+  edge_proof() {
+    docker run --rm --network "container:$project-proxy-1" \
+      --env CMS_PROOF_HOST=portal.leonaid.org \
+      --env CMS_PROOF_CA_FILE=/session/proxy-ca.crt \
+      --env CMS_PROOF_SESSION_FILE=/session/token \
+      --volume "$workspace/session:/session" \
+      --user "$(id -u):$(id -g)" \
+      --volume "$root:/workspace:ro" --workdir /workspace \
+      "$PYTHON_IMAGE" python tools/pilot_install/cms_proof.py "$@"
+  }
+  if [ ! -f "$workspace/session/proxy-ca.crt" ]; then
+    # The proxy CA is root-only in its volume; the host copies the public
+    # cert so the sign-in runs as the host user and writes a token only it reads.
+    docker run --rm --network none --volume "${project}_caddy-data:/caddy:ro" \
+      "$ALPINE_IMAGE" cat /caddy/caddy/pki/authorities/local/root.crt \
+      >"$workspace/session/proxy-ca.crt"
+  fi
+  sign_in_mails() {
+    docker run --rm --network "${project}_mail-egress" \
+      --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
+      python tools/pilot_install/mail_proof.py "$@"
+  }
+  # The newest sign-in mail first. Core keeps one pending code per member and
+  # sends no new mail while it is valid; only an expired code needs a new one.
+  sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" 1)
+  rm -f "$workspace/session/token"
+  if ! edge_proof login "$1" "$sign_in_code" >&2 2>/dev/null; then
+    sign_in_minimum=$(( $(sign_in_mails login-count "$mail_api" "$1") + 1 ))
+    edge_proof request-login "$1" >&2
+    sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" "$sign_in_minimum")
+    edge_proof login "$1" "$sign_in_code" >&2
+  fi
+  cat "$workspace/session/token"
+}
+second_admin_session() {
+  real_sign_in cms-second-admin@leonaid.org
+}
+cms_proof() {
+  cms_proof_run "$@" || {
+    # Diagnosis without secrets: provisioning state and the Core identity
+    # answer as the CMS sees it (status code and field names only).
+    echo "pilot-install-test: CMS diagnosis after a failed edge proof:" >&2
+    cms_state >&2 || true
+    CMS_PROOF_SESSION=$cms_session runtime_compose --profile emdash exec -T \
+      --env CMS_PROOF_SESSION campaign-site node -e '
+fetch("http://api:8000/api/v1/identity/me", {
+  headers: { Cookie: "__Host-leonaid_session=" + process.env.CMS_PROOF_SESSION },
+  redirect: "manual",
+}).then(async (r) => {
+  const body = await r.text();
+  let keys = [];
+  try { keys = Object.keys(JSON.parse(body)); } catch {}
+  console.error("core identity:", r.status, r.headers.get("content-type"), keys.join(","));
+}).catch((e) => console.error("core identity: fetch failed", e?.cause?.code ?? e?.name));
+const fs = require("node:fs");
+try { const s = JSON.parse(fs.readFileSync("/app/bootstrap-state/state.json", "utf8"));
+  console.error("bootstrap:", s.status, s.actor, s.expiresAt > Date.now() ? "valid" : "expired");
+} catch (e) { console.error("bootstrap: unreadable", e?.code); }' >&2 || true
+    exit 1
+  }
+}
+cms_proof_run() {
+  CMS_PROOF_SESSION=$cms_session docker run --rm \
+    --network "container:$project-proxy-1" \
+    --env CMS_PROOF_SESSION \
+    --env CMS_PROOF_HOST=portal.leonaid.org \
+    --env CMS_PROOF_CA_FILE=/caddy/caddy/pki/authorities/local/root.crt \
+    --volume "${project}_caddy-data:/caddy:ro" \
+    --volume "$root:/workspace:ro" --workdir /workspace \
+    "$PYTHON_IMAGE" python tools/pilot_install/cms_proof.py "$@"
+}
+s3_root() {
+  runtime_compose exec -T api python -c 'import boto3, json, os, sys
+from botocore.config import Config
+s3 = boto3.client("s3", endpoint_url="http://rustfs:9000",
+  aws_access_key_id=os.environ["RUSTFS_ACCESS_KEY"],
+  aws_secret_access_key=os.environ["RUSTFS_SECRET_KEY"], region_name="us-east-1",
+  config=Config(signature_version="s3v4", s3={"addressing_style": "path"}))
+if sys.argv[1] == "block":
+    s3.create_bucket(Bucket="emdash-media")
+    s3.put_bucket_policy(Bucket="emdash-media", Policy=json.dumps({
+      "Version": "2012-10-17",
+      "Statement": [{"Effect": "Allow", "Principal": {"AWS": ["*"]},
+        "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::emdash-media/*"]}]}))
+else:
+    s3.delete_bucket_policy(Bucket="emdash-media")' "$1"
+}
+
+cms_expect "refused while LEONAID_CMS_ENABLED=false" 1 \
+  "set LEONAID_CMS_ENABLED=true in the environment file first"
+
+# Enable the CMS: the release now needs the CMS contract (manifest schema 2).
+sed -i 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' "$env_file"
+grep -qx 'LEONAID_CMS_ENABLED=true' "$env_file"
+cms_manifest_argument=$cms_release_manifest
+runtime_compose --profile emdash config --format json >"$workspace/runtime-compose-cms.json"
+docker run --rm --interactive \
+  --user "$(id -u):$(id -g)" \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  sh -eu -c 'cat > /tmp/runtime-compose.json; exec python tools/pilot_release/manifest.py create "$@"' sh \
+    --root /workspace \
+    --release-id pilot-install-cms-test \
+    --version 2026.11.1 \
+    --git-commit "$release_commit" \
+    --deployment-mode test \
+    --schema-version 2 \
+    --compose-config /tmp/runtime-compose.json \
+    --output /proof/release-manifest-cms.json <"$workspace/runtime-compose-cms.json"
+
+# LEONAID_CMS_ENABLED=true is not accepted before the CMS is provisioned.
+set +e
+deploy_output=$(leonaid_test pilot-deploy --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" \
+  --release-manifest "$cms_release_manifest" 2>&1)
+deploy_status=$?
+set -e
+[ "$deploy_status" -ne 0 ] &&
+  printf '%s' "$deploy_output" | grep -Fq "the CMS is not provisioned" || {
+  echo "pilot-install-test: ERROR: pilot-deploy accepted an unprovisioned CMS:" >&2
+  printf '%s\n' "$deploy_output" | tail -n 20 >&2
+  exit 1
+}
+[ -z "$(runtime_compose --profile emdash ps --quiet campaign-site)" ]
+echo "pilot-install-test: CMS pilot-deploy refused before provisioning"
+
+# Failure halfway: a foreign policy on the media bucket stops step 2 after
+# step 1 succeeded; the next run resumes at step 2.
+s3_root block
+cms_expect "stops at a reviewed bucket policy" 1 "emdash-rustfs: FAILED"
+printf '%s' "$cms_output" | grep -Fq "1/4 database: provisioning"
+cms_state >"$workspace/cms-state.txt"
+grep -qx 'database=ready' "$workspace/cms-state.txt"
+grep -qx 'storage=missing' "$workspace/cms-state.txt"
+grep -qx 'bootstrap=none' "$workspace/cms-state.txt"
+s3_root unblock
+cms_expect "resumes and needs the System Admin" 64 \
+  "--system-admin-email of the LeonAid System Admin"
+printf '%s' "$cms_output" | grep -Fq "1/4 database: already provisioned"
+printf '%s' "$cms_output" | grep -Fq "2/4 media bucket: provisioning"
+
+printf '%s\n' \
+  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c2', 'cms-member@leonaid.org', 'CMS Member', 'active');" |
+  core_sql
+cms_expect "refuses a member without the System Admin role" 1 \
+  "is no active LeonAid System Admin" --system-admin-email cms-member@leonaid.org
+cms_expect "arms the setup grant" 75 "3/4 editor setup: PENDING" \
+  --system-admin-email "$cms_admin_email"
+printf '%s' "$cms_output" | grep -Fq "2/4 media bucket: already provisioned"
+cms_state | grep -qx 'bootstrap=armed'
+# Still pending: a repeat neither re-arms nor needs the address again.
+cms_expect "waits for the setup" 75 "3/4 editor setup: PENDING"
+# One grant at a time: another System Admin's address is refused, not ignored.
+cms_expect "refuses a second System Admin while armed" 1 \
+  "the setup is armed for another System Admin until" \
+  --system-admin-email cms-second-admin@leonaid.org
+
+# While provisioning is under way the nightly backup keeps working without
+# the unfinished CMS; switching the CMS off again needs no restore.
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file" \
+  >"$workspace/cms-pending-backup.log" 2>&1 || {
+  echo "pilot-install-test: ERROR: pilot-backup failed while the CMS setup was pending" >&2
+  tail -n 20 "$workspace/cms-pending-backup.log" >&2
+  exit 1
+}
+grep -Fq "this backup does not contain the unfinished CMS" "$workspace/cms-pending-backup.log"
+assert_backup_schema 1
+sed -i 's/^LEONAID_CMS_ENABLED=true$/LEONAID_CMS_ENABLED=false/' "$env_file"
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file" \
+  >"$workspace/cms-off-backup.log" 2>&1 || {
+  echo "pilot-install-test: ERROR: pilot-backup failed after switching the CMS off again" >&2
+  tail -n 20 "$workspace/cms-off-backup.log" >&2
+  exit 1
+}
+grep -Fq "the unfinished CMS (setup not complete) is not part of this backup" \
+  "$workspace/cms-off-backup.log"
+leonaid_test pilot-doctor --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --gate pilot-deploy >/dev/null
+sed -i 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' "$env_file"
+echo "pilot-install-test: CMS backups and the switch-off work while the setup is pending"
+
+# A refused setup request hands the grant back instead of locking the CMS.
+# The System Admin signs in for real: the code of its sign-in mail.
+cms_session=$(real_sign_in cms-admin@leonaid.org)
+cms_proof setup-refused
+cms_state | grep -qx 'bootstrap=armed'
+# A grant left consumed (a crash during the setup request, after EmDash had
+# already mapped the System Admin) is withdrawn only with --reset-setup, and
+# only while the CMS is unused; the mapped users go with it, so a grant for
+# another System Admin leaves no second EmDash administrator. Core audits it.
+cms_users() {
+  runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname emdash \
+    --tuples-only --no-align --command "$1"
+}
+[ "$(cms_users "SELECT count(*) FROM users u JOIN leonaid_external_identity i ON i.cms_user_id = u.id WHERE u.role = 50")" -ge 1 ]
+runtime_compose --profile emdash exec -T campaign-site node -e '
+const fs = require("node:fs");
+const path = "/app/bootstrap-state/state.json";
+const state = JSON.parse(fs.readFileSync(path, "utf8"));
+fs.writeFileSync(path, JSON.stringify({ ...state, status: "consumed" }));'
+cms_expect "blocks at a consumed grant" 1 "run again with --reset-setup"
+cms_expect "withdraws the unfinished grant and arms another System Admin" 75 \
+  "3/4 editor setup: PENDING" --reset-setup --system-admin-email cms-second-admin@leonaid.org
+printf '%s' "$cms_output" | grep -Fq "unfinished setup grant withdrawn"
+[ "$(cms_users "SELECT count(*) FROM users")" = 0 ]
+second_admin_id=$(core_sql --tuples-only --no-align --command \
+  "SELECT id FROM user_account WHERE email = 'cms-second-admin@leonaid.org'")
+audits=$(core_sql --tuples-only --no-align --command \
+  "SELECT string_agg(event_type || ':' || CASE WHEN entity_id = '$cms_admin_id' THEN 'first' ELSE 'second' END, ',' ORDER BY occurred_at) FROM audit_event WHERE entity_type = 'cms_setup_grant'")
+[ "$audits" = "cms.setup_grant.armed:first,cms.setup_grant.withdrawn:first,cms.setup_grant.armed:second" ] || {
+  echo "pilot-install-test: ERROR: unexpected CMS setup audit trail: $audits" >&2
+  exit 1
+}
+# The second System Admin completes the setup: EmDash then has exactly one
+# administrator, the second one.
+first_admin_session=$cms_session
+cms_session=$(second_admin_session)
+cms_proof setup
+cms_session=$first_admin_session
+[ "$(cms_users "SELECT string_agg(i.core_user_id::text, ',') FROM users u JOIN leonaid_external_identity i ON i.cms_user_id = u.id WHERE u.role = 50")" = "$second_admin_id" ] || {
+  echo "pilot-install-test: ERROR: the reset left another EmDash administrator" >&2
+  exit 1
+}
+cms_expect "installs the campaign schema" 0 \
+  "pilot-cms-provision: OK: $project serves the CMS"
+printf '%s' "$cms_output" | grep -Fq "3/4 editor setup: already complete"
+printf '%s' "$cms_output" | grep -Fq "4/4 campaign schema: installing"
+
+# EmDash completed the setup, the grant was not marked: a crash before
+# completeBootstrap ("consumed"), or a reset that raced the request ("none").
+# Both are confirmed against the mapped System Admin and marked complete.
+for unmarked in consumed none; do
+  runtime_compose --profile emdash exec -T --env UNMARKED="$unmarked" campaign-site node -e '
+const fs = require("node:fs");
+const path = "/app/bootstrap-state/state.json";
+if (process.env.UNMARKED === "none") fs.unlinkSync(path);
+else {
+  const state = JSON.parse(fs.readFileSync(path, "utf8"));
+  fs.writeFileSync(path, JSON.stringify({ ...state, status: "consumed" }));
+}'
+  cms_state | grep -qx "bootstrap=$unmarked"
+  cms_expect "marks a completed but unmarked setup ($unmarked)" 0 \
+    "pilot-cms-provision: OK: $project serves the CMS"
+  printf '%s' "$cms_output" | grep -Fq "completed setup confirmed, grant marked complete"
+done
+[ "$(core_sql --tuples-only --no-align --command \
+  "SELECT count(*) FROM audit_event WHERE event_type = 'cms.setup_grant.completed_by_operator' AND entity_id = '$second_admin_id'")" = 2 ]
+
+# Step 4 interrupted between its installers (here after the binding guards):
+# traffic closed, CMS stopped, media guards absent. The next run finishes it.
+runtime_compose --profile emdash stop campaign-site >/dev/null
+runtime_compose --profile emdash run --rm --no-deps --entrypoint mkdir \
+  campaign-site /app/bootstrap-state/cms-maintenance
+printf '%s\n' \
+  "DROP TABLE public.leonaid_campaign_media;" \
+  "DROP FUNCTION public.leonaid_campaign_media_guard();" \
+  "DELETE FROM public.options WHERE name = 'leonaid:campaign_media_version';" |
+  runtime_compose exec -T core-postgres psql --quiet --set ON_ERROR_STOP=1 \
+    --username leonaid --dbname emdash
+cms_state >"$workspace/cms-state.txt"
+grep -qx 'schema=partial' "$workspace/cms-state.txt"
+grep -qx 'traffic=closed' "$workspace/cms-state.txt"
+cms_expect "resumes an interrupted schema install" 0 \
+  "pilot-cms-provision: OK: $project serves the CMS"
+printf '%s' "$cms_output" | grep -Fq "4/4 campaign schema: installing"
+cms_expect "repeats as a no-op" 0 "pilot-cms-provision: OK: $project serves the CMS"
+for step in "1/4 database: already" "2/4 media bucket: already" \
+  "3/4 editor setup: already" "4/4 campaign schema: already"; do
+  printf '%s' "$cms_output" | grep -Fq "$step"
+done
+if printf '%s' "$cms_output" | grep -Eq ': (provisioning|installing)'; then
+  echo "pilot-install-test: ERROR: the repeated provisioning changed something" >&2
+  exit 1
+fi
+# The grant is used up: the setup stays closed for good.
+cms_proof setup-closed
+for secret in CORE_POSTGRES_PASSWORD CMS_POSTGRES_PASSWORD CMS_S3_SECRET_ACCESS_KEY; do
+  value=$(sed -n "s/^$secret=//p" "$env_file")
+  if grep -Fq "$value" "$workspace/cms-provision.log"; then
+    echo "pilot-install-test: ERROR: pilot-cms-provision printed $secret" >&2
+    exit 1
+  fi
+done
+
+# Backups take the CMS from now on; the doctor requires them.
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file"
+assert_cms_backup() {
+  cp "$backup_manifest" "$workspace/manifest-copy.json"
+  docker run --rm \
+    --env "EXPECTED_PROJECT=$project" \
+    --volume "$workspace/manifest-copy.json:/proof/manifest.json:ro" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json, os, pathlib
+value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
+assert value["sourceProject"] == os.environ["EXPECTED_PROJECT"]
+assert value["schemaVersion"] == 2, value["schemaVersion"]
+assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar", "caddy-data.tar", "emdash.dump", "cms-bootstrap-state.tar"}, sorted(value["files"])'
+}
+assert_cms_backup
+leonaid_test pilot-deploy --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" \
+  --release-manifest "$cms_release_manifest" | tee "$workspace/cms-deploy.log"
+grep -Fq "pilot-deploy: OK: $project runs exactly from the verified release manifest" \
+  "$workspace/cms-deploy.log"
+[ "$(docker inspect --format '{{.State.Health.Status}}' \
+  "$(runtime_compose --profile emdash ps --quiet campaign-site)")" = healthy ]
+
+# Publish a campaign page in the editor; the public host serves it. A Core
+# campaign needs a responsible charity admin (action management invariant).
+printf '%s\n' \
+  "INSERT INTO charity_action (id, carrier_name, name, purpose, status, starts_on, ends_on, publication_starts_at, publication_ends_at, archive_slug) VALUES ('$cms_action_id', 'Lions Club Beispielstadt', 'Pilot CMS proof', 'Proof of the provisioned CMS', 'active', current_date, current_date + 7, now() - interval '1 day', now() + interval '7 days', '$cms_slug');" \
+  "INSERT INTO beneficiary (id, action_id, organization_name, public_description, sort_order) VALUES (gen_random_uuid(), '$cms_action_id', 'Proof beneficiary', 'Proof of the provisioned CMS', 0);" \
+  "INSERT INTO action_membership (id, action_id, user_id, role, active_from) VALUES (gen_random_uuid(), '$cms_action_id', '10000000-0000-4000-8000-0000000000c2', 'charity_admin', now() - interval '1 day');" |
+  core_sql
+cms_proof publish "$cms_action_id" "$cms_slug" "$cms_title"
+cms_proof public "$cms_slug" "$cms_title"
+# One object written with the CMS's own scoped key: the restore drill must
+# bring back the bucket and the RustFS user and policy, not only the SQL.
+runtime_compose --profile emdash exec -T campaign-site node --input-type=module -e '
+import { createStorage } from "emdash/storage/s3";
+await createStorage({}).upload({ key: "restore-drill.txt", body: Buffer.from("restore-drill-media"), contentType: "text/plain" });'
+
+echo "pilot-install-test: restores the CMS from the backup (restore drill)"
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file"
+assert_cms_backup
+# Restores the latest recovery point (backup manifest) into a fresh project
+# and proves the CMS there: published page, setup state, own credentials,
+# media with the scoped key. $1 names the drill.
+cms_restore_drill() {
+  restore_project="leonaid-restore-$1-$suffix"
+  verify_project_absent "$restore_project"
+  restore_overlay="$overlay_directory/restore-overlay-$1.yml"
+  LEONAID_TEST_EXTRA_NETWORKS=mail-egress,crm-admin \
+    python3 "$root/tools/surveys/network_override.py" "$overlay_directory/restore-networks-$1.yml"
+  write_overlay "$overlay_directory/restore-networks-$1.yml" "$restore_overlay"
+  restore_env_file="$workspace/restore-$1.env"
+  cp "$env_file" "$restore_env_file"
+  printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" \
+    "TWENTY_ADMIN_PORT=$restore_admin_port" >>"$restore_env_file"
+  chmod 600 "$restore_env_file"
+  restore_compose() {
+    docker compose \
+      --project-name "$restore_project" \
+      --env-file "$restore_env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$restore_overlay" \
+      "$@"
+  }
+  # A full restore also needs the survey erasure checkpoint (no survey changes
+  # follow in this proof).
+  . "$root/tools/backup/survey-recovery-fixture.sh"
+  prepare_survey_recovery_fixture runtime_compose "$workspace"
+  restore_owned=true
+  restore_compose --profile '*' config --format json |
+    python3 "$root/tools/testing/reserve_compose_networks.py" "$restore_project" "$restore_overlay"
+  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$restore_overlay" \
+    LEONAID_PILOT_TEST_NETWORKS_PRERESERVED=true \
+    leonaid_test pilot-restore \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --target-env-file "$restore_env_file" \
+      --password-file "$restic_password_file" \
+      --credentials-file "$backup_credentials_file" \
+      --confirm "RESTORE:$restore_project" | tee "$workspace/cms-restore-$1.log"
+  grep -Fq "restore: explicit CMS image identity verified" "$workspace/cms-restore-$1.log"
+  grep -Fq "cms-recovery: verify-application passed" "$workspace/cms-restore-$1.log"
+  grep -Fq "pilot-restore: OK:" "$workspace/cms-restore-$1.log"
+  published=$(restore_compose exec -T core-postgres psql --username leonaid --dbname emdash \
+    --tuples-only --no-align \
+    --command "SELECT count(*) FROM ec_campaign_pages WHERE status = 'published' AND action_id = '$cms_action_id'")
+  [ "$published" = 1 ] || {
+    echo "pilot-install-test: ERROR: the restored CMS lacks the published page" >&2
+    exit 1
+  }
+  docker run --rm --network none \
+    --volume "${restore_project}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
+    cat /state/state.json | grep -Fq '"status":"complete"'
+  # The restored project's CMS answers with its own credentials: database,
+  # bucket with the scoped key, setup and schema; the media object is back.
+  restore_compose --profile emdash run --rm --no-deps --entrypoint node \
+    campaign-site /app/operator/cms-provision-operator.mjs status \
+    >"$workspace/cms-restored-state-$1.txt"
+  for expected in database=ready storage=ready bootstrap=complete setup=complete schema=ready; do
+    grep -qx "$expected" "$workspace/cms-restored-state-$1.txt" || {
+      echo "pilot-install-test: ERROR: restored CMS lacks $expected:" >&2
+      cat "$workspace/cms-restored-state-$1.txt" >&2
+      exit 1
+    }
+  done
+  restore_compose --profile emdash run --rm --no-deps --entrypoint node \
+    campaign-site --input-type=module -e '
+  import { createStorage } from "emdash/storage/s3";
+  const file = await createStorage({}).download("restore-drill.txt");
+  if ((await new Response(file.body).text()) !== "restore-drill-media") process.exit(1);
+  console.log("restored media object read with the scoped CMS key");'
+  restore_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1
+  verify_owned_project_removed "$restore_project"
+  restore_owned=false
+}
+cms_restore_drill pilot-cms
+echo "pilot-install-test: CMS restore drill: published page, media with the scoped key and closed setup grant restored"
+
+echo "pilot-install-test: proves the CMS step of pilot-release with a synthetic EmDash migration"
+# The next release's campaign-site image: this release plus one EmDash
+# migration (999_leonaid_release_probe) in both copies of the migration list,
+# the operators' (node_modules) and the runtime's (Astro server bundle).
+next_directory="$overlay_directory/cms-next"
+mkdir -p "$next_directory"
+cat >"$next_directory/Dockerfile" <<'NEXT'
+ARG BASE
+FROM ${BASE}
+ARG PROBE_FAIL=false
+USER root
+RUN set -eu; \
+  probe='const LEONAID_PROBE_MIGRATIONS = Object.freeze({ ...MIGRATIONS, "999_leonaid_release_probe": { async up(db) { await db.schema.createTable("leonaid_release_probe").addColumn("id", "integer").execute(); if ('"$PROBE_FAIL"') throw new Error("leonaid_release_probe_failure"); }, async down(db) { await db.schema.dropTable("leonaid_release_probe").execute(); } } });'; \
+  for file in /app/node_modules/emdash/dist/runner-*.mjs /app/dist/server/chunks/runner-*.mjs; do \
+    [ "$(grep -cE '(const|var) MIGRATION_NAMES = Object\.freeze\(Object\.keys\(MIGRATIONS\)\);' "$file")" = 1 ]; \
+    [ "$(grep -c 'return MIGRATIONS;' "$file")" = 1 ]; \
+    sed -E -i "s/(const|var) MIGRATION_NAMES = Object\.freeze\(Object\.keys\(MIGRATIONS\)\);/$probe \1 MIGRATION_NAMES = Object.freeze(Object.keys(LEONAID_PROBE_MIGRATIONS));/; s/return MIGRATIONS;/return LEONAID_PROBE_MIGRATIONS;/" "$file"; \
+    [ "$(grep -o 'LEONAID_PROBE_MIGRATIONS' "$file" | wc -l)" = 3 ]; \
+  done
+USER node
+NEXT
+next_image_tag="$build_project-campaign-site-next:latest"
+broken_image_tag="$build_project-campaign-site-broken:latest"
+next_owned=true
+docker build --quiet --build-arg "BASE=$build_project-campaign-site:latest" \
+  --tag "$next_image_tag" "$next_directory" >/dev/null
+docker build --quiet --build-arg "BASE=$build_project-campaign-site:latest" \
+  --build-arg PROBE_FAIL=true --tag "$broken_image_tag" "$next_directory" >/dev/null
+# release_manifest_for NAME VERSION: manifest of the current configuration.
+release_manifest_for() {
+  runtime_compose --profile emdash config --format json >"$workspace/runtime-compose-$1.json"
+  docker run --rm --interactive \
+    --user "$(id -u):$(id -g)" \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$workspace:/proof" \
+    --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    sh -eu -c 'cat > /tmp/runtime-compose.json; exec python tools/pilot_release/manifest.py create "$@"' sh \
+      --root /workspace \
+      --release-id "pilot-install-$1" \
+      --version "$2" \
+      --git-commit "$release_commit" \
+      --deployment-mode test \
+      --schema-version 2 \
+      --compose-config /tmp/runtime-compose.json \
+      --output "/proof/release-manifest-$1.json" <"$workspace/runtime-compose-$1.json"
+}
+# staging_verified LEDGER MANIFEST: the staging events production requires.
+staging_verified() {
+  offset=3
+  for event in staging_started staging_verified; do
+    "$root/leonaid" pilot-release-record --manifest "$2" \
+      --ledger "$1" --event "$event" --result passed \
+      --evidence-id PILOT-CMS-RELEASE-STAGING \
+      --occurred-at "$(date -u -d "-$offset minutes" +%Y-%m-%dT%H:%M:%SZ)"
+    offset=$((offset - 1))
+  done
+}
+previous_cms_image=$LEONAID_TEST_CAMPAIGN_SITE_IMAGE
+
+# Failure path: the release image's EmDash migration throws after its DDL.
+LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(docker image inspect --format '{{.Id}}' "$broken_image_tag")
+export LEONAID_TEST_CAMPAIGN_SITE_IMAGE
+broken_manifest="$workspace/release-manifest-cms-broken.json"
+release_manifest_for cms-broken 2026.11.2
+broken_ledger="$workspace/release-ledger-broken.jsonl"
+staging_verified "$broken_ledger" "$broken_manifest"
+set +e
+leonaid_test pilot-release --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$broken_manifest" \
+  --ledger "$broken_ledger" --password-file "$restic_password_file" \
+  --credentials-file "$backup_credentials_file" \
+  --evidence-id PILOT-CMS-RELEASE-BROKEN \
+  --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$workspace/cms-release-broken.log" 2>&1
+broken_status=$?
+set -e
+[ "$broken_status" -ne 0 ] &&
+  grep -Fq "maintenance mode is not lifted automatically" "$workspace/cms-release-broken.log" &&
+  grep -Fq "pilot-release: CMS traffic closed for the release" "$workspace/cms-release-broken.log" &&
+  grep -Fq "cms-migration: refused" "$workspace/cms-release-broken.log" || {
+  echo "pilot-install-test: ERROR: the failing CMS migration did not stop the release as documented:" >&2
+  tail -n 30 "$workspace/cms-release-broken.log" >&2
+  exit 1
+}
+runtime_compose exec -T api test -f /run/leonaid-maintenance/enabled
+cms_state >"$workspace/cms-broken-state.txt"
+grep -qx 'traffic=closed' "$workspace/cms-broken-state.txt"
+[ -z "$(runtime_compose --profile emdash ps --status running --quiet campaign-site)" ]
+[ -z "$(docker ps -aq --filter "name=^$project-cms-migration-lock\$")" ]
+broken_probe=$(runtime_compose exec -T core-postgres psql --username leonaid --dbname emdash \
+  --tuples-only --no-align --command \
+  "SELECT (to_regclass('public.leonaid_release_probe') IS NOT NULL)::text || ':' || count(*)::text FROM _emdash_migrations WHERE name = '999_leonaid_release_probe'")
+case "$broken_probe" in
+  false:0)
+    grep -qx 'database=pending' "$workspace/cms-broken-state.txt"
+    echo "pilot-install-test: the failed EmDash migration rolled back (one transaction); the database is unchanged"
+    ;;
+  *)
+    echo "pilot-install-test: ERROR: the failed EmDash migration left changes ($broken_probe)" >&2
+    exit 1
+    ;;
+esac
+# The previous release does not start against the closed CMS either.
+LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$previous_cms_image
+set +e
+previous_output=$(leonaid_test pilot-deploy --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$cms_release_manifest" 2>&1)
+previous_status=$?
+set -e
+[ "$previous_status" -ne 0 ] &&
+  printf '%s' "$previous_output" | grep -Fq "the CMS is not provisioned (open: traffic)" || {
+  echo "pilot-install-test: ERROR: pilot-deploy of the previous release started the closed CMS:" >&2
+  printf '%s\n' "$previous_output" | tail -n 20 >&2
+  exit 1
+}
+[ -z "$(runtime_compose --profile emdash ps --status running --quiet campaign-site)" ]
+# The documented rollback: the release's recovery point restores the CMS.
+cms_restore_drill pilot-cms-rollback
+echo "pilot-install-test: CMS release failure: maintenance kept, CMS closed and stopped, no lock, rollback restores"
+# Retry forward: lift maintenance as after any failed release, then release
+# the corrected image; pilot-release accepts the closed CMS without a lock.
+maintenance disable
+
+LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(docker image inspect --format '{{.Id}}' "$next_image_tag")
+export LEONAID_TEST_CAMPAIGN_SITE_IMAGE
+[ "$LEONAID_TEST_CAMPAIGN_SITE_IMAGE" != "$previous_cms_image" ]
+next_manifest="$workspace/release-manifest-cms-next.json"
+release_manifest_for cms-next 2026.11.3
+cms_state >"$workspace/cms-next-state.txt"
+grep -qx 'database=pending' "$workspace/cms-next-state.txt"
+grep -qx 'schema=pending' "$workspace/cms-next-state.txt"
+
+# pilot-deploy never starts a CMS image on an unmigrated database.
+set +e
+deploy_output=$(leonaid_test pilot-deploy --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" 2>&1)
+deploy_status=$?
+set -e
+[ "$deploy_status" -ne 0 ] &&
+  printf '%s' "$deploy_output" | grep -Fq "this release brings CMS (EmDash) migrations" || {
+  echo "pilot-install-test: ERROR: pilot-deploy accepted pending CMS migrations:" >&2
+  printf '%s\n' "$deploy_output" | tail -n 20 >&2
+  exit 1
+}
+
+# The release: backup before, maintenance, Core and CMS migrations under
+# closed CMS traffic on the verified release image, deploy, doctor.
+release_ledger="$workspace/release-ledger.jsonl"
+staging_verified "$release_ledger" "$next_manifest"
+backup_before=$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)
+leonaid_test pilot-release --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" \
+  --ledger "$release_ledger" --password-file "$restic_password_file" \
+  --credentials-file "$backup_credentials_file" \
+  --evidence-id PILOT-CMS-RELEASE-PRODUCTION \
+  --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee "$workspace/cms-release.log"
+grep -Fq "pilot-release: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
+grep -Fq "pilot-release: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
+grep -Fq "cms-migration: upgrade-emdash passed" "$workspace/cms-release.log"
+grep -Fq "pilot-release: CMS traffic closed for the release" "$workspace/cms-release.log"
+# The recovery point of the release holds the CMS (taken before the migration).
+assert_cms_backup
+[ "$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)" != "$backup_before" ]
+probe=$(runtime_compose exec -T core-postgres psql --username leonaid --dbname emdash \
+  --tuples-only --no-align --command \
+  "SELECT (to_regclass('public.leonaid_release_probe') IS NOT NULL)::text || ':' || count(*)::text FROM _emdash_migrations WHERE name = '999_leonaid_release_probe'")
+[ "$probe" = "true:1" ] || {
+  echo "pilot-install-test: ERROR: the release did not apply the synthetic EmDash migration ($probe)" >&2
+  exit 1
+}
+cms_state >"$workspace/cms-next-state.txt"
+for expected in database=ready schema=ready traffic=open; do
+  grep -qx "$expected" "$workspace/cms-next-state.txt"
+done
+[ "$(docker inspect --format '{{.Image}}' "$(runtime_compose --profile emdash ps --quiet campaign-site)")" = "$LEONAID_TEST_CAMPAIGN_SITE_IMAGE" ]
+# The published page survives the release on the public host.
+cms_proof public "$cms_slug" "$cms_title"
+cms_manifest_argument=$next_manifest
+cms_expect "repeats as a no-op after the release" 0 "pilot-cms-provision: OK: $project serves the CMS"
+echo "pilot-install-test: pilot-release migrated the CMS (synthetic EmDash migration) and kept the published page"
+
 echo "pilot-install-test: proves a second first install is refused"
 cp "$env_file" "$workspace/second.env"
-sed -i 's/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL/' \
+# The CMS was enabled above; a first install refuses it before the volume
+# check, so the second install keeps the install-time setting.
+sed -i -e 's/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL/' \
+  -e 's/^LEONAID_CMS_ENABLED=true$/LEONAID_CMS_ENABLED=false/' \
   "$workspace/second.env"
 chmod 600 "$workspace/second.env"
 expect_refusal "install over an existing project" "already has Docker volumes" \
@@ -656,4 +1407,7 @@ expect_refusal "install with the provisioned env file" "is not PENDING_PILOT_INS
 
 echo "pilot-install-test: OK: empty project to verified Twenty admin, provisioned key,"
 echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog,"
-echo "pilot-install-test:     Twenty and core mail over implicit TLS, scheduled CRM repair"
+echo "pilot-install-test:     Twenty and core mail over implicit TLS, scheduled CRM repair,"
+echo "pilot-install-test:     CMS provisioned, resumed and repeated, a campaign page published"
+echo "pilot-install-test:     on the public host, CMS backups and a CMS restore drill,"
+echo "pilot-install-test:     pilot-release with a synthetic EmDash migration"

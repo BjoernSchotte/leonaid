@@ -57,7 +57,7 @@ docker run --rm \
   pytest -p no:cacheprovider tests/unit/test_legal_configuration.py --quiet
 
 compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose build api public pwa web
+build_shared_images api public pwa web
 if ! compose --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker; then
   echo "legal-configuration-test: retrying Twenty start once"

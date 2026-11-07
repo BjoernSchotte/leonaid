@@ -13,7 +13,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from tools.emdash_spike.provision_rustfs import (
+from leonaid.entrypoints.cms_storage import (
     ProvisionError,
     RustfsAdmin,
     provision_media,
@@ -60,7 +60,7 @@ def main() -> None:
     provision_media(admin, root, access, secret)
     provision_media(admin, root, access, secret)
     subprocess.run(
-        [sys.executable, "-m", "tools.emdash_spike.provision_rustfs"],
+        [sys.executable, "-m", "leonaid.entrypoints.cms_storage"],
         env={
             **os.environ,
             "RUSTFS_ENDPOINT_URL": endpoint,

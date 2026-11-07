@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 10
+reviewedRevision: 10
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -246,9 +246,10 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 Keep `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL`. `pilot-install`
 creates the real key.
 
-Keep `LEONAID_CMS_ENABLED=false` for the first installation. The campaign
-pages (`campaign-site`, EmDash editor) need their database and media bucket
-first; their one-time setup is not part of `pilot-install` yet. With
+Keep `LEONAID_CMS_ENABLED=false` for the first installation;
+`pilot-install` refuses `true`. The campaign pages (`campaign-site`, EmDash
+editor) follow after the installation with `pilot-cms-provision` (see
+[Set up the campaign pages](#set-up-the-campaign-pages)). With
 `LEONAID_CMS_ENABLED=true` every `pilot-*` command adds the campaign site to
 the stack, and the release needs `release-manifest-cms.json` instead of
 `release-manifest.json`.
@@ -392,6 +393,38 @@ message shows the `docker compose ... down --volumes` command that removes
 them before a new attempt. If the key was already written, set
 `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` again; the message says so.
 
+## Create the first System Admin
+
+A new installation has no LeonAid account. As `leonaid` in `/opt/leonaid`:
+
+```sh
+./leonaid pilot-create-system-admin --env-file /etc/leonaid/production.env \
+  --email admin@club.org --display-name "Ada Admin"
+```
+
+The command creates the account with the System Admin role and sends the
+normal sign-in mail with a link and a code; there is no password. The
+System Admin signs in at `https://app.club.org/login` (or the one host) and
+invites everyone else in the admin area.
+
+- A second run for the same address changes nothing and sends no mail.
+- Once a System Admin exists, another address is refused. Add a deliberate
+  second System Admin (for example a deputy) with `--additional`.
+- An existing active account with that address is promoted instead of
+  duplicated; it keeps its name (`--display-name` is ignored, the output
+  says so). A suspended or archived account is refused (only a System Admin
+  changes that in the admin area).
+- If every System Admin is suspended or archived, no active one is left: the
+  command then creates the new one without `--additional` and says so
+  (recovery of access).
+- Each change is written to the LeonAid audit log without a person as actor
+  (`identity.account.created`, `identity.global_role.granted`); the payload
+  names the operator account and host that ran the command.
+
+If the mail does not arrive, check the relay (see
+[Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty)); the address can
+request a new sign-in mail at `/login`.
+
 ## Open the CRM
 
 The Twenty CRM is for the system administrator only. It has no public
@@ -502,6 +535,107 @@ for the administrator on the sign-in page and confirm that the mail arrives
 from `TWENTY_MAIL_FROM_ADDRESS`. If it does not, `docker compose ... logs
 twenty-worker` shows the SMTP error.
 :::
+
+## Set up the campaign pages
+
+The campaign pages and their editor (EmDash) need a database, a media bucket,
+a first setup by a LeonAid System Admin and the campaign schema.
+`./leonaid pilot-cms-provision` does these four steps on the running
+installation. Before it, `pilot-deploy`, `pilot-release` and `pilot-doctor`
+refuse `LEONAID_CMS_ENABLED=true` with the hint to run it.
+
+You need:
+
+- a running installation from `pilot-install` and a backup younger than 26
+  hours;
+- `release-manifest-cms.json` of the same release (from the release files);
+- the e-mail address of an active LeonAid System Admin who can sign in now
+  (see [Create the first System Admin](#create-the-first-system-admin)).
+
+As `leonaid` in `/opt/leonaid`:
+
+1. Set `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. Until
+   the setup in step 3 is complete, `pilot-backup` keeps working and leaves
+   the unfinished CMS out (it prints a note); from then on every backup also
+   holds the CMS database, its media and its setup state.
+2. Start the provisioning:
+
+   ```sh
+   ./leonaid pilot-cms-provision \
+     --env-file /etc/leonaid/production.env \
+     --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+     --release-manifest /var/lib/leonaid/releases/release-manifest-cms.json \
+     --system-admin-email admin@club.org
+   ```
+
+   The command creates the database role, the database and the media bucket
+   with its own access key. Then it allows the EmDash setup for 15 minutes,
+   for this System Admin only, and ends with `PENDING` (exit status 75).
+   While that grant is open, another `--system-admin-email` is refused with
+   the time the grant ends.
+3. Within the 15 minutes, the System Admin signs in at
+   `https://app.club.org/admin/` (or the one host), opens
+   `https://app.club.org/_emdash/admin/setup` and completes the setup. Any
+   other account gets a refusal. If EmDash rejects an entry, correct it and
+   submit again: a refused setup does not use up the grant.
+4. Run the same command again; `--system-admin-email` is no longer needed.
+   It installs the campaign schema while the CMS is closed and opens the CMS
+   again. The last line is `pilot-cms-provision: OK`.
+5. Run `./leonaid pilot-backup` once: the doctor now requires a backup with
+   the CMS data. Then `./leonaid pilot-deploy` with
+   `release-manifest-cms.json`. Later releases also use the CMS manifest.
+
+Each step first checks its own state. A second run changes nothing and
+prints `already` for every step. When a run stops with an error, fix the
+cause and run the command again: it continues at the open step.
+
+- **The grant expired** (the setup did not happen within 15 minutes): run
+  the command again with `--system-admin-email`. Only an unused grant is
+  replaced.
+- **"the editor setup started but did not complete"**: a setup request was
+  interrupted (for example the CMS restarted during it), so the grant is
+  used up. Run the command with `--reset-setup --system-admin-email ...`. It
+  stops the campaign site first, so no setup request is still running, and
+  withdraws the grant only while the CMS is unused (no completed setup, no
+  campaign schema, no media, only LeonAid's own sign-in users). It removes
+  those sign-in users too, records the withdrawal in the LeonAid audit log
+  and allows the setup again, also for another System Admin.
+- **The setup finished, but the grant was not marked** (for example the
+  campaign site stopped right after the setup): the next run confirms the
+  completed setup against the mapped System Admin, marks the grant complete,
+  writes an audit entry and continues.
+- **"the CMS setup state cannot be read"** (`pilot-backup`): the backup
+  stops instead of leaving the CMS out. Check Docker and the
+  `cms-bootstrap-state` volume, then run the backup again.
+- **The schema step stopped halfway** (for example a timeout under load):
+  run the command again. It finds the parts already installed and installs
+  the rest; CMS traffic stays closed until then.
+- **"the CMS database exists with another EmDash migration state"**: the
+  database was not created by this release. The command does not provision
+  over it.
+- **"existing CMS bucket policy requires review"** (`emdash-rustfs:
+  FAILED`): the bucket `emdash-media` already has a policy. Check who set it;
+  the CMS media stay private and get no bucket policy.
+
+Published campaign pages are served at `https://club.org/campaigns/<slug>/`
+(or on the one host).
+
+### Switch the CMS off again before it went live
+
+Until the setup is complete you can stop without a restore: set
+`LEONAID_CMS_ENABLED=false` again and stop the campaign site:
+
+```sh
+docker compose --project-name <project> --env-file /etc/leonaid/production.env \
+  --file infra/compose/compose.yml --file infra/pilot/compose.yml \
+  --profile emdash stop campaign-site
+```
+
+Deploys, releases and backups then run as before; backups leave the
+unfinished CMS out. The CMS database and bucket stay; a later
+`pilot-cms-provision` continues with them. After the setup is complete,
+switching off is refused by `pilot-backup`, because the live CMS data would
+be missing from every backup.
 
 ## Next steps
 

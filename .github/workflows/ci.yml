@@ -499,8 +499,7 @@ jobs:
       contents: read
       pull-requests: read
     runs-on: ubuntu-24.04
-    # Up to 100 minutes when a title edit waits for the commit's real gate.
-    timeout-minutes: 110
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -509,8 +508,8 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           # Pull request context for tools/ci/gate.py: drafts fail, title
-          # edits mirror the commit's real gate, a stacked result fails once
-          # the pull request no longer targets its stack base.
+          # edits mirror the commit's newest completed real gate (or fail
+          # fast), a stacked result never passes.
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}

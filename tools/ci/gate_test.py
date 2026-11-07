@@ -276,6 +276,19 @@ def check_run(
     }
 
 
+def api(check_runs: list[dict[str, object]], real: set[int]) -> gate.Fetch:
+    """Check runs of the commit; the jobs of a run show if its selector ran."""
+
+    def fetch(path: str) -> object:
+        if "/check-runs" in path:
+            return {"check_runs": check_runs}
+        run = int(path.split("/actions/runs/")[1].split("/")[0])
+        conclusion = "success" if run in real else "skipped"
+        return {"jobs": [{"name": "select / Select suites", "conclusion": conclusion}]}
+
+    return fetch
+
+
 def test_pull_request_context() -> None:
     base_env = {"EVENT_NAME": "pull_request", "GITHUB_REPOSITORY": "o/r"}
 
@@ -287,7 +300,6 @@ def test_pull_request_context() -> None:
         {**base_env, "DRAFT": "true"}, {}, never
     )
     expect(decision is False and "draft" in message, f"draft: {decision} {message}")
-    # Ordinary events evaluate the needs.
     expect(
         gate.pull_request_context(
             {**base_env, "EVENT_ACTION": "synchronize"}, {}, never
@@ -299,7 +311,6 @@ def test_pull_request_context() -> None:
         gate.pull_request_context({"EVENT_NAME": "schedule"}, {}, never) == (None, ""),
         "schedule evaluates normally",
     )
-    # A base change is a real run, not a mirror.
     expect(
         gate.pull_request_context(
             {**base_env, "EVENT_ACTION": "edited", "BASE_CHANGED": "true"}, {}, never
@@ -315,101 +326,47 @@ def test_pull_request_context() -> None:
         "GATE_NAME": "CI gate",
         "GITHUB_RUN_ID": "9",
     }
-    for runs, expected in (
-        ([check_run(5, "completed", "success", "2026-11-07T10:00:00Z")], True),
-        ([check_run(5, "completed", "failure", "2026-11-07T10:00:00Z")], False),
+    for runs, real, expected in (
+        ([check_run(5, "completed", "success", "t")], {5}, True),
+        ([check_run(5, "completed", "failure", "t")], {5}, False),
+        # The newest completed real gate decides.
         (
             [
-                check_run(5, "completed", "success", "2026-11-07T09:00:00Z"),
-                check_run(6, "completed", "failure", "2026-11-07T10:00:00Z"),
+                check_run(5, "completed", "success", "t"),
+                check_run(6, "completed", "failure", "t"),
             ],
+            {5, 6},
             False,
         ),
-        # Our own (skipped) check run never counts.
-        ([check_run(9, "completed", "success", "2026-11-07T11:00:00Z")], False),
-        ([], False),
+        # Another title-edit run's gate is never mirrored.
+        (
+            [
+                check_run(5, "completed", "failure", "t"),
+                check_run(7, "completed", "success", "t"),
+            ],
+            {5},
+            False,
+        ),
+        # Our own check run never counts; nothing real yet fails fast.
+        ([check_run(9, "completed", "success", "t")], {9}, False),
+        ([], set(), False),
+        # A real gate still in progress is not a result yet: fail fast.
+        ([check_run(6, "in_progress", None, None)], {6}, False),
     ):
-
-        def listing(path: str, runs: list[dict[str, object]] = runs) -> object:
-            return {"check_runs": runs}
-
-        decision, _ = gate.pull_request_context(edit, {}, listing)
-        expect(decision is expected, f"mirror {runs}: {decision}")
-    # A newer queued gate (no start time yet) beats an older green one: wait,
-    # then mirror it; a newer cancelled one fails.
-    queued_then = iter(
-        [
-            {
-                "check_runs": [
-                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
-                    check_run(6, "queued", None, None),
-                ]
-            },
-            {
-                "check_runs": [
-                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
-                    check_run(6, "completed", "failure", "2026-11-07T11:00:00Z"),
-                ]
-            },
-        ]
-    )
-    result = gate.mirrored_result(
-        lambda path: next(queued_then),
-        "o/r",
-        "abc",
-        "CI gate",
-        "9",
-        sleep=lambda _: None,
-    )
-    expect(result == "failure", f"newer queued run decides: {result}")
-
-    def cancelled_newer(path: str) -> object:
-        return {
-            "check_runs": [
-                check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
-                check_run(6, "completed", "cancelled", None),
-            ]
-        }
-
-    decision, _ = gate.pull_request_context(edit, {}, cancelled_newer)
-    expect(decision is False, "a newer cancelled gate fails the mirror")
-    stuck = gate.mirrored_result(
-        lambda path: {"check_runs": [check_run(6, "in_progress", None, None)]},
-        "o/r",
-        "abc",
-        "CI gate",
-        "9",
-        sleep=lambda _: None,
-        attempts=3,
-    )
-    expect(stuck == "still running", f"a run that never finishes: {stuck}")
-    # A still-running real gate is awaited, then mirrored.
-    answers = iter(
-        [
-            {"check_runs": [check_run(5, "in_progress", None, "2026-11-07T10:00:00Z")]},
-            {
-                "check_runs": [
-                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z")
-                ]
-            },
-        ]
-    )
-    result = gate.mirrored_result(
-        lambda path: next(answers), "o/r", "abc", "CI gate", "9", sleep=lambda _: None
-    )
-    expect(result == "success", f"awaited mirror: {result}")
-    # A stacked selection must still target its stack base.
-    stacked = {**base_env, "PR_NUMBER": "7", "STACK_BASE": "md/stage2c"}
-    for base, expected in (("md/stage2c", False), ("main", True), (None, True)):
-
-        def pull(path: str, base: str | None = base) -> object:
-            return {"base": {"ref": base}} if base else {}
-
-        found = gate.stacked_into_main(stacked, {"heavy": "false"}, pull)
-        expect(found is expected, f"stacked, current base {base}: {found}")
+        decision, message = gate.pull_request_context(edit, {}, api(runs, real))
+        expect(decision is expected, f"mirror {runs} real={real}: {decision}")
+        if not expected:
+            expect("supersedes" in message, f"fail-fast message: {message}")
+    # A stacked selection never passes; a selection into main does.
     expect(
-        not gate.stacked_into_main(stacked, {"heavy": "true"}, never),
-        "a selection into main needs no base lookup",
+        gate.stacked_result(base_env, {"heavy": "false"}),
+        "a stacked result never passes the gate",
+    )
+    expect(not gate.stacked_result(base_env, {"heavy": "true"}), "heavy passes")
+    expect(not gate.stacked_result(base_env, {}), "a missing output is not stacked")
+    expect(
+        not gate.stacked_result({"EVENT_NAME": "schedule"}, {"heavy": "false"}),
+        "only pull requests can be stacked",
     )
 
 

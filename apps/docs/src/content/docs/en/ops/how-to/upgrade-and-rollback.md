@@ -4,8 +4,8 @@ description: Update pinned Core, Twenty, RustFS, and EmDash versions behind a ma
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 10
+reviewedRevision: 10
 verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -124,6 +124,27 @@ attempt restored from the recovery point.
 After 1.0.4 has run on the volume, do not start beta.11 again. Roll back by
 restoring the full RustFS volume together with Core PostgreSQL from the
 recovery point.
+
+## Campaign site migrations in a pilot release
+
+With `LEONAID_CMS_ENABLED=true`, `./leonaid pilot-release` migrates the
+campaign site itself; there is no manual step. In maintenance mode, after the
+Core migrations, it recreates `campaign-site` on the release image without
+starting it, verifies the image against the checkout, closes CMS traffic and
+runs `upgrade-emdash` when the release brings EmDash migrations (otherwise
+`verify`). The release backup taken before contains the CMS database, its
+setup state and media. CMS traffic reopens only after the migrated state
+verifies. `pilot-deploy` refuses such a release and points to
+`pilot-release`.
+
+CMS traffic closes as soon as maintenance starts, so editors cannot change
+anything after the release's recovery point. If the CMS step fails, CMS
+traffic stays closed and the CMS stays stopped; a failing EmDash migration
+rolls back completely. First lift maintenance and run `pilot-release` again
+(it accepts the closed CMS when no migration lock remains). If that fails
+too, roll back from the release's recovery point as in the release runbook
+(`infra/pilot/RELEASE-RUNBOOK.md`, "Failure and rollback"); never start the
+previous CMS image on a migrated database.
 
 ## EmDash campaign site 0.36 to 1.4
 

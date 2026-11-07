@@ -71,7 +71,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 [ -z "$existing" ]
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
-compose build api worker public pwa web
+build_shared_images api worker public pwa web
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 

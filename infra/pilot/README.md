@@ -86,6 +86,15 @@ through Twenty's own mutation `verifyEmailAndGetLoginToken` with a one-time
 token, and then starts the full stack with verification active. The first
 backup, monitoring with the watchdog heartbeat and the full doctor follow.
 
+After the installation, `./leonaid pilot-create-system-admin --env-file …
+--email … --display-name …` creates the first LeonAid System Admin and sends
+the normal sign-in mail (no password). It is idempotent, refuses a further
+System Admin unless `--additional` is given (when every System Admin is
+suspended or archived it restores access without the flag and says so),
+never reactivates a suspended account, keeps a promoted member's name, and
+writes `audit_event` rows without an actor but with the operator
+(`user@host`).
+
 `systemd/leonaid-backup.timer` schedules daily backups.
 `./leonaid pilot-repair-crm-match-keys` repairs the CRM match keys:
 `systemd/leonaid-crm-repair.timer` runs every 15 minutes with a 30-minute
@@ -96,6 +105,43 @@ as the core (see `MAIL-RUNBOOK.md`); Twenty sends mail only with
 `MAIL_SMTP_MODE=tls`. The `LeonAidWatchdog` alert fires constantly and goes
 only to the external URL from `LEONAID_ALERT_HEARTBEAT_URL_FILE`; if the pings
 stop, the external service raises the alarm.
+
+## Campaign pages (CMS)
+
+`pilot-install` installs without the CMS and refuses
+`LEONAID_CMS_ENABLED=true`. The campaign pages follow on the running
+installation; the full procedure is in
+[Install on a fresh VPS](../../apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md#set-up-the-campaign-pages) ·
+[Auf einem frischen VPS installieren](../../apps/docs/src/content/docs/de/ops/how-to/install-on-a-vps.md#aktionsseiten-einrichten).
+
+```sh
+# 1. LEONAID_CMS_ENABLED=true in production.env, then at once:
+./leonaid pilot-cms-provision \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --release-manifest /var/lib/leonaid/releases/release-manifest-cms.json \
+  --system-admin-email admin@club.org
+# 2. Exit 75 (PENDING): the System Admin completes the EmDash setup at
+#    https://<admin host>/_emdash/admin/setup within 15 minutes.
+# 3. The same command again (no --system-admin-email): campaign schema, OK.
+# 4. pilot-backup (now with the CMS data), then pilot-deploy with the CMS
+#    manifest.
+```
+
+The steps are database role, database and EmDash migrations (operator in
+the campaign-site image), media bucket with its own scoped key (RustFS),
+the one-time setup grant for the named System Admin, and the campaign
+schema under closed CMS traffic; an interrupted schema step resumes (`tools/pilot_release/migrate-cms.sh
+install`). Every run reads the state of each step first: a repeat changes
+nothing, and a failed run continues at the open step. Until all four steps
+are done, `pilot-deploy`, `pilot-release` and `pilot-doctor` refuse
+`LEONAID_CMS_ENABLED=true`. From the completed setup on, every backup holds
+the CMS database and its setup state (manifest schema 2); before, backups
+leave the unfinished CMS out, and `LEONAID_CMS_ENABLED=false` switches it off
+again without a restore. A refused setup keeps the grant; an interrupted one
+is withdrawn with `--reset-setup` while the CMS is unused (Core audit log).
+`pilot-restore` recovers the CMS with the target's verified campaign-site
+image.
 
 ## Compose and release check
 

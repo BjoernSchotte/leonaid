@@ -11,7 +11,8 @@ COPY packages/api-client/package.json ./packages/api-client/package.json
 COPY packages/features/package.json ./packages/features/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/surveys/package.json ./packages/surveys/package.json
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN --mount=type=cache,id=leonaid-bun,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --ignore-scripts
 COPY apps/pwa ./apps/pwa
 COPY packages/api-client ./packages/api-client
 COPY packages/surveys ./packages/surveys
