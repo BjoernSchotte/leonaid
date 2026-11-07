@@ -1,14 +1,16 @@
 """Local selection, cache invalidation and process ownership regressions."""
 
 import fcntl
+import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.testing.local_stack import fingerprints
+from tools.testing.local_stack import LocalStack, fingerprints
 from tools.surveys.gate import ci_shards, load_manifest
 
 
@@ -82,6 +84,53 @@ class LocalTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("no reset was performed", result.stderr)
                 self.assertFalse((cache / "owner.json").exists())
+
+    def test_closing_a_retained_fixture_stops_its_containers(self):
+        # Real Docker: an idle fixture must not keep services running after the
+        # last leaf, while the fixture itself (owner state, volumes) is retained.
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "infra/locks").mkdir(parents=True)
+            shutil.copy(source / "infra/locks/images.env", root / "infra/locks")
+            cache = LocalStack(root)
+            stack = cache.stack
+            assert stack is not None
+            container = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--detach",
+                    "--network",
+                    "none",
+                    "--label",
+                    f"com.docker.compose.project={stack.project}",
+                    stack.alpine,
+                    "sleep",
+                    "600",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.addCleanup(
+                subprocess.run,
+                ["docker", "rm", "--force", container],
+                capture_output=True,
+            )
+            stack.ready = True
+            cache.close()
+            state = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", container],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(state, "exited")
+            owner = json.loads((root / ".local/test-stack/owner.json").read_text())
+            self.assertTrue(owner["ready"])
+            self.assertEqual(owner["project"], stack.project)
 
 
 if __name__ == "__main__":
