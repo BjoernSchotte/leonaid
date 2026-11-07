@@ -520,7 +520,8 @@ docker run --rm \
   python -c 'import json, os, pathlib
 value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["sourceProject"] == os.environ["EXPECTED_PROJECT"]
-assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar"}'
+# The pilot proxy keeps its certificates in caddy-data, so the backup has it.
+assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar", "caddy-data.tar"}, sorted(value["files"])'
 
 echo "pilot-install-test: proves mail from Twenty and the core worker through the relay"
 # The relay joins the egress network under its public name, like an external
