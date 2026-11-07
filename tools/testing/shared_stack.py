@@ -9,14 +9,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 from pathlib import Path
 import secrets
 import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
+import threading
 import time
+
+
+if __package__:
+    from . import parallel_stacks
+else:
+    import parallel_stacks
 
 
 class SharedStack:
@@ -582,6 +591,72 @@ class SharedStack:
                 shutil.rmtree(self.directory)
 
 
+def run_leaves(root, stacks, scripts, keep_going, output_lock, children):
+    """Run `scripts` over `stacks`, one leaf at a time per stack.
+
+    Returns [(script, exit code)] in completion order. With one stack the leaf
+    output streams as before; with several, each leaf's output is printed as
+    one block when it ends, so parallel leaves stay attributable.
+    """
+    pending = queue.Queue()
+    for script in scripts:
+        pending.put(script)
+    results = []
+    stopped = threading.Event()
+    parallel = len(stacks) > 1
+
+    def worker(stack):
+        while not stopped.is_set():
+            try:
+                script = pending.get_nowait()
+            except queue.Empty:
+                return
+            start = time.monotonic()
+            log = None
+            try:
+                env = dict(os.environ, **stack.prepare())
+                with output_lock:
+                    print(
+                        f"shared-stack: testing {script} on {getattr(stack, 'project', 'the stack')}",
+                        flush=True,
+                    )
+                if parallel:
+                    log = tempfile.TemporaryFile(mode="w+")
+                child = subprocess.Popen(
+                    ["/bin/sh", str(root / script), str(root)],
+                    cwd=root,
+                    env=env,
+                    stdout=log,
+                    stderr=subprocess.STDOUT if parallel else None,
+                )
+                children.add(child)
+                code = child.wait()
+                children.discard(child)
+            except Exception as error:  # A failed reset/initialization fails the leaf.
+                code = 1
+                with output_lock:
+                    print(f"shared-stack: {script}: {error}", flush=True)
+            with output_lock:
+                if log is not None:
+                    log.seek(0)
+                    sys.stdout.write(log.read())
+                    log.close()
+                print(
+                    f"shared-stack: {script} {time.monotonic() - start:.1f}s, exit {code}",
+                    flush=True,
+                )
+                results.append((script, code))
+            if code and not keep_going:
+                stopped.set()
+
+    threads = [threading.Thread(target=worker, args=(stack,)) for stack in stacks]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -620,37 +695,56 @@ def main():
         else:
             stack.close()
         parser.error("At least one test script is required")
-    # The child receives the same terminal/process-group signal; wait for its trap
-    # before removing the shared environment. During setup, finally handles cleanup.
-    child = None
+    extra_stacks = []
+    slots = []
+    children = set()
+    output_lock = threading.Lock()
 
+    # Children share the terminal/process-group signal; wait for their traps
+    # before removing the environments. During setup, finally handles cleanup.
     def stop(signum, frame):
-        if child is not None and child.poll() is None:
-            child.terminate()
-            child.wait()
+        for child in list(children):
+            if child.poll() is None:
+                child.terminate()
+                child.wait()
         raise KeyboardInterrupt
 
     previous = {
         sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)
     }
     try:
-        failed: list[tuple[str, int]] = []
-        for script in args.scripts:
-            env = dict(os.environ, **stack.prepare())
-            print(f"shared-stack: testing {script}", flush=True)
-            start = time.monotonic()
-            child = subprocess.Popen(
-                ["/bin/sh", str(root / script), str(root)], cwd=root, env=env
-            )
-            code = child.wait()
-            print(
-                f"shared-stack: {script} {time.monotonic() - start:.1f}s, exit {code}",
-                flush=True,
-            )
-            if code:
-                if not args.keep_going:
-                    return code
-                failed.append((script, code))
+        count, reason = parallel_stacks.wanted(len(args.scripts))
+        fixture = None
+        if count > 1:
+            if cache is not None:
+                fixture = cache.shared_fixture()
+            elif os.environ.get("LEONAID_CI_FIXTURE"):
+                fixture = (Path(os.environ["LEONAID_CI_FIXTURE"]), None)
+            if fixture is None:
+                count, reason = 1, "no prepared fixture for additional stacks"
+        if count > 1:
+            slots = parallel_stacks.take_slots(count - 1)
+            if os.environ.get("LEONAID_STACK_SLOTS_DIR") and len(slots) < count - 1:
+                reason += f"; {len(slots)} free slot(s) for additional stacks"
+                count = 1 + len(slots)
+        print(f"shared-stack: {count} stack(s) ({reason})", flush=True)
+        for _ in range(count - 1):
+            extra = SharedStack(root, args.kind)
+            extra.env["LEONAID_CI_FIXTURE"] = str(fixture[0])
+            extra.fixture_metadata = fixture[1]
+            extra_stacks.append(extra)
+        results = run_leaves(
+            root,
+            [stack, *extra_stacks],
+            args.scripts,
+            args.keep_going,
+            output_lock,
+            children,
+        )
+        failed = sorted(
+            ((script, code) for script, code in results if code),
+            key=lambda item: args.scripts.index(item[0]),
+        )
         if failed:
             print(
                 "shared-stack: failed leaves: "
@@ -662,10 +756,16 @@ def main():
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
-        if cache:
-            cache.close()
-        else:
-            stack.close()
+        try:
+            for extra in extra_stacks:
+                extra.close()
+        finally:
+            for slot in slots:
+                slot.close()
+            if cache:
+                cache.close()
+            else:
+                stack.close()
 
 
 if __name__ == "__main__":

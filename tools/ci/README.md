@@ -522,6 +522,19 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
 
+## Parallel test stacks
+
+Feature leaves are independent (each starts from the restored fixture), so a
+suite such as `./leonaid test-e2e` runs them on two private stacks when
+MemAvailable is at least 14 GB at start (`LEONAID_PARALLEL_MIN_MEM_GB`), else
+on one. `LEONAID_TEST_STACKS=N` sets the count explicitly. The additional stack
+imports the prepared fixture (host cache or CI's) and is removed at the end;
+without a prepared fixture the suite stays on one stack. With
+`LEONAID_STACK_SLOTS_DIR` set (the host's slot directory), every additional
+stack must lock a free `slot-<n>.lock` (`LEONAID_STACK_SLOTS`, default 5), so
+the host-wide slot cap holds; with no free slot the suite runs fewer stacks.
+With several stacks each leaf's output is printed as one block when it ends.
+
 ## Local checks
 
 `./leonaid check` keeps every gate but runs independent groups in parallel and
