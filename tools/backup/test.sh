@@ -255,6 +255,8 @@ fi
 . "$root/tools/backup/survey-recovery-fixture.sh"
 prepare_survey_recovery_fixture source_compose "$proof"
 source_compose --profile '*' down --volumes --remove-orphans
+# Not part of the dev compose file, so `down --volumes` leaves it.
+docker volume rm "${source_project}_caddy-data" >/dev/null
 verify_owned_project_removed "$source_project"
 python3 "$root/tools/surveys/network_override.py" "$target_isolation"
 target_owned=true
