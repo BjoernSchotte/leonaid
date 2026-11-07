@@ -16,6 +16,8 @@ Each route lists its action per site role:
     single  the only host of a single-host installation (G4: unchanged)
     admin   the admin host app.<domain> (members, editors, full API)
     public  the general public host <domain> and its aliases
+    admin_only  the admin host of an installation without a public host
+            (§6.6, needs stage 2: the contract refuses it until then)
 
 A role without an entry falls through to the role's catch-all route. Stage 2
 adds the roles for campaign hosts and the admin host without a public host
@@ -62,6 +64,10 @@ CRM = "crm"
 MAIL = "mail"
 MAILING = "mailing"
 LOCAL_IMPORT = "local_import"
+# Astro form actions run as POST <any page>?_action=…; refused on admin hosts.
+REFUSED_ACTIONS = "refused_actions"
+# Self-unregistering service worker for the PWA scope of a public host.
+RETIRED_WORKER = "retired_worker"
 # Served below a path prefix that handle_path strips.
 STRIPPED = (WEB, PWA, CRM, MAILING)
 
@@ -87,8 +93,11 @@ LEGAL_PAGES = ("/impressum", "/datenschutz")
 # The sign-in pages on the admin host load these files of the public app.
 # A cross-host redirect for a stylesheet or script would violate the CSP
 # ('self'), so the admin host serves them itself.
+# Browsers also fetch /favicon.ico on their own; a redirect to the public
+# host would be a cross-host image the admin CSP blocks.
 PUBLIC_APP_ASSETS = (
     "/_astro/*",
+    "/favicon.ico",
     "/favicon.svg",
     "/community-routes.png",
     "/community-routes.webp",
@@ -96,15 +105,32 @@ PUBLIC_APP_ASSETS = (
 PUBLIC_ORDER = ("/_actions/createPublicOrder", "/_actions/createPublicOrder/")
 
 ROUTES: tuple[Route, ...] = (
+    # Before every handle: an order action never runs on the admin host, also
+    # not as POST /impressum?_action=createPublicOrder (§6.2).
+    Route(
+        "admin_actions",
+        (),
+        {"admin": REFUSED_ACTIONS, "admin_only": REFUSED_ACTIONS},
+    ),
     Route(
         "health",
         ("/_health",),
-        {"single": HEALTH, "admin": HEALTH, "public": HEALTH},
+        {
+            "single": HEALTH,
+            "admin": HEALTH,
+            "public": HEALTH,
+            "admin_only": HEALTH,
+        },
     ),
     Route(
         "api_health",
         ("/api/health/*",),
-        {"single": API_HEALTH, "admin": API_HEALTH, "public": API_HEALTH},
+        {
+            "single": API_HEALTH,
+            "admin": API_HEALTH,
+            "public": API_HEALTH,
+            "admin_only": API_HEALTH,
+        },
     ),
     # The public host exposes only the public API (forms, surveys, legal
     # notice); the internal order path stays closed on every host.
@@ -112,32 +138,34 @@ ROUTES: tuple[Route, ...] = (
     Route(
         "api",
         ("/api/*",),
-        {"single": API, "admin": API, "public": API_NOT_FOUND},
+        {"single": API, "admin": API, "public": API_NOT_FOUND, "admin_only": API},
     ),
     # The CMS editor lives on the admin host only.
     Route(
         "emdash",
         ("/_emdash", "/_emdash/*"),
-        {"single": CMS, "admin": CMS, "public": NOT_FOUND},
+        {"single": CMS, "admin": CMS, "public": NOT_FOUND, "admin_only": CMS},
         group="campaign_routes",
     ),
     Route(
         "campaigns",
         ("/campaigns", "/campaigns/*"),
-        {"single": CMS, "admin": TO_PUBLIC, "public": CMS},
+        # Without a public host the public app answers 308 to the campaign
+        # host or 404 (stage 2); the admin host never renders campaign pages.
+        {"single": CMS, "admin": TO_PUBLIC, "public": CMS, "admin_only": PUBLIC},
         group="campaign_routes",
     ),
     # Build assets of the campaign site: campaign pages and the EmDash admin.
     Route(
         "campaign_assets",
         ("/_campaign-assets/*",),
-        {"single": CMS, "admin": CMS, "public": CMS},
+        {"single": CMS, "admin": CMS, "public": CMS, "admin_only": CMS},
         group="campaign_routes",
     ),
     Route(
         "slashless_service_roots",
         (_slashless(PWA_BASE), _slashless(ADMIN_BASE)),
-        {"single": SLASH, "admin": SLASH, "public": TO_ADMIN},
+        {"single": SLASH, "admin": SLASH, "public": TO_ADMIN, "admin_only": SLASH},
         group="slashless_service_roots",
     ),
     Route(
@@ -147,35 +175,45 @@ ROUTES: tuple[Route, ...] = (
         group="slashless_service_roots",
         dev_only=True,
     ),
+    # Browsers never follow a redirect for a service worker script. A device
+    # that opened the PWA on the old single host keeps that worker; this one
+    # replaces it, unregisters itself and reloads the page, which then 308s to
+    # the admin host (§6.7).
+    Route("retired_worker", (PWA_BASE + "sw.js",), {"public": RETIRED_WORKER}),
     Route(
         "pwa",
         (PWA_BASE + "*",),
-        {"single": PWA, "admin": PWA, "public": TO_ADMIN},
+        {"single": PWA, "admin": PWA, "public": TO_ADMIN, "admin_only": PWA},
         group="member_routes",
     ),
     Route(
         "web",
         (ADMIN_BASE + "*",),
-        {"single": WEB, "admin": WEB, "public": TO_ADMIN},
+        {"single": WEB, "admin": WEB, "public": TO_ADMIN, "admin_only": WEB},
         group="member_routes",
     ),
     Route(
         "member_pages",
         MEMBER_PAGES,
-        {"admin": PUBLIC, "public": TO_ADMIN},
+        {"admin": PUBLIC, "public": TO_ADMIN, "admin_only": PUBLIC},
         group="member_routes",
     ),
-    Route("legal_pages", LEGAL_PAGES, {"admin": PUBLIC}, group="admin_public_pages"),
+    Route(
+        "legal_pages",
+        LEGAL_PAGES,
+        {"admin": PUBLIC, "admin_only": PUBLIC},
+        group="admin_public_pages",
+    ),
     Route(
         "public_app_assets",
         PUBLIC_APP_ASSETS,
-        {"admin": PUBLIC},
+        {"admin": PUBLIC, "admin_only": PUBLIC},
         group="admin_public_pages",
     ),
     # Order forms exist only on site hosts.
-    Route("public_order", PUBLIC_ORDER, {"admin": NOT_FOUND}),
+    Route("public_order", PUBLIC_ORDER, {"admin": NOT_FOUND, "admin_only": NOT_FOUND}),
     # Stage 1b replaces the interim redirect with the role-based entry (§6.7).
-    Route("root", ("/",), {"admin": ENTRY}),
+    Route("root", ("/",), {"admin": ENTRY, "admin_only": ENTRY}),
     Route("crm", ("/crm/*",), {"single": CRM, "admin": CRM}, dev_only=True),
     Route("mail", ("/mail/*",), {"single": MAIL, "admin": MAIL}, dev_only=True),
     Route(
@@ -191,7 +229,18 @@ ROUTES: tuple[Route, ...] = (
         dev_only=True,
     ),
     # Everything else: aliases, archive pages, surveys, the home page.
-    Route("catch_all", (), {"single": PUBLIC, "admin": TO_PUBLIC, "public": PUBLIC}),
+    # Without a public host, surveys, aliases and archive paths stay on the
+    # admin host; the public app answers them (stage 2: 308 or 404, §6.6).
+    Route(
+        "catch_all",
+        (),
+        {
+            "single": PUBLIC,
+            "admin": TO_PUBLIC,
+            "public": PUBLIC,
+            "admin_only": PUBLIC,
+        },
+    ),
 )
 
 PILOT_GLOBAL = """{
@@ -237,6 +286,18 @@ SNIPPETS = """
 		Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
+
+# The general public host is usually the club's apex domain (club.org). HSTS
+# with includeSubDomains there would force HTTPS on every *.club.org name of
+# the club (webmail, intranet, devices) for a year, so this host omits it.
+(public_host_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000"
 	}
 }
 
@@ -447,6 +508,21 @@ reverse_proxy public:3000 {
         # signs in and forwards acquirers to the PWA.
         # "*": a first argument starting with "/" would be read as a matcher.
         return f"redir * {ADMIN_BASE} 302"
+    if action == RETIRED_WORKER:
+        # No braces: Caddy would read them as placeholders. matchAll() lists
+        # the window clients by default.
+        script = (
+            'self.addEventListener("install", () => self.skipWaiting()); '
+            'self.addEventListener("activate", (event) => event.waitUntil('
+            "self.registration.unregister().then(() => self.clients.matchAll())"
+            ".then((clients) => Promise.all("
+            "clients.map((client) => client.navigate(client.url))))));"
+        )
+        return (
+            'header Content-Type "text/javascript; charset=utf-8"\n'
+            "header Cache-Control no-store\n"
+            f"respond `{script}` 200"
+        )
     if action == CRM:
         return "reverse_proxy twenty-server:3000"
     if action == MAIL:
@@ -480,6 +556,19 @@ def _site_routes(role: str, environment: str) -> list[str]:
         if action == SLASH:
             out.append(f"\t@{name} path {' '.join(paths)}")
             out.append(f"\tredir @{name} {{path}}/ 308")
+        elif action == REFUSED_ACTIONS:
+            # rewrite runs before every handle, so no page route can win.
+            out.extend(
+                [
+                    "\t@admin_actions query _action=*",
+                    "\trewrite @admin_actions /_leonaid/refused-action",
+                    "\thandle /_leonaid/refused-action {",
+                    "\t\timport astro_headers",
+                    "\t\theader Cache-Control no-store",
+                    '\t\trespond "Not Found" 404',
+                    "\t}",
+                ]
+            )
         elif action == LOCAL_IMPORT:
             out.extend(
                 _indent(
@@ -536,7 +625,11 @@ def _site(addresses: str, role: str, target: Target, extra: list[str]) -> list[s
     lines = [f"{addresses} {{", "\timport body_read_timeouts"]
     if target.tls_internal:
         lines.append("\ttls internal")
-    lines.append("\timport common_headers")
+    lines.append(
+        "\timport public_host_headers"
+        if role == "public"
+        else "\timport common_headers"
+    )
     lines.append("")
     lines.extend(extra)
     lines.extend(_site_routes(role, target.environment))
@@ -582,6 +675,18 @@ def _pilot(target: Target) -> list[str]:
         lines += HTTP_PILOT_BODY.splitlines()
         lines.append("")
         lines += _site("{$LEONAID_PUBLIC_DOMAIN}", "single", target, [])
+        return lines
+    if target.mode == "admin-only":
+        lines.append("http://{$LEONAID_ADMIN_DOMAIN} {")
+        lines += HTTP_PILOT_BODY.splitlines()
+        lines.append("")
+        lines.append(
+            "# Admin host without a general public host (specs/multi-domain §6.6)."
+        )
+        lines.append(
+            "# Stage 2 adds the on-demand TLS block of the campaign hosts here."
+        )
+        lines += _site("{$LEONAID_ADMIN_DOMAIN}", "admin_only", target, [])
         return lines
     lines.append("http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {")
     lines += HTTP_PILOT_BODY.splitlines()
@@ -695,6 +800,10 @@ def _dev(target: Target) -> list[str]:
 TARGETS = {
     "pilot-single": ("infra/pilot/Caddyfile", Target("pilot", "single")),
     "pilot-split": ("infra/pilot/Caddyfile.split", Target("pilot", "split")),
+    "pilot-admin-only": (
+        "infra/pilot/Caddyfile.admin-only",
+        Target("pilot", "admin-only"),
+    ),
     "dev-single": ("infra/proxy/Caddyfile", Target("dev", "single")),
     "dev-split": ("infra/proxy/Caddyfile.split", Target("dev", "split", True)),
 }

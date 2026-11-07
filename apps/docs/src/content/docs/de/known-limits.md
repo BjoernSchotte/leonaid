@@ -40,7 +40,9 @@ allgemeine Produktionsfreigabe.
   Kampagnen-Domains und eine Installation ohne öffentlichen Host sind nur
   spezifiziert. Bis der rollenbasierte Einstieg kommt, leitet `/` auf dem
   Verwaltungshost auf `/admin/`. Beim Umstellen auf zwei Hosts meldet sich
-  jedes Mitglied einmal neu an, und Akquisiteure installieren die App neu.
+  jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
+  öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen
+  festen Link „Anmelden“: die Sitzung gehört zum Verwaltungshost.
 - Aktionsseiten laufen in einer Pilotinstallation mit
   `LEONAID_CMS_ENABLED=true`. Ihre einmalige Einrichtung in Produktion
   (CMS-Datenbankrolle, Medien-Bucket, Editor-Setup) hat noch keinen

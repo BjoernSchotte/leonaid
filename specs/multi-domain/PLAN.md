@@ -947,8 +947,10 @@ use `tls internal`, as the spike did.
   `infra/pilot/compose.yml`). Port 80 serves the host check and HTTP-01;
   TLS-ALPN-01 runs on 443.
 - CAA records, if the domain has any, must allow `letsencrypt.org`.
-- Certificates live in the Caddy data volume (already persistent and in
-  backups). Each host costs ~10 KB and one renewal every ~60 days.
+- Certificates live in the Caddy data volume. It is persistent and, since
+  stage 1, part of every pilot backup (`caddy-data.tar`, restored into the
+  target's volume), so a restore needs no new issuance and does not hit the
+  stage-2 `ask` limit. Each host costs ~10 KB and one renewal every ~60 days.
 
 ### 10.2 Pilot install
 
@@ -1229,4 +1231,40 @@ one test domain owned by the club.
   form.
 - R13: the theme image is the theme's share image (`resolvePublicTheme`);
   Core returns only the theme key, no media id.
+
+||||||| 6ce71d8b
+
+### 16.4 Review of #97 (rv-md1)
+
+- R14 (I1): Core accepts a public origin only when it names the request's own
+  host (`same_host` in `security.py`); a page of the public host can never
+  write to the admin host's public API with the admin cookies.
+- R15 (M3): `LEONAID_PUBLIC_ORIGINS` is exactly the public host origin.
+  Aliases 308 at the edge, so no page runs on them.
+- R16 (I2): the public host block imports `public_host_headers`: HSTS without
+  `includeSubDomains`, because the public host is usually the club's apex.
+  Admin and single hosts keep `includeSubDomains`.
+- R17 (I3): `caddy-data` is backed up and restored when the volume exists
+  (pilot); `caddy-data.tar` is an optional, verified manifest entry.
+- R18 (I5): the public host cannot ask who is signed in: the session is
+  host-only on the admin host, the public host serves no identity API, and the
+  build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
+  header shows a static "Anmelden" link to the admin host there and sends no
+  identity request; the admin host and single hosts keep the personal links.
+- R19 (M1): the admin host refuses every Astro form action
+  (`?_action=…`) before any page route (rewrite to a 404 handler).
+- R20 (M8): the public host serves a self-unregistering worker at
+  `/app/sw.js` (no redirect); stage 1b moves it to the base-path constant.
+- R21 (M9): `infra/pilot/Caddyfile.admin-only` is generated and proven; the
+  pilot contract refuses it until stage 2 (no campaign hosts yet).
+- R22 (M5): `./leonaid pilot-revoke-sessions` signs every member out after
+  the switch; the install guide has a "Switch to an admin host" section.
+- R23 (M6): `pilot-doctor` probes every alias (certificate, 308 to the public
+  host) and port 80 (`/_health`) of every host.
+- R24 (M7): the dev compose takes `LEONAID_ALLOWED_ORIGINS` from the
+  environment; the dev split sets only the admin origin there.
+- Open: the split-mode stack proof (`./leonaid test-multi-host`) runs public
+  app, Core and web/PWA behind `Caddyfile.split`, without the CMS. The CMS
+  part (native order POST on the public host, Live View in the editor) needs
+  the EmDash spike harness and follows with stage 2's `multi-host` case.
 

@@ -114,12 +114,14 @@ services:
       # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
 
   # Campaign pages and the EmDash editor (specs/multi-domain stage 0). Part of
   # the stack only with the emdash profile: LEONAID_CMS_ENABLED=true in the
   # env file makes every ./leonaid pilot command add --profile emdash. The
   # database role, media bucket and editor setup are provisioned once
-  # (infra/pilot/LIVE-PILOT-RUNBOOK.md, "Campaign pages").
+  # (help docs "Install LeonAid on a fresh VPS"; specs/leonaid-poc/KNOWN-LIMITS.md).
   campaign-site:
     image: ${LEONAID_CAMPAIGN_SITE_IMAGE:-}
     build: !reset null
@@ -130,6 +132,8 @@ services:
       LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
 
   # The CRM UI is for the system administrator only and has no public domain.
   # twenty-server publishes its port on the host's loopback interface only;

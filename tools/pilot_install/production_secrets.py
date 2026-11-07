@@ -161,9 +161,8 @@ def host_settings(
         "LEONAID_ADMIN_DOMAIN": admin,
         "LEONAID_PROXY_CADDYFILE": "Caddyfile.split",
         "LEONAID_SITE_BASE_URL": f"https://{public}",
-        "LEONAID_PUBLIC_ORIGINS": ",".join(
-            f"https://{name}" for name in (public, *names)
-        ),
+        # Aliases redirect at the edge; only the public host calls the API.
+        "LEONAID_PUBLIC_ORIGINS": f"https://{public}",
         # Caddy reads the aliases as site addresses: ", " between them.
         **({"LEONAID_PUBLIC_DOMAIN_ALIASES": ", ".join(names)} if names else {}),
     }

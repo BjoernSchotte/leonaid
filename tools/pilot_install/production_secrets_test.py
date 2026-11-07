@@ -136,9 +136,7 @@ def hosts(root: Path) -> None:
             "LEONAID_PUBLIC_BASE_URL": "https://app.leonaid.org",
             "LEONAID_ALLOWED_ORIGINS": "https://app.leonaid.org",
             "LEONAID_SITE_BASE_URL": "https://leonaid.org",
-            "LEONAID_PUBLIC_ORIGINS": (
-                "https://leonaid.org,https://www.leonaid.org,https://web.leonaid.org"
-            ),
+            "LEONAID_PUBLIC_ORIGINS": "https://leonaid.org",
             "LEONAID_PUBLIC_DOMAIN_ALIASES": "www.leonaid.org, web.leonaid.org",
         }
         for key, value in expected.items():

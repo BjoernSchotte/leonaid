@@ -65,14 +65,22 @@ async def main() -> None:
             base_url=PUBLIC,
         ) as client:
             for origin in (PUBLIC, ALIAS):
-                response = await client.options(public_path, headers=preflight(origin))
+                # Same-origin: Caddy forwards the browser's Host unchanged.
+                own_host = origin.split("://", 1)[1]
+                response = await client.options(
+                    public_path, headers={**preflight(origin), "Host": own_host}
+                )
                 assert response.status_code == 204, response.text
                 assert response.headers["access-control-allow-origin"] == origin
                 assert "access-control-allow-credentials" not in response.headers
                 # Invalid body: reaching validation proves CSRF accepted it.
                 response = await client.post(
                     public_path,
-                    headers={"Origin": origin, "Sec-Fetch-Site": "same-origin"},
+                    headers={
+                        "Origin": origin,
+                        "Host": own_host,
+                        "Sec-Fetch-Site": "same-origin",
+                    },
                     json={},
                 )
                 assert response.status_code == 422, response.text
@@ -86,6 +94,30 @@ async def main() -> None:
                     member_path,
                     headers={"Origin": origin},
                     json={"email": "nobody@leonaid.invalid"},
+                )
+                assert response.status_code == 403, response.text
+                assert response.json()["error"]["code"] == "csrf_rejected"
+                assert "access-control-allow-origin" not in response.headers
+            # A public page never reaches the public API of another host: the
+            # admin host (same-site, it would carry the admin cookies) or the
+            # public host from an alias page.
+            for origin, host in (
+                (PUBLIC, ADMIN.split("://", 1)[1]),
+                (ALIAS, PUBLIC.split("://", 1)[1]),
+            ):
+                response = await client.options(
+                    public_path, headers={**preflight(origin), "Host": host}
+                )
+                assert response.status_code == 403, response.text
+                assert response.json()["error"]["code"] == "cors_origin_rejected"
+                response = await client.post(
+                    public_path,
+                    headers={
+                        "Origin": origin,
+                        "Host": host,
+                        "Sec-Fetch-Site": "same-site",
+                    },
+                    json={},
                 )
                 assert response.status_code == 403, response.text
                 assert response.json()["error"]["code"] == "csrf_rejected"
@@ -106,8 +138,9 @@ async def main() -> None:
             assert response.status_code == 403, response.text
             assert response.json()["error"]["code"] == "csrf_rejected"
     print(
-        "public-origins-api: OK: public host CORS without credentials on the public "
-        "API only; admin origin credentialed; foreign origins rejected"
+        "public-origins-api: OK: public host CORS without credentials on its own "
+        "host's public API only; cross-host and foreign origins rejected; admin "
+        "origin credentialed"
     )
 
 

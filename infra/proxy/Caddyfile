@@ -19,6 +19,18 @@
 	}
 }
 
+# The general public host is usually the club's apex domain (club.org). HSTS
+# with includeSubDomains there would force HTTPS on every *.club.org name of
+# the club (webmail, intranet, devices) for a year, so this host omits it.
+(public_host_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
+
 # Strict Content-Security-Policy without 'unsafe-inline'. The admin web app and
 # the PWA are static builds whose scripts and styles are all files, so Caddy
 # sends the complete policy for them and for the API.

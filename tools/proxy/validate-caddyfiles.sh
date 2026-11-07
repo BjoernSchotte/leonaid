@@ -23,6 +23,7 @@ for entry in \
   infra/pilot/Caddyfile \
   infra/pilot/Caddyfile.split \
   "infra/pilot/Caddyfile.split|www.leonaid.invalid, alt.leonaid.invalid" \
+  infra/pilot/Caddyfile.admin-only \
   infra/pilot/Caddyfile.test \
   infra/observability/pilot/Caddyfile.test; do
   caddyfile=${entry%%|*}

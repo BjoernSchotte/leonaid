@@ -21,6 +21,18 @@
 	}
 }
 
+# The general public host is usually the club's apex domain (club.org). HSTS
+# with includeSubDomains there would force HTTPS on every *.club.org name of
+# the club (webmail, intranet, devices) for a year, so this host omits it.
+(public_host_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
+
 # Strict Content-Security-Policy without 'unsafe-inline'. The admin web app and
 # the PWA are static builds whose scripts and styles are all files, so Caddy
 # sends the complete policy for them and for the API.
@@ -156,6 +168,14 @@ http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {
 	import body_read_timeouts
 	import common_headers
 
+	@admin_actions query _action=*
+	rewrite @admin_actions /_leonaid/refused-action
+	handle /_leonaid/refused-action {
+		import astro_headers
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
+
 	handle /_health {
 		respond "ready" 200
 	}
@@ -256,7 +276,7 @@ http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {
 		}
 	}
 
-	@admin_public_pages path /impressum /datenschutz /_astro/* /favicon.svg /community-routes.png /community-routes.webp
+	@admin_public_pages path /impressum /datenschutz /_astro/* /favicon.ico /favicon.svg /community-routes.png /community-routes.webp
 	handle @admin_public_pages {
 		import astro_headers
 		import astro_asset_encoding
@@ -291,7 +311,7 @@ http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {
 # address list; each alias answers 308 to the public host, path kept.
 {$LEONAID_PUBLIC_DOMAIN} {$LEONAID_PUBLIC_DOMAIN_ALIASES} {
 	import body_read_timeouts
-	import common_headers
+	import public_host_headers
 
 	@public_alias not host {$LEONAID_PUBLIC_DOMAIN}
 	redir @public_alias https://{$LEONAID_PUBLIC_DOMAIN}{uri} 308
@@ -356,6 +376,12 @@ http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {
 	@slashless_service_roots path /app /admin
 	handle @slashless_service_roots {
 		redir https://{$LEONAID_ADMIN_DOMAIN}{uri} 308
+	}
+
+	handle /app/sw.js {
+		header Content-Type "text/javascript; charset=utf-8"
+		header Cache-Control no-store
+		respond `self.addEventListener("install", () => self.skipWaiting()); self.addEventListener("activate", (event) => event.waitUntil(self.registration.unregister().then(() => self.clients.matchAll()).then((clients) => Promise.all(clients.map((client) => client.navigate(client.url))))));` 200
 	}
 
 	@member_routes path /app/* /admin/* /login /invite /email-change /fresh-login

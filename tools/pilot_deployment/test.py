@@ -285,11 +285,12 @@ def split_hosts_and_cms(config: dict[str, Any]) -> None:
         "https://app.leonaid.org,https://leonaid.org",
     )
     mutate(
-        "alias missing from public origins",
+        "alias as public origin",
         "api",
         "LEONAID_PUBLIC_ORIGINS",
-        "https://leonaid.org",
+        "https://leonaid.org,https://www.leonaid.org",
     )
+    mutate("public origins missing", "api", "LEONAID_PUBLIC_ORIGINS", "")
     mutate("public app lacks the admin host", "public", "LEONAID_ADMIN_DOMAIN", "")
     mutate(
         "CMS editor on the public host",

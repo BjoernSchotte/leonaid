@@ -38,7 +38,9 @@ general production approval.
   `specs/multi-domain/PLAN.md`). Own campaign domains and an installation
   without a public host are only specified. Until the role-based entry ships,
   `/` on the admin host redirects to `/admin/`. Switching to two hosts signs
-  every member out once, and acquirers install the app again.
+  every member out once (`pilot-revoke-sessions`). On the public host the
+  header shows a static "Anmelden" link instead of the personal app links:
+  the session belongs to the admin host.
 - Campaign pages run in a pilot installation with `LEONAID_CMS_ENABLED=true`.
   Their one-time production setup (CMS database role, media bucket, editor
   setup) has no `pilot-*` command yet.
