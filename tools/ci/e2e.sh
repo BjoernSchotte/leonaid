@@ -7,6 +7,8 @@ set -eu
 # restores the stopped fixture volumes before every leaf, so each leaf still
 # starts from the identical prepared state. --keep-going runs every leaf even
 # after a failure; the bin then fails and the log names the failed leaves.
+# CI keeps one stack per fixture kind (parallel_stacks.py: CI set and no
+# LEONAID_TEST_STACKS), so timing and disk use stay comparable between runs.
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ "$#" -eq 0 ]; then

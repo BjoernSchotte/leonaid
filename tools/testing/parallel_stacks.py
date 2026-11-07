@@ -4,6 +4,7 @@ A suite's leaves are independent (each starts from the restored fixture), so
 they can run on several private stacks. Each stack costs about 4 GiB, so:
 
 - `LEONAID_TEST_STACKS=N` asks for N stacks explicitly;
+- in CI (`CI` set) a suite uses 1 stack unless LEONAID_TEST_STACKS is set;
 - otherwise a suite uses 2 stacks only if MemAvailable is at least
   `LEONAID_PARALLEL_MIN_MEM_GB` (default 14) at start, else 1;
 - with `LEONAID_STACK_SLOTS_DIR` (the host's slot directory, e.g. the slot
@@ -40,12 +41,20 @@ def wanted(leaves: int, environ: dict[str, str] | None = None) -> tuple[int, str
     """(stack count, reason) before slots and fixture availability."""
     environ = dict(os.environ if environ is None else environ)
     explicit = environ.get("LEONAID_TEST_STACKS")
+    if not explicit and environ.get("CI"):
+        # CI runs one stack per job: deterministic timing and disk use.
+        return 1, "CI (set LEONAID_TEST_STACKS to opt in)"
     if explicit:
         if not explicit.isdigit() or int(explicit) < 1:
             raise ValueError("LEONAID_TEST_STACKS must be a positive integer")
         count, reason = int(explicit), f"LEONAID_TEST_STACKS={explicit}"
     else:
-        minimum = float(environ.get("LEONAID_PARALLEL_MIN_MEM_GB", DEFAULT_MIN_MEM_GB))
+        try:
+            minimum = float(
+                environ.get("LEONAID_PARALLEL_MIN_MEM_GB", DEFAULT_MIN_MEM_GB)
+            )
+        except ValueError:
+            raise ValueError("LEONAID_PARALLEL_MIN_MEM_GB must be a number") from None
         available = mem_available_gb(
             Path(environ.get("LEONAID_MEMINFO", "/proc/meminfo"))
         )
@@ -65,7 +74,10 @@ def take_slots(extra: int, environ: dict[str, str] | None = None) -> list[TextIO
     directory = environ.get("LEONAID_STACK_SLOTS_DIR")
     if not directory or extra < 1:
         return []
-    slots = int(environ.get("LEONAID_STACK_SLOTS", "5"))
+    try:
+        slots = int(environ.get("LEONAID_STACK_SLOTS", "5"))
+    except ValueError:
+        raise ValueError("LEONAID_STACK_SLOTS must be an integer") from None
     held: list[TextIO] = []
     for index in range(1, slots + 1):
         if len(held) == extra:

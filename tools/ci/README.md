@@ -534,6 +534,10 @@ without a prepared fixture the suite stays on one stack. With
 stack must lock a free `slot-<n>.lock` (`LEONAID_STACK_SLOTS`, default 5), so
 the host-wide slot cap holds; with no free slot the suite runs fewer stacks.
 With several stacks each leaf's output is printed as one block when it ends.
+CI keeps one stack unless `LEONAID_TEST_STACKS` is set. A stack whose reset
+fails is retired: its leaf runs on a healthy stack and the suite fails with
+the problem listed. INT/TERM starts no further leaf, terminates running ones
+and removes the stacks only after every worker ended.
 
 ## Local checks
 

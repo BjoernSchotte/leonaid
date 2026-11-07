@@ -591,70 +591,179 @@ class SharedStack:
                 shutil.rmtree(self.directory)
 
 
-def run_leaves(root, stacks, scripts, keep_going, output_lock, children):
-    """Run `scripts` over `stacks`, one leaf at a time per stack.
+def exit_status(code):
+    """A signal-terminated child reports -N; report it like a shell (128+N)."""
+    return 128 - code if code < 0 else code
 
-    Returns [(script, exit code)] in completion order. With one stack the leaf
-    output streams as before; with several, each leaf's output is printed as
-    one block when it ends, so parallel leaves stay attributable.
+
+class LeafRunner:
+    """Run leaves over one or more stacks, one leaf at a time per stack.
+
+    - cancel() (INT/TERM) stops scheduling: no leaf starts afterwards, running
+      leaves are terminated, and run() returns only after every worker ended,
+      so the caller removes the stacks with nothing left running on them.
+    - A stack whose prepare() (reset/initialization) fails is retired: its
+      leaf goes back to the queue for a healthy stack, and the failure fails
+      the suite. Leaves left without any healthy stack fail.
+    - Every leaf taken from the queue ends with a result, whatever happens
+      while running or reporting it.
     """
-    pending = queue.Queue()
-    for script in scripts:
-        pending.put(script)
-    results = []
-    stopped = threading.Event()
-    parallel = len(stacks) > 1
 
-    def worker(stack):
-        while not stopped.is_set():
-            try:
-                script = pending.get_nowait()
-            except queue.Empty:
-                return
-            start = time.monotonic()
-            log = None
+    def __init__(self, root, stacks, scripts, keep_going, output_lock):
+        self.root = root
+        self.stacks = stacks
+        self.scripts = scripts
+        self.keep_going = keep_going
+        self.output_lock = output_lock
+        self.parallel = len(stacks) > 1
+        self.pending = queue.Queue()
+        for script in scripts:
+            self.pending.put(script)
+        self.results = []
+        self.problems = []
+        self.cancelled = threading.Event()
+        self.stopped = threading.Event()
+        self.children_lock = threading.Lock()
+        self.children = set()
+        self.healthy = len(stacks)
+        self.state_lock = threading.Lock()
+
+    def say(self, text):
+        with self.output_lock:
+            print(text, flush=True)
+
+    def cancel(self):
+        with self.children_lock:
+            self.cancelled.set()
+            for child in list(self.children):
+                if child.poll() is None:
+                    child.terminate()
+
+    def start_leaf(self, script, env, log):
+        """Popen unless cancelled; atomic with cancel()'s view of children."""
+        with self.children_lock:
+            if self.cancelled.is_set():
+                return None
+            child = subprocess.Popen(
+                ["/bin/sh", str(self.root / script), str(self.root)],
+                cwd=self.root,
+                env=env,
+                stdout=log,
+                stderr=subprocess.STDOUT if log is not None else None,
+            )
+            self.children.add(child)
+            return child
+
+    def run_leaf(self, stack, script):
+        """Return the leaf's exit status, or None if the stack is broken."""
+        start = time.monotonic()
+        code = 1
+        log = tempfile.TemporaryFile() if self.parallel else None
+        try:
             try:
                 env = dict(os.environ, **stack.prepare())
-                with output_lock:
-                    print(
-                        f"shared-stack: testing {script} on {getattr(stack, 'project', 'the stack')}",
-                        flush=True,
-                    )
-                if parallel:
-                    log = tempfile.TemporaryFile(mode="w+")
-                child = subprocess.Popen(
-                    ["/bin/sh", str(root / script), str(root)],
-                    cwd=root,
-                    env=env,
-                    stdout=log,
-                    stderr=subprocess.STDOUT if parallel else None,
+            except Exception as error:
+                self.say(
+                    f"shared-stack: {getattr(stack, 'project', 'stack')} failed to "
+                    f"reset before {script}: {error}; retiring this stack"
                 )
-                children.add(child)
-                code = child.wait()
-                children.discard(child)
-            except Exception as error:  # A failed reset/initialization fails the leaf.
-                code = 1
-                with output_lock:
-                    print(f"shared-stack: {script}: {error}", flush=True)
-            with output_lock:
+                code = None
+                return None
+            self.say(
+                f"shared-stack: testing {script} on {getattr(stack, 'project', 'the stack')}"
+            )
+            child = self.start_leaf(script, env, log)
+            if child is None:
+                code = 130
+                return code
+            try:
+                code = exit_status(child.wait())
+            finally:
+                with self.children_lock:
+                    self.children.discard(child)
+            return code
+        except Exception as error:
+            code = 1
+            self.say(f"shared-stack: {script}: {error}")
+            return code
+        finally:
+            try:
+                with self.output_lock:
+                    if log is not None:
+                        log.seek(0)
+                        sys.stdout.flush()
+                        sys.stdout.buffer.write(log.read())
+                        sys.stdout.buffer.flush()
+                    if code is not None:
+                        print(
+                            f"shared-stack: {script} {time.monotonic() - start:.1f}s, "
+                            f"exit {code}",
+                            flush=True,
+                        )
+            except Exception as error:  # Reporting never drops a result.
+                self.problems.append(f"output of {script}: {error}")
+            finally:
                 if log is not None:
-                    log.seek(0)
-                    sys.stdout.write(log.read())
                     log.close()
-                print(
-                    f"shared-stack: {script} {time.monotonic() - start:.1f}s, exit {code}",
-                    flush=True,
-                )
-                results.append((script, code))
-            if code and not keep_going:
-                stopped.set()
 
-    threads = [threading.Thread(target=worker, args=(stack,)) for stack in stacks]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    return results
+    def worker(self, stack):
+        try:
+            while not (self.stopped.is_set() or self.cancelled.is_set()):
+                try:
+                    script = self.pending.get_nowait()
+                except queue.Empty:
+                    return
+                code = self.run_leaf(stack, script)
+                if code is None:
+                    # Broken stack: give the leaf to a healthy one.
+                    with self.state_lock:
+                        self.problems.append(
+                            f"stack {getattr(stack, 'project', '?')} failed to reset"
+                        )
+                        self.healthy -= 1
+                        if self.healthy > 0:
+                            self.pending.put(script)
+                        else:
+                            self.results.append((script, 1))
+                    return
+                with self.state_lock:
+                    self.results.append((script, code))
+                if code and not self.keep_going:
+                    self.stopped.set()
+        except Exception as error:
+            with self.state_lock:
+                self.problems.append(
+                    f"worker for {getattr(stack, 'project', '?')}: {error}"
+                )
+                self.healthy -= 1
+
+    def run(self):
+        threads = [
+            threading.Thread(target=self.worker, args=(stack,), daemon=True)
+            for stack in self.stacks
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        if not (self.cancelled.is_set() or self.stopped.is_set()):
+            # Leaves no healthy stack could take.
+            while True:
+                try:
+                    script = self.pending.get_nowait()
+                except queue.Empty:
+                    break
+                self.results.append((script, 1))
+                self.problems.append(f"{script}: no healthy stack left")
+        return self.results
+
+
+def run_leaves(root, stacks, scripts, keep_going, output_lock, runner_holder=None):
+    """Compatibility wrapper: run and return [(script, exit status)]."""
+    runner = LeafRunner(root, stacks, scripts, keep_going, output_lock)
+    if runner_holder is not None:
+        runner_holder.append(runner)
+    return runner.run()
 
 
 def main():
@@ -696,18 +805,22 @@ def main():
             stack.close()
         parser.error("At least one test script is required")
     extra_stacks = []
+    extra_logs = []
     slots = []
-    children = set()
+    runners = []
     output_lock = threading.Lock()
+    received = []
 
-    # Children share the terminal/process-group signal; wait for their traps
-    # before removing the environments. During setup, finally handles cleanup.
+    # Leaves share the terminal/process-group signal. While leaves run, a
+    # signal only cancels: no leaf starts afterwards, running ones are
+    # terminated, and the stacks are removed after every worker ended. During
+    # setup it interrupts, and finally handles cleanup.
     def stop(signum, frame):
-        for child in list(children):
-            if child.poll() is None:
-                child.terminate()
-                child.wait()
-        raise KeyboardInterrupt
+        received.append(signum)
+        if runners:
+            runners[0].cancel()
+        else:
+            raise KeyboardInterrupt
 
     previous = {
         sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)
@@ -729,22 +842,33 @@ def main():
                 count = 1 + len(slots)
         print(f"shared-stack: {count} stack(s) ({reason})", flush=True)
         for _ in range(count - 1):
-            extra = SharedStack(root, args.kind)
+            # Setup output is shown only if the stack breaks (see below).
+            log = tempfile.TemporaryFile(mode="w+", errors="replace")
+            extra_logs.append(log)
+            extra = SharedStack(root, args.kind, output=log)
             extra.env["LEONAID_CI_FIXTURE"] = str(fixture[0])
             extra.fixture_metadata = fixture[1]
             extra_stacks.append(extra)
-        results = run_leaves(
-            root,
-            [stack, *extra_stacks],
-            args.scripts,
-            args.keep_going,
-            output_lock,
-            children,
+        runner = LeafRunner(
+            root, [stack, *extra_stacks], args.scripts, args.keep_going, output_lock
         )
+        runners.append(runner)
+        if received:  # A signal between setup and start.
+            runner.cancel()
+        results = runner.run()
+        if received or runner.cancelled.is_set():
+            print("shared-stack: interrupted; no further leaves started", flush=True)
+            return 128 + (received[0] if received else signal.SIGTERM)
         failed = sorted(
             ((script, code) for script, code in results if code),
             key=lambda item: args.scripts.index(item[0]),
         )
+        for problem in runner.problems:
+            print(f"shared-stack: problem: {problem}", flush=True)
+        if runner.problems:
+            for log in extra_logs:
+                log.seek(0)
+                sys.stdout.write(log.read())
         if failed:
             print(
                 "shared-stack: failed leaves: "
@@ -752,14 +876,19 @@ def main():
                 flush=True,
             )
             return failed[0][1]
-        return 0
+        # A retired stack or a reporting problem fails the suite as well.
+        return 1 if runner.problems else 0
     finally:
+        if runners:
+            runners[0].cancel()
         for sig, handler in previous.items():
             signal.signal(sig, handler)
         try:
             for extra in extra_stacks:
                 extra.close()
         finally:
+            for log in extra_logs:
+                log.close()
             for slot in slots:
                 slot.close()
             if cache:

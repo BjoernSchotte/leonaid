@@ -250,14 +250,19 @@ class LocalStack:
         if not env_file.is_file() or not is_synthetic(self.root, env_file.read_text()):
             return None
         # The retained stack is already initialized; hold the entry (shared
-        # lock) for the extra stack's import until close().
+        # lock) for the extra stack's import until close(). A missing entry is
+        # not built just for parallelism (that costs minutes).
         self.cache = FixtureCache(output=self.output)
         self.cache_key = key(self.root)
-        return self.cache.acquire(
-            self.root,
-            self.cache_key,
-            lambda target: build(self.root, target, self.output),
-        )
+
+        def refuse(target):
+            raise LookupError("no cached fixture")
+
+        try:
+            return self.cache.acquire(self.root, self.cache_key, refuse)
+        except LookupError:
+            self.release_fixture_cache()
+            return None
 
     def release_fixture_cache(self):
         if self.cache is not None:
