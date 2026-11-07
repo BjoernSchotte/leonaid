@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -28,6 +28,11 @@ general production approval.
 - Public orders require a published campaign with an active order form and an
   available offering. When delivery planning is enabled, an available delivery
   window is also required.
+- The order confirmation and the cancellation notice are plain-text mails and
+  go only to buyers from the public form. Orders that members or acquirers
+  enter send no e-mail. The campaign link points to the campaign page on the
+  public host; own campaign domains follow with stage 2. The sender is the
+  configured system address, not the club.
 - An issued invoice and its PDF are never overwritten. Corrections use a
   cancellation and a new transaction.
 - Partial payments and overpayments are recorded as separate payment entries

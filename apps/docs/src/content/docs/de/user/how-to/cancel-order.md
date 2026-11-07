@@ -4,9 +4,9 @@ description: Eine noch nicht gelieferte Bestellung mit Grund stornieren, samt of
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -48,8 +48,14 @@ Menge und Betrag zählen sie nicht mehr mit.
   Weil dabei ein Beleg geändert wird, bestätigst du deine Anmeldung
   gegebenenfalls erneut. Grund und Notiz bleiben dabei erhalten; nach der
   Anmeldung öffnet sich der Dialog wieder, und du bestätigst noch einmal.
-- **Besteller:** LeonAid benachrichtigt den Besteller nicht automatisch.
-  Informiere ihn selbst über die Stornierung.
+- **Besteller:** Kam die Bestellung über das öffentliche Bestellformular,
+  erhält der Besteller kurz darauf eine E-Mail **Stornierung Ihrer Bestellung
+  bei …** an die Adresse aus dem Formular. Sie nennt Bestellnummer, Positionen,
+  Betrag, eine mit stornierte Rechnung und die Kontaktdaten des Clubs aus den
+  rechtlichen Angaben. Grund und Notiz stehen nicht darin; sie bleiben intern.
+  Wiederholst du den Vorgang, geht keine zweite E-Mail hinaus. Bestellungen, die
+  Mitglieder oder Akquisiteure erfasst haben, lösen keine E-Mail aus: Informiere
+  diese Besteller selbst.
 
 ## Wenn es nicht geht
 

@@ -1297,6 +1297,11 @@ one test domain owned by the club.
   palette offers "Verwaltung als Startbereich verwenden". After a choice both
   also offer "Standard-Startbereich verwenden" (surface `null`;
   `startAreaChoices` in `base-paths.ts`).
+- R31: web and PWA go straight to `/login?returnTo=…` only without any
+  session (`authentication_required`). An ended session (`session_invalid`:
+  expired, revoked by a status change or a fresh login elsewhere) keeps the
+  "Bitte erneut anmelden" notice, whose button carries the same `returnTo`
+  (`redirectsToLogin` in `base-paths.ts`; e2e `z-account-status`).
 - `memberReturnTo` checks the path the URL parser resolves (dot segments,
   also encoded), so `/app/../campaigns/x/` falls back.
 - `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin` and

@@ -19,23 +19,23 @@ from tools.ci import select_suites  # noqa: E402
 REQUIRED_JOBS = {
     "artifact-probe",
     "build",
-    "contract",
     "e2e",
     "emdash-cases",
-    "emdash-proofs",
     "flake-summary",
     "gate",
     "golden-journey",
-    "integration",
+    "golden-parts",
     "integration-shards",
-    "lint-types",
+    "lint-unit",
     "pilot-cold-rehearsal",
     "security",
     "select",
-    "unit",
 }
-# Jobs without own test output: summaries, selector, gate, nightly report.
-NO_EVIDENCE = {"integration", "emdash-proofs", "select", "gate", "flake-summary"}
+# Jobs without own test output: selector, gate, Golden comparison, nightly report.
+NO_EVIDENCE = {"select", "gate", "golden-journey", "flake-summary"}
+# Removed pure summary jobs: tools/ci/gate.py already requires every selected
+# matrix leg, and each summary cost a runner slot per run.
+REMOVED_SUMMARIES = ("integration", "e2e-summary", "emdash-proofs")
 # Not part of the gate: dispatch-only probes and the post-gate report.
 OUTSIDE_GATE = {"gate", "pilot-cold-rehearsal", "artifact-probe", "flake-summary"}
 
@@ -83,7 +83,8 @@ DIGEST_PIN = re.compile(r"[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}")
 # The only commands tools/ci/retry-infra.sh may wrap; tests are never retried.
 RETRYABLE = re.compile(
     r"tools/ci/retry-infra\.sh (?:\./leonaid bootstrap|sh tools/ci/bootstrap-prefetch\.sh"
-    r" (?:toolchains|seed|browser|\"\$1\")|docker pull \"\$[A-Z_]+\")"
+    r" (?:toolchains|seed|browser|\"\$1\"|\"\$BOOTSTRAP_PROFILE\")"
+    r"|docker pull \"\$[A-Z_]+\")"
 )
 # Small AWS-hosted runners start with about 14 GB free disk; every job that
 # builds or loads LeonAid images must free about 18 GB first. Jobs using the
@@ -186,21 +187,25 @@ def check(path: Path) -> list[str]:
         )
     if "services:" in text:
         problems.append("Workflow must not define services that differ from Compose.")
-    problems.extend(
-        check_summary(text, "integration", "integration-shards", "integration")
-    )
-    problems.extend(check_summary(text, "e2e-summary", "e2e", "E2E"))
-    problems.extend(check_summary(text, "emdash-proofs", "emdash-cases", "EmDash"))
+    for summary in REMOVED_SUMMARIES:
+        if f"\n  {summary}:\n" in text:
+            problems.append(
+                f"Summary job {summary} duplicates the CI gate and costs a runner."
+            )
     problems.extend(check_summary(text, "golden-journey", "golden-parts", "Golden"))
     shards = job_block(text, "integration-shards")
-    if "shard: ${{ fromJSON(needs.select.outputs.integration) }}" not in shards:
+    if "bin: ${{ fromJSON(needs.select.outputs.integration) }}" not in shards:
         problems.append("Integration shards must come from the suite selector.")
+    if "tools/ci/integration.sh $SHARDS" not in shards:
+        problems.append("Integration bins must run every shard of the bin.")
     for shard in INTEGRATION_SHARDS:
         if shard not in select_suites.INTEGRATION_SHARDS:
             problems.append(f"Integration shard missing: {shard}")
     leaves = job_block(text, "e2e")
-    if "shard: ${{ fromJSON(needs.select.outputs.e2e) }}" not in leaves:
+    if "bin: ${{ fromJSON(needs.select.outputs.e2e) }}" not in leaves:
         problems.append("E2E leaves must come from the suite selector.")
+    if "tools/ci/e2e.sh $SHARDS" not in leaves:
+        problems.append("E2E bins must run every leaf of the bin.")
     for shard in E2E_SHARDS:
         if shard not in select_suites.E2E_SHARDS:
             problems.append(f"E2E shard missing: {shard}")
@@ -208,17 +213,38 @@ def check(path: Path) -> list[str]:
         ("integration-shards", "integration"),
         ("e2e", "e2e"),
         ("emdash-cases", "emdash"),
-        ("contract", "contract"),
         ("golden-parts", "golden"),
     ):
         block = job_block(text, job)
-        if (
-            "select" not in needs_of(block)
-            or f"needs.select.outputs.{key}" not in block
+        found = re.search(r"(?m)^    if: (.*)$", block)
+        condition = found.group(1) if found else ""
+        if "select" not in needs_of(block) or not re.search(
+            rf"needs\.select\.outputs\.{re.escape(key)} (?:!= '\[\]'|== 'true')",
+            condition,
         ):
             problems.append(f"{job} must depend on the suite selector output {key}.")
-        if "needs.select.result == 'success'" not in block:
+        if "needs.select.result == 'success'" not in condition:
             problems.append(f"{job} must not run when the suite selector failed.")
+    for job, kind in (
+        ("integration-shards", "integration"),
+        ("e2e", "e2e"),
+        ("emdash-cases", "emdash"),
+    ):
+        block = job_block(text, job)
+        timeout = re.search(r"(?m)^    timeout-minutes: (\d+)$", block)
+        if (
+            not timeout
+            or int(timeout.group(1)) != select_suites.JOB_TIMEOUT_MINUTES[kind]
+        ):
+            problems.append(
+                f"{job}: timeout-minutes must equal select_suites.JOB_TIMEOUT_MINUTES"
+                f"[{kind!r}] (the selector's load warning uses it)."
+            )
+        name = re.search(r"(?m)^    name: (.*)$", block)
+        if not name or "matrix.bin.id" not in name.group(1) or "title" in name.group(1):
+            problems.append(
+                f"{job}: the leg name must be stable (bin id/count), shards go to the summary."
+            )
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))
@@ -284,12 +310,18 @@ def check_emdash(text: str) -> list[str]:
     """EmDash regressions surfaced only in these proofs; keep them gating."""
     problems: list[str] = []
     cases = job_block(text, "emdash-cases")
+    binned = [group for bin_ in select_suites.EMDASH_BINS for group in bin_]
     for group in EMDASH_GROUPS:
         if group not in select_suites.EMDASH_GROUPS:
             problems.append(f"EmDash proof group missing: {group}")
-    if "group: ${{ fromJSON(needs.select.outputs.emdash) }}" not in cases:
+        if binned.count(group) != 1:
+            problems.append(f"EmDash proof group {group} must be in exactly one bin.")
+    if "bin: ${{ fromJSON(needs.select.outputs.emdash) }}" not in cases:
         problems.append("EmDash proof groups must come from the suite selector.")
-    if "sh tools/ci/emdash.sh" not in cases or "tools/ci/run-job.sh" not in cases:
+    if (
+        "sh tools/ci/emdash.sh $EMDASH_GROUPS" not in cases
+        or "tools/ci/run-job.sh" not in cases
+    ):
         problems.append("EmDash proofs do not run through tools/ci/emdash.sh.")
     if "continue-on-error" in cases or re.search(
         r"(?i)retry", cases.replace("tools/ci/retry-infra.sh", "")

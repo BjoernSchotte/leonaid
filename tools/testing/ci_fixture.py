@@ -89,6 +89,8 @@ def environment(root):
             "__GENERATE_IDENTIFIER_20__": value[:20].upper(),
             "__GENERATE_EMAIL__": "ci-fixture@leonaid.invalid",
             "__HOST_PORT__": "8443" if name == "LEONAID_HTTPS_PORT" else "8080",
+            # CI stacks always pass their own --project-name.
+            "__COMPOSE_PROJECT__": "leonaid-ci",
         }
         for token, replacement in replacements.items():
             line = line.replace(token, replacement)
