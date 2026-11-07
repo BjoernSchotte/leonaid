@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, Protocol
@@ -292,6 +293,16 @@ class SiteHostChecks(Protocol):
     def invalidate(self) -> None: ...
 
 
+class CampaignHostUrls(Protocol):
+    """Canonical URLs of actions that live on an active campaign host (§7.7.3)."""
+
+    async def campaign_host_urls(
+        self, action_ids: Iterable[UUID]
+    ) -> dict[UUID, str]: ...
+
+    async def campaign_host_url_for_slug(self, archive_slug: str) -> str | None: ...
+
+
 class HostProbe(Protocol):
     async def check(
         self, hostname: str, token: str, *, tls: bool = True
@@ -390,6 +401,7 @@ class SiteHostService:
 
 __all__ = [
     "AddSiteHost",
+    "CampaignHostUrls",
     "CheckTarget",
     "HostProbe",
     "SiteHostChecks",

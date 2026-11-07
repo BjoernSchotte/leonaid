@@ -14,6 +14,7 @@ from urllib.parse import quote
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, Request, Response, status
+
 from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
@@ -86,6 +87,7 @@ from leonaid.application.documents import (
     GeneratedDocumentService,
 )
 from leonaid.application.email_changes import EmailChangeService
+from leonaid.application.site_hosts import CampaignHostUrls
 from leonaid.application.campaign_aliases import (
     CampaignAliasCommand,
     CampaignAliasService,
@@ -1260,6 +1262,18 @@ def action_management_response(
     )
 
 
+async def campaign_host_url(
+    request: Request, action: CharityAction | None, archive_slug: str | None
+) -> str | None:
+    """The action's canonical URL on a campaign host, or None (§7.7.3)."""
+    directory = cast(CampaignHostUrls, request.app.state.site_directory)
+    if action is not None:
+        return (await directory.campaign_host_urls([action.id])).get(action.id)
+    if archive_slug:
+        return await directory.campaign_host_url_for_slug(archive_slug)
+    return None
+
+
 def public_action_route_response(
     route: PublicActionRoute,
     *,
@@ -2097,7 +2111,7 @@ async def resolve_public_action_alias(
         if submissions_allowed and route.action is not None
         else None
     )
-    return public_action_route_response(
+    payload = public_action_route_response(
         route,
         access_token=access_token,
         legal_configuration=legal_configuration,
@@ -2107,6 +2121,8 @@ async def resolve_public_action_alias(
         if submissions_allowed and route.action is not None
         else None,
     )
+    payload.campaign_host_url = await campaign_host_url(request, route.action, None)
+    return payload
 
 
 @router.get(
@@ -2125,7 +2141,9 @@ async def resolve_public_action_archive(
     response.headers["Cache-Control"] = (
         "public, max-age=300, stale-while-revalidate=3600"
     )
-    return public_action_route_response(route)
+    payload = public_action_route_response(route)
+    payload.campaign_host_url = await campaign_host_url(request, route.action, None)
+    return payload
 
 
 @router.get(
@@ -2143,6 +2161,9 @@ async def list_public_campaigns(
     """Active campaigns for the home page of the public host (§6.5)."""
     listings = await action_service(request).list_active_public_campaigns()
     links = cast(LinkBuilder, request.app.state.links)
+    hosted = await cast(
+        CampaignHostUrls, request.app.state.site_directory
+    ).campaign_host_urls(listing.action.id for listing in listings)
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
     return PublicCampaignListResponse(
         items=[
@@ -2155,7 +2176,8 @@ async def list_public_campaigns(
                 starts_on=listing.action.starts_on,
                 ends_on=listing.action.ends_on,
                 canonical_path=listing.canonical_path,
-                canonical_url=links.site_url(listing.canonical_path),
+                canonical_url=hosted.get(listing.action.id)
+                or links.site_url(listing.canonical_path),
             )
             for listing in listings
         ]
@@ -2202,8 +2224,13 @@ async def resolve_public_campaign(
         else None,
     )
     return PublicCampaignRouteResponse(
-        **payload.model_dump(exclude={"route_kind", "redirect_path"}),
+        **payload.model_dump(
+            exclude={"route_kind", "redirect_path", "campaign_host_url"}
+        ),
         order_alias=route.order_alias if payload.submissions_allowed else None,
+        campaign_host_url=await campaign_host_url(
+            request, route.action, archive_slug.strip()
+        ),
     )
 
 

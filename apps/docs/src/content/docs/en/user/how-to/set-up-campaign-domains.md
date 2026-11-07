@@ -4,20 +4,20 @@ description: Show a campaign under its own domain or subdomain, hand the domain 
 docId: DOC-P049
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
+:::caution[Preview]
+Domain management is marked as **Vorschau** (preview) until its full-stack
+proof runs green in CI.
+:::
+
 **Role:** system admin. Domains cost money and concern the whole club, so
 only the system administration manages them. Charity admins see the
 addresses of their campaign but do not change them.
-
-:::caution[Preview]
-Domains can be added, checked and bound. The domain serves the campaign pages
-only from the next release on.
-:::
 
 A campaign can run under its own domain (`krapfentaxi.org`) or a subdomain of
 the club (`weihnachtsmarkt.example.org`). Administration stays on the admin
@@ -73,6 +73,22 @@ published campaign page, the dialog warns you.
 Every edition stays reachable at `https://<domain>/<path>/`. The start page
 `/` shows the edition marked **aktuell auf /** while it runs. After the end,
 `/` redirects to the archive page of the edition.
+
+## What visitors see
+
+- `https://<domain>/` shows the running edition. Once it has ended, `/`
+  redirects to its archive page, for example `/2025/`. The archive page shows
+  the campaign page without the order form.
+- If the domain has several editions, the page footer links **Frühere
+  Ausgaben** (earlier editions); `/archive/` lists all editions.
+- The campaign's previous addresses on the public host, its aliases and
+  `/campaigns/<slug>/` redirect to the domain. Printed QR codes keep working.
+- Impressum and Datenschutz are reachable on every domain. Each domain has its
+  own `robots.txt` and `sitemap.xml`.
+- **Live View** in the microsite editor opens the page on its domain.
+- Changes take effect within half a minute: that long the servers remember
+  which domains are active. A domain just activated may briefly still show an
+  error page, a disabled one briefly still the page.
 
 ## Hand the domain to a follow-up campaign
 

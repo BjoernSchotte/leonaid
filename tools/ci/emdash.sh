@@ -20,7 +20,9 @@ case "$group" in
   krapfentaxi-migration)
     # redirect-aliases: three-browser alias editor on /admin/actions/<id>
     # under the strict CSP (short case, shares the browser bootstrap).
-    cases="krapfentaxi-migration redirect-aliases"
+    # campaign-hosts: a campaign on its own host through the real edge
+    # (specs/multi-domain §7, §14).
+    cases="krapfentaxi-migration redirect-aliases campaign-hosts"
     ;;
   static)
     # Stack-free proofs (dependency pins, source fixtures, authorization

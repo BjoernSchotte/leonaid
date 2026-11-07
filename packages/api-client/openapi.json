@@ -12309,6 +12309,17 @@
             "title": "Availability",
             "type": "string"
           },
+          "campaignHostUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignhosturl"
+          },
           "canonicalPath": {
             "title": "Canonicalpath",
             "type": "string"
@@ -12459,6 +12470,17 @@
             ],
             "title": "Availability",
             "type": "string"
+          },
+          "campaignHostUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignhosturl"
           },
           "canonicalPath": {
             "title": "Canonicalpath",
@@ -13296,6 +13318,196 @@
           "policy"
         ],
         "title": "PublicPrivacyPolicyResponse",
+        "type": "object"
+      },
+      "PublicSiteEditionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "atRoot": {
+            "title": "Atroot",
+            "type": "boolean"
+          },
+          "availability": {
+            "enum": [
+              "published",
+              "archive"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalurl"
+          },
+          "editionUrl": {
+            "title": "Editionurl",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "isPrimary": {
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "atRoot",
+          "isPrimary",
+          "archiveSlug",
+          "availability",
+          "title",
+          "startsOn",
+          "endsOn",
+          "editionUrl",
+          "canonicalUrl"
+        ],
+        "title": "PublicSiteEditionResponse",
+        "type": "object"
+      },
+      "PublicSiteHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              302,
+              308
+            ],
+            "title": "Status",
+            "type": "integer"
+          },
+          "targetUrl": {
+            "title": "Targeturl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "archiveSlug",
+          "targetUrl",
+          "status"
+        ],
+        "title": "PublicSiteHistoryResponse",
+        "type": "object"
+      },
+      "PublicSiteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "editions": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSiteEditionResponse"
+            },
+            "title": "Editions",
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSiteHistoryResponse"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "campaign",
+              "redirect"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "redirectTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirectto"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicSiteRootResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "hostname",
+          "kind",
+          "redirectTo",
+          "root",
+          "editions",
+          "history"
+        ],
+        "title": "PublicSiteResponse",
+        "type": "object"
+      },
+      "PublicSiteRootResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "serve",
+              "redirect"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "mode"
+        ],
+        "title": "PublicSiteRootResponse",
         "type": "object"
       },
       "QuestionAggregate": {
@@ -35221,6 +35433,79 @@
         "summary": "Get Public Privacy Policy",
         "tags": [
           "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/sites/{hostname}": {
+      "get": {
+        "description": "What an active campaign host serves (§7.2); 404 for every other name.",
+        "operationId": "getPublicSite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hostname",
+            "required": true,
+            "schema": {
+              "title": "Hostname",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Public Site",
+        "tags": [
+          "public-sites"
         ]
       }
     },

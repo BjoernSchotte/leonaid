@@ -164,9 +164,16 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Domains unter **System › Domains** ein und binden Ausgaben
   (`site_host`, `site_binding`, Migration 0056), prüfen sie (Port 80,
   danach TLS über Caddys On-Demand-Zertifikate; höchstens zehn neue pro
-  Stunde; tägliche Nachprüfung). Die Auslieferung der Kampagnenseiten auf
-  diesen Domains fehlt noch. Die Abnahme mit echtem ACME und einer echten
-  Domain ist offen (`tools/site_hosts/acme_probe.py`). Eine
+  Stunde; tägliche Nachprüfung) und liefern dort die Kampagnenseiten aus
+  (Ausgaben unter `/<segment>/`, Archivseite nach dem Ende, `/archive/`,
+  eigene `robots.txt`/`sitemap.xml`; alte Pfade und Aliase leiten weiter).
+  Eine Domain zeigt nur CMS-Kampagnenseiten. Offen (D8): Eine
+  Bestellbestätigung per Mail an Besteller gibt es nicht; der Link dafür ist
+  in Core vorbereitet (`edition_link`, die dauerhafte Ausgaben-URL, nie die
+  Wurzel). Status-Caches: `ask` 10 s, Host-Freigabe in Campaign-Site,
+  Public-App und Core-Origins je 30 s. Die Domain-Verwaltung ist bis zum
+  grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
+  offen (`tools/site_hosts/acme_probe.py`). Eine
   Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei

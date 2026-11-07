@@ -1,0 +1,104 @@
+---
+// Edition list of a campaign host ("/archive/", specs/multi-domain §7.7.2):
+// every public edition with title, period and link, newest first. Only
+// reachable through the campaign host middleware (closed guard).
+import PublicLayout from "../../../public/src/layouts/PublicLayout.astro";
+import PublicState from "../../../public/src/components/PublicState.astro";
+
+const siteHost = Astro.locals.siteHost;
+if (!siteHost) return new Response("Not Found", { status: 404 });
+const editions = [...siteHost.site.editions].sort((a, b) =>
+  b.startsOn.localeCompare(a.startsOn),
+);
+const period = (from: string, to: string) => {
+  const format = new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return `${format.format(new Date(`${from}T00:00:00Z`))} bis ${format.format(new Date(`${to}T00:00:00Z`))}`;
+};
+const link = (edition: (typeof editions)[number]) =>
+  edition.canonicalUrl &&
+  new URL(edition.canonicalUrl).origin === siteHost.origin.origin
+    ? new URL(edition.canonicalUrl).pathname
+    : `/${edition.segment}/`;
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<PublicLayout
+  title={`Ausgaben · ${siteHost.site.hostname}`}
+  description={`Alle Ausgaben auf ${siteHost.site.hostname}.`}
+  canonicalUrl={new URL("/archive/", siteHost.origin).href}
+  imageUrl={new URL("/community-routes.png", siteHost.origin).href}
+>
+  {
+    editions.length ? (
+      <section class="site-shell editions" aria-labelledby="editions-heading">
+        <h1 id="editions-heading">Ausgaben</h1>
+        <ul class="editions__list" data-testid="site-editions">
+          {editions.map((edition) => (
+            <li data-segment={edition.segment}>
+              <a href={link(edition)}>
+                <h2>{edition.title}</h2>
+              </a>
+              <p>
+                {period(edition.startsOn, edition.endsOn)}
+                {edition.availability === "published"
+                  ? " · läuft"
+                  : " · beendet"}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ) : (
+      <PublicState
+        state="not-found"
+        eyebrow="Noch nicht öffentlich"
+        title="Hier ist noch keine Ausgabe veröffentlicht."
+        message="Bitte schauen Sie später wieder vorbei."
+        actionHref="/"
+        actionLabel="Zur Startseite"
+      />
+    )
+  }
+</PublicLayout>
+<style>
+  .editions {
+    display: grid;
+    gap: var(--s-6);
+    padding-block: var(--s-10) var(--s-12);
+  }
+  .editions h1 {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+  }
+  .editions__list {
+    display: grid;
+    gap: var(--s-4);
+    padding: 0;
+    list-style: none;
+  }
+  .editions__list li {
+    display: grid;
+    gap: var(--s-1);
+    padding: var(--s-4);
+    border: var(--hair) solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+  }
+  .editions__list h2 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+  }
+  .editions__list a {
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .editions__list p {
+    color: var(--text-2);
+  }
+</style>

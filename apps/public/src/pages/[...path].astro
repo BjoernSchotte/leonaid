@@ -8,6 +8,7 @@ import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { resolvePublicTheme } from "../themes";
 import { campaignRedirect } from "../lib/campaign-redirect";
+import { canonicalRedirect } from "../lib/site-hosts";
 import { moduleEnabled } from "../lib/modules";
 import { listActiveCampaigns } from "../lib/core";
 
@@ -43,6 +44,13 @@ if (segments.length > 0) {
     });
     if (result.error) {
       state = result.error.code === "NOT_FOUND" ? "not-found" : "unavailable";
+    } else if (
+      result.data.campaignHostUrl &&
+      ["GET", "HEAD"].includes(Astro.request.method)
+    ) {
+      // The action lives on a campaign host: its alias and archive page on
+      // this host redirect to the canonical URL (specs/multi-domain §7.7.3).
+      return canonicalRedirect(result.data.campaignHostUrl);
     } else if (result.data.availability === "inactive") {
       state = "inactive";
     } else {
