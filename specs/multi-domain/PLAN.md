@@ -1279,6 +1279,53 @@ one test domain owned by the club.
   part (native order POST on the public host, Live View in the editor) needs
   the EmDash spike harness and follows with stage 2's `multi-host` case.
 
+### 16.5 Stage 1b (PR `md/stage1b`)
+
+- Core: `landingPath` and `preferredSurface` in `GET /api/v1/identity/me`;
+  `PUT /api/v1/identity/me/preferred-surface` (409
+  `preferred_surface_unavailable` without a role for that app); migration
+  `0055_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
+  lives in `landing_path()` (`application/identity.py`).
+- Entry: `apps/public/src/pages/login/start.ts`; Caddy rewrites `/` on the
+  admin host to it. No session → `/login`; else 302 to `landingPath`.
+  Invitations link the entry page.
+- Deep links: web and PWA send a signed-out visitor to
+  `/login?returnTo=<path+query>`; the sign-in page accepts only paths below
+  `/admin/`, `/app/` or the CMS editor (`memberReturnTo`).
+- Switch: the web rail keeps its "Akquise-App" link; the PWA "Mehr" sheet
+  shows "Zur Verwaltung" and "Akquise-App als Startbereich verwenden"; the web
+  palette offers "Verwaltung als Startbereich verwenden". After a choice both
+  also offer "Standard-Startbereich verwenden" (surface `null`;
+  `startAreaChoices` in `base-paths.ts`).
+- R31: web and PWA go straight to `/login?returnTo=…` only without any
+  session (`authentication_required`). An ended session (`session_invalid`:
+  expired, revoked by a status change or a fresh login elsewhere) keeps the
+  "Bitte erneut anmelden" notice, whose button carries the same `returnTo`
+  (`redirectsToLogin` in `base-paths.ts`; e2e `z-account-status`).
+- `memberReturnTo` checks the path the URL parser resolves (dot segments,
+  also encoded), so `/app/../campaigns/x/` falls back.
+- `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin` and
+  `/app` strings (also without the trailing slash, with `?`/`#`, and CSS
+  `url()`), in scripts, markup, styles, web manifests and Python, outside the
+  base-path files, tests and comments. Code without a trailing slash uses
+  `baseRoot()`.
+- Base paths: `src/leonaid/platform/base_paths.py` and
+  `packages/ui/src/lib/base-paths.ts` (contract test
+  `tests/unit/test_base_paths.py`); read by Core navigation and deep links,
+  both Vite configs, PWA routes, service worker, manifest and offline page
+  (build-time token `__LEONAID_PWA_BASE__`), web routing, public auth pages and
+  the Caddy generator.
+- R26: no back-office role → PWA (drivers work there); §6.7 named "the first
+  web navigation item", which for module-only members is a web module page
+  the web app does not open without a back-office role.
+- R27: the entry page lives at `/login/start` (Astro ignores `_`-prefixed
+  pages; a root-level `/entry` would shadow an alias of that name on the
+  public host). The public host 308s `/login/*` like `/login`.
+- R28: tests and browser proofs keep the literal `/app/` and `/admin/`
+  paths: they assert the product URLs, and a rename must show up there.
+- R29: stage 1c (rename `/app/`) is dropped; the retired worker of §6.7 serves
+  the old host (R20).
+
 ### 16.6 Stage 2 preconditions from the reviews
 
 - N4 (rv-md1): `Caddyfile.admin-only` routes `/campaigns/*`, aliases and

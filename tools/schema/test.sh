@@ -103,7 +103,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_order_cancellation_api.py \
     /repo/tests/integration/test_offline_capture_api.py \
     /repo/tests/integration/test_public_origins_api.py \
-    /repo/tests/integration/test_public_campaigns_api.py
+    /repo/tests/integration/test_public_campaigns_api.py \
+    /repo/tests/integration/test_preferred_surface_service.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans
@@ -289,6 +290,31 @@ case "$output" in
 esac
 printf '%s\n' "DELETE FROM commitment_cancellation;" | cancellation_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade 0050_invoice_partial_payments
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+echo "poc021-test: 0055 stores only web or pwa as preferred start area"
+# The downgrade target is the revision below this migration, read from the
+# file, so a renumbering or a new parent cannot leave the gate behind.
+preference_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0055_preferred_surface.py")
+[ -n "$preference_parent" ] || {
+  echo "poc021-test: ERROR: 0055 names no down_revision" >&2
+  exit 1
+}
+preference_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+printf '%s\n' "UPDATE user_account SET preferred_surface = 'pwa' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql
+if printf '%s\n' "UPDATE user_account SET preferred_surface = 'crm' WHERE id = '10000000-0000-4000-8000-000000000001';" | preference_sql 2>/dev/null; then
+  echo "poc021-test: ERROR: 0055 accepted an unknown start area" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api downgrade "$preference_parent"
+[ -z "$(printf '%s\n' "SELECT 1 FROM information_schema.columns WHERE table_name = 'user_account' AND column_name = 'preferred_surface';" | preference_sql)" ] || {
+  echo "poc021-test: ERROR: 0055 downgrade kept preferred_surface" >&2
+  exit 1
+}
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
