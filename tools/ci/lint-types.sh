@@ -87,6 +87,10 @@ docker run --rm --network none \
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
   python /workspace/tools/ci/gate_test.py
+# Weekly refit of the shard seconds (refit-timings.yml).
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/refit_timings_test.py /workspace
 # Leak check between the shards of a packed CI leg.
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \

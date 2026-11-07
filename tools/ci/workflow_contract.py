@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from tools.ci import gate as gate_script  # noqa: E402
 from tools.ci import select_suites  # noqa: E402
 
 REQUIRED_JOBS = {
@@ -69,6 +70,8 @@ GATED_WORKFLOWS = {
 UNGATED_REQUIRED = {"docs.yml": "Bilingual site artifact"}
 # Scheduled re-pin of moved image tags (tools/pins/image_digests.py).
 PIN_DRIFT = "pin-drift.yml"
+# Scheduled workflows that open a pull request with GITHUB_TOKEN.
+PR_BOTS = ("pin-drift.yml", "refit-timings.yml")
 PIN_DRIFT_PERMISSIONS = {
     ("actions", "write"),
     ("contents", "write"),
@@ -271,6 +274,16 @@ def check(path: Path) -> list[str]:
             )
         if f"--selectable {job}=heavy" not in job_block(text, "gate"):
             problems.append(f"The gate must require {job} unless heavy is false.")
+    build = job_block(text, "build")
+    if (
+        "write: ${{ github.ref == 'refs/heads/main' && github.event_name != "
+        "'pull_request' && 'true' || 'false' }}"
+        not in build
+        or text.count("write: ") != build.count("write: ")
+    ):
+        problems.append(
+            "ci.yml: only the Build job of runs on main may write the shared cache."
+        )
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_drafts(text, "ci.yml"))
@@ -579,7 +592,21 @@ def check_pin_drift(root: Path) -> list[str]:
     change workflow files, so no workflow may carry a digest of its own.
     """
     workflows = root / ".github/workflows"
-    text = (workflows / PIN_DRIFT).read_text(encoding="utf-8")
+    problems: list[str] = []
+    for bot in PR_BOTS:
+        problems.extend(check_pr_bot(workflows, bot))
+    for path in sorted(workflows.glob("*.y*ml")):
+        if DIGEST_PIN.search(path.read_text(encoding="utf-8")):
+            problems.append(
+                f"{path.name}: read images from infra/locks/images.env; a digest "
+                "in a workflow blocks the automatic re-pin."
+            )
+    return problems
+
+
+def check_pr_bot(workflows: Path, bot: str) -> list[str]:
+    """One GITHUB_TOKEN pull-request bot: exact permissions, dispatches."""
+    text = (workflows / bot).read_text(encoding="utf-8")
     problems: list[str] = []
     permissions = re.search(r"(?m)^permissions:\n((?:  .*\n|#.*\n)+)", text)
     granted = (
@@ -589,19 +616,19 @@ def check_pin_drift(root: Path) -> list[str]:
     )
     if granted != PIN_DRIFT_PERMISSIONS:
         problems.append(
-            f"{PIN_DRIFT}: permissions must be exactly "
+            f"{bot}: permissions must be exactly "
             + ", ".join(
                 f"{scope}: {level}" for scope, level in sorted(PIN_DRIFT_PERMISSIONS)
             )
         )
     if "GH_TOKEN: ${{ github.token }}" not in text or "secrets." in text:
-        problems.append(f"{PIN_DRIFT}: must use GITHUB_TOKEN and no other secret.")
+        problems.append(f"{bot}: must use GITHUB_TOKEN and no other secret.")
     dispatch = re.search(r"for workflow in ([^;\n]+); do\n\s+gh workflow run ", text)
     dispatched = set(dispatch.group(1).split()) if dispatch else set()
     required = set(GATED_WORKFLOWS) | set(UNGATED_REQUIRED)
     if dispatched != required:
         problems.append(
-            f"{PIN_DRIFT}: must dispatch exactly the required workflows "
+            f"{bot}: must dispatch exactly the required workflows "
             f"{', '.join(sorted(required))}; dispatches {', '.join(sorted(dispatched)) or 'none'}"
         )
     for name in sorted(required):
@@ -609,12 +636,6 @@ def check_pin_drift(root: Path) -> list[str]:
             (workflows / name).read_text(encoding="utf-8")
         ):
             problems.append(f"{name}: needs workflow_dispatch for the re-pin PR.")
-    for path in sorted(workflows.glob("*.y*ml")):
-        if DIGEST_PIN.search(path.read_text(encoding="utf-8")):
-            problems.append(
-                f"{path.name}: read images from infra/locks/images.env; a digest "
-                "in a workflow blocks the automatic re-pin."
-            )
     return problems
 
 
@@ -649,7 +670,7 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         problems.append(
             f"{NIGHTLY_WATCHDOG}: must also run on a schedule (overdue runs)."
         )
-    listened = re.search(r"(?m)^    workflows: \[([^\]]*)\]$", text)
+    listened = re.search(r"(?ms)^    workflows:\s*\[([^\]]*)\]$", text)
     names = (
         {item.strip() for item in listened.group(1).split(",")} if listened else set()
     )
@@ -717,6 +738,13 @@ def check_repository(root: Path) -> list[str]:
         if f"name: {job}\n" not in text:
             problems.append(f"{name}: required job '{job}' missing.")
     select = (workflows / "select-suites.yml").read_text(encoding="utf-8")
+    # The title-edit mirror (gate.py real_run) recognizes real runs by this
+    # job name; a rename would make every mirror fail (closed, but red).
+    if f"\n    name: {gate_script.SELECT_JOB_NAME}\n" not in select:
+        problems.append(
+            f"select-suites.yml: the select job must be named "
+            f"{gate_script.SELECT_JOB_NAME!r} (tools/ci/gate.py SELECT_JOB_NAME)."
+        )
     if "tools/ci/select_suites.py --event" not in select:
         problems.append("select-suites.yml must run tools/ci/select_suites.py.")
     problems.extend(check_first_attempts(root))
