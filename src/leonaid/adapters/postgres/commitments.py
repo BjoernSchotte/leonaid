@@ -33,6 +33,7 @@ from leonaid.application.commitments import (
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
+from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     Commitment,
@@ -226,6 +227,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         )
         if replayed is not None:
             return await self._get(connection, replayed, replayed=True)
+        # Only a new completion is bound to the window (PLAN §11.2, D5).
+        if completion.captured_at is not None:
+            bounded_captured_at(completion.captured_at, received_at=occurred_at)
         if row["status"] != "draft" or row["source"] == "public_form":
             raise Conflict(
                 "commitment_not_draft",
@@ -290,6 +294,15 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     "previousStatus": "draft",
                     "status": "review_ready",
                     **({"fullWindowBooked": True} if full_window_booked else {}),
+                    **(
+                        {
+                            "capturedAt": completion.captured_at.astimezone(
+                                timezone.utc
+                            ).isoformat()
+                        }
+                        if completion.captured_at is not None
+                        else {}
+                    ),
                 },
                 separators=(",", ":"),
             ),
@@ -392,6 +405,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.total_minor,
                     commitment.idempotency_key,
                     commitment.created_at,
+                    commitment.captured_at,
                     creator.display_name AS captured_by_display_name,
                     invoice.id AS invoice_id,
                     invoice.number AS invoice_number,
@@ -531,6 +545,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 replayed,
                 replayed=True,
             )
+        # Only a new order is bound to the window (PLAN §11.2, D5); a lost
+        # answer replays above even after 14 days. Stored in UTC.
+        captured_at = (
+            bounded_captured_at(draft.captured_at, received_at=occurred_at)
+            if draft.captured_at is not None
+            else None
+        )
 
         action = await connection.fetchrow(
             """
@@ -606,6 +627,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         total = Money(0, priced_lines[0].unit_price.currency)
         for line in priced_lines:
             total = total.plus(line.line_total)
+        if draft.captured_at is not None:
+            self._guard_quoted_prices(draft, priced_lines, total)
         commitment = Commitment(
             id=uuid4(),
             action_id=action_id,
@@ -621,6 +644,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_contact=draft.delivery_contact,
             message=draft.message,
             idempotency_key=idempotency_key,
+            captured_at=captured_at,
         )
         await self._insert(
             connection,
@@ -632,6 +656,46 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             full_window_booked=full_window_booked,
         )
         return commitment
+
+    @staticmethod
+    def _guard_quoted_prices(
+        draft: CommitmentDraft,
+        priced_lines: tuple[CommitmentLine, ...],
+        total: Money,
+    ) -> None:
+        """Refuse a queued order whose captured price is no longer valid.
+
+        Online capture takes the server price silently; a queued order was
+        confirmed by the acquirer at the price they saw, so a change needs
+        their decision (PLAN §11.3). The refusal rolls back the receipt.
+        """
+
+        quotes = {
+            line.offering_id: line.quoted_unit_price_minor for line in draft.lines
+        }
+        if all(
+            quotes[line.offering_id] == line.unit_price.amount_minor
+            for line in priced_lines
+        ):
+            return
+        raise Conflict(
+            "commitment_price_changed",
+            "Der Preis hat sich seit der Erfassung geändert. Bitte den neuen "
+            "Preis bestätigen.",
+            details={
+                "lines": [
+                    {
+                        "offeringId": str(line.offering_id),
+                        "quotedUnitPriceMinor": quotes[line.offering_id],
+                        "unitPriceMinor": line.unit_price.amount_minor,
+                        "lineTotalMinor": line.line_total.amount_minor,
+                    }
+                    for line in priced_lines
+                ],
+                "totalMinor": total.amount_minor,
+                "currency": total.currency,
+            },
+        )
 
     @staticmethod
     async def _existing_command(
@@ -847,6 +911,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if header["idempotency_key"] is not None
                 else None
             ),
+            captured_at=header["captured_at"],
         )
         invoice = (
             OrderInvoiceState(
@@ -922,14 +987,14 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 source, status, customer_snapshot,
                 invoice_recipient_snapshot, delivery_recipient_snapshot,
                 message_snapshot, public_reference, currency, total_minor,
-                idempotency_key, created_at, updated_at
+                idempotency_key, created_at, updated_at, captured_at
             )
             VALUES (
                 $1, $2, $3, $4,
                 $5, $6, $7::jsonb,
                 $8::jsonb, $9::jsonb,
                 $10, $11, $12, $13,
-                $14, $15, $15
+                $14, $15, $15, $16
             )
             """,
             commitment.id,
@@ -961,6 +1026,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             commitment.total.amount_minor,
             commitment.idempotency_key,
             occurred_at,
+            commitment.captured_at,
         )
         await write_order_delivery(
             connection,
@@ -1017,6 +1083,15 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     "totalMinor": commitment.total.amount_minor,
                     "currency": commitment.total.currency,
                     **({"fullWindowBooked": True} if full_window_booked else {}),
+                    **(
+                        {
+                            "capturedAt": commitment.captured_at.astimezone(
+                                timezone.utc
+                            ).isoformat()
+                        }
+                        if commitment.captured_at is not None
+                        else {}
+                    ),
                 },
                 separators=(",", ":"),
             ),
@@ -1059,7 +1134,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 id, action_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
                 delivery_recipient_snapshot, delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot, message_snapshot, public_reference,
-                currency, total_minor, idempotency_key
+                currency, total_minor, idempotency_key, captured_at
             FROM commitment
             WHERE id = $1
             """,
@@ -1146,4 +1221,5 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 else None
             ),
             replayed=replayed,
+            captured_at=row["captured_at"],
         )

@@ -31,7 +31,13 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
 - Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
   und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
-  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Push-Nachrichten,
+  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Der Core nimmt
+  nachgereichte Erfassungen schon an (Stufe 2, PLAN §11): `Idempotency-Key`
+  für Kontakte (noch optional), `capturedAt` für Kontakte und Bestellungen
+  (höchstens 14 Tage zurück, 5 Minuten voraus), Preisprüfung
+  `commitment_price_changed` und Kontakt trotz geänderter Zuordnung
+  (`assignmentUpdated: false`). Die Bestelldetails zeigen `capturedAt` noch
+  nicht an; das kommt mit der Warteschlange (Stufe 3). Push-Nachrichten,
   Etikettendruck, Druck-/Packliste, Herstellerabrechnung und Materialbestand
   fehlen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
