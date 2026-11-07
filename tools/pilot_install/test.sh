@@ -795,8 +795,8 @@ assert_backup_schema() {
 value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["schemaVersion"] == int(os.environ["EXPECTED_SCHEMA"]), value["schemaVersion"]'
 }
-# real_sign_in EMAIL [request]: the real code sign-in of a member through the
-# edge (optionally after requesting a new sign-in mail); prints the session.
+# real_sign_in EMAIL: the real code sign-in of a member through the edge with
+# the code of its newest sign-in mail; prints the session.
 real_sign_in() {
   edge_proof() {
     docker run --rm --network "container:$project-proxy-1" \
@@ -820,18 +820,20 @@ real_sign_in() {
       --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
       python tools/pilot_install/mail_proof.py "$@"
   }
-  sign_in_minimum=1
-  if [ "${2:-}" = request ]; then
+  # The newest sign-in mail first. Core keeps one pending code per member and
+  # sends no new mail while it is valid; only an expired code needs a new one.
+  sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" 1)
+  rm -f "$workspace/session/token"
+  if ! edge_proof login "$1" "$sign_in_code" >&2 2>/dev/null; then
     sign_in_minimum=$(( $(sign_in_mails login-count "$mail_api" "$1") + 1 ))
     edge_proof request-login "$1" >&2
+    sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" "$sign_in_minimum")
+    edge_proof login "$1" "$sign_in_code" >&2
   fi
-  sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" "$sign_in_minimum")
-  rm -f "$workspace/session/token"
-  edge_proof login "$1" "$sign_in_code" >&2
   cat "$workspace/session/token"
 }
 second_admin_session() {
-  real_sign_in cms-second-admin@leonaid.org request
+  real_sign_in cms-second-admin@leonaid.org
 }
 cms_proof() {
   cms_proof_run "$@" || {
