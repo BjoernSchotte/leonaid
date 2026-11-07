@@ -6,6 +6,11 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import type {
+  CommitmentCaptureContextResponse,
+  LeonAidApiClient,
+} from "@leonaid/api-client";
+
 import {
   Button,
   ConfirmDialog,
@@ -16,11 +21,50 @@ import {
 
 import { formatDateTime } from "../shared/dates";
 import { conflictText } from "./conflicts";
+import type { DeviceStore } from "./device-store";
+import { EntryChoices } from "./entry-choices";
 import { entryTitle, queueStateLabel, queueStateShape } from "./labels";
 import type { QueueEntry } from "./queue";
 import { useOfflineRuntime, useQueueSnapshot } from "./runtime";
 
 const IOS_HINT_KEY = "leonaid-pwa-ios-hint-shown";
+
+/** The device copies of the order context, for the window choices. */
+function useCaptureContexts(
+  store: DeviceStore | null,
+  open: boolean,
+  actionIds: readonly string[],
+): ReadonlyMap<string, CommitmentCaptureContextResponse> {
+  const [contexts, setContexts] = useState<
+    ReadonlyMap<string, CommitmentCaptureContextResponse>
+  >(new Map());
+  const key = [...new Set(actionIds)].sort().join(",");
+  useEffect(() => {
+    if (!open || !store || !key) return;
+    let cancelled = false;
+    void Promise.all(
+      key.split(",").map(async (actionId) => {
+        const cached = await store
+          .getCache<CommitmentCaptureContextResponse>("capture", actionId)
+          .catch(() => undefined);
+        return [actionId, cached?.value] as const;
+      }),
+    ).then((pairs) => {
+      if (cancelled) return;
+      setContexts(
+        new Map(
+          pairs.flatMap(([actionId, value]) =>
+            value ? [[actionId, value] as const] : [],
+          ),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, open, store]);
+  return contexts;
+}
 
 function isStandaloneIos(): boolean {
   const standalone = (navigator as Navigator & { standalone?: boolean })
@@ -46,6 +90,7 @@ function useIosHint(open: boolean): boolean {
 
 export function QueueSheet({
   actionNames,
+  client,
   loginHref,
   onClose,
   online,
@@ -53,14 +98,20 @@ export function QueueSheet({
 }: {
   /** Action id → name, for the copy of §10.2. */
   readonly actionNames: ReadonlyMap<string, string>;
+  readonly client: LeonAidApiClient;
   readonly loginHref: string;
   readonly onClose: () => void;
   readonly online: boolean;
   readonly open: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { queue } = useOfflineRuntime();
+  const { queue, store } = useOfflineRuntime();
   const snapshot = useQueueSnapshot();
+  const contexts = useCaptureContexts(
+    store,
+    open,
+    snapshot.entries.map((entry) => entry.actionId),
+  );
   const iosHint = useIosHint(open);
   const [discarding, setDiscarding] = useState<QueueEntry | null>(null);
 
@@ -167,36 +218,31 @@ export function QueueSheet({
                   />
                   {queueStateLabel[entry.state]}
                 </span>
-                {entry.state === "conflict" ||
-                entry.state === "failed" ||
-                entry.state === "blocked" ||
-                entry.state === "expired" ? (
+                {entry.kind === "sponsor-draft" ? (
+                  <p className="small" data-testid="queue-reason">
+                    {`Neuer Sponsor ${entry.party.displayName} wartet auf deine Prüfung.`}
+                    {queue?.dependents(entry.entryId).length
+                      ? ` ${queue.dependents(entry.entryId).length} ${queue.dependents(entry.entryId).length === 1 ? "Eintrag wartet" : "Einträge warten"} darauf.`
+                      : ""}
+                  </p>
+                ) : entry.state === "conflict" ||
+                  entry.state === "failed" ||
+                  entry.state === "blocked" ||
+                  entry.state === "expired" ? (
                   <p className="small" data-testid="queue-reason">
                     {conflictText(entry, actionNames.get(entry.actionId) ?? "")}
                   </p>
                 ) : null}
-                <div className="pwa-queue-actions">
-                  {entry.state === "failed" ? (
-                    <Button
-                      disabled={!online}
-                      onClick={() => void queue?.retry(entry.entryId)}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      Erneut versuchen
-                    </Button>
-                  ) : null}
-                  {entry.state !== "sending" ? (
-                    <Button
-                      data-testid="queue-discard"
-                      onClick={() => setDiscarding(entry)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      Verwerfen
-                    </Button>
-                  ) : null}
-                </div>
+                {queue ? (
+                  <EntryChoices
+                    client={client}
+                    context={contexts.get(entry.actionId) ?? null}
+                    entry={entry}
+                    onDiscard={() => setDiscarding(entry)}
+                    online={online}
+                    queue={queue}
+                  />
+                ) : null}
               </li>
             ))}
             {snapshot.sent.map((entry) => (
@@ -220,7 +266,12 @@ export function QueueSheet({
         confirmLabel="Verwerfen"
         description={
           discarding
-            ? `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`
+            ? [
+                `${entryTitle(discarding)} wird von diesem Gerät gelöscht und nicht gesendet.`,
+                ...(queue?.dependents(discarding.entryId) ?? []).map(
+                  (entry) => `Mit gelöscht: ${entryTitle(entry)}.`,
+                ),
+              ].join(" ")
             : ""
         }
         onConfirm={() => {

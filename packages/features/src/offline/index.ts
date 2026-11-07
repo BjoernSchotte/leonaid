@@ -11,3 +11,8 @@ export * from "./queue-sheet";
 export * from "./read-cache";
 export * from "./runtime";
 export * from "./sync";
+export * from "./apply-resolution";
+export * from "./entry-choices";
+export * from "./resolutions";
+export * from "./sign-out";
+export * from "./sponsor-draft";

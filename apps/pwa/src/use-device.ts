@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  type CommitmentCaptureContextResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
@@ -20,6 +21,7 @@ import {
   DeviceQueueStore,
   QueueController,
   isNetworkFailure,
+  preflightConflict,
   sendEntry,
   type DeviceStore,
   type OfflineRuntime,
@@ -167,6 +169,13 @@ export function useDevice(
         void queries.invalidateQueries({ queryKey: ["dashboard"] });
         void queries.invalidateQueries({ queryKey: ["activity-feed"] });
         window.dispatchEvent(new Event("leonaid:queue-sent"));
+      },
+      preflight: async (entry) => {
+        if (entry.kind !== "commitment") return null;
+        const cached = await store
+          .getCache<CommitmentCaptureContextResponse>("capture", entry.actionId)
+          .catch(() => undefined);
+        return preflightConflict(entry, cached?.value);
       },
       send: (entry) => sendEntry(client, entry),
       store: new DeviceQueueStore(store),

@@ -6,6 +6,8 @@
  * BroadcastChannel and re-read the store.
  */
 import { drainQueue, type SyncDependencies, type SyncReport } from "./sync";
+import type { SponsorDraftRequest } from "@leonaid/api-client";
+
 import {
   capturedAtNow,
   idempotencyKeyFor,
@@ -14,6 +16,7 @@ import {
   type QueueEntry,
   type QueueStore,
   type SendResult,
+  type SponsorDraftEntry,
 } from "./queue";
 
 /** What the page fills in; the controller adds the bookkeeping. */
@@ -32,7 +35,11 @@ export type QueueDraft = QueueEntry extends infer Entry
         | "lastError"
         | "settledAt"
         | "dependsOn"
-      > & { readonly capturedAt?: string }
+      > & {
+        readonly capturedAt?: string;
+        /** The sponsor draft this capture waits for (§9.2). */
+        readonly dependsOn?: string | null;
+      }
     : never
   : never;
 
@@ -57,6 +64,7 @@ export interface QueueControllerOptions {
   readonly store: QueueStore;
   readonly userId: string;
   readonly send: SyncDependencies["send"];
+  readonly preflight?: SyncDependencies["preflight"];
   /** After accepted entries: refresh the read cache and the pages. */
   readonly onAccepted?: (report: SyncReport) => void;
   readonly now?: () => Date;
@@ -147,10 +155,12 @@ export class QueueController {
     return { state: current.state };
   }
 
-  async #write(draft: QueueDraft): Promise<QueueEntry> {
+  async #write(
+    draft: QueueDraft,
+    entryId: string = newEntryId(),
+  ): Promise<QueueEntry> {
     const { store } = this.#options;
     const now = this.#options.now?.() ?? new Date();
-    const entryId = newEntryId();
     for (let attempt = 0; ; attempt += 1) {
       const existing = await store.list();
       const highest = existing.reduce(
@@ -161,7 +171,7 @@ export class QueueController {
         ...draft,
         attempts: 0,
         capturedAt: draft.capturedAt ?? capturedAtNow(now),
-        dependsOn: null,
+        dependsOn: draft.dependsOn ?? null,
         entryId,
         idempotencyKey: idempotencyKeyFor(entryId),
         lastError: null,
@@ -214,7 +224,102 @@ export class QueueController {
     void this.run();
   }
 
+  /** A new sponsor saved offline (§10.4); never sent by itself. */
+  async saveDraft({
+    actionId,
+    mode,
+    request,
+  }: {
+    readonly actionId: string;
+    readonly mode: "company" | "person";
+    readonly request: SponsorDraftRequest;
+  }): Promise<SponsorDraftEntry> {
+    const entryId = newEntryId();
+    const placeholder = `draft:${entryId}`;
+    const displayName =
+      mode === "company"
+        ? (request.companyName ?? "").trim()
+        : [request.givenName, request.familyName]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+    return (await this.#write(
+      {
+        actionId,
+        assignmentId: placeholder,
+        base: {},
+        kind: "sponsor-draft",
+        mode,
+        party: { displayName, id: placeholder, kind: mode },
+        request,
+      },
+      entryId,
+    )) as SponsorDraftEntry;
+  }
+
+  /**
+   * The match step resolved a draft: the captures that waited for it take
+   * the sponsor and assignment Core returned and are sent (§9.2).
+   */
+  async resolveDraft(
+    draftId: string,
+    resolved: {
+      readonly partyKind: "company" | "person";
+      readonly partyId: string;
+      readonly displayName: string;
+      readonly assignmentId: string;
+      readonly revision: number;
+    },
+  ): Promise<void> {
+    const { store } = this.#options;
+    const party = {
+      displayName: resolved.displayName,
+      id: resolved.partyId,
+      kind: resolved.partyKind,
+    };
+    for (const entry of await store.list()) {
+      if (entry.dependsOn !== draftId) continue;
+      if (entry.kind === "activity") {
+        await store.put({
+          ...entry,
+          assignmentId: resolved.assignmentId,
+          base: { ...entry.base, assignmentRevision: resolved.revision },
+          dependsOn: null,
+          party,
+          request: {
+            ...entry.request,
+            partyId: resolved.partyId,
+            partyKind: resolved.partyKind,
+            revision: resolved.revision,
+          },
+        });
+      } else {
+        await store.put({
+          ...entry,
+          assignmentId: resolved.assignmentId,
+          dependsOn: null,
+          party,
+        });
+      }
+    }
+    await store.delete(draftId);
+    this.#announce();
+    await this.reload();
+    void this.run();
+  }
+
+  /** The captures that wait for a draft, named in the discard question. */
+  dependents(draftId: string): QueueEntry[] {
+    return this.#snapshot.entries.filter(
+      (entry) => entry.dependsOn === draftId,
+    );
+  }
+
   async discard(entryId: string): Promise<void> {
+    // A draft goes with the captures that wait for it (§10.4).
+    for (const entry of this.dependents(entryId)) {
+      await this.#options.store.delete(entry.entryId);
+    }
     await this.#options.store.delete(entryId);
     this.#announce();
     await this.reload();
@@ -280,6 +385,7 @@ export class QueueController {
       try {
         const report = await drainQueue({
           now: this.#options.now,
+          preflight: this.#options.preflight,
           send: this.#options.send,
           store: this.#options.store,
         });

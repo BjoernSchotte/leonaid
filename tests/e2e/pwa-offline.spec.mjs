@@ -309,6 +309,37 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
     await page.evaluate(() => localStorage.getItem("leonaid-pwa-active-user")),
   ).toBe(second.id);
 
+  // §12.5: a capture still on the device makes sign-out ask first.
+  await controlled(page);
+  await expect
+    .poll(async () => (await rawDatabase(page, second.id))?.cacheIds.length, {
+      timeout: 30_000,
+    })
+    .toBe(2);
+  await context.setOffline(true);
+  await page.getByTestId("sponsor-row").first().click();
+  await page.getByTestId("contact-open").click();
+  await page.locator("#activity-note").fill("Vor dem Abmelden");
+  await page.getByTestId("activity-submit").click();
+  await page.getByTestId("pwa-menu").click();
+  await page.getByTestId("logout").click();
+  const warning = page.getByRole("alertdialog", { name: "Abmelden?" });
+  await expect(warning).toContainText(
+    "Noch 1 Eintrag nicht gesendet. Wenn du dich jetzt abmeldest, wird er von diesem Gerät gelöscht.",
+  );
+  // Offline there is nothing to send first.
+  await expect(warning.getByTestId("sign-out-send-first")).toBeDisabled();
+  await warning.getByRole("button", { name: "Abbrechen" }).click();
+  await expect(warning).toBeHidden();
+  await context.setOffline(false);
+  await page.getByTestId("pwa-menu").click();
+  await page.getByTestId("logout").click();
+  await page.getByTestId("sign-out-send-first").click();
+  await expect(page.getByTestId("network-state")).toHaveAccessibleName(
+    "Online",
+    { timeout: 30_000 },
+  );
+
   // Sign-out deletes everything the PWA kept.
   await page.getByTestId("pwa-menu").click();
   await page.getByTestId("logout").click();

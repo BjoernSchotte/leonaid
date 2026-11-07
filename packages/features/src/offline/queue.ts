@@ -6,6 +6,7 @@
  */
 import {
   ApiError,
+  type SponsorDraftRequest,
   type CommitmentResponse,
   type CompleteCommitmentRequest,
   type CreateCommitmentRequest,
@@ -15,7 +16,11 @@ import {
 
 import type { DeviceStore } from "./device-store";
 
-export type QueueKind = "activity" | "commitment" | "commitment-completion";
+export type QueueKind =
+  | "activity"
+  | "commitment"
+  | "commitment-completion"
+  | "sponsor-draft";
 
 /**
  * §9.3. `queued` waits for the network or its backoff; `sending` is in
@@ -95,7 +100,22 @@ export interface CompletionEntry extends EntryCommon {
   readonly request: CompleteCommitmentRequest;
 }
 
-export type QueueEntry = ActivityEntry | CommitmentEntry | CompletionEntry;
+/**
+ * A new sponsor saved offline (§10.4, D10). It never sends itself: the
+ * acquirer resolves it online with the match step; entries that depend
+ * on it wait (`dependsOn`) and then take the resolved sponsor.
+ */
+export interface SponsorDraftEntry extends EntryCommon {
+  readonly kind: "sponsor-draft";
+  readonly mode: "company" | "person";
+  readonly request: SponsorDraftRequest;
+}
+
+export type QueueEntry =
+  | ActivityEntry
+  | CommitmentEntry
+  | CompletionEntry
+  | SponsorDraftEntry;
 
 export interface QueueStore {
   list(): Promise<QueueEntry[]>;
@@ -216,7 +236,7 @@ export function nextSendable(
     if (held.has(key)) continue;
     if (HOLDS_SPONSOR.has(entry.state)) held.add(key);
     if (entry.state !== "queued" && entry.state !== "sending") continue;
-    if (entry.dependsOn) continue;
+    if (entry.dependsOn || entry.kind === "sponsor-draft") continue;
     if (
       entry.state === "queued" &&
       entry.nextAttemptAt &&

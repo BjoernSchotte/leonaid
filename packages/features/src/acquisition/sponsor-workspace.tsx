@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   ApiError,
@@ -41,6 +41,13 @@ import {
 } from "@leonaid/ui";
 
 import { PendingCaptures } from "../offline/pending-captures";
+import type { SponsorDraftEntry } from "../offline/queue";
+import {
+  useOfflineRuntime,
+  useOnline,
+  useQueueSnapshot,
+} from "../offline/runtime";
+import { OfflineSponsorDraft } from "../offline/sponsor-draft";
 import { formatDateTime, relativeDay, shortDate } from "../shared/dates";
 import { navigateInPage, useLocationHref } from "../shared/location";
 import { ContactSheet, channelLabels, outcomeLabels } from "./contact-sheet";
@@ -687,16 +694,20 @@ function MatchResult({
 function NewSponsor({
   actionId,
   client,
+  draftEntry,
   identity,
   onAssigned,
 }: {
   readonly actionId: string;
   readonly client: LeonAidApiClient;
+  /** A sponsor saved offline, checked now (offline queue §10.4). */
+  readonly draftEntry?: SponsorDraftEntry;
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [mode, setMode] = useState<SponsorMode>("company");
+  const { queue } = useOfflineRuntime();
+  const [mode, setMode] = useState<SponsorMode>(draftEntry?.mode ?? "company");
   const [match, setMatch] = useState<SponsorMatchResponse | null>(null);
   const [draft, setDraft] = useState<SponsorDraftRequest | null>(null);
   const [commandId, setCommandId] = useState<string | null>(null);
@@ -742,9 +753,33 @@ function NewSponsor({
     },
     onSuccess: async (result) => {
       setResolution(result);
+      if (draftEntry && queue) {
+        // The captures of the draft take the resolved sponsor and the
+        // assignment's current revision, then go out (§9.2).
+        const board = await client
+          .getAcquisitionActivityBoard(actionId, { limit: 100 })
+          .catch(() => null);
+        const assignment = board?.workItems.find(
+          (item) => item.assignmentId === result.assignmentId,
+        );
+        await queue.resolveDraft(draftEntry.entryId, {
+          assignmentId: result.assignmentId,
+          displayName: result.displayName,
+          partyId: result.twentyId,
+          partyKind: result.partyKind,
+          revision: assignment?.revision ?? 1,
+        });
+      }
       await onAssigned();
     },
   });
+  // A draft starts its check at once, with the values saved offline.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!draftEntry || started.current) return;
+    started.current = true;
+    preview.mutate({ ...draftEntry.request, streetLine1: null });
+  }, [draftEntry]);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -851,6 +886,7 @@ function NewSponsor({
                 data-testid="sponsor-company"
                 id="sponsor-company"
                 maxLength={300}
+                defaultValue={draftEntry?.request.companyName ?? undefined}
                 name="companyName"
                 required
               />
@@ -866,6 +902,7 @@ function NewSponsor({
               autoComplete="given-name"
               id="sponsor-given-name"
               maxLength={200}
+              defaultValue={draftEntry?.request.givenName ?? undefined}
               name="givenName"
               required={mode === "person"}
             />
@@ -880,6 +917,7 @@ function NewSponsor({
               autoComplete="family-name"
               id="sponsor-family-name"
               maxLength={200}
+              defaultValue={draftEntry?.request.familyName ?? undefined}
               name="familyName"
               required={mode === "person"}
             />
@@ -889,6 +927,7 @@ function NewSponsor({
               autoComplete="email"
               id="sponsor-email"
               maxLength={320}
+              defaultValue={draftEntry?.request.email ?? undefined}
               name="email"
               type="email"
             />
@@ -909,6 +948,7 @@ function NewSponsor({
                     autoComplete="postal-code"
                     id="sponsor-postal-code"
                     maxLength={40}
+                    defaultValue={draftEntry?.request.postalCode ?? undefined}
                     name="postalCode"
                   />
                 </Field>
@@ -917,6 +957,7 @@ function NewSponsor({
                     autoComplete="address-level2"
                     id="sponsor-city"
                     maxLength={200}
+                    defaultValue={draftEntry?.request.city ?? undefined}
                     name="city"
                   />
                 </Field>
@@ -981,6 +1022,15 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
   const href = useLocationHref();
   const query = new URLSearchParams(href.split("?")[1] ?? "");
   const view = query.get("view") === "new" ? "new" : "list";
+  // Offline queue (§10.4): offline, "Neu" saves a draft; ?draft= checks one.
+  const runtime = useOfflineRuntime();
+  const online = useOnline();
+  const offlineCapture = runtime.enabled && runtime.queue !== null;
+  const draftId = query.get("draft");
+  const draftEntry = useQueueSnapshot().entries.find(
+    (entry): entry is SponsorDraftEntry =>
+      entry.kind === "sponsor-draft" && entry.entryId === draftId,
+  );
   const assignmentId = query.get("assignment");
   const requestedStatus = query.get("status");
   const status = isAssignmentStatus(requestedStatus) ? requestedStatus : null;
@@ -1011,13 +1061,18 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
           Neuer Sponsor
         </h1>
         {choice}
-        <NewSponsor
-          actionId={actionId}
-          client={client}
-          identity={identity}
-          key={actionId}
-          onAssigned={() => board.refetch()}
-        />
+        {offlineCapture && !online ? (
+          <OfflineSponsorDraft actionId={actionId} client={client} />
+        ) : (
+          <NewSponsor
+            actionId={actionId}
+            client={client}
+            draftEntry={draftEntry}
+            identity={identity}
+            key={`${actionId}:${draftEntry?.entryId ?? ""}`}
+            onAssigned={() => board.refetch()}
+          />
+        )}
       </>
     );
   }

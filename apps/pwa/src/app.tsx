@@ -29,6 +29,7 @@ import {
 import {
   OfflineRuntimeContext,
   QueueSheet,
+  SignOutWarning,
   useOfflineRuntime,
   useQueueSnapshot,
 } from "@leonaid/features/offline";
@@ -258,10 +259,12 @@ const implementedPwaNavigation = new Set([
  * themselves.
  */
 function PwaShell({
+  client,
   identity,
   navigation,
   ...props
 }: Omit<MobileShellProps, "active" | "menuItems" | "tabs"> & {
+  readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly navigation: CurrentIdentityResponse["navigation"];
 }) {
@@ -271,7 +274,7 @@ function PwaShell({
     implementedPwaNavigation,
     window.location,
   );
-  const { sheet, ...queue } = useQueueShell(identity, !props.offline);
+  const { sheet, ...queue } = useQueueShell(client, identity, !props.offline);
   return (
     <>
       <MobileShell
@@ -292,6 +295,7 @@ function PwaShell({
  * a queue (flag off) the shell stays exactly as before.
  */
 function useQueueShell(
+  client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
   online: boolean,
 ): Pick<MobileShellProps, "offlineText" | "queue"> & {
@@ -331,6 +335,7 @@ function useQueueShell(
     sheet: (
       <QueueSheet
         actionNames={actionNames}
+        client={client}
         loginHref={loginHref(window.location)}
         onClose={() => setOpen(false)}
         online={online}
@@ -347,6 +352,16 @@ export function App({ client }: AppProps) {
   const lifecycle = usePwaLifecycle();
   const device = useDevice(client, lifecycle.online);
   const identity = device.identity;
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  function signOut() {
+    // Sign-out deletes everything the PWA kept on this device (§8.5).
+    void forgetDevice(identity.data?.userId ?? null)
+      .catch(() => undefined)
+      .then(() => client.logout())
+      .finally(() => {
+        window.location.assign("/login");
+      });
+  }
 
   // Without a session: the deep link survives the login (specs/multi-domain
   // §6.7). An ended session shows the notice below first. The read cache
@@ -461,6 +476,7 @@ export function App({ client }: AppProps) {
     <OfflineRuntimeContext.Provider value={device.runtime}>
       <PwaShell
         campaign={currentAction}
+        client={client}
         identity={identity.data}
         navigation={identity.data.navigation}
         surfaces={surfaces}
@@ -475,13 +491,12 @@ export function App({ client }: AppProps) {
         notices={<PwaNotices lifecycle={lifecycle} />}
         offline={!lifecycle.online}
         onLogout={() => {
-          // Sign-out deletes everything the PWA kept on this device (§8.5).
-          void forgetDevice(identity.data.userId)
-            .catch(() => undefined)
-            .then(() => client.logout())
-            .finally(() => {
-              window.location.assign("/login");
-            });
+          // §12.5: captures still on the device would be deleted; ask first.
+          if (device.runtime.queue?.snapshot.entries.length) {
+            setSignOutOpen(true);
+            return;
+          }
+          signOut();
         }}
         person={identity.data.displayName}
         role={identity.data.roleLabels.join(" · ")}
@@ -512,6 +527,20 @@ export function App({ client }: AppProps) {
           />
         )}
       </PwaShell>
+      <SignOutWarning
+        count={device.runtime.queue?.snapshot.entries.length ?? 0}
+        onCancel={() => setSignOutOpen(false)}
+        onSendFirst={() => {
+          setSignOutOpen(false);
+          void device.runtime.queue?.sendNow();
+        }}
+        onSignOut={() => {
+          setSignOutOpen(false);
+          signOut();
+        }}
+        online={lifecycle.online}
+        open={signOutOpen}
+      />
     </OfflineRuntimeContext.Provider>
   );
 }

@@ -32,5 +32,7 @@ export function entryTitle(entry: QueueEntry): string {
       return `Bestellung für ${entry.party.displayName}`;
     case "commitment-completion":
       return `Bestellung für ${entry.party.displayName} vervollständigen`;
+    case "sponsor-draft":
+      return `Neuer Sponsor ${entry.party.displayName}`;
   }
 }

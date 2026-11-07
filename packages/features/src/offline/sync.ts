@@ -29,6 +29,11 @@ export interface SyncDependencies {
   readonly send: (entry: QueueEntry) => Promise<SendResult>;
   readonly now?: () => Date;
   readonly random?: () => number;
+  /**
+   * A decision known before sending (§10.3), e.g. the device copy shows
+   * the chosen window as full; null sends.
+   */
+  readonly preflight?: (entry: QueueEntry) => Promise<string | null>;
 }
 
 export interface SyncReport {
@@ -78,6 +83,16 @@ export async function drainQueue(
     const entries = await store.list();
     const entry = nextSendable(entries, now());
     if (!entry) return { accepted, paused: false };
+    const known = await dependencies.preflight?.(entry);
+    if (known) {
+      await store.put({
+        ...entry,
+        lastError: { code: known, message: "", status: 0 },
+        nextAttemptAt: null,
+        state: "conflict",
+      });
+      continue;
+    }
     const sending: QueueEntry = { ...entry, state: "sending" };
     await store.put(sending);
     let result: SendResult;
@@ -237,5 +252,8 @@ export async function sendEntry(
           options,
         ),
       };
+    case "sponsor-draft":
+      // nextSendable never offers a draft; the match step resolves it.
+      throw new Error("A sponsor draft is resolved, not sent");
   }
 }
