@@ -31,6 +31,7 @@ from leonaid.application.crm_matching import (
     normalize_match_name,
 )
 from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.order_mails import OrderMailLinkResolver, OrderMailLinks
 from leonaid.domain.action_templates import OrderFormConfiguration
 from leonaid.domain.actions import PublicActionAlias
 from leonaid.domain.commitments import (
@@ -43,6 +44,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
+from leonaid.domain.text import has_unsafe_characters
 
 PUBLIC_ORDER_NAMESPACE = UUID("98694fa6-c472-4288-8cce-bc94d052a8a8")
 TOKEN_VERSION = 1
@@ -51,12 +53,41 @@ IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 PHONE = re.compile(r"^\+[1-9][0-9]{5,14}$")
 
 
+# German names of the fields for the "Steuerzeichen" refusal.
+FIELD_LABELS = {
+    "company_name": "Firma",
+    "given_name": "Vorname",
+    "family_name": "Nachname",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "message": "Nachricht",
+    "website": "Website",
+}
+UNSAFE_TEXT_HINT = (
+    "Bitte ohne Zeilenumbrüche, Tabulatoren oder unsichtbare Steuerzeichen eingeben."
+)
+
+
+def _require_plain(
+    value: str, *, code: str, label: str, multiline: bool = False
+) -> None:
+    """Refuse control, format (bidi) and separator characters in a field.
+
+    These fields reach mails, invoices and admin lists; a line break or a
+    bidi override there could forge a paragraph in the club's name.
+    """
+
+    if has_unsafe_characters(value, allow_line_breaks=multiline):
+        raise DomainInvariantError(code, f"{label}: {UNSAFE_TEXT_HINT}")
+
+
 def _text(
     value: str | None,
     *,
     label: str,
     maximum: int,
     required: bool,
+    multiline: bool = False,
 ) -> str | None:
     if value is None:
         if required:
@@ -65,6 +96,12 @@ def _text(
                 f"{label.replace('_', ' ').capitalize()} fehlt.",
             )
         return None
+    _require_plain(
+        value,
+        code=f"public_order_{label}_invalid",
+        label=FIELD_LABELS.get(label, label),
+        multiline=multiline,
+    )
     normalized = " ".join(value.split())
     if required and not normalized:
         raise DomainInvariantError(
@@ -214,7 +251,9 @@ class PublicOrderDraft:
             label="message",
             maximum=1000,
             required=False,
+            multiline=True,
         )
+        self._require_plain_recipients()
         website = _text(
             self.website,
             label="website",
@@ -241,6 +280,46 @@ class PublicOrderDraft:
                 "public_order_privacy_notice_version_invalid",
                 "Die Version der Datenschutzhinweise ist ungültig.",
             )
+
+    def _require_plain_recipients(self) -> None:
+        """Addresses and the delivery contact are single lines of plain text."""
+
+        recipients: tuple[tuple[str, str, object | None], ...] = (
+            ("delivery_recipient", "Lieferanschrift", self.delivery_recipient),
+            ("invoice_recipient", "Rechnungsanschrift", self.invoice_recipient),
+        )
+        for code, label, recipient in recipients:
+            if recipient is None:
+                continue
+            assert isinstance(
+                recipient, (DeliveryRecipientSnapshot, InvoiceRecipientSnapshot)
+            )
+            fields = [
+                ("Name", recipient.recipient_name),
+                ("Straße", recipient.street_line_1),
+                ("PLZ", recipient.postal_code),
+                ("Ort", recipient.city),
+            ]
+            if isinstance(recipient, InvoiceRecipientSnapshot) and recipient.email:
+                fields.append(("E-Mail", recipient.email))
+            for part, value in fields:
+                _require_plain(
+                    value,
+                    code=f"public_order_{code}_invalid",
+                    label=f"{label} ({part})",
+                )
+        contact = self.delivery_contact
+        if contact is not None:
+            for part, contact_value in (
+                ("Name", contact.name),
+                ("Telefon", contact.phone),
+            ):
+                if contact_value is not None:
+                    _require_plain(
+                        contact_value,
+                        code="public_order_delivery_contact_invalid",
+                        label=f"Lieferkontakt ({part})",
+                    )
 
     def request_hash(self, *, action_id: UUID, public_alias: str) -> str:
         payload: dict[str, object] = {
@@ -478,6 +557,7 @@ class PublicOrderCommand(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> PublicOrderResult: ...
 
     async def complete(self, result: PublicOrderResult) -> None: ...
@@ -513,11 +593,14 @@ class PublicOrderService:
         crm: CrmGateway,
         token_codec: PublicOrderTokenCodec,
         legal_configuration: PublicLegalConfigurationReader,
+        mail_links: OrderMailLinkResolver | None = None,
     ) -> None:
         self._repository = repository
         self._crm = crm
         self._token_codec = token_codec
         self._legal_configuration = legal_configuration
+        # Without a resolver no order confirmation is queued (offline tools).
+        self._mail_links = mail_links
 
     def issue_access_token(
         self,
@@ -579,6 +662,12 @@ class PublicOrderService:
             f"public.order.party:{claims.action_id}:"
             f"{draft.party.party_kind.value}:{draft.party.normalized_key}"
         )
+        # Resolved before the order transaction holds a pool connection.
+        mail_links = (
+            await self._mail_links.for_action(claims.action_id)
+            if self._mail_links is not None
+            else None
+        )
         async with self._repository.order_command(
             lock_key=lock_key,
             idempotency_key=idempotency_key,
@@ -629,6 +718,7 @@ class PublicOrderService:
                 request_hash=request_hash,
                 request_id=request_id,
                 occurred_at=moment,
+                mail_links=mail_links,
             )
             await command.complete(result)
             return result

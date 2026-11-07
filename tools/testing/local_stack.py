@@ -227,8 +227,18 @@ class LocalStack:
             if self.stack is not None:
                 self.save()
                 if self.stack.ready:
+                    # The next prepare() stops and restores the volumes anyway,
+                    # so an idle fixture must not keep Twenty, databases and
+                    # the application running (several GiB per checkout).
+                    # Label-based, so it also covers one-offs left by a leaf.
                     print(
-                        "local-test-stack: fixture retained; ./leonaid test-env-stop removes it",
+                        "local-test-stack: stopping the idle fixture's containers",
+                        flush=True,
+                        file=self.output,
+                    )
+                    self.stack.quiesce()
+                    print(
+                        "local-test-stack: fixture retained with stopped containers; ./leonaid test-env-stop removes it",
                         flush=True,
                         file=self.output,
                     )

@@ -2,9 +2,15 @@
 set -eu
 
 # CI selection of EmDash proof cases (./leonaid test-emdash-spike --case).
-# Each group runs on its own runner; every case runs exactly once, without
-# retries, so an intermittent failure stays visible.
+# Usage: emdash.sh <group> [<group>...]; one CI bin may hold several groups
+# (tools/ci/select_suites.py EMDASH_BINS). Every case runs exactly once,
+# without retries, so an intermittent failure stays visible.
 root=$(cd "$(dirname "$0")/../.." && pwd)
+
+if [ "$#" -gt 1 ]; then
+  # Leak check after every group, also a failed one (run-shards.sh).
+  exec /bin/sh "$root/tools/ci/run-shards.sh" emdash "$root/tools/ci/emdash.sh" "$@"
+fi
 group=${1:-}
 
 case "$group" in

@@ -71,7 +71,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 [ -z "$existing" ]
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
-compose build api public pwa web
+compose build api worker public pwa web
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -108,6 +108,30 @@ compose --profile dev-mail run --rm --user "$(id -u):$(id -g)" --no-deps \
   api /repo/tools/seed/golden.py seed \
   /repo/tests/fixtures/golden/v1 \
   /proof/pdfs
+
+order_mails() {
+  compose run --rm --user "$(id -u):$(id -g)" --no-deps \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/public_orders/order_mails.py "$1" /proof/order-mails.json
+}
+
+run_worker() {
+  compose run --rm --no-deps \
+    worker python -m leonaid.entrypoints.worker.outbox \
+    --worker-id "public-order-mails-$1" \
+    --max-attempts 5 \
+    --base-backoff-seconds 0 \
+    run-until-idle
+}
+
+# Public orders that exist before this run send no mail in it.
+order_mails snapshot
 
 compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --env-from-file "$env_file" \
@@ -192,6 +216,17 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api tools/public_orders/verify_ui.py
 
+# The buyer's order mails through the real outbox worker, SMTP and Mailpit:
+# one confirmation per order, a re-run job sends nothing, the cancellation
+# notice arrives once, injected text is refused, and a notice over the
+# per-address limit is dead-lettered, visible and recoverable.
+run_worker confirmations
+order_mails confirmations
+run_worker redelivery
+order_mails final
+run_worker recovery
+order_mails recovered
+
 for artifact in \
   public-order-form-mobile.png \
   public-order-validation-mobile.png \
@@ -212,3 +247,4 @@ cp "$proof/public-orders-ui-proof.json" "$root/.artifacts/poc072/"
 
 echo "public-order-test: OK: real Core/Twenty contract, visible form UX,"
 echo "public-order-test:     three order paths, idempotency, protection rules and ActivityEvents proven"
+echo "public-order-test:     buyer confirmation and cancellation mails sent once each via Mailpit"

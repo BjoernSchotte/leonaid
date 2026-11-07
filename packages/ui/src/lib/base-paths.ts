@@ -32,6 +32,22 @@ export function loginHref(
   return `/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`;
 }
 
+/**
+ * Whether a failed identity request sends the visitor straight to the
+ * sign-in page. Only without any session (Core `authentication_required`):
+ * a session that ended (`session_invalid`: expired, signed out elsewhere,
+ * revoked by a status change) keeps the "Bitte erneut anmelden" notice, so
+ * the member learns why the app closed.
+ */
+export function redirectsToLogin(error: {
+  readonly status: number;
+  readonly detail?: { readonly code?: string };
+}): boolean {
+  return (
+    error.status === 401 && error.detail?.code === "authentication_required"
+  );
+}
+
 /** Start-area choice of a member (Core `preferredSurface`). */
 export type Surface = "web" | "pwa";
 
