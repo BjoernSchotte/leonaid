@@ -936,11 +936,15 @@ echo "pilot-install-test: CMS backups and the switch-off work while the setup is
 login_code=$(docker run --rm --network "${project}_mail-egress" \
   --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
   python tools/pilot_install/mail_proof.py login-code "$mail_api" cms-admin@leonaid.org)
+# The proxy CA is root-only in its volume; the host copies the public cert
+# so the sign-in runs as the host user and writes a token only it can read.
+docker run --rm --network none --volume "${project}_caddy-data:/caddy:ro" \
+  "$ALPINE_IMAGE" cat /caddy/caddy/pki/authorities/local/root.crt \
+  >"$workspace/session/proxy-ca.crt"
 docker run --rm --network "container:$project-proxy-1" \
   --env CMS_PROOF_HOST=portal.leonaid.org \
-  --env CMS_PROOF_CA_FILE=/caddy/caddy/pki/authorities/local/root.crt \
+  --env CMS_PROOF_CA_FILE=/session/proxy-ca.crt \
   --env CMS_PROOF_SESSION_FILE=/session/token \
-  --volume "${project}_caddy-data:/caddy:ro" \
   --volume "$workspace/session:/session" \
   --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace:ro" --workdir /workspace \
