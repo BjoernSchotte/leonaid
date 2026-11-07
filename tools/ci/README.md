@@ -457,6 +457,24 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
 
+## Local checks
+
+`./leonaid check` keeps every gate but runs independent groups in parallel and
+prints each group's buffered output with its duration: the stdlib-only checks
+in one container (`tools/dx/stdlib_checks.sh`), browser-image checks, ruff,
+mypy, Python contracts, the exhaustive survey disclosure solver proof in four
+deterministic pytest shards (`tools/dx/pytest_shard.py`), frontend typecheck
+(all packages concurrently, `tools/dx/run-parallel.mjs`) and prettier, node and
+infra checks. Any failed group fails the check.
+
+`./leonaid check-fast` is the pre-push subset (about 20–30 s): ruff, mypy, unit
+tests without the solver proof, the TypeScript packages changed against
+`origin/main` (`LEONAID_CHECK_BASE`) plus their dependents
+(`tools/dx/fast_plan.py`), prettier on changed files and conflict markers. It
+does not replace `check` before a PR. `./leonaid bootstrap --pre-push-hook`
+installs it as a git pre-push hook for every worktree of the clone (never over a
+foreign hook); `git push --no-verify` skips it once.
+
 ## Persistent GitHub BuildKit cache
 
 The local composite action `.github/actions/build-cache` prepares a job-local
