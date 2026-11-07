@@ -87,7 +87,8 @@ async function offlineStartEnabled() {
 
 function isOfflineScreen(pathname) {
   if (!pathname.startsWith(SHELL_URL)) return false;
-  const screen = pathname.slice(SHELL_URL.length).replace(/\/+$/, "");
+  // The screen is the first segment: /app/commitments/new is the order form.
+  const screen = pathname.slice(SHELL_URL.length).split("/")[0];
   return screen === "" || OFFLINE_SCREENS.includes(screen);
 }
 
