@@ -13,6 +13,7 @@ from uuid import UUID
 from leonaid.application.errors import PermissionDenied
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.action_templates import OfferingUnit
+from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     Commitment,
@@ -70,10 +71,22 @@ class CommitmentDraft:
     # it stays out of the request hash: a refused attempt stores nothing and
     # the confirmed resend may reuse its idempotency key.
     allow_full_window: bool = False
+    # Set by the PWA offline queue (PLAN §11.2/§11.3): when the order was
+    # saved on the device. It switches on the price guard, so each line then
+    # needs the price the acquirer saw.
+    captured_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
             object.__setattr__(self, "delivery_contact", None)
+        if self.captured_at is not None and any(
+            line.quoted_unit_price_minor is None for line in self.lines
+        ):
+            raise DomainInvariantError(
+                "commitment_client_quote_required",
+                "Eine nachgereichte Bestellung benötigt je Position den "
+                "angezeigten Preis.",
+            )
         if not self.lines:
             raise DomainInvariantError(
                 "commitment_lines_required",
@@ -126,6 +139,16 @@ class CommitmentDraft:
             payload["deliveryWindowId"] = str(self.delivery_window_id)
         if self.delivery_contact is not None:
             payload["deliveryContact"] = self.delivery_contact.payload()
+        if self.captured_at is not None:
+            # A queued order is bound to the price it was captured with: a
+            # confirmed new price is new content and needs a new key.
+            payload["capturedAt"] = self.captured_at.astimezone(
+                timezone.utc
+            ).isoformat()
+            payload["quotedUnitPricesMinor"] = {
+                str(line.offering_id): line.quoted_unit_price_minor
+                for line in self.lines
+            }
         canonical = json.dumps(
             payload,
             ensure_ascii=False,
@@ -154,6 +177,9 @@ class CommitmentCompletion:
     # it stays out of the request hash: a refused attempt stores nothing and
     # the confirmed resend may reuse its idempotency key.
     allow_full_window: bool = False
+    # When the completion was saved on the device (PWA queue); recorded in
+    # the audit event, the order keeps the capture time of its creation.
+    captured_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.delivery_contact is not None and self.delivery_contact.empty:
@@ -162,7 +188,7 @@ class CommitmentCompletion:
     def fingerprint(
         self, *, action_id: UUID, commitment_id: UUID, actor_user_id: UUID
     ) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "actionId": str(action_id),
             "commitmentId": str(commitment_id),
             "actorUserId": str(actor_user_id),
@@ -176,6 +202,11 @@ class CommitmentCompletion:
             if self.delivery_contact
             else None,
         }
+        # Omitted when absent to retain the exact pre-upgrade request hash.
+        if self.captured_at is not None:
+            payload["capturedAt"] = self.captured_at.astimezone(
+                timezone.utc
+            ).isoformat()
         canonical = json.dumps(
             payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
         )
@@ -303,6 +334,9 @@ class CommitmentService:
                 "commitment_idempotency_key_invalid",
                 "Die Vorgangs-ID besitzt ein ungültiges Format.",
             )
+        moment = occurred_at or datetime.now(timezone.utc)
+        if completion.captured_at is not None:
+            bounded_captured_at(completion.captured_at, received_at=moment)
         return await self._repository.complete_draft(
             action_id=action_id,
             commitment_id=commitment_id,
@@ -316,7 +350,7 @@ class CommitmentService:
                 actor_user_id=actor.account.id,
             ),
             request_id=request_id,
-            occurred_at=occurred_at or datetime.now(timezone.utc),
+            occurred_at=moment,
         )
 
     async def capture_context(
@@ -406,6 +440,13 @@ class CommitmentService:
             else CommitmentStatus.DRAFT
         )
         moment = occurred_at or datetime.now(timezone.utc)
+        if draft.captured_at is not None:
+            if source is not CommitmentSource.ACQUISITION:
+                raise DomainInvariantError(
+                    "captured_at_source_invalid",
+                    "Nur Akquise-Bestellungen können nachgereicht werden.",
+                )
+            bounded_captured_at(draft.captured_at, received_at=moment)
         return await self._repository.create(
             action_id=action_id,
             actor_user_id=actor.account.id,

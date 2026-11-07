@@ -27,6 +27,15 @@ class ApiErrorDetail(TransportModel):
         max_length=128,
         examples=["poc023:contract:golden-v1"],
     )
+    details: dict[str, object] | None = Field(
+        default=None,
+        description=(
+            "Machine-readable facts for codes that need them, for example "
+            "`commitment_price_changed`: `lines` (offeringId, "
+            "quotedUnitPriceMinor, unitPriceMinor, lineTotalMinor), "
+            "`totalMinor` and `currency`."
+        ),
+    )
 
 
 class ApiErrorResponse(TransportModel):

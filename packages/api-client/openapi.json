@@ -1718,6 +1718,19 @@
             "title": "Code",
             "type": "string"
           },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Machine-readable facts for codes that need them, for example `commitment_price_changed`: `lines` (offeringId, quotedUnitPriceMinor, unitPriceMinor, lineTotalMinor), `totalMinor` and `currency`.",
+            "title": "Details"
+          },
           "message": {
             "examples": [
               "Dieser API-Endpunkt existiert nicht."
@@ -3502,6 +3515,19 @@
           "buyer": {
             "$ref": "#/components/schemas/CommitmentBuyerResponse"
           },
+          "capturedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When an acquirer saved the order on the device, if it was sent from the PWA queue. `createdAt` of the order list stays the server time and drives lists, weekly values and invoices.",
+            "title": "Capturedat"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -3709,6 +3735,19 @@
             "default": false,
             "title": "Allowfullwindow",
             "type": "boolean"
+          },
+          "capturedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the capture was saved on the device (ISO 8601 with offset), sent by the PWA offline queue. At most 14 days before and 5 minutes after the server time, otherwise 422 `captured_at_out_of_range`. Rights, prices, windows and suppression are still checked at send time.",
+            "title": "Capturedat"
           },
           "deliveryContact": {
             "anyOf": [
@@ -4455,6 +4494,19 @@
           },
           "buyer": {
             "$ref": "#/components/schemas/CommitmentBuyerRequest"
+          },
+          "capturedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the capture was saved on the device (ISO 8601 with offset), sent by the PWA offline queue; acquisition source only. With it, every line needs `quotedUnitPriceMinor` and a price that differs from the server price is refused with 409 `commitment_price_changed` (details: new unit prices and total). At most 14 days before and 5 minutes after the server time, otherwise 422 `captured_at_out_of_range`. Rights, prices, windows and suppression are still checked at send time.",
+            "title": "Capturedat"
           },
           "deliveryContact": {
             "anyOf": [
@@ -12808,6 +12860,19 @@
       "RecordAcquisitionActivityRequest": {
         "additionalProperties": false,
         "properties": {
+          "capturedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the capture was saved on the device (ISO 8601 with offset), sent by the PWA offline queue. It becomes `occurredAt` of the activity. With it, a moved assignment no longer refuses the contact: it is recorded and `assignmentUpdated` is false. At most 14 days before and 5 minutes after the server time, otherwise 422 `captured_at_out_of_range`. Rights, prices, windows and suppression are still checked at send time.",
+            "title": "Capturedat"
+          },
           "channel": {
             "enum": [
               "phone",
@@ -12902,6 +12967,18 @@
           },
           "assignment": {
             "$ref": "#/components/schemas/AcquisitionAssignmentResponse"
+          },
+          "assignmentUpdated": {
+            "default": true,
+            "description": "False when a capture with `capturedAt` met an assignment that changed meanwhile: the contact is recorded, status, next action and due date stay as `assignment` shows them.",
+            "title": "Assignmentupdated",
+            "type": "boolean"
+          },
+          "replayed": {
+            "default": false,
+            "description": "True when the `Idempotency-Key` was already processed.",
+            "title": "Replayed",
+            "type": "boolean"
           }
         },
         "required": [
@@ -17685,7 +17762,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `assignment_revision_conflict`, `contact_suppressed`, `idempotency_conflict`, `idempotency_incomplete`."
           },
           "422": {
             "content": {
@@ -19583,7 +19660,7 @@
                 }
               }
             },
-            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+            "description": "Änderung kollidiert mit dem aktuellen Zustand. Stabile Codes: `commitment_price_changed`, `commitment_ordering_disabled`, `commitment_action_closed`, `commitment_concurrent_retry`, `delivery_window_full`, `idempotency_conflict`."
           },
           "422": {
             "content": {

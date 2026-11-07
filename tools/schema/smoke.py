@@ -420,6 +420,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         )
         """
     )
+    await verify_commitment_captured_at(connection)
     await connection.execute(
         """
         INSERT INTO invoice_profile (
@@ -877,6 +878,39 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
     )
     if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None:
         raise SchemaError("audit timestamp is not timezone-aware")
+
+
+async def verify_commitment_captured_at(connection: asyncpg.Connection[Any]) -> None:
+    """0052: a queued order's device time stays inside the D5 window."""
+
+    order = "80000000-0000-4000-8000-000000000001"
+    for value, label in (
+        ("created_at + interval '6 minutes'", "capture time ahead of creation"),
+        ("created_at - interval '15 days'", "capture time beyond queue retention"),
+    ):
+        statement = f"UPDATE commitment SET captured_at = {value} WHERE id = $1"
+        await expect_database_error(
+            lambda: connection.execute(statement, order),
+            f"commitment {label}",
+            constraint="ck_commitment_captured_at",
+        )
+    await expect_database_error(
+        lambda: connection.execute(
+            "UPDATE commitment SET source = 'admin', captured_at = created_at "
+            "WHERE id = $1",
+            order,
+        ),
+        "capture time on a non-acquisition order",
+        constraint="ck_commitment_captured_at",
+    )
+    for value in (
+        "created_at - interval '13 days'",
+        "created_at + interval '4 minutes'",
+        "NULL",
+    ):
+        await connection.execute(
+            f"UPDATE commitment SET captured_at = {value} WHERE id = $1", order
+        )
 
 
 async def run(legacy: bool) -> None:

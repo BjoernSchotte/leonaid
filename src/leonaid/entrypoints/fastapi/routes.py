@@ -266,6 +266,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     ACTION_CREATE_CONFLICT_RESPONSES,
+    ACTIVITY_RECORD_CONFLICT_RESPONSES,
+    COMMITMENT_CREATE_CONFLICT_RESPONSES,
     MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
     MEMBER_STATUS_CONFLICT_RESPONSES,
@@ -1487,6 +1489,7 @@ def commitment_response(commitment: Commitment) -> CommitmentResponse:
         total_boxes=commitment.total_boxes,
         quantities=unit_quantity_responses(commitment.quantities),
         replayed=commitment.replayed,
+        captured_at=commitment.captured_at,
     )
 
 
@@ -1862,6 +1865,7 @@ def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     recipient = body.invoice_recipient
     return CommitmentDraft(
         allow_full_window=body.allow_full_window,
+        captured_at=body.captured_at,
         delivery_window_id=body.delivery_window_id,
         delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
         if body.delivery_contact
@@ -3711,7 +3715,7 @@ async def list_commitments(
     "/api/v1/actions/{action_id}/commitments",
     operation_id="createCommitment",
     response_model=CommitmentResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=COMMITMENT_CREATE_CONFLICT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     tags=["commitments"],
 )
@@ -3778,6 +3782,7 @@ async def complete_commitment(
     contact = body.delivery_contact
     completion = CommitmentCompletion(
         allow_full_window=body.allow_full_window,
+        captured_at=body.captured_at,
         delivery_recipient=DeliveryRecipientSnapshot(
             address.recipient_name,
             address.street_line_1,
@@ -4836,7 +4841,7 @@ async def get_acquisition_activity_board(
     operation_id="recordAcquisitionActivity",
     response_model=RecordAcquisitionActivityResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=ACTIVITY_RECORD_CONFLICT_RESPONSES,
     tags=["acquisition"],
 )
 async def record_acquisition_activity(
@@ -4858,11 +4863,16 @@ async def record_acquisition_activity(
         next_action=body.next_action,
         due_on=body.due_on,
         request_id=request_id(request),
+        captured_at=body.captured_at,
+        # Optional for one release (PLAN §11.1); the PWA queue always sends it.
+        idempotency_key=request.headers.get("Idempotency-Key"),
     )
     response.headers["Cache-Control"] = "no-store"
     return RecordAcquisitionActivityResponse(
         assignment=acquisition_assignment_response(result.assignment),
         activity=recorded_acquisition_activity_response(item),
+        assignment_updated=result.assignment_updated,
+        replayed=result.replayed,
     )
 
 

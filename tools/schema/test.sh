@@ -100,7 +100,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tools/inbox/task_contract.py \
     /repo/tools/inbox/material_contract.py \
     /repo/tests/integration/test_search_api.py \
-    /repo/tests/integration/test_order_cancellation_api.py
+    /repo/tests/integration/test_order_cancellation_api.py \
+    /repo/tests/integration/test_offline_capture_api.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans
@@ -120,6 +121,24 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
+
+echo "poc021-test: 0052 downgrade keeps a queued order without its capture time"
+capture_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -t -A -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+# The legacy order is an admin order; only acquisition orders carry a
+# capture time, so it is one for this step and gets its source back after.
+legacy_source=$(printf '%s\n' "SELECT source FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql)
+printf '%s\n' "UPDATE commitment SET source = 'acquisition', captured_at = created_at - interval '1 hour' WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
+remaining=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001'; SELECT count(*) FROM information_schema.columns WHERE table_name = 'commitment' AND column_name = 'captured_at';" | capture_sql | tr '\n' ' ')
+if [ "$remaining" != "1 0 " ]; then
+  echo "poc021-test: ERROR: 0052 downgrade lost the order or kept the column: $remaining" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+printf '%s\n' "UPDATE commitment SET source = '$legacy_source' WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql
 
 echo "poc021-test: 0051 downgrade refuses recorded order cancellations"
 cancellation_sql() {

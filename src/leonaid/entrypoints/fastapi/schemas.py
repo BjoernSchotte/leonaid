@@ -9,6 +9,7 @@ from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -1127,6 +1128,16 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    captured_at: AwareDatetime | None = Field(
+        default=None,
+        description=(
+            "When the capture was saved on the device (ISO 8601 with offset), "
+            "sent by the PWA offline queue; acquisition source only. With it, every line needs `quotedUnitPriceMinor` and a price that differs from the server price is refused with 409 `commitment_price_changed` (details: new unit prices and total). At most 14 days before and 5 "
+            "minutes after the server time, otherwise 422 "
+            "`captured_at_out_of_range`. Rights, prices, windows and "
+            "suppression are still checked at send time."
+        ),
+    )
     # Confirms booking a window marked "ausgebucht" (otherwise 409).
     allow_full_window: bool = False
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
@@ -1139,6 +1150,16 @@ class CreateCommitmentRequest(TransportModel):
 
 class CompleteCommitmentRequest(TransportModel):
     allow_full_window: bool = False
+    captured_at: AwareDatetime | None = Field(
+        default=None,
+        description=(
+            "When the capture was saved on the device (ISO 8601 with offset), "
+            "sent by the PWA offline queue. At most 14 days before and 5 "
+            "minutes after the server time, otherwise 422 "
+            "`captured_at_out_of_range`. Rights, prices, windows and "
+            "suppression are still checked at send time."
+        ),
+    )
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
     delivery_window_id: UUID | None = None
     delivery_contact: DeliveryContactRequest | None = None
@@ -1207,6 +1228,14 @@ class CommitmentResponse(TransportModel):
     total_boxes: int = Field(ge=0, deprecated=BOX_FIELD_DEPRECATION)
     quantities: list[UnitQuantityResponse]
     replayed: bool
+    captured_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When an acquirer saved the order on the device, if it was sent "
+            "from the PWA queue. `createdAt` of the order list stays the "
+            "server time and drives lists, weekly values and invoices."
+        ),
+    )
     delivery_completion_version: str = Field(
         description=(
             "Optimistic version of status, delivery and billing details. "
@@ -1969,6 +1998,16 @@ class RecordAcquisitionActivityRequest(TransportModel):
     note: str | None = Field(default=None, max_length=2000)
     next_action: str | None = Field(default=None, max_length=300)
     due_on: date | None = None
+    captured_at: AwareDatetime | None = Field(
+        default=None,
+        description=(
+            "When the capture was saved on the device (ISO 8601 with offset), "
+            "sent by the PWA offline queue. It becomes `occurredAt` of the activity. With it, a moved assignment no longer refuses the contact: it is recorded and `assignmentUpdated` is false. At most 14 days before and 5 "
+            "minutes after the server time, otherwise 422 "
+            "`captured_at_out_of_range`. Rights, prices, windows and "
+            "suppression are still checked at send time."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_reminder_pair(self) -> RecordAcquisitionActivityRequest:
@@ -2027,6 +2066,18 @@ class AcquisitionActivityBoardResponse(TransportModel):
 class RecordAcquisitionActivityResponse(TransportModel):
     assignment: AcquisitionAssignmentResponse
     activity: RecordedAcquisitionActivityResponse
+    assignment_updated: bool = Field(
+        default=True,
+        description=(
+            "False when a capture with `capturedAt` met an assignment that "
+            "changed meanwhile: the contact is recorded, status, next action "
+            "and due date stay as `assignment` shows them."
+        ),
+    )
+    replayed: bool = Field(
+        default=False,
+        description="True when the `Idempotency-Key` was already processed.",
+    )
 
 
 class AcquisitionPartyResponse(TransportModel):
@@ -2357,6 +2408,26 @@ MEMBER_ACTION_ROLE_CONFLICT_RESPONSES = _conflicts(
 ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
     "action_responsible_administrator_unavailable",
     "action_archive_slug_conflict",
+)
+
+# Contact attempts; the PWA offline queue maps these (PLAN §9.4, §10.1).
+ACTIVITY_RECORD_CONFLICT_RESPONSES = _conflicts(
+    "assignment_revision_conflict",
+    "contact_suppressed",
+    "idempotency_conflict",
+    "idempotency_incomplete",
+)
+
+# Order capture; the PWA offline queue maps these (PLAN §10.2). The window,
+# delivery and offering refusals are 422 (`delivery_window_unavailable`,
+# `delivery_required`, `offering_not_available`, `captured_at_out_of_range`).
+COMMITMENT_CREATE_CONFLICT_RESPONSES = _conflicts(
+    "commitment_price_changed",
+    "commitment_ordering_disabled",
+    "commitment_action_closed",
+    "commitment_concurrent_retry",
+    "delivery_window_full",
+    "idempotency_conflict",
 )
 
 RequestIdHeader = Annotated[
