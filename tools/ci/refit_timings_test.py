@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 import subprocess
 import sys
 import tempfile
@@ -38,7 +39,9 @@ LOG = """
 """
 
 
-def fake_api(runs: list[dict], logs: dict[int, str]):
+def fake_api(
+    runs: list[dict[str, object]], logs: dict[int, str]
+) -> tuple[Callable[[str], object], Callable[[str], str]]:
     def fetch_json(path: str) -> object:
         if "/workflows/ci.yml/runs" in path:
             return {"workflow_runs": runs}
@@ -61,7 +64,9 @@ def fake_api(runs: list[dict], logs: dict[int, str]):
     return fetch_json, fetch_text
 
 
-def test_collect_and_main(leaves: dict, cases: dict) -> None:
+def test_collect_and_main(
+    leaves: dict[str, list[str]], cases: dict[str, list[str]]
+) -> None:
     nightly = [
         {"id": n, "display_title": "LeonAid CI nightly (every E2E leaf)"}
         for n in (1, 2, 3)
