@@ -23,9 +23,9 @@ describe("base paths (specs/multi-domain §6.7)", () => {
 
 describe("start-area choices (review B3)", () => {
   it("offers nothing to members with one app", () => {
-    expect(
-      startAreaChoices("web", { landingPath: "/app/" }, false),
-    ).toEqual([]);
+    expect(startAreaChoices("web", { landingPath: "/app/" }, false)).toEqual(
+      [],
+    );
     expect(
       startAreaChoices(
         "pwa",
@@ -54,7 +54,10 @@ describe("start-area choices (review B3)", () => {
 
   it("offers the default rule back after a choice, on both sides", () => {
     // Chose the admin app: the admin app offers the default, the PWA both.
-    const choseWeb = { landingPath: "/admin/", preferredSurface: "web" as const };
+    const choseWeb = {
+      landingPath: "/admin/",
+      preferredSurface: "web" as const,
+    };
     expect(startAreaChoices("web", choseWeb, true)).toEqual([
       { surface: null, label: DEFAULT_START_AREA_LABEL },
     ]);

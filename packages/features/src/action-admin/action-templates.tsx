@@ -303,7 +303,9 @@ export function TemplatesTab({
                 </div>
                 <span className="small subtle">
                   {own && snapshot.copiedFromActionId ? (
-                    <a href={`${ADMIN_BASE}actions/${snapshot.copiedFromActionId}`}>
+                    <a
+                      href={`${ADMIN_BASE}actions/${snapshot.copiedFromActionId}`}
+                    >
                       Ursprüngliche Aktion
                     </a>
                   ) : (

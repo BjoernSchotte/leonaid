@@ -464,4 +464,3 @@ test("a member with both apps chooses the admin app and returns to the default",
   await landsOn("/app/");
   await context.close();
 });
-

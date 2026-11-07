@@ -199,7 +199,9 @@ export function migrateLegacyInviteParam(): void {
 }
 
 export function membersPath(section: "list" | "invitations"): string {
-  return section === "list" ? adminHref("members") : adminHref("members/invitations");
+  return section === "list"
+    ? adminHref("members")
+    : adminHref("members/invitations");
 }
 
 /** A plausible address; the server decides. The forms show `INVALID_EMAIL`. */

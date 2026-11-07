@@ -302,7 +302,10 @@ function AdminDashboard({
       count: invoices.deliveryFailed,
       label: "Versand fehlgeschlagen",
       detail: "Rechnung erneut senden",
-      href: href("admin.delivery_failed", `${ADMIN_BASE}invoices?action=${action}`),
+      href: href(
+        "admin.delivery_failed",
+        `${ADMIN_BASE}invoices?action=${action}`,
+      ),
       tone: "danger" as const,
     },
     {

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_typescript_and_python_base_paths_are_equal() -> None:
     source = (ROOT / "packages/ui/src/lib/base-paths.ts").read_text(encoding="utf-8")
-    values = dict(re.findall(r'export const (\w+) = "([^"]+)";', source))
+    values = dict(re.findall(r'export const (\w+_BASE) = "([^"]+)";', source))
     assert values == {"ADMIN_BASE": ADMIN_BASE, "PWA_BASE": PWA_BASE}
 
 
