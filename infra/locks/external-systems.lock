@@ -293,11 +293,11 @@
     },
     {
       "id": "otel",
-      "version": "0.164.0",
-      "image": "docker.io/otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b",
-      "digest": "sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b",
+      "version": "0.165.0",
+      "image": "docker.io/otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea",
+      "digest": "sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea",
       "license": "Apache-2.0",
-      "upstream": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0",
+      "upstream": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.165.0",
       "roles": [
         "optional-observability"
       ]
