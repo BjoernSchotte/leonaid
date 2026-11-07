@@ -419,6 +419,25 @@ not an application backup/restore test. When the invocation ends, the fixture's
 containers are stopped (volumes, images and the saved data stay), so an idle
 checkout holds no Twenty, database or application memory.
 
+Checkouts with the synthetic `.env.local` (`./leonaid bootstrap --synthetic-env`,
+the default for a fresh agent worktree under `.claude/worktrees/`) initialize
+from a host-wide cache instead of a full setup: `~/.cache/leonaid/fixtures/<key>`
+(or `$LEONAID_FIXTURE_CACHE`), keyed by `tools/testing/ci_fixture.py key`, in
+the CI fixture format with synthetic data and public synthetic credentials only.
+The first checkout builds an entry under an exclusive lock; concurrent checkouts
+wait for it instead of building it again. Each stack imports the entry into its
+own volumes, so isolation is unchanged. An entry holds the volume archives and
+golden PDFs (about 130 MB today). Pruning keeps at most the three most recently
+used entries (`LEONAID_FIXTURE_CACHE_KEEP`) and 4096 MB
+(`LEONAID_FIXTURE_CACHE_MAX_MB`); entries in use or used within the last hour
+are never pruned. `./leonaid fixture-cache` shows the cache;
+`./leonaid fixture-cache clear` removes every entry not in use.
+Host ports and `LEONAID_COMPOSE_PROJECT` are per checkout; every other value must match.
+When `.env.example` gains a setting, the test run asks for `./leonaid bootstrap`,
+which rewrites the synthetic file with the new setting.
+`LEONAID_FIXTURE_CACHE=off` forces a private setup. Bootstrap never replaces an
+`.env.local` with generated secrets; delete it (and the checkout's dev data) first.
+
 The existing development stack is never adopted or reset. The test fixture uses
 its own project, volumes and networks without host ports. One process holds the
 checkout lock for the whole invocation; another local test refuses immediately
