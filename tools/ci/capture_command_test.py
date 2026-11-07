@@ -94,19 +94,22 @@ class CaptureTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 74)
 
-
     def test_time_limit_stops_the_whole_process_group(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "command.log"
             marker = Path(directory) / "child-survived"
             # A parent and a grandchild that would both outlive the limit.
-            script = (
-                f"(sleep 8; touch {marker}) & "
-                "echo started; sleep 60"
-            )
+            script = f"(sleep 8; touch {marker}) & echo started; sleep 60"
             started = time.monotonic()
             result = subprocess.run(
-                ["bash", str(ROOT / "tools/ci/capture-command.sh"), str(log), "sh", "-c", script],
+                [
+                    "bash",
+                    str(ROOT / "tools/ci/capture-command.sh"),
+                    str(log),
+                    "sh",
+                    "-c",
+                    script,
+                ],
                 capture_output=True,
                 timeout=60,
                 env={**os.environ, "LEONAID_CI_STEP_SECONDS": "2"},
@@ -124,7 +127,14 @@ class CaptureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "command.log"
             result = subprocess.run(
-                ["bash", str(ROOT / "tools/ci/capture-command.sh"), str(log), "sh", "-c", "exit 3"],
+                [
+                    "bash",
+                    str(ROOT / "tools/ci/capture-command.sh"),
+                    str(log),
+                    "sh",
+                    "-c",
+                    "exit 3",
+                ],
                 capture_output=True,
                 timeout=20,
                 env={**os.environ, "LEONAID_CI_STEP_SECONDS": "30"},
