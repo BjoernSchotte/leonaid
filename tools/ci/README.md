@@ -298,6 +298,19 @@ the build-layer import 24–67 s per leg; caching the installed `.venv` and
 `node_modules` (830 MB together) would restore no faster than bootstrap
 installs them, so there is no dependency cache.
 
+Measured and decided against (2026-11-07, run 42405365220): leg setup is
+bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
+(bootstrap 74 s in a leg, 20 s alone; the Twenty/Playwright prefetch of
+53–74 s already runs beside it).
+
+| Idea | Numbers | Decision |
+|---|---|---|
+| uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
+| Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
+| GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
+| Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
+| Concurrent light shards per leg | `disk-peak.sh` now logs memory peaks | open: decide from measured peaks |
+
 ## Integration and survey shards
 
 Normal PR/main-push CI runs separate Integration shards for Compose cold start,
