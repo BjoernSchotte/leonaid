@@ -24,6 +24,7 @@ import {
 } from "../shared/action-contexts";
 import { useDebouncedValue } from "../shared/use-debounced-value";
 import "./knowledge.css";
+import { PWA_BASE, baseRoot } from "@leonaid/ui/base-paths";
 
 type Address = "Sie" | "du";
 const says = (address: Address, du: string, sie: string) =>
@@ -33,7 +34,8 @@ export function knowledgeAddress(
   basePath: string,
   surface?: "web" | "pwa",
 ): Address {
-  return (surface ?? (basePath.startsWith("/app") ? "pwa" : "web")) === "pwa"
+  return (surface ??
+    (basePath.startsWith(baseRoot(PWA_BASE)) ? "pwa" : "web")) === "pwa"
     ? "du"
     : "Sie";
 }
