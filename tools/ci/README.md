@@ -426,9 +426,15 @@ from a host-wide cache instead of a full setup: `~/.cache/leonaid/fixtures/<key>
 the CI fixture format with synthetic data and public synthetic credentials only.
 The first checkout builds an entry under an exclusive lock; concurrent checkouts
 wait for it instead of building it again. Each stack imports the entry into its
-own volumes, so isolation is unchanged. The three most recently used entries are
-kept (`LEONAID_FIXTURE_CACHE_KEEP`); entries being imported are never pruned.
+own volumes, so isolation is unchanged. An entry holds the volume archives and
+golden PDFs (about 130 MB today). Pruning keeps at most the three most recently
+used entries (`LEONAID_FIXTURE_CACHE_KEEP`) and 4096 MB
+(`LEONAID_FIXTURE_CACHE_MAX_MB`); entries in use or used within the last hour
+are never pruned. `./leonaid fixture-cache` shows the cache;
+`./leonaid fixture-cache clear` removes every entry not in use.
 Host ports may differ from the CI environment; every other value must match.
+When `.env.example` gains a setting, the test run asks for `./leonaid bootstrap`,
+which rewrites the synthetic file with the new setting.
 `LEONAID_FIXTURE_CACHE=off` forces a private setup. Bootstrap never replaces an
 `.env.local` with generated secrets; delete it (and the checkout's dev data) first.
 

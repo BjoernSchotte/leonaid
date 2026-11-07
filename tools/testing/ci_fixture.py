@@ -122,6 +122,27 @@ def is_synthetic(root, text):
     return found is not None and text == environment(root, *found)
 
 
+def is_synthetic_subset(root, text):
+    """True if every setting in `text` has its synthetic value.
+
+    Keys that `.env.example` gained after the file was written may be missing;
+    bootstrap then rewrites the full synthetic environment. Any other value
+    (a generated secret, a changed setting, an unknown key) is not synthetic.
+    """
+    found = ports(text)
+    if found is None:
+        return False
+    expected = {
+        line.split("=", 1)[0]: line
+        for line in environment(root, *found).splitlines()
+        if "=" in line and not line.startswith("#")
+    }
+    settings = [
+        line for line in text.splitlines() if "=" in line and not line.startswith("#")
+    ]
+    return all(expected.get(line.split("=", 1)[0]) == line for line in settings)
+
+
 def validate(root, directory):
     metadata = json.loads((directory / "manifest.json").read_text())
     if metadata.get("version") != VERSION or metadata.get("key") != key(root):
@@ -235,7 +256,7 @@ def write_environment(root, target, http_port, https_port):
     Refuses to replace an environment with other (generated) secrets: those
     belong to an existing development stack whose data would stop working.
     """
-    if target.exists() and not is_synthetic(root, target.read_text()):
+    if target.exists() and not is_synthetic_subset(root, target.read_text()):
         raise ValueError(
             f"{target.name} holds generated secrets; delete it (and reset this "
             "checkout's development stack) to switch to the synthetic environment"
@@ -260,7 +281,9 @@ if __name__ == "__main__":
     if args.command == "key":
         print(key(root))
     elif args.command == "is-synthetic":
-        raise SystemExit(0 if is_synthetic(root, args.directory.read_text()) else 1)
+        raise SystemExit(
+            0 if is_synthetic_subset(root, args.directory.read_text()) else 1
+        )
     elif args.command == "environment":
         try:
             write_environment(root, args.directory, args.http_port, args.https_port)

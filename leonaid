@@ -216,6 +216,9 @@ Commands:
   backup            Create encrypted Core, Twenty and RustFS recovery point
   restore           Restore only into an explicitly confirmed fresh project
   test-env-stop     Remove this checkout's cached test environment
+  fixture-cache [status|clear]
+                    Show or clear the host-wide synthetic test fixture cache
+                    (~/.cache/leonaid/fixtures; entries in use are kept)
   test-recovery     Explicitly run all backup/recovery acceptance
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
@@ -3409,6 +3412,10 @@ case "$command" in
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     ;;
   test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
+  fixture-cache)
+    shift
+    python3 "$root/tools/testing/fixture_cache.py" "${1:-status}"
+    ;;
   test-multi-host)
     require_docker
     /bin/sh "$root/tools/multi_host/test.sh" "$root"

@@ -9,11 +9,11 @@ import shutil
 import subprocess
 
 if __package__:
-    from .ci_fixture import build, is_synthetic, key
+    from .ci_fixture import build, is_synthetic, is_synthetic_subset, key
     from .fixture_cache import FixtureCache
     from .shared_stack import SharedStack
 else:
-    from ci_fixture import build, is_synthetic, key
+    from ci_fixture import build, is_synthetic, is_synthetic_subset, key
     from fixture_cache import FixtureCache
     from shared_stack import SharedStack
 
@@ -209,7 +209,13 @@ class LocalStack:
         ):
             return
         env_file = self.root / ".env.local"
-        if not env_file.is_file() or not is_synthetic(self.root, env_file.read_text()):
+        text = env_file.read_text() if env_file.is_file() else ""
+        if not is_synthetic(self.root, text) and is_synthetic_subset(self.root, text):
+            raise RuntimeError(
+                "The synthetic .env.local lacks settings that .env.example gained; "
+                "run ./leonaid bootstrap"
+            )
+        if not is_synthetic(self.root, text):
             print(
                 "local-test-stack: .env.local has generated secrets; initializing a "
                 "private fixture (./leonaid bootstrap --synthetic-env shares one "
@@ -220,12 +226,14 @@ class LocalStack:
             return
         self.cache = FixtureCache(output=self.output)
         self.cache_key = key(self.root)
-        entry = self.cache.acquire(
+        entry, metadata = self.cache.acquire(
             self.root,
             self.cache_key,
             lambda target: build(self.root, target, self.output),
         )
         self.stack.env["LEONAID_CI_FIXTURE"] = str(entry)
+        # Validated (hashed) once under the cache lock; not again on import.
+        self.stack.fixture_metadata = metadata
         self.cache.prune()
 
     def release_fixture_cache(self):

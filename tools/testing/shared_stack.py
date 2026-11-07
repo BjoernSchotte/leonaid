@@ -42,6 +42,8 @@ class SharedStack:
         self.ready = False
         self.used = False
         self.volumes: list[str] = []
+        # Set by the local fixture cache after it validated the entry it holds.
+        self.fixture_metadata: dict | None = None
         self.env = dict(
             os.environ,
             LEONAID_HTTP_PORT="8080",
@@ -354,7 +356,11 @@ class SharedStack:
             from ci_fixture import is_synthetic, validate
         if not is_synthetic(self.root, (self.root / ".env.local").read_text()):
             raise RuntimeError("Prepared CI fixture requires its synthetic environment")
-        metadata = validate(self.root, directory)
+        metadata = (
+            self.fixture_metadata
+            if self.fixture_metadata is not None
+            else validate(self.root, directory)
+        )
         self.env["TWENTY_INTEGRATION_API_KEY"] = metadata["integrationKey"]
         self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
         # Volumes are cheap to create directly. Do not pull/start unused services

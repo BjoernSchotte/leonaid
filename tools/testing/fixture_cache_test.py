@@ -16,7 +16,13 @@ import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ci_fixture import environment, is_synthetic, key, write_environment
+from ci_fixture import (
+    environment,
+    is_synthetic,
+    is_synthetic_subset,
+    key,
+    write_environment,
+)
 from fixture_cache import FixtureCache
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +57,7 @@ class FixtureCacheTests(unittest.TestCase):
     def cache(self, **options):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(subprocess.run, ["rm", "-rf", str(directory)])
+        options.setdefault("min_age", 0)
         cache = FixtureCache(directory / "fixtures", **options)
         self.addCleanup(lambda: [cache.release(k) for k in list(cache.held)])
         return cache
@@ -63,16 +70,17 @@ class FixtureCacheTests(unittest.TestCase):
             builds.append(target)
             produce(target)
 
-        entry = cache.acquire(ROOT, KEY, build)
+        entry, metadata = cache.acquire(ROOT, KEY, build)
+        self.assertEqual(metadata["key"], KEY)
         cache.release(KEY)
-        self.assertEqual(cache.acquire(ROOT, KEY, build), entry)
+        self.assertEqual(cache.acquire(ROOT, KEY, build)[0], entry)
         self.assertEqual(len(builds), 1)
         self.assertEqual(entry.stat().st_mode & 0o777, 0o700)
         self.assertFalse(list(cache.directory.glob(".build-*")))
 
     def test_corrupt_entry_is_rebuilt(self):
         cache = self.cache()
-        entry = cache.acquire(ROOT, KEY, produce)
+        entry, _ = cache.acquire(ROOT, KEY, produce)
         cache.release(KEY)
         with (entry / "volume-0.tar").open("ab") as output:
             output.write(b"changed")
@@ -120,7 +128,7 @@ class FixtureCacheTests(unittest.TestCase):
         )
         self.assertEqual(builder.stdout.readline().strip(), "locked")
         builds = []
-        entry = cache.acquire(ROOT, KEY, lambda target: builds.append(target))
+        entry, _ = cache.acquire(ROOT, KEY, lambda target: builds.append(target))
         self.assertEqual(builder.wait(), 0)
         builder.stdout.close()
         self.assertEqual(builds, [])
@@ -152,7 +160,7 @@ class FixtureCacheTests(unittest.TestCase):
         self.addCleanup(holder.wait)
         self.addCleanup(holder.kill)
         self.assertEqual(holder.stdout.readline().strip(), "ok")
-        current = cache.acquire(ROOT, KEY, produce)
+        current, _ = cache.acquire(ROOT, KEY, produce)
         self.assertEqual(cache.prune(), [old[0]])
         self.assertTrue(current.is_dir())
         self.assertTrue((cache.directory / old[1]).is_dir())
@@ -162,6 +170,34 @@ class FixtureCacheTests(unittest.TestCase):
         staging.mkdir()
         cache.prune()
         self.assertFalse(staging.exists())
+
+    def test_recently_used_entries_survive_pruning(self):
+        cache = self.cache(keep=1, min_age=3600)
+        cache.acquire(ROOT, KEY, produce)
+        recent = cache.directory / format(1, "064x")
+        recent.mkdir()
+        stamp = time.time() - 60
+        os.utime(recent, (stamp, stamp))
+        self.assertEqual(cache.prune(), [])
+        self.assertTrue(recent.is_dir())
+
+    def test_byte_bound_and_clear(self):
+        cache = self.cache(keep=3, max_bytes=1500)
+        names = [format(n, "064x") for n in (1, 2)]
+        for index, name in enumerate(names):
+            entry = cache.directory / name
+            entry.mkdir()
+            (entry / "volume-0.tar").write_bytes(b"x" * 1000)
+            stamp = time.time() - 1000 * (index + 1)
+            os.utime(entry, (stamp, stamp))
+        # Two old 1000-byte entries exceed 1500 bytes: the older one goes.
+        self.assertEqual(cache.prune(), [names[1]])
+        cache.acquire(ROOT, KEY, produce)
+        removed, busy = cache.clear()
+        self.assertEqual(removed, [names[0]])
+        self.assertEqual(busy, [KEY])
+        cache.release(KEY)
+        self.assertEqual(cache.clear(), ([KEY], []))
 
     def test_refuses_a_directory_others_can_write(self):
         directory = Path(tempfile.mkdtemp())
@@ -187,6 +223,20 @@ class SyntheticEnvironmentTests(unittest.TestCase):
         self.assertFalse(
             is_synthetic(ROOT, local.replace(f"{name}={value}", f"{name}=other"))
         )
+
+    def test_settings_added_to_the_template_keep_a_file_synthetic(self):
+        local = environment(ROOT, "28090", "28091")
+        older = "\n".join(
+            line for line in local.splitlines() if not line.startswith("LEONAID_ENV=")
+        )
+        self.assertFalse(is_synthetic(ROOT, older))
+        self.assertTrue(is_synthetic_subset(ROOT, older))
+        self.assertFalse(is_synthetic_subset(ROOT, older + "\nUNKNOWN_SETTING=1\n"))
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / ".env.local"
+            target.write_text(older)
+            write_environment(ROOT, target, "28090", "28091")
+            self.assertEqual(target.read_text(), local)
 
     def test_never_replaces_generated_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
