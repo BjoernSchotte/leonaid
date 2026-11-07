@@ -244,7 +244,9 @@ def test_retry_allowlist() -> None:
     )
 
 
-def check_run(run: int, status: str, conclusion: str | None, started: str) -> dict:
+def check_run(
+    run: int, status: str, conclusion: str | None, started: str
+) -> dict[str, object]:
     return {
         "details_url": f"https://github.com/o/r/actions/runs/{run}/job/1",
         "status": status,
@@ -306,9 +308,11 @@ def test_pull_request_context() -> None:
         ([check_run(9, "completed", "success", "2026-11-07T11:00:00Z")], False),
         ([], False),
     ):
-        decision, _ = gate.pull_request_context(
-            edit, {}, lambda path, runs=runs: {"check_runs": runs}
-        )
+
+        def listing(path: str, runs: list[dict[str, object]] = runs) -> object:
+            return {"check_runs": runs}
+
+        decision, _ = gate.pull_request_context(edit, {}, listing)
         expect(decision is expected, f"mirror {runs}: {decision}")
     # A still-running real gate is awaited, then mirrored.
     answers = iter(
@@ -328,11 +332,11 @@ def test_pull_request_context() -> None:
     # A stacked selection must still target its stack base.
     stacked = {**base_env, "PR_NUMBER": "7", "STACK_BASE": "md/stage2c"}
     for base, expected in (("md/stage2c", False), ("main", True), (None, True)):
-        found = gate.stacked_into_main(
-            stacked,
-            {"heavy": "false"},
-            lambda path, base=base: {"base": {"ref": base}} if base else {},
-        )
+
+        def pull(path: str, base: str | None = base) -> object:
+            return {"base": {"ref": base}} if base else {}
+
+        found = gate.stacked_into_main(stacked, {"heavy": "false"}, pull)
         expect(found is expected, f"stacked, current base {base}: {found}")
     expect(
         not gate.stacked_into_main(stacked, {"heavy": "true"}, never),

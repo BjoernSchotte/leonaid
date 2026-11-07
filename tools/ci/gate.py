@@ -33,6 +33,7 @@ import os
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping, Sequence
 
@@ -109,7 +110,7 @@ def mirrored_result(
     for _ in range(attempts):
         data = fetch(
             f"repos/{repository}/commits/{sha}/check-runs"
-            f"?check_name={urllib.request.quote(name)}&per_page=100"
+            f"?check_name={urllib.parse.quote(name)}&per_page=100"
         )
         runs = [
             run
