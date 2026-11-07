@@ -59,7 +59,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
-compose build api
+build_shared_images api
 compose --profile dev-mail --profile mail-contract up \
   --detach --wait --wait-timeout 120 \
   mailpit mailpit-contract-starttls mailpit-contract-tls \
