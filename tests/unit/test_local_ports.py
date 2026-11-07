@@ -75,3 +75,55 @@ def test_verify_rejects_invalid_ports(tmp_path: Path) -> None:
             capture_output=True,
         )
         assert result.returncode == status
+
+
+def test_compose_project_always_comes_from_the_host(tmp_path: Path) -> None:
+    template = tmp_path / "template"
+    output = tmp_path / "environment"
+    template.write_text("LEONAID_COMPOSE_PROJECT=__COMPOSE_PROJECT__\n")
+    assert generate(template, output).returncode == 1
+    assert (
+        generate(template, output, LEONAID_COMPOSE_PROJECT="Bad Name").returncode == 1
+    )
+    assert not output.exists()
+    generate(template, output, LEONAID_COMPOSE_PROJECT="leonaid")
+    assert output.read_text() == "LEONAID_COMPOSE_PROJECT=leonaid\n"
+    # A file copied from the main checkout does not keep its project.
+    generate(template, output, LEONAID_COMPOSE_PROJECT="leonaid-wt-42")
+    assert output.read_text() == "LEONAID_COMPOSE_PROJECT=leonaid-wt-42\n"
+
+
+def test_verify_requires_a_bootstrap_compose_project(tmp_path: Path) -> None:
+    template = tmp_path / "template"
+    template.write_text(
+        "LEONAID_ENV=local\nLEONAID_RESET_ALLOWED=true\n"
+        "LEONAID_COMPOSE_PROJECT=__COMPOSE_PROJECT__\n"
+        + TEMPLATE
+        + "LEONAID_BIND_ADDRESS=127.0.0.1\nLEONAID_LAN_HOST=127.0.0.1\n"
+        "LEONAID_REMOTE_HOST=127.0.0.1\n"
+    )
+    for project, status in (
+        ("leonaid", 0),
+        ("leonaid-wt-569081238", 0),
+        ("leonaid-ci", 0),
+        ("__COMPOSE_PROJECT__", 1),
+        ("other", 1),
+    ):
+        actual = tmp_path / "actual"
+        actual.write_text(
+            "LEONAID_ENV=local\nLEONAID_RESET_ALLOWED=true\n"
+            f"LEONAID_COMPOSE_PROJECT={project}\n"
+            "LEONAID_HTTP_PORT=28082\nLEONAID_HTTPS_PORT=28083\n"
+            "LEONAID_BIND_ADDRESS=127.0.0.1\nLEONAID_LAN_HOST=127.0.0.1\n"
+            "LEONAID_REMOTE_HOST=127.0.0.1\n"
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "verify_secrets.py"),
+                str(template),
+                str(actual),
+            ],
+            capture_output=True,
+        )
+        assert result.returncode == status, (project, result.stderr)
