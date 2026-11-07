@@ -1211,3 +1211,22 @@ one test domain owned by the club.
   setup) has no `pilot-*` command yet; `LEONAID_CMS_ENABLED` stays `false`
   until it exists. Open point for the launch.
 
+### 16.3 Stage 1a (PR `md/stage1a`)
+
+- `GET /api/v1/public/campaigns?availability=active` (`listPublicCampaigns`):
+  archive slug, name, purpose, carrier, theme key, period, `canonicalPath` and
+  absolute `canonicalUrl` (site base URL); `public, max-age=60`. Source:
+  `CharityActionService.list_active_public_campaigns`, newest publication
+  start first.
+- Home page of `apps/public`: section "Aktuelle Aktionen" with one card per
+  campaign (theme share image, carrier, name, purpose, period); without an
+  active campaign the page stays as before. Core unreachable: no list, the
+  page still renders.
+- R12: the card links the page that shows the running campaign: the CMS page
+  `/campaigns/<slug>/` when published there, else the primary alias page
+  `/<alias>` with its order form, else `/archive/<slug>`. §6.5 named only the
+  canonical URL; the alias page's canonical (`/archive/<slug>`) shows no order
+  form.
+- R13: the theme image is the theme's share image (`resolvePublicTheme`);
+  Core returns only the theme key, no media id.
+
