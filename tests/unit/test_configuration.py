@@ -373,3 +373,27 @@ def test_startup_names_the_missing_club_name(monkeypatch) -> None:
         load_settings()
     monkeypatch.setenv("LEONAID_CLUB_NAME", "Lions Club Beispielstadt")
     assert load_settings().club_name == "Lions Club Beispielstadt"
+
+
+def test_site_host_check_settings_are_validated_at_startup() -> None:
+    """specs/multi-domain §7.4, review N2 and R1."""
+    with raises(ValidationError, match="no IP address"):
+        valid_settings(LEONAID_SITE_HOST_EDGE_ADDRESSES="203.0.113.10, nonsense")
+    with raises(ValidationError, match="no IP address"):
+        valid_settings(LEONAID_SITE_HOST_PUBLIC_RESOLVERS="dns.example")
+    with raises(ValidationError, match="edge addresses must be public"):
+        valid_production_settings(LEONAID_SITE_HOST_EDGE_ADDRESSES="10.0.0.5")
+    settings = valid_settings(LEONAID_SITE_HOST_EDGE_ADDRESSES="93.184.215.14 ::1")
+    assert settings.host_check_settings.edge_addresses == ("93.184.215.14", "::1")
+    # Split-view DNS guard: on in production unless switched off.
+    assert valid_settings().host_check_settings.public_resolvers == ()
+    assert valid_production_settings().host_check_settings.public_resolvers == (
+        "1.1.1.1",
+        "9.9.9.9",
+    )
+    assert (
+        valid_production_settings(
+            LEONAID_SITE_HOST_PUBLIC_RESOLVERS="none"
+        ).host_check_settings.public_resolvers
+        == ()
+    )

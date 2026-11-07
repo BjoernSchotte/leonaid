@@ -21,6 +21,7 @@ import ipaddress
 import secrets
 import socket
 import ssl
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
@@ -51,9 +52,52 @@ class HostCheckSettings:
     tls_edge_port: int = 443
     # PEM bundle of a test CA (Caddy's internal CA); None = system CAs.
     tls_ca_file: str | None = None
+    # Public recursive resolvers that must give the same answer as ours:
+    # defeats split-view DNS aimed at this server's resolver (review R1).
+    public_resolvers: tuple[str, ...] = ()
 
 
 Resolver = Callable[[str, int], Awaitable[Sequence[str]]]
+PublicResolver = Callable[[str, str], Awaitable[Sequence[str]]]
+# A certificate with fewer days left counts as a failed check: Caddy renews
+# at about 30 days, so a renewal that keeps failing (the name no longer
+# points here for Let's Encrypt) disables the host in time (review R1).
+CERTIFICATE_MIN_DAYS = 20
+
+
+async def public_dns_resolver(hostname: str, nameserver: str) -> Sequence[str]:
+    """A and AAAA of ``hostname`` as one public resolver answers them."""
+    import dns.asyncresolver
+    import dns.exception
+    import dns.resolver
+
+    resolver = dns.asyncresolver.Resolver(configure=False)
+    resolver.nameservers = [nameserver]
+    resolver.lifetime = HTTP_TIMEOUT_SECONDS
+    found: list[str] = []
+    for kind in ("A", "AAAA"):
+        try:
+            answer = await resolver.resolve(hostname, kind)
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+            continue
+        except dns.exception.DNSException as error:
+            raise OSError(str(error)) from None
+        found.extend(str(record) for record in answer)
+    return found
+
+
+def certificate_problem(peer: dict[str, object] | None, now: float) -> str | None:
+    """None while the edge's certificate has at least CERTIFICATE_MIN_DAYS left."""
+    if not peer or "notAfter" not in peer:
+        return "Das Zertifikat ist nicht lesbar."
+    expires = ssl.cert_time_to_seconds(str(peer["notAfter"]))
+    days = int((expires - now) // 86400)
+    if days < CERTIFICATE_MIN_DAYS:
+        return (
+            f"Das Zertifikat läuft in {max(days, 0)} Tagen ab; die Erneuerung "
+            "gelingt nicht. Zeigt der Name noch auf diesen Server?"
+        )
+    return None
 
 
 async def system_resolver(hostname: str, port: int) -> Sequence[str]:
@@ -91,10 +135,14 @@ class HostChecker:
         *,
         resolver: Resolver = system_resolver,
         transport: httpx.AsyncBaseTransport | None = None,
+        public_resolver: PublicResolver = public_dns_resolver,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self._settings = settings
         self._resolve = resolver
         self._transport = transport
+        self._public_resolve = public_resolver
+        self._clock = clock
 
     async def check(
         self, hostname: str, token: str, *, tls: bool = True
@@ -142,6 +190,23 @@ class HostChecker:
         edge = await self._edge()
         if edge is None:
             return "Die Adressen dieses Servers sind nicht bekannt."
+        for nameserver in self._settings.public_resolvers:
+            try:
+                public = await asyncio.wait_for(
+                    self._public_resolve(hostname, nameserver), HTTP_TIMEOUT_SECONDS
+                )
+            except (OSError, asyncio.TimeoutError):
+                return f"Der öffentliche DNS-Server {nameserver} antwortet nicht."
+            elsewhere = sorted(
+                {str(ipaddress.ip_address(a)) for a in public} - set(addresses)
+            )
+            if elsewhere:
+                return (
+                    f"Der öffentliche DNS-Server {nameserver} nennt {elsewhere[0]}, "
+                    "eine andere Adresse als dieser Server sieht."
+                )
+            if not public:
+                return f"Der öffentliche DNS-Server {nameserver} kennt den Namen nicht."
         foreign = [address for address in addresses if address not in edge]
         if foreign:
             kind = "AAAA" if ":" in foreign[0] else "A"
@@ -223,12 +288,13 @@ class HostChecker:
             return f"Zertifikat ungültig: {error.verify_message}."
         except (ssl.SSLError, OSError):
             return "Noch kein Zertifikat. Bitte in einer Minute erneut prüfen."
+        peer = writer.get_extra_info("peercert")
         writer.close()
         try:
             await writer.wait_closed()
         except (ssl.SSLError, OSError):
             pass
-        return None
+        return certificate_problem(peer, self._clock())
 
 
 _UNREACHABLE_V6 = "unreachable-v6"

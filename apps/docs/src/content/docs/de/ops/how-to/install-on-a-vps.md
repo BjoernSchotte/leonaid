@@ -182,8 +182,11 @@ ersten Aufruf, aber nur für eine Domain, die LeonAid geprüft hat (höchstens
 zehn neue pro Stunde). Port 80 muss dafür offen bleiben, und ein `CAA`-Record
 der Domain muss `letsencrypt.org` erlauben. Jeder `A`/`AAAA`-Eintrag der
 Domain muss auf eine Adresse dieses Servers zeigen; LeonAid nimmt dafür die
-Adressen des Verwaltungshosts oder `LEONAID_SITE_HOST_EDGE_ADDRESSES`. Den
-Nachweis von außen liefert:
+Adressen des Verwaltungshosts oder `LEONAID_SITE_HOST_EDGE_ADDRESSES`.
+Zusätzlich fragt LeonAid öffentliche DNS-Server (Standard `1.1.1.1` und
+`9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`); Port 53 nach außen muss dafür
+offen sein. Hat das Zertifikat einer Domain weniger als 20 Tage Laufzeit,
+zählt die Prüfung als fehlgeschlagen. Den Nachweis von außen liefert:
 
 ```sh
 python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org

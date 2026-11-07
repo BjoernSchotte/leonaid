@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +13,7 @@ import pytest
 from leonaid.adapters.site_host_checks import (
     HostChecker,
     HostCheckSettings,
+    certificate_problem,
     forbidden_address,
 )
 from leonaid.domain.site_hosts import (
@@ -195,6 +197,59 @@ def test_private_addresses_only_with_the_test_switch() -> None:
         )
     )
     assert outcome.http_ok
+
+
+def public_view(*addresses: str):  # type: ignore[no-untyped-def]
+    async def resolve(hostname: str, nameserver: str) -> Sequence[str]:
+        assert hostname == HOST
+        return addresses
+
+    return resolve
+
+
+def with_public(view, addresses: Sequence[str]) -> HostChecker:  # type: ignore[no-untyped-def]
+    return HostChecker(
+        HostCheckSettings(
+            secret=SECRET,
+            edge_addresses=(EDGE_V4,),
+            public_resolvers=("1.1.1.1",),
+        ),
+        resolver=resolver(*addresses),
+        transport=answering({EDGE_V4: OURS}),
+        public_resolver=view,
+    )
+
+
+def test_split_view_dns_fails() -> None:
+    # Our resolver sees our address, the world sees another (review R1).
+    outcome = run(with_public(public_view("185.199.108.153"), [EDGE_V4]))
+    assert not outcome.http_ok
+    assert "185.199.108.153" in outcome.message
+    assert run(with_public(public_view(EDGE_V4), [EDGE_V4])).http_ok
+
+    async def down(hostname: str, nameserver: str) -> Sequence[str]:
+        raise OSError("timeout")
+
+    outcome = run(with_public(down, [EDGE_V4]))
+    assert not outcome.http_ok
+    assert "1.1.1.1 antwortet nicht" in outcome.message
+
+
+def test_a_certificate_close_to_expiry_fails() -> None:
+    now = 1_800_000_000.0
+
+    def peer(days: float) -> dict[str, object]:
+        return {
+            "notAfter": time.strftime(
+                "%b %d %H:%M:%S %Y GMT", time.gmtime(now + days * 86400)
+            )
+        }
+
+    assert certificate_problem(peer(60), now) is None
+    assert certificate_problem(peer(21), now) is None
+    problem = certificate_problem(peer(19), now)
+    assert problem is not None and "19 Tagen" in problem
+    assert certificate_problem(None, now) is not None
 
 
 def test_unresolvable_names_fail() -> None:

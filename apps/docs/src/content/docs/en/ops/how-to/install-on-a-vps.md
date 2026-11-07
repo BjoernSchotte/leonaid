@@ -179,7 +179,10 @@ first request, but only for a domain LeonAid has checked (at most ten new ones
 per hour). Port 80 must stay open for this, and a `CAA` record of the domain
 must allow `letsencrypt.org`. Every `A`/`AAAA` record of the domain must
 name an address of this server; LeonAid takes the addresses of the admin host
-or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. The outside proof:
+or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. LeonAid also asks public DNS
+servers (default `1.1.1.1` and `9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`);
+outgoing port 53 must be open for this. A domain whose certificate has less
+than 20 days left fails the check. The outside proof:
 
 ```sh
 python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org
