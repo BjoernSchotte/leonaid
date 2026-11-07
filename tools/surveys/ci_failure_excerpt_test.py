@@ -25,7 +25,7 @@ class ExcerptTests(unittest.TestCase):
         self.gate = self.root / ".artifacts/surveys-gate"
         (self.gate / "results").mkdir(parents=True)
         (self.gate / "private-abc").mkdir()
-        self.destination = self.root / "out"
+        self.destination = self.root / "out/failure-excerpts.json"
 
     def report(self, *checks):
         (self.gate / "results/run.json").write_text(
@@ -59,8 +59,10 @@ class ExcerptTests(unittest.TestCase):
         self.assertNotIn(SECRET, text)
         self.assertIn("[REDACTED:LEONAID_SESSION_SECRET]", text)
         self.assertNotIn("step 10\n", text)  # bounded: only the tail
-        written = (self.destination / "1-permissions.log").read_text()
-        self.assertEqual(written, text)
+        written = json.loads(self.destination.read_text())
+        self.assertEqual(
+            written["excerpts"], [{"source": "1-permissions", "text": text}]
+        )
 
     def test_personal_data_withholds_the_excerpt(self):
         self.report({"id": "editor", "pass": 1, "exitCode": 1})
@@ -85,6 +87,7 @@ class ExcerptTests(unittest.TestCase):
         )
         self.log("1-runner", "Error: harmless\n")
         self.assertEqual(module.export(self.root, self.destination), [])
+        self.assertFalse(self.destination.exists())
 
 
 if __name__ == "__main__":

@@ -9,7 +9,8 @@ known secrets from `.env.local` and the run's `*.env` files are redacted, and
 an excerpt with a personal e-mail, phone or private canary signature is
 withheld (fail closed) instead of printed. Raw logs stay private.
 
-Usage: ci_failure_excerpt.py ROOT DESTINATION
+Usage: ci_failure_excerpt.py ROOT DESTINATION.json
+(The public upload allowlist, tools/pilot/boundary.py, admits only JSON results.)
 """
 
 from __future__ import annotations
@@ -111,20 +112,18 @@ def logs_for(root: Path, iteration: int, check: str) -> list[tuple[str, Path]]:
 
 
 def export(root: Path, destination: Path) -> list[tuple[str, str]]:
-    """Write sanitized excerpts; return (label, public text) for printing."""
+    """Write sanitized excerpts as JSON; return (label, public text) for printing."""
     known = secrets(root)
-    destination.mkdir(parents=True, exist_ok=True)
     printed = []
     for iteration, check in failed_checks(root):
         for label, path in logs_for(root, iteration, check):
             raw = read_tail(path)
             if not raw:
                 continue
-            target = destination / f"{label}.log"
             try:
                 result = sanitize_artifacts.sanitize_text(
                     excerpt(raw).encode("utf-8"),
-                    label=target.name,
+                    label=f"{label}.log",
                     suffix=".log",
                     secrets=known,
                 )
@@ -132,9 +131,26 @@ def export(root: Path, destination: Path) -> list[tuple[str, str]]:
             except sanitize_artifacts.SanitizationFailure as error:
                 # The reason names only the rule and the file, never the data.
                 public = f"Excerpt withheld by the artifact sanitizer: {error}\n"
-            target.write_text(public, encoding="utf-8")
-            target.chmod(0o644)
             printed.append((label, public))
+    payload = json.dumps(
+        {
+            "schemaVersion": 1,
+            "scope": "sanitized excerpts of failed checks: failure lines and log tail",
+            "excerpts": [{"source": label, "text": text} for label, text in printed],
+        },
+        indent=2,
+    ).encode("utf-8")
+    try:
+        payload = sanitize_artifacts.sanitize_text(
+            payload, label=destination.name, suffix=".json", secrets=known
+        ).payload
+    except sanitize_artifacts.SanitizationFailure as error:
+        printed = [("all", f"Excerpts withheld by the artifact sanitizer: {error}\n")]
+        payload = json.dumps({"schemaVersion": 1, "excerpts": []}).encode("utf-8")
+    if printed:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(payload)
+        destination.chmod(0o644)
     return printed
 
 
