@@ -266,6 +266,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.allowed_origins = settings.allowed_origins
         application.state.public_origins = StaticPublicOrigins(settings.public_origins)
+        application.state.links = settings.links
         application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.maintenance_flag_path = settings.maintenance_flag_path
         identity_repository = AsyncpgIdentityRepository(pool)

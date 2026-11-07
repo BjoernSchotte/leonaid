@@ -256,6 +256,8 @@ export type PrivacySubjectReportResponse = { readonly consents: Array<PrivacyCon
 export type PrivacySubjectRequest = { readonly email: string; };
 export type PrivacySuppressionResponse = { readonly channel: "email" | "phone" | "postal"; readonly id: string; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly reason: string; readonly suppressedAt: string; };
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly redirectPath?: string | null; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
+export type PublicCampaignListItemResponse = { readonly archiveSlug: string; readonly canonicalPath: string; readonly canonicalUrl: string; readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly presentationTheme: string | null; readonly purpose: string; readonly startsOn: string; };
+export type PublicCampaignListResponse = { readonly items: Array<PublicCampaignListItemResponse>; };
 export type PublicCampaignRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly orderAlias: string | null; readonly routeKind?: "campaign"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly presentationTheme: string | null; readonly purpose: string; readonly startsOn: string; };
 export type PublicLegalNoticeResponse = { readonly provider: PublicLegalProviderResponse | null; };
@@ -2577,6 +2579,23 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async listPublicCampaigns(
+    queryParameters: { readonly availability?: "active"; } = {},
+    options: RequestOptions = {},
+  ): Promise<PublicCampaignListResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.availability !== undefined && queryParameters.availability !== null) {
+      searchParameters.set("availability", String(queryParameters.availability));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/public/campaigns" + (queryString ? `?${queryString}` : "");
+    return this.request<PublicCampaignListResponse>(
+      requestPath,
+      { method: "GET" },
       options,
     );
   }

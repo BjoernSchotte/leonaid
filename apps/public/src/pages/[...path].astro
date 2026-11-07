@@ -2,12 +2,14 @@
 import { actions } from "astro:actions";
 
 import PublicAction from "../components/PublicAction.astro";
+import PublicCampaignList from "../components/PublicCampaignList.astro";
 import PublicInbox from "../components/PublicInbox.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { resolvePublicTheme } from "../themes";
 import { campaignRedirect } from "../lib/campaign-redirect";
 import { moduleEnabled } from "../lib/modules";
+import { listActiveCampaigns } from "../lib/core";
 
 const rawPath = Astro.params.path ?? "";
 const publicOrderResult = Astro.getActionResult(actions.createPublicOrder);
@@ -51,6 +53,9 @@ if (segments.length > 0) {
     }
   }
 }
+
+// The home page lists every active campaign (specs/multi-domain §6.5).
+const campaigns = state === "home" ? await listActiveCampaigns() : [];
 
 if (state === "not-found") {
   Astro.response.status = 404;
@@ -163,10 +168,19 @@ const robots =
     ) : (
       <PublicState
         eyebrow="Lions helfen vor Ort"
-        message="Über die Aktionsadresse Ihres Lions Clubs gelangen Sie direkt zur aktuell veröffentlichten Charity-Aktion."
+        message={
+          campaigns.length > 0
+            ? "Wählen Sie eine laufende Charity-Aktion Ihres Lions Clubs."
+            : "Über die Aktionsadresse Ihres Lions Clubs gelangen Sie direkt zur aktuell veröffentlichten Charity-Aktion."
+        }
         state="home"
         title="Engagement, das ankommt."
       />
+    )
+  }
+  {
+    state === "home" && campaigns.length > 0 && (
+      <PublicCampaignList campaigns={campaigns} />
     )
   }
   {state === "home" && moduleEnabled("inbox") && <PublicInbox />}

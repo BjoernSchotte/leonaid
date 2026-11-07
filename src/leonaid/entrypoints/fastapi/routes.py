@@ -122,6 +122,7 @@ from leonaid.application.actions import (
     PublicActionRouteKind,
     UpdateActionDetailsDraft,
 )
+from leonaid.application.links import LinkBuilder
 from leonaid.application.errors import (
     Conflict,
     DependencyUnavailable,
@@ -388,6 +389,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
+    PublicCampaignListItemResponse,
+    PublicCampaignListResponse,
     PublicCampaignRouteResponse,
     PublicLegalNoticeResponse,
     PublicLegalProviderResponse,
@@ -2051,6 +2054,40 @@ async def resolve_public_action_archive(
         "public, max-age=300, stale-while-revalidate=3600"
     )
     return public_action_route_response(route)
+
+
+@router.get(
+    "/api/v1/public/campaigns",
+    operation_id="listPublicCampaigns",
+    response_model=PublicCampaignListResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def list_public_campaigns(
+    request: Request,
+    response: Response,
+    availability: Literal["active"] = "active",
+) -> PublicCampaignListResponse:
+    """Active campaigns for the home page of the public host (§6.5)."""
+    listings = await action_service(request).list_active_public_campaigns()
+    links = cast(LinkBuilder, request.app.state.links)
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+    return PublicCampaignListResponse(
+        items=[
+            PublicCampaignListItemResponse(
+                archive_slug=listing.action.archive_slug,
+                name=listing.action.name,
+                purpose=listing.action.purpose,
+                carrier_name=listing.action.carrier_name,
+                presentation_theme=listing.action.presentation_theme,
+                starts_on=listing.action.starts_on,
+                ends_on=listing.action.ends_on,
+                canonical_path=listing.canonical_path,
+                canonical_url=links.site_url(listing.canonical_path),
+            )
+            for listing in listings
+        ]
+    )
 
 
 @router.get(
