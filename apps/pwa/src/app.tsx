@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Download, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,8 +26,12 @@ import {
   StatusMessage,
 } from "@leonaid/ui";
 
+import { OfflineRuntimeContext } from "@leonaid/features/offline";
+
+import { forgetDevice, forgetReadCache } from "./device";
 import { pwaModuleNavigationKeys, pwaModules, pwaPath } from "./modules";
 import { mobileNavigation } from "./navigation";
+import { useDevice } from "./use-device";
 import {
   ADMIN_BASE,
   PWA_BASE,
@@ -270,23 +273,20 @@ export function App({ client }: AppProps) {
   useLocationHref();
   const currentActionId = useCurrentActionId();
   const lifecycle = usePwaLifecycle();
-  const identity = useQuery({
-    queryFn: () => client.getCurrentIdentity(),
-    queryKey: ["identity"],
-    retry: (failureCount, error) =>
-      !(error instanceof ApiError) && failureCount < 2,
-    retryDelay: (attempt) => 150 * (attempt + 1),
-    staleTime: 30_000,
-  });
+  const device = useDevice(client, lifecycle.online);
+  const identity = device.identity;
 
   // Without a session: the deep link survives the login (specs/multi-domain
-  // §6.7). An ended session shows the notice below first.
+  // §6.7). An ended session shows the notice below first. The read cache
+  // goes with the session; queued entries stay (offline queue §8.5).
   useEffect(() => {
     if (
       identity.error instanceof ApiError &&
       redirectsToLogin(identity.error)
     ) {
-      window.location.replace(loginHref(window.location));
+      void forgetReadCache()
+        .catch(() => undefined)
+        .finally(() => window.location.replace(loginHref(window.location)));
     }
   }, [identity.error]);
 
@@ -386,53 +386,59 @@ export function App({ client }: AppProps) {
     : undefined;
 
   return (
-    <PwaShell
-      campaign={currentAction}
-      navigation={identity.data.navigation}
-      surfaces={surfaces}
-      menuSearch={
-        <ModuleSearch
-          client={client}
-          identity={identity.data}
-          modules={availableModules}
-          surface="pwa"
-        />
-      }
-      notices={<PwaNotices lifecycle={lifecycle} />}
-      offline={!lifecycle.online}
-      onLogout={() => {
-        void client.logout().finally(() => {
-          window.location.assign("/login");
-        });
-      }}
-      person={identity.data.displayName}
-      role={identity.data.roleLabels.join(" · ")}
-    >
-      {moduleRoute ? (
-        moduleRoute.render({ client, identity: identity.data })
-      ) : route === "sponsors" ? (
-        <SponsorWorkspace client={client} identity={identity.data} />
-      ) : route === "commitment" ? (
-        <CommitmentCapturePage client={client} identity={identity.data} />
-      ) : route === "follow-ups" ? (
-        <ActivityWorkspace client={client} identity={identity.data} />
-      ) : route === "news" ? (
-        <ActivityFeedPage client={client} surface="pwa" />
-      ) : route === "delivery" ? (
-        <DeliveryBoardPage
-          actionId={driverActionId}
-          actions={driverActions}
-          client={client}
-          offline={!lifecycle.online}
-          surface="pwa"
-        />
-      ) : (
-        <RoleDashboardPage
-          client={client}
-          identity={identity.data}
-          mode="acquirer"
-        />
-      )}
-    </PwaShell>
+    <OfflineRuntimeContext.Provider value={device.runtime}>
+      <PwaShell
+        campaign={currentAction}
+        navigation={identity.data.navigation}
+        surfaces={surfaces}
+        menuSearch={
+          <ModuleSearch
+            client={client}
+            identity={identity.data}
+            modules={availableModules}
+            surface="pwa"
+          />
+        }
+        notices={<PwaNotices lifecycle={lifecycle} />}
+        offline={!lifecycle.online}
+        onLogout={() => {
+          // Sign-out deletes everything the PWA kept on this device (§8.5).
+          void forgetDevice(identity.data.userId)
+            .catch(() => undefined)
+            .then(() => client.logout())
+            .finally(() => {
+              window.location.assign("/login");
+            });
+        }}
+        person={identity.data.displayName}
+        role={identity.data.roleLabels.join(" · ")}
+      >
+        {moduleRoute ? (
+          moduleRoute.render({ client, identity: identity.data })
+        ) : route === "sponsors" ? (
+          <SponsorWorkspace client={client} identity={identity.data} />
+        ) : route === "commitment" ? (
+          <CommitmentCapturePage client={client} identity={identity.data} />
+        ) : route === "follow-ups" ? (
+          <ActivityWorkspace client={client} identity={identity.data} />
+        ) : route === "news" ? (
+          <ActivityFeedPage client={client} surface="pwa" />
+        ) : route === "delivery" ? (
+          <DeliveryBoardPage
+            actionId={driverActionId}
+            actions={driverActions}
+            client={client}
+            offline={!lifecycle.online}
+            surface="pwa"
+          />
+        ) : (
+          <RoleDashboardPage
+            client={client}
+            identity={identity.data}
+            mode="acquirer"
+          />
+        )}
+      </PwaShell>
+    </OfflineRuntimeContext.Provider>
   );
 }

@@ -6,7 +6,15 @@
 const BUILD_ID = "__LEONAID_BUILD_ID__";
 const BUILD_ASSETS = /* __LEONAID_BUILD_ASSETS__ */ [];
 const CACHE_NAME = `leonaid-pwa-${BUILD_ID}`;
+// Outlives builds: whether /app/ may start from the cache. The page sets it
+// while the flag pwa.offline_queue is on (specs/pwa-offline-queue §8.1).
+const SETTINGS_CACHE = "leonaid-pwa-settings";
+const OFFLINE_START_KEY = "__LEONAID_PWA_BASE__offline-start";
+const SHELL_URL = "__LEONAID_PWA_BASE__";
 const OFFLINE_URL = "__LEONAID_PWA_BASE__offline.html";
+// App screens that work from the device copy; every other path (modules,
+// the delivery board, unknown paths) keeps the offline explanation.
+const OFFLINE_SCREENS = ["sponsors", "activities", "commitments"];
 // The offline page loads its stylesheet and script from files because the
 // Content-Security-Policy forbids inline code; they are cached with it.
 const OFFLINE_RESOURCES = [
@@ -39,7 +47,10 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           keys
             .filter(
-              (key) => key.startsWith("leonaid-pwa-") && key !== CACHE_NAME,
+              (key) =>
+                key.startsWith("leonaid-pwa-") &&
+                key !== CACHE_NAME &&
+                key !== SETTINGS_CACHE,
             )
             .map((key) => caches.delete(key)),
         ),
@@ -52,7 +63,33 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+  if (event.data?.type === "OFFLINE_START") {
+    event.waitUntil(setOfflineStart(event.data.enabled === true));
+  }
 });
+
+async function setOfflineStart(enabled) {
+  const settings = await caches.open(SETTINGS_CACHE);
+  if (enabled) {
+    await settings.put(
+      OFFLINE_START_KEY,
+      new Response("true", { headers: { "content-type": "text/plain" } }),
+    );
+  } else {
+    await settings.delete(OFFLINE_START_KEY);
+  }
+}
+
+async function offlineStartEnabled() {
+  const settings = await caches.open(SETTINGS_CACHE);
+  return Boolean(await settings.match(OFFLINE_START_KEY));
+}
+
+function isOfflineScreen(pathname) {
+  if (!pathname.startsWith(SHELL_URL)) return false;
+  const screen = pathname.slice(SHELL_URL.length).replace(/\/+$/, "");
+  return screen === "" || OFFLINE_SCREENS.includes(screen);
+}
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
@@ -77,6 +114,10 @@ self.addEventListener("fetch", (event) => {
           }
         }
         const cache = await caches.open(CACHE_NAME);
+        if (isOfflineScreen(url.pathname) && (await offlineStartEnabled())) {
+          const shell = await cache.match(SHELL_URL);
+          if (shell) return shell;
+        }
         return (await cache.match(OFFLINE_URL)) ?? Response.error();
       })(),
     );

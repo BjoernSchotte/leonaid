@@ -14,6 +14,7 @@ from leonaid.domain.identity import IdentityPrincipal
 class FeatureFlagKey(StrEnum):
     SYSTEM_STATUS_PANEL = "admin.system_status_panel"
     PREVIEW_NOTICE = "admin.preview_notice"
+    PWA_OFFLINE_QUEUE = "pwa.offline_queue"
 
 
 class FeatureFlagSurface(StrEnum):
@@ -51,6 +52,25 @@ FEATURE_FLAG_CATALOG = (
             "Erprobungsstand der Oberfläche."
         ),
         effect="Alle angemeldeten Portal-Nutzer sehen den Hinweis.",
+        default_enabled=False,
+        client_safe=True,
+    ),
+    # specs/pwa-offline-queue §16: switched on once the device-storage
+    # paragraph of the privacy notice is live (D8).
+    FeatureFlagDefinition(
+        key=FeatureFlagKey.PWA_OFFLINE_QUEUE,
+        title="Offline-Erfassung in der Akquise-App",
+        description=(
+            "Die Akquise-App startet ohne Verbindung, hält die eigene "
+            "Sponsorenliste verschlüsselt auf dem Gerät und sendet offline "
+            "erfasste Kontakte und Bestellungen, sobald wieder Verbindung "
+            "besteht."
+        ),
+        effect=(
+            "Akquisiteure in der PWA; Gerätespeicher gemäß "
+            "Datenschutzhinweis. Ausschalten löscht nach dem Senden der "
+            "Warteschlange die Daten auf den Geräten."
+        ),
         default_enabled=False,
         client_safe=True,
     ),

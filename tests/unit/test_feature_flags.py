@@ -117,3 +117,25 @@ def test_feature_flag_state_requires_monotonic_revision_and_aware_time() -> None
         )
 
     assert captured.value.code == "feature_flag_revision_invalid"
+
+
+def test_offline_queue_flag_ships_off_and_matches_transport_and_schema() -> None:
+    """specs/pwa-offline-queue §16: the PWA reads the flag; it starts off."""
+    from pathlib import Path
+    from typing import get_args
+
+    from leonaid.entrypoints.fastapi.schemas import FeatureFlagKeyValue
+
+    definition = FEATURE_FLAG_DEFINITIONS[FeatureFlagKey.PWA_OFFLINE_QUEUE]
+    assert definition.key.value == "pwa.offline_queue"
+    assert definition.default_enabled is False
+    assert definition.client_safe is True
+    assert set(get_args(FeatureFlagKeyValue)) == {
+        key.value for key in FeatureFlagKey
+    }
+    migration = (
+        Path(__file__).resolve().parents[2]
+        / "migrations/versions/0057_pwa_offline_queue_flag.py"
+    ).read_text(encoding="utf-8")
+    for key in FeatureFlagKey:
+        assert f"'{key.value}'" in migration

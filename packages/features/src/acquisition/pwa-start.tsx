@@ -198,6 +198,7 @@ export function AcquirerStart({
           <BoardLoading label="Wiedervorlagen werden geladen" />
         ) : board.isError ? (
           <BoardFailed
+            error={board.error}
             onRetry={() => void board.refetch()}
             title="Wiedervorlagen nicht erreichbar"
           />

@@ -1023,6 +1023,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
     <BoardLoading label="Sponsoren werden geladen" />
   ) : board.isError ? (
     <BoardFailed
+      error={board.error}
       onRetry={() => void board.refetch()}
       retryLabel="Sponsoren neu laden"
       title="Sponsorenliste nicht erreichbar"

@@ -349,6 +349,28 @@ compose run --rm --no-deps --entrypoint alembic api downgrade "$site_parent"
 }
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 
+echo "poc021-test: 0057 registers the offline-queue flag switched off"
+flag_parent=$(sed -n 's/^down_revision: str | None = "\(.*\)"$/\1/p' \
+  "$root/migrations/versions/0057_pwa_offline_queue_flag.py")
+[ -n "$flag_parent" ] || {
+  echo "poc021-test: ERROR: 0057 names no down_revision" >&2
+  exit 1
+}
+[ "$(printf '%s\n' "SELECT enabled FROM feature_flag WHERE key = 'pwa.offline_queue';" | preference_sql)" = "f" ] || {
+  echo "poc021-test: ERROR: 0057 did not register pwa.offline_queue switched off" >&2
+  exit 1
+}
+if printf '%s\n' "INSERT INTO feature_flag (id, key, enabled) VALUES ('95000000-0000-4000-8000-0000000000ff', 'pwa.unknown', false);" | preference_sql 2>/dev/null; then
+  echo "poc021-test: ERROR: 0057 accepted an unknown flag key" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api downgrade "$flag_parent"
+[ -z "$(printf '%s\n' "SELECT 1 FROM feature_flag WHERE key = 'pwa.offline_queue';" | preference_sql)" ] || {
+  echo "poc021-test: ERROR: 0057 downgrade kept the flag row" >&2
+  exit 1
+}
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "poc021-test: 0050 downgrade refuses payment data the old schema cannot hold"
 payment_guard() {
   compose run --rm --user "$(id -u):$(id -g)" --no-deps \

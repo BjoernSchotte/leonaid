@@ -26,6 +26,7 @@ KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 SESSION_NAMESPACE = UUID("f7bff30c-b132-43b2-bcb4-26776db4cf83")
 SYSTEM_STATUS_KEY = "admin.system_status_panel"
 PREVIEW_NOTICE_KEY = "admin.preview_notice"
+PWA_OFFLINE_QUEUE_KEY = "pwa.offline_queue"
 
 
 class ContractFailure(RuntimeError):
@@ -130,7 +131,11 @@ async def prepare(
         )
         admin.raise_for_status()
         flags = flags_by_key(admin.json())
-        if set(flags) != {SYSTEM_STATUS_KEY, PREVIEW_NOTICE_KEY} or any(
+        if set(flags) != {
+            SYSTEM_STATUS_KEY,
+            PREVIEW_NOTICE_KEY,
+            PWA_OFFLINE_QUEUE_KEY,
+        } or any(
             flag.get("enabled") is not False or flag.get("revision") != 1
             for flag in flags.values()
         ):
@@ -211,6 +216,12 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
             "enabled": True,
             "revision": 4,
             "updatedBy": str(SIMONE_ID),
+        },
+        # Untouched by this contract: still the row of migration 0057.
+        PWA_OFFLINE_QUEUE_KEY: {
+            "enabled": False,
+            "revision": 1,
+            "updatedBy": "None",
         },
     }
     if persisted != expected:
