@@ -16,7 +16,7 @@ CLEAN = {
     "packages/features/src/link.tsx": "const href = `${ADMIN_BASE}orders`;\n",
     "packages/features/src/helper.ts": 'const href = adminHref("actions");\n',
     "packages/features/src/comment.tsx": '// Links "/admin/orders" through adminHref.\n',
-    "packages/features/src/block.tsx": '/**\n * `/admin/surveys/<id>` view.\n */\n',
+    "packages/features/src/block.tsx": "/**\n * `/admin/surveys/<id>` view.\n */\n",
     "packages/features/src/list.test.tsx": 'expect(href).toBe("/admin/orders");\n',
     "apps/public/src/lib/__tests__/x.ts": 'const a = "/app/";\n',
     "apps/web/node_modules/lib/index.js": 'location.href = "/admin/";\n',
@@ -67,12 +67,16 @@ def main() -> int:
         clean = run(root)
         if clean.returncode != 0:
             print(clean.stdout + clean.stderr, file=sys.stderr)
-            print("base-path-literals-test: ERROR: clean tree rejected", file=sys.stderr)
+            print(
+                "base-path-literals-test: ERROR: clean tree rejected", file=sys.stderr
+            )
             return 1
         write(root, DIRTY)
         dirty = run(root)
         if dirty.returncode == 0:
-            print("base-path-literals-test: ERROR: dirty tree accepted", file=sys.stderr)
+            print(
+                "base-path-literals-test: ERROR: dirty tree accepted", file=sys.stderr
+            )
             return 1
         for relative in DIRTY:
             if f"{relative}:1:" not in dirty.stdout:
@@ -94,7 +98,9 @@ def main() -> int:
             print(report.stdout + report.stderr, file=sys.stderr)
             print("base-path-literals-test: ERROR: --report failed", file=sys.stderr)
             return 1
-    print("base-path-literals-test: OK: literals found, constants, comments and tests pass")
+    print(
+        "base-path-literals-test: OK: literals found, constants, comments and tests pass"
+    )
     return 0
 
 

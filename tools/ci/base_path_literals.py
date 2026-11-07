@@ -128,8 +128,11 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"base-path-literals: OK: {len(found)} finding(s) reported" if report
-          else "base-path-literals: OK: links use the base-path constants")
+    print(
+        f"base-path-literals: OK: {len(found)} finding(s) reported"
+        if report
+        else "base-path-literals: OK: links use the base-path constants"
+    )
     return 0
 
 
