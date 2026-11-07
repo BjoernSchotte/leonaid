@@ -4,9 +4,9 @@ description: Submit a binding order from a published campaign page without a Leo
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -36,6 +36,19 @@ above the form with a link to each affected field. Your entries stay.
 The confirmation displays **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** and a reference in the form `LA-…`. Keep it for questions. The
 invoice follows separately after the club reviews the order.
+
+Shortly after, the order confirmation **Ihre Bestellung bei …** (your order
+at …) arrives at the e-mail address you entered. It contains the order number,
+the items with quantity and price, the total, the chosen delivery window, the
+delivery and billing addresses, a link to the campaign page, and the provider,
+contact and links to the Impressum and the privacy policy (`/datenschutz`) from
+the club's legal settings. It does not repeat the message to the club or the
+delivery contact. Each order sends one confirmation, even if you submit the form
+more than once. If the order is cancelled before the confirmation goes out,
+only the cancellation notice is sent. One address gets at most ten order
+e-mails per hour. The form refuses line breaks and invisible control
+characters in names and addresses. If the e-mail is missing, check the spam folder and
+contact the club with the reference.
 
 If the selected delivery window becomes fully booked or is retired while you
 fill the form, the form does not accept the order, refreshes the windows and

@@ -8,6 +8,7 @@ import asyncpg
 from fastapi import APIRouter, FastAPI
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.delivery_board import AsyncpgDeliveryBoardRepository
 from leonaid.adapters.postgres.order_cancellation import (
     AsyncpgOrderCancellationRepository,
@@ -167,7 +168,10 @@ def build_delivery_board_service(
 
 
 def build_order_cancellation_service(
-    pool: asyncpg.Pool[Any], disabled: frozenset[str]
+    pool: asyncpg.Pool[Any],
+    disabled: frozenset[str],
+    *,
+    mail_links: OrderMailLinkResolver | None = None,
 ) -> OrderCancellationService:
     """Cancelling closes the order's "Nachliefern" task while tasks is on."""
     tasks_enabled = any(
@@ -178,7 +182,8 @@ def build_order_cancellation_service(
         AsyncpgOrderCancellationRepository(
             pool,
             (lambda _connection: follow_up) if follow_up is not None else None,
-        )
+        ),
+        mail_links=mail_links,
     )
 
 
