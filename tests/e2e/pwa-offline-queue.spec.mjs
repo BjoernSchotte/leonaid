@@ -40,6 +40,36 @@ async function authenticate(context) {
   ]);
 }
 
+/** Waits until the device copy of the sponsor list and order context exists. */
+async function deviceCopyReady(page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const userId = localStorage.getItem("leonaid-pwa-active-user");
+          if (!userId) return [];
+          const names = (await indexedDB.databases()).map((item) => item.name);
+          if (!names.includes(`leonaid-pwa-v1-${userId}`)) return [];
+          const database = await new Promise((resolve, reject) => {
+            const request = indexedDB.open(`leonaid-pwa-v1-${userId}`);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          const ids = await new Promise((resolve) => {
+            const request = database
+              .transaction("cache")
+              .objectStore("cache")
+              .getAllKeys();
+            request.onsuccess = () => resolve(request.result);
+          });
+          database.close();
+          return ids.map((id) => id.split(":")[0]).sort();
+        }),
+      { timeout: 30_000 },
+    )
+    .toEqual(["board", "capture"]);
+}
+
 async function controlled(page) {
   await expect
     .poll(
@@ -109,6 +139,7 @@ test("captures made offline are kept on the device and sent once online", async 
     .filter({ hasText: "Musterwerk GmbH" });
   await expect(row).toBeVisible();
   await controlled(page);
+  await deviceCopyReady(page);
   const indicator = page.getByTestId("network-state");
   await expect(indicator).toHaveAccessibleName("Online");
 
