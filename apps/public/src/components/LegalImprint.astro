@@ -63,7 +63,11 @@ const register = providerRegister(provider);
       register && (
         <div>
           <dt>Registereintrag</dt>
-          <dd data-imprint-register>Vereinsregister: {register}</dd>
+          <dd data-imprint-register>
+            {provider.registerLabel
+              ? `${provider.registerLabel}: ${register}`
+              : register}
+          </dd>
         </div>
       )
     }

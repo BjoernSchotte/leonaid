@@ -31,10 +31,13 @@ deinem Namen beziehungsweise im Menü **Mehr**.
      Beispiel der Vorstand nach § 26 BGB. Pflichtfeld.
    - **Telefon**: der zweite schnelle Kontaktweg neben der E-Mail-Adresse.
      Pflichtfeld.
-   - **Registergericht** und **Registernummer**: bei einem eingetragenen
-     Verein das Vereinsregister, zum Beispiel „Amtsgericht Augsburg“ und
-     „VR 1234“. Beide Felder gehören zusammen.
-   - **Umsatzsteuer-ID**: nur, wenn der Verein eine hat.
+   - **Registergericht** und **Registernummer**: der Registereintrag, den die
+     Rechtsform verlangt, zum Beispiel „Amtsgericht Augsburg“ und „VR 1234“
+     beim eingetragenen Verein, „HRB 5678“ bei einer GmbH oder gGmbH, „GnR 12“
+     bei einer Genossenschaft. Beide Felder gehören zusammen. Das Impressum
+     nennt das Register nach dem Kürzel der Nummer.
+   - **Umsatzsteuer-ID**: wenn der Verein eine hat. Steht unter
+     **Steuerkennung** eine Umsatzsteuer-ID, ist das Feld Pflicht.
    - **Inhaltlich verantwortlich** und **Anschrift der verantwortlichen
      Person**: für redaktionelle Inhalte wie Kampagnenseiten und Neuigkeiten
      (§ 18 Abs. 2 MStV). Beide Felder gehören zusammen.
@@ -55,7 +58,10 @@ deinem Namen beziehungsweise im Menü **Mehr**.
    Ansprechperson, Telefonnummer und E-Mail-Adresse sowie noch nicht gesendete
    Einträge), dass sie verschlüsselt sind, dass nicht gesendete Einträge nach
    14 Tagen ablaufen und dass Abmelden oder die Anmeldung einer anderen Person
-   alles löscht. Prüfe ihn wie den übrigen Text.
+   alles löscht. Er beschreibt die Offline-Erfassung der Akquise-App. Behalte
+   ihn nur, wenn die Offline-Erfassung aktiv ist, sonst lösche den ganzen
+   Abschnitt. Die Vorlage markiert das mit einem `[[ … ]]`-Hinweis, der die
+   Aktivierung blockiert, bis du ihn entfernst.
 4. Format: Trenne Absätze durch eine Leerzeile. `## ` am Zeilenanfang beginnt
    eine Überschrift, `- ` einen Listenpunkt.
 5. Wähle **Als Entwurf speichern**.
@@ -83,11 +89,23 @@ fehlt:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** oder **fehlt
   die Telefonnummer**: Bereich **Impressum** ergänzen.
-- **Im Impressum fehlt der Eintrag im Vereinsregister**: Der Name des Trägers
-  enthält „e. V.“. Trage Registergericht und Registernummer ein.
+- **Im Impressum fehlt der Registereintrag**: Der Name des Trägers enthält
+  eine Rechtsform mit Register, zum Beispiel „e. V.“, „GmbH“, „gGmbH“ oder
+  „eG“. Trage Registergericht und Registernummer ein.
+- **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
+  Impressum**: Trage sie unter **Umsatzsteuer-ID** ein.
 - **Die Datenschutzerklärung fehlt** oder **Der Datenschutzhinweis für
   Mitglieder fehlt**: Text im Bereich **Datenschutzerklärung** eintragen.
 - **Ein Text enthält noch offene Vorlagen-Platzhalter**: Alle Stellen mit
   `[[ … ]]` ergänzen oder löschen.
 
 Bearbeite den Entwurf, speichere ihn und lass ihn erneut freigeben.
+
+## Nach einem Update
+
+Kommen neue Pflichtangaben hinzu, kann die aktive Version danach
+unvollständig sein. **Rechtliches** zeigt dann oben **Die aktive Version … ist
+unvollständig** mit den fehlenden Punkten. Lege einen neuen Entwurf an, lass
+ihn freigeben und aktiviere ihn. Felder, die eine ältere geöffnete
+Verwaltungsseite nicht kennt, übernimmt LeonAid beim Speichern aus der
+vorigen Version.

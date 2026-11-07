@@ -945,6 +945,8 @@ class PublicLegalProviderResponse(TransportModel):
     representatives: str | None = None
     register_court: str | None = None
     register_number: str | None = None
+    # "Vereinsregister", "Handelsregister", … from the number or legal form.
+    register_label: str | None = None
     vat_id: str | None = None
     content_responsible_name: str | None = None
     content_responsible_address: str | None = None

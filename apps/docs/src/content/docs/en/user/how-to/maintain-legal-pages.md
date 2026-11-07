@@ -31,10 +31,13 @@ app and in the acquisition app, the links are below your name or in the
      for example the board under § 26 BGB. Required.
    - **Telefon**: the second fast contact channel next to the e-mail address.
      Required.
-   - **Registergericht** and **Registernummer**: for a registered association
-     the Vereinsregister, for example "Amtsgericht Augsburg" and "VR 1234".
-     Both fields belong together.
-   - **Umsatzsteuer-ID**: only if the club has one.
+   - **Registergericht** and **Registernummer**: the register entry the legal
+     form requires, for example "Amtsgericht Augsburg" and "VR 1234" for a
+     registered association, "HRB 5678" for a GmbH or gGmbH, "GnR 12" for a
+     cooperative. Both fields belong together. The Impressum names the
+     register from the number's prefix.
+   - **Umsatzsteuer-ID**: if the club has one. If **Steuerkennung** holds a
+     VAT ID, the field is required.
    - **Inhaltlich verantwortlich** and **Anschrift der verantwortlichen
      Person**: for editorial content such as campaign pages and news
      (§ 18 (2) MStV). Both fields belong together.
@@ -53,7 +56,10 @@ app and in the acquisition app, the links are below your name or in the
    offline capture (own sponsors with contact name, phone number and e-mail
    address, and entries not sent yet), that they are encrypted, that unsent
    entries expire after 14 days and that signing out or another person signing
-   in deletes everything. Review it like the rest of the text.
+   in deletes everything. It describes the acquisition app's offline capture.
+   Keep it only when offline capture is active; otherwise delete the whole
+   section. The template marks this with a `[[ … ]]` note that blocks
+   activation until you remove it.
 4. Format: separate paragraphs with an empty line. `## ` at the start of a line
    starts a heading, `- ` a list item.
 5. Choose **Als Entwurf speichern**.
@@ -79,11 +85,22 @@ aktivierbar**:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** or **fehlt die
   Telefonnummer**: complete the **Impressum** part.
-- **Im Impressum fehlt der Eintrag im Vereinsregister**: the carrier's name
-  contains "e. V.". Enter the register court and number.
+- **Im Impressum fehlt der Registereintrag**: the carrier's name contains a
+  legal form with a register, for example "e. V.", "GmbH", "gGmbH" or "eG".
+  Enter the register court and number.
+- **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
+  Impressum**: enter it under **Umsatzsteuer-ID**.
 - **Die Datenschutzerklärung fehlt** or **Der Datenschutzhinweis für
   Mitglieder fehlt**: enter the text in the **Datenschutzerklärung** part.
 - **Ein Text enthält noch offene Vorlagen-Platzhalter**: complete or delete
   every `[[ … ]]`.
 
 Edit the draft, save it and have it approved again.
+
+## After an update
+
+When new mandatory details are added, the active version can be incomplete
+afterwards. **Rechtliches** then shows **Die aktive Version … ist
+unvollständig** at the top with the missing points. Create a new draft, have
+it approved and activate it. Fields that an older open admin page does not
+know are taken over from the previous version when you save.

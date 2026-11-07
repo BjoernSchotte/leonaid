@@ -158,7 +158,9 @@ const blockerLabels: Record<string, string> = {
     "Im Impressum fehlen die vertretungsberechtigten Personen.",
   imprint_phone_missing: "Im Impressum fehlt die Telefonnummer.",
   imprint_register_missing:
-    "Im Impressum fehlt der Eintrag im Vereinsregister (Gericht und Nummer).",
+    "Im Impressum fehlt der Registereintrag (Gericht und Nummer), den die Rechtsform verlangt.",
+  imprint_vat_id_missing:
+    "Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins Impressum.",
   privacy_policy_missing: "Die Datenschutzerklärung fehlt.",
   member_privacy_notice_missing: "Der Datenschutzhinweis für Mitglieder fehlt.",
   template_placeholder_open:
@@ -190,16 +192,15 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
     invoiceRetentionDays: String(values.retention.invoiceDays),
     issuerEmail: values.issuer.email,
     legalName: values.issuer.legalName,
-    // Versions from before the privacy page start from the template.
-    memberPrivacyNoticeText:
-      values.memberPrivacyNoticeText ?? MEMBER_PRIVACY_NOTICE_TEMPLATE,
+    // Shows what is stored: an empty text stays empty (four-eyes review).
+    memberPrivacyNoticeText: values.memberPrivacyNoticeText ?? "",
     numberPrefix: values.numberPrefix,
     numberWidth: String(values.numberWidth),
     paymentTermsDays: String(values.paymentTermsDays),
     postalCode: values.issuer.postalCode,
     privacyContactEmail: values.privacyContactEmail,
     privacyEvidenceId: values.privacyEvidenceId,
-    privacyPolicyText: values.privacyPolicyText ?? PRIVACY_POLICY_TEMPLATE,
+    privacyPolicyText: values.privacyPolicyText ?? "",
     publicOrderLegalBasis: values.publicOrderLegalBasis,
     publicOrderNoticeText: values.publicOrderNoticeText,
     streetLine1: values.issuer.streetLine1,
@@ -208,6 +209,20 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
     taxNote: values.taxNote,
     taxRatePercent: String(values.taxRateBasisPoints / 100),
     taxTreatment: values.taxTreatment,
+  };
+}
+
+/**
+ * The form a new edit starts from: empty privacy texts get the templates.
+ * Only an edit seeds them; stored versions are always shown as stored, so
+ * the reviewer sees a new policy as new.
+ */
+function seedForEditing(form: LegalForm): LegalForm {
+  return {
+    ...form,
+    memberPrivacyNoticeText:
+      form.memberPrivacyNoticeText || MEMBER_PRIVACY_NOTICE_TEMPLATE,
+    privacyPolicyText: form.privacyPolicyText || PRIVACY_POLICY_TEMPLATE,
   };
 }
 
@@ -392,21 +407,21 @@ const PARTS = [
       {
         key: "imprintVatId",
         label: "Umsatzsteuer-ID",
-        hint: "Nur angeben, wenn der Verein eine USt-IdNr. nach § 27a UStG hat.",
+        hint: "Angeben, wenn der Verein eine USt-IdNr. nach § 27a UStG hat; Pflicht, wenn sie als Steuerkennung auf Rechnungen steht.",
         placeholder: "DE123456789",
         optional: true,
       },
       {
         key: "imprintRegisterCourt",
         label: "Registergericht",
-        hint: "Bei einem eingetragenen Verein: das Amtsgericht des Vereinsregisters. Zusammen mit der Registernummer angeben.",
+        hint: "Bei eingetragenem Verein, GmbH, gGmbH oder Genossenschaft: das Registergericht. Zusammen mit der Registernummer angeben.",
         placeholder: "Amtsgericht Augsburg",
         optional: true,
       },
       {
         key: "imprintRegisterNumber",
         label: "Registernummer",
-        hint: "Nummer im Vereinsregister, z. B. VR 1234.",
+        hint: "Nummer im Register, z. B. VR 1234 (Vereinsregister) oder HRB 5678 (Handelsregister).",
         placeholder: "VR 1234",
         optional: true,
       },
@@ -856,7 +871,9 @@ export function LegalConfigurationPage({
   const startEditing = useCallback(() => {
     if (!state) return;
     const source = state.draft ?? state.active;
-    const values = source ? formFromValues(source.values) : emptyForm;
+    const values = seedForEditing(
+      source ? formFromValues(source.values) : emptyForm,
+    );
     setForm(values);
     setBaseline(values);
     setError(undefined);
@@ -945,6 +962,9 @@ export function LegalConfigurationPage({
   const draftForm = draft ? formFromValues(draft.values) : null;
   const authoredByViewer = draft?.createdByUserId === identity.userId;
   const blockers = draft?.values.activationBlockers ?? [];
+  // A version activated before newer requirements (e.g. the Impressum fields
+  // of migration 0052) can be incomplete now; say so instead of hiding it.
+  const activeBlockers = active?.values.activationBlockers ?? [];
   const changedParts = new Set(
     PARTS.filter(
       (item) => changedFields(item, activeForm, draftForm).length,
@@ -967,6 +987,26 @@ export function LegalConfigurationPage({
         Vier-Augen-Prinzip: Eine Person entwirft, eine zweite gibt frei. Jede
         Version bleibt nachvollziehbar.
       </p>
+
+      {active && activeBlockers.length ? (
+        <div
+          className="callout tone-warn legal-active-blockers"
+          data-testid="legal-active-blockers"
+          role="status"
+        >
+          <Icon icon={CircleAlert} size={16} />
+          <span>
+            <strong>
+              Die aktive Version {active.version} ist unvollständig:
+            </strong>{" "}
+            {activeBlockers
+              .map((blocker) => blockerLabels[blocker] ?? blocker)
+              .join(" ")}{" "}
+            Legen Sie einen neuen Entwurf an, lassen Sie ihn freigeben und
+            aktivieren Sie ihn.
+          </span>
+        </div>
+      ) : null}
 
       {error ? (
         <StatusMessage className="legal-error" tone="error">

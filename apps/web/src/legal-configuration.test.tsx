@@ -528,6 +528,12 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     expect(notice.value).toContain("Telefonnummer und E-Mail-Adresse");
     expect(notice.value).toContain("14 Tage");
     expect(notice.value).toContain("Wenn du dich abmeldest, löscht die App");
+    expect(notice.value).toContain("Endet deine Mitarbeit in einer Aktion");
+    // The device section describes the offline queue: the club must decide
+    // consciously whether it applies yet.
+    expect(notice.value).toContain(
+      "[[Diesen Abschnitt nur behalten, wenn die Offline-Erfassung",
+    );
     const policy = within(editor).getByLabelText(
       /^Datenschutzerklärung/,
     ) as HTMLTextAreaElement;
@@ -579,6 +585,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
             "imprint_representatives_missing",
             "imprint_phone_missing",
             "imprint_register_missing",
+            "imprint_vat_id_missing",
             "privacy_policy_missing",
             "member_privacy_notice_missing",
             "template_placeholder_open",
@@ -591,7 +598,8 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     for (const label of [
       "Im Impressum fehlen die vertretungsberechtigten Personen.",
       "Im Impressum fehlt die Telefonnummer.",
-      "Im Impressum fehlt der Eintrag im Vereinsregister",
+      "Im Impressum fehlt der Registereintrag",
+      "sie gehört auch ins Impressum",
       "Die Datenschutzerklärung fehlt.",
       "Der Datenschutzhinweis für Mitglieder fehlt.",
       "offene Vorlagen-Platzhalter",
@@ -599,5 +607,84 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       expect(blockers).toContain(label);
     }
     expect(blockers).not.toContain("_missing");
+  });
+
+  it("shows stored privacy texts as stored and a new policy as a change", async () => {
+    const policy = "## Verantwortlicher\n\nDer Club schreibt diesen Text.";
+    const client = fakeClient(
+      stateWith({
+        // Activated before the privacy page existed: no texts.
+        active: version(1, simone),
+        draft: version(2, klara, { privacyPolicyText: policy }),
+      }),
+    );
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/privacy-page",
+    );
+
+    const parts = await screen.findByRole("navigation", {
+      name: "Bereiche der rechtlichen Angaben",
+    });
+    const privacyPart = parts.querySelector(
+      'a[href="/admin/legal/privacy-page"]',
+    );
+    expect(privacyPart?.textContent).toContain("Entwurf v2");
+    const draft = screen.getByTestId("legal-draft");
+    const diff = within(draft).getByRole("group", { name: "Änderungen" });
+    // Before: nothing stored; after: the whole new text. No template.
+    expect(diff.textContent).toContain("−");
+    expect(diff.textContent).toContain("Der Club schreibt diesen Text.");
+    expect(diff.textContent).not.toContain("[[");
+    expect(screen.queryByText(/Hosting-Anbieter/)).toBeNull();
+  });
+
+  it("does not present the template as the active text", async () => {
+    const client = fakeClient(
+      stateWith({ active: version(1, simone), draft: null }),
+    );
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/privacy-page",
+    );
+    const heading = await screen.findByText("Geltende Angaben · Version 1");
+    const current = heading.closest("section")!;
+    expect(current.textContent).not.toContain("Hosting-Anbieter");
+    expect(current.textContent).not.toContain("[[");
+    // Nothing stored yet: shown as empty.
+    expect(within(current).getAllByText("–").length).toBeGreaterThan(0);
+  });
+
+  it("warns when the active version misses newer requirements", async () => {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, {
+          activationBlockers: [
+            "imprint_representatives_missing",
+            "privacy_policy_missing",
+          ],
+        }),
+        draft: null,
+      }),
+    );
+    renderPage(client);
+    const warning = await screen.findByTestId("legal-active-blockers");
+    expect(warning.textContent).toContain(
+      "Die aktive Version 1 ist unvollständig:",
+    );
+    expect(warning.textContent).toContain(
+      "Im Impressum fehlen die vertretungsberechtigten Personen.",
+    );
+    expect(warning.textContent).toContain("Die Datenschutzerklärung fehlt.");
+    expect(warning.textContent).not.toContain("_missing");
+  });
+
+  it("shows no warning for a complete active version", async () => {
+    const client = fakeClient(stateWith({ draft: null }));
+    renderPage(client);
+    await screen.findByText("Kein offener Entwurf");
+    expect(screen.queryByTestId("legal-active-blockers")).toBeNull();
   });
 });

@@ -235,14 +235,9 @@ test("the footer names the provider and links Impressum and Datenschutz on every
     "/datenschutz",
   );
 
-  // Pages without an action, the legal pages themselves and a survey keep
-  // both links.
-  for (const path of [
-    "/",
-    "/impressum",
-    "/datenschutz",
-    "/surveys/00000000-0000-4000-8000-000000000000",
-  ]) {
+  // Pages without an action and the legal pages themselves keep both links
+  // (a live survey: surveys-completion-message.spec.mjs).
+  for (const path of ["/", "/impressum", "/datenschutz"]) {
     await page.goto(`${baseUrl}${path}`);
     const footer = page.locator("[data-footer-legal]");
     await expect(

@@ -52,7 +52,7 @@ def upgrade() -> None:
                 (imprint_representatives IS NULL
                     OR length(btrim(imprint_representatives)) BETWEEN 3 AND 1000)
                 AND (imprint_phone IS NULL
-                    OR imprint_phone ~ '^\\+?[0-9][0-9 ()/.-]{4,28}[0-9]$')
+                    OR imprint_phone ~ '^[+(]?[0-9][0-9 ()/.-]{4,28}[0-9]$')
                 AND (imprint_vat_id IS NULL
                     OR imprint_vat_id ~ '^[A-Z]{2}[A-Z0-9]{2,12}$')
             ),

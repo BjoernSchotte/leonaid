@@ -53,15 +53,23 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
   0052). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
-  fehlendes Telefon, fehlender Vereinsregistereintrag bei „e. V.“, fehlende
-  Datenschutztexte und offene `[[ … ]]`-Platzhalter die Aktivierung. LeonAid
-  prüft nur das Vorhandensein, nicht die rechtliche Richtigkeit der Texte.
+  fehlendes Telefon, fehlender Registereintrag bei einer Rechtsform mit
+  Register (e. V., GmbH, gGmbH, eG …), eine fehlende USt-ID, wenn die
+  Steuerkennung eine ist, fehlende Datenschutztexte und offene
+  `[[ … ]]`-Platzhalter die Aktivierung. LeonAid prüft nur das Vorhandensein,
+  nicht die rechtliche Richtigkeit der Texte. Die Rechtsform wird aus dem
+  Namen des Trägers erkannt, nicht aus einem eigenen Feld.
+- Nach dem Update auf 0052 ist eine schon aktive Version unvollständig;
+  `/admin/legal` warnt, bis eine neue Version aktiviert ist. Der
+  Readiness-Endpunkt (`/api/health/ready`) prüft die rechtlichen Angaben
+  nicht.
 - Die Vorlagen für Datenschutzerklärung und Mitgliederhinweis
   (`packages/features/src/system-admin/legal-templates.ts`), einschließlich des
   Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
   sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
   beschreibt die geplante Offline-Erfassung; die Akquise-App speichert diese
-  Daten erst mit deren Stufe 3.
+  Daten erst mit deren Stufe 3. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
+  die produktive Aktivierung, bis der Club ihn bewusst behält oder löscht.
 - Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
   allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host
   sind nicht vorgesehen; die Darstellung je Host folgt mit Multi-Domain

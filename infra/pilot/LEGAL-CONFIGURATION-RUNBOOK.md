@@ -1,6 +1,6 @@
 # Configure organization and legal settings
 
-As of: 28 July 2026
+As of: 7 November 2026
 
 This runbook describes the technical maintenance of the installation-wide
 basis for the legal entity, invoicing and privacy. It does not replace legal
@@ -10,15 +10,23 @@ LeonAid stores only their neutral evidence ID.
 ## Functional scope
 
 The admin page **Rechtliches** (legal) at `/admin/legal` shows the basis in
-six parts (Träger & Anschrift, Zahlung & Nummernkreis, Steuern, Datenschutz,
-Aufbewahrungsfristen, E-Rechnung), each at `/admin/legal/<part>`. Together
-they contain:
+eight parts (Träger & Anschrift, Impressum, Zahlung & Nummernkreis, Steuern,
+Datenschutz, Datenschutzerklärung, Aufbewahrungsfristen, E-Rechnung), each at
+`/admin/legal/<part>`. Together they contain:
 
 1. legal entity and invoice issuer data, bank details, tax case,
    invoice number format and payment term;
-2. legal basis, notice text, text version, privacy contact and
+2. the Impressum details under § 5 DDG (representatives, telephone, register
+   entry, VAT ID) and the optional person responsible under § 18 (2) MStV;
+3. legal basis, notice text, text version, privacy contact and
    retention periods;
-3. the e-invoicing decision and the related evidence IDs.
+4. the privacy policy and the members' privacy notice of `/datenschutz`;
+5. the e-invoicing decision and the related evidence IDs.
+
+The active version is published at `/impressum` and `/datenschutz` on every
+host. Both pages and the public footer read it through
+`GET /api/v1/public/legal-notice` and `GET /api/v1/public/privacy-policy`
+(at most 60 s cache).
 
 This installation-wide basis is not the same as the campaign-scoped invoice
 profile. The invoice profile of a charity campaign remains the currently
@@ -68,7 +76,28 @@ to this scope silently.
 
 In a production environment, LeonAid also blocks recognizable
 golden/test/placeholder values such as `.invalid`, `.test`, `example.org`,
-`golden` or `review-required`.
+`golden` or `review-required` (also in the Impressum and privacy texts), and
+it blocks a version when:
+
+- the representatives or the telephone number are missing;
+- the legal form in the carrier's name (e. V., GmbH, gGmbH, UG, AG, KG, OHG,
+  e. K., eG, PartG) requires a register entry and none is given;
+- the invoice tax identifier is a VAT ID and the Impressum VAT ID is empty;
+- the privacy policy or the members' privacy notice is missing;
+- any text still contains a template placeholder `[[ … ]]`.
+
+The templates are not legal advice. The device-storage section of the
+members' notice describes the acquisition app's offline capture and carries a
+placeholder until the club decides it applies.
+
+## After an update
+
+A version activated before new requirements can be incomplete afterwards
+(for example after migration 0052 added the Impressum fields). The page
+**Rechtliches** then shows the warning „Die aktive Version … ist
+unvollständig" with the missing points. Create a new draft, have it approved
+and activate it. A save from an admin page loaded before the update keeps the
+previous version's values for fields that page does not send.
 
 ## Reproducible technical proof
 

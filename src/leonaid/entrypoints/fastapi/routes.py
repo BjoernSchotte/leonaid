@@ -1989,6 +1989,7 @@ def public_legal_provider(
         representatives=configuration.imprint_representatives,
         register_court=configuration.imprint_register_court,
         register_number=configuration.imprint_register_number,
+        register_label=configuration.register_label(),
         vat_id=configuration.imprint_vat_id,
         content_responsible_name=configuration.imprint_content_responsible_name,
         content_responsible_address=(configuration.imprint_content_responsible_address),
@@ -2969,6 +2970,9 @@ async def save_legal_configuration_draft(
         ),
         expected_revision=body.expected_revision,
         request_id=request_id(request),
+        omitted_fields=frozenset(
+            type(body).model_fields.keys() - body.model_fields_set
+        ),
     )
     response.headers["Cache-Control"] = "no-store"
     return legal_configuration_state_response(

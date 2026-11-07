@@ -12249,6 +12249,17 @@
             ],
             "title": "Registercourt"
           },
+          "registerLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registerlabel"
+          },
           "registerNumber": {
             "anyOf": [
               {

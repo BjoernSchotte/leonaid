@@ -109,6 +109,8 @@ def test_pending_decision_and_synthetic_values_block_production() -> None:
         "e_invoice_decision_pending",
         "e_invoice_evidence_missing",
         "synthetic_or_placeholder_value",
+        # The invoice tax identifier DE123456789 is a VAT ID.
+        "imprint_vat_id_missing",
     )
 
 
@@ -129,6 +131,7 @@ def production_draft() -> LegalConfigurationDraft:
         draft,
         issuer=replace(draft.issuer, email="rechnung@lions-hilfswerk-augsburg.de"),
         privacy_contact_email="datenschutz@lions-hilfswerk-augsburg.de",
+        imprint_vat_id="DE123456789",
     )
 
 
@@ -238,3 +241,86 @@ def test_invalid_imprint_and_privacy_values_are_rejected() -> None:
         with raises(DomainInvariantError) as error:
             replace(valid_draft(), **overrides)
         assert error.value.code == code, overrides
+
+
+def test_register_follows_the_legal_form() -> None:
+    cases = (
+        ("Lions Hilfswerk gGmbH", "Handelsregister"),
+        ("Club Service GmbH", "Handelsregister"),
+        ("Lions Service UG (haftungsbeschränkt)", "Handelsregister"),
+        ("Dorfladen Musterstadt eG", "Genossenschaftsregister"),
+        ("Förderverein e. V.", "Vereinsregister"),
+        ("Lions Club Musterstadt", None),
+        ("Stiftung Lions Musterstadt", None),
+    )
+    for legal_name, register in cases:
+        draft = replace(
+            production_draft(),
+            issuer=replace(production_draft().issuer, legal_name=legal_name),
+            bank_account_holder=legal_name,
+            imprint_register_court=None,
+            imprint_register_number=None,
+        )
+        assert draft.required_register() == register, legal_name
+        assert (
+            "imprint_register_missing" in draft.activation_blockers(production=True)
+        ) == (register is not None), legal_name
+
+
+def test_register_label_prefers_the_number_prefix() -> None:
+    draft = production_draft()
+    assert draft.register_label() == "Vereinsregister"  # VR 1234
+    assert replace(draft, imprint_register_number="HRB 5678").register_label() == (
+        "Handelsregister"
+    )
+    assert replace(draft, imprint_register_number="GnR 12").register_label() == (
+        "Genossenschaftsregister"
+    )
+    unknown = replace(
+        draft,
+        issuer=replace(draft.issuer, legal_name="Lions Club Augsburg"),
+        imprint_register_number="1234",
+    )
+    assert unknown.register_label() is None
+    assert (
+        replace(
+            draft, imprint_register_court=None, imprint_register_number=None
+        ).register_label()
+        is None
+    )
+
+
+def test_a_vat_id_on_invoices_is_required_in_the_imprint() -> None:
+    draft = replace(production_draft(), imprint_vat_id=None)
+    assert draft.activation_blockers(production=True) == ("imprint_vat_id_missing",)
+    tax_number = replace(
+        draft, issuer=replace(draft.issuer, tax_identifier="103/123/45678")
+    )
+    assert tax_number.activation_blockers(production=True) == ()
+
+
+def test_german_phone_formats_are_accepted() -> None:
+    for phone in (
+        "(0821) 123456",
+        "0821 / 12 34 56",
+        "+49 (0)821 123-456",
+        "0821.123456",
+    ):
+        assert replace(valid_draft(), imprint_phone=phone).imprint_phone == phone
+
+
+def test_synthetic_and_placeholder_checks_cover_the_new_fields() -> None:
+    synthetic = replace(
+        production_draft(),
+        imprint_content_responsible_name="Paula Golden",
+        imprint_content_responsible_address="Clubweg 1, 86150 Augsburg",
+    )
+    assert synthetic.activation_blockers(production=True) == (
+        "synthetic_or_placeholder_value",
+    )
+    placeholder = replace(
+        production_draft(), imprint_register_court="[[Registergericht]]"
+    )
+    assert placeholder.activation_blockers(production=True) == (
+        "template_placeholder_open",
+    )

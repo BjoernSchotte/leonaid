@@ -70,15 +70,17 @@ Als Mitglied meldest du dich mit deiner E-Mail-Adresse an. LeonAid verarbeitet d
 
 ## Speicherung auf deinem Gerät
 
+[[Diesen Abschnitt nur behalten, wenn die Offline-Erfassung der Akquise-App aktiv ist; sonst den ganzen Abschnitt löschen. Danach diese Zeile löschen.]]
+
 Damit du Kontaktversuche und Bestellungen auch ohne Netz erfassen kannst, speichert die Akquise-App Daten auf deinem Gerät:
 
 - die Liste deiner eigenen zugewiesenen Sponsoren mit Name, Ort, Status und nächstem Schritt sowie den Kontaktdaten Ansprechperson, Telefonnummer und E-Mail-Adresse;
 - Einträge, die noch nicht gesendet sind, zum Beispiel Notizen, Kontaktversuche und Bestellungen mit Lieferadresse und Kontakt.
 
-Nicht auf deinem Gerät gespeichert werden Straßenadressen der Sponsoren, Rechnungsdaten, Bestellungen anderer Mitglieder und Daten der Auslieferung.
+Nicht auf deinem Gerät gespeichert werden die Straßenadressen der Sponsoren (außer der Lieferadresse einer Bestellung, die noch nicht gesendet ist), Rechnungsdaten, Bestellungen anderer Mitglieder und Daten der Auslieferung.
 
 Die Daten liegen verschlüsselt im Speicher des Browsers. Der Schlüssel kann das Gerät nicht verlassen. Zusätzlich schützt die Gerätesperre deines Telefons.
 
-Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen.
+Die App sendet Einträge, sobald du wieder online bist, und löscht sie danach sofort vom Gerät. Ein Eintrag, der 14 Tage lang nicht gesendet werden konnte, gilt als abgelaufen und wird zwei Tage später gelöscht. Die Sponsorenliste zeigt die App nach 7 Tagen nicht mehr an und löscht sie nach 14 Tagen. Endet deine Mitarbeit in einer Aktion oder schaltet der Club die Akquise dort ab, kann die App deren Einträge nicht mehr senden: Du kannst sie noch lesen und verwerfen, nach zwei Tagen löscht die App sie.
 
 Wenn du dich abmeldest, löscht die App alle Daten, die sie auf dem Gerät gespeichert hat. Meldet sich auf dem Gerät eine andere Person an, löscht die App deine Daten, bevor sie deren Arbeitsbereich zeigt. Wenn du die Website-Daten im Browser löschst oder die App entfernst, sind die Daten ebenfalls gelöscht.`;

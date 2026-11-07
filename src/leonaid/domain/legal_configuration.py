@@ -19,14 +19,53 @@ EVIDENCE_ID = re.compile(r"^[A-Z0-9][A-Z0-9._:-]{2,119}$")
 TEXT_VERSION = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 NUMBER_PREFIX = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,23}$")
 # § 5 Abs. 1 Nr. 2 DDG: a second fast channel next to e-mail; digits with
-# the usual separators, optionally international.
-PHONE = re.compile(r"^\+?[0-9][0-9 ()/.-]{4,28}[0-9]$")
+# the usual separators, optionally international or with the area code in
+# parentheses ("(0821) 123456").
+PHONE = re.compile(r"^[+(]?[0-9][0-9 ()/.-]{4,28}[0-9]$")
 # § 27a UStG identification number: country prefix and 2–12 characters.
 VAT_ID = re.compile(r"^[A-Z]{2}[A-Z0-9]{2,12}$")
-# "e. V.", "e.V." or "eingetragener Verein" in the carrier's name: such a
-# carrier is in the Vereinsregister, so § 5 Abs. 1 Nr. 4 DDG applies.
-REGISTERED_ASSOCIATION = re.compile(
-    r"(?:\be\.\s*v\.?(?=$|[\s,;)])|eingetragener verein)"
+# § 5 Abs. 1 Nr. 4 DDG: the register a carrier is entered in follows from the
+# legal form in its (casefolded) name. First match wins.
+LEGAL_FORM_REGISTERS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"(?:\be\.\s*v\.?(?=$|[\s,;)])|\beingetragener verein\b)"),
+        "Vereinsregister",
+    ),
+    (
+        re.compile(r"(?:\beg\b|\beingetragene genossenschaft\b)"),
+        "Genossenschaftsregister",
+    ),
+    (re.compile(r"\bpartg(?:\s*mbb)?\b"), "Partnerschaftsregister"),
+    (
+        re.compile(
+            r"(?:\bg?gmbh\b|\bug\b|\bg?ag\b|\bkgaa\b|\bkg\b|\bohg\b"
+            r"|\be\.\s*k\.?(?=$|[\s,;)]))"
+        ),
+        "Handelsregister",
+    ),
+)
+# The register number's prefix names the register more precisely.
+REGISTER_NUMBER_PREFIXES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^vr\b"), "Vereinsregister"),
+    (re.compile(r"^hr\s*[ab]\b"), "Handelsregister"),
+    (re.compile(r"^gnr\b"), "Genossenschaftsregister"),
+    (re.compile(r"^pr\b"), "Partnerschaftsregister"),
+)
+# Fields added after the first contract (migration 0052). A client that does
+# not send them (an admin app from before the update) keeps the previous
+# version's values instead of clearing them.
+LATER_OPTIONAL_FIELDS = frozenset(
+    {
+        "imprint_representatives",
+        "imprint_phone",
+        "imprint_register_court",
+        "imprint_register_number",
+        "imprint_vat_id",
+        "imprint_content_responsible_name",
+        "imprint_content_responsible_address",
+        "privacy_policy_text",
+        "member_privacy_notice_text",
+    }
 )
 # Template texts mark what the club must still fill in as [[...]].
 TEMPLATE_PLACEHOLDER = "[["
@@ -293,9 +332,38 @@ class LegalConfigurationDraft:
                 )
         object.__setattr__(self, "imprint_vat_id", vat_id)
 
-    def registered_association(self) -> bool:
+    def required_register(self) -> str | None:
+        """The register the carrier's legal form implies, if any."""
+        name = self.issuer.legal_name.casefold()
+        for pattern, register in LEGAL_FORM_REGISTERS:
+            if pattern.search(name):
+                return register
+        return None
+
+    def register_label(self) -> str | None:
+        """Name of the entered register for the Impressum, or None."""
+        if self.imprint_register_number is None:
+            return None
+        number = self.imprint_register_number.casefold()
+        for pattern, register in REGISTER_NUMBER_PREFIXES:
+            if pattern.search(number):
+                return register
+        return self.required_register()
+
+    def invoice_vat_id(self) -> str | None:
+        """The invoice tax identifier when it is a VAT ID (§ 27a UStG)."""
+        candidate = self.issuer.tax_identifier.replace(" ", "").upper()
+        return candidate if VAT_ID.fullmatch(candidate) else None
+
+    def _imprint_texts(self) -> tuple[str | None, ...]:
         return (
-            REGISTERED_ASSOCIATION.search(self.issuer.legal_name.casefold()) is not None
+            self.imprint_representatives,
+            self.imprint_phone,
+            self.imprint_register_court,
+            self.imprint_register_number,
+            self.imprint_vat_id,
+            self.imprint_content_responsible_name,
+            self.imprint_content_responsible_address,
         )
 
     def activation_blockers(self, *, production: bool) -> tuple[str, ...]:
@@ -308,14 +376,19 @@ class LegalConfigurationDraft:
             blockers.append("e_invoice_scope_required")
         if production:
             combined = " ".join(
-                (
+                value
+                for value in (
                     self.issuer.legal_name,
                     self.issuer.street_line_1,
                     self.issuer.city,
                     self.issuer.email,
                     self.privacy_contact_email,
                     self.bank_account_holder,
+                    *self._imprint_texts(),
+                    self.privacy_policy_text,
+                    self.member_privacy_notice_text,
                 )
+                if value is not None
             ).casefold()
             if any(
                 marker in combined
@@ -333,8 +406,15 @@ class LegalConfigurationDraft:
                 blockers.append("imprint_representatives_missing")
             if self.imprint_phone is None:
                 blockers.append("imprint_phone_missing")
-            if self.registered_association() and self.imprint_register_number is None:
+            if (
+                self.required_register() is not None
+                and self.imprint_register_number is None
+            ):
                 blockers.append("imprint_register_missing")
+            # § 5 Abs. 1 Nr. 6 DDG: a VAT ID on the invoices belongs in the
+            # Impressum as well.
+            if self.invoice_vat_id() is not None and self.imprint_vat_id is None:
+                blockers.append("imprint_vat_id_missing")
             if self.privacy_policy_text is None:
                 blockers.append("privacy_policy_missing")
             if self.member_privacy_notice_text is None:
@@ -345,7 +425,8 @@ class LegalConfigurationDraft:
                     self.privacy_policy_text,
                     self.member_privacy_notice_text,
                     self.public_order_notice_text,
-                    self.imprint_representatives,
+                    self.public_order_legal_basis,
+                    *self._imprint_texts(),
                 )
             ):
                 blockers.append("template_placeholder_open")
