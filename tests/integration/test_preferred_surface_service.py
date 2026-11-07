@@ -134,6 +134,7 @@ async def main() -> None:
             both = await proof.member("both", "acquirer", "charity_admin")
             acquirer = await proof.member("acquirer", "acquirer")
             admin = await proof.member("admin", "charity_admin")
+            finance = await proof.member("finance", "finance_reader")
 
             # Both apps: the default is the PWA; the admin app can be chosen,
             # the answer already carries the new landing path, and None
@@ -158,15 +159,25 @@ async def main() -> None:
             await refused(service, acquirer, PreferredSurface.WEB)
             assert await proof.stored(acquirer) is None
             assert (await service.current_identity(acquirer)).landing_path == "/app/"
-            await refused(service, admin, PreferredSurface.PWA)
-            assert await proof.stored(admin) is None
-            assert (await service.current_identity(admin)).landing_path == "/admin/"
+            await refused(service, finance, PreferredSurface.PWA)
+            assert await proof.stored(finance) is None
+            landing = (await service.current_identity(finance)).landing_path
+            assert landing == "/admin/invoices", landing
             # Its own app and the reset stay allowed.
-            own = await service.set_preferred_surface(admin, PreferredSurface.WEB)
-            assert own.landing_path == "/admin/"
-            assert await proof.stored(admin) == "web"
-            await service.set_preferred_surface(admin, None)
-            assert await proof.stored(admin) is None
+            own = await service.set_preferred_surface(finance, PreferredSurface.WEB)
+            assert own.landing_path == "/admin/invoices"
+            assert await proof.stored(finance) == "web"
+            await service.set_preferred_surface(finance, None)
+            assert await proof.stored(finance) is None
+
+            # A charity admin oversees acquisition in the PWA ("Akquise"), so
+            # both apps are open to the choice; the default stays the admin app.
+            assert (await service.current_identity(admin)).landing_path == "/admin/"
+            chose_pwa = await service.set_preferred_surface(
+                admin, PreferredSurface.PWA
+            )
+            assert chose_pwa.landing_path == "/app/", chose_pwa.landing_path
+            assert await proof.stored(admin) == "pwa"
 
             # Without a valid session nothing changes.
             for token in (None, "", "unknown-session-token-of-enough-length-0001"):
