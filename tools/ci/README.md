@@ -580,6 +580,20 @@ share blocks with the cache. On this host a fresh worktree's `bootstrap` takes
 about 7 s instead of 33 s, and its `node_modules` allocates 75 MB instead of
 640 MB. `bootstrap` removes the old checkout-local `.cache/uv` and `.cache/bun`.
 
+## Stale dependency guard
+
+`./leonaid bootstrap` stamps `.venv` and `node_modules` with a checksum of
+what decides their content: the lockfile (`uv.lock`, `bun.lock`; installs are
+`--frozen`, so every dependency change in `pyproject.toml` or a `package.json`
+changes it, while scripts, versions and tool config do not) and the pinned
+toolchain image (`UV_IMAGE`, `BUN_IMAGE`). Commands that run the Python or Bun
+toolchain (`check`, `check-fast`, `test-unit`, …) stop with "… is stale … run
+`./leonaid bootstrap`" when a merge, branch switch or Renovate update changed
+them, instead of failing later with missing modules. An install without a
+stamp (from before this guard) or a missing install only warns, in commands
+and in `doctor`; a stale stamp is an error in both.
+`LEONAID_SKIP_DEPENDENCY_CHECK=1` skips the guard.
+
 ## Persistent GitHub BuildKit cache
 
 The local composite action `.github/actions/build-cache` prepares a job-local

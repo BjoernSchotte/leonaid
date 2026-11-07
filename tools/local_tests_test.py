@@ -391,6 +391,7 @@ class SharedPackageCacheTests(unittest.TestCase):
                     **os.environ,
                     "PATH": f"{stub}:{os.environ['PATH']}",
                     "LEONAID_PACKAGE_CACHE": str(cache),
+                    "LEONAID_SKIP_DEPENDENCY_CHECK": "1",
                 },
                 capture_output=True,
                 text=True,
@@ -402,6 +403,118 @@ class SharedPackageCacheTests(unittest.TestCase):
             self.assertIn("UV_LINK_MODE=clone", arguments)
             self.assertEqual((cache / "uv").stat().st_mode & 0o777, 0o700)
             self.assertEqual(cache.stat().st_mode & 0o777, 0o700)
+
+
+class StaleDependencyTests(unittest.TestCase):
+    """bootstrap stamps installs; commands and doctor compare the stamps."""
+
+    def checkout(self, base: Path) -> tuple[Path, dict[str, str]]:
+        source = Path(__file__).resolve().parents[1]
+        checkout = base / "checkout"
+        for name in (
+            "leonaid",
+            "tools/testing/phase.sh",
+            "infra/locks/images.env",
+            "uv.lock",
+            "pyproject.toml",
+            "bun.lock",
+            "package.json",
+            ".env.example",
+        ):
+            (checkout / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(source / name, checkout / name)
+        (checkout / ".env.local").write_text(
+            "LEONAID_HTTP_PORT=28190\nLEONAID_HTTPS_PORT=28191\n"
+        )
+        for executable in (".venv/bin/python", "node_modules/.bin/tsc"):
+            (checkout / executable).parent.mkdir(parents=True)
+            (checkout / executable).write_text("#!/bin/sh\n")
+            (checkout / executable).chmod(0o755)
+        stub = base / "bin"
+        stub.mkdir()
+        # Docker stand-in: every call succeeds and installs nothing.
+        (stub / "docker").write_text("#!/bin/sh\nexit 0\n")
+        (stub / "docker").chmod(0o755)
+        environment = {
+            **os.environ,
+            "PATH": f"{stub}:{os.environ['PATH']}",
+            "LEONAID_PACKAGE_CACHE": str(base / "packages"),
+        }
+        return checkout, environment
+
+    def run_cli(self, checkout, environment, *args):
+        return subprocess.run(
+            [str(checkout / "leonaid"), *args],
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_bootstrap_stamps_and_commands_follow_the_lockfiles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout, environment = self.checkout(Path(directory))
+            # Unstamped (from before the guard): commands and doctor warn only.
+            result = self.run_cli(checkout, environment, "test-unit")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(".venv has no lock stamp", result.stderr)
+            result = self.run_cli(checkout, environment, "doctor")
+            self.assertIn("doctor: WARNING: .venv has no lock stamp", result.stderr)
+            self.assertNotIn("does not match uv.lock", result.stderr)
+
+            self.run_cli(checkout, environment, "bootstrap")
+            for stamp in (".venv", "node_modules"):
+                self.assertTrue((checkout / stamp / ".leonaid-lock-stamp").is_file())
+            for command in ("test-unit", "test-surveys-dependencies"):
+                result = self.run_cli(checkout, environment, command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, "", command)
+
+            # Scripts and tool config are no dependency change.
+            with (checkout / "pyproject.toml").open("a") as manifest:
+                manifest.write("\n[tool.example]\nsetting = 1\n")
+            (checkout / "package.json").write_text(
+                (checkout / "package.json")
+                .read_text()
+                .replace('"typecheck"', '"typecheck-renamed"')
+            )
+            self.assertEqual(
+                self.run_cli(checkout, environment, "test-unit").stderr, ""
+            )
+
+            # A lockfile change refuses the toolchain that installs it.
+            with (checkout / "bun.lock").open("a") as lock:
+                lock.write("\n")
+            result = self.run_cli(checkout, environment, "test-surveys-dependencies")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("node_modules is stale", result.stderr)
+            self.assertEqual(
+                self.run_cli(checkout, environment, "test-unit").returncode, 0
+            )
+            result = self.run_cli(checkout, environment, "doctor")
+            self.assertIn("node_modules does not match bun.lock", result.stderr)
+
+            # So does a new toolchain image pin.
+            images = checkout / "infra/locks/images.env"
+            images.write_text(
+                images.read_text().replace("UV_IMAGE=", "UV_IMAGE=example.invalid/", 1)
+            )
+            result = self.run_cli(checkout, environment, "test-unit")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(".venv is stale", result.stderr)
+            self.assertIn("./leonaid bootstrap", result.stderr)
+            environment["LEONAID_SKIP_DEPENDENCY_CHECK"] = "1"
+            self.assertEqual(
+                self.run_cli(checkout, environment, "test-unit").returncode, 0
+            )
+
+    def test_missing_installs_only_warn(self):
+        # Some commands need just the toolchain image, not .venv/node_modules.
+        with tempfile.TemporaryDirectory() as directory:
+            checkout, environment = self.checkout(Path(directory))
+            shutil.rmtree(checkout / ".venv")
+            result = self.run_cli(checkout, environment, "test-unit")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(".venv is missing", result.stderr)
 
 
 if __name__ == "__main__":
