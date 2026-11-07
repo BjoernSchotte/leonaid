@@ -489,7 +489,8 @@
         "Für Tag planen",
         "Schritte",
         "Neuer Schritt",
-        "Schritt hinzufügen"
+        "Schritt hinzufügen",
+        "focusableWhenDisabled"
       ]
     },
     {
