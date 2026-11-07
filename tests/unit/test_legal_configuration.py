@@ -13,6 +13,20 @@ from leonaid.domain.legal_configuration import (
 )
 
 
+PRIVACY_POLICY = (
+    "## Verantwortlicher\n\n"
+    "Verantwortlich für die Verarbeitung ist der im Impressum genannte "
+    "Verein. Wir verarbeiten Daten nur für die beschriebenen Zwecke.\n\n"
+    "## Ihre Rechte\n\n"
+    "Sie haben das Recht auf Auskunft, Berichtigung, Löschung und "
+    "Einschränkung der Verarbeitung."
+)
+MEMBER_NOTICE = (
+    "Die Akquise-App speichert die Kontaktdaten deiner eigenen Sponsoren "
+    "verschlüsselt auf deinem Gerät, höchstens 14 Tage."
+)
+
+
 def valid_draft() -> LegalConfigurationDraft:
     return LegalConfigurationDraft(
         issuer=InvoiceIssuerSnapshot(
@@ -53,6 +67,12 @@ def valid_draft() -> LegalConfigurationDraft:
         tax_evidence_id="TAX-2026-001",
         privacy_evidence_id="PRIVACY-2026-001",
         e_invoice_evidence_id="EINVOICE-2026-001",
+        imprint_representatives="Vorstand: Erika Muster (Präsidentin)",
+        imprint_phone="+49 821 123456",
+        imprint_register_court="Amtsgericht Augsburg",
+        imprint_register_number="VR 1234",
+        privacy_policy_text=PRIVACY_POLICY,
+        member_privacy_notice_text=MEMBER_NOTICE,
     )
 
 
@@ -100,3 +120,121 @@ def test_invalid_retention_and_tax_combinations_are_rejected() -> None:
     with raises(DomainInvariantError) as tax_error:
         replace(valid_draft(), tax_rate_basis_points=1900)
     assert tax_error.value.code == "legal_tax_rate_forbidden"
+
+
+def production_draft() -> LegalConfigurationDraft:
+    """valid_draft() without the synthetic .test addresses."""
+    draft = valid_draft()
+    return replace(
+        draft,
+        issuer=replace(draft.issuer, email="rechnung@lions-hilfswerk-augsburg.de"),
+        privacy_contact_email="datenschutz@lions-hilfswerk-augsburg.de",
+    )
+
+
+def test_production_draft_has_no_blockers() -> None:
+    assert production_draft().activation_blockers(production=True) == ()
+
+
+def test_production_lists_missing_imprint_and_privacy_fields() -> None:
+    draft = replace(
+        production_draft(),
+        imprint_representatives=None,
+        imprint_phone="  ",
+        imprint_register_court=None,
+        imprint_register_number=None,
+        privacy_policy_text="",
+        member_privacy_notice_text=None,
+    )
+
+    assert draft.imprint_phone is None
+    assert draft.privacy_policy_text is None
+    assert draft.activation_blockers(production=False) == ()
+    assert draft.activation_blockers(production=True) == (
+        "imprint_representatives_missing",
+        "imprint_phone_missing",
+        "imprint_register_missing",
+        "privacy_policy_missing",
+        "member_privacy_notice_missing",
+    )
+
+
+def test_register_is_required_only_for_a_registered_association() -> None:
+    for legal_name in (
+        "Lions Club Augsburg Förderverein e. V.",
+        "Förderverein e.V., Augsburg",
+        "Lions Hilfswerk eingetragener Verein",
+    ):
+        draft = replace(
+            production_draft(),
+            issuer=replace(production_draft().issuer, legal_name=legal_name),
+            imprint_register_court=None,
+            imprint_register_number=None,
+        )
+        assert draft.activation_blockers(production=True) == (
+            "imprint_register_missing",
+        ), legal_name
+
+    unregistered = replace(
+        production_draft(),
+        issuer=replace(production_draft().issuer, legal_name="Lions Club Augsburg"),
+        bank_account_holder="Lions Club Augsburg",
+        imprint_register_court=None,
+        imprint_register_number=None,
+    )
+    assert unregistered.activation_blockers(production=True) == ()
+
+
+def test_template_placeholders_block_production() -> None:
+    draft = replace(
+        production_draft(),
+        member_privacy_notice_text=MEMBER_NOTICE + " [[Rechtsgrundlage ergänzen]]",
+    )
+
+    assert draft.activation_blockers(production=False) == ()
+    assert draft.activation_blockers(production=True) == ("template_placeholder_open",)
+
+
+def test_imprint_fields_are_normalized() -> None:
+    draft = replace(
+        valid_draft(),
+        imprint_representatives="  Vorstand:\n Erika   Muster ",
+        imprint_vat_id=" de 123 456 789 ",
+        imprint_content_responsible_name=" Max Muster ",
+        imprint_content_responsible_address=" Löwenweg 12,  86150 Augsburg ",
+        privacy_policy_text="\r\n"
+        + PRIVACY_POLICY.replace("\n\n", "\n\n\n\n")
+        + "  \n",
+    )
+
+    assert draft.imprint_representatives == "Vorstand: Erika Muster"
+    assert draft.imprint_vat_id == "DE123456789"
+    assert draft.imprint_content_responsible_name == "Max Muster"
+    assert draft.imprint_content_responsible_address == ("Löwenweg 12, 86150 Augsburg")
+    # Paragraphs survive; extra blank lines and trailing spaces do not.
+    assert draft.privacy_policy_text == PRIVACY_POLICY
+
+
+def test_invalid_imprint_and_privacy_values_are_rejected() -> None:
+    cases = (
+        ({"imprint_phone": "bitte anrufen"}, "legal_imprint_phone_invalid"),
+        ({"imprint_vat_id": "123"}, "legal_imprint_vat_id_invalid"),
+        (
+            {"imprint_register_number": None},
+            "legal_imprint_register_incomplete",
+        ),
+        (
+            {"imprint_content_responsible_name": "Max Muster"},
+            "legal_imprint_content_responsible_incomplete",
+        ),
+        ({"privacy_policy_text": "Zu kurz."}, "legal_privacy_policy_text_invalid"),
+        (
+            {"member_privacy_notice_text": "Zu kurz."},
+            "legal_member_privacy_notice_text_invalid",
+        ),
+        ({"imprint_representatives": "Xy"}, "legal_imprint_representatives_invalid"),
+    )
+    for overrides, code in cases:
+        with raises(DomainInvariantError) as error:
+            replace(valid_draft(), **overrides)  # type: ignore[arg-type]
+        assert error.value.code == code, overrides

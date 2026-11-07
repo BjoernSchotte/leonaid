@@ -173,6 +173,23 @@ describe("RailShell", () => {
     ]);
   });
 
+  it("links the Impressum and the members' privacy notice below the account", () => {
+    shell();
+    const legal = screen.getByRole("navigation", {
+      name: "Impressum und Datenschutz",
+    });
+    expect(
+      within(legal)
+        .getByRole("link", { name: "Impressum" })
+        .getAttribute("href"),
+    ).toBe("/impressum");
+    expect(
+      within(legal)
+        .getByRole("link", { name: "Datenschutz" })
+        .getAttribute("href"),
+    ).toBe("/datenschutz#mitglieder");
+  });
+
   it("has no g binding for an item the server did not return", () => {
     const { navigate } = shell({ navigation: [overview, orders] });
     press("g");
@@ -323,10 +340,20 @@ describe("RailShell", () => {
     const sheet = screen.getByTestId("mobile-sheet");
     expect(sheet.hasAttribute("open")).toBe(true);
     expect(
-      within(sheet)
+      within(within(sheet).getByRole("navigation", { name: "Alle Bereiche" }))
         .getAllByRole("link")
         .map((link) => link.getAttribute("data-nav-key")),
     ).toEqual(["overview-web", "actions", "orders", "tasks"]);
+    // Below the account: Impressum and the members' privacy notice.
+    expect(
+      within(
+        within(sheet).getByRole("navigation", {
+          name: "Impressum und Datenschutz",
+        }),
+      )
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/impressum", "/datenschutz#mitglieder"]);
     fireEvent.click(within(sheet).getByRole("button", { name: "Abmelden" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
     fireEvent.click(within(sheet).getByRole("button", { name: "Schließen" }));

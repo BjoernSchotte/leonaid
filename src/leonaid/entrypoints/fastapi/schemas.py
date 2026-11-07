@@ -414,6 +414,19 @@ class SaveLegalConfigurationDraftRequest(TransportModel):
         min_length=3,
         max_length=120,
     )
+    # Impressum (§ 5 DDG). Optional in the contract; production activation
+    # lists the missing mandatory ones as activation blockers.
+    imprint_representatives: str | None = Field(default=None, max_length=1_000)
+    imprint_phone: str | None = Field(default=None, max_length=40)
+    imprint_register_court: str | None = Field(default=None, max_length=200)
+    imprint_register_number: str | None = Field(default=None, max_length=60)
+    imprint_vat_id: str | None = Field(default=None, max_length=20)
+    imprint_content_responsible_name: str | None = Field(default=None, max_length=200)
+    imprint_content_responsible_address: str | None = Field(
+        default=None, max_length=400
+    )
+    privacy_policy_text: str | None = Field(default=None, max_length=60_000)
+    member_privacy_notice_text: str | None = Field(default=None, max_length=30_000)
 
 
 class ApproveLegalConfigurationRequest(TransportModel):
@@ -464,6 +477,15 @@ class LegalConfigurationValuesResponse(TransportModel):
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
     activation_blockers: list[str]
+    imprint_representatives: str | None = None
+    imprint_phone: str | None = None
+    imprint_register_court: str | None = None
+    imprint_register_number: str | None = None
+    imprint_vat_id: str | None = None
+    imprint_content_responsible_name: str | None = None
+    imprint_content_responsible_address: str | None = None
+    privacy_policy_text: str | None = None
+    member_privacy_notice_text: str | None = None
 
 
 class LegalConfigurationVersionResponse(TransportModel):
@@ -906,7 +928,12 @@ class PublicActionRouteResponse(TransportModel):
 
 
 class PublicLegalProviderResponse(TransportModel):
-    """The carrier named in the Impressum (the active legal configuration)."""
+    """The carrier named in the Impressum (the active legal configuration).
+
+    The optional fields are null when the active version has none: register
+    and VAT ID only apply to some carriers, and versions before the
+    Impressum fields existed have none of them.
+    """
 
     legal_name: str
     street_line_1: str
@@ -914,12 +941,37 @@ class PublicLegalProviderResponse(TransportModel):
     city: str
     country_code: str
     email: str
+    phone: str | None = None
+    representatives: str | None = None
+    register_court: str | None = None
+    register_number: str | None = None
+    vat_id: str | None = None
+    content_responsible_name: str | None = None
+    content_responsible_address: str | None = None
 
 
 class PublicLegalNoticeResponse(TransportModel):
     """Impressum data of the installation; provider is null until activated."""
 
     provider: PublicLegalProviderResponse | None
+
+
+class PublicPrivacyPolicyContentResponse(TransportModel):
+    """The privacy page of the active legal configuration version."""
+
+    version: int
+    controller: PublicLegalProviderResponse
+    privacy_contact_email: str
+    policy_text: str | None
+    member_notice_text: str | None
+    order_notice_text: str
+    order_legal_basis: str
+
+
+class PublicPrivacyPolicyResponse(TransportModel):
+    """Privacy page of the installation; policy is null until activated."""
+
+    policy: PublicPrivacyPolicyContentResponse | None
 
 
 class PublicCampaignRouteResponse(TransportModel):

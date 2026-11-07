@@ -23,6 +23,11 @@ from leonaid.domain.legal_configuration import (
 SINGLETON_ID = UUID("00000000-0000-4000-8000-000000000044")
 
 
+def _optional(row: asyncpg.Record, column: str) -> str | None:
+    value = row[column]
+    return str(value) if value is not None else None
+
+
 class AsyncpgLegalConfigurationRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -77,12 +82,18 @@ class AsyncpgLegalConfigurationRepository:
                         contact_retention_days, consent_evidence_retention_days,
                         audit_retention_days, e_invoice_decision,
                         tax_evidence_id, privacy_evidence_id,
-                        e_invoice_evidence_id, created_by_user_id, created_at
+                        e_invoice_evidence_id, created_by_user_id, created_at,
+                        imprint_representatives, imprint_phone,
+                        imprint_register_court, imprint_register_number,
+                        imprint_vat_id, imprint_content_responsible_name,
+                        imprint_content_responsible_address,
+                        privacy_policy_text, member_privacy_notice_text
                     )
                     VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-                        $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33
+                        $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33,
+                        $34, $35, $36, $37, $38, $39, $40, $41, $42
                     )
                     """,
                     version_id,
@@ -118,6 +129,15 @@ class AsyncpgLegalConfigurationRepository:
                     configuration.e_invoice_evidence_id,
                     actor_user_id,
                     occurred_at,
+                    configuration.imprint_representatives,
+                    configuration.imprint_phone,
+                    configuration.imprint_register_court,
+                    configuration.imprint_register_number,
+                    configuration.imprint_vat_id,
+                    configuration.imprint_content_responsible_name,
+                    configuration.imprint_content_responsible_address,
+                    configuration.privacy_policy_text,
+                    configuration.member_privacy_notice_text,
                 )
                 revision = await self._update_state(
                     connection,
@@ -393,6 +413,19 @@ class AsyncpgLegalConfigurationRepository:
                 if row["e_invoice_evidence_id"] is not None
                 else None
             ),
+            imprint_representatives=_optional(row, "imprint_representatives"),
+            imprint_phone=_optional(row, "imprint_phone"),
+            imprint_register_court=_optional(row, "imprint_register_court"),
+            imprint_register_number=_optional(row, "imprint_register_number"),
+            imprint_vat_id=_optional(row, "imprint_vat_id"),
+            imprint_content_responsible_name=_optional(
+                row, "imprint_content_responsible_name"
+            ),
+            imprint_content_responsible_address=_optional(
+                row, "imprint_content_responsible_address"
+            ),
+            privacy_policy_text=_optional(row, "privacy_policy_text"),
+            member_privacy_notice_text=_optional(row, "member_privacy_notice_text"),
         )
         return LegalConfigurationVersion(
             id=row["id"],

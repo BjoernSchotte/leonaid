@@ -121,6 +121,63 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
+echo "poc021-test: 0052 keeps Impressum and privacy texts and guards its downgrade"
+legal_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+legal_sql <<'SQL'
+INSERT INTO legal_configuration_version (
+    id, version, legal_name, street_line_1, postal_code, city, country_code,
+    tax_identifier, issuer_email, bank_account_holder, iban, bic,
+    tax_treatment, tax_rate_basis_points, tax_note, number_prefix,
+    number_width, payment_terms_days, public_order_legal_basis,
+    public_order_notice_text, consent_text_version, privacy_contact_email,
+    invoice_retention_days, commitment_retention_days, contact_retention_days,
+    consent_evidence_retention_days, audit_retention_days, e_invoice_decision,
+    tax_evidence_id, privacy_evidence_id, e_invoice_evidence_id,
+    created_by_user_id, imprint_representatives, imprint_phone,
+    imprint_register_court, imprint_register_number
+)
+VALUES (
+    '97700000-0000-4000-8000-000000000052', 9052, 'Schema-Nachweis e. V.',
+    'Testweg 52', '86150', 'Augsburg', 'DE', '103/052/00000',
+    'schema@leonaid.invalid', 'Schema-Nachweis e. V.',
+    'DE89370400440532013000', NULL, 'tax_exempt', 0,
+    'Steuerbefreit laut Schema-Nachweis.', 'SN', 5, 14,
+    'Vertragserfüllung für den Schema-Nachweis.',
+    'Schema-Nachweis: Datenschutzhinweis für die öffentliche Bestellung.',
+    'schema-v1', 'datenschutz@leonaid.invalid', 3650, 3650, 730, 3650, 3650,
+    'pending', 'STEUER-SCHEMA-052', 'DATENSCHUTZ-SCHEMA-052', NULL,
+    '10000000-0000-4000-8000-000000000001',
+    'Vorstand: Schema Nachweis', '+49 30 23125 052',
+    'Amtsgericht Augsburg', 'VR 0052'
+);
+SQL
+# A register court without number violates the pairing constraint.
+if printf '%s\n' "UPDATE legal_configuration_version SET imprint_register_number = NULL WHERE id = '97700000-0000-4000-8000-000000000052';" \
+  | legal_sql >/dev/null 2>&1; then
+  echo "poc021-test: ERROR: register court without number was stored" >&2
+  exit 1
+fi
+if output=$(compose run --rm --no-deps --entrypoint alembic api \
+  downgrade 0051_commitment_cancellation 2>&1); then
+  echo "poc021-test: ERROR: downgrade dropped a published Impressum" >&2
+  exit 1
+fi
+case "$output" in
+  *"downgrade refused"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0052 downgrade failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM legal_configuration_version WHERE id = '97700000-0000-4000-8000-000000000052';" \
+  | legal_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "poc021-test: 0051 downgrade refuses recorded order cancellations"
 cancellation_sql() {
   compose exec -T core-postgres sh -ec \

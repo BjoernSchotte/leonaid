@@ -141,6 +141,7 @@ done
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
   --workdir /repo \

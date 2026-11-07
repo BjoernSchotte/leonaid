@@ -18,6 +18,36 @@ from leonaid.domain.invoices import (
 EVIDENCE_ID = re.compile(r"^[A-Z0-9][A-Z0-9._:-]{2,119}$")
 TEXT_VERSION = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 NUMBER_PREFIX = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,23}$")
+# § 5 Abs. 1 Nr. 2 DDG: a second fast channel next to e-mail; digits with
+# the usual separators, optionally international.
+PHONE = re.compile(r"^\+?[0-9][0-9 ()/.-]{4,28}[0-9]$")
+# § 27a UStG identification number: country prefix and 2–12 characters.
+VAT_ID = re.compile(r"^[A-Z]{2}[A-Z0-9]{2,12}$")
+# "e. V.", "e.V." or "eingetragener Verein" in the carrier's name: such a
+# carrier is in the Vereinsregister, so § 5 Abs. 1 Nr. 4 DDG applies.
+REGISTERED_ASSOCIATION = re.compile(
+    r"(?:\be\.\s*v\.?(?=$|[\s,;)])|eingetragener verein)"
+)
+# Template texts mark what the club must still fill in as [[...]].
+TEMPLATE_PLACEHOLDER = "[["
+PRIVACY_POLICY_LIMITS = (200, 60_000)
+MEMBER_NOTICE_LIMITS = (100, 30_000)
+
+
+def _single_line(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.split())
+    return normalized or None
+
+
+def _block_text(value: str | None) -> str | None:
+    """Keep paragraphs: trim lines, at most one empty line between blocks."""
+    if value is None:
+        return None
+    lines = [line.rstrip() for line in value.replace("\r\n", "\n").split("\n")]
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    return text or None
 
 
 class EInvoiceDecision(StrEnum):
@@ -72,8 +102,37 @@ class LegalConfigurationDraft:
     tax_evidence_id: str
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
+    # Impressum (§ 5 DDG, § 18 Abs. 2 MStV). Optional in the type because
+    # versions before 0052 have none; production activation requires the
+    # mandatory ones (activation_blockers).
+    imprint_representatives: str | None = None
+    imprint_phone: str | None = None
+    imprint_register_court: str | None = None
+    imprint_register_number: str | None = None
+    imprint_vat_id: str | None = None
+    imprint_content_responsible_name: str | None = None
+    imprint_content_responsible_address: str | None = None
+    # The full privacy policy (/datenschutz) and the members' notice in it.
+    privacy_policy_text: str | None = None
+    member_privacy_notice_text: str | None = None
 
     def __post_init__(self) -> None:
+        self._normalize_imprint()
+        for field_name, label, (minimum, maximum) in (
+            ("privacy_policy_text", "Datenschutzerklärung", PRIVACY_POLICY_LIMITS),
+            (
+                "member_privacy_notice_text",
+                "Datenschutzhinweis für Mitglieder",
+                MEMBER_NOTICE_LIMITS,
+            ),
+        ):
+            text = _block_text(getattr(self, field_name))
+            if text is not None and not minimum <= len(text) <= maximum:
+                raise DomainInvariantError(
+                    f"legal_{field_name}_invalid",
+                    f"{label} muss zwischen {minimum} und {maximum} Zeichen lang sein.",
+                )
+            object.__setattr__(self, field_name, text)
         for field_name, label, minimum in (
             ("bank_account_holder", "Kontoinhaber", 2),
             ("tax_note", "Steuerhinweis", 8),
@@ -165,6 +224,80 @@ class LegalConfigurationDraft:
                 "Die Evidence-ID zur E-Rechnungsentscheidung ist ungültig.",
             )
 
+    def _normalize_imprint(self) -> None:
+        for field_name in (
+            "imprint_representatives",
+            "imprint_phone",
+            "imprint_register_court",
+            "imprint_register_number",
+            "imprint_content_responsible_name",
+            "imprint_content_responsible_address",
+        ):
+            object.__setattr__(
+                self, field_name, _single_line(getattr(self, field_name))
+            )
+        for field_name, label, minimum, maximum in (
+            ("imprint_representatives", "Vertretungsberechtigte", 3, 1_000),
+            ("imprint_register_court", "Registergericht", 3, 200),
+            ("imprint_register_number", "Registernummer", 2, 60),
+            (
+                "imprint_content_responsible_name",
+                "Inhaltlich Verantwortliche Person",
+                3,
+                200,
+            ),
+            (
+                "imprint_content_responsible_address",
+                "Anschrift der inhaltlich verantwortlichen Person",
+                8,
+                400,
+            ),
+        ):
+            value = getattr(self, field_name)
+            if value is not None and not minimum <= len(value) <= maximum:
+                raise DomainInvariantError(
+                    f"legal_{field_name}_invalid",
+                    f"{label} ist zu kurz oder zu lang.",
+                )
+        if self.imprint_phone is not None and (
+            PHONE.fullmatch(self.imprint_phone) is None
+        ):
+            raise DomainInvariantError(
+                "legal_imprint_phone_invalid",
+                "Die Telefonnummer darf nur Ziffern, Leerzeichen und + ( ) / . - "
+                "enthalten.",
+            )
+        if (self.imprint_register_court is None) != (
+            self.imprint_register_number is None
+        ):
+            raise DomainInvariantError(
+                "legal_imprint_register_incomplete",
+                "Registergericht und Registernummer gehören zusammen.",
+            )
+        if (self.imprint_content_responsible_name is None) != (
+            self.imprint_content_responsible_address is None
+        ):
+            raise DomainInvariantError(
+                "legal_imprint_content_responsible_incomplete",
+                "Für die inhaltlich verantwortliche Person werden Name und "
+                "Anschrift benötigt.",
+            )
+        vat_id = _single_line(self.imprint_vat_id)
+        if vat_id is not None:
+            vat_id = vat_id.replace(" ", "").upper()
+            if VAT_ID.fullmatch(vat_id) is None:
+                raise DomainInvariantError(
+                    "legal_imprint_vat_id_invalid",
+                    "Die Umsatzsteuer-Identifikationsnummer ist ungültig "
+                    "(z. B. DE123456789).",
+                )
+        object.__setattr__(self, "imprint_vat_id", vat_id)
+
+    def registered_association(self) -> bool:
+        return (
+            REGISTERED_ASSOCIATION.search(self.issuer.legal_name.casefold()) is not None
+        )
+
     def activation_blockers(self, *, production: bool) -> tuple[str, ...]:
         blockers: list[str] = []
         if self.e_invoice_decision is EInvoiceDecision.PENDING:
@@ -195,6 +328,27 @@ class LegalConfigurationDraft:
                 )
             ):
                 blockers.append("synthetic_or_placeholder_value")
+            # § 5 DDG: who represents the club and a second fast channel.
+            if self.imprint_representatives is None:
+                blockers.append("imprint_representatives_missing")
+            if self.imprint_phone is None:
+                blockers.append("imprint_phone_missing")
+            if self.registered_association() and self.imprint_register_number is None:
+                blockers.append("imprint_register_missing")
+            if self.privacy_policy_text is None:
+                blockers.append("privacy_policy_missing")
+            if self.member_privacy_notice_text is None:
+                blockers.append("member_privacy_notice_missing")
+            if any(
+                TEMPLATE_PLACEHOLDER in (text or "")
+                for text in (
+                    self.privacy_policy_text,
+                    self.member_privacy_notice_text,
+                    self.public_order_notice_text,
+                    self.imprint_representatives,
+                )
+            ):
+                blockers.append("template_placeholder_open")
         return tuple(blockers)
 
 

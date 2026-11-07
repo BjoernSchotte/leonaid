@@ -61,6 +61,8 @@ function values(
     eInvoiceDecision: "pending",
     eInvoiceEvidenceId: null,
     iban: "DE02120300000000202051",
+    imprintPhone: "+49 821 123456",
+    imprintRepresentatives: "Vorstand: Erika Muster (Präsidentin)",
     issuer: {
       city: "Augsburg",
       countryCode: "DE",
@@ -192,6 +194,8 @@ function renderPage(
 describe("legalPart", () => {
   it("reads the part from the path and falls back to the first", () => {
     expect(legalPart("/admin/legal/e-invoice")).toBe("e-invoice");
+    expect(legalPart("/admin/legal/imprint")).toBe("imprint");
+    expect(legalPart("/admin/legal/privacy-page")).toBe("privacy-page");
     expect(legalPart("/admin/legal/")).toBe("carrier");
     expect(legalPart("/admin/legal/unknown")).toBe("carrier");
   });
@@ -437,5 +441,163 @@ describe("LegalConfigurationPage four-eyes flow", () => {
         expect.objectContaining({ eInvoiceEvidenceId: "ERECHNUNG-2" }),
       ),
     );
+  });
+
+  it("saves the Impressum fields; empty optional ones go out as null", async () => {
+    const client = fakeClient(stateWith({ draft: null }));
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/imprint",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    const editor = screen.getByTestId("legal-editor");
+    expect(
+      (within(editor).getByLabelText(/^Telefon/) as HTMLInputElement).type,
+    ).toBe("tel");
+    fireEvent.change(within(editor).getByLabelText(/^Registergericht/), {
+      target: { value: "Amtsgericht Augsburg" },
+    });
+    fireEvent.change(within(editor).getByLabelText(/^Registernummer/), {
+      target: { value: "VR 1234" },
+    });
+    fireEvent.change(within(editor).getByLabelText(/^Umsatzsteuer-ID/), {
+      target: { value: " de123456789 " },
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imprintContentResponsibleAddress: null,
+          imprintContentResponsibleName: null,
+          imprintPhone: "+49 821 123456",
+          imprintRegisterCourt: "Amtsgericht Augsburg",
+          imprintRegisterNumber: "VR 1234",
+          imprintRepresentatives: "Vorstand: Erika Muster (Präsidentin)",
+          imprintVatId: "DE123456789",
+        }),
+      ),
+    );
+  });
+
+  it("requires the representatives before saving", async () => {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { imprintRepresentatives: null }),
+        draft: null,
+      }),
+    );
+    renderPage(client);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte füllen Sie „Vertretungsberechtigte“ im Bereich Impressum aus.",
+      ),
+    ).toBeTruthy();
+    expect(window.location.pathname).toBe("/admin/legal/imprint");
+    expect(client.saveLegalConfigurationDraft).not.toHaveBeenCalled();
+  });
+
+  it("starts the privacy texts from the template, incl. device storage", async () => {
+    const client = fakeClient(stateWith({ draft: null }));
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/privacy-page",
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    const editor = screen.getByTestId("legal-editor");
+    const notice = within(editor).getByLabelText(
+      /^Datenschutzhinweis für Mitglieder/,
+    ) as HTMLTextAreaElement;
+    expect(notice.value).toContain("## Speicherung auf deinem Gerät");
+    expect(notice.value).toContain("Telefonnummer und E-Mail-Adresse");
+    expect(notice.value).toContain("14 Tage");
+    expect(notice.value).toContain("Wenn du dich abmeldest, löscht die App");
+    const policy = within(editor).getByLabelText(
+      /^Datenschutzerklärung/,
+    ) as HTMLTextAreaElement;
+    // Club facts stay placeholders for the club to fill in.
+    expect(policy.value).toContain("[[");
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memberPrivacyNoticeText: notice.value,
+          privacyPolicyText: policy.value,
+        }),
+      ),
+    );
+  });
+
+  it("keeps a stored privacy text instead of the template", async () => {
+    const stored = "## Eigener Text\n\nDer Club hat diesen Text geschrieben.";
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { privacyPolicyText: stored }),
+        draft: null,
+      }),
+    );
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/privacy-page",
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    expect(
+      (
+        within(screen.getByTestId("legal-editor")).getByLabelText(
+          /^Datenschutzerklärung/,
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe(stored);
+  });
+
+  it("labels the Impressum and privacy blockers", async () => {
+    const client = fakeClient(
+      stateWith({
+        draft: version(2, klara, {
+          activationBlockers: [
+            "imprint_representatives_missing",
+            "imprint_phone_missing",
+            "imprint_register_missing",
+            "privacy_policy_missing",
+            "member_privacy_notice_missing",
+            "template_placeholder_open",
+          ],
+        }),
+      }),
+    );
+    renderPage(client);
+    const blockers = (await screen.findByTestId("legal-blockers")).textContent;
+    for (const label of [
+      "Im Impressum fehlen die vertretungsberechtigten Personen.",
+      "Im Impressum fehlt die Telefonnummer.",
+      "Im Impressum fehlt der Eintrag im Vereinsregister",
+      "Die Datenschutzerklärung fehlt.",
+      "Der Datenschutzhinweis für Mitglieder fehlt.",
+      "offene Vorlagen-Platzhalter",
+    ]) {
+      expect(blockers).toContain(label);
+    }
+    expect(blockers).not.toContain("_missing");
   });
 });

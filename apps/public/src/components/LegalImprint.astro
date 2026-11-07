@@ -1,0 +1,94 @@
+---
+import type { PublicLegalProviderResponse } from "@leonaid/api-client";
+
+import {
+  PRIVACY_PATH,
+  providerAddress,
+  providerRegister,
+  telephoneHref,
+} from "../lib/legal-notice";
+
+// The Impressum content (§ 5 DDG, § 18 Abs. 2 MStV) of one provider. The
+// single source for /impressum; a later per-host rendering (multi-domain
+// stage 2, §7.5) reuses it unchanged.
+interface Props {
+  provider: PublicLegalProviderResponse;
+}
+
+const { provider } = Astro.props;
+const register = providerRegister(provider);
+---
+
+<div class="site-shell legal-page__body">
+  <h1 id="imprint-heading">Impressum</h1>
+  <p class="legal-page__lead">Anbieter dieser Seiten</p>
+  <dl class="legal-page__facts" data-imprint>
+    <div>
+      <dt>Name</dt>
+      <dd data-imprint-name>{provider.legalName}</dd>
+    </div>
+    <div>
+      <dt>Anschrift</dt>
+      <dd data-imprint-address>{providerAddress(provider)}</dd>
+    </div>
+    {
+      provider.representatives && (
+        <div>
+          <dt>Vertreten durch</dt>
+          <dd data-imprint-representatives>{provider.representatives}</dd>
+        </div>
+      )
+    }
+    <div>
+      <dt>E-Mail</dt>
+      <dd>
+        <a href={`mailto:${provider.email}`} data-imprint-email>
+          {provider.email}
+        </a>
+      </dd>
+    </div>
+    {
+      provider.phone && (
+        <div>
+          <dt>Telefon</dt>
+          <dd>
+            <a href={telephoneHref(provider.phone)} data-imprint-phone>
+              {provider.phone}
+            </a>
+          </dd>
+        </div>
+      )
+    }
+    {
+      register && (
+        <div>
+          <dt>Registereintrag</dt>
+          <dd data-imprint-register>Vereinsregister: {register}</dd>
+        </div>
+      )
+    }
+    {
+      provider.vatId && (
+        <div>
+          <dt>Umsatzsteuer-ID</dt>
+          <dd data-imprint-vat-id>{provider.vatId}</dd>
+        </div>
+      )
+    }
+    {
+      provider.contentResponsibleName && provider.contentResponsibleAddress && (
+        <div>
+          <dt>Inhaltlich verantwortlich nach § 18 Abs. 2 MStV</dt>
+          <dd data-imprint-content-responsible>
+            {provider.contentResponsibleName},{" "}
+            {provider.contentResponsibleAddress}
+          </dd>
+        </div>
+      )
+    }
+  </dl>
+  <p class="legal-page__note">
+    Wie wir mit Ihren Daten umgehen, steht in der{" "}
+    <a href={PRIVACY_PATH} data-imprint-privacy-link>Datenschutzerklärung</a>.
+  </p>
+</div>

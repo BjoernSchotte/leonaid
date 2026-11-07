@@ -50,13 +50,24 @@ Punkte sind keine stillschweigenden Produktzusagen.
   LeonAid books no refunds. The buyer is not e-mailed about the cancellation, and a
   cancelled order cannot be reopened.
 
-- Impressum (`apps/public/src/pages/impressum.astro`) zeigt nur Name,
-  Anschrift und E-Mail des Anbieters. Vertretungsberechtigte, Registereintrag,
-  gegebenenfalls USt-ID und ein zweiter Kontaktweg nach § 5 DDG fehlen
-  (`src/leonaid/domain/legal_configuration.py` hat keine Felder dafür).
-- Es gibt keine eigene Datenschutzseite. Der Datenschutzhinweis steht nur auf
-  Aktionsseiten (`apps/public/src/pages/[...path].astro`); Login, Einladung,
-  Umfragen und Impressum verlinken nicht darauf.
+- Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
+  aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
+  0052). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
+  fehlendes Telefon, fehlender Vereinsregistereintrag bei „e. V.“, fehlende
+  Datenschutztexte und offene `[[ … ]]`-Platzhalter die Aktivierung. LeonAid
+  prüft nur das Vorhandensein, nicht die rechtliche Richtigkeit der Texte.
+- Die Vorlagen für Datenschutzerklärung und Mitgliederhinweis
+  (`packages/features/src/system-admin/legal-templates.ts`), einschließlich des
+  Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
+  sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
+  beschreibt die geplante Offline-Erfassung; die Akquise-App speichert diese
+  Daten erst mit deren Stufe 3.
+- Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
+  allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host
+  sind nicht vorgesehen; die Darstellung je Host folgt mit Multi-Domain
+  Stufe 2 (§7.5) und nutzt dieselben Komponenten.
+- Die Datenschutzseite ist offline nicht erreichbar; die Akquise-App verlinkt
+  sie, speichert sie aber nicht.
 
 ## Identität und Administration
 
@@ -95,7 +106,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `./leonaid update` und signierte Releases sind nur spezifiziert.
 - Eine Installation bedient einen Host. Backend-Host mit eigenen
   Kampagnen-Domains ist nur spezifiziert (`specs/multi-domain/PLAN.md`).
-- Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
+- Die Hilfe-Doku trägt auf 17 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts
