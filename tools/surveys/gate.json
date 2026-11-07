@@ -298,18 +298,16 @@
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
   ],
   "ciShards": {
-    "runner": ["runner"],
-    "journeys": ["journeys"],
-    "editor": ["editor"],
-    "permissions": ["permissions"],
-    "exports": ["exports"],
-    "foundation-diagnostics": ["foundation-diagnostics"],
-    "foundation-failure": ["foundation-failure"],
-    "analysis-exports": ["analysis", "export-permissions"],
-    "lifecycle-contracts": ["lifecycle", "contracts"],
-    "responses-limits": ["responses", "payload-limits"],
-    "authoring-preview": ["preview", "branding"],
-    "invitations": ["invitations"],
+    "foundation-acceptance": ["foundation-failure", "foundation-diagnostics"],
+    "runner-permissions": ["runner", "permissions"],
+    "editor-authoring": ["editor", "preview", "branding", "invitations"],
+    "analysis-exports": ["analysis", "export-permissions", "exports"],
+    "lifecycle-contracts": [
+      "lifecycle",
+      "contracts",
+      "lifecycle-concurrency",
+      "request-limits"
+    ],
     "foundation": [
       "gate-controller",
       "core",
@@ -320,7 +318,7 @@
       "packed-consumer",
       "aggregates"
     ],
-    "request-concurrency": ["lifecycle-concurrency", "request-limits"],
+    "journeys-responses": ["journeys", "responses", "payload-limits"],
     "recovery-deletion": ["deletion", "deletion-races", "deletion-ui"],
     "recovery-retention": ["retention", "recovery"],
     "recovery-restic": ["restic-manual", "restic-archive", "restic-durable"],

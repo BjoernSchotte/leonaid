@@ -83,6 +83,14 @@ docker run --rm --network none \
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
   python /workspace/tools/ci/gate_test.py
+# Leak check between the shards of a packed CI leg.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/leak_check_test.py
+# Survey failure excerpts: redaction before truncation, withhold on doubt.
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/surveys/ci_failure_excerpt_test.py
 # Merge conflict markers.
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
