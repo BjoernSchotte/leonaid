@@ -62,11 +62,11 @@ function countMoves(page, taskId) {
   return counter;
 }
 
-/** Picks up the focused grip, moves it one row down and drops it. */
-async function keyboardMoveDown(page) {
+/** Picks up the focused grip, moves it one row down (or up) and drops it. */
+async function keyboardMove(page, key = "ArrowDown") {
   await page.keyboard.press("Space");
   await page.waitForTimeout(50);
-  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press(key);
   await page.waitForTimeout(100);
   await page.keyboard.press("Space");
 }
@@ -96,7 +96,7 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   const keyboardMove = await holdMove(page, tasks[0].id);
   const gripRequests = countMoves(page, tasks[0].id);
   await grip.focus();
-  await keyboardMoveDown(page);
+  await keyboardMove(page);
   await keyboardMove.held;
   // While it saves the grip is inert but still focusable and focused.
   await expect(grip).toHaveAttribute("aria-disabled", "true");
@@ -105,7 +105,7 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   await expect(grip).toBeFocused();
   // Inert while saving: a second pick-up and move starts no drag and sends
   // nothing.
-  await keyboardMoveDown(page);
+  await keyboardMove(page);
   await expect(grip).not.toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".tasks-page .row[data-dragging]")).toHaveCount(0);
   await expect(grip).toBeFocused();
@@ -160,18 +160,33 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   await page.keyboard.press("Escape");
   const section = page.locator(".group-header", { hasText: epics[1].title });
   await expect(section).toBeVisible();
-  const crossing = gripOf(page, tasks[10]);
+  // The section order decides on which side of the boundary its one task
+  // sits; the neighbouring row across the boundary crosses into it.
+  const before = await rowTitles(page);
+  const lonely = before.indexOf(titles[11]);
+  expect([0, before.length - 1]).toContain(lonely);
+  const first = lonely === 0;
+  const neighbour = before[first ? 1 : lonely - 1];
+  const mover = tasks[titles.indexOf(neighbour)];
+  const crossing = gripOf(page, mover);
   const oldGrip = await crossing.elementHandle();
-  const crossMove = await holdMove(page, tasks[10].id);
+  const crossMove = await holdMove(page, mover.id);
   await crossing.focus();
-  await keyboardMoveDown(page);
+  await keyboardMove(page, first ? "ArrowUp" : "ArrowDown");
   await crossMove.held;
   await expect(crossing).toBeFocused();
   crossMove.release();
   expect((await crossMove.response).ok()).toBe(true);
+  const rest = before.filter(
+    (title) => title !== titles[11] && title !== neighbour,
+  );
   await expect
     .poll(() => rowTitles(page))
-    .toEqual([...afterPane.slice(0, 10), titles[11], titles[10]]);
+    .toEqual(
+      first
+        ? [neighbour, titles[11], ...rest]
+        : [...rest, titles[11], neighbour],
+    );
   // The grip now sits in the other section, as a newly mounted element.
   expect(await oldGrip.evaluate((element) => element.isConnected)).toBe(false);
   await expect(crossing).toBeFocused();
