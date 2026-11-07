@@ -20,6 +20,7 @@ Nothing here prints credentials or message bodies.
 from __future__ import annotations
 
 import json
+import re
 import os
 import sys
 import time
@@ -206,6 +207,31 @@ def assert_delivered(api: str, recipient: str, sender: str, word: str) -> None:
         time.sleep(2)
 
 
+def login_code(api: str, recipient: str) -> None:
+    """Print the code of the newest sign-in mail for recipient (test relay only)."""
+    query = urllib.parse.urlencode({"query": f"to:{recipient} subject:LeonAid-Login"})
+    deadline = time.monotonic() + 90
+    while True:
+        with urllib.request.urlopen(
+            f"{api}/api/v1/search?{query}", timeout=10
+        ) as response:
+            messages = json.loads(response.read()).get("messages") or []
+        if messages:
+            newest = max(messages, key=lambda message: message.get("Created") or "")
+            with urllib.request.urlopen(
+                f"{api}/api/v1/message/{newest['ID']}", timeout=10
+            ) as response:
+                text = json.loads(response.read()).get("Text") or ""
+            match = re.search(r"den Code ([0-9]{6}) verwenden", text)
+            if match is None:
+                raise SystemExit("mail-proof: the sign-in mail carries no code")
+            print(match.group(1))
+            return
+        if time.monotonic() > deadline:
+            raise SystemExit(f"mail-proof: no sign-in mail for {mailbox(recipient)}")
+        time.sleep(2)
+
+
 def main() -> None:
     command, *arguments = sys.argv[1:]
     if command == "certificates":
@@ -216,6 +242,8 @@ def main() -> None:
         twenty_reset(arguments[0])
     elif command == "assert-delivered":
         assert_delivered(*arguments)
+    elif command == "login-code":
+        login_code(*arguments)
     else:
         raise SystemExit(f"mail-proof: unknown command {command}")
 

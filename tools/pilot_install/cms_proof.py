@@ -73,7 +73,42 @@ def expect(status: int, method: str, path: str, **options: Any) -> str:
 
 def main() -> int:
     mode = sys.argv[1]
-    if mode == "setup-closed":
+    if mode == "login":
+        # The real sign-in of the System Admin with the code of its mail: the
+        # session cookie goes into a private file, never to the output.
+        email, code = sys.argv[2:4]
+        connection = EdgeConnection(HOST, 443, timeout=15)
+        try:
+            connection.request(
+                "POST",
+                "/api/v1/auth/login/complete",
+                body=json.dumps({"email": email, "code": code}).encode(),
+                headers={
+                    "Host": HOST,
+                    "Origin": ORIGIN,
+                    "Content-Type": "application/json",
+                },
+            )
+            response = connection.getresponse()
+            response.read()
+            cookies = response.headers.get_all("Set-Cookie") or []
+        finally:
+            connection.close()
+        tokens = [
+            cookie.split(";", 1)[0].split("=", 1)[1]
+            for cookie in cookies
+            if cookie.startswith("__Host-leonaid_session=")
+        ]
+        if response.status != 200 or len(tokens) != 1:
+            raise SystemExit(
+                f"cms-proof: ERROR: the code sign-in answered {response.status}"
+            )
+        target = os.environ["CMS_PROOF_SESSION_FILE"]
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w") as output:
+            output.write(tokens[0])
+        print("cms-proof: the System Admin signed in with the code of the mail")
+    elif mode == "setup-closed":
         # Before the grant the setup stays closed, even for a System Admin.
         expect(503, "GET", "/_emdash/api/setup/status")
         print("cms-proof: setup is closed without a grant")

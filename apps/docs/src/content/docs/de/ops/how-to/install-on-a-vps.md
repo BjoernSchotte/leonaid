@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
+contentRevision: 8
+reviewedRevision: 8
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -402,6 +402,37 @@ sie vor einem neuen Versuch entfernt. War der Key schon geschrieben, setze
 wieder `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL`; die Meldung weist
 darauf hin.
 
+## Erste Systemadministration anlegen
+
+Eine neue Installation hat noch kein LeonAid-Konto. Als `leonaid` in
+`/opt/leonaid`:
+
+```sh
+./leonaid pilot-create-system-admin --env-file /etc/leonaid/production.env \
+  --email admin@club.org --display-name "Ada Admin"
+```
+
+Der Befehl legt das Konto mit der Rolle Systemadministration an und
+verschickt die normale Anmeldemail mit Link und Code; ein Passwort gibt es
+nicht. Die Systemadministration meldet sich unter
+`https://app.club.org/login` an (oder auf dem einen Host) und lädt im
+Verwaltungsbereich alle anderen ein.
+
+- Ein zweiter Lauf für dieselbe Adresse ändert nichts und verschickt keine
+  Mail.
+- Sobald eine Systemadministration existiert, wird eine andere Adresse
+  abgelehnt. Eine bewusst zweite Systemadministration (zum Beispiel eine
+  Vertretung) legst du mit `--additional` an.
+- Ein bestehendes aktives Konto mit dieser Adresse bekommt die Rolle, statt
+  doppelt angelegt zu werden; ein gesperrtes oder archiviertes Konto wird
+  abgelehnt (das ändert nur eine Systemadministration im Verwaltungsbereich).
+- Jede Änderung steht ohne Person als Akteur im LeonAid-Audit-Log
+  (`identity.account.created`, `identity.global_role.granted`).
+
+Kommt die Mail nicht an, prüfe das Mail-Relay (siehe
+[Mail für LeonAid und Twenty](#mail-für-leonaid-und-twenty)); unter `/login`
+lässt sich eine neue Anmeldemail anfordern.
+
 ## CRM öffnen
 
 Das Twenty CRM ist nur für die Systemadministration da. Es hat keine
@@ -529,7 +560,8 @@ Du brauchst:
   als 26 Stunden ist;
 - `release-manifest-cms.json` desselben Releases (aus den Release-Dateien);
 - die E-Mail-Adresse einer aktiven LeonAid-Systemadministration, die sich
-  jetzt anmelden kann.
+  jetzt anmelden kann (siehe
+  [Erste Systemadministration anlegen](#erste-systemadministration-anlegen)).
 
 Als `leonaid` in `/opt/leonaid`:
 
