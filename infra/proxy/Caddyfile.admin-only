@@ -154,7 +154,7 @@ http://:8080 {
 	}
 }
 
-https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443 {
+https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443, https://localhost:8443 {
 	import body_read_timeouts
 	tls internal
 	import common_headers

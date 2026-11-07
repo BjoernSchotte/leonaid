@@ -915,8 +915,10 @@ def _dev(target: Target) -> list[str]:
             "}",
             "",
         ]
+        # localhost:8443 serves the compose healthcheck.
         lines += _site(
-            "https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443",
+            "https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443, "
+            "https://localhost:8443",
             "admin_only",
             target,
             [],
