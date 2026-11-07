@@ -19,6 +19,9 @@ const internalOnly = new Set([
   // No public OAuth provider or MCP discovery is part of this integration.
   "/.well-known/oauth-protected-resource",
   "/.well-known/oauth-authorization-server/_emdash",
+  // The edition list of a campaign host. Caddy routes it nowhere; only the
+  // campaign host middleware maps "/archive/" there (specs/multi-domain §7.7.2).
+  "/site-editions",
 ]);
 
 export default function routeContract() {

@@ -30,6 +30,10 @@ export default defineConfig({
       { hostname: "proxy" },
       { hostname: "public" },
       runtimeDomainPattern,
+      // Campaign hosts are data, added without a restart (D7): every HTTPS
+      // host may set Astro.url; the host middleware lets only hosts that
+      // Core returns as active through (specs/multi-domain §9.2).
+      { protocol: "https" },
     ],
     actionBodySizeLimit: 64 * 1024,
     checkOrigin: true,

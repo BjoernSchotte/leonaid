@@ -441,6 +441,9 @@ services:
       # Hosts Astro trusts for Astro.url and checkOrigin, besides localhost.
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
+      # Development names of the one host: never taken for a campaign host.
+      LEONAID_LAN_HOST: ${LEONAID_LAN_HOST:-}
+      LEONAID_REMOTE_HOST: ${LEONAID_REMOTE_HOST:-}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-}
       # Named on the sign-in pages' brand panel.

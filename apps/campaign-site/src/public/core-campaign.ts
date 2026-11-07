@@ -60,7 +60,34 @@ export async function readPublicCoreCampaign(slug: string) {
         (route.action !== null || route.submissionsAllowed)) ||
       (route.orderAlias !== null &&
         (typeof route.orderAlias !== "string" ||
-          !campaignSlug.test(route.orderAlias)))
+          !campaignSlug.test(route.orderAlias))) ||
+      (route.campaignHostUrl != null &&
+        !/^https:\/\/[a-z0-9.-]+(:[0-9]+)?\/([a-z0-9]+(-[a-z0-9]+)*\/)?$/.test(
+          route.campaignHostUrl,
+        ))
+    )
+      throw new PublicCampaignError(503);
+    return route;
+  } catch (error) {
+    if (error instanceof PublicCampaignError) throw error;
+    throw new PublicCampaignError(503);
+  }
+}
+
+/** The archive presentation of an ended action (its edition on a campaign host). */
+export async function readPublicCoreArchive(slug: string) {
+  if (slug.length > 160 || !campaignSlug.test(slug))
+    throw new PublicCampaignError(404);
+  try {
+    const route = await client.resolvePublicActionArchive(slug, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (
+      route.routeKind !== "archive" ||
+      route.availability !== "archive" ||
+      route.submissionsAllowed ||
+      !route.action ||
+      route.action.archiveSlug !== slug
     )
       throw new PublicCampaignError(503);
     return route;

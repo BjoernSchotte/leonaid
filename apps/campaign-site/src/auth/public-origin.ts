@@ -58,14 +58,27 @@ export function hasSecureAdminOrigin(request: Request): boolean {
   return origin !== null && forwardedFrom(request, origin);
 }
 
-/** The validated site origin a public campaign request came through. */
-export function siteOriginOf(request: Request): URL | null {
-  return siteOrigins().find((origin) => forwardedFrom(request, origin)) ?? null;
+/**
+ * The validated site origin a public campaign request came through. A
+ * campaign host counts only after the host middleware found it active in
+ * Core (`campaignHost`, from `locals.siteHost`), never from the headers alone.
+ */
+export function siteOriginOf(
+  request: Request,
+  campaignHost?: URL | null,
+): URL | null {
+  const origins = campaignHost
+    ? [campaignHost, ...siteOrigins()]
+    : siteOrigins();
+  return origins.find((origin) => forwardedFrom(request, origin)) ?? null;
 }
 
 /** Public campaign pages and their order POSTs: only through a site origin. */
-export function hasSecureSiteOrigin(request: Request): boolean {
-  return siteOriginOf(request) !== null;
+export function hasSecureSiteOrigin(
+  request: Request,
+  campaignHost?: URL | null,
+): boolean {
+  return siteOriginOf(request, campaignHost) !== null;
 }
 
 /**
