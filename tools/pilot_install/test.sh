@@ -1230,6 +1230,7 @@ done
 [ "$(docker inspect --format '{{.Image}}' "$(runtime_compose --profile emdash ps --quiet campaign-site)")" = "$LEONAID_TEST_CAMPAIGN_SITE_IMAGE" ]
 # The published page survives the release on the public host.
 cms_proof public "$cms_slug" "$cms_title"
+cms_manifest_argument=$next_manifest
 cms_expect "repeats as a no-op after the release" 0 "pilot-cms-provision: OK: $project serves the CMS"
 echo "pilot-install-test: pilot-release migrated the CMS (synthetic EmDash migration) and kept the published page"
 
