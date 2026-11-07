@@ -164,7 +164,7 @@ docker run --rm \
   node_modules/.bin/playwright test \
   --config=tests/e2e/public.config.mjs \
   public-orders.spec.mjs \
-  ${LEONAID_E2E_SMOKE:+--grep "^a double submit sends one order request and shows the confirmation\$"} \
+  ${LEONAID_E2E_SMOKE:+--grep "new company, existing company and private person order in the guided form"} \
   --project=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \
