@@ -885,15 +885,19 @@ class Proof:
             async def active_configuration(self) -> LegalConfigurationVersion:
                 return legal_version()
 
+        jobs = {
+            order_id: await self.db.fetchrow(
+                "SELECT id, idempotency_key, payload FROM outbox_event"
+                " WHERE aggregate_id=$1 AND event_type=$2",
+                order_id,
+                ORDER_CANCELLATION_MAIL,
+            )
+            for order_id in orders
+        }
         try:
 
             async def run(order_id: UUID) -> str | None:
-                job = await self.db.fetchrow(
-                    "SELECT id, idempotency_key, payload FROM outbox_event"
-                    " WHERE aggregate_id=$1 AND event_type=$2",
-                    order_id,
-                    ORDER_CANCELLATION_MAIL,
-                )
+                job = jobs[order_id]
                 handler = OrderMailHandler(
                     OrderMailKind.CANCELLATION,
                     reader=AsyncpgOrderMailReader(pool),
