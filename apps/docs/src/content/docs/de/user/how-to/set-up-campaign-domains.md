@@ -14,6 +14,11 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 deshalb verwaltet nur die System-Administration sie. Charity-Admins sehen die
 Adressen ihrer Aktion, ändern sie aber nicht.
 
+:::caution[Vorschau]
+Domains lassen sich eintragen, prüfen und binden. Die Kampagnenseiten liefert
+die Domain erst mit dem nächsten Release aus.
+:::
+
 Eine Aktion kann unter einer eigenen Domain (`krapfentaxi.org`) oder einer
 Subdomain des Clubs (`weihnachtsmarkt.example.org`) laufen. Die Verwaltung
 bleibt auf dem Verwaltungshost. Jede Domain zeigt nur die Kampagnenseiten der
@@ -38,8 +43,9 @@ nicht eintragen, ebenso keine Namen unterhalb des Verwaltungshosts.
 1. Warte, bis der DNS-Eintrag sichtbar ist (oft Minuten, manchmal Stunden).
 2. Wähle auf der Domain-Karte **Prüfen**.
 
-LeonAid ruft die Prüfadresse der Karte über jede öffentliche Adresse der
-Domain auf. Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
+LeonAid prüft, dass jeder `A`/`AAAA`-Eintrag der Domain auf diesen Server
+zeigt, und ruft die Prüfadresse der Karte über jede dieser Adressen auf.
+Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
 Beim ersten Aufruf über HTTPS holt der Server ein Zertifikat von Let's
 Encrypt; danach steht sie auf **Aktiv**. Steht sie noch auf **Geprüft**,
 prüfe nach einer Minute erneut. Erst eine geprüfte Domain erhält ein

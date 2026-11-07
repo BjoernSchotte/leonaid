@@ -363,7 +363,7 @@ https:// {
 	tls {
 		on_demand
 	}
-	import common_headers
+	import public_host_headers
 
 	@internal path /internal /internal/* /api/internal /api/internal/*
 	handle @internal {

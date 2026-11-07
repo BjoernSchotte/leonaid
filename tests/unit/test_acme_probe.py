@@ -8,7 +8,17 @@ from tools.site_hosts import acme_probe
 def test_public_addresses_only() -> None:
     assert acme_probe.public("93.184.215.14")
     assert acme_probe.public("2606:2800:21f:cb07::1")
-    for address in ("10.0.0.1", "127.0.0.1", "192.168.0.1", "::1", "fe80::1"):
+    for address in (
+        "10.0.0.1",
+        "127.0.0.1",
+        "192.168.0.1",
+        "100.64.0.1",
+        "::1",
+        "fe80::1",
+        "64:ff9b::a00:1",
+        "2002:a00:1::1",
+        "::ffff:93.184.215.14",
+    ):
         assert not acme_probe.public(address)
 
 

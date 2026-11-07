@@ -14,6 +14,7 @@ indexes.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import ipaddress
 import re
 from collections.abc import Iterable, Sequence
@@ -419,14 +420,18 @@ class HostCheckOutcome:
     message: str
 
 
-def check_answer(hostname: str, token: str) -> str:
+def check_answer(secret: str, hostname: str, token: str, nonce: str) -> str:
     """The body this installation serves on the check path of ``hostname``.
 
-    Only this installation knows which token belongs to which name, so no
-    other server can produce it. Hashed, so the response never reflects the
-    request path.
+    An HMAC under the installation secret over host, token and the checker's
+    fresh nonce: nobody else can produce it, and a captured answer is worth
+    nothing for the next check (§7.4).
     """
-    digest = hashlib.sha256(f"{hostname}\n{token}".encode("utf-8")).hexdigest()
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        f"{hostname}\n{token}\n{nonce}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     return f"leonaid-host-check:{digest}"
 
 

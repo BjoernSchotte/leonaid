@@ -24,10 +24,17 @@ from leonaid.domain.site_hosts import (
 NOW = datetime(2026, 11, 7, 3, 0, tzinfo=timezone.utc)
 HOST = "krapfentaxi.org"
 TOKEN = "t" * 43
+SECRET = "synthetic-check-secret"
+EDGE_V4 = "93.184.215.14"
+EDGE_V6 = "2606:2800:21f:cb07::1"
+# Stands for "this installation answers": the right HMAC for the nonce.
+OURS = "ours"
 
 
 def resolver(*addresses: str):  # type: ignore[no-untyped-def]
     async def resolve(hostname: str, port: int) -> Sequence[str]:
+        if hostname == "app.example.org":
+            return (EDGE_V4, EDGE_V6)
         assert hostname == HOST
         return addresses
 
@@ -35,14 +42,21 @@ def resolver(*addresses: str):  # type: ignore[no-untyped-def]
 
 
 def answering(
-    replies: dict[str, httpx.Response | Exception],
+    replies: dict[str, httpx.Response | Exception | str],
+    seen: list[str] | None = None,
 ) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["host"] == HOST
         assert request.url.path == f"/.well-known/leonaid-host-check/{TOKEN}"
+        nonce = request.url.params["nonce"]
+        if seen is not None:
+            seen.append(nonce)
         reply = replies[request.url.host]
         if isinstance(reply, Exception):
             raise reply
+        if reply == OURS:
+            return httpx.Response(200, text=check_answer(SECRET, HOST, TOKEN, nonce))
+        assert isinstance(reply, httpx.Response)
         return reply
 
     return httpx.MockTransport(handler)
@@ -50,85 +64,96 @@ def answering(
 
 def checker(
     addresses: Sequence[str],
-    replies: dict[str, httpx.Response | Exception],
+    replies: dict[str, httpx.Response | Exception | str],
     *,
     allow_private: bool = False,
+    edge: tuple[str, ...] = (),
+    seen: list[str] | None = None,
 ) -> HostChecker:
     return HostChecker(
-        HostCheckSettings(allow_private_addresses=allow_private),
+        HostCheckSettings(
+            secret=SECRET,
+            allow_private_addresses=allow_private,
+            edge_addresses=edge,
+            edge_name="app.example.org",
+        ),
         resolver=resolver(*addresses),
-        transport=answering(replies),
+        transport=answering(replies, seen),
     )
-
-
-GOOD = httpx.Response(200, text=check_answer(HOST, TOKEN))
 
 
 def run(check: HostChecker) -> HostCheckOutcome:
     return asyncio.run(check.check(HOST, TOKEN, tls=False))
 
 
-def test_every_public_address_must_answer_with_our_digest() -> None:
+def test_every_address_is_ours_and_answers_with_a_fresh_hmac() -> None:
+    seen: list[str] = []
+    outcome = run(
+        checker([EDGE_V4, EDGE_V6], {EDGE_V4: OURS, EDGE_V6: OURS}, seen=seen)
+    )
+    assert outcome.http_ok, outcome
+    assert len(seen) == 2 and len(set(seen)) == 2  # a new nonce per request
+
+
+def test_a_foreign_address_fails_even_with_the_right_answer() -> None:
+    # A lapsed domain someone else registered and relays to us (review I1).
     outcome = run(
         checker(
-            ["93.184.215.14", "2606:2800:21f:cb07::1"],
-            {"93.184.215.14": GOOD, "2606:2800:21f:cb07::1": GOOD},
+            [EDGE_V4, "185.199.108.153"],
+            {EDGE_V4: OURS, "185.199.108.153": OURS},
+        )
+    )
+    assert not outcome.http_ok
+    assert "185.199.108.153 zeigt nicht auf diesen Server" in outcome.message
+
+
+def test_a_foreign_aaaa_record_fails_without_any_ipv6_route() -> None:
+    outcome = run(checker([EDGE_V4, "2606:4700::1111"], {EDGE_V4: OURS}))
+    assert not outcome.http_ok
+    assert outcome.message.startswith("AAAA-Eintrag 2606:4700::1111")
+
+
+def test_a_replayed_answer_fails() -> None:
+    old = check_answer(SECRET, HOST, TOKEN, "0" * 32)
+    outcome = run(checker([EDGE_V4], {EDGE_V4: httpx.Response(200, text=old)}))
+    assert not outcome.http_ok
+    assert "nicht von dieser Installation" in outcome.message
+
+
+def test_configured_edge_addresses_win_over_the_admin_host() -> None:
+    outcome = run(
+        checker(
+            ["185.199.108.153"], {"185.199.108.153": OURS}, edge=("185.199.108.153",)
         )
     )
     assert outcome.http_ok, outcome
 
 
-def test_an_address_of_another_server_fails() -> None:
-    outcome = run(
-        checker(
-            ["93.184.215.14", "185.199.108.153"],
-            {
-                "93.184.215.14": GOOD,
-                "185.199.108.153": httpx.Response(200, text="parked"),
-            },
-        )
-    )
-    assert not outcome.http_ok
-    assert "185.199.108.153" in outcome.message
-
-
 def test_registrar_redirects_are_not_followed() -> None:
     outcome = run(
         checker(
-            ["93.184.215.14"],
-            {"93.184.215.14": httpx.Response(301, headers={"Location": "https://x/"})},
+            [EDGE_V4],
+            {EDGE_V4: httpx.Response(301, headers={"Location": "https://x/"})},
         )
     )
     assert not outcome.http_ok
     assert "301" in outcome.message
 
 
-def test_unreachable_ipv6_is_skipped_but_a_wrong_ipv6_answer_fails() -> None:
+def test_our_ipv6_without_a_route_from_here_is_skipped() -> None:
     outcome = run(
         checker(
-            ["93.184.215.14", "2606:2800:21f:cb07::1"],
-            {
-                "93.184.215.14": GOOD,
-                "2606:2800:21f:cb07::1": httpx.ConnectError("no route"),
-            },
+            [EDGE_V4, EDGE_V6],
+            {EDGE_V4: OURS, EDGE_V6: httpx.ConnectError("no route")},
         )
     )
     assert outcome.http_ok
-    outcome = run(
-        checker(
-            ["2606:2800:21f:cb07::1"],
-            {"2606:2800:21f:cb07::1": httpx.ConnectError("no route")},
-        )
-    )
+    outcome = run(checker([EDGE_V6], {EDGE_V6: httpx.ConnectError("no route")}))
     assert not outcome.http_ok
 
 
 def test_oversized_answers_fail() -> None:
-    outcome = run(
-        checker(
-            ["93.184.215.14"], {"93.184.215.14": httpx.Response(200, text="x" * 4096)}
-        )
-    )
+    outcome = run(checker([EDGE_V4], {EDGE_V4: httpx.Response(200, text="x" * 4096)}))
     assert not outcome.http_ok
     assert "zu groß" in outcome.message
 
@@ -141,23 +166,34 @@ def test_oversized_answers_fail() -> None:
         "192.168.1.1",
         "127.0.0.1",
         "169.254.1.1",
+        "100.64.0.1",
+        "100.100.100.200",
         "::1",
         "fc00::1",
         "::ffff:93.184.215.14",
+        "64:ff9b::a00:1",
+        "2002:a00:1::1",
+        "0.0.0.0",
         "203.0.113.5",
         "2001:db8::5",
-        "0.0.0.0",
     ],
 )
-def test_private_addresses_are_never_fetched(address: str) -> None:
+def test_non_global_addresses_are_never_fetched(address: str) -> None:
     assert forbidden_address(address)
     outcome = run(checker([address], {}))
     assert not outcome.http_ok
-    assert "keine öffentliche Adresse" in outcome.message
+    assert "nicht öffentliche Adresse" in outcome.message
 
 
 def test_private_addresses_only_with_the_test_switch() -> None:
-    outcome = run(checker(["172.18.0.4"], {"172.18.0.4": GOOD}, allow_private=True))
+    outcome = run(
+        checker(
+            ["172.18.0.4"],
+            {"172.18.0.4": OURS},
+            allow_private=True,
+            edge=("172.18.0.4",),
+        )
+    )
     assert outcome.http_ok
 
 
@@ -165,16 +201,19 @@ def test_unresolvable_names_fail() -> None:
     async def failing(hostname: str, port: int) -> Sequence[str]:
         raise OSError("NXDOMAIN")
 
-    check = HostChecker(HostCheckSettings(), resolver=failing)
+    check = HostChecker(HostCheckSettings(secret=SECRET), resolver=failing)
     outcome = asyncio.run(check.check(HOST, TOKEN, tls=False))
     assert not outcome.http_ok
     assert "nicht auflösbar" in outcome.message
 
 
-def test_answer_differs_per_host_and_token() -> None:
-    assert check_answer(HOST, TOKEN) != check_answer("other.org", TOKEN)
-    assert check_answer(HOST, TOKEN) != check_answer(HOST, "u" * 43)
-    assert TOKEN not in check_answer(HOST, TOKEN)
+def test_answer_is_keyed_and_bound_to_host_token_and_nonce() -> None:
+    answer = check_answer(SECRET, HOST, TOKEN, "a" * 32)
+    assert answer != check_answer("other-secret", HOST, TOKEN, "a" * 32)
+    assert answer != check_answer(SECRET, "other.org", TOKEN, "a" * 32)
+    assert answer != check_answer(SECRET, HOST, "u" * 43, "a" * 32)
+    assert answer != check_answer(SECRET, HOST, TOKEN, "b" * 32)
+    assert TOKEN not in answer
 
 
 PASS = HostCheckOutcome(True, True, "ok")

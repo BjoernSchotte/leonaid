@@ -180,7 +180,10 @@ Internet erreichbar sein.
 einen `CNAME` (Subdomain) auf diesen Server an. Caddy holt ihr Zertifikat beim
 ersten Aufruf, aber nur für eine Domain, die LeonAid geprüft hat (höchstens
 zehn neue pro Stunde). Port 80 muss dafür offen bleiben, und ein `CAA`-Record
-der Domain muss `letsencrypt.org` erlauben. Den Nachweis von außen liefert:
+der Domain muss `letsencrypt.org` erlauben. Jeder `A`/`AAAA`-Eintrag der
+Domain muss auf eine Adresse dieses Servers zeigen; LeonAid nimmt dafür die
+Adressen des Verwaltungshosts oder `LEONAID_SITE_HOST_EDGE_ADDRESSES`. Den
+Nachweis von außen liefert:
 
 ```sh
 python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org

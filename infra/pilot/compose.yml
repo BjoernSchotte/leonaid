@@ -74,6 +74,9 @@ services:
       LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "false"
       LEONAID_SITE_HOST_CHECK_HTTP_PORT: "80"
       LEONAID_SITE_HOST_TLS_CA_FILE: ""
+      # The server's own public addresses; empty = those of the admin host.
+      LEONAID_SITE_HOST_EDGE_NAME: ""
+      LEONAID_SITE_HOST_EDGE_ADDRESSES: ${LEONAID_SITE_HOST_EDGE_ADDRESSES:-}
       TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL is missing}
       WORKER_HEALTH_URL: http://worker:8010/health/ready

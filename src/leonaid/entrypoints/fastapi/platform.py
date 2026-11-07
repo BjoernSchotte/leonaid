@@ -352,6 +352,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.configured_hosts, str(settings.site_base_url)
         )
         application.state.canonical_urls = canonical
+        application.state.site_host_check_secret = settings.site_host_check_secret
         site_host_verification = AsyncpgSiteHostVerification(pool)
         application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(

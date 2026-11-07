@@ -289,6 +289,8 @@ class SiteHostChecks(Protocol):
         request_id: str,
     ) -> object: ...
 
+    def invalidate(self) -> None: ...
+
 
 class HostProbe(Protocol):
     async def check(
@@ -377,9 +379,13 @@ class SiteHostService:
             if isinstance(command, AddSiteHost)
             else None
         )
-        return await self._repository.execute(
-            actor.account.id, command, hostname=hostname, request_id=request_id
-        )
+        try:
+            return await self._repository.execute(
+                actor.account.id, command, hostname=hostname, request_id=request_id
+            )
+        finally:
+            if self._checks is not None:
+                self._checks.invalidate()
 
 
 __all__ = [

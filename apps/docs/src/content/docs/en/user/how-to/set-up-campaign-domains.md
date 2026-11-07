@@ -14,6 +14,11 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 only the system administration manages them. Charity admins see the
 addresses of their campaign but do not change them.
 
+:::caution[Preview]
+Domains can be added, checked and bound. The domain serves the campaign pages
+only from the next release on.
+:::
+
 A campaign can run under its own domain (`krapfentaxi.org`) or a subdomain of
 the club (`weihnachtsmarkt.example.org`). Administration stays on the admin
 host. Each domain shows only the campaign pages of the campaigns bound to it.
@@ -38,8 +43,9 @@ names below the admin host.
 1. Wait until the DNS record is visible (often minutes, sometimes hours).
 2. Choose **Prüfen** (check) on the domain card.
 
-LeonAid calls the check address of the card through every public address of
-the domain. If this server answers everywhere, the domain shows **Geprüft**
+LeonAid checks that every `A`/`AAAA` record of the domain points to this
+server and calls the check address of the card through each of these
+addresses. If this server answers everywhere, the domain shows **Geprüft**
 (verified). On the first HTTPS request the server gets a certificate from
 Let's Encrypt; then it shows **Aktiv** (active). If it still shows
 **Geprüft**, check again after a minute. Only a verified domain gets a

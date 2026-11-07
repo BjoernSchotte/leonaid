@@ -81,8 +81,9 @@ async def main() -> None:
         hosts.append(host_id)
         await db.execute(
             "INSERT INTO site_host(id,hostname,status,verification_token,created_by,"
-            "consecutive_failures,failing_since,tls_approved_at) "
-            "VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+            "consecutive_failures,failing_since,tls_approved_at,verified_at) "
+            "VALUES($1,$2,$3,$4,$5,$6,$7,$8,"
+            "CASE WHEN $3 IN ('verified','active') THEN now() END)",
             host_id,
             name(label),
             status,
@@ -127,15 +128,28 @@ async def main() -> None:
                 cookie = {"Cookie": f"__Host-leonaid_session={token}"}
 
                 # The check path answers only for its own (host, token) pair.
-                path = f"/.well-known/leonaid-host-check/krapfentaxi-token-{tag}-{'x' * 24}"
+                nonce = "ab" * 16
+                path = (
+                    f"/.well-known/leonaid-host-check/krapfentaxi-token-{tag}-"
+                    f"{'x' * 24}?nonce={nonce}"
+                )
                 response = await client.get(
                     path, headers={"Host": name("krapfentaxi") + ":80"}
                 )
                 assert response.status_code == 200, response.text
-                assert response.text == check_answer(
-                    name("krapfentaxi"), f"krapfentaxi-token-{tag}-{'x' * 24}"
-                )
                 assert response.headers["cache-control"] == "no-store"
+                secret = app.state.site_host_check_secret
+                assert response.text == check_answer(
+                    secret,
+                    name("krapfentaxi"),
+                    f"krapfentaxi-token-{tag}-{'x' * 24}",
+                    nonce,
+                )
+                # Without a nonce, no answer: nothing to replay.
+                response = await client.get(
+                    path.split("?")[0], headers={"Host": name("krapfentaxi")}
+                )
+                assert response.status_code == 404
                 for host_header in (name("other"), "app.checks.leonaid.invalid"):
                     response = await client.get(path, headers={"Host": host_header})
                     assert response.status_code == 404
@@ -149,6 +163,24 @@ async def main() -> None:
 
                 # Pending: no certificate.
                 assert await ask(name("krapfentaxi")) == 403
+
+                # A flood of junk names and tokens costs no database query
+                # beyond one snapshot refresh (review I2, M4).
+                verification = app.state.site_host_verification
+                verification.invalidate()
+                before = verification.snapshot_queries
+                for index in range(1000):
+                    assert await ask(f"junk{index}-{tag}.example.net") == 403
+                    response = await client.get(
+                        f"/.well-known/leonaid-host-check/{'y' * 40}{index}"
+                        f"?nonce={nonce}",
+                        headers={"Host": f"junk{index}-{tag}.example.net"},
+                    )
+                    assert response.status_code == 404
+                assert verification.snapshot_queries - before <= 1
+                # Configured hosts never get an on-demand certificate.
+                assert await ask("app.checks.leonaid.invalid") == 403
+                assert await ask("checks.leonaid.invalid") == 403
 
                 # Prüfen: name points here, no certificate yet → verified.
                 probe.outcomes[name("krapfentaxi")] = HostCheckOutcome(
@@ -226,6 +258,25 @@ async def main() -> None:
                 )
                 await app.state.site_host_service.recheck_due(request_id="proof")
                 assert name("lapsed") in probe.calls
+                # Back-off (review M2): a host checked just now is not due
+                # again within 20 minutes, also while it waits for TLS.
+                await db.execute(
+                    "UPDATE site_host SET status='verified', tls_approved_at=NULL "
+                    "WHERE id=$1",
+                    fresh,
+                )
+                due = {
+                    target.hostname
+                    for target in await verification.due(datetime.now(timezone.utc))
+                }
+                assert name("fresh") not in due, due
+                due = {
+                    target.hostname
+                    for target in await verification.due(
+                        datetime.now(timezone.utc) + timedelta(minutes=21)
+                    )
+                }
+                assert name("fresh") in due, due
                 assert name("krapfentaxi") not in probe.calls[2:]
                 assert (
                     await db.fetchval(

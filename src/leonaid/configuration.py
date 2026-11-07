@@ -5,6 +5,8 @@ from __future__ import annotations
 from email.utils import parseaddr
 from ipaddress import ip_address
 from pathlib import Path
+import hashlib
+import hmac
 import re
 import unicodedata
 from typing import Literal
@@ -137,6 +139,13 @@ class Settings(BaseSettings):
         pattern=r"^[a-z0-9.-]+:[0-9]{1,5}$",
         alias="LEONAID_SITE_HOST_TLS_EDGE",
     )
+    # The edge's own public addresses; a campaign host must resolve to
+    # these only. Empty: the addresses of LEONAID_SITE_HOST_EDGE_NAME, by
+    # default the admin host (§7.4).
+    site_host_edge_addresses_value: str = Field(
+        default="", alias="LEONAID_SITE_HOST_EDGE_ADDRESSES"
+    )
+    site_host_edge_name: str = Field(default="", alias="LEONAID_SITE_HOST_EDGE_NAME")
     site_host_tls_ca_file: Path | None = Field(
         default=None, alias="LEONAID_SITE_HOST_TLS_CA_FILE"
     )
@@ -423,9 +432,26 @@ class Settings(BaseSettings):
         )
 
     @property
+    def site_host_check_secret(self) -> str:
+        """A key of its own for the host check answer, from the HMAC secret."""
+        return hmac.new(
+            self.invitation_hmac_secret.get_secret_value().encode("utf-8"),
+            b"leonaid.site-host-check.v1",
+            hashlib.sha256,
+        ).hexdigest()
+
+    @property
     def host_check_settings(self) -> HostCheckSettings:
         edge_host, _, edge_port = self.site_host_tls_edge.rpartition(":")
         return HostCheckSettings(
+            secret=self.site_host_check_secret,
+            edge_addresses=tuple(
+                item
+                for item in re.split(r"[\s,]+", self.site_host_edge_addresses_value)
+                if item
+            ),
+            edge_name=self.site_host_edge_name.strip()
+            or (self.public_base_url.host or ""),
             http_port=self.site_host_check_http_port,
             allow_private_addresses=self.site_host_check_allow_private,
             tls_edge_host=edge_host,
