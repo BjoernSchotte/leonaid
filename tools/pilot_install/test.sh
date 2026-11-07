@@ -716,7 +716,7 @@ assert_delivered cms-second-admin@leonaid.org noreply@leonaid.org "LeonAid-Login
 admin_audit=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
   --tuples-only --no-align --command \
   "SELECT event_type || ':' || (actor_user_id IS NULL)::text FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' ORDER BY occurred_at")
-[ "$admin_audit" = "$(printf '%s\n' identity.account.created:true identity.global_role.granted:true identity.account.created:true identity.global_role.granted:true)" ] || {
+[ "$admin_audit" = "$(printf '%s\n' identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true)" ] || {
   echo "pilot-install-test: ERROR: unexpected system admin audit trail:" >&2
   printf '%s\n' "$admin_audit" >&2
   exit 1
