@@ -21,6 +21,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from leonaid.application.links import LinkBuilder
+from leonaid.domain.site_hosts import ConfiguredHosts
 
 
 CLUB_NAME_MAX_LENGTH = 120
@@ -112,6 +113,14 @@ class Settings(BaseSettings):
     # Origins allowed for /api/v1/public/* without credentials: the public
     # host and its aliases (specs/multi-domain §6.3).
     public_origins_value: str = Field(default="", alias="LEONAID_PUBLIC_ORIGINS")
+    # Extra names of the public host (www.); a campaign host must not take
+    # them (specs/multi-domain §7.3). Commas or whitespace.
+    public_domain_aliases_value: str = Field(
+        default="", alias="LEONAID_PUBLIC_DOMAIN_ALIASES"
+    )
+    # False: the installation has no general public host, only the admin host
+    # and campaign hosts (§6.6). Path-based campaign URLs then do not exist.
+    public_host_enabled: bool = Field(default=True, alias="LEONAID_PUBLIC_HOST_ENABLED")
     trust_proxy_headers: bool = Field(
         default=False,
         alias="LEONAID_TRUST_PROXY_HEADERS",
@@ -360,6 +369,24 @@ class Settings(BaseSettings):
             admin_base_url=str(self.public_base_url),
             site_base_url=str(self.site_base_url),
         )
+
+    @property
+    def configured_hosts(self) -> ConfiguredHosts:
+        """Hosts from the environment that no site host may take (§7.3)."""
+        admin = (self.public_base_url.host or "").casefold()
+        aliases = tuple(
+            dict.fromkeys(
+                item.strip().rstrip(".").casefold()
+                for item in re.split(r"[\s,]+", self.public_domain_aliases_value)
+                if item.strip()
+            )
+        )
+        public = (
+            (self.site_base_url.host or "").casefold()
+            if self.public_host_enabled
+            else None
+        )
+        return ConfiguredHosts(admin=admin, public=public, aliases=aliases)
 
     @property
     def public_origins(self) -> tuple[str, ...]:

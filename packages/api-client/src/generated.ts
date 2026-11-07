@@ -30,6 +30,7 @@ export type ActivityFeedItemResponse = { readonly actionId: string; readonly act
 export type ActivityFeedReadAllResponse = { readonly updated: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AddComment = { readonly body: string; readonly idempotencyKey: string; };
+export type AddSiteHostRequest = { readonly commandId: string; readonly hostname: string; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
 export type AggregateCount = { readonly count: number | null; readonly label: string; readonly percentage: number | null; readonly suppressed?: boolean; readonly value: string | number | number; };
 export type AnalysisFilter = { readonly createdBefore?: string | null; readonly createdFrom?: string | null; readonly isTest?: boolean; readonly statuses?: Array<"in_progress" | "partial" | "completed">; readonly versionId: string; };
@@ -45,6 +46,8 @@ export type Assignee = { readonly displayName: string; readonly userId: string; 
 export type Assignees = { readonly items: Array<Assignee>; readonly nextOffset: number | null; };
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
+export type BindSiteEditionRequest = { readonly actionId: string; readonly atRoot?: boolean; readonly commandId: string; readonly revision: number; readonly segment?: string | null; };
+export type BindableActionResponse = { readonly archiveSlug: string; readonly availability: "published" | "archive" | "inactive"; readonly campaignPage: boolean; readonly id: string; readonly name: string; readonly status: string; };
 export type Body_addMaterialVersion = { readonly expectedRevision: number; readonly file: Blob; readonly idempotencyKey: string; };
 export type Body_createMaterial = { readonly actionId?: string | null; readonly file: Blob; readonly idempotencyKey: string; readonly title: string; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
@@ -59,6 +62,7 @@ export type CasePermissions = { readonly canManage: boolean; };
 export type Cases = { readonly items: Array<Case>; readonly nextOffset: number | null; };
 export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
+export type ChangeSiteEditionSegmentRequest = { readonly commandId: string; readonly revision: number; readonly segment: string; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
 export type CharityActionListResponse = { readonly items: Array<CharityActionSummaryResponse>; };
 export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly isPublished: boolean; readonly name: string; readonly presentationTheme: string | null; readonly publicationEndsAt: string | null; readonly publicationStartsAt: string | null; readonly purpose: string; readonly revision: number; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
@@ -216,6 +220,7 @@ export type MemberDirectoryResponse = { readonly actions: Array<MemberDirectoryA
 export type MemberRoleChangeResponse = { readonly actionId: string | null; readonly actionName: string | null; readonly enabled: boolean; readonly replayed: boolean; readonly revision: number; readonly role: "system_admin" | "finance_reader" | "finance_manager" | "charity_admin" | "acquirer" | "driver"; readonly roleLabel: string; readonly scope: "global" | "action"; readonly userId: string; };
 export type MemberStatusChangeResponse = { readonly displayName: string; readonly previousStatus: "active" | "suspended"; readonly previousStatusLabel: string; readonly replayed: boolean; readonly revision: number; readonly revokedSessionCount: number; readonly status: "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
 export type MovePlacement = { readonly after?: string | null; readonly before?: string | null; readonly edge?: "start" | "end" | null; };
+export type MoveSiteRootRequest = { readonly actionId: string; readonly commandId: string; readonly revision: number; readonly segment?: string | null; };
 export type MoveTask = { readonly context: "list" | "personal"; readonly expectedOrderRevision: number; readonly expectedPlanRevision?: number | null; readonly expectedTaskRevision?: number | null; readonly idempotencyKey: string; readonly placement: MovePlacement; readonly targetDate?: string | null; readonly targetEpicId?: string | null; };
 export type Mutation = { readonly expectedRevision: number; readonly operationId: string; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
@@ -307,9 +312,16 @@ export type SetMaterialReference = { readonly expectedRevision: number; readonly
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
+export type SetSiteHostRedirectRequest = { readonly commandId: string; readonly revision: number; readonly targetHostId: string | null; };
 export type SetTaskPlan = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly plannedOn?: string | null; readonly state: "scheduled" | "someday" | "unplanned"; };
 export type SetTaskReference = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly present: boolean; readonly taskId: string; };
 export type SetTaskStructure = { readonly checklist: Array<ChecklistItem>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly priority: "none" | "high"; readonly tagIds: Array<string>; };
+export type SiteBindingResponse = { readonly actionId: string; readonly actionName: string; readonly archiveSlug: string; readonly atRoot: boolean; readonly availability: "published" | "archive" | "inactive"; readonly campaignPage: boolean; readonly editionUrl: string; readonly endedReason: "segment_changed" | "unbound" | "host_removed" | null; readonly id: string; readonly isPrimary: boolean; readonly revision: number; readonly segment: string; readonly targetUrl: string | null; readonly validFrom: string; readonly validTo: string | null; };
+export type SiteHostListResponse = { readonly actions: Array<BindableActionResponse>; readonly adminHost: string; readonly hosts: Array<SiteHostResponse>; readonly publicHost: string | null; readonly publicHostAliases: Array<string>; };
+export type SiteHostRemovalItemResponse = { readonly actionId: string; readonly actionName: string; readonly bindingId: string; readonly currentUrl: string; readonly newUrl: string | null; };
+export type SiteHostRemovalPreviewResponse = { readonly hostId: string; readonly items: Array<SiteHostRemovalItemResponse>; readonly redirectHosts: Array<string>; readonly revision: number; };
+export type SiteHostResponse = { readonly bindings: Array<SiteBindingResponse>; readonly createdAt: string; readonly displayHostname: string; readonly failedChecks: number; readonly history: Array<SiteBindingResponse>; readonly hostname: string; readonly id: string; readonly kind: "campaign" | "redirect"; readonly lastCheckResult: string | null; readonly lastCheckedAt: string | null; readonly redirectToHostId: string | null; readonly redirectToHostname: string | null; readonly revision: number; readonly status: "pending" | "verified" | "active" | "disabled"; readonly verificationPath: string; readonly verifiedAt: string | null; };
+export type SiteHostRevisionRequest = { readonly commandId: string; readonly revision: number; };
 export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
 export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
 export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
@@ -352,6 +364,7 @@ export type TimeoutSettings = { readonly endedRetentionSeconds?: number | null; 
 export type TimeoutSettingsResponse = { readonly endedRetentionSeconds?: number | null; readonly inactivityTimeoutSeconds: number; readonly revision: number; readonly trashRetentionSeconds?: number | null; };
 export type Transition = { readonly action: "end" | "archive" | "unarchive" | "trash" | "restore"; readonly expectedRevision: number; readonly operationId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
+export type UnbindSiteEditionRequest = { readonly commandId: string; readonly confirmRootRemoval?: boolean; readonly revision: number; };
 export type UnitQuantityResponse = { readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
@@ -1709,6 +1722,157 @@ export class LeonAidApiClient {
       "/api/v1/admin/privacy/lookup",
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listSiteHosts(
+    options: RequestOptions = {},
+  ): Promise<SiteHostListResponse> {
+    return this.request<SiteHostListResponse>(
+      "/api/v1/admin/site-hosts",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async addSiteHost(
+    body: AddSiteHostRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      "/api/v1/admin/site-hosts",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async removeSiteHost(
+    hostId: string,
+    body: SiteHostRevisionRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async bindSiteEdition(
+    hostId: string,
+    body: BindSiteEditionRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/bindings`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async unbindSiteEdition(
+    hostId: string,
+    bindingId: string,
+    body: UnbindSiteEditionRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/bindings/${encodeURIComponent(String(bindingId))}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setPrimarySiteEdition(
+    hostId: string,
+    bindingId: string,
+    body: SiteHostRevisionRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/bindings/${encodeURIComponent(String(bindingId))}/primary`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async changeSiteEditionSegment(
+    hostId: string,
+    bindingId: string,
+    body: ChangeSiteEditionSegmentRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/bindings/${encodeURIComponent(String(bindingId))}/segment`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setSiteHostRedirect(
+    hostId: string,
+    body: SetSiteHostRedirectRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/redirect`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async previewSiteHostRemoval(
+    hostId: string,
+    options: RequestOptions = {},
+  ): Promise<SiteHostRemovalPreviewResponse> {
+    return this.request<SiteHostRemovalPreviewResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/removal-preview`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async moveSiteRoot(
+    hostId: string,
+    body: MoveSiteRootRequest,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/root`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
