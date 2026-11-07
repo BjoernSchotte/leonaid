@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Aggregate one workflow's jobs into a single required check.
 
-Branch protection and the merge queue require only this gate. It reads
+The repository ruleset requires only this gate. It reads
 ``toJSON(needs)`` and the selector outputs it contains and fails unless:
 
 * the ``select`` job succeeded;

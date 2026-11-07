@@ -1,4 +1,7 @@
 name: LeonAid CI
+# The nightly run is the only scheduled run with every E2E leaf; its own
+# name lets nightly-watchdog.yml track it apart from the 3-hourly runs.
+run-name: ${{ github.event.schedule == '7 3 * * *' && 'LeonAid CI nightly (every E2E leaf)' || github.event.schedule == '37 */3 * * *' && 'LeonAid CI main every 3 hours' || github.event.pull_request.title || github.workflow }}
 
 on:
   # PR tier: cheap gates plus only the stack suites whose inputs changed.
@@ -6,8 +9,6 @@ on:
     # Drafts run nothing; ready_for_review starts CI, converted_to_draft
     # cancels the running one (same concurrency group, no job runs).
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
-  # Queue tier: the complete suite before anything reaches main.
-  merge_group:
   # No full run per push to main (decision 2026-11-07): main is proven by
   # the scheduled complete runs below; nightly-watchdog.yml opens an issue
   # when one is red. Only the artifact probe branch still runs on push.

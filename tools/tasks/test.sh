@@ -9,6 +9,8 @@ if [ -z "${LEONAID_TEST_STACK:-}" ]; then
   exec python3 "$root/tools/testing/shared_stack.py" core tools/tasks/test.sh
 fi
 leaf=tasks-test
+# CI smoke leg (tools/ci/e2e.sh smoke): one list view only.
+module_smoke_grep="^admin: S1 compact rows, status undo and concurrent conflict\$"
 module_specs="tests/e2e/modules-tasks.spec.mjs tests/e2e/tasks-details.spec.mjs
   tests/e2e/tasks-views.spec.mjs tests/e2e/tasks-planning.spec.mjs
   tests/e2e/tasks-ordering.spec.mjs tests/e2e/tasks-structure.spec.mjs

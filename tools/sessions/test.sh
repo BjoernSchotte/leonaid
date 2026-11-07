@@ -114,6 +114,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/sessions.spec.mjs \
+  ${LEONAID_E2E_SMOKE:+--grep "^login, normal work, fresh login, admin action and logout\$"} \
   --browser=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \

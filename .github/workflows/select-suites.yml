@@ -1,5 +1,5 @@
 name: Select CI suites
-# Reusable: pull requests get the suites whose inputs changed; merge_group,
+# Reusable: pull requests get the suites whose inputs changed;
 # push, schedule and workflow_dispatch always get the complete suite.
 # Rules and tests: tools/ci/select_suites.py and select_suites_test.py.
 on:
@@ -54,9 +54,14 @@ jobs:
           EVENT: ${{ github.event_name }}
           # A pull request into another feature branch is a stacked PR.
           BASE_REF: ${{ github.base_ref }}
+          # The full-e2e label adds every E2E leaf (read at the next push).
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          # The 3-hourly main run skips the E2E leaves; the nightly runs all.
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ "$EVENT" = pull_request ]; then
-            python3 tools/ci/select_suites.py --event "$EVENT" --base HEAD^1 --head HEAD --base-ref "$BASE_REF"
+            python3 tools/ci/select_suites.py --event "$EVENT" --base HEAD^1 --head HEAD \
+              --base-ref "$BASE_REF" --labels "$LABELS"
           else
-            python3 tools/ci/select_suites.py --event "$EVENT"
+            python3 tools/ci/select_suites.py --event "$EVENT" --schedule "$SCHEDULE"
           fi

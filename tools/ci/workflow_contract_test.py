@@ -158,9 +158,9 @@ CI_MUTATIONS = (
         "path filters",
     ),
     (
-        "  merge_group:\n",
-        "",
-        "must run on merge_group",
+        "  pull_request:\n",
+        "  merge_group:\n  pull_request:\n",
+        "merge_group is dead here",
     ),
     (
         "needs.select.outputs.emdash != '[]'",
@@ -217,6 +217,12 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "nightly-watchdog.yml",
+        " ci.yml:30:nightly",
+        "",
+        "must track ci.yml's nightly run",
+    ),
+    (
         "docs.yml",
         "    if: github.event.pull_request.draft != true\n    name: Bilingual site artifact\n",
         "    name: Bilingual site artifact\n",
@@ -242,7 +248,7 @@ OTHER_MUTATIONS = (
         "      - name: Run isolated backup and recovery proof\n",
         "job backup-recovery must free runner disk",
     ),
-    ("surveys.yml", "  merge_group:\n", "", "must run on merge_group"),
+    ("surveys.yml", "  pull_request:\n", "  push:\n", "must run on pull_request"),
     (
         "surveys.yml",
         "inventory, surveys, backup-recovery]",
@@ -268,7 +274,12 @@ OTHER_MUTATIONS = (
         "sh tools/ci/retry-infra.sh /bin/sh tools/pins/reproduce.sh",
         "only infrastructure commands may be retried",
     ),
-    ("docs.yml", "  merge_group:\n", "", "must run on merge_group"),
+    (
+        "docs.yml",
+        "  pull_request:\n",
+        "  merge_group:\n  pull_request:\n",
+        "merge_group is dead here",
+    ),
     (
         "pin-drift.yml",
         "for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do",
@@ -303,8 +314,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:8 surveys.yml:8',
-        'WATCHED: "ci.yml:8',
+        'WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8',
+        'WATCHED: "ci.yml:8 ci.yml:30:nightly',
         "scheduled workflow surveys.yml is not watched",
     ),
     (
@@ -417,7 +428,7 @@ def main() -> None:
             print(f"ci-workflow-contract-test: ERROR: {failure}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract-test: OK: tiers, merge queue, gates, selector, retries, "
+        "ci-workflow-contract-test: OK: tiers, schedules, drafts, gates, selector, retries, "
         "shards, cold rehearsal and missing upload are checked"
     )
 

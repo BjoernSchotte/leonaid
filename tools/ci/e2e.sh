@@ -63,11 +63,25 @@ leaves() {
   public)
     echo golden tools/public_actions/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh
     ;;
+  # Short smoke leg (LEONAID_E2E_SMOKE=1, set below): one real login, one
+  # list view, one public order; each leaf filters its specs to that test.
+  smoke)
+    echo golden tools/sessions/test.sh tools/public_orders/test.sh
+    echo core tools/tasks/test.sh
+    ;;
   *)
     return 1
     ;;
   esac
 }
+
+if [ " $* " != " smoke " ] && case " $* " in *" smoke "*) true ;; *) false ;; esac; then
+  echo "ci-e2e: ERROR: the smoke leg runs alone (tools/ci/select_suites.py)" >&2
+  exit 64
+fi
+if [ "$*" = smoke ]; then
+  export LEONAID_E2E_SMOKE=1
+fi
 
 golden=""
 core=""

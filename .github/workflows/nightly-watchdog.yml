@@ -31,8 +31,11 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       # workflow file:maximum hours since its last scheduled run on main.
-      # ci.yml and surveys.yml run on main every 3 hours (no push runs).
-      WATCHED: "ci.yml:8 surveys.yml:8 pin-drift.yml:30 pins.yml:192"
+      # workflow file:maximum hours since its last scheduled run on main
+      # [:word the run title must contain]. ci.yml and surveys.yml run on
+      # main every 3 hours (no push runs); ci.yml's nightly run is the only
+      # one with every E2E leaf and is tracked on its own.
+      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 pin-drift.yml:30 pins.yml:192"
     steps:
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |
@@ -40,15 +43,22 @@ jobs:
           now=$(date -u +%s)
           for entry in $WATCHED; do
             workflow=${entry%%:*}
-            hours=${entry#*:}
-            title="[nightly-watchdog] $workflow scheduled run needs attention"
-            latest=$(gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=schedule&status=completed&per_page=1" \
-              --jq '.workflow_runs[0] // empty | [.id, .conclusion, .created_at, .html_url] | @tsv')
+            rest=${entry#*:}
+            hours=${rest%%:*}
+            word=
+            label=$workflow
+            if [ "$rest" != "$hours" ]; then
+              word=${rest#*:}
+              label="$workflow ($word)"
+            fi
+            title="[nightly-watchdog] $label scheduled run needs attention"
+            latest=$(WORD="$word" gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&event=schedule&status=completed&per_page=30" \
+              --jq '[.workflow_runs[] | select(env.WORD == "" or (.display_title | contains(env.WORD)))][0] // empty | [.id, .conclusion, .created_at, .html_url] | @tsv')
             problem=
             if [ -z "$latest" ]; then
               # A newly added schedule has nothing to report yet.
-              echo "nightly-watchdog: $workflow has no completed scheduled run on main yet"
+              echo "nightly-watchdog: $label has no completed scheduled run on main yet"
               continue
             fi
             id=$(printf '%s' "$latest" | cut -f1)
@@ -60,9 +70,9 @@ jobs:
                 "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
                 --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | "- " + .name')
               problem=$(printf 'The scheduled run %s of %s on main ended with %s (started %s).\n\nFailed jobs:\n%s' \
-                "$url" "$workflow" "$conclusion" "$created" "${failed:-- none reported}")
+                "$url" "$label" "$conclusion" "$created" "${failed:-- none reported}")
             elif [ "$(( now - $(date -u -d "$created" +%s) ))" -gt "$(( hours * 3600 ))" ]; then
-              problem="The last scheduled run of $workflow on main ($url, $created) is older than $hours hours; the schedule may have stopped."
+              problem="The last scheduled run of $label on main ($url, $created) is older than $hours hours; the schedule may have stopped."
             fi
 
             issue=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" \
@@ -71,7 +81,7 @@ jobs:
               gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
                 --body "$problem
 
-          This issue closes itself after the next green scheduled run of $workflow on main."
+          This issue closes itself after the next green scheduled run of $label on main."
             elif [ -n "$problem" ]; then
               # One comment per failed run: skip a run this issue already reports.
               reported=$({
@@ -83,6 +93,6 @@ jobs:
               fi
             elif [ -n "$issue" ]; then
               gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
-                --comment "The latest scheduled run of $workflow on main is green again: $url"
+                --comment "The latest scheduled run of $label on main is green again: $url"
             fi
           done

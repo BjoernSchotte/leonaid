@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Check the stable, branch-protectable GitHub Actions job contract.
 
-Two tiers: pull requests run the cheap gates plus the stack suites
-tools/ci/select_suites.py selects; merge_group, push, schedule and dispatch
-run everything. One aggregate gate per workflow is the required check.
+Pull requests run the cheap gates plus the stack suites
+tools/ci/select_suites.py selects (drafts nothing, stacks module-local
+suites only); scheduled runs on main and dispatch run everything (the
+3-hourly run without the E2E leaves). One aggregate gate per workflow is the
+required check.
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ E2E_SHARDS = (
 )
 
 # Workflows whose gate is a required check. Each must run on pull_request
-# and merge_group, must not use path filters and must end in its gate.
+# (never merge_group), must not use path filters and must end in its gate.
 GATED_WORKFLOWS = {
     "ci.yml": "CI gate",
     "surveys.yml": "Survey gate",
@@ -344,7 +346,9 @@ def check_emdash(text: str) -> list[str]:
 
 
 DRAFT = "github.event.pull_request.draft != true"
-DRAFT_TYPES = "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]"
+DRAFT_TYPES = (
+    "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]"
+)
 
 
 def check_drafts(text: str, name: str) -> list[str]:
@@ -371,10 +375,16 @@ def check_drafts(text: str, name: str) -> list[str]:
             r"|inputs\.(?:cold_run|artifact_probe) == true",
             condition.group(1),
         )
-        if (not needs or always) and runs_on_pr and (
-            condition is None or DRAFT not in condition.group(1)
+        if (
+            (not needs or always)
+            and runs_on_pr
+            and (condition is None or DRAFT not in condition.group(1))
         ):
-            if needs and always and "needs.select.result == 'success'" in condition.group(1):
+            if (
+                needs
+                and always
+                and "needs.select.result == 'success'" in condition.group(1)
+            ):
                 continue
             problems.append(f"{name}: job {job} must not run for a draft.")
     return problems
@@ -383,11 +393,11 @@ def check_drafts(text: str, name: str) -> list[str]:
 def check_tiers(text: str, name: str) -> list[str]:
     problems: list[str] = []
     on = triggers(text)
-    for event in ("pull_request:", "merge_group:"):
-        if f"\n  {event}" not in on:
-            problems.append(
-                f"{name}: must run on {event.rstrip(':')} (merge queue tier)."
-            )
+    if "\n  pull_request:" not in on:
+        problems.append(f"{name}: must run on pull_request.")
+    # GitHub's merge queue is not available for a personal-account repository.
+    if "\n  merge_group:" in on:
+        problems.append(f"{name}: merge_group is dead here (no merge queue).")
     if "paths:" in on or "paths-ignore:" in on:
         problems.append(f"{name}: required CI must not use path filters.")
     if name in GATED_WORKFLOWS:
@@ -574,6 +584,12 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         if watched
         else set()
     )
+    # The nightly run is the only one with every E2E leaf; a green 3-hourly
+    # run must not hide a red nightly one.
+    if not watched or "ci.yml:30:nightly" not in watched.group(1).split():
+        problems.append(
+            f"{NIGHTLY_WATCHDOG}: must track ci.yml's nightly run (ci.yml:30:nightly)."
+        )
     for candidate in sorted(workflows.glob("*.yml")):
         if candidate.name in OWN_WATCHDOG:
             continue
@@ -630,7 +646,7 @@ def main() -> None:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract: OK: tiers, merge queue, gates, selector, infra-only "
+        "ci-workflow-contract: OK: tiers, schedules, drafts, gates, selector, infra-only "
         "retries, shards, cold rehearsal and failure artifacts"
     )
 
