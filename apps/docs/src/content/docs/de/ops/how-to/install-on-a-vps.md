@@ -4,10 +4,10 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
-reviewer: Björn Schotte
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Diese Anleitung führt von einem leeren virtuellen Server zu einer laufenden
@@ -150,11 +150,25 @@ sudo systemctl restart docker
 
 ## DNS auf den Server zeigen lassen
 
-Lege einen `A`-Record (und einen `AAAA`-Record, wenn der Server IPv6 hat)
-für den Portalnamen an. Prüfe ihn vor der Installation:
+Entscheide zuerst, ob die Installation einen oder zwei Hostnamen nutzt:
+
+- **Ein Host** (`portal.club.org`): Mitglieder, Redaktion und öffentliche
+  Seiten teilen sich einen Namen.
+- **Verwaltungshost und öffentlicher Host** (empfohlen): Mitglieder und
+  Redaktion nutzen `app.club.org`; öffentliche Seiten, Aktionsseiten,
+  Umfragen und die Rechtstexte bleiben auf `club.org`. Ein bisheriger
+  einzelner Host wird zum öffentlichen Host, gedruckte QR-Codes und
+  verschickte Links funktionieren also weiter. Alte Mitgliederlinks
+  (`/admin/`, `/app/`, `/login`) leiten auf den Verwaltungshost um.
+
+Lege für jeden Namen einen `A`-Record (und einen `AAAA`-Record, wenn der
+Server IPv6 hat) an: den einen Host, oder Verwaltungshost, öffentlichen Host
+und jeden weiteren Namen des öffentlichen Hosts (zum Beispiel
+`www.club.org`). Prüfe sie vor der Installation:
 
 ```sh
-dig +short portal.club.org
+dig +short app.club.org
+dig +short club.org
 ```
 
 Caddy holt die TLS-Zertifikate beim ersten Start. Dafür muss Port 80 aus dem
@@ -201,8 +215,21 @@ Jeder `pilot-*`-Befehl vergleicht den Checkout mit `LEONAID_RELEASE_COMMIT`.
 Als `leonaid` in `/opt/leonaid`:
 
 ```sh
-./leonaid pilot-secrets --output /etc/leonaid/production.env
+# Verwaltungshost app.club.org und öffentlicher Host club.org (plus www.club.org):
+./leonaid pilot-secrets --output /etc/leonaid/production.env \
+  --public-domain club.org --alias www.club.org
+# Oder nur ein Host:
+./leonaid pilot-secrets --output /etc/leonaid/production.env \
+  --public-domain portal.club.org --single-host
 ```
+
+Mit `--public-domain` schreibt der Befehl auch alle Host-Einstellungen: den
+Verwaltungshost (`app.<domain>`, oder `--admin-domain` für einen anderen
+Namen), die Basis-URLs der Mitgliedermails und der öffentlichen Links, die
+erlaubten Origins und `LEONAID_PROXY_CADDYFILE=Caddyfile.split`. Er lehnt
+einen Verwaltungshost ab, der dem öffentlichen Host oder einem seiner Namen
+gleicht. Ohne `--public-domain` füllst du die Host-Zeilen der Vorlage von
+Hand aus.
 
 Der Befehl füllt jedes Zufalls-Secret aus `infra/pilot/production.env.example`
 mit einem frischen, eigenen Wert, schreibt die Datei mit Modus `0600` und
@@ -211,10 +238,11 @@ Hand ausfüllst:
 
 - die Tenant-ID in `LEONAID_COMPOSE_PROJECT`, `RUSTFS_BUCKET` und
   `RESTIC_REPOSITORY`;
-- die acht Zeilen aus `release-images.env` (ersetze die Vorlagenzeilen);
+- die neun Zeilen aus `release-images.env` (ersetze die Vorlagenzeilen);
 - `LEONAID_CLUB_NAME`, den Clubnamen in der Seitenleiste der Verwaltung (ohne
   ihn startet die API in Produktion nicht);
-- die Portaldomain, `CADDY_ACME_EMAIL`, `MAIL_*` und den SMTP-Zugang;
+- die Hostnamen, wenn du `--public-domain` nicht angegeben hast;
+- `CADDY_ACME_EMAIL`, `MAIL_*` und den SMTP-Zugang;
 - `TWENTY_ADMIN_PORT` nur, wenn Port 3020 auf dem Server belegt ist;
 - `TWENTY_MAIL_FROM_ADDRESS` und `TWENTY_MAIL_FROM_NAME`, den Absender der
   Twenty-eigenen Mails (siehe [Mail für LeonAid und Twenty](#mail-für-leonaid-und-twenty));
@@ -222,6 +250,17 @@ Hand ausfüllst:
 
 Lass `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` stehen.
 `pilot-install` erzeugt den echten Key.
+
+Lass `LEONAID_CMS_ENABLED=false` für die Erstinstallation stehen. Die
+Aktionsseiten (`campaign-site`, EmDash-Redaktion) brauchen zuerst ihre
+Datenbank und ihren Medien-Bucket; deren einmalige Einrichtung gehört noch
+nicht zu `pilot-install`. Mit `LEONAID_CMS_ENABLED=true` nimmt jeder
+`pilot-*`-Befehl die Aktionsseiten in den Stack auf, und das Release braucht
+`release-manifest-cms.json` statt `release-manifest.json`.
+
+Mit Verwaltungshost meldet sich jedes Mitglied einmal neu auf `app.club.org`
+an (das Sitzungs-Cookie gehört zu genau einem Host). Akquisiteure
+installieren die App einmal neu von `https://app.club.org/app/`.
 
 ### Mail für LeonAid und Twenty
 

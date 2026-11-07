@@ -4,9 +4,9 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 17
-reviewedRevision: 17
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 18
+reviewedRevision: 18
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -120,6 +120,32 @@ and how long the oldest due job has waited (API fields `nextPendingAttemptAt`
 and `oldestDuePendingAgeSeconds`). Jobs of switched-off modules are left out
 of both values, because they wait on purpose. A growing wait with a running
 worker points to a stuck or overloaded queue.
+
+
+## Hosts and routes
+
+One route table (`tools/proxy/caddyfiles.py`) generates every Caddyfile:
+`infra/pilot/Caddyfile` and `infra/proxy/Caddyfile` for one host,
+`Caddyfile.split` for an admin host plus a public host.
+`LEONAID_PROXY_CADDYFILE` selects the file; `./leonaid check` fails when a
+file differs from the table and proves every route against a running Caddy.
+
+| Path                                                    | Admin host (`app.<domain>`)  | Public host (`<domain>`)            |
+| ------------------------------------------------------- | ---------------------------- | ----------------------------------- |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | served | 308 to the admin host |
+| `/api/*`                                                | full API                     | only `/api/v1/public/*` and `/api/health/*` |
+| `/_emdash/*` (CMS editor)                               | served                       | 404                                 |
+| `/campaigns/*`, `/surveys/*`, aliases, `/archive/*`     | 308 to the public host       | served                              |
+| `/impressum`, `/datenschutz`                            | served                       | served                              |
+| `/`                                                     | 302 to `/admin/`             | public home page                    |
+
+Every further name in `LEONAID_PUBLIC_DOMAIN_ALIASES` answers 308 to the
+public host with path and query. The session cookie stays on the admin host.
+The public host calls the API without credentials (`LEONAID_PUBLIC_ORIGINS`);
+member mails link to `LEONAID_PUBLIC_BASE_URL` (admin host), survey
+invitations to `LEONAID_SITE_BASE_URL` (public host). The dev stack runs the
+split with `LEONAID_PROXY_CADDYFILE=Caddyfile.split` and `app.localhost` /
+`localhost` (`infra/compose/README.md`).
 
 ## Runtime limits and identity
 

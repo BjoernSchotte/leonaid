@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 17
-reviewedRevision: 17
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 18
+reviewedRevision: 18
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -128,6 +128,34 @@ wartenden Versuch und wie lange der älteste fällige Job schon wartet
 abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
 warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
 hängende oder überlastete Queue.
+
+
+## Hosts und Routen
+
+Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
+`infra/pilot/Caddyfile` und `infra/proxy/Caddyfile` für einen Host,
+`Caddyfile.split` für Verwaltungshost plus öffentlichen Host.
+`LEONAID_PROXY_CADDYFILE` wählt die Datei; `./leonaid check` scheitert, wenn
+eine Datei von der Tabelle abweicht, und prüft jede Route gegen ein laufendes
+Caddy.
+
+| Pfad                                                    | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)       |
+| ------------------------------------------------------- | -------------------------------- | ------------------------------------ |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert | 308 auf den Verwaltungshost |
+| `/api/*`                                                | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
+| `/_emdash/*` (CMS-Redaktion)                            | ausgeliefert                     | 404                                  |
+| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`     | 308 auf den öffentlichen Host    | ausgeliefert                         |
+| `/impressum`, `/datenschutz`                            | ausgeliefert                     | ausgeliefert                         |
+| `/`                                                     | 302 auf `/admin/`                | öffentliche Startseite               |
+
+Jeder weitere Name in `LEONAID_PUBLIC_DOMAIN_ALIASES` antwortet mit 308 auf
+den öffentlichen Host, Pfad und Query bleiben. Das Sitzungs-Cookie bleibt auf
+dem Verwaltungshost. Der öffentliche Host ruft die API ohne Credentials auf
+(`LEONAID_PUBLIC_ORIGINS`); Mitgliedermails verlinken auf
+`LEONAID_PUBLIC_BASE_URL` (Verwaltungshost), Umfrage-Einladungen auf
+`LEONAID_SITE_BASE_URL` (öffentlicher Host). Der Dev-Stack nutzt die
+Aufteilung mit `LEONAID_PROXY_CADDYFILE=Caddyfile.split` und `app.localhost` /
+`localhost` (`infra/compose/README.md`).
 
 ## Laufzeitgrenzen und Identität
 

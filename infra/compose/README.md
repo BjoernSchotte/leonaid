@@ -33,6 +33,31 @@ docker compose --env-file .env.local -f infra/compose/compose.yml \
   --profile observability up -d --wait
 ```
 
+## Separate admin and public host
+
+By default the dev stack serves everything under one host, as before. To try
+the admin/public host split of `specs/multi-domain` locally, add these lines
+to `.env.local` and run `./leonaid dev` (replace `28443` with your
+`LEONAID_HTTPS_PORT`):
+
+```sh
+LEONAID_PROXY_CADDYFILE=Caddyfile.split
+LEONAID_ADMIN_DOMAIN=app.localhost
+LEONAID_PUBLIC_DOMAIN=localhost
+LEONAID_ADMIN_BASE_URL=https://app.localhost:28443
+LEONAID_SITE_BASE_URL=https://localhost:28443
+LEONAID_PUBLIC_ORIGINS=https://localhost:28443
+```
+
+Browsers resolve `*.localhost` to the loopback address, so no hosts-file entry
+is needed. `https://app.localhost:28443/` is then the admin host (members,
+`/api`, `/_emdash`); `https://localhost:28443/` the public host. `proxy:8443`
+stays an admin name for in-network tests. Plain HTTP on `LEONAID_HTTP_PORT`
+only answers `/_health` and redirects everything else to HTTPS. Aliases of the
+public host are a production feature and have no dev equivalent. Remove the
+lines and run `./leonaid dev` again to return to one host. Both Caddyfiles are
+generated from `tools/proxy/caddyfiles.py`; never edit them by hand.
+
 ## Local dev extensions
 
 A developer can extend the local dev stack without committing anything. All
