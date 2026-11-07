@@ -274,11 +274,16 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         )
         evaluation.raise_for_status()
         evaluated = flags_by_key(evaluation.json())
-        if any(
-            flag.get("enabled") is not True
-            or flag.get("reason") != "STATIC"
-            or flag.get("provider") != "leonaid-postgres-snapshot"
-            for flag in evaluated.values()
+        # The two flags this contract switched on; the offline-queue flag
+        # stays as migration 0057 registered it.
+        if (
+            any(
+                evaluated.get(key, {}).get("enabled") is not True
+                or evaluated[key].get("reason") != "STATIC"
+                or evaluated[key].get("provider") != "leonaid-postgres-snapshot"
+                for key in (SYSTEM_STATUS_KEY, PREVIEW_NOTICE_KEY)
+            )
+            or evaluated.get(PWA_OFFLINE_QUEUE_KEY, {}).get("enabled") is not False
         ):
             raise ContractFailure("Python OpenFeature did not evaluate persisted state")
 

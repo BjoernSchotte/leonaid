@@ -28,6 +28,7 @@ import {
 export const OFFLINE_QUEUE_FLAG = "pwa.offline_queue";
 const IDENTITY_META = "identity";
 const ENABLED_META = "offlineEnabled";
+const CLAIM_WAIT_MS = 3_000;
 
 /** Tells the service worker whether `/app/` may start from the cache. */
 export function tellServiceWorker(enabled: boolean) {
@@ -45,8 +46,15 @@ export function tellServiceWorker(enabled: boolean) {
  */
 export async function claimDevice(userId: string): Promise<void> {
   if (!deviceStorageAvailable()) return;
-  await deleteOtherDeviceUsers(userId);
   const active = activeDeviceUser();
+  // The deletion waits while another open tab of the other person still
+  // holds the database. The shell never opens another user's database, so
+  // after a short wait it renders and the deletion finishes in the
+  // background as soon as that tab lets go.
+  await Promise.race([
+    deleteOtherDeviceUsers(userId),
+    new Promise((resolve) => setTimeout(resolve, CLAIM_WAIT_MS)),
+  ]);
   if (active && active.toLowerCase() !== userId.toLowerCase()) {
     clearActiveDeviceUser();
   }

@@ -130,9 +130,7 @@ def test_offline_queue_flag_ships_off_and_matches_transport_and_schema() -> None
     assert definition.key.value == "pwa.offline_queue"
     assert definition.default_enabled is False
     assert definition.client_safe is True
-    assert set(get_args(FeatureFlagKeyValue)) == {
-        key.value for key in FeatureFlagKey
-    }
+    assert set(get_args(FeatureFlagKeyValue)) == {key.value for key in FeatureFlagKey}
     migration = (
         Path(__file__).resolve().parents[2]
         / "migrations/versions/0057_pwa_offline_queue_flag.py"

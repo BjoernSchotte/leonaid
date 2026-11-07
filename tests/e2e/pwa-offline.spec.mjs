@@ -18,12 +18,25 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
 }
 
 const ANNA_ID = "10000000-0000-4000-8000-000000000004";
-const BERND_ID = "10000000-0000-4000-8000-000000000005";
-// tools/pwa/contract.py prepares these sessions for the PWA personas.
-const berndSession = `poc062-${BERND_ID}-server-session-token-value`;
+// The second acquirer signs out at the end, which ends that session; each
+// browser run takes its own persona (sessions from tools/pwa/contract.py).
+const SECOND_ACQUIRER = {
+  chromium: { id: "10000000-0000-4000-8000-000000000005", name: /Bernd/ },
+  webkit: { id: "10000000-0000-4000-8000-000000000006", name: /Carla/ },
+};
+
+function sessionFor(userId) {
+  return `poc062-${userId}-server-session-token-value`;
+}
 
 test.use({
   ignoreHTTPSErrors: true,
+  // Chromium registers a service worker over the test CA only with this
+  // switch (as in pwa-audit.spec.mjs); WebKit follows ignoreHTTPSErrors.
+  launchOptions:
+    process.env.LEONAID_E2E_BROWSER === "chromium"
+      ? { args: ["--ignore-certificate-errors"] }
+      : {},
   viewport: { width: 390, height: 844 },
 });
 
@@ -51,9 +64,7 @@ async function controlled(page) {
       async () => {
         try {
           return await page.evaluate(async () =>
-            Boolean(
-              (await navigator.serviceWorker.getRegistration())?.active,
-            ),
+            Boolean((await navigator.serviceWorker.getRegistration())?.active),
           );
         } catch {
           return false;
@@ -271,10 +282,13 @@ test("the PWA starts offline from the encrypted device copy", async ({
 });
 
 test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
+  browserName,
   context,
   page,
 }) => {
   test.setTimeout(120_000);
+  const second = SECOND_ACQUIRER[browserName];
+  test.skip(!second, "No second acquirer persona for this browser.");
   await authenticate(context, annaSession);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
@@ -284,16 +298,16 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
     .toEqual([`leonaid-pwa-v1-${ANNA_ID}`]);
 
   // Another acquirer signs in on the same device: Anna's data is gone
-  // before Bernd's shell renders, without a question.
-  await authenticate(context, berndSession);
+  // before the other shell renders, without a question.
+  await authenticate(context, sessionFor(second.id));
   await page.goto(`${baseUrl}/app/sponsors`);
-  await expect(page.getByTestId("display-name")).toHaveText(/Bernd/);
+  await expect(page.getByTestId("display-name")).toHaveText(second.name);
   await expect
     .poll(() => databaseNames(page), { timeout: 30_000 })
-    .toEqual([`leonaid-pwa-v1-${BERND_ID}`]);
+    .toEqual([`leonaid-pwa-v1-${second.id}`]);
   expect(
     await page.evaluate(() => localStorage.getItem("leonaid-pwa-active-user")),
-  ).toBe(BERND_ID);
+  ).toBe(second.id);
 
   // Sign-out deletes everything the PWA kept.
   await page.getByTestId("pwa-menu").click();

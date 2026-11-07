@@ -179,6 +179,7 @@ for browser in chromium webkit; do
     --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof \
     --env ANNA_SESSION="$anna_session" \
+    --env LEONAID_E2E_BROWSER="$browser" \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
     --workdir /workspace \
