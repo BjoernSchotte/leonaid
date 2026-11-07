@@ -22,6 +22,7 @@ import {
 } from "./invoice-format";
 import { useDocumentDownload } from "./invoice-detail";
 import { invoiceSettlement, type InvoiceRow } from "./invoice-model";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 export interface LedgerState {
   readonly status: "loading" | "error" | "ready";
@@ -30,7 +31,7 @@ export interface LedgerState {
 
 /** Opens one invoice in the list's pane. */
 export function invoiceHref(actionId: string, invoiceId: string) {
-  return `/admin/invoices?action=${encodeURIComponent(actionId)}&open=${encodeURIComponent(invoiceId)}`;
+  return `${ADMIN_BASE}invoices?action=${encodeURIComponent(actionId)}&open=${encodeURIComponent(invoiceId)}`;
 }
 
 function LedgerBody({

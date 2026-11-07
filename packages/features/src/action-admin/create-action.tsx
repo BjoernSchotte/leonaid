@@ -14,6 +14,7 @@ import { Button, buttonClassName, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
 import { DeliverySection } from "./delivery-section";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 type Capability = CreateCharityActionRequest["capabilities"][number];
 
@@ -216,17 +217,17 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         )}
         <a
           className={buttonClassName({ variant: "secondary" })}
-          href={`/admin/actions/${created.id}${created.capabilities.includes("delivery") ? "#delivery" : ""}`}
+          href={`${ADMIN_BASE}actions/${created.id}${created.capabilities.includes("delivery") ? "#delivery" : ""}`}
         >
           Aktion jetzt verwalten
         </a>
-        <a href="/admin/actions">Alle Aktionen</a>
+        <a href={adminHref("actions")}>Alle Aktionen</a>
       </div>
     );
 
   return (
     <div className="action-page action-page--form">
-      <a className="action-back" href="/admin/actions">
+      <a className="action-back" href={adminHref("actions")}>
         <ChevronLeft aria-hidden="true" size={18} />
         Alle Aktionen
       </a>

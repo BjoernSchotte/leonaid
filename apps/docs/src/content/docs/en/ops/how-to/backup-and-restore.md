@@ -4,10 +4,10 @@ description: Encrypt LeonAid data and perform a controlled restore into fresh vo
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 8106cee17c2836fab6c8a8c7fdcae770ba98250c
-reviewer: Björn Schotte
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Prepare an external Restic target, a password file, and optionally a backend
@@ -18,8 +18,14 @@ backup repository.
 --backup-manifest MANIFEST --password-file PASSWORD --credentials-file
 CREDENTIALS`.
 2. Inspect the manifest and successful `restic check --read-data`. The recovery
-   point contains both PostgreSQL databases, Twenty files, and the entire
-   RustFS volume. It excludes the Valkey queue store (`twenty-redis`), Mailpit,
+   point contains both PostgreSQL databases, Twenty files, the entire RustFS
+   volume and, in a pilot, the Caddy data volume with the certificates and
+   the ACME account of every host. A restored proxy therefore starts without
+   requesting new certificates, but only with `pilot-restore --with-tls-state`:
+   use it when you restore the installation itself onto a new server with the
+   same host names. Staging and drill targets get no production keys and
+   request their own certificates. The archive holds private keys; treat the
+   repository password accordingly. It excludes the Valkey queue store (`twenty-redis`), Mailpit,
    images, and plaintext secrets. A restored project starts with an empty
    queue store; `twenty-server` registers its cron jobs again.
 3. Create an empty `leonaid-restore-<name>` project and a separate target

@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -33,6 +33,17 @@ general production approval.
 - Partial payments and overpayments are recorded as separate payment entries
   and can be reversed with a reason. An overpayment is only shown; the refund
   happens outside LeonAid. Bank reconciliation and dunning are missing.
+- One installation serves one host, or an admin host (`app.<domain>`)
+  plus a public host with redirecting extra names (stage 1 of
+  `specs/multi-domain/PLAN.md`). Own campaign domains and an installation
+  without a public host are only specified. `/` on the admin host is the role-based
+  entry (sign-in, then the start area). Switching to two hosts signs
+  every member out once (`pilot-revoke-sessions`). On the public host the
+  header shows a static "Mitgliederbereich" link instead of the personal app links:
+  the session belongs to the admin host.
+- Campaign pages run in a pilot installation with `LEONAID_CMS_ENABLED=true`.
+  Their one-time production setup (CMS database role, media bucket, editor
+  setup) has no `pilot-*` command yet.
 - Listmonk (Compose profile `mailing`) is not part of the pilot production
   stack. There it has no public route, no backup and no monitoring; all three
   must exist before the profile is enabled.

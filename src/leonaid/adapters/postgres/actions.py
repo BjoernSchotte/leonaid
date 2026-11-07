@@ -10,7 +10,11 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.application.actions import ActionSummary, CharityActionRepository
+from leonaid.application.actions import (
+    ActionSummary,
+    CharityActionRepository,
+    PublicationCandidate,
+)
 from leonaid.application.errors import Conflict
 from leonaid.domain.action_templates import (
     ActionConfiguration,
@@ -349,6 +353,43 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     bool(alias_row["is_primary"]),
                     bool(alias_row["campaign_redirect"]),
                 )
+
+    async def list_publication_candidates(
+        self,
+        evaluated_at: datetime,
+    ) -> list[PublicationCandidate]:
+        """Active actions whose publication window contains the instant."""
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read",
+                readonly=True,
+            ):
+                rows = await connection.fetch(
+                    """
+                    SELECT action.id, alias.alias,
+                           COALESCE(alias.campaign_redirect, false) AS campaign_page
+                    FROM charity_action AS action
+                    LEFT JOIN public_action_alias AS alias
+                      ON alias.action_id = action.id
+                     AND alias.is_primary AND alias.enabled
+                    WHERE action.status = 'active'
+                      AND action.publication_starts_at <= $1
+                      AND action.publication_ends_at >= $1
+                    """,
+                    evaluated_at,
+                )
+                candidates = []
+                for row in rows:
+                    action = await self._get(connection, row["id"])
+                    if action is not None:
+                        candidates.append(
+                            PublicationCandidate(
+                                action=action,
+                                primary_alias=row["alias"],
+                                campaign_page=bool(row["campaign_page"]),
+                            )
+                        )
+                return candidates
 
     async def get_by_archive_slug(
         self,

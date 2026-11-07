@@ -38,9 +38,11 @@ export function patchEditorSource(source) {
   );
   // Core owns campaign URLs. Keep the native Live View controls, but never use
   // the CMS binding UUID as a public slug. Missing metadata hides the link.
+  // The URL is absolute: the editor runs on the admin host, the page lives on
+  // the public host (specs/multi-domain §6.4 item 4).
   replace(
     "function Header() {",
-    'function leonaidContentUrl(collection, item, urlPattern, options) {\n\treturn collection === "campaign_pages" ? (/^\\/campaigns\\/[a-z0-9]+(?:-[a-z0-9]+)*\\/$/.test(item?.leonaidLivePath ?? "") ? item.leonaidLivePath : null) : (item?.slug ? contentUrl(collection, item.slug, urlPattern, options) : null);\n}\nfunction Header() {',
+    'function leonaidContentUrl(collection, item, urlPattern, options) {\n\treturn collection === "campaign_pages" ? (/^https:\\/\\/[a-z0-9.-]+(?::[0-9]{1,5})?\\/campaigns\\/[a-z0-9]+(?:-[a-z0-9]+)*\\/$/.test(item?.leonaidLiveUrl ?? "") ? item.leonaidLiveUrl : null) : (item?.slug ? contentUrl(collection, item.slug, urlPattern, options) : null);\n}\nfunction Header() {',
   );
   replace(
     "\tconst liveViewUrl = isLive && item?.slug ? contentUrl(collection, item.slug, urlPattern, {\n\t\tlocale: item.locale,\n\t\ti18n,\n\t\tid: item.id,\n\t\tdate: item.publishedAt\n\t}) : null;",

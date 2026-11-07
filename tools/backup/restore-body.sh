@@ -289,6 +289,11 @@ docker run --rm \
   -v "$backup_root:/backup:ro" \
   "$ALPINE_IMAGE" \
   tar -C /target -xf /backup/rustfs-data.tar
+# The manifest verified caddy-data.tar above; restore-tls-state.sh decides
+# whether the target takes the production TLS keys (N2).
+. "$root/tools/backup/restore-tls-state.sh"
+restore_tls_state "$backup_root" "$target_project" ||
+  fail "TLS state of the source could not be restored"
 
 
 if [ "$restore_scope" = full ]; then

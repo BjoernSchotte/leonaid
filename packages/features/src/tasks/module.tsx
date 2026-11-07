@@ -4,13 +4,14 @@ import { Plus } from "lucide-react";
 
 import { createHref } from "../command-palette/create-request";
 import type { UiModule } from "../modules";
+import { ADMIN_BASE, PWA_BASE, baseRoot } from "@leonaid/ui/base-paths";
 
 const TasksPage = lazy(() =>
   import("./tasks").then(({ TasksPage }) => ({ default: TasksPage })),
 );
 
 function shellBase(surface: "web" | "pwa") {
-  return surface === "web" ? "/admin" : "/app";
+  return surface === "web" ? baseRoot(ADMIN_BASE) : baseRoot(PWA_BASE);
 }
 
 export const tasksModule: UiModule = {

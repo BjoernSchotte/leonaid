@@ -23,6 +23,7 @@ import {
 } from "@leonaid/ui";
 
 import { actionErrorMessage, type ActionErrorMessage } from "./errors";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 export function useActionConfiguration(
   client: LeonAidApiClient,
@@ -93,7 +94,7 @@ function CopyModal({
   const copy = useMutation({
     mutationFn: () => client.copyCharityAction(action.id, draft),
     onSuccess: (created) => {
-      window.location.assign(`/admin/actions/${created.action.id}`);
+      window.location.assign(`${ADMIN_BASE}actions/${created.action.id}`);
     },
     onError: (cause) => setError(actionErrorMessage(cause)),
   });
@@ -302,7 +303,9 @@ export function TemplatesTab({
                 </div>
                 <span className="small subtle">
                   {own && snapshot.copiedFromActionId ? (
-                    <a href={`/admin/actions/${snapshot.copiedFromActionId}`}>
+                    <a
+                      href={`${ADMIN_BASE}actions/${snapshot.copiedFromActionId}`}
+                    >
                       Ursprüngliche Aktion
                     </a>
                   ) : (

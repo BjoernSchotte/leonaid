@@ -1,4 +1,6 @@
 ---
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
+
 interface Props {
   fresh?: boolean;
 }
@@ -154,7 +156,7 @@ const signIn =
   {
     fresh ? (
       <p class="login-alt">
-        <a id="auth-cancel" href="/admin/">
+        <a id="auth-cancel" href={ADMIN_BASE}>
           Abbrechen und zurück
         </a>
       </p>
@@ -167,12 +169,9 @@ const signIn =
 </div>
 
 <script>
-  import { safeLocalReturnTo } from "../lib/return-to";
-  import {
-    ApiError,
-    LeonAidApiClient,
-    type CurrentIdentityResponse,
-  } from "@leonaid/api-client";
+  import { memberReturnTo } from "../lib/return-to";
+  import { ADMIN_BASE, PWA_BASE } from "@leonaid/ui/base-paths";
+  import { ApiError, LeonAidApiClient } from "@leonaid/api-client";
 
   function requiredElement<T extends Element>(selector: string): T {
     const element = document.querySelector<T>(selector);
@@ -196,46 +195,23 @@ const signIn =
   const parameters = new URLSearchParams(window.location.search);
   const token = parameters.get("token");
   const hasExplicitReturnTo = parameters.has("returnTo");
-  const requestedReturnTo =
-    parameters.get("returnTo") ?? (fresh ? "/admin/" : "/app/");
-  const returnTo = safeLocalReturnTo(
-    requestedReturnTo,
-    fresh ? "/admin/" : "/app/",
+  const fallback = fresh ? ADMIN_BASE : PWA_BASE;
+  const returnTo = memberReturnTo(
+    parameters.get("returnTo") ?? fallback,
+    fallback,
   );
   const cancel = document.querySelector<HTMLAnchorElement>("#auth-cancel");
   if (cancel) cancel.href = returnTo;
 
-  function defaultDestination(identity: CurrentIdentityResponse): string {
-    const actionRoles = new Set(
-      identity.actionMemberships.map((membership) => membership.role),
-    );
-    if (identity.globalRoles.includes("system_admin")) {
-      return "/admin/system";
-    }
-    if (actionRoles.has("charity_admin")) {
-      return "/admin/";
-    }
-    if (
-      identity.globalRoles.includes("finance_reader") ||
-      identity.globalRoles.includes("finance_manager") ||
-      actionRoles.has("finance_reader")
-    ) {
-      return "/admin/invoices";
-    }
-    if (actionRoles.has("acquirer")) {
-      return "/app/";
-    }
-    return (
-      identity.navigation.find((item) => item.surface === "web")?.href ??
-      identity.navigation[0]?.href ??
-      "/app/"
-    );
-  }
-
   async function destinationAfterLogin(): Promise<string> {
     if (fresh || hasExplicitReturnTo) return returnTo;
     try {
-      return defaultDestination(await api.getCurrentIdentity());
+      // Core computes the start area from roles and the member's choice
+      // (landingPath, specs/multi-domain §6.7).
+      return memberReturnTo(
+        (await api.getCurrentIdentity()).landingPath,
+        returnTo,
+      );
     } catch {
       return returnTo;
     }

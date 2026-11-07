@@ -207,6 +207,40 @@ test("public action page stays readable from 320 to 1440 pixels", async ({
   });
 });
 
+test("the home page lists the active campaigns and links their pages", async ({
+  page,
+}) => {
+  const response = await page.goto(`${baseUrl}/`);
+  expect(response?.status()).toBe(200);
+  const list = page.getByTestId("public-campaign-list");
+  await expect(
+    list.getByRole("heading", { level: 2, name: "Aktuelle Aktionen" }),
+  ).toBeVisible();
+  // The current Krapfentaxi edition links its alias page with the order
+  // form; the archived 2025 edition is not listed.
+  const hrefs = await list
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+  expect(hrefs.filter((path) => path === "/krapfentaxi")).toHaveLength(1);
+  expect(hrefs.some((path) => path.includes("krapfentaxi-2025"))).toBe(false);
+  const link = list.locator('a[href="/krapfentaxi"]');
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expectNoHorizontalScroll(page);
+    const box = await link.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+  const accessibility = await analyzeAccessibility(page, {
+    include: '[data-testid="public-campaign-list"]',
+  });
+  expect(accessibility.violations).toEqual([]);
+  await link.click();
+  await expect(page).toHaveURL(/\/krapfentaxi$/);
+});
+
 test("the footer names the provider and links the Impressum on every public page", async ({
   browserName,
   page,

@@ -375,6 +375,14 @@ a.pwa-sheet-tile:hover {
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
+.pwa-surfaces {
+  display: grid;
+  gap: var(--s-2);
+}
+.pwa-surfaces > .btn {
+  justify-content: center;
+  min-height: 44px;
+}
 .pwa-account {
   display: flex;
   align-items: center;

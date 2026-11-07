@@ -83,6 +83,7 @@ import { TaskOrderHandle, TaskOrdering } from "./task-ordering";
 import { TaskQuickAdd, type QuickAddList } from "./task-quick-add";
 import { TaskListAccess, TaskListNavigation } from "./task-tools";
 import "./tasks.css";
+import { PWA_BASE, baseRoot } from "@leonaid/ui/base-paths";
 
 const PAGE_SIZE = 100;
 /** Pages loaded without asking (10 × 100 tasks); "Weitere laden" adds more. */
@@ -210,7 +211,8 @@ function TasksWorkspace({
   surface?: "web" | "pwa";
 }) {
   const address: Address =
-    (surface ?? (basePath.startsWith("/app") ? "pwa" : "web")) === "pwa"
+    (surface ?? (basePath.startsWith(baseRoot(PWA_BASE)) ? "pwa" : "web")) ===
+    "pwa"
       ? "du"
       : "Sie";
   const cache = useQueryClient();

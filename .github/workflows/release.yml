@@ -1,7 +1,7 @@
 name: Release
 
 # Started by the annotated CalVer tag that ./leonaid release pushes, or by hand
-# on such a tag (./leonaid release resumes this way). Builds and pushes the six
+# on such a tag (./leonaid release resumes this way). Builds and pushes the seven
 # LeonAid images, pins them as <name>:<version>@<digest>, creates the release
 # manifest from the effective pilot Compose configuration and publishes the
 # GitHub release with these files attached.
@@ -62,7 +62,7 @@ jobs:
 
       - name: Refuse to overwrite published images
         run: |
-          for name in core web pwa public proxy survey-validator; do
+          for name in core web pwa public proxy survey-validator campaign-site; do
             if docker buildx imagetools inspect "$REGISTRY/$name:$VERSION" >/dev/null 2>&1; then
               echo "::error::$REGISTRY/$name:$VERSION exists already; release tags and images are never replaced"
               exit 1
@@ -117,7 +117,29 @@ jobs:
             --deployment-mode production \
             --compose-config /out/compose-config.json \
             --output /out/release-manifest.json
-          (cd "$OUT" && sha256sum release-images.env release-manifest.json > SHA256SUMS)
+          # Installations with campaign pages (LEONAID_CMS_ENABLED=true) deploy
+          # with the CMS release contract (schema 2) of the same images.
+          docker compose \
+            --env-file "$OUT/compose.env" \
+            --file infra/compose/compose.yml \
+            --file infra/pilot/compose.yml \
+            --profile emdash \
+            config --format json > "$OUT/compose-config-cms.json"
+          docker run --rm --network none \
+            --user "$(id -u):$(id -g)" \
+            -e PYTHONPATH=/workspace \
+            -v "$PWD:/workspace:ro" -v "$OUT:/out" \
+            "$PYTHON_IMAGE" \
+            python /workspace/tools/pilot_release/manifest.py create \
+            --root /workspace \
+            --release-id "leonaid-$VERSION-cms" \
+            --version "$VERSION" \
+            --git-commit "$REVISION" \
+            --deployment-mode production \
+            --schema-version 2 \
+            --compose-config /out/compose-config-cms.json \
+            --output /out/release-manifest-cms.json
+          (cd "$OUT" && sha256sum release-images.env release-manifest.json release-manifest-cms.json > SHA256SUMS)
 
       - name: Publish the GitHub release
         env:
@@ -129,7 +151,8 @@ jobs:
             echo "### Deploy"
             echo
             echo "Copy \`release-images.env\` into the production env file and follow"
-            echo "the release runbook with \`release-manifest.json\`."
+            echo "the release runbook with \`release-manifest.json\`, or with"
+            echo "\`release-manifest-cms.json\` when campaign pages are enabled."
             echo
             echo '```'
             cat "$OUT/release-images.env"
@@ -139,5 +162,6 @@ jobs:
           case "$VERSION" in *.*.*.*) latest=--latest=false ;; esac
           # shellcheck disable=SC2086 # empty or one flag on purpose
           gh release create "$TAG" \
-            "$OUT/release-images.env" "$OUT/release-manifest.json" "$OUT/SHA256SUMS" \
+            "$OUT/release-images.env" "$OUT/release-manifest.json" \
+            "$OUT/release-manifest-cms.json" "$OUT/SHA256SUMS" \
             --verify-tag --title "LeonAid $VERSION" --notes-file "$OUT/notes.md" $latest

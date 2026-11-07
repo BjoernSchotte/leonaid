@@ -15,7 +15,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 CADDYFILES = (
     "infra/proxy/Caddyfile",
+    "infra/proxy/Caddyfile.split",
     "infra/pilot/Caddyfile",
+    "infra/pilot/Caddyfile.split",
     "infra/pilot/Caddyfile.test",
 )
 ASTRO_CONFIGS = ("apps/public/astro.config.mjs", "apps/campaign-site/astro.config.mjs")
@@ -167,5 +169,6 @@ def test_static_server_serves_the_external_boot_files() -> None:
     for app in ("web", "pwa"):
         assert (ROOT / f"apps/{app}/public/theme-init.js").is_file()
     worker = (ROOT / "apps/pwa/public/sw.js").read_text(encoding="utf-8")
-    for file in ("/app/offline.css", "/app/offline.js", "/app/theme-init.js"):
-        assert f'"{file}"' in worker
+    # The PWA build replaces the token with the PWA base path (§6.7).
+    for file in ("offline.css", "offline.js", "theme-init.js"):
+        assert f'"__LEONAID_PWA_BASE__{file}"' in worker

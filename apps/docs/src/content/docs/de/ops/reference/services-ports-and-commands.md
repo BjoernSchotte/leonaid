@@ -4,9 +4,9 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 17
-reviewedRevision: 17
-verifiedAgainst: 625bbfb87f7406f8811245356849f830b4321ab7
+contentRevision: 18
+reviewedRevision: 18
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -129,13 +129,41 @@ abgeschalteter Module zählen bei beiden Werten nicht, weil sie absichtlich
 warten. Eine wachsende Wartezeit bei laufendem Worker deutet auf eine
 hängende oder überlastete Queue.
 
+
+## Hosts und Routen
+
+Eine Routentabelle (`tools/proxy/caddyfiles.py`) erzeugt jede Caddyfile:
+`infra/pilot/Caddyfile` und `infra/proxy/Caddyfile` für einen Host,
+`Caddyfile.split` für Verwaltungshost plus öffentlichen Host.
+`LEONAID_PROXY_CADDYFILE` wählt die Datei; `./leonaid check` scheitert, wenn
+eine Datei von der Tabelle abweicht, und prüft jede Route gegen ein laufendes
+Caddy.
+
+| Pfad                                                    | Verwaltungshost (`app.<domain>`) | Öffentlicher Host (`<domain>`)       |
+| ------------------------------------------------------- | -------------------------------- | ------------------------------------ |
+| `/admin/*`, `/app/*`, `/login`, `/invite`, `/email-change`, `/fresh-login` | ausgeliefert | 308 auf den Verwaltungshost |
+| `/api/*`                                                | volle API                        | nur `/api/v1/public/*` und `/api/health/*` |
+| `/_emdash/*` (CMS-Redaktion)                            | ausgeliefert                     | 404                                  |
+| `/campaigns/*`, `/surveys/*`, Aliasse, `/archive/*`     | 308 auf den öffentlichen Host    | ausgeliefert                         |
+| `/impressum`, `/datenschutz`                            | ausgeliefert                     | ausgeliefert                         |
+| `/`                                                     | 302 auf `/admin/`                | öffentliche Startseite               |
+
+Jeder weitere Name in `LEONAID_PUBLIC_DOMAIN_ALIASES` antwortet mit 308 auf
+den öffentlichen Host, Pfad und Query bleiben. Das Sitzungs-Cookie bleibt auf
+dem Verwaltungshost. Der öffentliche Host ruft die API ohne Credentials auf
+(`LEONAID_PUBLIC_ORIGINS`); Mitgliedermails verlinken auf
+`LEONAID_PUBLIC_BASE_URL` (Verwaltungshost), Umfrage-Einladungen auf
+`LEONAID_SITE_BASE_URL` (öffentlicher Host). Der Dev-Stack nutzt die
+Aufteilung mit `LEONAID_PROXY_CADDYFILE=Caddyfile.split` und `app.localhost` /
+`localhost` (`infra/compose/README.md`).
+
 ## Laufzeitgrenzen und Identität
 
 Jeder dauerhaft laufende Dienst hat eine Speicher-, CPU- und Prozessgrenze
 (`mem_limit`, `cpus`, `pids_limit`) und rotierte Logs (Treiber `local`,
 5 × 10 MB). Die Grenzen sind Obergrenzen, keine Reservierungen. Der Pilotumfang
 einschließlich Monitoring-Profil passt auf einen VPS mit 8 GB und lässt etwa
-1,6 GiB für Betriebssystem und Docker frei. Der Deployment-Vertrag
+1,9 GiB (mit Kampagnenseite 1,5 GiB) für Betriebssystem und Docker frei. Der Deployment-Vertrag
 (`pilot-doctor`, `pilot-deploy`) lehnt Grenzen ab, deren Summe weniger als
 1,5 GiB frei lässt. „Spitze“ ist der höchste unter Last gemessene Working Set
 (Upgrade, Installation, CRM-Import mit 3000 Zeilen, Golden Journey, Backup und
@@ -144,27 +172,30 @@ Restore; gemessen am 2. November 2026 mit Twenty 2.54). „Leerlauf“ reicht vo
 | Dienst                         | Beobachtet (Leerlauf) | Spitze (Last) | Speichergrenze | CPUs | PIDs |
 | ------------------------------ | --------------------- | ------------- | -------------- | ---- | ---- |
 | twenty-server                  | 330–680 MiB           | 1223 MiB      | 1728 MiB       | 2    | 512  |
-| twenty-worker                  | 590–640 MiB           | 960 MiB       | 1400 MiB       | 1,5  | 512  |
-| worker (inkl. Typst)           | 70 MiB                | 94 MiB        | 512 MiB        | 1,5  | 256  |
+| twenty-worker                  | 590–640 MiB           | 960 MiB       | 1280 MiB       | 1,5  | 512  |
+| worker (inkl. Typst)           | 70 MiB                | 94 MiB        | 384 MiB        | 1,5  | 256  |
 | api                            | 105–110 MiB           | 151 MiB       | 384 MiB        | 1,5  | 256  |
 | core-postgres                  | 20–22 MiB             | 70 MiB        | 384 MiB        | 1,5  | 256  |
 | twenty-postgres                | 29–65 MiB             | 139 MiB       | 384 MiB        | 1,5  | 256  |
 | twenty-redis (Valkey)          | 4–15 MiB              | 30 MiB        | 512 MiB        | 0,5  | 64   |
 | rustfs                         | 22–23 MiB             | 49 MiB        | 256 MiB        | 1    | 256  |
-| survey-validator               | 14–17 MiB             | 27 MiB        | 128 MiB        | 1    | 64   |
+| survey-validator               | 14–17 MiB             | 27 MiB        | 96 MiB         | 1    | 64   |
 | proxy (Caddy)                  | 13–18 MiB             | 31 MiB        | 128 MiB        | 1    | 128  |
 | public                         | 23–25 MiB             | 75 MiB        | 128 MiB        | 1    | 64   |
 | web, pwa                       | je 13–14 MiB          | 20 MiB        | je 64 MiB      | 0,5  | 64   |
-| **Summe Core**                 | ca. 1,7 GiB           | 2,4 GiB¹      | **5,9 GiB**    |      |      |
+| **Summe Core**                 | ca. 1,7 GiB           | 2,4 GiB¹      | **5,7 GiB**    |      |      |
 | prometheus                     | 59–63 MiB             | 69 MiB        | 256 MiB        | 0,5  | 128  |
 | pilot-exporter                 | 18–19 MiB             | 30 MiB        | 128 MiB        | 0,5  | 64   |
 | alertmanager                   | 22–25 MiB             | 27 MiB        | 64 MiB         | 0,25 | 64   |
-| **Summe Pilot mit Monitoring** |                       |               | **6,4 GiB**    |      |      |
+| **Summe Pilot mit Monitoring** |                       |               | **6,1 GiB**    |      |      |
 
 ¹ Höchste Summe aller Working Sets zum selben Zeitpunkt, nicht die Summe der
 Spitzen.
 
-Die optionale Kampagnenseite (Profil `emdash`) kommt mit 384 MiB hinzu. Wird
+Die optionale Kampagnenseite (Profil `emdash`, `LEONAID_CMS_ENABLED=true`)
+kommt mit 384 MiB hinzu; mit ihr bleiben genau die 1,5 GiB Reserve frei.
+Dafür haben `worker`, `twenty-worker` und `survey-validator` seit November
+2026 kleinere Grenzen, jeweils weit über der gemessenen Spitze. Wird
 ein Dienst wegen Speichermangels beendet (`docker inspect` zeigt
 `OOMKilled: true`), hebt man seine Grenze an und senkt eine andere, sodass die
 Summe weiter auf den Host passt.

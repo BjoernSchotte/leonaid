@@ -92,6 +92,7 @@ import {
 } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 interface CommitmentAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -627,7 +628,7 @@ function OrderDetail({
               value: invoice ? (
                 <a
                   className="commitment-link"
-                  href={`/admin/invoices?action=${encodeURIComponent(commitment.actionId)}&view=all&open=${encodeURIComponent(invoice.id)}`}
+                  href={`${ADMIN_BASE}invoices?action=${encodeURIComponent(commitment.actionId)}&view=all&open=${encodeURIComponent(invoice.id)}`}
                 >
                   {invoice.status === "cancelled"
                     ? `${invoice.number} · storniert`
@@ -1291,7 +1292,7 @@ export function CommitmentAdminPage({
               </strong>{" "}
               Der Beleg wurde mit unveränderlichen Empfänger-, Positions- und
               Rechtstextdaten gespeichert.{" "}
-              <a href="/admin/invoices">Zur Rechnungsübersicht</a>
+              <a href={adminHref("invoices")}>Zur Rechnungsübersicht</a>
             </StatusMessage>
           ) : null
         }
