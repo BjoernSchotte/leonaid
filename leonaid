@@ -21,10 +21,10 @@ LeonAid PoC
 Usage: ./leonaid <command>
 
 Commands:
-  bootstrap [--synthetic-env]
-                    Create local secrets and install locked packages in Docker;
-                    --synthetic-env (default in .claude/worktrees) writes the
-                    public synthetic .env.local that shares the test fixture cache
+  bootstrap         Create local secrets and install locked packages in Docker
+                    [--synthetic-env] writes the public synthetic .env.local
+                    that shares the host test fixture cache (default for a
+                    fresh checkout under .claude/worktrees)
   doctor            Diagnose Docker, locks, secrets and local dependencies
   repair-ownership  Give root-owned files in the checkout back to the current user
   release [--dry-run] [--no-ci-check]
