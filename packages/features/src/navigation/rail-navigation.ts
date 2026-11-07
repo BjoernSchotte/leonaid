@@ -139,3 +139,30 @@ export function railCampaigns(
     hint: entry.roles.join(" · "),
   }));
 }
+
+/**
+ * Role work in the PWA (acquisition, delivery), not only module pages that
+ * every member has in both apps. Same rule as Core `has_pwa_work`.
+ */
+export function hasPwaWork(
+  navigation: readonly NavigationItemResponse[],
+): boolean {
+  const webKeys = new Set(
+    navigation.filter((item) => item.surface === "web").map((item) => item.key),
+  );
+  return navigation.some(
+    (item) =>
+      item.surface === "pwa" &&
+      item.key !== "overview-pwa" &&
+      !webKeys.has(item.key),
+  );
+}
+
+/** Back-office roles: Core lists the admin overview only for them. */
+export function hasBackOffice(
+  navigation: readonly NavigationItemResponse[],
+): boolean {
+  return navigation.some(
+    (item) => item.surface === "web" && item.key === "overview-web",
+  );
+}

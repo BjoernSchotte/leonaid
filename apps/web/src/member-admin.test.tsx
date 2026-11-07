@@ -164,6 +164,7 @@ function identity(systemAdmin: boolean): CurrentIdentityResponse {
     roleLabels: [],
     sessionExpiresAt: "2026-11-04T10:00:00Z",
     sessionLastSeenAt: "2026-11-03T10:00:00Z",
+    landingPath: "/admin/",
     userId: systemAdmin ? adminId : klaraId,
   } as unknown as CurrentIdentityResponse;
 }

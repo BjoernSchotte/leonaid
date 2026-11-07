@@ -43,8 +43,8 @@ allgemeine Produktionsfreigabe.
   (`app.<domain>`) plus einen öffentlichen Host mit weiterleitenden
   Zusatznamen (Stufe 1 von `specs/multi-domain/PLAN.md`). Eigene
   Kampagnen-Domains und eine Installation ohne öffentlichen Host sind nur
-  spezifiziert. Bis der rollenbasierte Einstieg kommt, leitet `/` auf dem
-  Verwaltungshost auf `/admin/`. Beim Umstellen auf zwei Hosts meldet sich
+  spezifiziert. `/` auf dem Verwaltungshost ist der
+  rollenbasierte Einstieg (Anmeldung, dann Startbereich). Beim Umstellen auf zwei Hosts meldet sich
   jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
   öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen
   festen Link „Mitgliederbereich“: die Sitzung gehört zum Verwaltungshost.

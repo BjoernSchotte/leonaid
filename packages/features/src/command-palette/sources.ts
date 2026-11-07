@@ -12,6 +12,7 @@ import type {
   UiModule,
 } from "../modules";
 import { createHref } from "./create-request";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 /** Shortest query that starts a search ("Ab 2 Zeichen"). */
 export const MIN_SEARCH_LENGTH = 2;
@@ -118,7 +119,7 @@ export function createEntries(
       id: "create:action",
       label: "Aktion anlegen",
       icon: Flag,
-      href: "/admin/actions/new",
+      href: adminHref("actions/new"),
     });
   }
   for (const module of modules) {

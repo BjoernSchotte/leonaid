@@ -125,6 +125,13 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/seed/golden.py seed-core \
   /repo/tests/fixtures/golden/v1
+# The golden data has no member with roles in both apps: Felix Fremd (charity
+# admin of another action) also acquires for Krapfentaxi here, for the
+# start-area proof (specs/multi-domain §6.7).
+printf '%s\n' \
+  "INSERT INTO action_membership (id, action_id, user_id, role, active_from) VALUES ('21000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'acquirer', now() - interval '1 day');" |
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \

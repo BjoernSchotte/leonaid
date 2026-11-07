@@ -25,6 +25,7 @@ from leonaid.domain.commitments import CommitmentStatus
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal
 from leonaid.domain.policies import may_manage_action
+from leonaid.platform.base_paths import ADMIN_BASE
 
 SEARCH_QUERY_MIN_LENGTH = 2
 SEARCH_QUERY_MAX_LENGTH = 80
@@ -251,19 +252,19 @@ def _result(hit: SearchHit) -> SearchResult:
     match hit.type:
         case SearchResultType.ACTION:
             context = ACTION_STATUS_LABELS[CharityActionStatus(str(hit.status))]
-            href = f"/admin/actions/{hit.action_id}"
+            href = f"{ADMIN_BASE}actions/{hit.action_id}"
         case SearchResultType.ORDER:
             context = _context(
                 hit.detail,
                 hit.action_name,
                 ORDER_STATUS_LABELS[CommitmentStatus(str(hit.status))],
             )
-            href = f"/admin/orders?action={hit.action_id}"
+            href = f"{ADMIN_BASE}orders?action={hit.action_id}"
         case SearchResultType.INVOICE:
             context = _context(hit.detail, hit.action_name)
             # The invoice list opens the hit in its pane, in the view that
             # shows every status.
-            href = f"/admin/invoices?action={hit.action_id}&view=all&open={hit.id}"
+            href = f"{ADMIN_BASE}invoices?action={hit.action_id}&view=all&open={hit.id}"
         case SearchResultType.MEMBER:
             status = AccountStatus(str(hit.status))
             context = _context(
@@ -271,7 +272,7 @@ def _result(hit: SearchHit) -> SearchResult:
                 None if status is AccountStatus.ACTIVE else STATUS_LABELS[status],
             )
             # The member list opens the hit in its pane.
-            href = f"/admin/members?open={hit.id}"
+            href = f"{ADMIN_BASE}members?open={hit.id}"
         case _:
             raise ValueError(f"Unsupported core search result: {hit.type}")
     return SearchResult(

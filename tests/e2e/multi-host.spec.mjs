@@ -9,6 +9,10 @@ const publicUrl = process.env.LEONAID_E2E_PUBLIC_URL;
 const mailpitUrl = process.env.LEONAID_E2E_MAILPIT_URL;
 // Golden charity admin of Krapfentaxi (tests/fixtures/golden/v1).
 const charityAdminEmail = "klara.kern@leonaid.invalid";
+const systemAdminEmail = "system-admin@leonaid.invalid";
+// Golden charity admin of another action; tools/multi_host/test.sh adds an
+// acquirer role in Krapfentaxi, so Felix has roles in both apps.
+const bothAppsEmail = "felix.fremd@leonaid.invalid";
 const sessions = {
   admin: process.env.FINN_SESSION,
   acquirer: process.env.ANNA_SESSION,
@@ -61,6 +65,52 @@ async function loginLink(request, previous, recipient) {
     )
     .toBe("ready");
   return link;
+}
+
+/** The six-digit code of the newest login mail to the recipient. */
+async function loginCode(request, previous, recipient) {
+  let code;
+  await expect
+    .poll(
+      async () => {
+        const list = await request.get(`${mailpitUrl}/api/v1/messages`);
+        if (!list.ok()) return "mailpit-unavailable";
+        for (const summary of (await list.json()).messages ?? []) {
+          if (previous.has(summary.ID)) continue;
+          if (!addressesOf(summary.To).includes(recipient)) continue;
+          const detail = await request.get(
+            `${mailpitUrl}/api/v1/message/${summary.ID}`,
+          );
+          const match = ((await detail.json()).Text ?? "").match(
+            /Code (\d{6}) /,
+          );
+          if (match) {
+            code = match[1];
+            return "ready";
+          }
+        }
+        return "pending";
+      },
+      { message: "Login-Code in Mailpit", timeout: 30_000 },
+    )
+    .toBe("ready");
+  return code;
+}
+
+/**
+ * Signs in on the sign-in page the browser shows with the mailed code, the
+ * way a member types it: the page keeps its returnTo.
+ */
+async function signInWithCode(page, email) {
+  await expect(page.locator("#login-email")).toBeVisible();
+  const previous = await mailIds(page.request);
+  await page.locator("#login-email").fill(email);
+  await page.locator('[data-testid="request-login"]').click();
+  await expect(page.locator("#complete-login-form")).toBeVisible();
+  await page
+    .locator("#login-code")
+    .fill(await loginCode(page.request, previous, email));
+  await page.locator('[data-testid="complete-login"]').click();
 }
 
 async function mailIds(request) {
@@ -197,6 +247,45 @@ test("the admin host refuses public order actions and sends campaign pages away"
   expect(new URL(page.url()).origin).toBe(publicUrl);
 });
 
+test("the admin host entry signs in first and keeps deep links", async ({
+  browser,
+  page,
+}) => {
+  // Signed out: `/` asks for the login, a deep link survives it (§6.7).
+  await page.goto(`${adminUrl}/`);
+  expect(new URL(page.url()).pathname).toBe("/login");
+  await page.goto(`${adminUrl}/admin/orders?commitment=c1`);
+  await page.waitForURL((url) => url.pathname === "/login");
+  expect(new URL(page.url()).searchParams.get("returnTo")).toBe(
+    "/admin/orders?commitment=c1",
+  );
+
+  // Core computes the start area and refuses one without a role for it.
+  const context = await signedIn(browser, "acquirer");
+  const member = await context.newPage();
+  await member.goto(`${adminUrl}/`);
+  await member.waitForURL((url) => url.pathname.startsWith("/app/"));
+  const result = await member.evaluate(async () => {
+    const identity = await (await fetch("/api/v1/identity/me")).json();
+    const refused = await fetch("/api/v1/identity/me/preferred-surface", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surface: "web" }),
+    });
+    return {
+      landingPath: identity.landingPath,
+      refused: refused.status,
+      code: (await refused.json()).error?.code,
+    };
+  });
+  expect(result).toEqual({
+    landingPath: "/app/",
+    refused: 409,
+    code: "preferred_surface_unavailable",
+  });
+  await context.close();
+});
+
 test("a magic link signs in on the admin host and a survey saves on the public host", async ({
   browser,
   browserName,
@@ -285,4 +374,95 @@ test("a magic link signs in on the admin host and a survey saves on the public h
   }
   await respondent.close();
   await admin.close();
+});
+
+test("a full sign-in lands on the deep link, else on the landing path", async ({
+  browser,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "chromium proves the flow");
+  // Deep link first: the admin app sends the signed-out member to the login
+  // with returnTo, and the login brings them back to exactly that page.
+  const deep = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await deep.newPage();
+  await page.goto(`${adminUrl}/admin/orders?commitment=c1`);
+  await page.waitForURL((url) => url.pathname === "/login");
+  await signInWithCode(page, systemAdminEmail);
+  await page.waitForURL(
+    (url) =>
+      url.pathname === "/admin/orders" &&
+      url.searchParams.get("commitment") === "c1",
+  );
+  expect(new URL(page.url()).origin).toBe(adminUrl);
+  await deep.close();
+
+  // No deep link: `/` of the admin host signs in and Core's landing path
+  // decides; a system admin starts on the system page.
+  const entry = await browser.newContext({ ignoreHTTPSErrors: true });
+  const start = await entry.newPage();
+  await start.goto(`${adminUrl}/`);
+  await start.waitForURL((url) => url.pathname === "/login");
+  await signInWithCode(start, systemAdminEmail);
+  await start.waitForURL((url) => url.pathname === "/admin/system");
+  expect(new URL(start.url()).origin).toBe(adminUrl);
+  await entry.close();
+});
+
+test("a member with both apps chooses the admin app and returns to the default", async ({
+  browser,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "chromium proves the flow");
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  const landsOn = async (path) => {
+    await page.goto(`${adminUrl}/`);
+    await page.waitForURL((url) => url.pathname.startsWith(path));
+  };
+  const stored = (surface) =>
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/identity/me/preferred-surface") &&
+        response.request().method() === "PUT" &&
+        response.request().postDataJSON()?.surface === surface &&
+        response.status() === 200,
+    );
+  await page.goto(`${adminUrl}/`);
+  await page.waitForURL((url) => url.pathname === "/login");
+  await signInWithCode(page, bothAppsEmail);
+  // The acquirer role makes the PWA the default start area.
+  await page.waitForURL((url) => url.pathname.startsWith("/app/"));
+
+  // The admin app offers itself in the command palette.
+  await page.goto(`${adminUrl}/admin/`);
+  await expect(page.locator("dialog.palette")).toBeAttached();
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Befehlspalette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("combobox").fill("Startbereich");
+  const web = stored("web");
+  await palette
+    .getByRole("option", { name: "Verwaltung als Startbereich verwenden" })
+    .click();
+  await web;
+  await landsOn("/admin/");
+
+  // The PWA offers both: itself and the default rule.
+  await page.goto(`${adminUrl}/app/`);
+  await page.getByRole("button", { name: "Mehr" }).click();
+  const surfaces = page
+    .getByRole("dialog", { name: "Mehr" })
+    .getByTestId("pwa-surfaces");
+  await expect(
+    surfaces.getByRole("button", {
+      name: "Akquise-App als Startbereich verwenden",
+    }),
+  ).toBeVisible();
+  const reset = stored(null);
+  await surfaces
+    .getByRole("button", { name: "Standard-Startbereich verwenden" })
+    .click();
+  await reset;
+  await landsOn("/app/");
+  await context.close();
 });
