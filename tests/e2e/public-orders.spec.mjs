@@ -125,6 +125,9 @@ async function submitOrderResult(form) {
   await expect(success).toContainText(
     "Eine Rechnung folgt separat, sobald der Club die Bestellung geprüft hat.",
   );
+  await expect(success).toContainText(
+    "Eine Bestellbestätigung mit allen Angaben geht an die angegebene E-Mail-Adresse.",
+  );
   return { reference, success };
 }
 
@@ -271,7 +274,7 @@ test("a double submit sends one order request and shows the confirmation", async
     success.getByRole("heading", { name: "Danke für Ihre Bestellung!" }),
   ).toBeVisible();
   await expect(success.locator("[data-order-total]")).toHaveText(/36,00/);
-  await expect(success.locator(".public-next li")).toHaveCount(4);
+  await expect(success.locator(".public-next li")).toHaveCount(5);
   await expect(
     success.getByRole("link", { name: "Zur Aktionsseite" }),
   ).toBeVisible();

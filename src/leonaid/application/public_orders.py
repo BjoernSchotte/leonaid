@@ -31,6 +31,7 @@ from leonaid.application.crm_matching import (
     normalize_match_name,
 )
 from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.order_mails import OrderMailLinkResolver, OrderMailLinks
 from leonaid.domain.action_templates import OrderFormConfiguration
 from leonaid.domain.actions import PublicActionAlias
 from leonaid.domain.commitments import (
@@ -478,6 +479,7 @@ class PublicOrderCommand(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> PublicOrderResult: ...
 
     async def complete(self, result: PublicOrderResult) -> None: ...
@@ -513,11 +515,14 @@ class PublicOrderService:
         crm: CrmGateway,
         token_codec: PublicOrderTokenCodec,
         legal_configuration: PublicLegalConfigurationReader,
+        mail_links: OrderMailLinkResolver | None = None,
     ) -> None:
         self._repository = repository
         self._crm = crm
         self._token_codec = token_codec
         self._legal_configuration = legal_configuration
+        # Without a resolver no order confirmation is queued (offline tools).
+        self._mail_links = mail_links
 
     def issue_access_token(
         self,
@@ -579,6 +584,12 @@ class PublicOrderService:
             f"public.order.party:{claims.action_id}:"
             f"{draft.party.party_kind.value}:{draft.party.normalized_key}"
         )
+        # Resolved before the order transaction holds a pool connection.
+        mail_links = (
+            await self._mail_links.for_action(claims.action_id)
+            if self._mail_links is not None
+            else None
+        )
         async with self._repository.order_command(
             lock_key=lock_key,
             idempotency_key=idempotency_key,
@@ -629,6 +640,7 @@ class PublicOrderService:
                 request_hash=request_hash,
                 request_id=request_id,
                 occurred_at=moment,
+                mail_links=mail_links,
             )
             await command.complete(result)
             return result
