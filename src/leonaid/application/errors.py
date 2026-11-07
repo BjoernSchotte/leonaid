@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 
 class ApplicationError(RuntimeError):
     """A safe error that may be translated by an entrypoint."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        details: Mapping[str, object] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        # JSON-safe facts a client needs to resolve the error (no personal data).
+        self.details = dict(details) if details is not None else None
 
 
 class AuthenticationRequired(ApplicationError):
