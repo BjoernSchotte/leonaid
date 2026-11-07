@@ -279,9 +279,14 @@ class AsyncpgSiteHostVerification:
                         hostname,
                         now,
                     )
-                    return bool(approved)
-        finally:
+        except BaseException:
             self.invalidate()
+            raise
+        # Only a stored approval changes the snapshot; a refusal under the
+        # hourly limit must not make every handshake reload it (review N1).
+        if approved:
+            self.invalidate()
+        return bool(approved)
 
     async def issues(self) -> tuple[SiteHostIssue, ...]:
         async with self._pool.acquire() as db:

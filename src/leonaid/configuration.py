@@ -146,6 +146,11 @@ class Settings(BaseSettings):
         default="", alias="LEONAID_SITE_HOST_EDGE_ADDRESSES"
     )
     site_host_edge_name: str = Field(default="", alias="LEONAID_SITE_HOST_EDGE_NAME")
+    # Public resolvers that must agree with ours (split-view DNS, §7.4).
+    # Unset: 1.1.1.1 and 9.9.9.9 in production, none elsewhere; "none" off.
+    site_host_public_resolvers_value: str = Field(
+        default="", alias="LEONAID_SITE_HOST_PUBLIC_RESOLVERS"
+    )
     site_host_tls_ca_file: Path | None = Field(
         default=None, alias="LEONAID_SITE_HOST_TLS_CA_FILE"
     )
@@ -227,6 +232,34 @@ class Settings(BaseSettings):
     def empty_twenty_key_is_unconfigured(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("site_host_edge_addresses_value")
+    @classmethod
+    def valid_edge_addresses(cls, value: str) -> str:
+        for item in re.split(r"[\s,]+", value):
+            if item:
+                try:
+                    ip_address(item)
+                except ValueError:
+                    raise ValueError(
+                        f"LEONAID_SITE_HOST_EDGE_ADDRESSES: {item} is no IP address"
+                    ) from None
+        return value
+
+    @field_validator("site_host_public_resolvers_value")
+    @classmethod
+    def valid_public_resolvers(cls, value: str) -> str:
+        if value.strip().casefold() == "none":
+            return value
+        for item in re.split(r"[\s,]+", value):
+            if item:
+                try:
+                    ip_address(item)
+                except ValueError:
+                    raise ValueError(
+                        f"LEONAID_SITE_HOST_PUBLIC_RESOLVERS: {item} is no IP address"
+                    ) from None
         return value
 
     @field_validator("site_base_url_value", "site_host_tls_ca_file", mode="before")
@@ -328,6 +361,9 @@ class Settings(BaseSettings):
             raise ValueError(
                 "A public origin must not also be a credentialed admin origin."
             )
+        for item in self.host_check_settings.edge_addresses:
+            if not ip_address(item).is_global:
+                raise ValueError("Production edge addresses must be public: " + item)
         if self.site_host_check_allow_private or self.site_host_tls_ca_file:
             raise ValueError(
                 "Production checks campaign hosts on public addresses with the "
@@ -432,6 +468,15 @@ class Settings(BaseSettings):
         )
 
     @property
+    def site_host_public_resolvers(self) -> tuple[str, ...]:
+        value = self.site_host_public_resolvers_value.strip()
+        if value.casefold() == "none":
+            return ()
+        if not value:
+            return ("1.1.1.1", "9.9.9.9") if self.environment == "production" else ()
+        return tuple(item for item in re.split(r"[\s,]+", value) if item)
+
+    @property
     def site_host_check_secret(self) -> str:
         """A key of its own for the host check answer, from the HMAC secret."""
         return hmac.new(
@@ -459,6 +504,7 @@ class Settings(BaseSettings):
             tls_ca_file=(
                 str(self.site_host_tls_ca_file) if self.site_host_tls_ca_file else None
             ),
+            public_resolvers=self.site_host_public_resolvers,
         )
 
     @property

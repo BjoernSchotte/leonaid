@@ -273,10 +273,14 @@ def upgrade() -> None:
         END $$
         """
     )
-    for table in ("site_host", "site_binding"):
+    # Only the columns the rules read; check bookkeeping stays untouched.
+    for table, columns in (
+        ("site_host", "redirect_to_host_id"),
+        ("site_binding", "site_host_id, valid_to"),
+    ):
         op.execute(
             f"CREATE CONSTRAINT TRIGGER tg_{table}_redirect_rules "
-            f"AFTER INSERT OR UPDATE ON {table} "
+            f"AFTER INSERT OR UPDATE OF {columns} ON {table} "
             "DEFERRABLE INITIALLY DEFERRED FOR EACH ROW "
             "EXECUTE FUNCTION site_host_redirect_rules()"
         )
