@@ -187,6 +187,7 @@ for browser in chromium webkit; do
     "$PLAYWRIGHT_IMAGE" \
     node_modules/.bin/playwright test \
     tests/e2e/pwa-offline.spec.mjs \
+    tests/e2e/pwa-offline-queue.spec.mjs \
     --browser="$browser" \
     --output="/proof/test-results-offline-$browser" \
     --trace=retain-on-failure \
@@ -230,6 +231,8 @@ for screenshot in \
   pwa-offline-chromium.png \
   pwa-offline-start-chromium.png \
   pwa-offline-start-webkit.png \
+  pwa-offline-queue-chromium.png \
+  pwa-offline-queue-webkit.png \
   pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "pwa-test: ERROR: browser evidence is missing: $screenshot" >&2

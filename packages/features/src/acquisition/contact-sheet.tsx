@@ -103,7 +103,8 @@ function queuedToast(outcome: SubmitOutcome | null) {
   }
   if (outcome.state === "queued") {
     return {
-      title: "Kontakt gespeichert. Wird gesendet, sobald du wieder online bist.",
+      title:
+        "Kontakt gespeichert. Wird gesendet, sobald du wieder online bist.",
       tone: "success" as const,
     };
   }
@@ -166,7 +167,9 @@ export function ContactSheet({
     }
   }, [open]);
 
-  const { queue } = useOfflineRuntime();
+  const runtime = useOfflineRuntime();
+  // Drain mode (flag off, entries left) sends old entries but queues none.
+  const queue = runtime.enabled ? runtime.queue : null;
   const record = useMutation({
     // With offline capture on, every contact goes through the queue, also
     // online (specs/pwa-offline-queue §9.1): saved first, then sent.

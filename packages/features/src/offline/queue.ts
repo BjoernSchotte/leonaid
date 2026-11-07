@@ -72,6 +72,7 @@ interface EntryCommon {
   /** Core's view when a conflict needs it (e.g. a colleague's follow-up). */
   readonly conflictAssignment?: {
     readonly revision: number;
+    readonly priority: number;
     readonly nextAction: string | null;
     readonly dueAt: string | null;
     readonly status: string;
@@ -144,7 +145,10 @@ export class MemoryQueueStore implements QueueStore {
 
   async put(entry: QueueEntry): Promise<void> {
     for (const other of this.#entries.values()) {
-      if (other.entryId !== entry.entryId && other.sequence === entry.sequence) {
+      if (
+        other.entryId !== entry.entryId &&
+        other.sequence === entry.sequence
+      ) {
         throw new Error("Queue sequence must be unique");
       }
     }
@@ -177,7 +181,9 @@ export function retention(
   }
   if (entry.state === "sending") return "keep";
   const captured = Date.parse(entry.capturedAt);
-  return now.getTime() - captured > QUEUE_KEEP_DAYS * DAY_MS ? "expire" : "keep";
+  return now.getTime() - captured > QUEUE_KEEP_DAYS * DAY_MS
+    ? "expire"
+    : "keep";
 }
 
 /* ---------- ordering (§9.2) ---------- */
@@ -324,7 +330,10 @@ export function classifyFailure(
 /* ---------- accepted answers (§9.2 base revision rule) ---------- */
 
 export type SendResult =
-  | { readonly kind: "activity"; readonly response: RecordAcquisitionActivityResponse }
+  | {
+      readonly kind: "activity";
+      readonly response: RecordAcquisitionActivityResponse;
+    }
   | { readonly kind: "commitment"; readonly response: CommitmentResponse };
 
 /**
@@ -356,16 +365,6 @@ export function rebaseAfter(
       request: { ...entry.request, revision },
     }));
 }
-
-/** The text of an entry's state (§12.3); never colour alone. */
-export const queueStateLabel: Readonly<Record<QueueState, string>> = {
-  queued: "Wartet auf Verbindung",
-  sending: "Wird gesendet …",
-  conflict: "Braucht deine Entscheidung",
-  failed: "Konnte nicht gesendet werden",
-  expired: "Abgelaufen",
-  blocked: "Nicht mehr möglich",
-};
 
 export function newEntryId(): string {
   return crypto.randomUUID();

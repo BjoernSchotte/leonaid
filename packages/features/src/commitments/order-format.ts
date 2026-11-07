@@ -110,3 +110,20 @@ export function snapshotWindowLabel(snapshot: Record<string, string>) {
     clock(part(date, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }));
   return `${weekdayDay(day)} · ${time(start)}–${time(end)} Uhr`;
 }
+
+/** Core's receive time and the device's capture time differ by more. */
+const OFFLINE_GAP_MS = 5 * 60_000;
+
+/**
+ * A PWA capture sent later from the offline queue (specs/pwa-offline-queue
+ * §11.2): every queued capture carries `capturedAt`, also online, so only
+ * a gap of more than 5 minutes (Core's own tolerance) counts as offline.
+ */
+export function capturedOffline(record: {
+  readonly createdAt: string;
+  readonly commitment: { readonly capturedAt?: string | null };
+}): boolean {
+  const captured = record.commitment.capturedAt;
+  if (!captured) return false;
+  return Date.parse(record.createdAt) - Date.parse(captured) > OFFLINE_GAP_MS;
+}

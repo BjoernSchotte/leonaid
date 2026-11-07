@@ -80,6 +80,20 @@ export function isNetworkFailure(error: unknown): boolean {
   );
 }
 
+/** Values a page got from the device copy, with their fetch time. */
+const deviceCopies = new WeakMap<object, string>();
+
+/**
+ * When the value came from the device copy: its fetch time (§12.4, "Preis
+ * vom …"); null for Core's own answer. Needs `structuralSharing: false` on
+ * the query, so the page keeps the very object this module returned.
+ */
+export function deviceCopyFetchedAt(value: unknown): string | null {
+  return typeof value === "object" && value !== null
+    ? (deviceCopies.get(value) ?? null)
+    : null;
+}
+
 /**
  * Online: Core's answer, and the minimized copy goes to the device.
  * Without an answer: the device copy while it is younger than 7 days.
@@ -114,6 +128,9 @@ export async function readThrough<T>(
   }
   if (cacheFreshness(cached.fetchedAt) !== "fresh") {
     throw new StaleReadCacheError(cached.fetchedAt);
+  }
+  if (typeof cached.value === "object" && cached.value !== null) {
+    deviceCopies.set(cached.value, cached.fetchedAt);
   }
   return cached.value;
 }

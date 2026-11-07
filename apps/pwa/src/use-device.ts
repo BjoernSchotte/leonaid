@@ -1,9 +1,14 @@
 /*
- * Identity and device storage of the PWA in one place: the identity comes
- * from Core, or offline from the device (specs/pwa-offline-queue §8.1); the
- * device storage opens only while the flag `pwa.offline_queue` is on.
+ * Identity, device storage and capture queue of the PWA in one place: the
+ * identity comes from Core, or offline from the device (specs/pwa-offline-
+ * queue §8.1); the device storage and the queue open only while the flag
+ * `pwa.offline_queue` is on, or while queued entries still wait to be sent.
  */
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -12,7 +17,10 @@ import {
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import {
+  DeviceQueueStore,
+  QueueController,
   isNetworkFailure,
+  sendEntry,
   type DeviceStore,
   type OfflineRuntime,
 } from "@leonaid/features/offline";
@@ -20,8 +28,10 @@ import {
 import {
   cachedDevice,
   claimDevice,
+  forgetDevice,
   prepareDevice,
   refreshReadCache,
+  type PreparedDevice,
 } from "./device";
 
 /** The read cache refreshes at most this often on focus (§8.2). */
@@ -38,6 +48,7 @@ export function useDevice(
   client: LeonAidApiClient,
   online: boolean,
 ): DeviceState {
+  const queries = useQueryClient();
   const cachedStore = useRef<DeviceStore | null>(null);
   const fromCache = useRef(false);
   const identity = useQuery({
@@ -64,7 +75,7 @@ export function useDevice(
     retryDelay: (attempt) => 150 * (attempt + 1),
     staleTime: 30_000,
   });
-  const [store, setStore] = useState<DeviceStore | null>(null);
+  const [prepared, setPrepared] = useState<PreparedDevice | null>(null);
   const startedOffline = Boolean(identity.data) && fromCache.current;
 
   // Online: the flag decides whether the device keeps anything.
@@ -74,12 +85,15 @@ export function useDevice(
     let cancelled = false;
     void prepareDevice(client, data)
       .then((next) => {
+        if (next === undefined) return;
         if (cancelled) {
-          next?.close();
+          next?.store.close();
           return;
         }
-        setStore((previous) => {
-          if (previous && previous !== next) previous.close();
+        setPrepared((previous) => {
+          if (previous && previous.store !== next?.store) {
+            previous.store.close();
+          }
           return next;
         });
       })
@@ -94,10 +108,16 @@ export function useDevice(
     if (startedOffline && online) void identity.refetch();
   }, [startedOffline, online]);
 
+  const store = startedOffline
+    ? cachedStore.current
+    : (prepared?.store ?? null);
+  const mode = startedOffline ? "on" : (prepared?.mode ?? null);
+  const userId = identity.data?.userId ?? "";
+
   // The read cache follows Core while online and visible (§8.2).
   useEffect(() => {
     const data = identity.data;
-    if (!store || !data || fromCache.current) return;
+    if (!store || mode !== "on" || !data || fromCache.current) return;
     let last = 0;
     let running = false;
     const refresh = (force: boolean) => {
@@ -114,21 +134,63 @@ export function useDevice(
     };
     const onOnline = () => refresh(true);
     const onVisible = () => refresh(false);
+    const onSent = () => refresh(true);
     refresh(true);
     window.addEventListener("online", onOnline);
     window.addEventListener("focus", onVisible);
+    window.addEventListener("leonaid:queue-sent", onSent);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("focus", onVisible);
+      window.removeEventListener("leonaid:queue-sent", onSent);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [client, identity.data, store]);
+  }, [client, identity.data, mode, store]);
 
-  const active = startedOffline ? cachedStore.current : store;
+  // The capture queue (§9): one controller per open device storage.
+  const [queue, setQueue] = useState<QueueController | null>(null);
+  useEffect(() => {
+    if (!store || !userId) return;
+    const controller = new QueueController({
+      onAccepted: () => {
+        // §9.4: the read cache and the pages follow each accepted entry.
+        void queries.invalidateQueries({
+          queryKey: ["acquisition-activity-board"],
+        });
+        void queries.invalidateQueries({ queryKey: ["dashboard"] });
+        void queries.invalidateQueries({ queryKey: ["activity-feed"] });
+        window.dispatchEvent(new Event("leonaid:queue-sent"));
+      },
+      send: (entry) => sendEntry(client, entry),
+      store: new DeviceQueueStore(store),
+      userId,
+    });
+    const stop = controller.start();
+    setQueue(controller);
+    return () => {
+      stop();
+      setQueue(null);
+    };
+  }, [client, queries, store, userId]);
+
+  // Drain mode: once everything is sent, nothing stays on the device.
+  useEffect(() => {
+    if (!queue || mode !== "drain") return;
+    return queue.subscribe((snapshot) => {
+      if (!snapshot.sending && snapshot.entries.length === 0) {
+        void forgetDevice(userId).then(() => setPrepared(null));
+      }
+    });
+  }, [mode, queue, userId]);
+
   const runtime = useMemo<OfflineRuntime>(
-    () => ({ enabled: Boolean(active), store: active }),
-    [active],
+    () => ({
+      enabled: mode === "on" && Boolean(store),
+      queue,
+      store: mode === "on" ? store : null,
+    }),
+    [mode, queue, store],
   );
   return { identity, runtime, startedOffline };
 }

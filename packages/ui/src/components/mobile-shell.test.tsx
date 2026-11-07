@@ -155,6 +155,48 @@ describe("MobileShell", () => {
     ).toBeTruthy();
   });
 
+  it("shows the capture queue on the network glyph and opens it", async () => {
+    const onOpen = vi.fn();
+    renderShell({
+      offline: true,
+      offlineText: "Du bist offline. Neue Kontakte speichert LeonAid.",
+      queue: {
+        count: 2,
+        label: "2 Einträge warten auf Versand",
+        onOpen,
+        state: "waiting",
+      },
+    });
+    expect(screen.getByTestId("offline-banner").textContent).toContain(
+      "Neue Kontakte speichert LeonAid.",
+    );
+    const glyph = screen.getByRole("button", {
+      name: "2 Einträge warten auf Versand",
+    });
+    expect(glyph.className).toContain("is-offline");
+    expect(screen.getByTestId("queue-badge").textContent).toBe("2");
+    await userEvent.click(glyph);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("marks a decision in warn and an empty queue by network state", () => {
+    renderShell({
+      queue: {
+        count: 1,
+        label: "1 Eintrag braucht deine Entscheidung",
+        onOpen: () => undefined,
+        state: "decision",
+      },
+    });
+    expect(screen.getByTestId("queue-badge").className).toContain("tone-warn");
+    cleanup();
+    renderShell({
+      queue: { count: 0, label: "", onOpen: () => undefined, state: "empty" },
+    });
+    expect(screen.getByRole("button", { name: "Online" })).toBeTruthy();
+    expect(screen.queryByTestId("queue-badge")).toBeNull();
+  });
+
   it("hides the offline banner while online", () => {
     renderShell();
     expect(screen.queryByTestId("offline-banner")).toBeNull();

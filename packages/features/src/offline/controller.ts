@@ -5,11 +5,7 @@
  * tab sends at a time (Web Lock); the others follow over a
  * BroadcastChannel and re-read the store.
  */
-import {
-  drainQueue,
-  type SyncDependencies,
-  type SyncReport,
-} from "./sync";
+import { drainQueue, type SyncDependencies, type SyncReport } from "./sync";
 import {
   capturedAtNow,
   idempotencyKeyFor,
@@ -42,7 +38,9 @@ export type QueueDraft = QueueEntry extends infer Entry
 
 export type SubmitOutcome =
   | { readonly state: "accepted"; readonly result: SendResult }
-  | { readonly state: "queued" | "conflict" | "failed" | "blocked" | "expired" };
+  | {
+      readonly state: "queued" | "conflict" | "failed" | "blocked" | "expired";
+    };
 
 export interface QueueSnapshot {
   readonly entries: readonly QueueEntry[];
@@ -296,7 +294,8 @@ export class QueueController {
         await this.reload();
       }
     };
-    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    const locks =
+      typeof navigator !== "undefined" ? navigator.locks : undefined;
     if (!locks) return work();
     return locks.request(
       `leonaid-sync-${this.#options.userId}`,

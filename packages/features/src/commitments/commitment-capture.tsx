@@ -42,9 +42,11 @@ import { minimizeCaptureContext } from "../offline/read-cache";
 import {
   STALE_READ_CACHE_TEXT,
   StaleReadCacheError,
+  deviceCopyFetchedAt,
   readThrough,
   useOfflineRuntime,
 } from "../offline/runtime";
+import { formatDateTime } from "../shared/dates";
 import { useLocationHref } from "../shared/location";
 import { CompleteDraft } from "./complete-draft";
 import {
@@ -258,7 +260,8 @@ function QueuedConfirmation({
         Bestellung gespeichert
       </h1>
       <p className="muted">
-        Für {buyer.displayName}, {formatMoney(order.totalMinor, order.currency)}.
+        Für {buyer.displayName}, {formatMoney(order.totalMinor, order.currency)}
+        .
       </p>
       <p className="small muted" data-testid="commitment-queued-text">
         {decision
@@ -438,7 +441,10 @@ export function CommitmentCapturePage({
       ),
     queryKey: ["commitment-capture-context", actionId],
     refetchOnWindowFocus: false,
+    // deviceCopyFetchedAt needs the object readThrough returned.
+    structuralSharing: false,
   });
+  const priceFrom = deviceCopyFetchedAt(context.data);
   const existing = useQuery({
     enabled: Boolean(actionId && existingId),
     queryKey: ["commitment", actionId, existingId],
@@ -495,29 +501,29 @@ export function CommitmentCapturePage({
       readonly selectedOffering: ConfiguredOfferingResponse;
     }): Promise<CommitmentResponse | QueuedOrder> => {
       const body: CreateCommitmentRequest = {
-          allowFullWindow,
-          buyer: selected,
-          ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
-          invoiceRecipient: {
-            city: recipient.city.trim(),
-            countryCode: "DE",
-            email: recipient.email.trim() || null,
-            postalCode: recipient.postalCode.trim(),
-            recipientName: recipient.recipientName.trim(),
-            streetLine1: recipient.streetLine1.trim(),
+        allowFullWindow,
+        buyer: selected,
+        ...(deliveryEnabled ? deliveryPayload(delivery) : {}),
+        invoiceRecipient: {
+          city: recipient.city.trim(),
+          countryCode: "DE",
+          email: recipient.email.trim() || null,
+          postalCode: recipient.postalCode.trim(),
+          recipientName: recipient.recipientName.trim(),
+          streetLine1: recipient.streetLine1.trim(),
+        },
+        lines: [
+          {
+            offeringId: selectedOffering.id,
+            quantity,
+            quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
+            unit: selectedOffering.unit,
           },
-          lines: [
-            {
-              offeringId: selectedOffering.id,
-              quantity,
-              quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
-              unit: selectedOffering.unit,
-            },
-          ],
-          readyForReview,
-          source: "acquisition",
-        };
-      if (!runtime.queue || !sponsor) {
+        ],
+        readyForReview,
+        source: "acquisition",
+      };
+      if (!runtime.enabled || !runtime.queue || !sponsor) {
         return client.createCommitment(actionId, body, {
           headers: { "Idempotency-Key": `poc081:${commandId.current}` },
         });
@@ -544,7 +550,10 @@ export function CommitmentCapturePage({
         },
         request: body,
       });
-      if (outcome.state === "accepted" && outcome.result.kind === "commitment") {
+      if (
+        outcome.state === "accepted" &&
+        outcome.result.kind === "commitment"
+      ) {
         return outcome.result.response;
       }
       return {
@@ -819,6 +828,11 @@ export function CommitmentCapturePage({
               >
                 Summe {offering ? formatMoney(total, offering.currency) : "–"}
               </p>
+              {priceFrom ? (
+                <p className="small muted" data-testid="commitment-price-from">
+                  {`Preis vom ${formatDateTime(priceFrom)}. Ändert er sich, fragt LeonAid dich vor dem Senden.`}
+                </p>
+              ) : null}
               <Button
                 className="pwa-wide"
                 disabled={!offering}

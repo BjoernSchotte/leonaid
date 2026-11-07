@@ -100,26 +100,45 @@ async function offlineQueueEnabled(client: LeonAidApiClient) {
 }
 
 /**
+ * The device after an online start: `on` keeps the read cache and queues
+ * captures; `drain` (flag switched off, or no acquirer role any more, with
+ * entries still on the device) only sends what is queued and then clears
+ * the device; null keeps nothing.
+ */
+export interface PreparedDevice {
+  readonly store: DeviceStore;
+  readonly mode: "on" | "drain";
+}
+
+/**
  * Online start: with the flag on and an acquirer role, the user's device
  * storage is opened and the identity summary written; otherwise nothing of
- * this user stays on the device. Null without a decision (the flag could
- * not be read), which keeps the device as it is.
+ * this user stays on the device, except queued entries until they are sent.
+ * Undefined without a decision (the flag could not be read), which keeps
+ * the device as it is.
  */
 export async function prepareDevice(
   client: LeonAidApiClient,
   identity: CurrentIdentityResponse,
-): Promise<DeviceStore | null> {
+): Promise<PreparedDevice | null | undefined> {
   if (!deviceStorageAvailable()) return null;
   let enabled: boolean;
   try {
     enabled = await offlineQueueEnabled(client);
   } catch {
-    return null;
+    return undefined;
   }
   const acquirer = identity.actionMemberships.some(
     (membership) => membership.role === "acquirer",
   );
   if (!enabled || !acquirer) {
+    const store = await openIfQueued(identity.userId);
+    if (store) {
+      // Captures already saved are still sent; nothing new is kept.
+      tellServiceWorker(false);
+      await store.clearCache();
+      return { mode: "drain", store };
+    }
     await forgetDevice(identity.userId);
     return null;
   }
@@ -128,7 +147,19 @@ export async function prepareDevice(
   await store.putMeta(IDENTITY_META, summarizeIdentity(identity));
   await store.putMeta(ENABLED_META, true);
   tellServiceWorker(true);
-  return store;
+  return { mode: "on", store };
+}
+
+/** The user's database, only when it holds queued entries. */
+async function openIfQueued(userId: string): Promise<DeviceStore | null> {
+  if (activeDeviceUser()?.toLowerCase() !== userId.toLowerCase()) return null;
+  const store = await DeviceStore.open(userId);
+  if ((await store.queueCount()) > 0) {
+    await store.putMeta(ENABLED_META, false);
+    return store;
+  }
+  store.close();
+  return null;
 }
 
 /**

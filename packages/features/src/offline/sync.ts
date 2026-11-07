@@ -149,6 +149,7 @@ export async function drainQueue(
           });
           continue;
       }
+      continue;
     }
     await settleAccepted(store, entry, result);
     accepted.push({ entry, result });
@@ -173,6 +174,7 @@ async function settleAccepted(
         conflictAssignment: {
           dueAt: response.assignment.dueAt,
           nextAction: response.assignment.nextAction,
+          priority: response.assignment.priority,
           revision: response.assignment.revision,
           status: response.assignment.status,
         },
