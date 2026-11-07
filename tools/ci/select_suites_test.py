@@ -301,6 +301,25 @@ def main() -> int:
         expect(
             must <= mapped, f"{path}: {sorted(mapped)} lacks {sorted(must - mapped)}"
         )
+    # Every module under a specific ALL_E2E prefix selects every leaf, even
+    # when owner modules import it (platform.http, base_paths, ...).
+    for module_path in sorted((ROOT / "src/leonaid").rglob("*.py")):
+        relative = module_path.relative_to(ROOT).as_posix()
+        module = s.module_of(relative) or ""
+        prefix = next(
+            (p for p, _ in s.MODULE_OWNERS if s.matches_module(module, p)), None
+        )
+        mapped_all = dict(s.MODULE_OWNERS).get(prefix) == s.ALL_E2E
+        neutral = any(s.matches_module(module, n) for n in s.E2E_NEUTRAL)
+        if prefix and prefix not in s.CATCH_ALL_PREFIXES and mapped_all and not neutral:
+            expect(
+                s.e2e_owners(relative, ROOT) == set(s.E2E_SHARDS),
+                f"{relative} ({prefix}) must select every E2E leaf",
+            )
+    expect(
+        s.e2e_owners("src/leonaid/platform/http.py", ROOT) == set(s.E2E_SHARDS),
+        "platform.http selects every leaf",
+    )
     expect(
         all(len(reason) >= 20 for reason in s.E2E_NEUTRAL.values())
         and len(s.E2E_NEUTRAL) <= 10,

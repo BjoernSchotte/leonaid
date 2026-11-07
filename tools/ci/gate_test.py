@@ -182,6 +182,26 @@ def test_flake_tally() -> None:
             ]
         ],
     ]
+    # A draft run (only the gate ran and failed) is not a test result.
+    draft_run = [
+        [
+            job("select / Select suites", "skipped"),
+            job("Unit", "skipped"),
+            job("CI gate", "failure"),
+        ]
+    ]
+    draft_stats, draft_total, _ = flake_summary.tally([draft_run])
+    expect(draft_total == 0 and not draft_stats, f"drafts are ignored: {draft_stats}")
+    docs_draft = [
+        [
+            {
+                "name": "Bilingual site artifact",
+                "conclusion": "failure",
+                "steps": [{"name": "Refuse a draft", "conclusion": "failure"}],
+            }
+        ]
+    ]
+    expect(flake_summary.tally([docs_draft])[1] == 0, "a refused docs draft is ignored")
     stats, total, reruns = flake_summary.tally(runs)
     expect(total == 2 and reruns == 1, f"run counts: {total}, {reruns}")
     expect(
@@ -245,9 +265,10 @@ def test_retry_allowlist() -> None:
 
 
 def check_run(
-    run: int, status: str, conclusion: str | None, started: str
+    run: int, status: str, conclusion: str | None, started: str | None
 ) -> dict[str, object]:
     return {
+        "id": run * 10,
         "details_url": f"https://github.com/o/r/actions/runs/{run}/job/1",
         "status": status,
         "conclusion": conclusion,
@@ -314,6 +335,54 @@ def test_pull_request_context() -> None:
 
         decision, _ = gate.pull_request_context(edit, {}, listing)
         expect(decision is expected, f"mirror {runs}: {decision}")
+    # A newer queued gate (no start time yet) beats an older green one: wait,
+    # then mirror it; a newer cancelled one fails.
+    queued_then = iter(
+        [
+            {
+                "check_runs": [
+                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
+                    check_run(6, "queued", None, None),
+                ]
+            },
+            {
+                "check_runs": [
+                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
+                    check_run(6, "completed", "failure", "2026-11-07T11:00:00Z"),
+                ]
+            },
+        ]
+    )
+    result = gate.mirrored_result(
+        lambda path: next(queued_then),
+        "o/r",
+        "abc",
+        "CI gate",
+        "9",
+        sleep=lambda _: None,
+    )
+    expect(result == "failure", f"newer queued run decides: {result}")
+
+    def cancelled_newer(path: str) -> object:
+        return {
+            "check_runs": [
+                check_run(5, "completed", "success", "2026-11-07T10:00:00Z"),
+                check_run(6, "completed", "cancelled", None),
+            ]
+        }
+
+    decision, _ = gate.pull_request_context(edit, {}, cancelled_newer)
+    expect(decision is False, "a newer cancelled gate fails the mirror")
+    stuck = gate.mirrored_result(
+        lambda path: {"check_runs": [check_run(6, "in_progress", None, None)]},
+        "o/r",
+        "abc",
+        "CI gate",
+        "9",
+        sleep=lambda _: None,
+        attempts=3,
+    )
+    expect(stuck == "still running", f"a run that never finishes: {stuck}")
     # A still-running real gate is awaited, then mirrored.
     answers = iter(
         [
