@@ -144,8 +144,13 @@ export class DeviceStore {
     this.userId = userId;
     this.#database = database;
     this.#key = key;
-    // A deletion from another tab (sign-out, account switch) wins.
+    // A deletion from another tab (sign-out, account switch) wins. A page
+    // kept in the back-forward cache closes its connection when it is
+    // hidden, so it never blocks such a deletion.
     database.onversionchange = () => database.close();
+    window.addEventListener("pagehide", () => database.close(), {
+      once: true,
+    });
   }
 
   /** Opens the user's database and creates its device key once. */
