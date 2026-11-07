@@ -90,10 +90,39 @@ def collect(
     return collected
 
 
+DRAFT_STEP = "Refuse a draft"
+
+
+def nothing_ran(attempt: Sequence[Mapping[str, object]]) -> bool:
+    """A draft or title-edit run: only the gates ran, or a draft was refused.
+
+    Drafts fail their gates on purpose (no CI ran) and a title edit only
+    mirrors the commit's real gate; neither is a test result.
+    """
+    others = [job for job in attempt if not str(job.get("name", "")).endswith("gate")]
+    if others and all(str(job.get("conclusion") or "") == "skipped" for job in others):
+        return True
+    for job in attempt:
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if (
+                isinstance(step, Mapping)
+                and str(step.get("name", "")) == DRAFT_STEP
+                and str(step.get("conclusion") or "") == "failure"
+            ):
+                return True
+    return False
+
+
 def tally(runs: Sequence[RunAttempts]) -> tuple[dict[str, JobStats], int, int]:
     """Count per job: runs, failures in the final attempt, failures that were rerun."""
     stats: dict[str, JobStats] = defaultdict(JobStats)
     rerun_runs = 0
+    runs = [
+        attempts for attempts in runs if not (attempts and nothing_ran(attempts[-1]))
+    ]
     for attempts in runs:
         if len(attempts) > 1:
             rerun_runs += 1

@@ -13,19 +13,26 @@ import { navigateInPage, useLocationHref } from "../shared/location";
 import { FlagsTab } from "./feature-flag-admin";
 import { JobsTab, OperationsTab } from "./operations-admin";
 import { PrivacyTab } from "./privacy-admin";
+import { SiteHostsTab } from "./site-hosts-admin";
 import { adminHref } from "@leonaid/ui/base-paths";
 
-export type SystemSection = "operations" | "jobs" | "flags" | "privacy";
+export type SystemSection =
+  | "operations"
+  | "jobs"
+  | "flags"
+  | "domains"
+  | "privacy";
 
 const TABS: readonly { id: SystemSection; label: string; path: string }[] = [
   { id: "operations", label: "Betrieb", path: adminHref("system") },
   { id: "jobs", label: "Hintergrundaufgaben", path: adminHref("system/jobs") },
   { id: "flags", label: "Funktionen", path: adminHref("system/flags") },
+  { id: "domains", label: "Domains", path: adminHref("system/domains") },
   // The privacy area keeps its own URL (and rail entry).
   { id: "privacy", label: "Datenschutz", path: adminHref("privacy") },
 ];
 
-/** `/admin/system[/jobs|/flags]` or `/admin/privacy`. */
+/** `/admin/system[/jobs|/flags|/domains]` or `/admin/privacy`. */
 export function systemSection(pathname: string): SystemSection {
   const path = pathname.replace(/\/+$/, "");
   return TABS.find((tab) => tab.path === path)?.id ?? "operations";
@@ -38,7 +45,7 @@ export interface SystemPageProps {
 
 /**
  * System (prototype pages/System.tsx): one page with the tabs Betrieb,
- * Hintergrundaufgaben, Funktionen and Datenschutz. Every command still
+ * Hintergrundaufgaben, Funktionen, Domains and Datenschutz. Every command still
  * goes to its server endpoint with the fresh sign-in step-up.
  */
 export function SystemPage({ client, identity }: SystemPageProps) {
@@ -138,6 +145,8 @@ export function SystemPage({ client, identity }: SystemPageProps) {
           <JobsTab client={client} overview={overview} />
         ) : section === "flags" ? (
           <FlagsTab client={client} />
+        ) : section === "domains" ? (
+          <SiteHostsTab client={client} />
         ) : (
           <PrivacyTab client={client} />
         )}

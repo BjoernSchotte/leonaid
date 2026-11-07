@@ -323,3 +323,52 @@ def test_public_order_message_may_span_lines_but_holds_no_bidi_controls() -> Non
     with pytest.raises(DomainInvariantError) as error:
         replace(public_order(), message="Hallo ‮Welt")
     assert error.value.code == "public_order_message_invalid"
+
+
+@pytest.mark.parametrize(
+    ("changes", "label"),
+    [
+        ({"recipient_name": "Max – Zahlung: https://evil.example/pay"}, "Name"),
+        ({"street_line_1": "www.evil.example 1"}, "Straße"),
+        ({"city": "zahlung@evil.example"}, "Ort"),
+    ],
+    ids=["url-name", "www-street", "mail-city"],
+)
+def test_public_order_refuses_links_in_name_street_and_city(
+    changes: dict[str, str], label: str
+) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        _delivery(public_order(), **changes)
+
+    assert error.value.code == "public_order_delivery_recipient_invalid"
+    assert error.value.message.startswith(
+        f"Lieferanschrift ({label}): Bitte ohne Internet"
+    )
+
+
+@pytest.mark.parametrize(
+    ("changes", "code"),
+    [
+        ({"recipient_name": "Max\ud800"}, "public_order_delivery_recipient_invalid"),
+        ({"city": "ㅤ"}, "public_order_delivery_recipient_invalid"),
+        ({"street_line_1": "Weg⠀ 1"}, "public_order_delivery_recipient_invalid"),
+    ],
+    ids=["lone-surrogate", "hangul-filler", "braille-blank"],
+)
+def test_public_order_refuses_surrogates_and_blank_letters(
+    changes: dict[str, str], code: str
+) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        _delivery(public_order(), **changes)
+
+    assert error.value.code == code
+
+
+def test_public_order_refuses_a_lone_surrogate_in_party_fields() -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        replace(
+            public_order(),
+            party=replace(public_order().party, family_name="Mu\udfffster"),
+        )
+
+    assert error.value.code == "public_order_family_name_invalid"

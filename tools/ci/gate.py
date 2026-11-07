@@ -101,11 +101,14 @@ def mirrored_result(
     name: str,
     own_run: str,
     sleep: Callable[[float], None] = time.sleep,
-    attempts: int = 100,
+    attempts: int = 200,
 ) -> str:
-    """Conclusion of the latest other run's gate check for this commit.
+    """Conclusion of the newest other gate check run for this commit.
 
-    Waits while that check is still running. "missing" when there is none.
+    "Newest" is the highest check-run id (creation order): a queued gate
+    of a newer run has no start time yet and must win over an older green
+    one. While the newest is queued or running, wait (up to 100 minutes,
+    longer than the slowest leg). "missing" when there is none.
     """
     for _ in range(attempts):
         data = fetch(
@@ -121,7 +124,7 @@ def mirrored_result(
         ]
         if not runs:
             return "missing"
-        latest = max(runs, key=lambda run: str(run.get("started_at") or ""))
+        latest = max(runs, key=lambda run: int(run.get("id") or 0))
         if latest.get("status") == "completed":
             return str(latest.get("conclusion") or "missing")
         sleep(30)
@@ -147,10 +150,10 @@ def pull_request_context(
             environ.get("GATE_NAME", ""),
             environ.get("GITHUB_RUN_ID", ""),
         )
-        return (
-            result == "success",
-            f"title/body edit: this commit's gate result is {result}",
-        )
+        message = f"title/body edit: this commit's gate result is {result}"
+        if result == "still running":
+            message += "; re-run this gate after the real run finishes"
+        return result == "success", message
     return None, ""
 
 

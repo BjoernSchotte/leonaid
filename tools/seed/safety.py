@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-ALLOWED_PROJECT = re.compile(r"leonaid(?:-poc[0-9]{3}-test(?:-[0-9]+-[0-9]+)?)?\Z")
+ALLOWED_PROJECT = re.compile(
+    # leonaid: main checkout; leonaid-wt-<cksum>: a linked worktree (see ./leonaid).
+    r"leonaid(?:-poc[0-9]{3}-test(?:-[0-9]+-[0-9]+)?|-wt-[0-9]+)?\Z"
+)
 EXPECTED_ENDPOINTS = {
     ("api", "CORE_DATABASE_URL"): ("postgresql", "core-postgres"),
     ("api", "TWENTY_BASE_URL"): ("http", "twenty-server"),

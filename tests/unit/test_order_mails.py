@@ -27,6 +27,8 @@ from leonaid.application.order_mails import (
     OrderMailLinkResolver,
     OrderMailLinks,
     delivery_window_label,
+    limit_digest,
+    mailbox_key,
     order_mail_event,
     render_order_cancellation,
     render_order_confirmation,
@@ -46,7 +48,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
-from leonaid.domain.text import has_unsafe_characters, single_line
+from leonaid.domain.text import has_link_markers, has_unsafe_characters, single_line
 from leonaid.application.outbox import OutboxWorker
 from tests.unit.test_legal_configuration import valid_draft
 
@@ -346,7 +348,9 @@ class Reader:
         self.sent = sent
         self.recent = recent
         self.calls: list[tuple[UUID, OrderMailKind]] = []
-        self.counted: list[tuple[str, datetime]] = []
+        self.counted: list[tuple[str, str, datetime]] = []
+        self.locks: list[str] = []
+        self.locked = False
 
     async def facts(
         self, commitment_id: UUID, kind: OrderMailKind
@@ -357,9 +361,21 @@ class Reader:
     async def was_sent(self, idempotency_key: str) -> bool:
         return self.sent
 
-    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
-        self.counted.append((recipient_sha256, since))
+    async def recent_order_mails(
+        self, *, recipient_sha256: str, mailbox: str, since: datetime
+    ) -> int:
+        assert self.locked, "the limit is checked under the recipient lock"
+        self.counted.append((recipient_sha256, mailbox, since))
         return self.recent
+
+    @asynccontextmanager
+    async def recipient_lock(self, digest: str) -> Any:
+        self.locks.append(digest)
+        self.locked = True
+        try:
+            yield
+        finally:
+            self.locked = False
 
 
 class Legal:
@@ -682,9 +698,13 @@ async def test_the_recipient_limit_dead_letters_the_job() -> None:
     assert reader.counted == [
         (
             hashlib.sha256(b"einkauf@musterwerk.invalid").hexdigest(),
+            "einkauf@musterwerk.invalid",
             now - RECIPIENT_WINDOW,
         )
     ]
+    # Released although the limit raised.
+    assert reader.locks == [limit_digest("einkauf@musterwerk.invalid")]
+    assert reader.locked is False
 
 
 @pytest.mark.asyncio
@@ -758,3 +778,122 @@ async def test_the_worker_dead_letters_a_limited_job_at_the_first_attempt() -> N
     # Visible in the operations view as a failed job with this code.
     assert failure["dead_letter"] is True
     assert failure["error_code"] == "order_mail_recipient_limit"
+
+
+# --- Re-review of #111: R1 mailbox, R2 characters, R3 lock ---
+
+
+@pytest.mark.parametrize(
+    ("address", "mailbox"),
+    [
+        ("Victim@Example.org", "victim@example.org"),
+        ("victim+1@example.org", "victim@example.org"),
+        ("victim+a+b@example.org", "victim@example.org"),
+        ("v.ic.tim+x@gmail.com", "victim@gmail.com"),
+        ("v.ictim@googlemail.com", "victim@gmail.com"),
+        # Dots matter at other providers.
+        ("v.ictim@example.org", "v.ictim@example.org"),
+    ],
+)
+def test_mailbox_key_counts_plus_tags_and_gmail_dots_as_one_mailbox(
+    address: str, mailbox: str
+) -> None:
+    assert mailbox_key(address) == mailbox
+    assert limit_digest(address) == limit_digest(mailbox)
+
+
+@pytest.mark.asyncio
+async def test_the_mail_goes_to_the_address_as_entered_while_the_limit_uses_the_mailbox() -> (
+    None
+):
+    sender = RecordingSender()
+    tagged = order(
+        buyer=BuyerSnapshot(
+            party_kind=CommitmentPartyKind.PERSON,
+            twenty_id=uuid4(),
+            display_name="Vera",
+            email="v.era+krapfen@gmail.com",
+        )
+    )
+    reader = Reader(facts(tagged))
+
+    await OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=reader,
+        legal_configuration=Legal(legal()),
+        sender=sender,
+    ).handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert sender.events[0].payload["to"] == "v.era+krapfen@gmail.com"
+    assert reader.counted[0][:2] == (
+        hashlib.sha256(b"v.era+krapfen@gmail.com").hexdigest(),
+        "vera@gmail.com",
+    )
+    assert reader.locks == [limit_digest("vera@gmail.com")]
+
+
+class LockCheckingSender(RecordingSender):
+    def __init__(self, reader: Reader) -> None:
+        super().__init__()
+        self.reader = reader
+
+    async def handle(self, event: ClaimedOutboxEvent) -> None:
+        assert self.reader.locked, "the send runs under the recipient lock"
+        await super().handle(event)
+
+
+@pytest.mark.asyncio
+async def test_the_send_happens_inside_the_recipient_lock() -> None:
+    reader = Reader(facts())
+    sender = LockCheckingSender(reader)
+
+    await OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=reader,
+        legal_configuration=Legal(legal()),
+        sender=sender,
+    ).handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert len(sender.events) == 1
+    assert reader.locked is False
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "Max\ud800",  # lone surrogate (Cs)
+        "Max\ue000",  # private use (Co)
+        "Max\u0378",  # unassigned (Cn)
+        "\u3164",  # Hangul filler
+        "Ma\u2800x",  # Braille blank
+        "\u115f\u1160",  # Hangul choseong/jungseong fillers
+        "Max\uffa0",  # halfwidth Hangul filler
+    ],
+    ids=[
+        "surrogate",
+        "private-use",
+        "unassigned",
+        "hangul-filler",
+        "braille",
+        "jamo",
+        "halfwidth",
+    ],
+)
+def test_surrogates_private_unassigned_and_blank_letters_are_unsafe(value: str) -> None:
+    assert has_unsafe_characters(value)
+    assert has_unsafe_characters(value, allow_line_breaks=True)
+    cleaned = single_line(value)
+    assert not has_unsafe_characters(cleaned)
+    cleaned.encode("utf-8")
+
+
+def test_link_markers() -> None:
+    for value in (
+        "https://evil.example/pay",
+        "www.evil.example",
+        "zahlung@evil.example",
+        "HTTP://X",
+    ):
+        assert has_link_markers(value), value
+    for value in ("Müller-Lüdenscheidt GmbH & Co. KG", "Am Wall 3", "86150 Augsburg"):
+        assert not has_link_markers(value), value

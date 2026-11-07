@@ -777,6 +777,9 @@ MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
     ("leonaid.domain.identifiers", ALL_E2E),
     ("leonaid", ALL_E2E),
 )
+# Fallback prefixes of MODULE_OWNERS; every other prefix is specific and
+# unioned with the stem owners of the module's importers.
+CATCH_ALL_PREFIXES = frozenset({"leonaid", "leonaid.adapters"})
 # Reviewed modules that no browser leaf exercises. Keep this short; every
 # entry needs a reason. Anything else without an owner runs every leaf.
 E2E_NEUTRAL: dict[str, str] = {
@@ -865,10 +868,11 @@ def e2e_owners(path: str, root: Path | None = None) -> set[str] | None:
 
     1. The module and everything that imports it (transitively) are mapped
        by stem through E2E_OWNERS.
-    2. Without a stem owner, the module's own prefix in MODULE_OWNERS
-       decides (adapters and entry points wired by dependency injection).
-    3. A reviewed E2E_NEUTRAL module selects no leaf.
-    4. Anything else selects every leaf: an unmapped module is unsafe.
+    2. A specific MODULE_OWNERS prefix of the module itself is added
+       (adapters and entry points wired by dependency injection; ALL_E2E
+       for the HTTP surface, wiring and platform).
+    3. A reviewed E2E_NEUTRAL module adds nothing beyond its stem owners.
+    4. A module with no owner at all selects every leaf (CATCH_ALL).
     """
     module = module_of(path)
     if module is None:
@@ -884,16 +888,18 @@ def e2e_owners(path: str, root: Path | None = None) -> set[str] | None:
     owners: set[str] = set()
     for name in seen:
         owners |= stem_owners(name)
-    if owners:
-        return owners
+    neutral = any(matches_module(module, n) for n in E2E_NEUTRAL)
     for prefix, mapped in MODULE_OWNERS:
-        if matches_module(module, prefix):
-            if any(matches_module(module, n) for n in E2E_NEUTRAL):
-                return set()
-            return set(E2E_SHARDS) if mapped == ALL_E2E else set(mapped)
-    if any(matches_module(module, n) for n in E2E_NEUTRAL):
-        return set()
-    return set(E2E_SHARDS)
+        if not matches_module(module, prefix):
+            continue
+        if prefix in CATCH_ALL_PREFIXES:
+            # Fallback only: an unmapped module without stem owners.
+            if owners or neutral:
+                return owners
+        elif neutral:
+            return owners
+        return owners | (set(E2E_SHARDS) if mapped == ALL_E2E else set(mapped))
+    return owners if (owners or neutral) else set(E2E_SHARDS)
 
 
 def classify(path: str) -> tuple[frozenset[str], str]:

@@ -4,9 +4,9 @@ description: Submit a binding order from a published campaign page without a Leo
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
-verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
+contentRevision: 6
+reviewedRevision: 6
+verifiedAgainst: e2c162eb92c46bc3ee636eb795d33ad2f26059b5
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -47,7 +47,8 @@ delivery contact. Each order sends one confirmation, even if you submit the form
 more than once. If the order is cancelled before the confirmation goes out,
 only the cancellation notice is sent. One address gets at most ten order
 e-mails per hour. The form refuses line breaks and invisible control
-characters in names and addresses. If the e-mail is missing, check the spam folder and
+characters in names and addresses, and web or e-mail addresses in the name,
+street and city of an address. If the e-mail is missing, check the spam folder and
 contact the club with the reference.
 
 If the selected delivery window becomes fully booked or is retired while you

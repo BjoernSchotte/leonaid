@@ -4,13 +4,20 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import sys
 from pathlib import Path
 
 PORT_KEYS = {"LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT"}
 HOST_KEYS = ("LEONAID_LAN_HOST", "LEONAID_REMOTE_HOST")
 NETWORK_KEYS = {"LEONAID_BIND_ADDRESS", *HOST_KEYS}
-CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS, *NETWORK_KEYS}
+CONFIG_KEYS = {
+    "LEONAID_ENV",
+    "LEONAID_RESET_ALLOWED",
+    "LEONAID_COMPOSE_PROJECT",
+    *PORT_KEYS,
+    *NETWORK_KEYS,
+}
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -50,6 +57,15 @@ def main() -> int:
     if actual.get("LEONAID_RESET_ALLOWED") != "true":
         print(
             "secret-check: ERROR: LEONAID_RESET_ALLOWED must be true locally",
+            file=sys.stderr,
+        )
+        return 1
+    # "leonaid" (recorded main checkout) or another lowercase Compose name.
+    if "LEONAID_COMPOSE_PROJECT" in template and not re.fullmatch(
+        r"leonaid(-[a-z0-9-]+)?", actual["LEONAID_COMPOSE_PROJECT"]
+    ):
+        print(
+            "secret-check: ERROR: LEONAID_COMPOSE_PROJECT must be set by ./leonaid bootstrap",
             file=sys.stderr,
         )
         return 1

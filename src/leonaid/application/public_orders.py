@@ -44,7 +44,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
-from leonaid.domain.text import has_unsafe_characters
+from leonaid.domain.text import has_link_markers, has_unsafe_characters
 
 PUBLIC_ORDER_NAMESPACE = UUID("98694fa6-c472-4288-8cce-bc94d052a8a8")
 TOKEN_VERSION = 1
@@ -63,6 +63,9 @@ FIELD_LABELS = {
     "message": "Nachricht",
     "website": "Website",
 }
+LINK_TEXT_HINT = (
+    "Bitte ohne Internetadresse oder E-Mail-Adresse (://, www., @) eingeben."
+)
 UNSAFE_TEXT_HINT = (
     "Bitte ohne Zeilenumbrüche, Tabulatoren oder unsichtbare Steuerzeichen eingeben."
 )
@@ -308,6 +311,13 @@ class PublicOrderDraft:
                     code=f"public_order_{code}_invalid",
                     label=f"{label} ({part})",
                 )
+                # The address block of the buyer's mail is signed by the
+                # club; a name or street must not carry a link there.
+                if part in {"Name", "Straße", "Ort"} and has_link_markers(value):
+                    raise DomainInvariantError(
+                        f"public_order_{code}_invalid",
+                        f"{label} ({part}): {LINK_TEXT_HINT}",
+                    )
         contact = self.delivery_contact
         if contact is not None:
             for part, contact_value in (
