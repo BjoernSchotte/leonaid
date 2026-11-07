@@ -1,4 +1,11 @@
-"""Operator-only native RustFS IAM provisioning; never pass root keys to the CMS."""
+"""Operator-only RustFS provisioning of the CMS media bucket and its scoped key.
+
+Runs from the verified Core image (``./leonaid pilot-cms-provision`` step 2,
+``python -m leonaid.entrypoints.cms_storage``) with the RustFS root key of the
+api environment; the CMS itself only ever receives its own scoped key. Every
+operation is idempotent; an existing foreign bucket policy, user or policy
+drift is refused for review. Never prints keys, signed headers or responses.
+"""
 
 from __future__ import annotations
 

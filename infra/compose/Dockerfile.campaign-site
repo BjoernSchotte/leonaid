@@ -46,8 +46,16 @@ WORKDIR /app
 COPY --from=release-identity /identity/cms-release-identity.json ./cms-release-identity.json
 COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/campaign-site/dist ./dist
-COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs ./operator/
-COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs ./operator/auth/
+# Image-owned operators: schema migration (cms-migration-operator) and the
+# production provisioning of ./leonaid pilot-cms-provision (cms-provision-operator).
+COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs /workspace/apps/campaign-site/src/bootstrap-control.mjs /workspace/apps/campaign-site/src/cms-provision-operator.mjs /workspace/apps/campaign-site/src/cms-provision-state.mjs /workspace/apps/campaign-site/src/provision-postgres.mjs ./operator/
+COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs /workspace/apps/campaign-site/src/auth/identity-map.mjs ./operator/auth/
+# The restore operator (tools/backup/cms-recovery.mjs) in its repository
+# layout, so a production host restores the CMS without node_modules in the
+# checkout (pilot-restore passes this image as LEONAID_RESTORE_CMS_IMAGE).
+COPY --from=release-identity /identity/tools/backup/cms-recovery.mjs ./recovery/tools/backup/
+COPY --from=build /workspace/apps/campaign-site/src/provision-postgres.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs ./recovery/apps/campaign-site/src/
+COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs ./recovery/apps/campaign-site/src/auth/
 # sharp/libvips size their worker pool from the host's CPU count, not the
 # container's CPU quota (32 threads per image pipeline on a 32-core host). With
 # the service's pids_limit, concurrent image transforms then fail to create
