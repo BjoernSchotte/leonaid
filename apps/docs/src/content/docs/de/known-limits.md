@@ -37,8 +37,9 @@ allgemeine Produktionsfreigabe.
 - Eine Installation bedient einen Host oder einen Verwaltungshost
   (`app.<domain>`) plus einen öffentlichen Host mit weiterleitenden
   Zusatznamen (Stufe 1 von `specs/multi-domain/PLAN.md`). Eigene
-  Kampagnen-Domains und eine Installation ohne öffentlichen Host sind nur
-  spezifiziert. `/` auf dem Verwaltungshost ist der
+  Kampagnen-Domains lassen sich unter **System › Domains** eintragen und mit
+  Aktionen verbinden; ausgeliefert werden sie noch nicht. Eine Installation
+  ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (Anmeldung, dann Startbereich). Beim Umstellen auf zwei Hosts meldet sich
   jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
   öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen
