@@ -130,6 +130,32 @@ export async function releaseBootstrap(directory, actor) {
   });
 }
 
+// Operator-only (cms-provision-operator.mjs complete-setup): EmDash completed
+// the setup, but the grant was not marked (crash between the upstream success
+// and completeBootstrap, or a reset that raced the request). The operator
+// verified the completed setup and the mapped System Admin before.
+export async function completeBootstrapByOperator(directory, actor) {
+  if (!uuid.test(actor)) throw new BootstrapDenied();
+  await locked(directory, async () => {
+    let state = null;
+    try {
+      await lstat(join(directory, "state.json"));
+      state = await readState(directory);
+    } catch (error) {
+      if (!(error instanceof BootstrapDenied) && error.code !== "ENOENT")
+        throw new BootstrapDenied();
+    }
+    if (state && state.status !== "consumed") throw new BootstrapDenied();
+    if (state && state.actor !== actor) throw new BootstrapDenied();
+    await writeState(directory, {
+      version: 1,
+      status: "complete",
+      actor,
+      expiresAt: state?.expiresAt ?? Date.now(),
+    });
+  });
+}
+
 // Operator-only (cms-provision-operator.mjs reset-setup, after its checks that
 // the CMS was never used): withdraw a consumed grant, back to "no grant".
 export async function resetConsumedBootstrap(directory) {

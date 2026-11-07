@@ -730,6 +730,14 @@ assert_backup_schema() {
 value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["schemaVersion"] == int(os.environ["EXPECTED_SCHEMA"]), value["schemaVersion"]'
 }
+# A session of the second System Admin (fixture session in this proof).
+second_admin_session() {
+  second_token=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
+  second_digest=$(printf '%s' "$second_token" | sha256sum | cut -d ' ' -f 1)
+  printf '%s\n' "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) SELECT gen_random_uuid(), id, '$second_digest', now() + interval '90 days', now(), now(), 'pilot CMS proof', now(), now() FROM user_account WHERE email = 'cms-second-admin@leonaid.org';" |
+    core_sql >/dev/null
+  printf '%s\n' "$second_token"
+}
 cms_proof() {
   cms_proof_run "$@" || {
     # Diagnosis without secrets: provisioning state and the Core identity
@@ -889,28 +897,67 @@ echo "pilot-install-test: CMS backups and the switch-off work while the setup is
 # A refused setup request hands the grant back instead of locking the CMS.
 cms_proof setup-refused
 cms_state | grep -qx 'bootstrap=armed'
-# A grant left consumed (a crash during the setup request) is withdrawn only
-# with --reset-setup, and only while the CMS is unused; Core audits it.
+# A grant left consumed (a crash during the setup request, after EmDash had
+# already mapped the System Admin) is withdrawn only with --reset-setup, and
+# only while the CMS is unused; the mapped users go with it, so a grant for
+# another System Admin leaves no second EmDash administrator. Core audits it.
+cms_users() {
+  runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname emdash \
+    --tuples-only --no-align --command "$1"
+}
+[ "$(cms_users "SELECT count(*) FROM users u JOIN leonaid_external_identity i ON i.cms_user_id = u.id WHERE u.role = 50")" -ge 1 ]
 runtime_compose --profile emdash exec -T campaign-site node -e '
 const fs = require("node:fs");
 const path = "/app/bootstrap-state/state.json";
 const state = JSON.parse(fs.readFileSync(path, "utf8"));
 fs.writeFileSync(path, JSON.stringify({ ...state, status: "consumed" }));'
 cms_expect "blocks at a consumed grant" 1 "run again with --reset-setup"
-cms_expect "withdraws the unfinished grant and arms again" 75 \
-  "3/4 editor setup: PENDING" --reset-setup --system-admin-email "$cms_admin_email"
+cms_expect "withdraws the unfinished grant and arms another System Admin" 75 \
+  "3/4 editor setup: PENDING" --reset-setup --system-admin-email cms-second-admin@leonaid.org
 printf '%s' "$cms_output" | grep -Fq "unfinished setup grant withdrawn"
+[ "$(cms_users "SELECT count(*) FROM users")" = 0 ]
+second_admin_id=$(core_sql --tuples-only --no-align --command \
+  "SELECT id FROM user_account WHERE email = 'cms-second-admin@leonaid.org'")
 audits=$(core_sql --tuples-only --no-align --command \
-  "SELECT string_agg(event_type, ',' ORDER BY occurred_at) FROM audit_event WHERE entity_type = 'cms_setup_grant' AND entity_id = '$cms_admin_id'")
-[ "$audits" = "cms.setup_grant.armed,cms.setup_grant.withdrawn,cms.setup_grant.armed" ] || {
+  "SELECT string_agg(event_type || ':' || CASE WHEN entity_id = '$cms_admin_id' THEN 'first' ELSE 'second' END, ',' ORDER BY occurred_at) FROM audit_event WHERE entity_type = 'cms_setup_grant'")
+[ "$audits" = "cms.setup_grant.armed:first,cms.setup_grant.withdrawn:first,cms.setup_grant.armed:second" ] || {
   echo "pilot-install-test: ERROR: unexpected CMS setup audit trail: $audits" >&2
   exit 1
 }
+# The second System Admin completes the setup: EmDash then has exactly one
+# administrator, the second one.
+first_admin_session=$cms_session
+cms_session=$(second_admin_session)
 cms_proof setup
+cms_session=$first_admin_session
+[ "$(cms_users "SELECT string_agg(i.core_user_id::text, ',') FROM users u JOIN leonaid_external_identity i ON i.cms_user_id = u.id WHERE u.role = 50")" = "$second_admin_id" ] || {
+  echo "pilot-install-test: ERROR: the reset left another EmDash administrator" >&2
+  exit 1
+}
 cms_expect "installs the campaign schema" 0 \
   "pilot-cms-provision: OK: $project serves the CMS"
 printf '%s' "$cms_output" | grep -Fq "3/4 editor setup: already complete"
 printf '%s' "$cms_output" | grep -Fq "4/4 campaign schema: installing"
+
+# EmDash completed the setup, the grant was not marked: a crash before
+# completeBootstrap ("consumed"), or a reset that raced the request ("none").
+# Both are confirmed against the mapped System Admin and marked complete.
+for unmarked in consumed none; do
+  runtime_compose --profile emdash exec -T --env UNMARKED="$unmarked" campaign-site node -e '
+const fs = require("node:fs");
+const path = "/app/bootstrap-state/state.json";
+if (process.env.UNMARKED === "none") fs.unlinkSync(path);
+else {
+  const state = JSON.parse(fs.readFileSync(path, "utf8"));
+  fs.writeFileSync(path, JSON.stringify({ ...state, status: "consumed" }));
+}'
+  cms_state | grep -qx "bootstrap=$unmarked"
+  cms_expect "marks a completed but unmarked setup ($unmarked)" 0 \
+    "pilot-cms-provision: OK: $project serves the CMS"
+  printf '%s' "$cms_output" | grep -Fq "completed setup confirmed, grant marked complete"
+done
+[ "$(core_sql --tuples-only --no-align --command \
+  "SELECT count(*) FROM audit_event WHERE event_type = 'cms.setup_grant.completed_by_operator' AND entity_id = '$second_admin_id'")" = 2 ]
 
 # Step 4 interrupted between its installers (here after the binding guards):
 # traffic closed, CMS stopped, media guards absent. The next run finishes it.

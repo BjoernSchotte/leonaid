@@ -1398,6 +1398,16 @@ Rulings (RD = PR D, numbered apart from the stage 2 rulings):
   is unused (exact inventory, no completed setup, no campaign schema, no
   media or revisions, only identity-mapped users); arm and withdrawal are
   `audit_event` rows (`cms_setup_grant`, subject the System Admin).
+- RD11 (re-review N1–N4): the backup topology probe fails closed: only an
+  absent volume or `state.json` means "unfinished", a Docker or read error
+  stops the backup (`tools/backup/cms-bootstrap-state.sh`, tested with a stub
+  Docker). `--reset-setup` stops the CMS first and also removes the mapped
+  sign-in users, so a grant for another System Admin leaves no second EmDash
+  administrator. A completed setup with an unmarked grant (`consumed`, or
+  `none` after a raced reset) is confirmed against the mapped System Admin and
+  marked complete (`complete-setup`, audited `completed_by_operator`).
+  `status` imports the binding and media versions from their installers; a
+  non-ASCII CMS password is refused with its reason.
 - RD9 (review I2/M6): the CMS enters backups with its completed setup
   (`pilot_backup_topology`); until then backups stay schema 1 and leave the
   unfinished CMS out, so nightly backups keep working and

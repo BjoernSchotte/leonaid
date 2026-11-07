@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 7
-reviewedRevision: 7
+contentRevision: 8
+reviewedRevision: 8
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -562,9 +562,18 @@ cause and run the command again: it continues at the open step.
 - **"the editor setup started but did not complete"**: a setup request was
   interrupted (for example the CMS restarted during it), so the grant is
   used up. Run the command with `--reset-setup --system-admin-email ...`. It
+  stops the campaign site first, so no setup request is still running, and
   withdraws the grant only while the CMS is unused (no completed setup, no
-  campaign schema, no media, only LeonAid's own sign-in users), records the
-  withdrawal in the LeonAid audit log and allows the setup again.
+  campaign schema, no media, only LeonAid's own sign-in users). It removes
+  those sign-in users too, records the withdrawal in the LeonAid audit log
+  and allows the setup again, also for another System Admin.
+- **The setup finished, but the grant was not marked** (for example the
+  campaign site stopped right after the setup): the next run confirms the
+  completed setup against the mapped System Admin, marks the grant complete,
+  writes an audit entry and continues.
+- **"the CMS setup state cannot be read"** (`pilot-backup`): the backup
+  stops instead of leaving the CMS out. Check Docker and the
+  `cms-bootstrap-state` volume, then run the backup again.
 - **The schema step stopped halfway** (for example a timeout under load):
   run the command again. It finds the parts already installed and installs
   the rest; CMS traffic stays closed until then.
