@@ -266,6 +266,14 @@ docker run --rm --network none \
   -v "${project}_rustfs-data:/source:ro" \
   "$ALPINE_IMAGE" \
   tar -C /source -cf - . >"$stage/rustfs-data.tar"
+# Certificates and the ACME account of every host (pilot proxy only; the dev
+# proxy keeps no data volume). The proxy is stopped above.
+if docker volume inspect "${project}_caddy-data" >/dev/null 2>&1; then
+  docker run --rm --network none \
+    -v "${project}_caddy-data:/source:ro" \
+    "$ALPINE_IMAGE" \
+    tar -C /source -cf - . >"$stage/caddy-data.tar"
+fi
 
 # As the host user: the manifest is created 0600, and the host copies it to
 # LEONAID_BACKUP_MANIFEST_OUTPUT below. A root-owned file would be unreadable

@@ -23,6 +23,7 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.invitations import normalize_email
 from leonaid.domain.outbox import JsonValue, PendingOutboxEvent
+from leonaid.application.links import LinkBuilder
 
 EMAIL_CHANGE_MAIL_NAMESPACE = UUID("53f145ad-7115-43f2-84bf-06ec507b2640")
 
@@ -105,7 +106,7 @@ class EmailChangeService:
         mail_payload: EmailChangeMailPayloadProtector,
         *,
         hmac_secret: str,
-        public_base_url: str,
+        links: LinkBuilder,
         ttl: timedelta = timedelta(minutes=30),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -115,12 +116,10 @@ class EmailChangeService:
             raise ValueError(
                 "Die E-Mail-Bestätigung muss zwischen 5 Minuten und 1 Tag gelten."
             )
-        if not public_base_url.startswith(("http://", "https://")):
-            raise ValueError("Die öffentliche Basis-URL ist ungültig.")
         self._repository = repository
         self._mail_payload = mail_payload
         self._hmac_secret = hmac_secret
-        self._public_base_url = public_base_url.rstrip("/")
+        self._links = links
         self._ttl = ttl
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -261,7 +260,7 @@ class EmailChangeService:
         token: str,
         code: EmailChangeCode,
     ) -> tuple[PendingOutboxEvent, ...]:
-        link = f"{self._public_base_url}/email-change?token={token}"
+        link = self._links.admin_url(f"/email-change?token={token}")
         confirmation_text = (
             f"Hallo {change.display_name_snapshot},\n\n"
             "für dein LeonAid-Konto wurde eine neue Login-E-Mail angefordert.\n\n"

@@ -28,6 +28,7 @@ from leonaid.domain.sessions import (
     login_magic_digest,
     session_token_digest,
 )
+from leonaid.application.links import LinkBuilder
 
 LOGIN_MAIL_NAMESPACE = UUID("aa259f26-d8cc-46f5-a317-6146721fe16e")
 
@@ -132,7 +133,7 @@ class SessionService:
         mail_payload: LoginMailPayloadProtector,
         *,
         hmac_secret: str,
-        public_base_url: str,
+        links: LinkBuilder,
         challenge_ttl: timedelta = timedelta(minutes=10),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -144,12 +145,10 @@ class SessionService:
             raise ValueError(
                 "Die Login-Challenge muss zwischen 5 und 30 Minuten gültig sein."
             )
-        if not public_base_url.startswith(("http://", "https://")):
-            raise ValueError("Die öffentliche Basis-URL ist ungültig.")
         self._repository = repository
         self._mail_payload = mail_payload
         self._hmac_secret = hmac_secret
-        self._public_base_url = public_base_url.rstrip("/")
+        self._links = links
         self._challenge_ttl = challenge_ttl
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -472,7 +471,7 @@ class SessionService:
             path = "/login"
             subject = "Dein LeonAid-Login"
             purpose_text = "dich bei LeonAid anzumelden"
-        link = f"{self._public_base_url}{path}?token={magic_token}"
+        link = self._links.admin_url(f"{path}?token={magic_token}")
         text = (
             f"Hallo {account.display_name},\n\n"
             f"nutze diesen Magic Link, um {purpose_text}:\n{link}\n\n"

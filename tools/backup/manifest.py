@@ -24,6 +24,11 @@ REQUIRED_FILES = {
     "twenty.dump",
 }
 CMS_REQUIRED_FILES = REQUIRED_FILES | {"emdash.dump", "cms-bootstrap-state.tar"}
+# TLS certificates, keys and the ACME account of every host. Only the pilot
+# proxy keeps a data volume; when it exists, the backup carries it so that a
+# restore on a new server does not have to request every certificate again
+# (specs/multi-domain §10.1). Secret material, like the whole archive.
+OPTIONAL_FILES = {"caddy-data.tar"}
 TOPOLOGY_VERSIONS = {"legacy": 1, "emdash": 2}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CMS_KEY = re.compile(r"^emdash_enc_v1_[A-Za-z0-9_-]{43}$")
@@ -130,9 +135,9 @@ def verify(
 
     files = object_value(manifest.get("files"), "manifest_files")
     required = CMS_REQUIRED_FILES if version == 2 else REQUIRED_FILES
-    if set(files) != required:
+    if set(files) - OPTIONAL_FILES != required:
         raise ManifestError("manifest_inventory_incomplete")
-    for name in sorted(required):
+    for name in sorted(files):
         metadata = object_value(files[name], f"manifest_file_{name}")
         expected_size = metadata.get("size")
         expected_hash = metadata.get("sha256")
@@ -174,7 +179,8 @@ def create(
         except CmsStateError as error:
             raise ManifestError("cms_bootstrap_recovery_refused") from error
     files = {}
-    for name in sorted(required):
+    present = {name for name in OPTIONAL_FILES if (directory / name).is_file()}
+    for name in sorted(required | present):
         size, digest = file_digest(directory / name)
         files[name] = {"size": size, "sha256": digest}
     manifest = {

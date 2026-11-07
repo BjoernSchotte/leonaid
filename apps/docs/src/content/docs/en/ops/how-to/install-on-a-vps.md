@@ -4,10 +4,10 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: ee30ab95b4f0c45d863c5e09fa12783583a3475f
-reviewer: Björn Schotte
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 This guide takes an empty virtual server to a running LeonAid installation for
@@ -148,11 +148,24 @@ sudo systemctl restart docker
 
 ## Point DNS to the server
 
-Create an `A` record (and an `AAAA` record if the server has IPv6) for the
-portal name. Check it before the installation:
+Decide first whether the installation uses one host or two:
+
+- **One host** (`portal.club.org`): members, editors and public pages share
+  one name.
+- **Admin host and public host** (recommended): members and editors use
+  `app.club.org`; public pages, campaign pages, surveys and the legal pages
+  stay on `club.org`. An existing single host becomes the public host, so
+  printed QR codes and mailed links keep working. Old member links
+  (`/admin/`, `/app/`, `/login`) redirect to the admin host.
+
+Create an `A` record (and an `AAAA` record if the server has IPv6) for every
+name: the one host, or the admin host, the public host and each further name
+of the public host (for example `www.club.org`). Check them before the
+installation:
 
 ```sh
-dig +short portal.club.org
+dig +short app.club.org
+dig +short club.org
 ```
 
 Caddy requests the TLS certificates on the first start. Port 80 must be
@@ -199,8 +212,20 @@ Every `pilot-*` command compares the checkout with `LEONAID_RELEASE_COMMIT`.
 As `leonaid` in `/opt/leonaid`:
 
 ```sh
-./leonaid pilot-secrets --output /etc/leonaid/production.env
+# Admin host app.club.org and public host club.org (plus www.club.org):
+./leonaid pilot-secrets --output /etc/leonaid/production.env \
+  --public-domain club.org --alias www.club.org
+# Or one host only:
+./leonaid pilot-secrets --output /etc/leonaid/production.env \
+  --public-domain portal.club.org --single-host
 ```
+
+With `--public-domain` the command also writes every host setting: the
+admin host (`app.<domain>`, or `--admin-domain` for another name), the base
+URLs of the member mails and of the public links, the allowed origins and
+`LEONAID_PROXY_CADDYFILE=Caddyfile.split`. It refuses an admin host equal to
+the public host or one of its names. Without `--public-domain` you fill in
+the host lines of the template by hand.
 
 The command fills every random secret of `infra/pilot/production.env.example`
 with a fresh, distinct value, writes the file with mode `0600` and never
@@ -208,10 +233,11 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 
 - the tenant ID in `LEONAID_COMPOSE_PROJECT`, `RUSTFS_BUCKET` and
   `RESTIC_REPOSITORY`;
-- the eight lines from `release-images.env` (replace the template lines);
+- the nine lines from `release-images.env` (replace the template lines);
 - `LEONAID_CLUB_NAME`, the club name the admin rail shows (the API does not
   start in production without it);
-- the portal domain, `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
+- the host names, if you did not pass `--public-domain`;
+- `CADDY_ACME_EMAIL`, `MAIL_*` and the SMTP account;
 - `TWENTY_ADMIN_PORT` only if port 3020 is taken on the server;
 - `TWENTY_MAIL_FROM_ADDRESS` and `TWENTY_MAIL_FROM_NAME`, the sender of
   Twenty's own mail (see [Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty));
@@ -219,6 +245,48 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 
 Keep `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL`. `pilot-install`
 creates the real key.
+
+Keep `LEONAID_CMS_ENABLED=false` for the first installation. The campaign
+pages (`campaign-site`, EmDash editor) need their database and media bucket
+first; their one-time setup is not part of `pilot-install` yet. With
+`LEONAID_CMS_ENABLED=true` every `pilot-*` command adds the campaign site to
+the stack, and the release needs `release-manifest-cms.json` instead of
+`release-manifest.json`.
+
+With an admin host, every member signs in on `app.club.org` (the session
+cookie belongs to one host). The acquisition app lives at
+`https://app.club.org/app/`. Nobody has installed it from an older single
+host yet; should a device still hold the app of the old host, the public host
+replaces its service worker with one that removes itself, and the next visit
+lands on the admin host.
+
+The public host sends `Strict-Transport-Security` without
+`includeSubDomains`: on the club's main domain it would force HTTPS on every
+other name of the club (webmail, intranet, devices) for a year. The admin host
+keeps `includeSubDomains`.
+
+### Switch to an admin host
+
+An installation that runs on one host today keeps that host as its public
+host; printed and mailed public links stay valid. In this order:
+
+1. Create the DNS record for `app.club.org` and check it with `dig`.
+2. In `/etc/leonaid/production.env` set `LEONAID_PUBLIC_BASE_URL` and
+   `LEONAID_ALLOWED_ORIGINS` to `https://app.club.org` and add
+   `LEONAID_ADMIN_DOMAIN=app.club.org`,
+   `LEONAID_PROXY_CADDYFILE=Caddyfile.split`,
+   `LEONAID_SITE_BASE_URL=https://club.org` and
+   `LEONAID_PUBLIC_ORIGINS=https://club.org` (the old host, unchanged in
+   `LEONAID_PUBLIC_DOMAIN`). Further names go into
+   `LEONAID_PUBLIC_DOMAIN_ALIASES`, separated by ", ".
+3. Run `./leonaid pilot-doctor` with the env file; it refuses inconsistent
+   host settings.
+4. Deploy with `./leonaid pilot-deploy`. Caddy requests the certificate of
+   the admin host on its first start.
+5. Run `./leonaid pilot-revoke-sessions --env-file /etc/leonaid/production.env`.
+   Old sessions of the single host stay valid on the server until they
+   expire; this signs every member out once. Tell the members to sign in on
+   `https://app.club.org/`.
 
 ### Mail for LeonAid and Twenty
 

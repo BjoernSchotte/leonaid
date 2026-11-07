@@ -46,6 +46,7 @@ from leonaid.modules.surveys.domain.validation import (
     PROFILE,
     validate_definition,
 )
+from leonaid.application.links import LinkBuilder
 
 
 def encoded(value: Any) -> str:
@@ -109,18 +110,32 @@ def version_payload(row: Any) -> dict[str, Any]:
     }
 
 
+def survey_invitation_text(
+    links: LinkBuilder, title: str, survey_id: object, token: str, expires: datetime
+) -> str:
+    """Survey invitations link the public host (specs/multi-domain §7.6)."""
+    link = links.site_url(f"/surveys/{survey_id}#invitation={token}")
+    return (
+        f"Sie sind zur Umfrage {title} eingeladen.\n\n"
+        "Ihre Antworten können dieser Einladung zugeordnet werden.\n\n"
+        f"{link}\n\n"
+        f"Gültig bis {expires.isoformat()}. "
+        "Bitte geben Sie diesen persönlichen Link nicht weiter."
+    )
+
+
 class AsyncpgSurveyRepository:
     def __init__(
         self,
         pool: asyncpg.Pool[Any],
         *,
         invitation_mail: SecureMailPayload | None = None,
-        public_base_url: str = "",
+        links: LinkBuilder | None = None,
         checkpoint_publisher: ErasureCheckpointPublisher | None = None,
     ):
         self.pool = pool
         self.invitation_mail = invitation_mail
-        self.public_base_url = public_base_url.rstrip("/")
+        self.links = links
         self.checkpoint_publisher = checkpoint_publisher
 
     @staticmethod
@@ -949,7 +964,7 @@ class AsyncpgSurveyRepository:
                     "closed",
                     "Einladungen sind nur für aktive Umfragen mit Einladungszugang möglich.",
                 )
-            if self.invitation_mail is None or not self.public_base_url:
+            if self.invitation_mail is None or self.links is None:
                 raise Conflict(
                     "temporarily_unavailable", "Einladungsversand ist nicht verfügbar."
                 )
@@ -958,7 +973,9 @@ class AsyncpgSurveyRepository:
             mail = self.invitation_mail.protect(
                 recipient=body["recipientEmail"],
                 subject="Ihre Rückmeldung: " + " ".join(survey["title"].split()),
-                text=f"Sie sind zur Umfrage {survey['title']} eingeladen.\n\nIhre Antworten können dieser Einladung zugeordnet werden.\n\n{self.public_base_url}/surveys/{sid}#invitation={token}\n\nGültig bis {expires.isoformat()}. Bitte geben Sie diesen persönlichen Link nicht weiter.",
+                text=survey_invitation_text(
+                    self.links, survey["title"], sid, token, expires
+                ),
             )
             row = await conn.fetchrow(
                 "INSERT INTO survey_invitation(id,survey_id,recipient_email,recipient_name,token_digest,expires_at,mail_payload) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",
