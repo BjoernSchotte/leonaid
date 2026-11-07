@@ -2,6 +2,7 @@ import { ClipboardList } from "lucide-react";
 import { lazy, Suspense } from "react";
 
 import type { UiModule } from "../modules";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 const SurveysPage = lazy(() =>
   import("./surveys").then(({ SurveysPage }) => ({ default: SurveysPage })),
@@ -30,7 +31,7 @@ export const surveysModule: UiModule = {
       id: "create:survey",
       label: "Umfrage anlegen",
       icon: ClipboardList,
-      href: () => "/admin/surveys/new",
+      href: () => adminHref("surveys/new"),
     },
   ],
   routes: [

@@ -9,6 +9,7 @@
     "./components": "./src/components/index.ts",
     "./keyboard": "./src/keyboard/index.ts",
     "./lib/utils": "./src/lib/utils.ts",
+    "./base-paths": "./src/lib/base-paths.ts",
     "./styles.css": "./src/styles/globals.css",
     "./fonts.css": "./src/styles/fonts.css",
     "./leitsystem.css": "./src/styles/leitsystem.css"

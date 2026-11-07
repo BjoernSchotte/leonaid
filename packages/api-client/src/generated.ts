@@ -110,7 +110,7 @@ export type CreateTask = { readonly assigneeUserId?: string | null; readonly def
 export type CreateTaskFromPage = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly listId: string; readonly title: string; };
 export type CreateTaskTag = { readonly idempotencyKey: string; readonly title: string; };
 export type CrmPartyKind = "company" | "person";
-export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly email: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly installation: InstallationResponse; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
+export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly email: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly installation: InstallationResponse; readonly landingPath: string; readonly navigation: Array<NavigationItemResponse>; readonly preferredSurface?: "web" | "pwa" | null; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DashboardCommitmentResponse = { readonly activeTotal: number; readonly activeTotalMinor: number; readonly cancelled: number; readonly confirmed: number; readonly currency: string; readonly draft: number; readonly invoiced: number; readonly quantities: Array<UnitQuantityResponse>; readonly reviewReady: number; readonly total: number; readonly totalBoxes: number; readonly totalPieces: number; };
 export type DashboardDeliveryResponse = { readonly enabled: boolean; readonly windows: Array<DashboardDeliveryWindowResponse>; };
 export type DashboardDeliveryWindowResponse = { readonly commitments: number; readonly endsAt: string; readonly fullyBooked: boolean; readonly id: string; readonly quantities: Array<UnitQuantityResponse>; readonly startsAt: string; };
@@ -246,6 +246,7 @@ export type PilotDailyReportResponse = { readonly api: OperationalApiMetricsResp
 export type PlannedTask = { readonly actionTitle: string | null; readonly assigneeName: string | null; readonly assigneeUserId?: string | null; readonly canEdit: boolean; readonly checklist: Array<ChecklistItem>; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly epicTitle: string | null; readonly id: string; readonly listId: string; readonly listTitle: string; readonly personalPlan: PersonalPlan | null; readonly planSource: "planned" | "due"; readonly priority: "none" | "high"; readonly revision: number; readonly status: "open" | "done"; readonly tags: Array<TaskTag>; readonly title: string; readonly updatedAt: string; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
+export type PreferredSurfaceRequest = { readonly surface: "web" | "pwa" | null; };
 export type PrivacyConsentResponse = { readonly actionId: string | null; readonly channel: "email" | "phone" | "postal"; readonly commitmentId: string | null; readonly evidenceKind: "notice_acknowledgement" | "explicit_consent"; readonly grantedAt: string; readonly id: string; readonly legalBasisStatus: "legal_review_pending" | "confirmed"; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly revokedAt: string | null; readonly source: string; readonly textVersion: string; };
 export type PrivacyErasureRequest = { readonly confirmation: string; readonly email: string; };
 export type PrivacyErasureResponse = { readonly anonymizedCommitments: number; readonly caseId: string; readonly clearedActivityNotes: number; readonly clearedReminders: number; readonly completedAt: string; readonly openDecisions: Array<string>; readonly retainedDocumentIds: Array<string>; readonly retainedInvoiceIds: Array<string>; readonly retention: PrivacyRetentionResponse; readonly retentionReasons: Array<string>; readonly revokedConsents: number; readonly status: "completed_with_retention"; readonly subjectHash: string; };
@@ -256,6 +257,8 @@ export type PrivacySubjectReportResponse = { readonly consents: Array<PrivacyCon
 export type PrivacySubjectRequest = { readonly email: string; };
 export type PrivacySuppressionResponse = { readonly channel: "email" | "phone" | "postal"; readonly id: string; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly reason: string; readonly suppressedAt: string; };
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly redirectPath?: string | null; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
+export type PublicCampaignListItemResponse = { readonly archiveSlug: string; readonly canonicalPath: string; readonly canonicalUrl: string; readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly presentationTheme: string | null; readonly purpose: string; readonly startsOn: string; };
+export type PublicCampaignListResponse = { readonly items: Array<PublicCampaignListItemResponse>; };
 export type PublicCampaignRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly orderAlias: string | null; readonly routeKind?: "campaign"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing" | "delivery">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly presentationTheme: string | null; readonly purpose: string; readonly startsOn: string; };
 export type PublicLegalNoticeResponse = { readonly provider: PublicLegalProviderResponse | null; };
@@ -1872,6 +1875,21 @@ export class LeonAidApiClient {
     );
   }
 
+  async setPreferredSurface(
+    body: PreferredSurfaceRequest,
+    options: RequestOptions = {},
+  ): Promise<CurrentIdentityResponse> {
+    return this.request<CurrentIdentityResponse>(
+      "/api/v1/identity/me/preferred-surface",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async createMemberEmailChange(
     userId: string,
     body: CreateEmailChangeRequest,
@@ -2577,6 +2595,23 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async listPublicCampaigns(
+    queryParameters: { readonly availability?: "active"; } = {},
+    options: RequestOptions = {},
+  ): Promise<PublicCampaignListResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.availability !== undefined && queryParameters.availability !== null) {
+      searchParameters.set("availability", String(queryParameters.availability));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/public/campaigns" + (queryString ? `?${queryString}` : "");
+    return this.request<PublicCampaignListResponse>(
+      requestPath,
+      { method: "GET" },
       options,
     );
   }

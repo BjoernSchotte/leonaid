@@ -4,8 +4,8 @@ description: Encrypt LeonAid data and perform a controlled restore into fresh vo
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
+contentRevision: 4
+reviewedRevision: 4
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -21,16 +21,28 @@ CREDENTIALS`.
    point contains both PostgreSQL databases, Twenty files, the entire RustFS
    volume and, in a pilot, the Caddy data volume with the certificates and
    the ACME account of every host. A restored proxy therefore starts without
-   requesting new certificates. The archive holds private keys; treat the
+   requesting new certificates, but only with `pilot-restore --with-tls-state`:
+   use it when you restore the installation itself onto a new server with the
+   same host names. Staging and drill targets get no production keys and
+   request their own certificates. The archive holds private keys; treat the
    repository password accordingly. It excludes the Valkey queue store (`twenty-redis`), Mailpit,
    images, and plaintext secrets. A restored project starts with an empty
-   queue store; `twenty-server` registers its cron jobs again.
+   queue store; `twenty-server` registers its cron jobs again. With
+   `LEONAID_CMS_ENABLED=true` the manifest has schema version 2 and also holds
+   the CMS database (`emdash.dump`) and the CMS setup state
+   (`cms-bootstrap-state.tar`); the doctor then refuses a backup without them.
 3. Create an empty `leonaid-restore-<name>` project and a separate target
    environment that references the same external repository.
 4. Run `./leonaid pilot-restore` with source and target environments, manifest,
    secret files, and exact confirmation `--confirm RESTORE:leonaid-restore-<name>`.
 5. Verify health checks, the Golden contract, document hashes, sessions, and
    the browser journey before releasing the target.
+
+With the CMS, `pilot-restore` restores and verifies the CMS database with the
+target's verified `campaign-site` image and leaves the whole target stopped
+("application remains stopped pending release verification"). Start it with
+`./leonaid pilot-deploy` and `release-manifest-cms.json`; the deploy checks
+the CMS state before anything starts.
 
 Restore never overwrites an existing environment. Survey data additionally
 requires the independently retained erasure checkpoint and its required

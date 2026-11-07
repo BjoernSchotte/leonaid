@@ -20,6 +20,7 @@ from leonaid.application.identity import (
     MemberDirectoryMembership,
     MemberDirectorySnapshot,
     RoleAssignmentChange,
+    PreferredSurface,
 )
 from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.identity import (
@@ -411,6 +412,7 @@ class AsyncpgIdentityRepository:
                     account.status,
                     account.email_verified_at,
                     account.revision,
+                    account.preferred_surface,
                     session.id AS session_id,
                     session.created_at AS session_created_at,
                     session.expires_at AS session_expires_at,
@@ -503,7 +505,25 @@ class AsyncpgIdentityRepository:
                 fresh_login_at=account_row["session_fresh_login_at"],
                 revoked_at=account_row["session_revoked_at"],
             ),
+            preferred_surface=(
+                PreferredSurface(account_row["preferred_surface"])
+                if account_row["preferred_surface"] is not None
+                else None
+            ),
         )
+
+    async def set_preferred_surface(
+        self,
+        user_id: UUID,
+        surface: PreferredSurface | None,
+    ) -> None:
+        """A personal setting: no revision, no audit entry."""
+        async with self._pool.acquire() as connection:
+            await connection.execute(
+                "UPDATE user_account SET preferred_surface = $2 WHERE id = $1",
+                user_id,
+                surface.value if surface is not None else None,
+            )
 
     async def member_directory_snapshot(
         self,

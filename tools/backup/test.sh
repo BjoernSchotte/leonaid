@@ -274,6 +274,7 @@ LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_RESTORE_RESERVE_TEST_NETWORKS=true \
   LEONAID_RESTORE_COMPOSE_OVERLAY="$target_isolation" \
   LEONAID_RESTORE_STATE_FILE="$proof/restore-state.json" \
+  LEONAID_RESTORE_TLS_STATE=true \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
 
 certificate=$(docker run --rm --network none \

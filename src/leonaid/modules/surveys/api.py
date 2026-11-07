@@ -60,6 +60,7 @@ from leonaid.modules.surveys.models import (
     SurveyVersionResponse,
     Transition,
 )
+from leonaid.platform.base_paths import ADMIN_BASE
 
 
 class SurveyRepository(Protocol):
@@ -440,7 +441,7 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return tuple(
-        NavigationItem("surveys", "Umfragen", "/admin/surveys", surface)
+        NavigationItem("surveys", "Umfragen", ADMIN_BASE + "surveys", surface)
         for surface in ("web", "pwa")
     )
 

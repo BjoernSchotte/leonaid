@@ -254,8 +254,11 @@ if [ -n "${LEONAID_RESTORE_EXPECTED_MANIFEST:-}" ]; then
 fi
 
 if [ "$topology" = emdash ] && [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
-  /bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" \
-    "$LEONAID_RESTORE_CMS_IMAGE" >/dev/null
+  LEONAID_RESTORE_CMS_OPERATOR_IMAGE=$(/bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" \
+    "$LEONAID_RESTORE_CMS_IMAGE")
+  # The recovery operator runs from the verified image's own copy.
+  LEONAID_RESTORE_CMS_OPERATOR_ROOT=/app/recovery
+  export LEONAID_RESTORE_CMS_OPERATOR_IMAGE LEONAID_RESTORE_CMS_OPERATOR_ROOT
   echo "restore: explicit CMS image identity verified before target volume creation; activation remains closed"
 fi
 
@@ -289,9 +292,17 @@ docker run --rm \
   -v "$backup_root:/backup:ro" \
   "$ALPINE_IMAGE" \
   tar -C /target -xf /backup/rustfs-data.tar
-# The manifest verified this archive above. The new proxy then starts with
-# the certificates of every host instead of requesting them again.
-if [ -f "$backup_root/caddy-data.tar" ]; then
+# The manifest verified this archive above. It holds the TLS private keys
+# and the ACME account of the production hosts, so only an explicit restore
+# of the installation itself (new server, same host names) takes it:
+# LEONAID_RESTORE_TLS_STATE=true (pilot-restore --with-tls-state). Staging
+# and drill targets request their own certificates.
+restore_tls_state=${LEONAID_RESTORE_TLS_STATE:-false}
+case "$restore_tls_state" in true|false) ;; *) fail "LEONAID_RESTORE_TLS_STATE must be true or false" ;; esac
+if [ -f "$backup_root/caddy-data.tar" ] && [ "$restore_tls_state" = false ]; then
+  echo "restore: TLS certificates of the source not restored (no --with-tls-state)"
+fi
+if [ -f "$backup_root/caddy-data.tar" ] && [ "$restore_tls_state" = true ]; then
   docker volume create \
     --label "com.docker.compose.project=$target_project" \
     --label "com.docker.compose.volume=caddy-data" \

@@ -122,6 +122,7 @@ from leonaid.application.actions import (
     PublicActionRouteKind,
     UpdateActionDetailsDraft,
 )
+from leonaid.application.links import LinkBuilder
 from leonaid.application.errors import (
     Conflict,
     DependencyUnavailable,
@@ -132,6 +133,7 @@ from leonaid.application.identity import (
     ROLE_LABELS,
     STATUS_LABELS,
     IdentityAdministrationService,
+    PreferredSurface,
     IdentityQueryService,
     MemberDirectoryQuery,
     RoleAssignmentChange,
@@ -391,6 +393,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
+    PreferredSurfaceRequest,
+    PublicCampaignListItemResponse,
+    PublicCampaignListResponse,
     PublicCampaignRouteResponse,
     PublicLegalNoticeResponse,
     PublicLegalProviderResponse,
@@ -432,6 +437,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     UpdateActionDetailsRequest,
     UpdateFeatureFlagRequest,
 )
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 router = APIRouter()
 # Leave time for cancellation/transaction cleanup before Astro's 12-second
@@ -964,7 +970,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Alle Sponsor-Zuordnungen dieser Aktion, die dem "
                         "eigenen Konto zugeordnet sind."
                     ),
-                    href=f"/app/sponsors?action={action}",
+                    href=f"{PWA_BASE}sponsors?action={action}",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="acquirer.reminders",
@@ -973,7 +979,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Offene nächste Schritte nach lokalem Kalendertag; "
                         "übergebene Zuordnungen zählen nicht mit."
                     ),
-                    href=f"/app/activities?view=contacts&action={action}",
+                    href=f"{PWA_BASE}activities?view=contacts&action={action}",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="acquirer.activities",
@@ -981,7 +987,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                     description=(
                         "Selbst dokumentierte Kontakte in dieser Charity-Aktion."
                     ),
-                    href=f"/app/activities?view=contacts&action={action}",
+                    href=f"{PWA_BASE}activities?view=contacts&action={action}",
                 ),
             )
         )
@@ -1009,7 +1015,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Alle Sponsor-Zuordnungen der Charity-Aktion, auch bei "
                         "mehrfach betreuten Sponsoren."
                     ),
-                    href=f"/admin/acquisition?action={action}",
+                    href=f"{ADMIN_BASE}acquisition?action={action}",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.commitments",
@@ -1018,7 +1024,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Alle nicht stornierten Bestellungen; Betrag und Mengen "
                         "verwenden die gespeicherten Bestellpositionen."
                     ),
-                    href=f"/admin/orders?action={action}&status=all",
+                    href=f"{ADMIN_BASE}orders?action={action}&status=all",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.invoiced",
@@ -1027,7 +1033,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Summe ausgestellter, versendeter und bezahlter "
                         "Rechnungen; Stornos zählen nicht mit."
                     ),
-                    href=f"/admin/invoices?action={action}&status=all",
+                    href=f"{ADMIN_BASE}invoices?action={action}&status=all",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.open_receivables",
@@ -1037,7 +1043,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "abzüglich erfasster Zahlungseingänge. Bezahlte, "
                         "überzahlte und stornierte Rechnungen zählen nicht mit."
                     ),
-                    href=f"/admin/invoices?action={action}&status=open",
+                    href=f"{ADMIN_BASE}invoices?action={action}&status=open",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.overdue",
@@ -1046,7 +1052,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Rechnungen mit Restbetrag, deren Fälligkeitstag nach "
                         "Kalendertag des Clubs vorbei ist; Summe der Restbeträge."
                     ),
-                    href=f"/admin/invoices?action={action}&view=overdue",
+                    href=f"{ADMIN_BASE}invoices?action={action}&view=overdue",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.delivery_failed",
@@ -1055,13 +1061,13 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Nicht stornierte Rechnungen, deren letzter Versand "
                         "endgültig gescheitert ist."
                     ),
-                    href=f"/admin/invoices?action={action}&view=all&f.sent=failed",
+                    href=f"{ADMIN_BASE}invoices?action={action}&view=all&f.sent=failed",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.to_invoice",
                     label="Rechnung erstellen",
                     description="Bestätigte Bestellungen, noch ohne Rechnung.",
-                    href=f"/admin/orders?action={action}&view=all&f.status=confirmed",
+                    href=f"{ADMIN_BASE}orders?action={action}&view=all&f.status=confirmed",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.order_value_weeks",
@@ -1070,7 +1076,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Summe der nicht stornierten Bestellungen nach "
                         "Eingangswoche (Montag bis Sonntag, Zeit des Clubs)."
                     ),
-                    href=f"/admin/orders?action={action}&view=all",
+                    href=f"{ADMIN_BASE}orders?action={action}&view=all",
                 ),
                 DashboardMetricDefinitionResponse(
                     key="admin.delivery",
@@ -1079,7 +1085,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
                         "Lieferfenster ab heute und die verbindlichen "
                         "Bestellungen darin (ohne Entwürfe und Stornos)."
                     ),
-                    href=f"/admin/delivery?action={action}",
+                    href=f"{ADMIN_BASE}delivery?action={action}",
                 ),
             )
         )
@@ -2059,6 +2065,40 @@ async def resolve_public_action_archive(
 
 
 @router.get(
+    "/api/v1/public/campaigns",
+    operation_id="listPublicCampaigns",
+    response_model=PublicCampaignListResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def list_public_campaigns(
+    request: Request,
+    response: Response,
+    availability: Literal["active"] = "active",
+) -> PublicCampaignListResponse:
+    """Active campaigns for the home page of the public host (§6.5)."""
+    listings = await action_service(request).list_active_public_campaigns()
+    links = cast(LinkBuilder, request.app.state.links)
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+    return PublicCampaignListResponse(
+        items=[
+            PublicCampaignListItemResponse(
+                archive_slug=listing.action.archive_slug,
+                name=listing.action.name,
+                purpose=listing.action.purpose,
+                carrier_name=listing.action.carrier_name,
+                presentation_theme=listing.action.presentation_theme,
+                starts_on=listing.action.starts_on,
+                ends_on=listing.action.ends_on,
+                canonical_path=listing.canonical_path,
+                canonical_url=links.site_url(listing.canonical_path),
+            )
+            for listing in listings
+        ]
+    )
+
+
+@router.get(
     "/api/v1/public/actions/campaign/{archive_slug}",
     operation_id="resolvePublicCampaign",
     response_model=PublicCampaignRouteResponse,
@@ -2258,6 +2298,31 @@ async def current_identity(
     response: Response,
 ) -> CurrentIdentityResponse:
     result = await identity_service(request).current_identity(session_token(request))
+    response.headers["Cache-Control"] = "no-store"
+    return CurrentIdentityResponse.model_validate(
+        {
+            **{field.name: getattr(result, field.name) for field in fields(result)},
+            "installation": InstallationResponse(club_name=request.app.state.club_name),
+        }
+    )
+
+
+@router.put(
+    "/api/v1/identity/me/preferred-surface",
+    operation_id="setPreferredSurface",
+    response_model=CurrentIdentityResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def set_preferred_surface(
+    body: PreferredSurfaceRequest,
+    request: Request,
+    response: Response,
+) -> CurrentIdentityResponse:
+    result = await identity_service(request).set_preferred_surface(
+        session_token(request),
+        PreferredSurface(body.surface) if body.surface is not None else None,
+    )
     response.headers["Cache-Control"] = "no-store"
     return CurrentIdentityResponse.model_validate(
         {

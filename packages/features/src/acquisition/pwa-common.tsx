@@ -25,6 +25,7 @@ import {
 
 import { navigateInPage } from "../shared/location";
 import { relativeDay } from "../shared/dates";
+import { PWA_BASE, pwaHref } from "@leonaid/ui/base-paths";
 
 export type AssignmentStatus = AcquisitionActivityWorkItemResponse["status"];
 
@@ -140,7 +141,7 @@ export function useSponsorBoard(client: LeonAidApiClient, actionId: string) {
 }
 
 export function sponsorHref(actionId: string, assignmentId: string) {
-  return `/app/sponsors?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(assignmentId)}`;
+  return `${PWA_BASE}sponsors?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(assignmentId)}`;
 }
 
 /*
@@ -187,7 +188,7 @@ export function followInPage(event: MouseEvent<HTMLAnchorElement>) {
     return;
   }
   event.preventDefault();
-  navigateToScreen(event.currentTarget.getAttribute("href") ?? "/app/");
+  navigateToScreen(event.currentTarget.getAttribute("href") ?? pwaHref());
 }
 
 /** "tel:" wants the number without spaces or separators (RFC 3966). */

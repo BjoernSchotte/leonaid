@@ -97,6 +97,39 @@ as the core (see `MAIL-RUNBOOK.md`); Twenty sends mail only with
 only to the external URL from `LEONAID_ALERT_HEARTBEAT_URL_FILE`; if the pings
 stop, the external service raises the alarm.
 
+## Campaign pages (CMS)
+
+`pilot-install` installs without the CMS and refuses
+`LEONAID_CMS_ENABLED=true`. The campaign pages follow on the running
+installation; the full procedure is in
+[Install on a fresh VPS](../../apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md#set-up-the-campaign-pages) ·
+[Auf einem frischen VPS installieren](../../apps/docs/src/content/docs/de/ops/how-to/install-on-a-vps.md#aktionsseiten-einrichten).
+
+```sh
+# 1. LEONAID_CMS_ENABLED=true in production.env, then at once:
+./leonaid pilot-cms-provision \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --release-manifest /var/lib/leonaid/releases/release-manifest-cms.json \
+  --system-admin-email admin@club.org
+# 2. Exit 75 (PENDING): the System Admin completes the EmDash setup at
+#    https://<admin host>/_emdash/admin/setup within 15 minutes.
+# 3. The same command again (no --system-admin-email): campaign schema, OK.
+# 4. pilot-backup (now with the CMS data), then pilot-deploy with the CMS
+#    manifest.
+```
+
+The steps are database role, database and EmDash migrations (operator in
+the campaign-site image), media bucket with its own scoped key (RustFS),
+the one-time setup grant for the named System Admin, and the campaign
+schema under closed CMS traffic (`tools/pilot_release/migrate-cms.sh
+install`). Every run reads the state of each step first: a repeat changes
+nothing, and a failed run continues at the open step. Until all four steps
+are done, `pilot-deploy`, `pilot-release` and `pilot-doctor` refuse
+`LEONAID_CMS_ENABLED=true`. From the first step on, every backup holds the
+CMS database and its setup state (manifest schema 2); `pilot-restore`
+recovers them with the target's verified campaign-site image.
+
 ## Compose and release check
 
 Before a start, the effective configuration is generated and checked:

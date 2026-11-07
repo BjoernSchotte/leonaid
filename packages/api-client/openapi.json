@@ -5117,12 +5117,35 @@
           "installation": {
             "$ref": "#/components/schemas/InstallationResponse"
           },
+          "landingPath": {
+            "examples": [
+              "/app/",
+              "/admin/system"
+            ],
+            "title": "Landingpath",
+            "type": "string"
+          },
           "navigation": {
             "items": {
               "$ref": "#/components/schemas/NavigationItemResponse"
             },
             "title": "Navigation",
             "type": "array"
+          },
+          "preferredSurface": {
+            "anyOf": [
+              {
+                "enum": [
+                  "web",
+                  "pwa"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferredsurface"
           },
           "roleLabels": {
             "items": {
@@ -5159,7 +5182,8 @@
           "sessionLastSeenAt",
           "freshLoginAt",
           "freshUntil",
-          "installation"
+          "installation",
+          "landingPath"
         ],
         "title": "CurrentIdentityResponse",
         "type": "object"
@@ -11346,6 +11370,32 @@
         "title": "PlatformStatusResponse",
         "type": "object"
       },
+      "PreferredSurfaceRequest": {
+        "additionalProperties": false,
+        "description": "The start area a member chooses; null returns to the default rule.",
+        "properties": {
+          "surface": {
+            "anyOf": [
+              {
+                "enum": [
+                  "web",
+                  "pwa"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface"
+          }
+        },
+        "required": [
+          "surface"
+        ],
+        "title": "PreferredSurfaceRequest",
+        "type": "object"
+      },
       "PrivacyConsentResponse": {
         "additionalProperties": false,
         "properties": {
@@ -11935,6 +11985,87 @@
           "action"
         ],
         "title": "PublicActionRouteResponse",
+        "type": "object"
+      },
+      "PublicCampaignListItemResponse": {
+        "additionalProperties": false,
+        "description": "An active campaign for the public home page (no internal ids).",
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "canonicalPath": {
+            "title": "Canonicalpath",
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "title": "Canonicalurl",
+            "type": "string"
+          },
+          "carrierName": {
+            "title": "Carriername",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "presentationTheme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentationtheme"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archiveSlug",
+          "name",
+          "purpose",
+          "carrierName",
+          "presentationTheme",
+          "startsOn",
+          "endsOn",
+          "canonicalPath",
+          "canonicalUrl"
+        ],
+        "title": "PublicCampaignListItemResponse",
+        "type": "object"
+      },
+      "PublicCampaignListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCampaignListItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PublicCampaignListResponse",
         "type": "object"
       },
       "PublicCampaignRouteResponse": {
@@ -27454,6 +27585,97 @@
         ]
       }
     },
+    "/api/v1/identity/me/preferred-surface": {
+      "put": {
+        "operationId": "setPreferredSurface",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferredSurfaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentIdentityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Set Preferred Surface",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/api/v1/identity/members/{user_id}/email-change": {
       "post": {
         "operationId": "createMemberEmailChange",
@@ -32340,6 +32562,81 @@
           }
         },
         "summary": "Create Public Order",
+        "tags": [
+          "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/campaigns": {
+      "get": {
+        "description": "Active campaigns for the home page of the public host (§6.5).",
+        "operationId": "listPublicCampaigns",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "availability",
+            "required": false,
+            "schema": {
+              "const": "active",
+              "default": "active",
+              "title": "Availability",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCampaignListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Public Campaigns",
         "tags": [
           "public-actions"
         ]

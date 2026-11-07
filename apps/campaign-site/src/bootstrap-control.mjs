@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open, rename, mkdir, rmdir } from "node:fs/promises";
+import { lstat, open, rename, mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -94,6 +94,43 @@ export async function armBootstrap(directory, actor) {
     } finally {
       await dir.close();
     }
+  });
+}
+
+// Operator-only, read-only view for pilot-cms-provision. "none" means no state
+// was ever written; an unreadable or malformed state throws BootstrapDenied.
+export async function inspectBootstrap(directory) {
+  try {
+    await lstat(join(directory, "state.json"));
+  } catch (error) {
+    if (error.code === "ENOENT") return { status: "none" };
+    throw new BootstrapDenied();
+  }
+  const state = await readState(directory);
+  return {
+    status:
+      state.status === "armed" && state.expiresAt <= Date.now()
+        ? "expired"
+        : state.status,
+    actor: state.actor,
+  };
+}
+
+// Operator-only. Only an armed grant that expired unused may be replaced: no
+// setup request consumed it, so nothing upstream can have changed. Consumed
+// and complete states stay final.
+export async function rearmExpiredBootstrap(directory, actor) {
+  if (!uuid.test(actor)) throw new BootstrapDenied();
+  await locked(directory, async () => {
+    const state = await readState(directory);
+    if (state.status !== "armed" || state.expiresAt > Date.now())
+      throw new BootstrapDenied();
+    await writeState(directory, {
+      version: 1,
+      status: "armed",
+      actor,
+      expiresAt: Date.now() + 15 * 60_000,
+    });
   });
 }
 

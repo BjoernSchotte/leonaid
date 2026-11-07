@@ -4,9 +4,9 @@ description: Referenz der implementierten globalen und aktionsbezogenen LeonAid-
 docId: DOC-P016
 audience: [user]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -29,3 +29,28 @@ Globale Rollen vergibt nur ein System-Admin. Ein Charity-Admin darf
 Aktionsrollen nur in selbst verwalteten Aktionen ändern. Änderungen wirken ab
 dem nächsten Request und benötigen für kritische Verwaltungsaktionen eine
 frisch bestätigte Anmeldung.
+
+## Startbereich nach der Anmeldung
+
+Nach der Anmeldung öffnet LeonAid den Bereich, der zu deinen Rollen passt.
+Mit eigenem Verwaltungshost (`app.<domain>`) gilt das auch, wenn du nur die
+Adresse eingibst:
+
+| Rollen                                   | Startbereich                     |
+| ---------------------------------------- | -------------------------------- |
+| eine Akquise-Rolle (auch neben anderen)  | Akquise-App                      |
+| `system_admin`                           | Verwaltung, Seite **System**     |
+| `charity_admin`                          | Verwaltung, Übersicht            |
+| Finanzrollen                             | Verwaltung, **Rechnungen**       |
+| nur Ausfahrer oder keine Verwaltungsrolle | Akquise-App                     |
+
+Hast du Rollen für beide Bereiche, wechselst du mit **Akquise-App** in der
+Leiste der Verwaltung oder mit **Zur Verwaltung** unter **Mehr** in der App.
+In der Befehlspalette der Verwaltung wählst du **Verwaltung als Startbereich
+verwenden**, in der App unter **Mehr** **Akquise-App als Startbereich
+verwenden**. LeonAid merkt sich die Wahl, solange du eine Rolle für diesen
+Bereich hast. Nach einer Wahl bieten dir beide Stellen auch
+**Standard-Startbereich verwenden** an: Die Wahl entfällt, und die Tabelle
+oben gilt wieder. Öffnest du einen Link auf eine bestimmte Seite, landest du nach der
+Anmeldung genau dort.
+

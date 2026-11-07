@@ -23,6 +23,7 @@ import {
   snapshotWindowLabel,
   type OrderRow,
 } from "./order-format";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 type Phase = "review" | "running" | "done";
 
@@ -439,7 +440,7 @@ function ReleaseResult({
                 <li key={row.commitment.id}>
                   <a
                     className="commitment-link mono"
-                    href={`/admin/invoices?action=${encodeURIComponent(actionId)}${
+                    href={`${ADMIN_BASE}invoices?action=${encodeURIComponent(actionId)}${
                       invoice ? `&open=${encodeURIComponent(invoice.id)}` : ""
                     }`}
                   >

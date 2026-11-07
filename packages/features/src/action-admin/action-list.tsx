@@ -22,6 +22,7 @@ import {
 import { useContextCommands } from "../command-palette/store";
 import { shortDate } from "../shared/dates";
 import { statusLabels } from "./manage-sections";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 /*
  * "Aktionen verwalten" (prototype pages/Campaigns.tsx CampaignList): the
@@ -195,7 +196,7 @@ export function ActionListPage({ client }: ActionListPageProps) {
   );
   const rowHref = useCallback(
     (row: CharityActionSummaryResponse) =>
-      `/admin/actions/${encodeURIComponent(row.id)}`,
+      `${ADMIN_BASE}actions/${encodeURIComponent(row.id)}`,
     [],
   );
 
@@ -211,7 +212,7 @@ export function ActionListPage({ client }: ActionListPageProps) {
         entityLabel={{ one: "Aktion", many: "Aktionen" }}
         getId={getId}
         id="actions"
-        onCreate={() => window.location.assign("/admin/actions/new")}
+        onCreate={() => window.location.assign(adminHref("actions/new"))}
         onRetry={() => void actions.refetch()}
         properties={properties}
         rowHref={rowHref}

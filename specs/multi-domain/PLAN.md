@@ -1211,7 +1211,38 @@ one test domain owned by the club.
   absolute canonical URLs.
 - R11: the production CMS provisioning (database role, media bucket, editor
   setup) has no `pilot-*` command yet; `LEONAID_CMS_ENABLED` stays `false`
-  until it exists. Open point for the launch.
+  until it exists. Open point for the launch. Resolved by
+  `pilot-cms-provision` (§16.7).
+
+### 16.3 Stage 1a (PR `md/stage1a`)
+
+- `GET /api/v1/public/campaigns?availability=active` (`listPublicCampaigns`):
+  archive slug, name, purpose, carrier, theme key, period, `canonicalPath` and
+  absolute `canonicalUrl` (site base URL); `public, max-age=60`. Source:
+  `CharityActionService.list_active_public_campaigns`, newest publication
+  start first.
+- Home page of `apps/public`: section "Aktuelle Aktionen" with one card per
+  campaign (theme share image, carrier, name, purpose, period); without an
+  active campaign the page stays as before. Core unreachable: no list, the
+  page still renders.
+- R12: the card links the page that shows the running campaign: the CMS page
+  `/campaigns/<slug>/` when published there, else the primary alias page
+  `/<alias>` with its order form, else `/archive/<slug>`. §6.5 named only the
+  canonical URL; the alias page's canonical (`/archive/<slug>`) shows no order
+  form.
+- R25: the card links `canonicalPath` (relative): in stage 1 every listed
+  page lives on the public host, and a relative link works under each name of
+  that host. Stage 2 uses `canonicalUrl` for campaign hosts.
+- R13: the theme image is the theme's share image (`resolvePublicTheme`);
+  Core returns only the theme key, no media id.
+- R30 (review #98): `apps/public` caches the list per process (60 s, a
+  failure 10 s and the last known list kept); equal publication starts sort
+  A→Z; a primary alias is always enabled (constraint since 0028), so the CMS
+  link never depends on a disabled alias.
+- Deferred: the §6.5 bullet "the public host's sitemap" is not built; no
+  `sitemap.xml` exists in `apps/public` yet. It comes with stage 2's per-host
+  sitemap/robots (§7.5).
+
 
 ### 16.4 Review of #97 (rv-md1)
 
@@ -1224,11 +1255,13 @@ one test domain owned by the club.
   `includeSubDomains`, because the public host is usually the club's apex.
   Admin and single hosts keep `includeSubDomains`.
 - R17 (I3): `caddy-data` is backed up and restored when the volume exists
-  (pilot); `caddy-data.tar` is an optional, verified manifest entry.
+  (pilot); `caddy-data.tar` is an optional, verified manifest entry. Restore
+  takes it only with `pilot-restore --with-tls-state` (N2): staging and drill
+  targets never receive the production keys or ACME account.
 - R18 (I5): the public host cannot ask who is signed in: the session is
   host-only on the admin host, the public host serves no identity API, and the
   build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
-  header shows a static "Anmelden" link to the admin host there and sends no
+  header shows a static "Mitgliederbereich" link to the admin host there and sends no
   identity request; the admin host and single hosts keep the personal links.
 - R19 (M1): the admin host refuses every Astro form action
   (`?_action=…`) before any page route (rewrite to a 404 handler).
@@ -1247,3 +1280,125 @@ one test domain owned by the club.
   part (native order POST on the public host, Live View in the editor) needs
   the EmDash spike harness and follows with stage 2's `multi-host` case.
 
+### 16.5 Stage 1b (PR `md/stage1b`)
+
+- Core: `landingPath` and `preferredSurface` in `GET /api/v1/identity/me`;
+  `PUT /api/v1/identity/me/preferred-surface` (409
+  `preferred_surface_unavailable` without a role for that app); migration
+  `0054_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
+  lives in `landing_path()` (`application/identity.py`).
+- Entry: `apps/public/src/pages/login/start.ts`; Caddy rewrites `/` on the
+  admin host to it. No session → `/login`; else 302 to `landingPath`.
+  Invitations link the entry page.
+- Deep links: web and PWA send a signed-out visitor to
+  `/login?returnTo=<path+query>`; the sign-in page accepts only paths below
+  `/admin/`, `/app/` or the CMS editor (`memberReturnTo`).
+- Switch: the web rail keeps its "Akquise-App" link; the PWA "Mehr" sheet
+  shows "Zur Verwaltung" and "Akquise-App als Startbereich verwenden"; the web
+  palette offers "Verwaltung als Startbereich verwenden". After a choice both
+  also offer "Standard-Startbereich verwenden" (surface `null`;
+  `startAreaChoices` in `base-paths.ts`).
+- `memberReturnTo` checks the path the URL parser resolves (dot segments,
+  also encoded), so `/app/../campaigns/x/` falls back.
+- `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin/` and
+  `/app/` strings outside the base-path files, tests and comments.
+- Base paths: `src/leonaid/platform/base_paths.py` and
+  `packages/ui/src/lib/base-paths.ts` (contract test
+  `tests/unit/test_base_paths.py`); read by Core navigation and deep links,
+  both Vite configs, PWA routes, service worker, manifest and offline page
+  (build-time token `__LEONAID_PWA_BASE__`), web routing, public auth pages and
+  the Caddy generator.
+- R26: no back-office role → PWA (drivers work there); §6.7 named "the first
+  web navigation item", which for module-only members is a web module page
+  the web app does not open without a back-office role.
+- R27: the entry page lives at `/login/start` (Astro ignores `_`-prefixed
+  pages; a root-level `/entry` would shadow an alias of that name on the
+  public host). The public host 308s `/login/*` like `/login`.
+- R28: tests and browser proofs keep the literal `/app/` and `/admin/`
+  paths: they assert the product URLs, and a rename must show up there.
+- R29: stage 1c (rename `/app/`) is dropped; the retired worker of §6.7 serves
+  the old host (R20).
+
+### 16.6 Stage 2 preconditions from the reviews
+
+- N4 (rv-md1): `Caddyfile.admin-only` routes `/campaigns/*`, aliases and
+  `/archive/*` to `public:3000`, which today renders campaign and alias pages.
+  Before the contract may accept the admin-only mode, the public app must
+  answer these paths on the admin host with 308 to the canonical URL or 404
+  only (§6.6).
+
+### 16.7 Production CMS provisioning (PR `md/cms-provision`, R11)
+
+`./leonaid pilot-cms-provision --env-file --backup-manifest
+--release-manifest [--system-admin-email]` provisions the CMS of a running
+pilot. It verifies the CMS release manifest (schema 2) and runs the doctor
+(gate `pilot-deploy`) first, then four steps. Each step reads its state
+from the image-owned operator `apps/campaign-site/src/cms-provision-operator.mjs
+status` and runs only when it is open:
+
+1. Database: `provisionPostgres` (moved from `tools/emdash_spike` to
+   `apps/campaign-site/src/provision-postgres.mjs`), the EmDash migrations of
+   an empty database and the identity mapping, all from the campaign-site
+   image (`cms-provision-operator.mjs database`).
+2. Media bucket: `tools/emdash_spike/provision_rustfs.py` in the Core image.
+3. Setup grant: `cms-provision-operator.mjs arm <uuid>` for the active Core
+   System Admin of `--system-admin-email`; the command starts the CMS, prints
+   the setup URL and exits 75. The System Admin completes the EmDash setup in
+   the browser; the next run continues.
+4. Campaign schema: `migrate-cms.sh … install` (new mode `install` of
+   `cms-migration-operator.mjs`: setup complete, exact EmDash inventory, then
+   the three idempotent installers) under closed traffic; afterwards the
+   command removes the maintenance marker and starts the CMS.
+
+Gates and backups:
+
+- `pilot-deploy` (before anything starts), `pilot-release` and `pilot-doctor`
+  (all gates except backup and restore) refuse `LEONAID_CMS_ENABLED=true`
+  until every step is done and CMS traffic is open.
+- `pilot-install` refuses `LEONAID_CMS_ENABLED=true`.
+- Backups with the CMS have manifest schema 2 (`emdash.dump`,
+  `cms-bootstrap-state.tar`). `pilot-backup`'s own check, the doctor and the
+  monitoring exporter accept it; before, all three accepted schema 1 only, so
+  every backup with the CMS failed. The exporter also rejected
+  `caddy-data.tar` (stage 1), so `leonaid_backup_valid` was 0 on every pilot.
+- `pilot-restore` passes the target's campaign-site image as
+  `LEONAID_RESTORE_CMS_IMAGE`; the CMS recovery operator then runs from the
+  image copy under `/app/recovery` (a production checkout has no
+  node_modules).
+
+Rulings (RD = PR D, numbered apart from the stage 2 rulings):
+
+- RD1: the flag comes first. `pilot-cms-provision` requires
+  `LEONAID_CMS_ENABLED=true`, because the first step creates CMS data that
+  every later backup must contain (`backup.sh` refuses a topology that does
+  not match the data). "Accepted" means: deploy, release and doctor take the
+  flag only for a provisioned CMS. Only `pilot-cms-provision` passes the
+  doctor `--allow-backup-without-cms` (its last backup predates the CMS).
+- RD2: the schema install runs after the EmDash setup, as in the local
+  procedure (`initialize-local-campaign.mjs`): the setup creates the first
+  CMS user, and the schema installer requires a completed bootstrap.
+- RD3: an armed grant that expired unused may be replaced
+  (`rearmExpiredBootstrap`); a consumed or complete grant stays final.
+- RD4: an existing database is migrated only from a gapless prefix and only
+  while no grant was ever written (resume after a crash in the first run).
+  Everything else is the release's CMS migration path, never provisioning.
+- RD5: the command's exit status 75 (EX_TEMPFAIL) means "waiting for the
+  System Admin's setup", not an error.
+- RD6: the pilot install proof runs the product's own single-host route table
+  (`caddyfiles.py --render pilot-single --tls-internal`) instead of the
+  hand-written `Caddyfile.test`, which has no CMS routes; the contract accepts
+  that file (`Caddyfile.pilot-single-test`) in isolated test mode only.
+
+Proof: `./leonaid test-pilot-install` now also builds the campaign-site image
+and proves: CMS refused at the first install and without the flag; deploy
+refused before provisioning; a foreign bucket policy stops step 2 after step
+1, the next run resumes; a member without the System Admin role is refused;
+setup grant, setup through the edge as the System Admin, schema install; a
+repeat changes nothing; no secret in the output; backup schema 2; deploy with
+the CMS; a campaign page created and published in the editor and served at
+`https://portal.leonaid.org/campaigns/<slug>/`; restore drill into a second
+project with the page and the complete setup state.
+
+Open: `pilot-release` does not run CMS migrations (verify/upgrade) yet; a
+release with new EmDash migrations blocks at the provisioning check until the
+release spec adds the CMS migration step.

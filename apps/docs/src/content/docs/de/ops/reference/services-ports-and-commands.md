@@ -4,8 +4,8 @@ description: Kompakte Referenz des Compose-Laufzeitbilds, der veröffentlichten 
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 18
-reviewedRevision: 18
+contentRevision: 19
+reviewedRevision: 19
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -46,7 +46,7 @@ dem Logger-Mailtreiber und versenden nichts; `pilot-doctor` warnt, blockiert
 aber nicht.
 
 Wichtige Befehle: `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
-`pilot-doctor`, `pilot-deploy`, `pilot-release`, `pilot-backup`,
+`pilot-doctor`, `pilot-deploy`, `pilot-cms-provision`, `pilot-release`, `pilot-backup`,
 `pilot-restore`, `pilot-repair-crm-match-keys`, `crm-admin`, `test-handoff`, `test-backup` und `test-upgrade`. Die aktuelle
 vollständige Liste liefert `./leonaid help`; sie ist maßgeblich, wenn diese
 Referenz abweicht.

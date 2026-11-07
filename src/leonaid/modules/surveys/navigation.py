@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.navigation import NavigationItem
+from leonaid.platform.base_paths import ADMIN_BASE
 
 
 def navigation(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
@@ -12,6 +13,6 @@ def navigation(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not principal.account.can_authenticate:
         return ()
     return tuple(
-        NavigationItem("surveys", "Umfragen", "/admin/surveys", surface)
+        NavigationItem("surveys", "Umfragen", ADMIN_BASE + "surveys", surface)
         for surface in ("web", "pwa")
     )

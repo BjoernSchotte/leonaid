@@ -1,0 +1,67 @@
+---
+import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
+import { resolvePublicTheme } from "../themes";
+
+interface Props {
+  campaigns: readonly PublicCampaignListItemResponse[];
+}
+
+const { campaigns } = Astro.props;
+// Stage 1 lists only pages of this public host, so the link stays relative
+// and works under every name of the host (LAN, test hosts). Stage 2 links
+// campaign hosts with the absolute canonicalUrl.
+const dateFormat = new Intl.DateTimeFormat("de-DE", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const period = (startsOn: string, endsOn: string) =>
+  `${dateFormat.format(new Date(`${startsOn}T00:00:00Z`))} bis ${dateFormat.format(
+    new Date(`${endsOn}T00:00:00Z`),
+  )}`;
+---
+
+<section
+  aria-labelledby="public-campaigns-title"
+  class="campaign-list"
+  data-testid="public-campaign-list"
+>
+  <div class="site-shell campaign-list__inner">
+    <h2 id="public-campaigns-title">Aktuelle Aktionen</h2>
+    <ul class="campaign-list__items">
+      {
+        campaigns.map((campaign) => {
+          const image = resolvePublicTheme(
+            campaign.presentationTheme,
+          ).shareImage;
+          return (
+            <li class="campaign-card">
+              <img
+                alt=""
+                class="campaign-card__image"
+                decoding="async"
+                height={image.height}
+                loading="lazy"
+                src={image.src}
+                width={image.width}
+              />
+              <div class="campaign-card__body">
+                <p class="eyebrow">{campaign.carrierName}</p>
+                <h3>
+                  <a class="campaign-card__link" href={campaign.canonicalPath}>
+                    {campaign.name}
+                  </a>
+                </h3>
+                <p>{campaign.purpose}</p>
+                <p class="campaign-card__period">
+                  {period(campaign.startsOn, campaign.endsOn)}
+                </p>
+              </div>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </div>
+</section>

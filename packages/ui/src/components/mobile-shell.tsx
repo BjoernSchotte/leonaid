@@ -22,7 +22,7 @@ import {
 } from "../keyboard";
 import { cn } from "../lib/utils";
 import { useFocusNotObscured } from "./focus-clear";
-import { Button } from "./button";
+import { Button, buttonClassName } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 import { LeaveGuardContext, LeaveGuardRegistry } from "./leave-guard";
 import {
@@ -54,6 +54,20 @@ export interface MobileShellMenuItem {
   readonly current?: boolean;
 }
 
+/**
+ * The other member app and the start-area choice (specs/multi-domain §6.7),
+ * shown in the "Mehr" sheet for members with roles in both apps.
+ */
+export interface MobileShellSurfaces {
+  /** Link into the admin web app, e.g. "Zur Verwaltung". */
+  readonly switchTo?: { readonly label: string; readonly href: string };
+  /** Start-area options: this app, or back to the default rule. */
+  readonly startAreas?: readonly {
+    readonly label: string;
+    readonly onSelect: () => void;
+  }[];
+}
+
 export interface MobileShellProps {
   readonly tabs: readonly MobileShellTab[];
   /** Key of the current tab, or null when the page has no tab. */
@@ -74,6 +88,7 @@ export interface MobileShellProps {
   readonly onLogout: () => void;
   /** Zone hue of the surface (`data-zone`). */
   readonly zone?: string;
+  readonly surfaces?: MobileShellSurfaces;
 }
 
 const OFFLINE_TEXT =
@@ -218,6 +233,7 @@ function MobileShellFrame({
   notices,
   offline,
   onLogout,
+  surfaces,
   person,
   role,
   tabs,
@@ -357,6 +373,7 @@ function MobileShellFrame({
         onNavigate={guardLink}
         onClose={() => setMenuOpen(false)}
         onLogout={onLogout}
+        surfaces={surfaces}
         onTheme={chooseTheme}
         open={menuOpen}
         person={person}
@@ -413,12 +430,14 @@ function MoreSheet({
   person,
   role,
   search,
+  surfaces,
   theme,
 }: {
   readonly items: readonly MobileShellMenuItem[];
   readonly onClose: () => void;
   readonly onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
   readonly onLogout: () => void;
+  readonly surfaces?: MobileShellSurfaces;
   readonly onTheme: (mode: ThemeMode) => void;
   readonly open: boolean;
   readonly person: string;
@@ -545,6 +564,41 @@ function MoreSheet({
               ))}
             </div>
           </section>
+          {surfaces?.switchTo || surfaces?.startAreas?.length ? (
+            <section
+              aria-labelledby="pwa-sheet-surfaces"
+              className="pwa-sheet-section"
+              data-testid="pwa-surfaces"
+            >
+              <h3 className="pwa-sheet-label" id="pwa-sheet-surfaces">
+                Bereiche
+              </h3>
+              <div className="pwa-surfaces">
+                {surfaces.switchTo ? (
+                  <a
+                    className={buttonClassName({
+                      variant: "secondary",
+                      size: "lg",
+                    })}
+                    href={surfaces.switchTo.href}
+                    onClick={onNavigate}
+                  >
+                    {surfaces.switchTo.label}
+                  </a>
+                ) : null}
+                {surfaces.startAreas?.map((choice) => (
+                  <Button
+                    key={choice.label}
+                    onClick={choice.onSelect}
+                    size="lg"
+                    variant="ghost"
+                  >
+                    {choice.label}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <div className="pwa-account">
             <span className="pwa-account-text">
               <span className="pwa-account-name">{person}</span>

@@ -4,10 +4,10 @@ description: Texte und Bilder der öffentlichen Microsite einer Aktion im CMS-Ed
 docId: DOC-P042
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: f8978c27fe04c476f6a13909007cbd0e490c842c
-reviewer: Björn Schotte
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
 Du brauchst die Rolle Charity-Admin für die Aktion. Der Microsite-Editor
@@ -26,7 +26,10 @@ beschriftet; diese Anleitung nennt die Beschriftungen unverändert.
    **Remove** leert das Feld.
 4. Zum Veröffentlichen wähle **Publish now** (erste Veröffentlichung) oder
    **Publish changes** und bestätige dieselbe Schaltfläche im Dialog. Die
-   Seite ist sofort sichtbar; **Live View** öffnet sie.
+   Seite ist sofort sichtbar; **Live View** öffnet sie auf der öffentlichen
+   Adresse des Clubs, auch wenn der Editor auf dem Verwaltungshost läuft.
+   Solange die Aktion im Veröffentlichungszeitraum aktiv ist, steht sie
+   zusätzlich auf der öffentlichen Startseite unter **Aktuelle Aktionen**.
 5. **Discard changes** im Bereich **Publish** verwirft den Entwurf und kehrt
    zur veröffentlichten Fassung zurück.
 6. Mit **Zurück zu LeonAid** kehrst du in die LeonAid-Verwaltung zurück.

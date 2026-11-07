@@ -4,9 +4,9 @@ description: Reference for the implemented global and campaign-scoped LeonAid ro
 docId: DOC-P016
 audience: [user]
 diataxis: reference
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: 68fe0e63b592a739925654788509e63a71b01e8a
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -29,3 +29,26 @@ Only a system administrator grants global roles. A charity administrator may
 change campaign roles only in campaigns they manage. Changes apply from the
 next request; sensitive administration actions require a freshly confirmed
 login.
+
+## Start area after sign-in
+
+After sign-in, LeonAid opens the area that fits your roles. With its own admin
+host (`app.<domain>`) this also applies when you only type the address:
+
+| Roles                                     | Start area                         |
+| ----------------------------------------- | ---------------------------------- |
+| an acquisition role (also next to others) | acquisition app                    |
+| `system_admin`                            | administration, page **System**    |
+| `charity_admin`                           | administration, overview           |
+| finance roles                             | administration, **Rechnungen**     |
+| driver only, or no administration role    | acquisition app                    |
+
+With roles for both areas, switch with **Akquise-App** in the administration
+rail or with **Zur Verwaltung** under **Mehr** in the app. In the
+administration's command palette choose **Verwaltung als Startbereich
+verwenden**; in the app, under **Mehr**, **Akquise-App als Startbereich
+verwenden**. LeonAid keeps the choice while you hold a role for that area.
+After a choice, both places also offer **Standard-Startbereich verwenden**:
+it drops the choice, and the table above applies again. A link to a specific
+page brings you exactly there after sign-in.
+

@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -251,12 +251,13 @@ Hand ausfüllst:
 Lass `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` stehen.
 `pilot-install` erzeugt den echten Key.
 
-Lass `LEONAID_CMS_ENABLED=false` für die Erstinstallation stehen. Die
-Aktionsseiten (`campaign-site`, EmDash-Redaktion) brauchen zuerst ihre
-Datenbank und ihren Medien-Bucket; deren einmalige Einrichtung gehört noch
-nicht zu `pilot-install`. Mit `LEONAID_CMS_ENABLED=true` nimmt jeder
-`pilot-*`-Befehl die Aktionsseiten in den Stack auf, und das Release braucht
-`release-manifest-cms.json` statt `release-manifest.json`.
+Lass `LEONAID_CMS_ENABLED=false` für die Erstinstallation stehen;
+`pilot-install` lehnt `true` ab. Die Aktionsseiten (`campaign-site`,
+EmDash-Redaktion) folgen nach der Installation mit `pilot-cms-provision`
+(siehe [Aktionsseiten einrichten](#aktionsseiten-einrichten)). Mit
+`LEONAID_CMS_ENABLED=true` nimmt jeder `pilot-*`-Befehl die Aktionsseiten in
+den Stack auf, und das Release braucht `release-manifest-cms.json` statt
+`release-manifest.json`.
 
 Mit Verwaltungshost melden sich Mitglieder auf `app.club.org` an (das
 Sitzungs-Cookie gehört zu genau einem Host). Die Akquise-App liegt unter
@@ -512,6 +513,80 @@ einen Passwort-Reset für den Administrator an und prüfe, dass die Mail von
 `TWENTY_MAIL_FROM_ADDRESS` ankommt. Kommt sie nicht, zeigt
 `docker compose ... logs twenty-worker` den SMTP-Fehler.
 :::
+
+## Aktionsseiten einrichten
+
+Die Aktionsseiten und ihre Redaktion (EmDash) brauchen eine Datenbank, einen
+Medien-Bucket, eine erste Einrichtung durch eine LeonAid-Systemadministration
+und das Aktionsschema. `./leonaid pilot-cms-provision` erledigt diese vier
+Schritte auf der laufenden Installation. Vorher lehnen `pilot-deploy`,
+`pilot-release` und `pilot-doctor` `LEONAID_CMS_ENABLED=true` mit dem Hinweis
+auf diesen Befehl ab.
+
+Du brauchst:
+
+- eine laufende Installation aus `pilot-install` und ein Backup, das jünger
+  als 26 Stunden ist;
+- `release-manifest-cms.json` desselben Releases (aus den Release-Dateien);
+- die E-Mail-Adresse einer aktiven LeonAid-Systemadministration, die sich
+  jetzt anmelden kann.
+
+Als `leonaid` in `/opt/leonaid`:
+
+1. Setze `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. Ab
+   jetzt enthält jedes Backup auch die CMS-Datenbank und ihren
+   Einrichtungsstand. Führe Schritt 2 sofort aus: Bis sein Datenbankschritt
+   durchgelaufen ist, lehnt `pilot-backup` ab.
+2. Starte die Einrichtung:
+
+   ```sh
+   ./leonaid pilot-cms-provision \
+     --env-file /etc/leonaid/production.env \
+     --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+     --release-manifest /var/lib/leonaid/releases/release-manifest-cms.json \
+     --system-admin-email admin@club.org
+   ```
+
+   Der Befehl legt die Datenbankrolle, die Datenbank und den Medien-Bucket
+   mit eigenem Zugangsschlüssel an. Danach erlaubt er die EmDash-Einrichtung
+   für 15 Minuten, nur dieser Systemadministration, und endet mit `PENDING`
+   (Exit-Status 75).
+3. Innerhalb der 15 Minuten meldet sich die Systemadministration unter
+   `https://app.club.org/admin/` an (oder auf dem einen Host), öffnet
+   `https://app.club.org/_emdash/admin/setup` und schließt die Einrichtung ab.
+   Jedes andere Konto wird abgewiesen.
+4. Führe denselben Befehl noch einmal aus; `--system-admin-email` ist nicht
+   mehr nötig. Er installiert das Aktionsschema, solange das CMS geschlossen
+   ist, und öffnet das CMS wieder. Die letzte Zeile lautet
+   `pilot-cms-provision: OK`.
+5. Führe einmal `./leonaid pilot-backup` aus: Der Doctor verlangt jetzt ein
+   Backup mit den CMS-Daten. Danach `./leonaid pilot-deploy` mit
+   `release-manifest-cms.json`. Spätere Releases nutzen ebenfalls das
+   CMS-Manifest.
+
+Jeder Schritt prüft zuerst seinen eigenen Stand. Ein zweiter Lauf ändert
+nichts und meldet für jeden Schritt `already`. Bricht ein Lauf mit einem
+Fehler ab, behebe die Ursache und starte den Befehl erneut: Er macht beim
+offenen Schritt weiter.
+
+- **Die Freigabe ist abgelaufen** (die Einrichtung fand nicht innerhalb von
+  15 Minuten statt): Starte den Befehl erneut mit `--system-admin-email`.
+  Nur eine unbenutzte Freigabe wird ersetzt.
+- **„the editor setup started but did not complete“**: Die
+  Einrichtungsanfrage hat EmDash erreicht, ist aber nicht fertig geworden.
+  Die Freigabe ist absichtlich nicht wiederverwendbar. Stelle das CMS aus dem
+  vorherigen Backup wieder her (`pilot-restore`) oder lass das Entwicklungsteam
+  die CMS-Datenbank prüfen.
+- **„the CMS database exists with another EmDash migration state“**: Die
+  Datenbank stammt nicht aus diesem Release. Der Befehl richtet nicht darüber
+  ein.
+- **„existing CMS bucket policy requires review“** (`emdash-rustfs:
+  FAILED`): Der Bucket `emdash-media` hat bereits eine Policy. Prüfe, wer sie
+  gesetzt hat; die CMS-Medien bleiben privat und bekommen keine
+  Bucket-Policy.
+
+Veröffentlichte Aktionsseiten erscheinen unter
+`https://club.org/campaigns/<slug>/` (oder auf dem einen Host).
 
 ## Nächste Schritte
 

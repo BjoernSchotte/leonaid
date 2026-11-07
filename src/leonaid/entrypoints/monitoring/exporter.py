@@ -19,6 +19,10 @@ REQUIRED_BACKUP_FILES = {
     "twenty-storage.tar",
     "twenty.dump",
 }
+# tools/backup/manifest.py: schema 2 (CMS topology) adds the CMS data; the
+# pilot proxy's certificates (caddy-data.tar) are optional in both schemas.
+CMS_BACKUP_FILES = {"emdash.dump", "cms-bootstrap-state.tar"}
+OPTIONAL_BACKUP_FILES = {"caddy-data.tar"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 BACKUP_MAX_AGE_SECONDS = 93_600
 DISK_MIN_FREE_RATIO = 0.10
@@ -30,12 +34,16 @@ def _backup_metrics(path: Path, *, expected_project: str) -> tuple[int, float]:
         document: Any = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(document, dict):
             return 0, 0.0
+        version = document.get("schemaVersion")
         if (
-            document.get("schemaVersion") != 1
+            version not in (1, 2)
             or document.get("sourceProject") != expected_project
             or not isinstance(document.get("files"), dict)
-            or set(document["files"]) != REQUIRED_BACKUP_FILES
         ):
+            return 0, 0.0
+        required = REQUIRED_BACKUP_FILES | (CMS_BACKUP_FILES if version == 2 else set())
+        files = set(document["files"])
+        if not required <= files or files - required - OPTIONAL_BACKUP_FILES:
             return 0, 0.0
         for metadata in document["files"].values():
             if (
