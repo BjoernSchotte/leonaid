@@ -3,6 +3,7 @@ import { inboxModule } from "@leonaid/features/inbox";
 import { knowledgeModule } from "@leonaid/features/knowledge";
 import { materialsModule } from "@leonaid/features/materials";
 import { tasksModule } from "@leonaid/features/tasks";
+import { PWA_BASE, baseRoot } from "@leonaid/ui/base-paths";
 
 // Module pages shipped in the mobile shell. Surveys have no PWA page: their
 // PWA navigation entry links to the shared web editor.
@@ -25,8 +26,8 @@ export const pwaModuleNavigationKeys = [
 
 export function pwaPath(pathname: string): string {
   const relative =
-    pathname === "/app" || pathname.startsWith("/app/")
-      ? pathname.slice("/app".length)
+    pathname === baseRoot(PWA_BASE) || pathname.startsWith(PWA_BASE)
+      ? pathname.slice(baseRoot(PWA_BASE).length)
       : pathname;
   return relative.replace(/\/+$/, "") || "/";
 }

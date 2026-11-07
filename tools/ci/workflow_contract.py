@@ -112,6 +112,8 @@ STATIC_GATES = (
     "axe_helper.py",
     "legacy_ui_test.py",
     "legacy_ui.py",
+    "base_path_literals_test.py",
+    "base_path_literals.py",
     "core_oneoff_user_test.py",
     "core_oneoff_user.py",
     "select_suites_test.py",

@@ -51,6 +51,7 @@ import {
 } from "./delivery-fields";
 import { configuredWindowLabel } from "./order-format";
 import { quantityLabel, unitLabels } from "./quantities";
+import { PWA_BASE } from "@leonaid/ui/base-paths";
 
 interface CommitmentCapturePageProps {
   readonly client: LeonAidApiClient;
@@ -278,7 +279,7 @@ function CaptureSuccess({
       ) : null}
       <a
         className={`${buttonClassName({ size: "lg", variant: "secondary" })} pwa-wide`}
-        href={`/app/?action=${encodeURIComponent(actionId)}`}
+        href={`${PWA_BASE}?action=${encodeURIComponent(actionId)}`}
         onClick={followInPage}
       >
         Zur Startseite
@@ -590,7 +591,7 @@ export function CommitmentCapturePage({
             {items.map((item) => (
               <SponsorRow
                 actionId={actionId}
-                href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
+                href={`${PWA_BASE}commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
                 item={item}
                 key={item.assignmentId}
                 userId={identity.userId}
@@ -602,7 +603,7 @@ export function CommitmentCapturePage({
             action={
               <a
                 className={buttonClassName({ variant: "primary" })}
-                href={`/app/sponsors?action=${encodeURIComponent(actionId)}&view=new`}
+                href={`${PWA_BASE}sponsors?action=${encodeURIComponent(actionId)}&view=new`}
               >
                 Sponsor erfassen
               </a>

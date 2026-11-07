@@ -525,7 +525,7 @@
     },
     {
       "file": "src/leonaid/modules/tasks/api.py",
-      "contains": ["\"Aufgaben\", \"/admin/tasks\", \"web\""]
+      "contains": ["\"Aufgaben\", ADMIN_BASE + \"tasks\", \"web\""]
     }
   ],
   "DOC-P042": [
@@ -568,7 +568,7 @@
     },
     {
       "file": "src/leonaid/modules/materials/api.py",
-      "contains": ["\"Materialien\", \"/admin/materials\", \"web\""]
+      "contains": ["\"Materialien\", ADMIN_BASE + \"materials\", \"web\""]
     }
   ],
   "DOC-P044": [
@@ -726,6 +726,7 @@
         "Stornieren",
         "wird mitstorniert.",
         "LeonAid benachrichtigt den Besteller nicht automatisch.",
+        "Der Besteller erhält eine E-Mail über die Stornierung",
         "bereits geliefert",
         "Zahlung zurückbuchen"
       ]

@@ -28,6 +28,7 @@ from leonaid.application.crm import (
 from leonaid.application.errors import Conflict, DependencyUnavailable, ResourceNotFound
 from leonaid.modules.tasks.api import Task
 from leonaid.modules.materials.api import MaterialVersion
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 
 class InboxModel(TransportModel):
@@ -534,6 +535,6 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return (
-        NavigationItem("inbox", "Eingänge", "/admin/inbox", "web"),
-        NavigationItem("inbox", "Eingänge", "/app/inbox", "pwa"),
+        NavigationItem("inbox", "Eingänge", ADMIN_BASE + "inbox", "web"),
+        NavigationItem("inbox", "Eingänge", PWA_BASE + "inbox", "pwa"),
     )

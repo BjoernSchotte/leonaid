@@ -19,6 +19,7 @@ import {
   Truck,
   Users,
 } from "lucide-react";
+import { pwaHref } from "@leonaid/ui/base-paths";
 
 export type NavigationZoneGroup =
   | "Arbeit"
@@ -203,7 +204,7 @@ const zonesByNavKey: ReadonlyMap<string, NavigationZone> = new Map(
  * PWA item, and it never relabels the PWA's own overview.
  */
 export const ACQUISITION_APP_KEY = "acquisition-app";
-export const ACQUISITION_APP_HREF = "/app/";
+export const ACQUISITION_APP_HREF = pwaHref();
 
 export function zoneForNavKey(navKey: string): NavigationZone | undefined {
   return zonesByNavKey.get(navKey);

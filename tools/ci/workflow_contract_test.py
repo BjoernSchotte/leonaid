@@ -379,6 +379,12 @@ ACTION_MUTATIONS = (
         "lint-types.sh must run tools/ci/legacy_ui.py",
     ),
     (
+        "tools/ci/lint-types.sh",
+        "  python /workspace/tools/ci/base_path_literals.py /workspace\n",
+        "  true\n",
+        "lint-types.sh must run tools/ci/base_path_literals.py",
+    ),
+    (
         ".github/actions/build-cache/action.yml",
         "    - name: Retry layer import and image build\n      if: steps.bake.outcome == 'failure'\n",
         "    - name: Retry layer import and image build\n      if: false\n",

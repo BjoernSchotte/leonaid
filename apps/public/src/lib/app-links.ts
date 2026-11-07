@@ -2,6 +2,7 @@ import type {
   CurrentIdentityResponse,
   NavigationItemResponse,
 } from "@leonaid/api-client";
+import { adminHref, pwaHref } from "@leonaid/ui/base-paths";
 
 /** Header link from the public site into one of the signed-in apps. */
 export interface AppLink {
@@ -45,14 +46,14 @@ export function appLinksFor(
   if (adminEntry) {
     links.push({
       key: "admin",
-      href: localHref(adminEntry.href, "/admin/"),
+      href: localHref(adminEntry.href, adminHref()),
       label: "Zur Verwaltung",
     });
   }
   if (pwaWork) {
     links.push({
       key: "pwa",
-      href: localHref(pwaEntry?.href, "/app/"),
+      href: localHref(pwaEntry?.href, pwaHref()),
       label: "Zur Akquise-App",
     });
   }
@@ -125,5 +126,5 @@ export function adminHostLink(
     admin.host.toLowerCase() === requestHost.toLowerCase()
   )
     return null;
-  return { href: `${admin.origin}/`, label: "Anmelden" };
+  return { href: `${admin.origin}/`, label: "Mitgliederbereich" };
 }

@@ -4,9 +4,9 @@ description: Ohne LeonAid-Konto eine verbindliche Bestellung auf einer veröffen
 docId: DOC-P013
 audience: [user]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
-verifiedAgainst: 122790a30137cd373b12d535826f028307f4fb22
+contentRevision: 5
+reviewedRevision: 5
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -38,6 +38,19 @@ mit einem Link zu jedem betroffenen Feld. Die Eingaben bleiben erhalten.
 Die Bestätigung zeigt **Bestellung eingegangen**, **Danke für Ihre
 Bestellung!** und eine Referenz im Format `LA-…`. Bewahre sie für Rückfragen
 auf. Die Rechnung folgt separat nach Prüfung durch den Club.
+
+Kurz darauf kommt an die angegebene E-Mail-Adresse die Bestellbestätigung
+**Ihre Bestellung bei …**. Sie enthält Bestellnummer, Positionen mit Menge und
+Preis, den Gesamtbetrag, das gewählte Lieferfenster, Liefer- und
+Rechnungsanschrift, einen Link zur Aktionsseite sowie Anbieter, Kontakt und
+Links zu Impressum und Datenschutzerklärung (`/datenschutz`) aus den
+rechtlichen Angaben des Clubs. Die Nachricht an den Club und den Lieferkontakt
+wiederholt sie nicht. Pro Bestellung geht eine Bestätigung hinaus, auch wenn du das Formular
+mehrfach absendest. Wird die Bestellung storniert, bevor die Bestätigung
+verschickt ist, kommt nur der Stornohinweis. An dieselbe Adresse gehen höchstens
+zehn Bestell-E-Mails pro Stunde. Zeilenumbrüche und unsichtbare Steuerzeichen
+in Namen und Anschriften lehnt das Formular ab. Fehlt die E-Mail, prüfe den
+Spam-Ordner und wende dich mit der Referenz an den Club.
 
 Wird das gewählte Lieferfenster während der Eingabe ausgebucht oder
 stillgelegt, nimmt das Formular die Bestellung nicht an, aktualisiert die

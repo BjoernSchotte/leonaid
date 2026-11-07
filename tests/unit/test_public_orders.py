@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -253,3 +254,72 @@ def test_delivery_recipient_is_only_required_for_delivery_actions() -> None:
     assert without_address.request_hash(
         action_id=ACTION_ID, public_alias="abholverkauf"
     ) != public_order().request_hash(action_id=ACTION_ID, public_alias="abholverkauf")
+
+
+def _delivery(draft: PublicOrderDraft, **changes: str) -> PublicOrderDraft:
+    assert draft.delivery_recipient is not None
+    return replace(
+        draft, delivery_recipient=replace(draft.delivery_recipient, **changes)
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "code", "label"),
+    [
+        (
+            lambda draft: _delivery(
+                draft,
+                recipient_name="Max\n\nWichtig: Bitte vorab auf DE12 überweisen.",
+            ),
+            "public_order_delivery_recipient_invalid",
+            "Lieferanschrift (Name)",
+        ),
+        (
+            lambda draft: _delivery(draft, city="Augs‮burg"),
+            "public_order_delivery_recipient_invalid",
+            "Lieferanschrift (Ort)",
+        ),
+        (
+            lambda draft: replace(
+                draft,
+                invoice_recipient=replace(
+                    draft.invoice_recipient, street_line_1="Zahlweg 9\r"
+                ),
+            ),
+            "public_order_invoice_recipient_invalid",
+            "Rechnungsanschrift (Straße)",
+        ),
+        (
+            lambda draft: replace(
+                draft, party=replace(draft.party, given_name="Eri\tka")
+            ),
+            "public_order_given_name_invalid",
+            "Vorname",
+        ),
+        (
+            lambda draft: replace(
+                draft, party=replace(draft.party, company_name="Muster​werk")
+            ),
+            "public_order_company_name_invalid",
+            "Firma",
+        ),
+    ],
+    ids=["newline-name", "bidi-city", "cr-street", "tab-given-name", "zwsp-company"],
+)
+def test_public_order_refuses_line_breaks_and_invisible_characters(
+    change: Callable[[PublicOrderDraft], PublicOrderDraft], code: str, label: str
+) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        change(public_order())
+
+    assert error.value.code == code
+    assert error.value.message.startswith(f"{label}: Bitte ohne Zeilenumbrüche")
+
+
+def test_public_order_message_may_span_lines_but_holds_no_bidi_controls() -> None:
+    assert (
+        replace(public_order(), message="Zeile 1\nZeile 2").message == "Zeile 1 Zeile 2"
+    )
+    with pytest.raises(DomainInvariantError) as error:
+        replace(public_order(), message="Hallo ‮Welt")
+    assert error.value.code == "public_order_message_invalid"

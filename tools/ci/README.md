@@ -480,7 +480,9 @@ The first call installs it; later calls reset its data and seed the next test.
 Application input changes rebuild images with Docker's layer cache. Changes to
 migrations, Compose, environment, pinned images or fixture/provisioning inputs
 invalidate and initialize the data fixture again. This is synthetic test data,
-not an application backup/restore test.
+not an application backup/restore test. When the invocation ends, the fixture's
+containers are stopped (volumes, images and the saved data stay), so an idle
+checkout holds no Twenty, database or application memory.
 
 The existing development stack is never adopted or reset. The test fixture uses
 its own project, volumes and networks without host ports. One process holds the

@@ -47,6 +47,7 @@ import {
   type SharedSectionProps,
 } from "./manage-sections";
 import { useActionErrorMessage } from "./use-action-error";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 const TABS = [
   { id: "overview", label: "Überblick" },
@@ -303,7 +304,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
 
   const leaveToList = useCallback(async () => {
     if (dirtyRef.current.size > 0 && !(await discard.confirmDiscard())) return;
-    window.location.assign("/admin/actions");
+    window.location.assign(adminHref("actions"));
   }, [discard]);
 
   useEffect(() => {
@@ -376,7 +377,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     return (
       <div className="campaign">
         <nav aria-label="Brotkrumen" className="crumbs">
-          <a href="/admin/actions">Aktionen</a>
+          <a href={adminHref("actions")}>Aktionen</a>
         </nav>
         <h1 className="sr-only">Aktion konnte nicht geladen werden</h1>
         <ErrorState
@@ -439,7 +440,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
   return (
     <div className="campaign" data-testid="action-detail">
       <nav aria-label="Brotkrumen" className="crumbs">
-        <a href="/admin/actions">Aktionen</a>
+        <a href={adminHref("actions")}>Aktionen</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">{action.name}</span>
       </nav>

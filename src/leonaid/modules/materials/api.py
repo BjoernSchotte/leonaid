@@ -13,6 +13,7 @@ from pydantic import EmailStr, ConfigDict, Field, StringConstraints, field_valid
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.http import TransportModel
 from leonaid.platform.navigation import NavigationItem
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 Title = Annotated[
@@ -326,6 +327,6 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return (
-        NavigationItem("materials", "Materialien", "/admin/materials", "web"),
-        NavigationItem("materials", "Materialien", "/app/materials", "pwa"),
+        NavigationItem("materials", "Materialien", ADMIN_BASE + "materials", "web"),
+        NavigationItem("materials", "Materialien", PWA_BASE + "materials", "pwa"),
     )

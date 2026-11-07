@@ -129,6 +129,16 @@ class CurrentIdentityResponse(TransportModel):
     fresh_login_at: datetime
     fresh_until: datetime
     installation: InstallationResponse
+    # Start area after login and on `/` of the admin host (§6.7): a path
+    # below the admin or PWA base path, computed by Core.
+    landing_path: str = Field(examples=["/app/", "/admin/system"])
+    preferred_surface: Literal["web", "pwa"] | None = None
+
+
+class PreferredSurfaceRequest(TransportModel):
+    """The start area a member chooses; null returns to the default rule."""
+
+    surface: Literal["web", "pwa"] | None
 
 
 class MemberDirectoryMembershipResponse(TransportModel):
@@ -971,6 +981,26 @@ class PublicLegalNoticeResponse(TransportModel):
     """Impressum data of the installation; provider is null until activated."""
 
     provider: PublicLegalProviderResponse | None
+
+
+class PublicCampaignListItemResponse(TransportModel):
+    """An active campaign for the public home page (no internal ids)."""
+
+    archive_slug: str
+    name: str
+    purpose: str
+    carrier_name: str
+    presentation_theme: str | None
+    starts_on: date
+    ends_on: date
+    # Path of the campaign's page on the public host, and the same page as an
+    # absolute URL (stage 2: possibly on a campaign host).
+    canonical_path: str
+    canonical_url: str
+
+
+class PublicCampaignListResponse(TransportModel):
+    items: list[PublicCampaignListItemResponse]
 
 
 class PublicPrivacyPolicyContentResponse(TransportModel):

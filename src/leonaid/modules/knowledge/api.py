@@ -17,6 +17,7 @@ from leonaid.platform.http import TransportModel
 from leonaid.platform.navigation import NavigationItem
 from leonaid.modules.knowledge.document import validate_document
 from leonaid.modules.tasks.api import CreateTask, Task
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 Document = Annotated[dict[str, Any], BeforeValidator(validate_document)]
 Title = Annotated[
@@ -244,6 +245,6 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return (
-        NavigationItem("knowledge", "Wissen", "/admin/knowledge", "web"),
-        NavigationItem("knowledge", "Wissen", "/app/knowledge", "pwa"),
+        NavigationItem("knowledge", "Wissen", ADMIN_BASE + "knowledge", "web"),
+        NavigationItem("knowledge", "Wissen", PWA_BASE + "knowledge", "pwa"),
     )
