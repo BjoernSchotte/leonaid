@@ -270,9 +270,17 @@ test("a magic link signs in on the admin host and a survey saves on the public h
     "data-save-state",
     "saved",
   );
-  // Participation cookies belong to the public host, never the admin host.
-  const cookies = await respondent.cookies(adminUrl);
-  expect(cookies).toEqual([]);
+  // Participation cookies are host-only cookies of the public host: the
+  // __Host- prefix forbids a Domain attribute, so no sibling (the admin
+  // host) ever receives them.
+  const surveyCookies = (await respondent.cookies()).filter((cookie) =>
+    cookie.name.startsWith("__Host-survey_"),
+  );
+  expect(surveyCookies.length).toBeGreaterThan(0);
+  for (const cookie of surveyCookies) {
+    expect(cookie.domain).toBe(new URL(publicUrl).hostname);
+    expect(cookie.secure).toBe(true);
+  }
   await respondent.close();
   await admin.close();
 });

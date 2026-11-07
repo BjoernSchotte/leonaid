@@ -738,17 +738,12 @@ printf '%s\n' \
   runtime_compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 identity_status() {
-  runtime_compose exec -T api python -c '
-import sys, urllib.error, urllib.request
-request = urllib.request.Request(
-    "http://localhost:8000/api/v1/identity/me",
-    headers={"Cookie": "__Host-leonaid_session=" + sys.argv[1]},
-)
-try:
-    print(urllib.request.urlopen(request, timeout=10).status)
-except urllib.error.HTTPError as error:
-    print(error.code)
-' "$revoke_token"
+  # Through the real edge: TLS, Caddy routes and the API's proxy trust.
+  runtime_compose exec -T proxy curl -s -o /dev/null -w '%{http_code}' \
+    --cacert /data/caddy/pki/authorities/local/root.crt \
+    --resolve portal.leonaid.org:443:127.0.0.1 \
+    -H "Cookie: __Host-leonaid_session=$revoke_token" \
+    https://portal.leonaid.org/api/v1/identity/me
 }
 [ "$(identity_status)" = 200 ] || {
   echo "pilot-deployment-test: ERROR: the proof session does not sign in" >&2
