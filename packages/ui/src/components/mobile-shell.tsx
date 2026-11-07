@@ -25,6 +25,7 @@ import { useFocusNotObscured } from "./focus-clear";
 import { Button, buttonClassName } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 import { LeaveGuardContext, LeaveGuardRegistry } from "./leave-guard";
+import { LegalLinks } from "./legal-links";
 import {
   resolvedTheme,
   setThemePreference,
@@ -614,6 +615,7 @@ function MoreSheet({
               Abmelden
             </Button>
           </div>
+          <LegalLinks className="sheet-legal" />
         </div>
       ) : null}
     </dialog>

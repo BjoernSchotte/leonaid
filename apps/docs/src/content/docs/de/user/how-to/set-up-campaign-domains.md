@@ -1,7 +1,7 @@
 ---
 title: Domains für Aktionen einrichten
 description: Eine Aktion unter einer eigenen Domain oder Subdomain zeigen, Folgeaktionen übernehmen lassen und Domains wieder entfernen.
-docId: DOC-P048
+docId: DOC-P049
 audience: [user]
 diataxis: how-to
 contentRevision: 3

@@ -1,7 +1,7 @@
 ---
 title: Set up domains for campaigns
 description: Show a campaign under its own domain or subdomain, hand the domain to a follow-up campaign and remove domains again.
-docId: DOC-P048
+docId: DOC-P049
 audience: [user]
 diataxis: how-to
 contentRevision: 3

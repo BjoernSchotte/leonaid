@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { PublicLegalProviderResponse } from "@leonaid/api-client";
 
-import { createLegalNoticeReader, providerAddress } from "./legal-notice";
+import {
+  createLegalNoticeReader,
+  providerAddress,
+  providerRegister,
+  telephoneHref,
+} from "./legal-notice";
 
 const provider: PublicLegalProviderResponse = {
   legalName: "Lions Hilfswerk LeonAid Golden e.V.",
@@ -101,5 +106,28 @@ describe("providerAddress", () => {
     expect(providerAddress({ ...provider, countryCode: "AT" })).toBe(
       "Clubweg 1 · 86150 Augsburg · Österreich",
     );
+  });
+});
+
+describe("providerRegister", () => {
+  it("joins court and number, and is null without an entry", () => {
+    expect(providerRegister(provider)).toBeNull();
+    expect(
+      providerRegister({
+        ...provider,
+        registerCourt: "Amtsgericht Augsburg",
+        registerNumber: "VR 1234",
+      }),
+    ).toBe("Amtsgericht Augsburg, VR 1234");
+    expect(
+      providerRegister({ ...provider, registerCourt: "Amtsgericht Augsburg" }),
+    ).toBeNull();
+  });
+});
+
+describe("telephoneHref", () => {
+  it("keeps digits and a leading plus", () => {
+    expect(telephoneHref("+49 (821) 123-456")).toBe("tel:+49821123456");
+    expect(telephoneHref("0821 / 12 34 56")).toBe("tel:0821123456");
   });
 });

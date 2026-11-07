@@ -1,0 +1,38 @@
+---
+import { legalTextBlocks } from "../lib/legal-text";
+
+interface Props {
+  text: string | null | undefined;
+  /** Level of "## " headings inside the text. */
+  headingLevel?: 2 | 3;
+}
+
+const { text, headingLevel = 2 } = Astro.props;
+const blocks = legalTextBlocks(text);
+const Heading = headingLevel === 3 ? "h3" : "h2";
+---
+
+<div class="legal-text">
+  {
+    blocks.map((block) =>
+      block.kind === "heading" ? (
+        <Heading>{block.text}</Heading>
+      ) : block.kind === "list" ? (
+        <ul>
+          {block.items.map((item) => (
+            <li>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>
+          {block.lines.map((line, index) => (
+            <>
+              {index > 0 && <br />}
+              {line}
+            </>
+          ))}
+        </p>
+      ),
+    )
+  }
+</div>

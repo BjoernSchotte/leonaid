@@ -39,8 +39,17 @@ async function openOrderForm(page) {
   );
   await expect(
     legal.getByRole("link", { name: "Datenschutz" }),
-  ).toHaveAttribute("href", "#datenschutz");
+  ).toHaveAttribute("href", "/datenschutz");
+  // The per-action notice stays on the page and links the full policy.
   await expect(page.locator("#datenschutz")).toHaveCount(1);
+  await expect(page.locator("[data-privacy-full-link]")).toHaveAttribute(
+    "href",
+    "/datenschutz",
+  );
+  await expect(form.locator("[data-order-privacy-link]")).toHaveAttribute(
+    "href",
+    "/datenschutz",
+  );
   await expect(form.getByText("Menge und Bestellwert")).toBeVisible();
   await expect(
     form.getByText("Eine bestehende Firma wird automatisch erkannt."),
