@@ -4,8 +4,8 @@ description: Compact reference for the Compose runtime, exposed ports, and opera
 docId: DOC-P027
 audience: [ops]
 diataxis: reference
-contentRevision: 18
-reviewedRevision: 18
+contentRevision: 19
+reviewedRevision: 19
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -44,7 +44,7 @@ enforce STARTTLS. With `starttls` the Twenty containers start with the logger
 mail driver and send nothing; `pilot-doctor` warns but does not block.
 
 Key commands are `bootstrap`, `doctor`, `dev`, `check`, `backup`, `restore`,
-`pilot-doctor`, `pilot-deploy`, `pilot-release`, `pilot-backup`,
+`pilot-doctor`, `pilot-deploy`, `pilot-cms-provision`, `pilot-release`, `pilot-backup`,
 `pilot-restore`, `pilot-repair-crm-match-keys`, `crm-admin`, `test-handoff`, `test-backup`, and `test-upgrade`. Run
 `./leonaid help` for the current complete list; the CLI is authoritative when
 this reference differs.

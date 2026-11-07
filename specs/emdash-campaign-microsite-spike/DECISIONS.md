@@ -199,7 +199,7 @@ The documented user/policy endpoints are under `/rustfs/admin/v3`. Verify their
 behavior against the pinned beta.11 image rather than treating documentation as
 proof of a successful provision or a working least-privilege policy.
 
-- `python -m tools.emdash_spike.provision_rustfs` runs only in an operator
+- `python -m leonaid.entrypoints.cms_storage` (formerly `tools.emdash_spike.provision_rustfs`) runs only in an operator
   container. It needs `RUSTFS_ENDPOINT_URL`, root `RUSTFS_ACCESS_KEY` and
   `RUSTFS_SECRET_KEY`, plus `CMS_S3_ACCESS_KEY_ID=leonaid-emdash` and a separately
   supplied `CMS_S3_SECRET_ACCESS_KEY`. The runtime must receive only CMS keys.

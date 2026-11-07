@@ -32,21 +32,13 @@ cleanup() {
     if ! verify_owned_project_removed "$project"; then status=1; fi
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
-
-# Refuse existing resources and unreadable inventories before Docker mutations.
-existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
-[ -z "$existing" ]
-python3 "$root/tools/surveys/network_override.py" "$isolation_file"
-owned=true
-compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 
 docker run --rm \
   -e PYTHONPATH=/workspace/src \
@@ -108,8 +100,26 @@ docker run --rm \
   bun node_modules/prettier/bin/prettier.cjs --check \
   packages/api-client tests/contract package.json
 
-compose build api
-compose up --detach --wait --wait-timeout 420 api
+# The live contract needs only a running API; a leaf of the shared feature
+# fixture (./leonaid test-integration) borrows its restored stack instead of
+# a cold Twenty installation. Standalone runs (CI api-contract) own a stack.
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services=api
+  . "$root/tools/testing/borrow_stack.sh"
+else
+  # Refuse existing resources and unreadable inventories before Docker mutations.
+  existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
+  existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
+  existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
+  python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+  owned=true
+  compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
+  compose build api
+  compose up --detach --wait --wait-timeout 420 api
+fi
 
 docker run --rm \
   --network "${project}_edge" \

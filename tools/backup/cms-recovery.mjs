@@ -2,7 +2,7 @@ import pg from "pg";
 import { Kysely, sql } from "kysely";
 import { createDialect } from "emdash/db/postgres";
 import { getExactMigrationStatus, MIGRATION_NAMES } from "emdash/db";
-import { provisionPostgres } from "../emdash_spike/provision-postgres.mjs";
+import { provisionPostgres } from "../../apps/campaign-site/src/provision-postgres.mjs";
 import { requireCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
 import { requireCampaignSchema } from "../../apps/campaign-site/src/install-campaign-schema.mjs";
 import { requireCampaignMedia } from "../../apps/campaign-site/src/auth/campaign-media.mjs";

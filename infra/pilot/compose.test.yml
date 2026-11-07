@@ -30,3 +30,8 @@ services:
 
   pilot-exporter:
     image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE is missing}
+
+  # Only with the emdash profile (LEONAID_CMS_ENABLED=true); the default keeps
+  # the placeholder of infra/pilot/compose.yml for stacks without the CMS.
+  campaign-site:
+    image: ${LEONAID_TEST_CAMPAIGN_SITE_IMAGE:-leonaid-cms-disabled.invalid/campaign-site:unset}
