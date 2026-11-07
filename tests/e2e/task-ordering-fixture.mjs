@@ -98,7 +98,9 @@ export async function createFixture(owner, reader) {
     tasks.push(await response.json());
   }
   const plannedOn = tomorrow();
-  for (const context of [owner, reader]) {
+  // Without a reader context nobody plans the tasks, so journeys that count
+  // plans do not see another journey's twelve.
+  for (const context of reader ? [owner, reader] : []) {
     for (const task of tasks) {
       const response = await context.request.put(
         `${baseURL}/api/v1/tasks/${task.id}/plan`,

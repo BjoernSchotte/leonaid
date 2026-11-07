@@ -10,7 +10,10 @@ import {
   signedInContext,
 } from "./task-ordering-fixture.mjs";
 
-/** Holds the next PATCH to the task's position until `release()`. */
+/**
+ * Holds the next PATCH to the task's position until `release()`, then
+ * forwards it unchanged. Later requests pass straight through.
+ */
 async function holdMove(page, taskId) {
   let release;
   const released = new Promise((done) => {
@@ -20,23 +23,28 @@ async function holdMove(page, taskId) {
   const held = new Promise((done) => {
     arrived = done;
   });
+  let holding = true;
   const pattern = `**/api/v1/tasks/${taskId}/position`;
   const handler = async (route) => {
-    if (route.request().method() !== "PATCH") {
+    if (!holding || route.request().method() !== "PATCH") {
       await route.continue();
       return;
     }
-    await page.unroute(pattern, handler);
+    holding = false;
     arrived();
     await released;
     await route.continue();
   };
   await page.route(pattern, handler);
-  const response = page.waitForResponse(
+  const answered = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === "PATCH" &&
       candidate.url().endsWith(`/api/v1/tasks/${taskId}/position`),
   );
+  const response = answered.then(async (result) => {
+    await page.unroute(pattern, handler);
+    return result;
+  });
   return { held, release: () => release(), response };
 }
 
@@ -44,9 +52,8 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   browser,
 }) => {
   const owner = await signedInContext(browser, 0, { width: 1440 });
-  const reader = await signedInContext(browser, 1, { width: 390 });
-  const { list, tasks } = await createFixture(owner, reader);
-  await reader.close();
+  // No plans: the S6 journey counts the plans of both users.
+  const { list, tasks } = await createFixture(owner, null);
 
   const page = await owner.newPage();
   await page.goto(`${baseURL}/admin/tasks/${list.id}?sort=created`);
