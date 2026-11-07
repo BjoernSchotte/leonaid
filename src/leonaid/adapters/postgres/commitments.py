@@ -33,6 +33,7 @@ from leonaid.application.commitments import (
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
+from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     Commitment,
@@ -226,6 +227,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         )
         if replayed is not None:
             return await self._get(connection, replayed, replayed=True)
+        # Only a new completion is bound to the window (PLAN §11.2, D5).
+        if completion.captured_at is not None:
+            bounded_captured_at(completion.captured_at, received_at=occurred_at)
         if row["status"] != "draft" or row["source"] == "public_form":
             raise Conflict(
                 "commitment_not_draft",
@@ -541,6 +545,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 replayed,
                 replayed=True,
             )
+        # Only a new order is bound to the window (PLAN §11.2, D5); a lost
+        # answer replays above even after 14 days. Stored in UTC.
+        captured_at = (
+            bounded_captured_at(draft.captured_at, received_at=occurred_at)
+            if draft.captured_at is not None
+            else None
+        )
 
         action = await connection.fetchrow(
             """
@@ -633,7 +644,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             delivery_contact=draft.delivery_contact,
             message=draft.message,
             idempotency_key=idempotency_key,
-            captured_at=draft.captured_at,
+            captured_at=captured_at,
         )
         await self._insert(
             connection,
@@ -1073,7 +1084,11 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     "currency": commitment.total.currency,
                     **({"fullWindowBooked": True} if full_window_booked else {}),
                     **(
-                        {"capturedAt": commitment.captured_at.isoformat()}
+                        {
+                            "capturedAt": commitment.captured_at.astimezone(
+                                timezone.utc
+                            ).isoformat()
+                        }
                         if commitment.captured_at is not None
                         else {}
                     ),

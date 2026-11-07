@@ -267,6 +267,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     ACTION_CREATE_CONFLICT_RESPONSES,
     ACTIVITY_RECORD_CONFLICT_RESPONSES,
+    COMMITMENT_COMPLETE_CONFLICT_RESPONSES,
     COMMITMENT_CREATE_CONFLICT_RESPONSES,
     MEMBER_ACTION_ROLE_CONFLICT_RESPONSES,
     MEMBER_GLOBAL_ROLE_CONFLICT_RESPONSES,
@@ -3767,7 +3768,7 @@ async def get_commitment(
     "/api/v1/actions/{action_id}/commitments/{commitment_id}/complete",
     operation_id="completeCommitment",
     response_model=CommitmentResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses=COMMITMENT_COMPLETE_CONFLICT_RESPONSES,
     tags=["commitments"],
 )
 async def complete_commitment(

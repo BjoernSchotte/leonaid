@@ -13,7 +13,6 @@ from uuid import UUID
 from leonaid.application.errors import PermissionDenied
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.action_templates import OfferingUnit
-from leonaid.domain.captures import bounded_captured_at
 from leonaid.domain.commitments import (
     BuyerSnapshot,
     Commitment,
@@ -334,9 +333,9 @@ class CommitmentService:
                 "commitment_idempotency_key_invalid",
                 "Die Vorgangs-ID besitzt ein ungültiges Format.",
             )
+        # The repository checks the capturedAt window after its replay
+        # lookup, so a stored completion still replays after 14 days.
         moment = occurred_at or datetime.now(timezone.utc)
-        if completion.captured_at is not None:
-            bounded_captured_at(completion.captured_at, received_at=moment)
         return await self._repository.complete_draft(
             action_id=action_id,
             commitment_id=commitment_id,
@@ -446,7 +445,8 @@ class CommitmentService:
                     "captured_at_source_invalid",
                     "Nur Akquise-Bestellungen können nachgereicht werden.",
                 )
-            bounded_captured_at(draft.captured_at, received_at=moment)
+            # The window (bounded_captured_at) is checked by the repository
+            # after its replay lookup: a lost answer replays even late.
         return await self._repository.create(
             action_id=action_id,
             actor_user_id=actor.account.id,

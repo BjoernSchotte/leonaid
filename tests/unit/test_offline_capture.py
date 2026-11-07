@@ -50,6 +50,15 @@ RECEIVED = datetime(2026, 11, 7, 10, 0, tzinfo=timezone.utc)
 BERLIN = ZoneInfo("Europe/Berlin")
 ACTION = UUID("20000000-0000-4000-8000-000000000001")
 OFFERING = UUID("70000000-0000-4000-8000-000000000001")
+# Computed with the code on main before the offline fields existed (M8): an
+# old client's order and completion hashes must stay byte-identical (R3).
+MAIN_ORDER_HASH = "cbef405a8ca54642ddaa8e41592ad7f85cb83e702085c5aba46a5428f305db8c"
+MAIN_COMPLETION_HASH = (
+    "fb485af6e2cfa76bd217f4e4d26277b36393291d96f34f3ea54ce5e2f7ff37bc"
+)
+# The activity hash is a new contract: a queued entry keeps its key across a
+# Core update, so the canonical form must never change silently.
+ACTIVITY_HASH = "12a52e1f873e6ed14ce53aad09ac71ace83438ec170a524369e8852c35dc3c21"
 
 
 def test_queue_retention_and_server_bound_are_the_same_14_days() -> None:
@@ -141,7 +150,7 @@ def _activity_hash(**changes: object) -> str:
 def test_activity_hash_is_stable_across_offsets_of_the_same_instant() -> None:
     same_instant = datetime(2026, 11, 4, 8, 12, 30, tzinfo=timezone.utc)
     assert _activity_hash() == _activity_hash(captured_at=same_instant)
-    assert re.fullmatch(r"[0-9a-f]{64}", _activity_hash())
+    assert _activity_hash() == ACTIVITY_HASH
 
 
 @pytest.mark.parametrize(
@@ -199,9 +208,8 @@ def _fingerprint(draft: CommitmentDraft) -> str:
 
 
 def test_order_hash_without_capture_time_is_the_pre_upgrade_hash() -> None:
-    # Online capture ignores the client quote; adding the offline fields must
-    # not change the hash of an old client's request (risk R3).
-    quoted = _draft()
+    # Online capture ignores the client quote; the offline fields must not
+    # change the hash of an old client's request (risk R3).
     unquoted = _draft(
         lines=(
             CommitmentLineDraft(
@@ -209,7 +217,8 @@ def test_order_hash_without_capture_time_is_the_pre_upgrade_hash() -> None:
             ),
         )
     )
-    assert _fingerprint(quoted) == _fingerprint(unquoted)
+    assert _fingerprint(_draft()) == MAIN_ORDER_HASH
+    assert _fingerprint(unquoted) == MAIN_ORDER_HASH
 
 
 def test_queued_order_hash_binds_capture_time_and_quoted_price() -> None:
@@ -248,19 +257,20 @@ def test_queued_order_needs_the_price_the_acquirer_saw() -> None:
 
 
 def test_completion_hash_without_capture_time_is_the_pre_upgrade_hash() -> None:
-    commitment_id, actor = uuid4(), uuid4()
-    plain = CommitmentCompletion()
-    queued = CommitmentCompletion(captured_at=RECEIVED)
-
     def fingerprint(completion: CommitmentCompletion) -> str:
         return completion.fingerprint(
-            action_id=ACTION, commitment_id=commitment_id, actor_user_id=actor
+            action_id=ACTION,
+            commitment_id=UUID("80000000-0000-4000-8000-000000000001"),
+            actor_user_id=UUID("10000000-0000-4000-8000-000000000004"),
         )
 
-    assert fingerprint(plain) == fingerprint(CommitmentCompletion())
-    assert fingerprint(queued) != fingerprint(plain)
-    assert fingerprint(CommitmentCompletion(allow_full_window=True)) == fingerprint(
-        plain
+    assert fingerprint(CommitmentCompletion()) == MAIN_COMPLETION_HASH
+    assert (
+        fingerprint(CommitmentCompletion(allow_full_window=True))
+        == MAIN_COMPLETION_HASH
+    )
+    assert fingerprint(CommitmentCompletion(captured_at=RECEIVED)) != (
+        MAIN_COMPLETION_HASH
     )
 
 

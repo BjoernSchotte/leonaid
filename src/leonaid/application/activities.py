@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import json
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from typing import Protocol
 from uuid import UUID
@@ -231,6 +231,7 @@ class AcquisitionActivityRepository(Protocol):
         changed: AcquisitionAssignment,
         capture: ActivityCapture,
         *,
+        expected_revision: int,
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
@@ -240,7 +241,10 @@ class AcquisitionActivityRepository(Protocol):
     ) -> ActivityRecordingResult | None:
         """Persist the activity and, unless the assignment moved, the change.
 
-        ``previous.revision`` is the revision the capture was based on.
+        ``previous`` is the assignment as read, ``changed`` is built from it
+        and ``expected_revision`` is the revision the capture was based on.
+        The change is applied only when ``expected_revision`` equals the read
+        revision and the row still has it; otherwise the assignment moved.
         ``occurred_at`` is when the contact happened (``capturedAt`` or the
         receive time); ``received_at`` is Core's time and drives membership
         checks, ``updated_at``, the history and the audit event. With
@@ -434,11 +438,6 @@ class AcquisitionActivityService:
     ) -> tuple[ActivityRecordingResult, AcquisitionActivityItem]:
         self._require_acquirer(actor, action_id)
         received_at = datetime.now(timezone.utc)
-        occurred_at = (
-            bounded_captured_at(captured_at, received_at=received_at)
-            if captured_at is not None
-            else received_at
-        )
         # The key is optional for one release so that an older cached PWA
         # keeps working (PLAN §11.1, risk R3).
         command: ActivityCommand | None = None
@@ -465,17 +464,23 @@ class AcquisitionActivityService:
                 ),
             )
             # A resend after a lost answer carries the revision the first
-            # send already moved on, so the receipt is read before any check.
-            replayed = await self._repository.replayed_activity(
+            # send already moved on, and may arrive after the capture-time
+            # window closed: the receipt is read before any check.
+            replayed = await self._replay(
                 action_id=action_id,
                 actor_user_id=actor.account.id,
                 command=command,
-                evaluated_at=received_at,
+                received_at=received_at,
+                request_id=request_id,
             )
             if replayed is not None:
-                return replayed, await self._activity_item(
-                    replayed, request_id=request_id
-                )
+                return replayed
+        # Only a new write is bound to the window (PLAN §11.2, D5).
+        occurred_at = (
+            bounded_captured_at(captured_at, received_at=received_at)
+            if captured_at is not None
+            else received_at
+        )
         previous = await self._repository.active_assignment_for_actor(
             action_id=action_id,
             actor_user_id=actor.account.id,
@@ -486,15 +491,22 @@ class AcquisitionActivityService:
         if previous is None:
             raise concealed_resource()
         # A queued capture (capturedAt) keeps the contact when the assignment
-        # moved meanwhile (D1); an online capture is refused as before. With
-        # a key the repository decides under the key lock: a concurrent send
-        # of the same key may have moved the revision and must replay.
+        # moved meanwhile (D1); an online capture is refused as before, and
+        # before any CRM lookup.
         keep_contact = captured_at is not None
-        if (
-            previous.revision != expected_revision
-            and not keep_contact
-            and command is None
-        ):
+        if previous.revision != expected_revision and not keep_contact:
+            if command is not None:
+                # A revision moved by a concurrent send of this very key is
+                # committed together with its receipt: replay it.
+                replayed = await self._replay(
+                    action_id=action_id,
+                    actor_user_id=actor.account.id,
+                    command=command,
+                    received_at=received_at,
+                    request_id=request_id,
+                )
+                if replayed is not None:
+                    return replayed
             raise Conflict(
                 "assignment_revision_conflict",
                 "Die Zuordnung wurde zwischenzeitlich geändert. Bitte neu laden.",
@@ -541,18 +553,15 @@ class AcquisitionActivityService:
             next_action=next_action,
             due_at=due_at,
         )
-        # The repository compares the capture's base revision with the
-        # locked row, so the base carries the expected revision.
-        base = (
-            previous
-            if previous.revision == expected_revision
-            else replace(previous, revision=expected_revision)
-        )
-        changed = base.record_activity(capture, occurred_at=received_at)
+        # ``changed`` is built from the state read at ``previous.revision``;
+        # the repository applies it only when the capture was based on that
+        # very revision and the row still has it.
+        changed = previous.record_activity(capture, occurred_at=received_at)
         result = await self._repository.record_activity(
-            base,
+            previous,
             changed,
             capture,
+            expected_revision=expected_revision,
             actor_user_id=actor.account.id,
             request_id=request_id,
             occurred_at=occurred_at,
@@ -563,6 +572,25 @@ class AcquisitionActivityService:
         if result is None:
             raise concealed_resource()
         return result, await self._activity_item(result, request_id=request_id)
+
+    async def _replay(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        command: ActivityCommand,
+        received_at: datetime,
+        request_id: str,
+    ) -> tuple[ActivityRecordingResult, AcquisitionActivityItem] | None:
+        replayed = await self._repository.replayed_activity(
+            action_id=action_id,
+            actor_user_id=actor_user_id,
+            command=command,
+            evaluated_at=received_at,
+        )
+        if replayed is None:
+            return None
+        return replayed, await self._activity_item(replayed, request_id=request_id)
 
     async def _activity_item(
         self,

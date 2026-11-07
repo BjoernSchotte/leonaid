@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -1708,8 +1709,15 @@ class AsyncpgAcquisitionPolicyRepository(
             party_id=activity.party_id,
             evaluated_at=evaluated_at,
         )
-        if assignment is None:
+        if assignment is None or assignment.id != activity.assignment_id:
+            # Handed over or replaced by another assignment for the party.
             raise concealed_resource()
+        # The revision this send produced (or met, see assignmentUpdated),
+        # never the current one: the queue advances later entries' base only
+        # from it (PLAN §9.2, §11.1).
+        stored_revision = result.get("assignmentRevision")
+        if stored_revision is not None:
+            activity = replace(activity, assignment_revision=int(str(stored_revision)))
         return ActivityRecordingResult(
             assignment=assignment,
             activity=activity,
@@ -1723,6 +1731,7 @@ class AsyncpgAcquisitionPolicyRepository(
         changed: AcquisitionAssignment,
         capture: ActivityCapture,
         *,
+        expected_revision: int,
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
@@ -1760,8 +1769,15 @@ class AsyncpgAcquisitionPolicyRepository(
                     )
                     if replayed is not None:
                         return replayed
-                persisted_revision = await connection.fetchval(
-                    """
+                # ``changed`` derives from the state read at previous.revision,
+                # so it may only replace exactly that revision. A capture based
+                # on any other revision meets a moved assignment.
+                based_on_read = expected_revision == previous.revision
+                persisted_revision = (
+                    None
+                    if not based_on_read
+                    else await connection.fetchval(
+                        """
                     UPDATE acquisition_assignment AS assignment
                     SET status = $6,
                         priority = $7,
@@ -1794,20 +1810,27 @@ class AsyncpgAcquisitionPolicyRepository(
                       )
                     RETURNING revision
                     """,
-                    previous.id,
-                    previous.action_id,
-                    actor_user_id,
-                    previous.revision,
-                    received_at,
-                    changed.state.status.value,
-                    changed.state.priority,
-                    changed.state.next_action,
-                    changed.state.due_at,
-                    received_at,
+                        previous.id,
+                        previous.action_id,
+                        actor_user_id,
+                        previous.revision,
+                        received_at,
+                        changed.state.status.value,
+                        changed.state.priority,
+                        changed.state.next_action,
+                        changed.state.due_at,
+                        received_at,
+                    )
                 )
                 assignment_updated = persisted_revision is not None
                 if persisted_revision is None:
                     if not keep_contact_on_moved_assignment:
+                        if not based_on_read:
+                            raise Conflict(
+                                "assignment_revision_conflict",
+                                "Die Zuordnung wurde zwischenzeitlich geändert. "
+                                "Bitte neu laden.",
+                            )
                         await self._raise_revision_if_changed(
                             connection,
                             previous.id,
@@ -1887,13 +1910,16 @@ class AsyncpgAcquisitionPolicyRepository(
                     "assignmentRevision": activity_revision,
                     "channel": capture.channel.value,
                     "outcome": capture.outcome.value,
-                    "hasReminder": capture.due_at is not None,
+                    "hasReminder": capture.due_at is not None and assignment_updated,
                     "noteLength": len(capture.note or ""),
                 }
                 if occurred_at != received_at:
-                    audit_payload["capturedAt"] = occurred_at.isoformat()
+                    audit_payload["capturedAt"] = occurred_at.astimezone(
+                        timezone.utc
+                    ).isoformat()
                 if not assignment_updated:
                     audit_payload["assignmentUpdated"] = False
+                    audit_payload["followUpRejected"] = capture.due_at is not None
                 await connection.execute(
                     """
                     INSERT INTO audit_event (
@@ -1923,13 +1949,15 @@ class AsyncpgAcquisitionPolicyRepository(
                 if command is not None:
                     # Written complete inside the transaction: a refused
                     # send rolls back and leaves no receipt (PLAN §11.5).
-                    await connection.execute(
+                    stored = await connection.fetchval(
                         """
                         INSERT INTO command_receipt (
                             idempotency_key, command_type, request_hash,
                             result, completed_at
                         )
                         VALUES ($1, $2, $3, $4::jsonb, $5)
+                        ON CONFLICT (idempotency_key) DO NOTHING
+                        RETURNING true
                         """,
                         command.idempotency_key,
                         ACTIVITY_COMMAND_TYPE,
@@ -1938,11 +1966,20 @@ class AsyncpgAcquisitionPolicyRepository(
                             {
                                 "activityId": str(activity_id),
                                 "assignmentUpdated": assignment_updated,
+                                "assignmentRevision": activity_revision,
                             },
                             separators=(",", ":"),
                         ),
                         received_at,
                     )
+                    if not stored:
+                        # Another command wrote this key without the key lock.
+                        # Roll this activity back; a resend replays or conflicts.
+                        raise Conflict(
+                            "idempotency_incomplete",
+                            "Die vorherige Verarbeitung ist noch nicht "
+                            "abgeschlossen. Bitte erneut versuchen.",
+                        )
                 persisted_row = await self._assignment_record(
                     connection,
                     action_id=previous.action_id,

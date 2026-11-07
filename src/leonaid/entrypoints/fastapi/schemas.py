@@ -2052,7 +2052,14 @@ class RecordedAcquisitionActivityResponse(TransportModel):
     note: str | None
     next_action: str | None
     due_at: datetime | None
-    assignment_revision: int = Field(ge=1)
+    assignment_revision: int = Field(
+        ge=1,
+        description=(
+            "The assignment revision this activity produced; for a contact "
+            "kept on a moved assignment (`assignmentUpdated` false) the "
+            "revision it met. Stable across replays."
+        ),
+    )
     occurred_at: datetime
 
 
@@ -2071,12 +2078,20 @@ class RecordAcquisitionActivityResponse(TransportModel):
         description=(
             "False when a capture with `capturedAt` met an assignment that "
             "changed meanwhile: the contact is recorded, status, next action "
-            "and due date stay as `assignment` shows them."
+            "and due date stay as `assignment` shows them. A queue moves the "
+            "base revision of its later entries only when this is true, and "
+            "only to `activity.assignmentRevision` (never to "
+            "`assignment.revision`, which may contain someone else's change)."
         ),
     )
     replayed: bool = Field(
         default=False,
-        description="True when the `Idempotency-Key` was already processed.",
+        description=(
+            "True when the `Idempotency-Key` was already processed. The "
+            "answer then carries the stored activity with the revision that "
+            "send produced (`activity.assignmentRevision`) and the stored "
+            "`assignmentUpdated`; `assignment` is the current assignment."
+        ),
     )
 
 
@@ -2410,24 +2425,68 @@ ACTION_CREATE_CONFLICT_RESPONSES = _conflicts(
     "action_archive_slug_conflict",
 )
 
+
+def _invalid(
+    responses: dict[int | str, dict[str, object]], *codes: str
+) -> dict[int | str, dict[str, object]]:
+    """Responses whose 422 also lists the command's stable domain codes."""
+
+    return {
+        **responses,
+        422: {
+            "model": ApiErrorResponse,
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen "
+            "(`request_invalid`). Stabile Fachcodes: "
+            + ", ".join(f"`{code}`" for code in codes)
+            + ".",
+        },
+    }
+
+
 # Contact attempts; the PWA offline queue maps these (PLAN §9.4, §10.1).
-ACTIVITY_RECORD_CONFLICT_RESPONSES = _conflicts(
-    "assignment_revision_conflict",
-    "contact_suppressed",
-    "idempotency_conflict",
-    "idempotency_incomplete",
+ACTIVITY_RECORD_CONFLICT_RESPONSES = _invalid(
+    _conflicts(
+        "assignment_revision_conflict",
+        "contact_suppressed",
+        "idempotency_conflict",
+        "idempotency_incomplete",
+    ),
+    "activity_idempotency_key_invalid",
+    "captured_at_out_of_range",
 )
 
-# Order capture; the PWA offline queue maps these (PLAN §10.2). The window,
-# delivery and offering refusals are 422 (`delivery_window_unavailable`,
-# `delivery_required`, `offering_not_available`, `captured_at_out_of_range`).
-COMMITMENT_CREATE_CONFLICT_RESPONSES = _conflicts(
-    "commitment_price_changed",
-    "commitment_ordering_disabled",
-    "commitment_action_closed",
-    "commitment_concurrent_retry",
-    "delivery_window_full",
-    "idempotency_conflict",
+# Order capture; the PWA offline queue maps these (PLAN §10.2).
+COMMITMENT_CREATE_CONFLICT_RESPONSES = _invalid(
+    _conflicts(
+        "commitment_price_changed",
+        "commitment_ordering_disabled",
+        "commitment_action_closed",
+        "commitment_concurrent_retry",
+        "delivery_window_full",
+        "idempotency_conflict",
+    ),
+    "captured_at_out_of_range",
+    "captured_at_source_invalid",
+    "commitment_client_quote_required",
+    "commitment_idempotency_key_invalid",
+    "delivery_window_unavailable",
+    "delivery_required",
+    "offering_not_available",
+)
+
+# Completing an own draft; the PWA offline queue maps these (PLAN §10.2).
+COMMITMENT_COMPLETE_CONFLICT_RESPONSES = _invalid(
+    _conflicts(
+        "commitment_not_draft",
+        "commitment_action_closed",
+        "commitment_concurrent_retry",
+        "delivery_window_full",
+        "idempotency_conflict",
+    ),
+    "captured_at_out_of_range",
+    "commitment_idempotency_key_invalid",
+    "delivery_window_unavailable",
+    "delivery_required",
 )
 
 RequestIdHeader = Annotated[

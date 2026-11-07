@@ -15,6 +15,18 @@ from zoneinfo import ZoneInfo
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.acquisition import AsyncpgAcquisitionPolicyRepository
+from leonaid.application.activities import (
+    ACTIVITY_COMMAND_TYPE,
+    activity_request_hash,
+)
+from leonaid.application.errors import Conflict
+from leonaid.domain.acquisition import (
+    ActivityCapture,
+    ActivityChannel,
+    ActivityOutcome,
+    AssignmentPartyKind,
+)
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -613,7 +625,10 @@ async def exercise_offline_queue(
     if (
         not isinstance(moved_payload, dict)
         or moved_payload.get("assignmentUpdated") is not False
-        or "capturedAt" not in moved_payload
+        # The follow-up was not applied, so the audit reports none (M6).
+        or moved_payload.get("hasReminder") is not False
+        or moved_payload.get("followUpRejected") is not True
+        or not str(moved_payload.get("capturedAt", "")).endswith("+00:00")
         or "note" in moved_payload
     ):
         raise ContractFailure("Moved-assignment audit is wrong")
@@ -657,11 +672,218 @@ async def exercise_offline_queue(
     ):
         raise ContractFailure("Concurrent sends of one key recorded twice")
 
+    # I1: a replay after a later change returns the revision that send
+    # produced, never the current one; the queue advances its base only from
+    # activity.assignmentRevision and only when assignmentUpdated is true.
+    late_replay = await send_activity(
+        api, token, "poc061:offline:replay-after-change", queued_body, key("queued")
+    )
+    late_replay.raise_for_status()
+    late_json = late_replay.json()
+    if (
+        late_json["replayed"] is not True
+        or late_json["assignmentUpdated"] is not True
+        or late_json["activity"]["assignmentRevision"] != revision + 1
+        or late_json["assignment"]["revision"] != revision + 2
+    ):
+        raise ContractFailure(f"Replay returned the current revision: {late_json}")
+
+    # Two queued contacts with different keys on one revision (two devices):
+    # both are recorded, exactly one applies its follow-up (D1 under race).
+    devices = await asyncio.gather(
+        *(
+            send_activity(
+                api,
+                token,
+                f"poc061:offline:device-{index}",
+                body(
+                    revision=revision + 2,
+                    capturedAt=(now - timedelta(minutes=20 + index)).isoformat(),
+                    note=f"Kontakt von Gerät {index}.",
+                ),
+                key(f"device-{index}"),
+            )
+            for index in range(4)
+        )
+    )
+    if [response.status_code for response in devices] != [201] * 4:
+        raise ContractFailure(
+            f"Racing devices failed: {[response.text for response in devices]}"
+        )
+    applied = [r.json() for r in devices if r.json()["assignmentUpdated"]]
+    after_devices = await assignment()
+    if (
+        len(applied) != 1
+        or applied[0]["activity"]["assignmentRevision"] != revision + 3
+        or int(after_devices["revision"]) != revision + 3
+        or after_devices["activities"] != after_moved["activities"] + 5
+        or any(
+            r.json()["activity"]["assignmentRevision"] != revision + 3 for r in devices
+        )
+    ):
+        raise ContractFailure("Racing devices lost a contact or applied twice")
+
+    # M2: a stored capture replays even after its 14-day window closed. The
+    # receipt is planted for a 20-day-old capture of the queued activity.
+    old_body = body(capturedAt=(now - timedelta(days=20)).isoformat())
+    await connection.execute(
+        """
+        INSERT INTO command_receipt (
+            idempotency_key, command_type, request_hash, result, completed_at
+        )
+        VALUES ($1, $2, $3, $4::jsonb, CURRENT_TIMESTAMP)
+        """,
+        key("late"),
+        ACTIVITY_COMMAND_TYPE,
+        activity_request_hash(
+            action_id=ACTION_ID,
+            actor_user_id=BERND_ID,
+            party_kind=AssignmentPartyKind.COMPANY,
+            party_id=SONNENSEITE_ID,
+            expected_revision=revision,
+            channel=ActivityChannel.IN_PERSON,
+            outcome=ActivityOutcome.FOLLOW_UP,
+            note=str(old_body["note"]),
+            next_action=str(old_body["nextAction"]),
+            due_on=due_on,
+            captured_at=datetime.fromisoformat(str(old_body["capturedAt"])),
+        ),
+        json.dumps(
+            {
+                "activityId": activity["id"],
+                "assignmentUpdated": True,
+                "assignmentRevision": revision + 1,
+            }
+        ),
+    )
+    late = await send_activity(
+        api, token, "poc061:offline:late-replay", old_body, key("late")
+    )
+    if late.status_code != 201 or late.json()["replayed"] is not True:
+        raise ContractFailure(f"Late resend was not replayed: {late.text}")
+
+    await exercise_repository_races(connection)
+
+    # Ruling 2: after a handover the replay is concealed (404).
+    status_before = after_devices["status"]
+    await connection.execute(
+        "UPDATE acquisition_assignment SET status = 'handed_over' WHERE id = $1",
+        BERND_SONNENSEITE_ASSIGNMENT,
+    )
+    try:
+        handed = await send_activity(
+            api, token, "poc061:offline:handed-replay", moved_body, key("moved")
+        )
+        if handed.status_code != 404 or error_code(handed) != "resource_not_found":
+            raise ContractFailure(f"Replay after handover leaked: {handed.text}")
+    finally:
+        await connection.execute(
+            "UPDATE acquisition_assignment SET status = $2 WHERE id = $1",
+            BERND_SONNENSEITE_ASSIGNMENT,
+            status_before,
+        )
+
     print(
         "activity-contract: OK: offline queue: idempotent replay, key bound to",
         "content and account, capturedAt bounds and split from receive time,",
         "contact kept on a moved assignment, one row per concurrent key",
     )
+
+
+async def exercise_repository_races(connection: asyncpg.Connection[Any]) -> None:
+    """Changes between the service's read and the write (M1, ruling 2).
+
+    Over HTTP the window between the read and the locked write cannot be
+    hit on purpose, so the repository is called with an assignment read
+    before a concurrent change.
+    """
+
+    pool = await asyncpg.create_pool(require_env("CORE_DATABASE_URL"), max_size=2)
+    try:
+        repository = AsyncpgAcquisitionPolicyRepository(pool)
+
+        async def read() -> Any:
+            current = await repository.active_assignment_for_actor(
+                action_id=ACTION_ID,
+                actor_user_id=BERND_ID,
+                party_kind=AssignmentPartyKind.COMPANY,
+                party_id=SONNENSEITE_ID,
+                evaluated_at=datetime.now(timezone.utc),
+            )
+            if current is None:
+                raise ContractFailure("Bernd's assignment is not active")
+            return current
+
+        capture = ActivityCapture.create(
+            channel=ActivityChannel.IN_PERSON,
+            outcome=ActivityOutcome.DECLINED,
+            note="Repository-Nachweis.",
+            next_action=None,
+            due_at=None,
+        )
+
+        async def record(previous: Any, *, expected: int, keep: bool) -> Any:
+            received_at = datetime.now(timezone.utc)
+            return await repository.record_activity(
+                previous,
+                previous.record_activity(capture, occurred_at=received_at),
+                capture,
+                expected_revision=expected,
+                actor_user_id=BERND_ID,
+                request_id="poc061:offline:repository",
+                occurred_at=received_at - timedelta(minutes=1),
+                received_at=received_at,
+                keep_contact_on_moved_assignment=keep,
+            )
+
+        # M1: read at N, the client sends N+1 and a concurrent change moves
+        # the row to N+1. The state read at N must not overwrite it.
+        stale = await read()
+        await connection.execute(
+            """
+            UPDATE acquisition_assignment
+            SET priority = 3, revision = revision + 1
+            WHERE id = $1
+            """,
+            BERND_SONNENSEITE_ASSIGNMENT,
+        )
+        try:
+            await record(stale, expected=stale.revision + 1, keep=False)
+        except Conflict as error:
+            if error.code != "assignment_revision_conflict":
+                raise
+        else:
+            raise ContractFailure("A newer base revision overwrote a change")
+        kept = await record(stale, expected=stale.revision + 1, keep=True)
+        moved = await read()
+        if (
+            kept is None
+            or kept.assignment_updated
+            or moved.revision != stale.revision + 1
+            or moved.state.priority != 3
+            or moved.state.status is not stale.state.status
+        ):
+            raise ContractFailure("A kept contact changed a moved assignment")
+
+        # Ruling 2 for the write: handed over between read and write → None
+        # (404), on the read revision and on a moved one.
+        before = await read()
+        await connection.execute(
+            "UPDATE acquisition_assignment SET status = 'handed_over' WHERE id = $1",
+            BERND_SONNENSEITE_ASSIGNMENT,
+        )
+        try:
+            for expected in (before.revision, before.revision - 1):
+                if await record(before, expected=expected, keep=True) is not None:
+                    raise ContractFailure("A handed-over assignment got a contact")
+        finally:
+            await connection.execute(
+                "UPDATE acquisition_assignment SET status = $2 WHERE id = $1",
+                BERND_SONNENSEITE_ASSIGNMENT,
+                before.state.status.value,
+            )
+    finally:
+        await pool.close()
 
 
 async def main() -> None:

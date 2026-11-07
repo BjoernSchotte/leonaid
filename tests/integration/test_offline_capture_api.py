@@ -32,7 +32,10 @@ from leonaid.domain.sessions import (
     SESSION_LIFETIME,
     session_token_digest,
 )
+from leonaid.domain.commitments import CommitmentSource, CommitmentStatus
 from leonaid.entrypoints.fastapi.platform import create_app
+from leonaid.entrypoints.fastapi.routes import commitment_draft
+from leonaid.entrypoints.fastapi.schemas import CreateCommitmentRequest
 
 BASE_URL = "https://offline-capture.leonaid.invalid"
 
@@ -295,6 +298,8 @@ class Proof:
         await self.window_full_meanwhile()
         await self.concurrent_sends_create_one_order()
         await self.queued_completion_of_a_draft()
+        await self.price_and_window_changed_meanwhile()
+        await self.late_resend_replays()
 
     async def queued_order_keeps_capture_time(self) -> None:
         # Captured at 00:30 Berlin two days ago: the UTC day before.
@@ -339,6 +344,9 @@ class Proof:
         )
         payload = json.loads(audit) if isinstance(audit, str) else audit
         assert datetime.fromisoformat(payload["capturedAt"]) == captured
+        # Canonical UTC, like the activity and completion audits (M7).
+        assert payload["capturedAt"].endswith("+00:00"), payload
+        assert order["capturedAt"].endswith(("Z", "+00:00")), order
 
         detail = await self.get(f"{self.orders}/{order['id']}")
         assert detail.status_code == 200, detail.text
@@ -543,6 +551,87 @@ class Proof:
         )
         payload = json.loads(payload) if isinstance(payload, str) else payload
         assert datetime.fromisoformat(payload["capturedAt"]) == captured
+
+    async def price_and_window_changed_meanwhile(self) -> None:
+        # Both changed: the window guard answers first, the confirmation
+        # keeps the key, then the price guard asks; the new price is a new key.
+        await self.db.execute(
+            "UPDATE offering SET unit_price_minor = 3800 WHERE id = $1",
+            self.data.offering,
+        )
+        try:
+            captured = datetime.now(timezone.utc) - timedelta(hours=5)
+            key = self.key("price-and-window")
+            full = await self.post(
+                self.orders,
+                self.body(captured_at=captured, window=self.data.full_window),
+                key,
+            )
+            assert full.status_code == 409, full.text
+            assert self.error(full)["code"] == "delivery_window_full"
+            confirmed = self.body(
+                captured_at=captured,
+                window=self.data.full_window,
+                allow_full_window=True,
+            )
+            price = await self.post(self.orders, confirmed, key)
+            assert price.status_code == 409, price.text
+            assert self.error(price)["code"] == "commitment_price_changed"
+            assert self.error(price)["details"]["totalMinor"] == 7600
+            assert await self.receipts(key) == 0
+            accepted = await self.post(
+                self.orders,
+                self.body(
+                    captured_at=captured,
+                    quote=3800,
+                    window=self.data.full_window,
+                    allow_full_window=True,
+                ),
+                self.key("price-and-window-accepted"),
+            )
+            assert accepted.status_code == 201, accepted.text
+            assert accepted.json()["totalMinor"] == 7600
+        finally:
+            await self.db.execute(
+                "UPDATE offering SET unit_price_minor = 3600 WHERE id = $1",
+                self.data.offering,
+            )
+
+    async def late_resend_replays(self) -> None:
+        # M2: a stored order replays after its 14-day window closed (lost
+        # answer, retry on day 15). The receipt of a 20-day-old capture is
+        # planted for an existing order; a new write would be refused.
+        existing = await self.post(
+            self.orders,
+            self.body(captured_at=datetime.now(timezone.utc) - timedelta(hours=6)),
+            self.key("late-source"),
+        )
+        assert existing.status_code == 201, existing.text
+        old = self.body(captured_at=datetime.now(timezone.utc) - timedelta(days=20))
+        draft = commitment_draft(CreateCommitmentRequest.model_validate(old))
+        key = self.key("late")
+        await self.db.execute(
+            """
+            INSERT INTO command_receipt (
+                idempotency_key, command_type, request_hash, result, completed_at
+            )
+            VALUES ($1, 'create_commitment_v1', $2, $3::jsonb, CURRENT_TIMESTAMP)
+            """,
+            key,
+            draft.fingerprint(
+                action_id=self.data.action,
+                source=CommitmentSource.ACQUISITION,
+                status=CommitmentStatus.REVIEW_READY,
+            ),
+            json.dumps({"commitmentId": existing.json()["id"]}),
+        )
+        late = await self.post(self.orders, old, key)
+        assert late.status_code == 201, late.text
+        assert late.json()["replayed"] is True
+        assert late.json()["id"] == existing.json()["id"]
+        fresh = await self.post(self.orders, old, self.key("late-new"))
+        assert fresh.status_code == 422, fresh.text
+        assert self.error(fresh)["code"] == "captured_at_out_of_range"
 
 
 async def main() -> None:
