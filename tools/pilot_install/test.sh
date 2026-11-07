@@ -720,6 +720,16 @@ cms_state() {
   runtime_compose --profile emdash run --rm --no-deps --entrypoint node \
     campaign-site /app/operator/cms-provision-operator.mjs status
 }
+assert_backup_schema() {
+  cp "$backup_manifest" "$workspace/manifest-copy.json"
+  docker run --rm \
+    --env "EXPECTED_SCHEMA=$1" \
+    --volume "$workspace/manifest-copy.json:/proof/manifest.json:ro" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json, os, pathlib
+value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
+assert value["schemaVersion"] == int(os.environ["EXPECTED_SCHEMA"]), value["schemaVersion"]'
+}
 cms_proof() {
   cms_proof_run "$@" || {
     # Diagnosis without secrets: provisioning state and the Core identity
@@ -841,10 +851,83 @@ printf '%s' "$cms_output" | grep -Fq "2/4 media bucket: already provisioned"
 cms_state | grep -qx 'bootstrap=armed'
 # Still pending: a repeat neither re-arms nor needs the address again.
 cms_expect "waits for the setup" 75 "3/4 editor setup: PENDING"
+# One grant at a time: another System Admin's address is refused, not ignored.
+printf '%s\n' \
+  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c3', 'cms-second-admin@leonaid.org', 'Second System Admin', 'active');" \
+  "INSERT INTO user_global_role (user_id, role) VALUES ('10000000-0000-4000-8000-0000000000c3', 'system_admin');" |
+  core_sql
+cms_expect "refuses a second System Admin while armed" 1 \
+  "the setup is armed for another System Admin until" \
+  --system-admin-email cms-second-admin@leonaid.org
+
+# While provisioning is under way the nightly backup keeps working without
+# the unfinished CMS; switching the CMS off again needs no restore.
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file" \
+  >"$workspace/cms-pending-backup.log" 2>&1 || {
+  echo "pilot-install-test: ERROR: pilot-backup failed while the CMS setup was pending" >&2
+  tail -n 20 "$workspace/cms-pending-backup.log" >&2
+  exit 1
+}
+grep -Fq "this backup does not contain the unfinished CMS" "$workspace/cms-pending-backup.log"
+assert_backup_schema 1
+sed -i 's/^LEONAID_CMS_ENABLED=true$/LEONAID_CMS_ENABLED=false/' "$env_file"
+leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --password-file "$restic_password_file" --credentials-file "$backup_credentials_file" \
+  >"$workspace/cms-off-backup.log" 2>&1 || {
+  echo "pilot-install-test: ERROR: pilot-backup failed after switching the CMS off again" >&2
+  tail -n 20 "$workspace/cms-off-backup.log" >&2
+  exit 1
+}
+grep -Fq "the unfinished CMS (setup not complete) is not part of this backup" \
+  "$workspace/cms-off-backup.log"
+leonaid_test pilot-doctor --env-file "$env_file" --backup-manifest "$backup_manifest" \
+  --gate pilot-deploy >/dev/null
+sed -i 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' "$env_file"
+echo "pilot-install-test: CMS backups and the switch-off work while the setup is pending"
+
+# A refused setup request hands the grant back instead of locking the CMS.
+cms_proof setup-refused
+cms_state | grep -qx 'bootstrap=armed'
+# A grant left consumed (a crash during the setup request) is withdrawn only
+# with --reset-setup, and only while the CMS is unused; Core audits it.
+runtime_compose --profile emdash exec -T campaign-site node -e '
+const fs = require("node:fs");
+const path = "/app/bootstrap-state/state.json";
+const state = JSON.parse(fs.readFileSync(path, "utf8"));
+fs.writeFileSync(path, JSON.stringify({ ...state, status: "consumed" }));'
+cms_expect "blocks at a consumed grant" 1 "run again with --reset-setup"
+cms_expect "withdraws the unfinished grant and arms again" 75 \
+  "3/4 editor setup: PENDING" --reset-setup --system-admin-email "$cms_admin_email"
+printf '%s' "$cms_output" | grep -Fq "unfinished setup grant withdrawn"
+audits=$(core_sql --tuples-only --no-align --command \
+  "SELECT string_agg(event_type, ',' ORDER BY occurred_at) FROM audit_event WHERE entity_type = 'cms_setup_grant' AND entity_id = '$cms_admin_id'")
+[ "$audits" = "cms.setup_grant.armed,cms.setup_grant.withdrawn,cms.setup_grant.armed" ] || {
+  echo "pilot-install-test: ERROR: unexpected CMS setup audit trail: $audits" >&2
+  exit 1
+}
 cms_proof setup
 cms_expect "installs the campaign schema" 0 \
   "pilot-cms-provision: OK: $project serves the CMS"
 printf '%s' "$cms_output" | grep -Fq "3/4 editor setup: already complete"
+printf '%s' "$cms_output" | grep -Fq "4/4 campaign schema: installing"
+
+# Step 4 interrupted between its installers (here after the binding guards):
+# traffic closed, CMS stopped, media guards absent. The next run finishes it.
+runtime_compose --profile emdash stop campaign-site >/dev/null
+runtime_compose --profile emdash run --rm --no-deps --entrypoint mkdir \
+  campaign-site /app/bootstrap-state/cms-maintenance
+printf '%s\n' \
+  "DROP TABLE public.leonaid_campaign_media;" \
+  "DROP FUNCTION public.leonaid_campaign_media_guard();" \
+  "DELETE FROM public.options WHERE name = 'leonaid:campaign_media_version';" |
+  runtime_compose exec -T core-postgres psql --quiet --set ON_ERROR_STOP=1 \
+    --username leonaid --dbname emdash
+cms_state >"$workspace/cms-state.txt"
+grep -qx 'schema=partial' "$workspace/cms-state.txt"
+grep -qx 'traffic=closed' "$workspace/cms-state.txt"
+cms_expect "resumes an interrupted schema install" 0 \
+  "pilot-cms-provision: OK: $project serves the CMS"
 printf '%s' "$cms_output" | grep -Fq "4/4 campaign schema: installing"
 cms_expect "repeats as a no-op" 0 "pilot-cms-provision: OK: $project serves the CMS"
 for step in "1/4 database: already" "2/4 media bucket: already" \
@@ -898,6 +981,11 @@ printf '%s\n' \
   core_sql
 cms_proof publish "$cms_action_id" "$cms_slug" "$cms_title"
 cms_proof public "$cms_slug" "$cms_title"
+# One object written with the CMS's own scoped key: the restore drill must
+# bring back the bucket and the RustFS user and policy, not only the SQL.
+runtime_compose --profile emdash exec -T campaign-site node --input-type=module -e '
+import { createStorage } from "emdash/storage/s3";
+await createStorage({}).upload({ key: "restore-drill.txt", body: Buffer.from("restore-drill-media"), contentType: "text/plain" });'
 
 echo "pilot-install-test: restores the CMS from the backup (restore drill)"
 leonaid_test pilot-backup --env-file "$env_file" --backup-manifest "$backup_manifest" \
@@ -952,10 +1040,28 @@ published=$(restore_compose exec -T core-postgres psql --username leonaid --dbna
 docker run --rm --network none \
   --volume "${restore_project}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
   cat /state/state.json | grep -Fq '"status":"complete"'
+# The restored project's CMS answers with its own credentials: database,
+# bucket with the scoped key, setup and schema; the media object is back.
+restore_compose --profile emdash run --rm --no-deps --entrypoint node \
+  campaign-site /app/operator/cms-provision-operator.mjs status \
+  >"$workspace/cms-restored-state.txt"
+for expected in database=ready storage=ready bootstrap=complete setup=complete schema=ready; do
+  grep -qx "$expected" "$workspace/cms-restored-state.txt" || {
+    echo "pilot-install-test: ERROR: restored CMS lacks $expected:" >&2
+    cat "$workspace/cms-restored-state.txt" >&2
+    exit 1
+  }
+done
+restore_compose --profile emdash run --rm --no-deps --entrypoint node \
+  campaign-site --input-type=module -e '
+import { createStorage } from "emdash/storage/s3";
+const file = await createStorage({}).download("restore-drill.txt");
+if ((await new Response(file.body).text()) !== "restore-drill-media") process.exit(1);
+console.log("restored media object read with the scoped CMS key");'
 restore_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1
 verify_owned_project_removed "$restore_project"
 restore_owned=false
-echo "pilot-install-test: CMS restore drill: published page and closed setup grant restored"
+echo "pilot-install-test: CMS restore drill: published page, media with the scoped key and closed setup grant restored"
 
 echo "pilot-install-test: proves a second first install is refused"
 cp "$env_file" "$workspace/second.env"

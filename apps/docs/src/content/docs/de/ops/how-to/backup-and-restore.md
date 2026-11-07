@@ -4,8 +4,8 @@ description: LeonAid-Daten verschlüsselt sichern und einen kontrollierten Fresh
 docId: DOC-P023
 audience: [ops]
 diataxis: how-to
-contentRevision: 4
-reviewedRevision: 4
+contentRevision: 5
+reviewedRevision: 5
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -28,10 +28,12 @@ CREDENTIALS`.
    private Schlüssel; schütze das Repository-Passwort entsprechend. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
    und Klartext-Secrets sind ausgeschlossen. Ein restauriertes Projekt startet
    mit leerem Queue-Speicher; `twenty-server` registriert seine Cron-Jobs neu.
-   Mit `LEONAID_CMS_ENABLED=true` hat das Manifest die Schemaversion 2 und
-   enthält zusätzlich die CMS-Datenbank (`emdash.dump`) und den
-   CMS-Einrichtungsstand (`cms-bootstrap-state.tar`); der Doctor lehnt dann ein
-   Backup ohne sie ab.
+   Mit `LEONAID_CMS_ENABLED=true` und abgeschlossener CMS-Einrichtung hat das
+   Manifest die Schemaversion 2 und enthält zusätzlich die CMS-Datenbank
+   (`emdash.dump`) und den CMS-Einrichtungsstand (`cms-bootstrap-state.tar`);
+   die CMS-Medien liegen im RustFS-Volume. Der Doctor lehnt dann ein Backup
+   ohne sie ab. Solange die Einrichtung nicht abgeschlossen ist, lässt das
+   Backup das unfertige CMS weg.
 3. Erstelle für einen Drill ein leeres Projekt namens `leonaid-restore-<name>`
    und ein separates Ziel-Environment mit demselben externen Repository.
 4. Starte `./leonaid pilot-restore` mit Quell- und Ziel-Environment,
@@ -40,8 +42,9 @@ CREDENTIALS`.
 5. Prüfe nach dem Restore Healthchecks, Golden-Contract, Dokument-Hashes,
    Sitzungen und Browser-Journey. Gib das Ziel erst danach frei.
 
-Mit CMS stellt `pilot-restore` die CMS-Datenbank mit dem geprüften
-`campaign-site`-Image des Ziels wieder her, prüft sie und lässt das ganze Ziel
+Das Backup bestimmt die Restore-Topologie. Bei einem Backup mit Schema 2
+braucht das Ziel `LEONAID_CMS_ENABLED=true`; `pilot-restore` stellt die
+CMS-Datenbank mit dem geprüften `campaign-site`-Image des Ziels wieder her, prüft sie und lässt das ganze Ziel
 gestoppt („application remains stopped pending release verification“). Starte
 es mit `./leonaid pilot-deploy` und `release-manifest-cms.json`; der Deploy
 prüft den CMS-Stand, bevor etwas startet.

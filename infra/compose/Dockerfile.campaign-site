@@ -48,7 +48,7 @@ COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/campaign-site/dist ./dist
 # Image-owned operators: schema migration (cms-migration-operator) and the
 # production provisioning of ./leonaid pilot-cms-provision (cms-provision-operator).
-COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs /workspace/apps/campaign-site/src/bootstrap-control.mjs /workspace/apps/campaign-site/src/cms-provision-operator.mjs /workspace/apps/campaign-site/src/provision-postgres.mjs ./operator/
+COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs /workspace/apps/campaign-site/src/bootstrap-control.mjs /workspace/apps/campaign-site/src/cms-provision-operator.mjs /workspace/apps/campaign-site/src/cms-provision-state.mjs /workspace/apps/campaign-site/src/provision-postgres.mjs ./operator/
 COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs /workspace/apps/campaign-site/src/auth/identity-map.mjs ./operator/auth/
 # The restore operator (tools/backup/cms-recovery.mjs) in its repository
 # layout, so a production host restores the CMS without node_modules in the

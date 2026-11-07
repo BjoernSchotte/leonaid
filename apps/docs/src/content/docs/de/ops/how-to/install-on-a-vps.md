@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
+contentRevision: 7
+reviewedRevision: 7
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -533,10 +533,11 @@ Du brauchst:
 
 Als `leonaid` in `/opt/leonaid`:
 
-1. Setze `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. Ab
-   jetzt enthält jedes Backup auch die CMS-Datenbank und ihren
-   Einrichtungsstand. Führe Schritt 2 sofort aus: Bis sein Datenbankschritt
-   durchgelaufen ist, lehnt `pilot-backup` ab.
+1. Setze `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. Bis
+   die Einrichtung in Schritt 3 abgeschlossen ist, läuft `pilot-backup`
+   weiter und lässt das unfertige CMS weg (mit einem Hinweis); danach enthält
+   jedes Backup auch die CMS-Datenbank, ihre Medien und den
+   Einrichtungsstand.
 2. Starte die Einrichtung:
 
    ```sh
@@ -550,11 +551,14 @@ Als `leonaid` in `/opt/leonaid`:
    Der Befehl legt die Datenbankrolle, die Datenbank und den Medien-Bucket
    mit eigenem Zugangsschlüssel an. Danach erlaubt er die EmDash-Einrichtung
    für 15 Minuten, nur dieser Systemadministration, und endet mit `PENDING`
-   (Exit-Status 75).
+   (Exit-Status 75). Solange diese Freigabe offen ist, wird eine andere
+   `--system-admin-email` mit dem Ende der Freigabe abgewiesen.
 3. Innerhalb der 15 Minuten meldet sich die Systemadministration unter
    `https://app.club.org/admin/` an (oder auf dem einen Host), öffnet
    `https://app.club.org/_emdash/admin/setup` und schließt die Einrichtung ab.
-   Jedes andere Konto wird abgewiesen.
+   Jedes andere Konto wird abgewiesen. Lehnt EmDash eine Eingabe ab,
+   korrigiere sie und sende erneut: Eine abgelehnte Einrichtung verbraucht
+   die Freigabe nicht.
 4. Führe denselben Befehl noch einmal aus; `--system-admin-email` ist nicht
    mehr nötig. Er installiert das Aktionsschema, solange das CMS geschlossen
    ist, und öffnet das CMS wieder. Die letzte Zeile lautet
@@ -572,11 +576,17 @@ offenen Schritt weiter.
 - **Die Freigabe ist abgelaufen** (die Einrichtung fand nicht innerhalb von
   15 Minuten statt): Starte den Befehl erneut mit `--system-admin-email`.
   Nur eine unbenutzte Freigabe wird ersetzt.
-- **„the editor setup started but did not complete“**: Die
-  Einrichtungsanfrage hat EmDash erreicht, ist aber nicht fertig geworden.
-  Die Freigabe ist absichtlich nicht wiederverwendbar. Stelle das CMS aus dem
-  vorherigen Backup wieder her (`pilot-restore`) oder lass das Entwicklungsteam
-  die CMS-Datenbank prüfen.
+- **„the editor setup started but did not complete“**: Eine
+  Einrichtungsanfrage wurde unterbrochen (zum Beispiel durch einen Neustart
+  des CMS), die Freigabe ist verbraucht. Starte den Befehl mit
+  `--reset-setup --system-admin-email ...`. Er zieht die Freigabe nur zurück,
+  solange das CMS unbenutzt ist (keine abgeschlossene Einrichtung, kein
+  Aktionsschema, keine Medien, nur die Anmeldekonten von LeonAid), hält das
+  im LeonAid-Audit-Log fest und erlaubt die Einrichtung erneut.
+- **Der Schemaschritt ist mittendrin abgebrochen** (zum Beispiel ein Timeout
+  unter Last): Starte den Befehl erneut. Er findet die schon installierten
+  Teile und installiert den Rest; der CMS-Verkehr bleibt bis dahin
+  geschlossen.
 - **„the CMS database exists with another EmDash migration state“**: Die
   Datenbank stammt nicht aus diesem Release. Der Befehl richtet nicht darüber
   ein.
@@ -587,6 +597,23 @@ offenen Schritt weiter.
 
 Veröffentlichte Aktionsseiten erscheinen unter
 `https://club.org/campaigns/<slug>/` (oder auf dem einen Host).
+
+### Das CMS vor dem Livegang wieder abschalten
+
+Bis die Einrichtung abgeschlossen ist, geht das ohne Restore: Setze
+`LEONAID_CMS_ENABLED=false` zurück und stoppe die Aktionsseiten:
+
+```sh
+docker compose --project-name <project> --env-file /etc/leonaid/production.env \
+  --file infra/compose/compose.yml --file infra/pilot/compose.yml \
+  --profile emdash stop campaign-site
+```
+
+Deploys, Releases und Backups laufen danach wie vorher; Backups lassen das
+unfertige CMS weg. CMS-Datenbank und Bucket bleiben; ein späteres
+`pilot-cms-provision` macht mit ihnen weiter. Nach abgeschlossener
+Einrichtung lehnt `pilot-backup` das Abschalten ab, weil die Daten des
+laufenden CMS sonst in jedem Backup fehlen würden.
 
 ## Nächste Schritte
 

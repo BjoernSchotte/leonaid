@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 6
-reviewedRevision: 6
+contentRevision: 7
+reviewedRevision: 7
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -521,10 +521,10 @@ You need:
 
 As `leonaid` in `/opt/leonaid`:
 
-1. Set `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. From now
-   on every backup also holds the CMS database and its setup state. Run
-   step 2 right away: until its database step has passed, `pilot-backup`
-   refuses to run.
+1. Set `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. Until
+   the setup in step 3 is complete, `pilot-backup` keeps working and leaves
+   the unfinished CMS out (it prints a note); from then on every backup also
+   holds the CMS database, its media and its setup state.
 2. Start the provisioning:
 
    ```sh
@@ -538,10 +538,13 @@ As `leonaid` in `/opt/leonaid`:
    The command creates the database role, the database and the media bucket
    with its own access key. Then it allows the EmDash setup for 15 minutes,
    for this System Admin only, and ends with `PENDING` (exit status 75).
+   While that grant is open, another `--system-admin-email` is refused with
+   the time the grant ends.
 3. Within the 15 minutes, the System Admin signs in at
    `https://app.club.org/admin/` (or the one host), opens
    `https://app.club.org/_emdash/admin/setup` and completes the setup. Any
-   other account gets a refusal.
+   other account gets a refusal. If EmDash rejects an entry, correct it and
+   submit again: a refused setup does not use up the grant.
 4. Run the same command again; `--system-admin-email` is no longer needed.
    It installs the campaign schema while the CMS is closed and opens the CMS
    again. The last line is `pilot-cms-provision: OK`.
@@ -556,10 +559,15 @@ cause and run the command again: it continues at the open step.
 - **The grant expired** (the setup did not happen within 15 minutes): run
   the command again with `--system-admin-email`. Only an unused grant is
   replaced.
-- **"the editor setup started but did not complete"**: the setup request
-  reached EmDash but did not finish. The grant cannot be used again on
-  purpose. Restore the CMS from the backup taken before (`pilot-restore`)
-  or ask the development team to inspect the CMS database.
+- **"the editor setup started but did not complete"**: a setup request was
+  interrupted (for example the CMS restarted during it), so the grant is
+  used up. Run the command with `--reset-setup --system-admin-email ...`. It
+  withdraws the grant only while the CMS is unused (no completed setup, no
+  campaign schema, no media, only LeonAid's own sign-in users), records the
+  withdrawal in the LeonAid audit log and allows the setup again.
+- **The schema step stopped halfway** (for example a timeout under load):
+  run the command again. It finds the parts already installed and installs
+  the rest; CMS traffic stays closed until then.
 - **"the CMS database exists with another EmDash migration state"**: the
   database was not created by this release. The command does not provision
   over it.
@@ -569,6 +577,23 @@ cause and run the command again: it continues at the open step.
 
 Published campaign pages are served at `https://club.org/campaigns/<slug>/`
 (or on the one host).
+
+### Switch the CMS off again before it went live
+
+Until the setup is complete you can stop without a restore: set
+`LEONAID_CMS_ENABLED=false` again and stop the campaign site:
+
+```sh
+docker compose --project-name <project> --env-file /etc/leonaid/production.env \
+  --file infra/compose/compose.yml --file infra/pilot/compose.yml \
+  --profile emdash stop campaign-site
+```
+
+Deploys, releases and backups then run as before; backups leave the
+unfinished CMS out. The CMS database and bucket stay; a later
+`pilot-cms-provision` continues with them. After the setup is complete,
+switching off is refused by `pilot-backup`, because the live CMS data would
+be missing from every backup.
 
 ## Next steps
 

@@ -37,14 +37,16 @@ def call(
     *,
     session: bool = True,
     body: dict[str, Any] | None = None,
+    raw: bytes | None = None,
 ) -> tuple[int, dict[str, str], str]:
     headers = {"Host": HOST, "Origin": ORIGIN}
     if session:
         headers["Cookie"] = "__Host-leonaid_session=" + os.environ["CMS_PROOF_SESSION"]
         headers["X-EmDash-Request"] = "1"
-    payload = None
+    payload = raw
     if body is not None:
         payload = json.dumps(body).encode()
+    if payload is not None:
         headers["Content-Type"] = "application/json"
     connection = EdgeConnection(HOST, 443, timeout=15)
     try:
@@ -87,6 +89,17 @@ def main() -> int:
         # The grant is consumed: a second setup is refused.
         expect(503, "POST", "/_emdash/api/setup", body={"title": "again"})
         print("cms-proof: the designated System Admin completed the EmDash setup")
+    elif mode == "setup-refused":
+        # A setup request EmDash rejects (malformed body) must not use up the
+        # grant: the status stays reachable for the designated System Admin.
+        status, _, _ = call("POST", "/_emdash/api/setup", raw=b"{")
+        # 503 is the gate's own denial; any other error is EmDash's refusal.
+        if not 400 <= status < 600 or status == 503:
+            raise SystemExit(
+                f"cms-proof: ERROR: a malformed setup answered {status}"
+            )
+        expect(200, "GET", "/_emdash/api/setup/status")
+        print("cms-proof: a refused setup request kept the grant")
     elif mode == "publish":
         action_id, slug, title = sys.argv[2:5]
         # Before the page exists the public route has nothing to show.

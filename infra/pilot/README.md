@@ -122,13 +122,17 @@ installation; the full procedure is in
 The steps are database role, database and EmDash migrations (operator in
 the campaign-site image), media bucket with its own scoped key (RustFS),
 the one-time setup grant for the named System Admin, and the campaign
-schema under closed CMS traffic (`tools/pilot_release/migrate-cms.sh
+schema under closed CMS traffic; an interrupted schema step resumes (`tools/pilot_release/migrate-cms.sh
 install`). Every run reads the state of each step first: a repeat changes
 nothing, and a failed run continues at the open step. Until all four steps
 are done, `pilot-deploy`, `pilot-release` and `pilot-doctor` refuse
-`LEONAID_CMS_ENABLED=true`. From the first step on, every backup holds the
-CMS database and its setup state (manifest schema 2); `pilot-restore`
-recovers them with the target's verified campaign-site image.
+`LEONAID_CMS_ENABLED=true`. From the completed setup on, every backup holds
+the CMS database and its setup state (manifest schema 2); before, backups
+leave the unfinished CMS out, and `LEONAID_CMS_ENABLED=false` switches it off
+again without a restore. A refused setup keeps the grant; an interrupted one
+is withdrawn with `--reset-setup` while the CMS is unused (Core audit log).
+`pilot-restore` recovers the CMS with the target's verified campaign-site
+image.
 
 ## Compose and release check
 

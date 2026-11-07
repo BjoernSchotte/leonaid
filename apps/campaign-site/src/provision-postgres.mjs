@@ -1,6 +1,23 @@
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
 import pg from "pg";
 
 const { escapeIdentifier: ident, escapeLiteral: literal } = pg;
+
+// RFC 5802/7677 SCRAM-SHA-256 verifier, computed here so the plaintext CMS
+// password never reaches the server: a failing ALTER ROLE statement (lock
+// timeout, concurrent DDL) is logged with its text, and pg_stat_activity
+// shows it while it runs. The generated passwords are printable ASCII, for
+// which SASLprep is the identity.
+export function scramSha256Verifier(password, salt = randomBytes(16)) {
+  if (!/^[\x21-\x7e]+$/.test(password))
+    throw new Error("cms_password_not_printable_ascii");
+  const iterations = 4096;
+  const salted = pbkdf2Sync(password, salt, iterations, 32, "sha256");
+  const clientKey = createHmac("sha256", salted).update("Client Key").digest();
+  const storedKey = createHash("sha256").update(clientKey).digest();
+  const serverKey = createHmac("sha256", salted).update("Server Key").digest();
+  return `SCRAM-SHA-256$${iterations}:${salt.toString("base64")}$${storedKey.toString("base64")}:${serverKey.toString("base64")}`;
+}
 
 // Operator-only: this connection must never be supplied to the CMS runtime.
 // CREATE DATABASE cannot run in a transaction; the advisory lock serializes
@@ -62,7 +79,9 @@ export async function provisionPostgres({
       await client.query(
         "CREATE ROLE emdash LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS",
       );
-    await client.query(`ALTER ROLE emdash LOGIN PASSWORD ${literal(password)}`);
+    await client.query(
+      `ALTER ROLE emdash LOGIN PASSWORD ${literal(scramSha256Verifier(password))}`,
+    );
     if (!databases.rowCount)
       await client.query("CREATE DATABASE emdash OWNER emdash");
     await client.query("REVOKE ALL ON DATABASE emdash FROM PUBLIC");

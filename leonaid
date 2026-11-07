@@ -864,9 +864,12 @@ check_all() {
     "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check
   docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs
+  # CMS provisioning state classification and SCRAM verifier (pilot-cms-provision).
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node --test tools/pilot_cms/cms-provision-state.test.mjs
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
     .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
-    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts \
+    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts tools/pilot_cms/*.mjs \
     tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -1275,6 +1278,27 @@ pilot_cms_topology() {
   if pilot_cms_enabled "$1"; then echo emdash; else echo legacy; fi
 }
 
+# Backup topology of a pilot project: the CMS belongs to the recovery point
+# from its completed editor setup on (a restore refuses a setup state that
+# could reopen). Until then the unfinished CMS data stays out, so nightly
+# backups keep working while pilot-cms-provision runs or after the CMS was
+# switched off again before it ever went live (tools/backup/backup.sh).
+pilot_backup_topology() {
+  if ! pilot_cms_enabled "$2"; then
+    echo legacy
+    return 0
+  fi
+  if docker volume inspect "${1}_cms-bootstrap-state" >/dev/null 2>&1 &&
+    docker run --rm --network none \
+      --volume "${1}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
+      cat /state/state.json 2>/dev/null | grep -Fq '"status":"complete"'; then
+    echo emdash
+  else
+    echo "pilot-backup: NOTE: the CMS setup is not complete yet; this backup does not contain the unfinished CMS" >&2
+    echo legacy
+  fi
+}
+
 pilot_compose_config() {
   project=$1
   env_file=$2
@@ -1576,14 +1600,32 @@ pilot_cms_system_admin_id() {
       --dbname "${pilot_cms_db:-leonaid}"
 }
 
+# Core audit record of an operator decision about the CMS setup grant; the
+# subject is the Core System Admin it concerns, the actor the operator (none).
+pilot_cms_audit() {
+  pilot_cms_db_user=$(pilot_environment_value CORE_POSTGRES_USER "$2")
+  pilot_cms_db=$(pilot_environment_value CORE_POSTGRES_DB "$2")
+  printf '%s\n' "INSERT INTO audit_event (id, action_id, actor_user_id, event_type, entity_type, entity_id, request_id, payload) VALUES (gen_random_uuid(), NULL, NULL, :'event', 'cms_setup_grant', :'subject', 'pilot-cms-provision', '{}'::jsonb);" |
+    pilot_compose_command "$1" "$2" exec -T core-postgres psql \
+      --quiet --set ON_ERROR_STOP=1 \
+      --set "event=$3" --set "subject=$4" \
+      --username "${pilot_cms_db_user:-leonaid}" \
+      --dbname "${pilot_cms_db:-leonaid}" >/dev/null
+}
+
 pilot_cms_provision() {
   require_docker
   env_file=
   backup_manifest=
   release_manifest=
   system_admin_email=
+  reset_setup=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --reset-setup)
+        reset_setup=true
+        shift
+        ;;
       --env-file|--backup-manifest|--release-manifest|--system-admin-email)
         [ "$#" -ge 2 ] || {
           echo "pilot-cms-provision: ERROR: $1 needs a value" >&2
@@ -1689,14 +1731,14 @@ pilot_cms_provision() {
       echo "pilot-cms-provision: 2/4 media bucket: provisioning bucket and scoped access key"
       CMS_S3_SECRET_ACCESS_KEY=$(pilot_environment_value CMS_S3_SECRET_ACCESS_KEY "$env_file")
       export CMS_S3_SECRET_ACCESS_KEY
+      # The operator ships in the verified Core image; the api environment
+      # holds the RustFS root key it needs, the CMS gets only its own key.
       pilot_compose_command "$project" "$env_file" \
         run --rm --no-deps --pull missing \
-        --user "$(id -u):$(id -g)" --env HOME=/tmp \
-        --env PYTHONPATH=/repo \
         --env CMS_S3_ACCESS_KEY_ID=leonaid-emdash \
         --env CMS_S3_SECRET_ACCESS_KEY \
-        --volume "$root:/repo:ro" --workdir /repo --entrypoint python \
-        api -m tools.emdash_spike.provision_rustfs
+        --entrypoint python \
+        api -m leonaid.entrypoints.cms_storage
       unset CMS_S3_SECRET_ACCESS_KEY
       ;;
     *)
@@ -1715,14 +1757,28 @@ pilot_cms_provision() {
   # Step 3: one-time setup grant; the System Admin completes the EmDash setup
   # in the browser, then this command runs again.
   bootstrap=$(pilot_cms_status_value bootstrap "$state")
+  if [ "$bootstrap" = consumed ] && [ "$reset_setup" = true ]; then
+    # Only a grant whose setup never completed, while the CMS holds nothing
+    # an editor made (the operator checks); recorded in the Core audit log.
+    withdrawn=$(pilot_compose_command "$project" "$env_file" \
+      run --rm --no-deps --pull missing --entrypoint node campaign-site \
+      /app/operator/cms-provision-operator.mjs reset-setup |
+      sed -n 's/^cms-provision: setup grant withdrawn; actor=//p')
+    case "$withdrawn" in
+      ????????-????-????-????-????????????) ;;
+      *)
+        echo "pilot-cms-provision: BLOCKED: the setup grant was not withdrawn" >&2
+        exit 1
+        ;;
+    esac
+    pilot_cms_audit "$project" "$env_file" cms.setup_grant.withdrawn "$withdrawn"
+    echo "pilot-cms-provision: 3/4 editor setup: unfinished setup grant withdrawn"
+    bootstrap=none
+  fi
   case "$bootstrap" in
     complete) echo "pilot-cms-provision: 3/4 editor setup: already complete" ;;
     none|expired|armed)
-      if [ "$bootstrap" != armed ]; then
-        [ -n "$system_admin_email" ] || {
-          echo "pilot-cms-provision: ERROR: --system-admin-email of the LeonAid System Admin who completes the CMS setup is missing" >&2
-          exit 64
-        }
+      if [ -n "$system_admin_email" ]; then
         system_admin_id=$(pilot_cms_system_admin_id "$project" "$env_file" "$system_admin_email") ||
           exit "$?"
         case "$system_admin_id" in
@@ -1732,9 +1788,29 @@ pilot_cms_provision() {
             exit 1
             ;;
         esac
-        pilot_compose_command "$project" "$env_file" \
+        # Refuses while another System Admin's grant is armed (with its end).
+        arm_output=$(pilot_compose_command "$project" "$env_file" \
           run --rm --no-deps --pull missing --entrypoint node campaign-site \
-          /app/operator/cms-provision-operator.mjs arm "$system_admin_id"
+          /app/operator/cms-provision-operator.mjs arm "$system_admin_id" 2>&1) || {
+          case "$arm_output" in
+            *setup_armed_for_another_system_admin_until_*)
+              armed_until=${arm_output##*setup_armed_for_another_system_admin_until_}
+              armed_until=${armed_until%%)*}
+              echo "pilot-cms-provision: BLOCKED: the setup is armed for another System Admin until $armed_until; complete it or wait" >&2
+              ;;
+            *) printf '%s\n' "$arm_output" | grep -F 'cms-provision:' >&2 ;;
+          esac
+          exit 1
+        }
+        printf '%s\n' "$arm_output" | grep -F 'cms-provision:'
+        case "$arm_output" in
+          *"grant armed for the designated"*)
+            pilot_cms_audit "$project" "$env_file" cms.setup_grant.armed "$system_admin_id"
+            ;;
+        esac
+      elif [ "$bootstrap" != armed ]; then
+        echo "pilot-cms-provision: ERROR: --system-admin-email of the LeonAid System Admin who completes the CMS setup is missing" >&2
+        exit 64
       fi
       pilot_compose_command "$project" "$env_file" \
         up --detach --no-build --pull missing --wait --wait-timeout 420 \
@@ -1747,7 +1823,7 @@ pilot_cms_provision() {
       exit 75
       ;;
     consumed)
-      echo "pilot-cms-provision: BLOCKED: the editor setup started but did not complete; the grant cannot be reused (runbook: CMS provisioning)" >&2
+      echo "pilot-cms-provision: BLOCKED: the editor setup started but did not complete; run again with --reset-setup to withdraw the grant (allowed only while the CMS is unused)" >&2
       exit 1
       ;;
     *)
@@ -1763,11 +1839,12 @@ pilot_cms_provision() {
   # Step 4: campaign schema, binding and media guards under closed traffic.
   case "$(pilot_cms_status_value schema "$state")" in
     ready) echo "pilot-cms-provision: 4/4 campaign schema: already installed" ;;
-    missing)
+    missing|partial)
       echo "pilot-cms-provision: 4/4 campaign schema: installing under closed CMS traffic"
+      # The controller needs the container, not its health: after an
+      # interrupted install traffic is closed and /health/ready answers 503.
       pilot_compose_command "$project" "$env_file" \
-        up --detach --no-build --pull missing --wait --wait-timeout 420 \
-        campaign-site
+        up --no-start --no-build --pull missing campaign-site
       cms_container=$(pilot_compose_command "$project" "$env_file" ps --quiet campaign-site)
       cms_image=$(docker inspect --format '{{.Image}}' "$cms_container")
       set -- "$root/infra/compose/compose.yml" "$root/infra/pilot/compose.yml"
@@ -2326,7 +2403,7 @@ pilot_backup() {
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     backup_overlay_secondary=$(pilot_test_overlay "$project")
   fi
-  backup_topology=$(pilot_cms_topology "$env_file") || exit 1
+  backup_topology=$(pilot_backup_topology "$project" "$env_file") || exit 1
   LEONAID_ENV_FILE="$env_file" \
     LEONAID_COMPOSE_PROJECT="$project" \
     LEONAID_BACKUP_REPOSITORY="$repository" \
@@ -3174,7 +3251,28 @@ pilot_restore() {
         ;;
     esac
   fi
-  restore_topology=$(pilot_cms_topology "$target_env_file") || exit 1
+  # The recovery point decides: schema 2 holds a live CMS (tools/backup/
+  # manifest.py), schema 1 none or an unfinished one that was left out.
+  restore_manifest_directory=$(mktemp -d)
+  cp "$backup_manifest" "$restore_manifest_directory/manifest.json"
+  restore_schema=$(docker run --rm --network none \
+    --volume "$restore_manifest_directory:/pilot:ro" "$PYTHON_IMAGE" \
+    python -c 'import json; print(json.load(open("/pilot/manifest.json")).get("schemaVersion"))')
+  rm -rf "$restore_manifest_directory"
+  case "$restore_schema" in
+    1) restore_topology=legacy ;;
+    2)
+      restore_topology=emdash
+      pilot_cms_enabled "$target_env_file" || {
+        echo "pilot-restore: BLOCKED: the backup contains the CMS; set LEONAID_CMS_ENABLED=true in the target environment" >&2
+        exit 1
+      }
+      ;;
+    *)
+      echo "pilot-restore: BLOCKED: unknown backup manifest schema" >&2
+      exit 1
+      ;;
+  esac
   # The CMS recovery operator runs from the target's verified campaign-site
   # image: a production checkout has no node_modules for the checkout copy.
   restore_cms_image=

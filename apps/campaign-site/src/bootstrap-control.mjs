@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open, rename, mkdir, rmdir } from "node:fs/promises";
+import { lstat, open, rename, mkdir, rmdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -113,7 +113,38 @@ export async function inspectBootstrap(directory) {
         ? "expired"
         : state.status,
     actor: state.actor,
+    expiresAt: state.expiresAt,
   };
+}
+
+// HTTP only, after a failed setup request: the upstream setup did not
+// complete, so the grant returns to "armed" with its original expiry. The
+// single use stays guarded by the lock and the consume-before-mutation step;
+// a crash between consume and release leaves "consumed" for resetConsumed.
+export async function releaseBootstrap(directory, actor) {
+  await locked(directory, async () => {
+    const state = await readState(directory);
+    if (state.status !== "consumed" || state.actor !== actor)
+      throw new BootstrapDenied();
+    await writeState(directory, { ...state, status: "armed" });
+  });
+}
+
+// Operator-only (cms-provision-operator.mjs reset-setup, after its checks that
+// the CMS was never used): withdraw a consumed grant, back to "no grant".
+export async function resetConsumedBootstrap(directory) {
+  return locked(directory, async () => {
+    const state = await readState(directory);
+    if (state.status !== "consumed") throw new BootstrapDenied();
+    await unlink(join(directory, "state.json"));
+    const dir = await open(directory, "r");
+    try {
+      await dir.sync();
+    } finally {
+      await dir.close();
+    }
+    return state.actor;
+  });
 }
 
 // Operator-only. Only an armed grant that expired unused may be replaced: no

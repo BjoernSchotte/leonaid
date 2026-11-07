@@ -209,6 +209,18 @@ cms_database=$(compose exec -T core-postgres psql \
   "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname='emdash')")
 case "$topology:$cms_database" in
   legacy:f|emdash:t) ;;
+  legacy:t)
+    # A CMS that never completed its editor setup (provisioning under way,
+    # or switched off again before it went live) holds no editorial data and
+    # cannot be restored anyway (cms_state.py); a live CMS must be backed up.
+    if docker volume inspect "${project}_cms-bootstrap-state" >/dev/null 2>&1 &&
+      docker run --rm --network none \
+        -v "${project}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
+        cat /state/state.json 2>/dev/null | grep -Fq '"status":"complete"'; then
+      fail "the CMS is live; back it up with the CMS topology (LEONAID_CMS_ENABLED=true)"
+    fi
+    echo "backup: the unfinished CMS (setup not complete) is not part of this backup"
+    ;;
   *) fail "backup topology does not match the existing CMS data" ;;
 esac
 if [ "$topology" = emdash ]; then

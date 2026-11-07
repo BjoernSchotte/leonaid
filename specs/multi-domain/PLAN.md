@@ -1340,7 +1340,8 @@ status` and runs only when it is open:
    `apps/campaign-site/src/provision-postgres.mjs`), the EmDash migrations of
    an empty database and the identity mapping, all from the campaign-site
    image (`cms-provision-operator.mjs database`).
-2. Media bucket: `tools/emdash_spike/provision_rustfs.py` in the Core image.
+2. Media bucket: `leonaid.entrypoints.cms_storage` (moved from
+   `tools/emdash_spike/provision_rustfs.py`) from the verified Core image.
 3. Setup grant: `cms-provision-operator.mjs arm <uuid>` for the active Core
    System Admin of `--system-admin-email`; the command starts the CMS, prints
    the setup URL and exits 75. The System Admin completes the EmDash setup in
@@ -1384,6 +1385,26 @@ Rulings (RD = PR D, numbered apart from the stage 2 rulings):
   Everything else is the release's CMS migration path, never provisioning.
 - RD5: the command's exit status 75 (EX_TEMPFAIL) means "waiting for the
   System Admin's setup", not an error.
+- RD7 (review I1): `status` reports `schema=partial` when this release's
+  schema is installed but the binding or media guards are absent (each
+  installer commits with its own version option); step 4 re-runs `install`
+  for `missing` and `partial`. A drifted part stays `refused`.
+- RD8 (review I2): a setup request that EmDash refuses hands the grant back
+  (`releaseBootstrap`, same expiry); only a crash between consume and release
+  leaves it consumed. `--reset-setup` withdraws a consumed grant while the CMS
+  is unused (exact inventory, no completed setup, no campaign schema, no
+  media or revisions, only identity-mapped users); arm and withdrawal are
+  `audit_event` rows (`cms_setup_grant`, subject the System Admin).
+- RD9 (review I2/M6): the CMS enters backups with its completed setup
+  (`pilot_backup_topology`); until then backups stay schema 1 and leave the
+  unfinished CMS out, so nightly backups keep working and
+  `LEONAID_CMS_ENABLED=false` rolls back without a restore. `backup.sh`
+  refuses that only for a live CMS. `pilot-restore` takes the topology from
+  the manifest schema, not from the target flag.
+- RD10 (review M1/M2/M5): the CMS password reaches PostgreSQL only as a
+  SCRAM-SHA-256 verifier; an armed grant refuses another System Admin with
+  its end time; `migrate-cms.sh` admits an `.artifacts` overlay only when it
+  equals `LEONAID_PILOT_TEST_COMPOSE_OVERLAY` of a test project.
 - RD6: the pilot install proof runs the product's own single-host route table
   (`caddyfiles.py --render pilot-single --tls-internal`) instead of the
   hand-written `Caddyfile.test`, which has no CMS routes; the contract accepts

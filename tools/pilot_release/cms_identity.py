@@ -28,6 +28,7 @@ CMS_SOURCES = tuple(
             "apps/campaign-site/src/cms-maintenance.mjs",
             "apps/campaign-site/src/cms-migration-operator.mjs",
             "apps/campaign-site/src/cms-provision-operator.mjs",
+            "apps/campaign-site/src/cms-provision-state.mjs",
             "apps/campaign-site/src/provision-postgres.mjs",
             "apps/campaign-site/src/bootstrap-control.mjs",
             "apps/campaign-site/src/closed-bootstrap.ts",

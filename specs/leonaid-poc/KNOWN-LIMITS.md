@@ -20,11 +20,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
   einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
-  Browser (15-Minuten-Freigabe). Eine abgebrochene Einrichtung (Freigabe
-  verbraucht, nicht abgeschlossen) lässt sich nicht erneut freigeben, nur aus
-  dem Backup wiederherstellen. `pilot-release` migriert das CMS-Schema nicht;
-  ein Release mit neuen EmDash-Migrationen braucht den CMS-Migrationsweg
-  (`tools/pilot_release/migrate-cms.sh`) und blockiert bis dahin am
+  Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
+  `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
+  das CMS erst ab abgeschlossener Einrichtung. `pilot-release` migriert das
+  CMS-Schema nicht; ein Release mit neuen EmDash-Migrationen blockiert am
   Provisionierungs-Check.
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
   manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
