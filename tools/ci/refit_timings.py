@@ -153,14 +153,20 @@ def collect(
     )
     nightly = [
         run
-        for run in (listing.get("workflow_runs", []) if isinstance(listing, dict) else [])
+        for run in (
+            listing.get("workflow_runs", []) if isinstance(listing, dict) else []
+        )
         if NIGHTLY_TITLE in str(run.get("display_title", ""))
     ][:runs]
     observations: dict[str, list[float]] = defaultdict(list)
     for run in nightly:
-        jobs = fetch_json(f"repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100")
+        jobs = fetch_json(
+            f"repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100"
+        )
         for job in jobs.get("jobs", []) if isinstance(jobs, dict) else []:
-            if not str(job.get("name", "")).startswith(("Integration", "E2E", "EmDash")):
+            if not str(job.get("name", "")).startswith(
+                ("Integration", "E2E", "EmDash")
+            ):
                 continue
             log = fetch_text(f"repos/{repository}/actions/jobs/{job['id']}/logs")
             for shard, value in shard_seconds(log, leaves, cases).items():
@@ -209,7 +215,9 @@ def main(argv: list[str] | None = None) -> int:
         args.summary.write_text(report + "\n", encoding="utf-8")
     if args.write and changes:
         path = root / "tools/ci/select_suites.py"
-        path.write_text(rewrite(path.read_text(encoding="utf-8"), changes), encoding="utf-8")
+        path.write_text(
+            rewrite(path.read_text(encoding="utf-8"), changes), encoding="utf-8"
+        )
     return 0
 
 

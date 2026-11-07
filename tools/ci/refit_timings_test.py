@@ -93,7 +93,9 @@ def main() -> int:
         for failure in FAILURES:
             print(f"ci-refit-timings-test: ERROR: {failure}", file=sys.stderr)
         return 1
-    print("ci-refit-timings-test: OK: log parsing, outliers, 15 % band, in-place rewrite")
+    print(
+        "ci-refit-timings-test: OK: log parsing, outliers, 15 % band, in-place rewrite"
+    )
     return 0
 
 

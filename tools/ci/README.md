@@ -278,9 +278,25 @@ and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint, types and unit.
 
 The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
-sets the wall time of a complete run. Re-measure with
-`gh run view <id> --json jobs` and update the seconds tables when a shard's
-runtime changes by more than a minute.
+sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
+current: `tools/ci/refit_timings.py` reads the job logs of the last 7
+successful nightly runs, takes per shard the median after dropping values
+outside half to double of it, and opens a pull request (`ci/refit-timings`,
+the required workflows dispatched like `pin-drift.yml`) only for entries
+that moved by more than 15 %. Integration shards come from
+`ci-integration: bin: <shard> passed (<n>s)`, E2E shards from the
+`shared-stack:` / `ci-e2e: own leaf:` lines of their leaf scripts plus 30 s
+of stack preparation, EmDash groups from `ci-emdash: OK: <case> (<n>s)`.
+
+Cache write discipline: the shared BuildKit cache is written only by the
+Build job of scheduled runs on `main` and dispatches; pull requests import
+it read-only. The synthetic fixture is still saved by the run that misses
+it (its key covers its inputs, so a pull request with a new migration needs
+its own), and `surveys.yml` waits for `ci.yml`'s upload instead of building
+it twice. Measured on run 42401453286: `./leonaid bootstrap` takes 20 s and
+the build-layer import 24–67 s per leg; caching the installed `.venv` and
+`node_modules` (830 MB together) would restore no faster than bootstrap
+installs them, so there is no dependency cache.
 
 ## Integration and survey shards
 

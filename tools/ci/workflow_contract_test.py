@@ -347,8 +347,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        "[LeonAid CI, Survey acceptance,",
-        "[LeonAid CI,",
+        "        Survey acceptance,\n",
+        "",
         "does not react to completed runs of surveys.yml",
     ),
     (

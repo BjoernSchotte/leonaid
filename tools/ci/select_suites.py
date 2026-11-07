@@ -211,6 +211,7 @@ RULES: tuple[Rule, ...] = (
     Rule(
         (
             "tools/ci/*_test.py",
+            "tools/ci/refit_timings.py",
             "tools/ci/axe_helper.py",
             "tools/ci/build.sh",
             "tools/ci/conflict_markers.py",

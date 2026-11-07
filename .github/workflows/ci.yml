@@ -376,7 +376,11 @@ jobs:
         with:
           bootstrap: toolchains
           targets: build
-          write: "true"
+          # Cache write discipline: only the scheduled runs on main (and
+          # dispatch) write the shared BuildKit cache, which every pull
+          # request imports. A pull request's layers would only live in its
+          # own cache scope and evict main's layers from the 10 GB budget.
+          write: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
       - name: Bootstrap locked Docker toolchains
         if: inputs.cold_run == true
         run: sh tools/ci/retry-infra.sh ./leonaid bootstrap
