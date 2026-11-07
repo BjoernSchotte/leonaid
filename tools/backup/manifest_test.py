@@ -423,7 +423,6 @@ def main() -> None:
                     ),
                 )
 
-
     # The pilot certificate volume is carried when it exists and verified
     # like every other file (specs/multi-domain §10.1).
     with tempfile.TemporaryDirectory() as temporary:
@@ -441,9 +440,10 @@ def main() -> None:
         )
         (directory / "manifest.json").unlink()
         (directory / "caddy-data.tar").unlink()
-        assert "caddy-data.tar" not in create(
-            directory, source_project=project, topology="legacy"
-        )["files"]
+        assert (
+            "caddy-data.tar"
+            not in create(directory, source_project=project, topology="legacy")["files"]
+        )
         manifest = json.loads((directory / "manifest.json").read_text())
         manifest["files"]["unknown.tar"] = manifest["files"]["core.dump"]
         (directory / "manifest.json").write_text(json.dumps(manifest))
