@@ -254,8 +254,11 @@ if [ -n "${LEONAID_RESTORE_EXPECTED_MANIFEST:-}" ]; then
 fi
 
 if [ "$topology" = emdash ] && [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
-  /bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" \
-    "$LEONAID_RESTORE_CMS_IMAGE" >/dev/null
+  LEONAID_RESTORE_CMS_OPERATOR_IMAGE=$(/bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" \
+    "$LEONAID_RESTORE_CMS_IMAGE")
+  # The recovery operator runs from the verified image's own copy.
+  LEONAID_RESTORE_CMS_OPERATOR_ROOT=/app/recovery
+  export LEONAID_RESTORE_CMS_OPERATOR_IMAGE LEONAID_RESTORE_CMS_OPERATOR_ROOT
   echo "restore: explicit CMS image identity verified before target volume creation; activation remains closed"
 fi
 
