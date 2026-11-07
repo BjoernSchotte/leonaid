@@ -1254,7 +1254,9 @@ one test domain owned by the club.
   `includeSubDomains`, because the public host is usually the club's apex.
   Admin and single hosts keep `includeSubDomains`.
 - R17 (I3): `caddy-data` is backed up and restored when the volume exists
-  (pilot); `caddy-data.tar` is an optional, verified manifest entry.
+  (pilot); `caddy-data.tar` is an optional, verified manifest entry. Restore
+  takes it only with `pilot-restore --with-tls-state` (N2): staging and drill
+  targets never receive the production keys or ACME account.
 - R18 (I5): the public host cannot ask who is signed in: the session is
   host-only on the admin host, the public host serves no identity API, and the
   build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
