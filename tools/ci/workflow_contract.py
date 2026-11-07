@@ -359,7 +359,16 @@ def check_emdash(text: str) -> list[str]:
 
 DRAFT = "github.event.pull_request.draft != true"
 EDIT = "(github.event.action != 'edited' || github.event.changes.base)"
-DRAFT_TYPES = "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]"
+DRAFT_TYPES = frozenset(
+    {
+        "opened",
+        "reopened",
+        "synchronize",
+        "ready_for_review",
+        "converted_to_draft",
+        "edited",
+    }
+)
 # Environment the gate step hands to tools/ci/gate.py for drafts, title
 # edits and stacked results.
 GATE_CONTEXT = (
@@ -376,6 +385,19 @@ EDIT_GROUP = (
 )
 
 
+def pull_request_types(on: str) -> set[str]:
+    """Activity types of the pull_request trigger, inline or block list."""
+    found = re.search(r"\n  pull_request:\n((?:    .*\n|      .*\n)*)", on + "\n")
+    if not found:
+        return set()
+    body = found.group(1)
+    types = re.search(r"(?ms)^    types:(.*?)(?=^    [a-z_-]+:|\Z)", body)
+    if not types:
+        return set()
+    text = re.sub(r"(?m)#.*$", "", types.group(1))
+    return set(re.findall(r"[a-z_]+", text))
+
+
 def check_drafts(text: str, name: str) -> list[str]:
     """Drafts and title edits run no suite; their gate decides fail-closed.
 
@@ -389,7 +411,7 @@ def check_drafts(text: str, name: str) -> list[str]:
     """
     problems: list[str] = []
     on = triggers(text)
-    if DRAFT_TYPES not in on:
+    if not DRAFT_TYPES <= pull_request_types(on):
         problems.append(
             f"{name}: pull_request must list ready_for_review, converted_to_draft "
             "and edited."

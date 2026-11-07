@@ -6,7 +6,15 @@ on:
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit rebuilds the site (cheap) instead of mirroring.
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
   push:
     branches: [main]
   schedule:

@@ -10,7 +10,15 @@ on:
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit runs no job and its gate mirrors the commit's real result.
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
   # No run per push to main: the 3-hourly schedule runs the PR selection
   # on main, the nightly one the recovery shards and backup proofs.
   schedule:

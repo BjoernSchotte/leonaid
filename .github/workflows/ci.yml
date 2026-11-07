@@ -10,7 +10,15 @@ on:
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit runs no job and its gate mirrors the commit's real result.
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
   # No full run per push to main (decision 2026-11-07): main is proven by
   # the scheduled complete runs below; nightly-watchdog.yml opens an issue
   # when one is red. Only the artifact probe branch still runs on push.

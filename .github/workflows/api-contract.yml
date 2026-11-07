@@ -9,7 +9,15 @@ on:
     # converted_to_draft cancels the running one. edited: a base change (a
     # stacked PR retargeted to main) runs the normal selection; a title or
     # body edit runs no job and its gate mirrors the commit's real result.
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
   push:
     branches:
       - main

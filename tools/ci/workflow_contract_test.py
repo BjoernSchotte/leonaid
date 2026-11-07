@@ -41,8 +41,8 @@ CI_MUTATIONS = (
         "no complete run per push to main",
     ),
     (
-        "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]\n",
-        "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]\n",
+        "        converted_to_draft,\n        edited,\n",
+        "        converted_to_draft,\n",
         "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
     ),
     (
