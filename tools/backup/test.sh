@@ -65,6 +65,8 @@ cleanup() {
       target_compose logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
     fi
   fi
+  # The pilot certificate volume is not part of the dev compose file.
+  docker volume rm -f "${source_project}_caddy-data" "${target_project}_caddy-data" >/dev/null 2>&1 || true
   if [ "$source_owned" = true ]; then
     if ! source_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
     if ! verify_owned_project_removed "$source_project"; then status=1; fi
@@ -180,6 +182,15 @@ source_compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --output /proof/before.json \
   --twenty-storage /twenty-storage
 
+# A pilot proxy keeps its certificates in caddy-data; the backup must carry
+# them to the restored target (specs/multi-domain §10.1).
+docker volume create \
+  --label "com.docker.compose.project=$source_project" \
+  --label "com.docker.compose.volume=caddy-data" \
+  "${source_project}_caddy-data" >/dev/null
+docker run --rm --network none -v "${source_project}_caddy-data:/data" "$ALPINE_IMAGE" \
+  sh -c 'mkdir -p /data/caddy/certificates/acme && printf proof-certificate >/data/caddy/certificates/acme/app.leonaid.invalid.crt'
+
 recovery_checkpoint=$(date +%s)
 LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_BACKUP_COMPOSE_OVERLAY="$source_isolation" \
@@ -244,6 +255,8 @@ fi
 . "$root/tools/backup/survey-recovery-fixture.sh"
 prepare_survey_recovery_fixture source_compose "$proof"
 source_compose --profile '*' down --volumes --remove-orphans
+# Not part of the dev compose file, so `down --volumes` leaves it.
+docker volume rm "${source_project}_caddy-data" >/dev/null
 verify_owned_project_removed "$source_project"
 python3 "$root/tools/surveys/network_override.py" "$target_isolation"
 target_owned=true
@@ -262,6 +275,15 @@ LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_RESTORE_COMPOSE_OVERLAY="$target_isolation" \
   LEONAID_RESTORE_STATE_FILE="$proof/restore-state.json" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
+
+certificate=$(docker run --rm --network none \
+  -v "${target_project}_caddy-data:/data:ro" "$ALPINE_IMAGE" \
+  cat /data/caddy/certificates/acme/app.leonaid.invalid.crt)
+[ "$certificate" = proof-certificate ] || {
+  echo "backup-test: ERROR: caddy-data was not restored" >&2
+  exit 1
+}
+echo "backup-test: caddy-data (certificates of every host) restored"
 
 target_compose build api public pwa web
 target_compose run --rm --user "$(id -u):$(id -g)" --no-deps \

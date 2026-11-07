@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from starlette.requests import Request
 
+import asyncio
+
 from leonaid.entrypoints.fastapi.security import (
+    StaticPublicOrigins,
     client_address,
     csrf_violation,
+    public_origin_allowed,
     request_fingerprint,
 )
 
@@ -17,6 +21,7 @@ def request(
     method: str = "POST",
     headers: tuple[tuple[bytes, bytes], ...] = (),
     client: tuple[str, int] = ("10.0.0.5", 50000),
+    path: str = "/api/v1/invitations",
 ) -> Request:
     return Request(
         {
@@ -24,8 +29,8 @@ def request(
             "http_version": "1.1",
             "method": method,
             "scheme": "https",
-            "path": "/api/v1/invitations",
-            "raw_path": b"/api/v1/invitations",
+            "path": path,
+            "raw_path": path.encode(),
             "query_string": b"",
             "headers": list(headers),
             "client": client,
@@ -105,3 +110,47 @@ def test_public_quota_identity_ignores_client_controlled_rotation() -> None:
     assert fingerprint(rotated, trusted=True) != fingerprint(request())
     assert fingerprint(request(client=("10.0.0.6", 50000))) != fingerprint(request())
     assert "10.0.0.5" not in fingerprint(request())
+
+
+PUBLIC_ORIGINS = StaticPublicOrigins(
+    ("https://leonaid.invalid", "https://www.leonaid.invalid")
+)
+
+
+def public(origin: str | None, path: str, host: str | None = None) -> bool:
+    # Same-origin by default: the request goes to the origin's own host.
+    sent_to = host or (origin or "https://leonaid.invalid").split("://", 1)[1].rstrip(
+        "/"
+    )
+    headers: tuple[tuple[bytes, bytes], ...] = ((b"host", sent_to.encode()),)
+    if origin is not None:
+        headers += ((b"origin", origin.encode()),)
+    return asyncio.run(
+        public_origin_allowed(
+            request(headers=headers, path=path),
+            origin,
+            allowed_origins=ORIGINS,
+            public_origins=PUBLIC_ORIGINS,
+        )
+    )
+
+
+def test_public_origins_reach_only_the_public_api() -> None:
+    assert public("https://leonaid.invalid", "/api/v1/public/inbox-cases")
+    assert public("https://WWW.leonaid.invalid/", "/api/v1/public/surveys/1")
+    assert not public("https://leonaid.invalid", "/api/v1/auth/login")
+    assert not public("https://leonaid.invalid", "/api/v1/publicity")
+    assert not public("https://evil.invalid", "/api/v1/public/inbox-cases")
+    assert not public(None, "/api/v1/public/inbox-cases")
+    # The admin origin keeps its credentialed path, never the public one.
+    assert not public("https://portal.leonaid.invalid", "/api/v1/public/legal-notice")
+
+
+def test_public_origins_reach_only_their_own_host() -> None:
+    # A page of the public host calling the admin host's public API would be
+    # same-site and carry the admin host's cookies: refused.
+    path = "/api/v1/public/surveys/1/participations"
+    assert not public("https://leonaid.invalid", path, host="app.leonaid.invalid")
+    assert not public("https://www.leonaid.invalid", path, host="leonaid.invalid")
+    assert not public("https://leonaid.invalid", path, host="leonaid.invalid:8443")
+    assert public("https://leonaid.invalid", path, host="LEONAID.invalid")

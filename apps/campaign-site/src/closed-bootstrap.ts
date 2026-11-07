@@ -15,7 +15,10 @@ import {
 } from "./auth/core-identity";
 import { campaignManifest } from "./auth/campaign-manifest.mjs";
 import { campaignMediaRoute } from "./auth/campaign-media-routes.mjs";
-import { hasSecurePublicOrigin } from "./auth/public-origin";
+import {
+  hasSecureAdminOrigin,
+  hasSecureSiteOrigin,
+} from "./auth/public-origin";
 import {
   isCampaignEditorRoute,
   isCampaignCreateRoute,
@@ -83,7 +86,7 @@ export const onRequest = defineMiddleware(
           headers: { ...headers, Allow: "GET, HEAD" },
         });
       try {
-        if (!hasSecurePublicOrigin(request))
+        if (!hasSecureSiteOrigin(request))
           return new Response("Invalid CMS origin", { status: 403, headers });
         if (nativeOrderPost) {
           const rejectedBody = await guardOrderBody(request);
@@ -145,7 +148,7 @@ export const onRequest = defineMiddleware(
         const identity = await authenticate(request);
         if (identity.role !== 50) throw new CoreIdentityError(403);
         await requireArmedBootstrap(bootstrapDirectory, identity.subject);
-        if (!hasSecurePublicOrigin(request))
+        if (!hasSecureAdminOrigin(request))
           return new Response("Invalid CMS origin", { status: 403, headers });
         if (await setupIsComplete()) throw new Error();
         if (setupPost) {
@@ -221,7 +224,7 @@ export const onRequest = defineMiddleware(
           url.pathname === "/_emdash/api/manifest" &&
           (await bootstrapIsArmed(bootstrapDirectory));
         if (!setupManifest) await requireCompletedBootstrap(bootstrapDirectory);
-        if (!hasSecurePublicOrigin(request))
+        if (!hasSecureAdminOrigin(request))
           return new Response("Invalid CMS origin", { status: 403, headers });
         if (
           (campaignUpdate || dismissWelcome) &&

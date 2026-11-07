@@ -5,7 +5,7 @@ variable "VERSION" { default = "0.0.0-dev" }
 variable "REVISION" { default = "" }
 variable "SOURCE" { default = "https://github.com/BjoernSchotte/leonaid" }
 
-group "default" { targets = ["core", "web", "pwa", "public", "proxy", "survey-validator"] }
+group "default" { targets = ["core", "web", "pwa", "public", "proxy", "survey-validator", "campaign-site"] }
 
 target "_release" {
   platforms = ["linux/amd64"]
@@ -58,4 +58,13 @@ target "survey-validator" {
   context = "."
   dockerfile = "infra/compose/Dockerfile.survey-validator"
   tags = ["${REGISTRY}/survey-validator:${VERSION}"]
+}
+
+# Campaign pages and the EmDash editor. An installation runs it only with the
+# CMS enabled (specs/multi-domain stage 0); the release always ships it.
+target "campaign-site" {
+  inherits = ["_release"]
+  context = "."
+  dockerfile = "infra/compose/Dockerfile.campaign-site"
+  tags = ["${REGISTRY}/campaign-site:${VERSION}"]
 }

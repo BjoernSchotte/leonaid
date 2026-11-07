@@ -65,6 +65,7 @@ SURVEY_REACT_VERSION = "19.2.8"
 SURVEY_REACT_PEERS = {"react", "react-dom"}
 ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
     Path("infra/pilot/compose.yml"): {
+        "LEONAID_CAMPAIGN_SITE_IMAGE",
         "LEONAID_CORE_IMAGE",
         "LEONAID_PROXY_IMAGE",
         "LEONAID_PUBLIC_IMAGE",

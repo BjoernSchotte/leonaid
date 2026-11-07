@@ -13,9 +13,12 @@ Punkte sind keine stillschweigenden Produktzusagen.
   die Vorlagen `blank` und `krapfentaxi`).
 - Öffentliche Seiten verwenden versionierte Standardformulare. Es gibt
   keinen Form-Builder und keinen freien Workflow-Editor. Die
-  Kampagnen-Microsite ist im EmDash-CMS (`apps/campaign-site`) bearbeitbar,
-  gehört aber nicht zum Pilot-Stack (`infra/pilot/compose.yml` hat keinen
-  `campaign-site`-Dienst).
+  Kampagnen-Microsite ist im EmDash-CMS (`apps/campaign-site`) bearbeitbar.
+  Im Pilot-Stack läuft sie mit `LEONAID_CMS_ENABLED=true` (Profil `emdash`,
+  Release-Image `campaign-site`, Manifest `release-manifest-cms.json`). Die
+  einmalige Einrichtung in Produktion (CMS-Datenbankrolle, Medien-Bucket,
+  Editor-Setup) hat noch keinen `pilot-*`-Befehl; sie läuft nur über die
+  Spike-Operatoren (`infra/emdash-spike/service.test.yml`).
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
   manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
@@ -99,8 +102,20 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Club eine von LeonAid verwaltete Twenty-Ansicht, bricht der Provisioner mit
   `SchemaDrift` ab (`specs/release-updates/PLAN.md`, Risiken R3 und R7).
   `./leonaid update` und signierte Releases sind nur spezifiziert.
-- Eine Installation bedient einen Host. Backend-Host mit eigenen
-  Kampagnen-Domains ist nur spezifiziert (`specs/multi-domain/PLAN.md`).
+- Eine Installation bedient einen Host oder einen Verwaltungshost
+  (`app.<domain>`) plus einen öffentlichen Host mit Weiterleitungsnamen
+  (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
+  Eigene Kampagnen-Domains (Stufe 2) und eine Installation ohne öffentlichen
+  Host sind nur spezifiziert. `/` auf dem Verwaltungshost leitet vorerst auf
+  `/admin/` (rollenbasierter Einstieg: Stufe 1b). Weiterleitungsnamen des
+  öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
+  Hosts melden sich alle Mitglieder einmal neu an
+  (`pilot-revoke-sessions`). Auf dem öffentlichen Host zeigt die Kopfzeile
+  einen festen Link „Anmelden“ statt der persönlichen App-Links (#82): die
+  Sitzung gehört zum Verwaltungshost, und die CSP (`connect-src 'self'`)
+  erlaubt keine Abfrage dort. Die Live-Abnahme der Aktionsseiten im
+  Split-Modus (CMS hinter `Caddyfile.split`) fehlt; der Stack-Beweis
+  `test-multi-host` läuft ohne CMS.
 - Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.

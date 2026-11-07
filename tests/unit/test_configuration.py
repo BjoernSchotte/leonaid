@@ -64,6 +64,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "apiVersion": "v1",
         "publicBaseHost": "localhost",
         "allowedOriginCount": "1",
+        "siteBaseHost": "localhost",
+        "publicOriginCount": "0",
         "trustedProxyHeaders": "false",
         "invitationTtlMinutes": "30",
         "loginChallengeTtlMinutes": "10",
@@ -83,6 +85,55 @@ def test_settings_are_typed_and_secret_safe() -> None:
     assert "top-secret" not in repr(settings)
     assert "top-secret" not in repr(settings.safe_summary())
     assert settings.allowed_origins == ("http://localhost:8080",)
+
+
+def test_single_host_links_use_the_one_base_url() -> None:
+    settings = valid_settings(LEONAID_SITE_BASE_URL="")
+
+    assert settings.site_base_url == settings.public_base_url
+    assert settings.public_origins == ()
+    assert settings.links.admin_url("/login?token=t") == (
+        "http://localhost:8080/login?token=t"
+    )
+    assert settings.links.site_url("/surveys/1") == "http://localhost:8080/surveys/1"
+
+
+def test_admin_and_public_host_split_links_and_origins() -> None:
+    settings = valid_production_settings(
+        LEONAID_PUBLIC_BASE_URL="https://app.leonaid.org",
+        LEONAID_ALLOWED_ORIGINS="https://app.leonaid.org",
+        LEONAID_SITE_BASE_URL="https://leonaid.org",
+        LEONAID_PUBLIC_ORIGINS="https://leonaid.org, https://WWW.leonaid.org/",
+    )
+
+    assert settings.links.admin_url("/invite?token=t") == (
+        "https://app.leonaid.org/invite?token=t"
+    )
+    assert settings.links.site_url("/surveys/7") == "https://leonaid.org/surveys/7"
+    assert settings.allowed_origins == ("https://app.leonaid.org",)
+    assert settings.public_origins == (
+        "https://leonaid.org",
+        "https://www.leonaid.org",
+    )
+    assert settings.safe_summary()["siteBaseHost"] == "leonaid.org"
+    assert settings.safe_summary()["publicOriginCount"] == "2"
+
+
+def test_production_rejects_unsafe_public_hosts() -> None:
+    split = {
+        "LEONAID_PUBLIC_BASE_URL": "https://app.leonaid.org",
+        "LEONAID_ALLOWED_ORIGINS": "https://app.leonaid.org",
+    }
+    for overrides in (
+        {"LEONAID_SITE_BASE_URL": "http://leonaid.org"},
+        {"LEONAID_SITE_BASE_URL": "https://leonaid.test"},
+        {"LEONAID_PUBLIC_ORIGINS": "http://leonaid.org"},
+        {"LEONAID_PUBLIC_ORIGINS": "https://localhost"},
+        # A public origin with credentials would open the admin API to it.
+        {"LEONAID_PUBLIC_ORIGINS": "https://app.leonaid.org"},
+    ):
+        with raises(ValidationError):
+            valid_production_settings(**split, **overrides)
 
 
 def test_allowed_origins_are_normalized_and_deduplicated() -> None:

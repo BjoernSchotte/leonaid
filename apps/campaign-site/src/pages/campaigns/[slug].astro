@@ -16,6 +16,7 @@ import { readPublishedCampaign } from "../../public/published-campaign.mjs";
 import { editorialHtml } from "../../public/editorial-html.mjs";
 import { publicMediaPath } from "../../public/published-media.mjs";
 import type { CampaignPageFields } from "../../campaign-fields.generated";
+import { siteOriginOf } from "../../auth/public-origin";
 
 let state: "published" | "inactive" | "missing" | "unavailable" = "missing";
 let route = null;
@@ -70,7 +71,10 @@ const orderForm =
     : null;
 const title =
   content && action ? `${content.title} · LeonAid` : "Aktionsseite · LeonAid";
-const origin = new URL(process.env.EMDASH_SITE_URL!);
+// Canonical and Open Graph URLs name the site host this request came through,
+// already validated by the closed guard (specs/multi-domain §6.4).
+const origin = siteOriginOf(Astro.request);
+if (!origin) throw new Error("public campaign request without a site origin");
 const socialImage = content?.social_image ?? content?.hero_image;
 const canonicalUrl = new URL(route?.canonicalPath ?? Astro.url.pathname, origin)
   .href;

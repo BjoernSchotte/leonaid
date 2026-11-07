@@ -67,6 +67,7 @@ Commands:
                     Prove public alias switching and immutable archive routes
   test-public-orders
                     Prove public form, real Twenty reuse/create and ActivityEvents
+  test-multi-host   Prove admin host + public host with the real services
   test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser>
   test-emdash-spike --case <authorization-inventory|authorization-surface>
   test-emdash-spike --case <campaign-content|campaign-runtime>
@@ -165,8 +166,11 @@ Commands:
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
                [--first-install]
                     Validate deployment and decisions for productive actions
-  pilot-secrets --output FILE
-                    Write production.env.example with fresh secrets (0600)
+  pilot-secrets --output FILE [--public-domain DOMAIN [--admin-domain HOST]
+                [--alias HOST]... | --public-domain DOMAIN --single-host]
+                    Write production.env.example with fresh secrets (0600);
+                    with --public-domain also every host setting (admin host
+                    app.DOMAIN unless --admin-domain or --single-host)
   pilot-install --env-file FILE --release-manifest FILE
                 --twenty-bootstrap-file FILE --password-file FILE
                 [--credentials-file FILE]
@@ -188,6 +192,8 @@ Commands:
   pilot-repair-crm-match-keys --env-file FILE [--changed-within MINUTES]
                     Repair CRM match keys in the running pilot; skips while
                     maintenance mode is on (leonaid-crm-repair*.timer)
+  pilot-revoke-sessions --env-file FILE
+                    Sign every member out (after moving to an admin host)
   crm-admin --env-file FILE [--ssh-target USER@HOST]
                     Print the SSH tunnel to the admin-only Twenty CRM UI
                     (no public CRM domain; Twenty listens on 127.0.0.1)
@@ -738,6 +744,7 @@ check_all() {
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/security/vuln_policy.py check /workspace
   /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
+  /bin/sh "$root/tools/proxy/routing-test.sh" "$root"
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
@@ -1216,10 +1223,37 @@ pilot_test_overlay() {
   printf '%s\n' "$overlay"
 }
 
+# The CMS (campaign pages and the EmDash editor, specs/multi-domain stage 0)
+# belongs to a pilot stack only when its env file enables it.
+pilot_cms_enabled() {
+  pilot_cms_value=$(sed -n 's/^LEONAID_CMS_ENABLED=//p' "$1" | tail -n 1)
+  case "$pilot_cms_value" in
+    true) return 0 ;;
+    false|'') return 1 ;;
+    *)
+      echo "pilot: ERROR: LEONAID_CMS_ENABLED must be true or false (unquoted) in $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
+pilot_cms_profile() {
+  if pilot_cms_enabled "$1"; then
+    printf '%s\n' --profile emdash
+  fi
+}
+
+pilot_cms_topology() {
+  if pilot_cms_enabled "$1"; then echo emdash; else echo legacy; fi
+}
+
 pilot_compose_config() {
   project=$1
   env_file=$2
   output=$3
+  pilot_profile=$(pilot_cms_profile "$env_file") || return
+  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  set -- $pilot_profile
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1228,14 +1262,14 @@ pilot_compose_config() {
       --file "$root/infra/compose/compose.yml" \
       --file "$root/infra/pilot/compose.yml" \
       --file "$overlay" \
-      config --format json >"$output"
+      "$@" config --format json >"$output"
   else
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
       --file "$root/infra/compose/compose.yml" \
       --file "$root/infra/pilot/compose.yml" \
-      config --format json >"$output"
+      "$@" config --format json >"$output"
   fi
 }
 
@@ -1282,6 +1316,9 @@ pilot_compose_command() {
   project=$1
   env_file=$2
   shift 2
+  pilot_profile=$(pilot_cms_profile "$env_file") || return
+  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  set -- $pilot_profile "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1337,6 +1374,14 @@ pilot_verify_release_manifest() {
   manifest=$1
   compose_config=$2
   expected_commit=$3
+  # A stack with the CMS needs the CMS release contract (manifest schema 2);
+  # one without it must not accept one (tools/pilot_release/manifest.py).
+  schema_version=1
+  if docker run --rm --network none \
+    --volume "$compose_config:/pilot/compose.json:ro" "$PYTHON_IMAGE" \
+    python -c 'import json,sys; sys.exit(0 if "campaign-site" in json.load(open("/pilot/compose.json"))["services"] else 1)'; then
+    schema_version=2
+  fi
   docker run --rm \
     --env PYTHONPATH=/workspace \
     --volume "$root:/workspace:ro" \
@@ -1348,6 +1393,7 @@ pilot_verify_release_manifest() {
       --root /workspace \
       --manifest /pilot/release-manifest.json \
       --expected-commit "$expected_commit" \
+      --expected-schema-version "$schema_version" \
       --compose-config /pilot/compose.json
 }
 
@@ -1441,6 +1487,9 @@ pilot_bootstrap_compose() {
   project=$1
   env_file=$2
   shift 2
+  pilot_profile=$(pilot_cms_profile "$env_file") || return
+  # shellcheck disable=SC2086 # empty or exactly "--profile emdash"
+  set -- $pilot_profile "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1517,6 +1566,7 @@ pilot_monitoring() {
 pilot_secrets() {
   require_docker
   secrets_output=
+  secrets_hosts=
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --output)
@@ -1526,6 +1576,24 @@ pilot_secrets() {
         }
         secrets_output=$2
         shift 2
+        ;;
+      --public-domain|--admin-domain|--alias)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-secrets: ERROR: $1 needs a host name" >&2
+          exit 64
+        }
+        case "$2" in
+          *[!a-zA-Z0-9.-]*|'')
+            echo "pilot-secrets: ERROR: $1 needs a host name" >&2
+            exit 64
+            ;;
+        esac
+        secrets_hosts="$secrets_hosts $1 $2"
+        shift 2
+        ;;
+      --single-host)
+        secrets_hosts="$secrets_hosts --single-host"
+        shift
         ;;
       *)
         echo "pilot-secrets: ERROR: unknown option '$1'" >&2
@@ -1563,7 +1631,7 @@ pilot_secrets() {
     "$PYTHON_IMAGE" \
     python /workspace/tools/pilot_install/production_secrets.py \
       --template /workspace/infra/pilot/production.env.example \
-      --output "/output/$secrets_name"
+      --output "/output/$secrets_name" $secrets_hosts
   pilot_require_private_external pilot-secrets \
     "$secrets_directory/$secrets_name" "generated environment file"
 }
@@ -1928,6 +1996,7 @@ pilot_backup() {
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     backup_overlay_secondary=$(pilot_test_overlay "$project")
   fi
+  backup_topology=$(pilot_cms_topology "$env_file") || exit 1
   LEONAID_ENV_FILE="$env_file" \
     LEONAID_COMPOSE_PROJECT="$project" \
     LEONAID_BACKUP_REPOSITORY="$repository" \
@@ -1935,6 +2004,7 @@ pilot_backup() {
     LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
     LEONAID_BACKUP_MANIFEST_OUTPUT="$backup_manifest" \
     LEONAID_BACKUP_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_BACKUP_TOPOLOGY="$backup_topology" \
     LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY="$backup_overlay_secondary" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     /bin/sh "$root/tools/backup/backup.sh" "$root"
@@ -1948,9 +2018,10 @@ pilot_backup() {
 value=json.loads(pathlib.Path("/pilot/backup-manifest.json").read_text(encoding="utf-8"))
 assert value.get("schemaVersion")==1
 assert value.get("sourceProject")==os.environ["EXPECTED_PROJECT"]
-assert set(value.get("files",{}))=={
-  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
-}'; then
+required={"core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"}
+files=set(value.get("files",{}))
+# caddy-data.tar is optional (tools/backup/manifest.py OPTIONAL_FILES).
+assert required<=files and files-required<={"caddy-data.tar"}, sorted(files)'; then
     rm -rf "$manifest_check_directory"
   else
     status=$?
@@ -2054,6 +2125,41 @@ pilot_repair_crm_match_keys() {
 # compose.yml); the system administrator reaches it through SSH port
 # forwarding. Twenty's SERVER_URL is http://localhost:TWENTY_ADMIN_PORT, so
 # the local end of the tunnel must use the same port.
+# Sign every member out, for example when the installation moves the member
+# surface to a new admin host: cookies of the old host must not stay valid.
+pilot_revoke_sessions() {
+  require_docker
+  env_file=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-revoke-sessions: ERROR: --env-file needs a path" >&2
+          return 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-revoke-sessions: ERROR: unknown option '$1'" >&2
+        return 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-revoke-sessions: ERROR: --env-file is missing" >&2
+    return 64
+  }
+  env_file=$(pilot_absolute_file pilot-revoke-sessions "$env_file") || return
+  pilot_require_private_external pilot-revoke-sessions "$env_file" \
+    "environment file" || return
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  revoked=$(pilot_compose_command "$project" "$env_file" exec -T core-postgres \
+    sh -ec 'psql -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "WITH revoked AS (UPDATE user_session SET revoked_at = now(), updated_at = now() WHERE revoked_at IS NULL RETURNING 1) SELECT count(*) FROM revoked"') ||
+    return
+  echo "pilot-revoke-sessions: OK: $revoked sessions revoked; every member signs in again"
+}
+
 crm_admin() {
   env_file=
   ssh_target=
@@ -2707,6 +2813,7 @@ pilot_restore() {
         ;;
     esac
   fi
+  restore_topology=$(pilot_cms_topology "$target_env_file") || exit 1
   LEONAID_RESTORE_RESUME="$resume" \
     LEONAID_RESTORE_EXPECTED_MANIFEST="$backup_manifest" \
     LEONAID_ENV_FILE="$target_env_file" \
@@ -2718,6 +2825,7 @@ pilot_restore() {
     LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_RESTORE_TOPOLOGY="$restore_topology" \
     LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$restore_overlay_secondary" \
     LEONAID_RESTORE_NETWORKS_PRERESERVED="$restore_networks_prereserved" \
     LEONAID_RESTORE_ISOLATED_PILOT_TEST="$restore_isolated_test" \
@@ -3264,6 +3372,10 @@ case "$command" in
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     ;;
   test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
+  test-multi-host)
+    require_docker
+    /bin/sh "$root/tools/multi_host/test.sh" "$root"
+    ;;
   test-recovery)
     /bin/sh "$root/tools/backup/test.sh" "$root"
     /bin/sh "$root/tools/upgrade/test.sh" "$root"
@@ -3588,6 +3700,10 @@ case "$command" in
   crm-admin)
     shift
     crm_admin "$@"
+    ;;
+  pilot-revoke-sessions)
+    shift
+    pilot_revoke_sessions "$@"
     ;;
   pilot-restore)
     shift

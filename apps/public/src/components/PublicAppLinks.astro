@@ -3,10 +3,40 @@
 // Public pages may be cached and shared, so the server HTML is the same for
 // every visitor: the container stays hidden and the script below asks the
 // API who is signed in after load. Signed-out visitors see no change.
+//
+// With a separate admin host (specs/multi-domain) the public host cannot
+// know who is signed in: the session cookie belongs to the admin host, the
+// public host serves no identity API, and the build-time CSP (connect-src
+// 'self') forbids a cross-host request. The header then shows one static
+// sign-in link to the admin host and sends no identity request.
+import { adminHostLink } from "../lib/app-links";
+
+const adminLink = adminHostLink(
+  process.env.LEONAID_ADMIN_BASE_URL,
+  Astro.url.host,
+);
 ---
 
-<nav class="site-header__apps" aria-label="Ihre Bereiche" data-app-links hidden>
-</nav>
+{
+  adminLink ? (
+    <nav class="site-header__apps" aria-label="Ihre Bereiche">
+      <a
+        class="site-header__app-link"
+        data-admin-host-link
+        href={adminLink.href}
+      >
+        {adminLink.label}
+      </a>
+    </nav>
+  ) : (
+    <nav
+      class="site-header__apps"
+      aria-label="Ihre Bereiche"
+      data-app-links
+      hidden
+    />
+  )
+}
 
 <script>
   import { LeonAidApiClient } from "@leonaid/api-client";

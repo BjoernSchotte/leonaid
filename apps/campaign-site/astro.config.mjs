@@ -62,7 +62,8 @@ export default defineConfig({
   image: { endpoint: { route: "/_emdash/image", entrypoint: undefined } },
   server: { host: true, port: 3000 },
   security: {
-    // LEONAID_PUBLIC_DOMAIN is added at runtime (runtime-allowed-domains.mjs).
+    // The admin host (editor) and the public host (campaign pages) are added
+    // at runtime (runtime-allowed-domains.mjs).
     allowedDomains: [
       { hostname: "localhost" },
       { hostname: "proxy" },
@@ -99,7 +100,7 @@ export default defineConfig({
     contentLogPatch(),
     postgresPatch(),
     zodJitlessPatch(),
-    runtimeAllowedDomains("LEONAID_PUBLIC_DOMAIN"),
+    runtimeAllowedDomains(["LEONAID_ADMIN_DOMAIN", "LEONAID_PUBLIC_DOMAIN"]),
     react(),
     emdash({
       // A fixed public favicon avoids the native shell resolving global CMS

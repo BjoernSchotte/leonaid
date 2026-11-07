@@ -357,6 +357,35 @@ docker run --rm \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/validate.py /proof/compose.json
+# The same installation with an admin host, a public host with one alias and
+# the CMS (specs/multi-domain stages 0 and 1).
+split_env_file="$workspace/production-split.env"
+cp "$env_file" "$split_env_file"
+{
+  printf '%s\n' \
+    "LEONAID_CMS_ENABLED=true" \
+    "LEONAID_CAMPAIGN_SITE_IMAGE=registry.example.org/leonaid/campaign-site@sha256:$digest" \
+    "LEONAID_PROXY_CADDYFILE=Caddyfile.split" \
+    "LEONAID_ADMIN_DOMAIN=app.leonaid.org" \
+    "LEONAID_PUBLIC_DOMAIN=leonaid.org" \
+    "LEONAID_PUBLIC_DOMAIN_ALIASES=www.leonaid.org" \
+    "LEONAID_PUBLIC_BASE_URL=https://app.leonaid.org" \
+    "LEONAID_SITE_BASE_URL=https://leonaid.org" \
+    "LEONAID_ALLOWED_ORIGINS=https://app.leonaid.org" \
+    "LEONAID_PUBLIC_ORIGINS=https://leonaid.org" \
+    "CMS_POSTGRES_PASSWORD=cms-postgres-production-test-010" \
+    "CMS_S3_SECRET_ACCESS_KEY=cms-media-production-test-011" \
+    "CMS_ENCRYPTION_KEY=emdash_enc_v1_cms-production-test-012-abcdefgh"
+} >>"$split_env_file"
+chmod 600 "$split_env_file"
+docker compose \
+  --project-name "$project" \
+  --env-file "$split_env_file" \
+  --file "$root/infra/compose/compose.yml" \
+  --file "$root/infra/pilot/compose.yml" \
+  --profile emdash \
+  config --format json >"$workspace/compose-split.json"
+
 docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
@@ -364,7 +393,7 @@ docker run --rm \
   --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
-  python tools/pilot_deployment/test.py /proof/compose.json
+  python tools/pilot_deployment/test.py /proof/compose.json /proof/compose-split.json
 
 echo "pilot-deployment-test: builds six release images before the deployment"
 build_owned=true
@@ -900,9 +929,11 @@ docker run --rm \
   python -c 'import json,os,pathlib
 value=json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["sourceProject"]==os.environ["EXPECTED_PROJECT"]
+# The pilot proxy keeps its certificates in caddy-data, so the backup has it.
 assert set(value["files"])=={
-  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
-}'
+  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar",
+  "caddy-data.tar"
+}, sorted(value["files"])'
 
 . "$root/tools/backup/survey-recovery-fixture.sh"
 if [ "$mode" = surveys ]; then
