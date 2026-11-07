@@ -231,6 +231,54 @@ class CheckoutIsolationTests(unittest.TestCase):
                 ]
             )
 
+    def fake_docker(self, directory: Path, owners: str = "") -> str:
+        """PATH with a Docker stand-in: `ps` reports `owners`, all else succeeds."""
+        stub = directory / "fake-bin"
+        stub.mkdir(exist_ok=True)
+        (directory / "owners").write_text(owners)
+        (stub / "docker").write_text(
+            f'#!/bin/sh\n[ "$1" = ps ] && cat "{directory / "owners"}"\nexit 0\n'
+        )
+        (stub / "docker").chmod(0o755)
+        return f"{stub}:{os.environ['PATH']}"
+
+    def test_unrecorded_main_checkout_is_never_rewritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main, worktree = self.make_repository(Path(directory))
+            env_text = "LEONAID_HTTP_PORT=28080\nLEONAID_HTTPS_PORT=28081\n"
+            (main / ".env.local").write_text(env_text)
+            path = self.fake_docker(Path(directory))
+            for command in (["bootstrap"], ["dev"]):
+                result = self.run_cli(main, *command, PATH=path)
+                self.assertNotEqual(result.returncode, 0, command)
+                self.assertIn("--main-instance", result.stderr, command)
+            self.assertEqual((main / ".env.local").read_text(), env_text)
+            # Owning the running leonaid containers is just as conclusive.
+            (main / ".env.local").write_text("LEONAID_HTTP_PORT=28090\n")
+            path = self.fake_docker(Path(directory), f"{main}/infra/compose\n")
+            result = self.run_cli(main, "bootstrap", PATH=path)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("looks like the main development instance", result.stderr)
+            # A worktree is never mistaken for it, nor recorded as it.
+            (worktree / ".env.local").write_text(env_text)
+            result = self.run_cli(worktree, "bootstrap", "--main-instance", PATH=path)
+            self.assertIn("linked worktree cannot be the main", result.stderr)
+            self.assertNotEqual(
+                self.instance(worktree, LEONAID_MAIN_CHECKOUT=str(worktree))["project"],
+                "leonaid",
+            )
+
+    def test_main_instance_refused_when_another_checkout_owns_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main, _ = self.make_repository(Path(directory))
+            path = self.fake_docker(
+                Path(directory), "/elsewhere/leonaid/infra/compose\n"
+            )
+            result = self.run_cli(main, "bootstrap", "--main-instance", PATH=path)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("belongs to /elsewhere/leonaid", result.stderr)
+            self.assertFalse((main / ".local/main-instance").exists())
+
     def test_scripts_refuse_a_missing_project(self):
         source = Path(__file__).resolve().parents[1]
         for script in (

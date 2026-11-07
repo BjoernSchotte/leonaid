@@ -23,7 +23,9 @@ export LEONAID_OPERATOR_USER
 # doctor, ... there never address the main instance (fail closed).
 root_physical=$(CDPATH= cd -- "$root" && pwd -P)
 checkout_kind=other
-if [ -n "${LEONAID_MAIN_CHECKOUT:-}" ]; then
+if [ -f "$root/.git" ]; then
+  : # A linked worktree is never the main checkout.
+elif [ -n "${LEONAID_MAIN_CHECKOUT:-}" ]; then
   if [ "$(CDPATH= cd -- "$LEONAID_MAIN_CHECKOUT" 2>/dev/null && pwd -P)" = "$root_physical" ]; then
     checkout_kind=main
   fi
@@ -57,7 +59,8 @@ Usage: ./leonaid <command>
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
                     [--main-instance] records this checkout as the main
-                    development instance (Compose project "leonaid")
+                    development instance (Compose project "leonaid");
+                    [--other-checkout] confirms a clone that is not it
   doctor            Diagnose Docker, locks, secrets and local dependencies
   local-instance    Show this checkout's Compose project: "leonaid" only for
                     the recorded main checkout, leonaid-wt-<checksum> otherwise
@@ -588,10 +591,42 @@ reserved_ports() {
 require_own_ports() {
   for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
     if reserved_ports | grep -qx "$configured_port"; then
-      echo "leonaid: ERROR: port $configured_port is reserved for the main development instance; run './leonaid bootstrap' to choose this checkout's own ports." >&2
+      if unrecorded_main; then
+        echo "leonaid: ERROR: this checkout looks like the main development instance (port $configured_port) but is not recorded; run './leonaid bootstrap --main-instance' here once." >&2
+      else
+        echo "leonaid: ERROR: port $configured_port is reserved for the main development instance; run './leonaid bootstrap' to choose this checkout's own ports." >&2
+      fi
       exit 1
     fi
   done
+}
+
+# Working directories of existing "leonaid" containers (Compose labels).
+leonaid_owner_directories() {
+  docker ps -a --filter label=com.docker.compose.project=leonaid \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u
+}
+
+owns_leonaid_stack() {
+  for owner_directory in $(leonaid_owner_directories); do
+    if [ "$owner_directory" = "$root/infra/compose" ] ||
+      [ "$owner_directory" = "$root_physical/infra/compose" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# A primary clone (.git directory) without the record that holds the main
+# instance's ports or owns its containers: the main checkout before
+# `bootstrap --main-instance`. Never rewrite it into another checkout.
+unrecorded_main() {
+  [ "$checkout_kind" != main ] && [ -d "$root/.git" ] || return 1
+  if sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local" 2>/dev/null |
+    grep -qxE '8080|8443|28080|28081'; then
+    return 0
+  fi
+  owns_leonaid_stack
 }
 
 # A checkout that already runs the "leonaid" stack but is not recorded as the
@@ -601,15 +636,10 @@ require_recorded_main() {
   [ "$checkout_kind" = main ] && return 0
   [ "${main_owner_checked:-false}" = false ] || return 0
   main_owner_checked=true
-  owner_directories=$(docker ps -a --filter label=com.docker.compose.project=leonaid \
-    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
-  for owner_directory in $owner_directories; do
-    if [ "$owner_directory" = "$root/infra/compose" ] ||
-      [ "$owner_directory" = "$root_physical/infra/compose" ]; then
-      echo "leonaid: ERROR: this checkout runs the 'leonaid' development instance but is not recorded as the main checkout; run './leonaid bootstrap --main-instance' here once." >&2
-      exit 1
-    fi
-  done
+  if owns_leonaid_stack; then
+    echo "leonaid: ERROR: this checkout runs the 'leonaid' development instance but is not recorded as the main checkout; run './leonaid bootstrap --main-instance' here once." >&2
+    exit 1
+  fi
 }
 
 port_usable() {
@@ -653,6 +683,13 @@ bootstrap() {
           echo "bootstrap: ERROR: a linked worktree cannot be the main development instance" >&2
           exit 1
         fi
+        for owner_directory in $(leonaid_owner_directories); do
+          if [ "$owner_directory" != "$root/infra/compose" ] &&
+            [ "$owner_directory" != "$root_physical/infra/compose" ]; then
+            echo "bootstrap: ERROR: the 'leonaid' instance belongs to ${owner_directory%/infra/compose}; record that checkout instead" >&2
+            exit 1
+          fi
+        done
         mkdir -p "$root/.local"
         printf '%s\n' "$root_physical" >"$root/.local/main-instance"
         checkout_kind=main
@@ -660,12 +697,18 @@ bootstrap() {
         dev_project=${LEONAID_COMPOSE_PROJECT:-leonaid}
         echo "bootstrap: recorded this checkout as the main development instance (project leonaid)"
         ;;
+      --other-checkout) other_checkout=true ;;
       *)
         echo "bootstrap: ERROR: unknown option $argument (see ./leonaid help)" >&2
         exit 2
         ;;
     esac
   done
+  if [ "${other_checkout:-false}" != true ] && unrecorded_main; then
+    echo "bootstrap: ERROR: this checkout looks like the main development instance (main ports or its 'leonaid' containers) but is not recorded; nothing was changed." >&2
+    echo "bootstrap: run './leonaid bootstrap --main-instance' here, or '--other-checkout' if it is not the main instance." >&2
+    exit 1
+  fi
   require_docker
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
