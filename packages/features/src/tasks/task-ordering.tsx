@@ -16,7 +16,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 /**
  * Drag and keyboard ordering of list rows. The list view renders the rows;
@@ -86,6 +92,20 @@ export function TaskOrdering({
   );
 }
 
+const MOVE_KEYS = new Set([
+  " ",
+  "Enter",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+]);
+
+/** Marks the keys handled, so list hotkeys (arrows: next row) skip them. */
+function swallowMoveKeys(event: KeyboardEvent<HTMLButtonElement>) {
+  if (MOVE_KEYS.has(event.key)) event.preventDefault();
+}
+
 /**
  * The grip of one row. Its `.row` is the sortable node; the drag offset is
  * written through CSSOM (strict CSP: no style attributes in markup).
@@ -93,7 +113,9 @@ export function TaskOrdering({
  * `disabled` never becomes the HTML attribute: a disabled button drops
  * focus to `<body>`, so a keyboard user would lose their place while a move
  * saves. dnd-kit marks the grip `aria-disabled` and drops its listeners
- * instead, which keeps it focusable but inert.
+ * instead, which keeps it focusable. While inert it also swallows the keys
+ * of a keyboard move, so pressing on (Space, arrows) neither opens nor
+ * walks the list and focus stays put.
  */
 export function TaskOrderHandle({
   disabled,
@@ -149,6 +171,7 @@ export function TaskOrderHandle({
     <button
       {...attributes}
       {...listeners}
+      {...(disabled ? { onKeyDown: swallowMoveKeys } : {})}
       ref={attach}
       className="task-order-handle"
       id={`task-move-${id}`}
