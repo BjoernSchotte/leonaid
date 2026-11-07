@@ -273,8 +273,8 @@ def main() -> int:
         "src/leonaid/application/public_orders.py": {"public-orders"},
     }
     for path, must in graph_cases.items():
-        owners = s.e2e_owners(path, ROOT)
-        expect(owners is not None and must <= owners, f"{path}: owners {owners}")
+        mapped = s.e2e_owners(path, ROOT)
+        expect(mapped is not None and must <= mapped, f"{path}: owners {mapped}")
     expect(s.e2e_owners("apps/web/src/app.tsx", ROOT) is None, "non-Python path")
     errors = s.e2e_owners("src/leonaid/domain/errors.py", ROOT) or set()
     expect(len(errors) >= 10, f"a shared domain module fans out: {errors}")

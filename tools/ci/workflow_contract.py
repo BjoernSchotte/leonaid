@@ -393,6 +393,7 @@ def check_drafts(text: str, name: str) -> list[str]:
             if (
                 needs
                 and always
+                and condition is not None
                 and "needs.select.result == 'success'" in condition.group(1)
             ):
                 continue
