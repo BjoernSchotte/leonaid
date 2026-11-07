@@ -4,8 +4,8 @@ description: Eine Aktion unter einer eigenen Domain oder Subdomain zeigen, Folge
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -66,6 +66,20 @@ veröffentlichte Kampagnenseite, warnt der Dialog.
 Jede Ausgabe ist dauerhaft unter `https://<domain>/<pfad>/` erreichbar. Die
 Startseite `/` zeigt die Ausgabe, die **aktuell auf /** steht, solange sie
 läuft. Nach dem Ende leitet `/` auf die Archivseite der Ausgabe weiter.
+
+## Was Besucher sehen
+
+- `https://<domain>/` zeigt die laufende Ausgabe. Ist sie beendet, leitet `/`
+  auf ihre Archivseite weiter, etwa `/2025/`. Die Archivseite zeigt die
+  Kampagnenseite ohne Bestellformular.
+- Hat die Domain mehrere Ausgaben, verlinkt der Seitenfuß **Frühere
+  Ausgaben**; `/archive/` listet alle Ausgaben.
+- Die bisherigen Adressen der Aktion auf dem öffentlichen Host, ihre Aliase
+  und `/campaigns/<slug>/` leiten auf die Domain weiter. Gedruckte QR-Codes
+  funktionieren also weiter.
+- Impressum und Datenschutz sind auf jeder Domain erreichbar. Jede Domain hat
+  eigene `robots.txt` und `sitemap.xml`.
+- **Live-Ansicht** im Microsite-Editor öffnet die Seite auf ihrer Domain.
 
 ## Domain an eine Folgeaktion übergeben
 

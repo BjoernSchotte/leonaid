@@ -6,6 +6,7 @@ import {
   type PublicOrderResultResponse,
 } from "@leonaid/api-client";
 import { createCampaignListReader } from "./campaign-list";
+import { createSiteHostCheck } from "./site-hosts";
 
 const routeTimeoutMilliseconds = 5_000;
 const mutationTimeoutMilliseconds = 12_000;
@@ -42,6 +43,20 @@ export const listActiveCampaigns = createCampaignListReader(async () => {
     },
   );
   return result.items;
+});
+
+/** Core serves this campaign host (active, §7.4); cached 30 s. */
+export const isActiveSiteHost = createSiteHostCheck(async (hostname) => {
+  try {
+    await client().getPublicSite(hostname, {
+      headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
+      signal: AbortSignal.timeout(routeTimeoutMilliseconds),
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return false;
+    throw error;
+  }
 });
 
 export async function submitPublicOrder(

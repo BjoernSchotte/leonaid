@@ -141,10 +141,13 @@ const liveView = new Function(
   "i18n",
   `${urlFunction[0]}\nreturn ${liveViewExpression[1]};`,
 );
-// Absolute: the editor runs on the admin host, the page on the public host.
+// Absolute: the editor runs on the admin host, the page on the public host
+// or on a campaign host (root or edition segment, specs/multi-domain §7.7.3).
 for (const canonical of [
   "https://leonaid.invalid/campaigns/krapfentaxi-2026/",
   "https://localhost:8443/campaigns/krapfentaxi-2026/",
+  "https://krapfentaxi.org/",
+  "https://lionsopen.de/2025/",
 ]) {
   assert.equal(
     liveView("campaign_pages", true, { leonaidLiveUrl: canonical }),
@@ -158,7 +161,8 @@ for (const canonical of [
 for (const url of [
   undefined,
   "/campaigns/krapfentaxi-2026/",
-  "https://evil.invalid/",
+  "https://evil.invalid/a/b/",
+  "https://evil.invalid",
   "http://leonaid.invalid/campaigns/krapfentaxi-2026/",
   "javascript:alert(1)//leonaid.invalid/campaigns/a/",
   "//evil.invalid/campaigns/a/",

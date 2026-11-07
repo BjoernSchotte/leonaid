@@ -10,6 +10,7 @@ import { withEmDashRuntime } from "emdash/middleware";
 import PublicState from "../../../../public/src/components/PublicState.astro";
 import {
   PublicCampaignError,
+  readPublicCoreArchive,
   readPublicCoreCampaign,
 } from "../../public/core-campaign";
 import { readPublishedCampaign } from "../../public/published-campaign.mjs";
@@ -23,8 +24,26 @@ let route = null;
 let content: CampaignPageFields | null = null;
 let body = "";
 const orderResult = Astro.getActionResult(actions.createPublicOrder);
+// Set when the campaign host middleware mapped this request (§7.2).
+const siteHost = Astro.locals.siteHost;
 try {
   route = await readPublicCoreCampaign(Astro.params.slug ?? "");
+  // An ended edition on its campaign host shows its archived page: the CMS
+  // content without the order form (specs/multi-domain §7.7.2).
+  if (
+    route.availability === "inactive" &&
+    siteHost?.edition?.availability === "archive" &&
+    siteHost.edition.archiveSlug === Astro.params.slug
+  ) {
+    const archived = await readPublicCoreArchive(siteHost.edition.archiveSlug);
+    route = {
+      ...route,
+      availability: "archive" as const,
+      action: archived.action,
+      submissionsAllowed: false,
+      orderAlias: null,
+    };
+  }
   if (route.availability === "inactive") state = "inactive";
   else if (route.action) {
     const actionId = route.action.id;
@@ -54,7 +73,15 @@ Astro.response.status =
   state === "unavailable" ? 503 : state === "published" ? 200 : 404;
 Astro.response.headers.set("Cache-Control", "no-store");
 Astro.response.headers.set("X-LeonAid-Campaign-State", state);
+// On the public host, an action with a campaign host redirects there: 302
+// to a host root (reused by the next edition), else 308 (§7.7.3).
+if (!siteHost && route?.campaignHostUrl && Astro.request.method === "GET")
+  return Astro.redirect(
+    route.campaignHostUrl,
+    new URL(route.campaignHostUrl).pathname === "/" ? 302 : 308,
+  );
 if (
+  !siteHost &&
   state === "published" &&
   route &&
   Astro.url.pathname !== route.canonicalPath
@@ -73,11 +100,17 @@ const title =
   content && action ? `${content.title} · LeonAid` : "Aktionsseite · LeonAid";
 // Canonical and Open Graph URLs name the site host this request came through,
 // already validated by the closed guard (specs/multi-domain §6.4).
-const origin = siteOriginOf(Astro.request);
+const origin = siteOriginOf(Astro.request, siteHost?.origin);
 if (!origin) throw new Error("public campaign request without a site origin");
 const socialImage = content?.social_image ?? content?.hero_image;
-const canonicalUrl = new URL(route?.canonicalPath ?? Astro.url.pathname, origin)
-  .href;
+// Canonical and og:url come from Core's canonical URL function, never from
+// the request path; a mirror host points at the primary (§7.5).
+const canonicalUrl =
+  route?.campaignHostUrl ??
+  siteHost?.edition?.canonicalUrl ??
+  new URL(route?.canonicalPath ?? Astro.url.pathname, origin).href;
+// "Frühere Ausgaben" when the host has more than one edition (§7.7.2).
+const earlierEditions = Boolean(siteHost && siteHost.site.editions.length > 1);
 const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
     amount / 100,
@@ -116,6 +149,7 @@ const showsInbox = Boolean(
       }
     : undefined}
   robots={state === "published" ? "index,follow" : "noindex,follow"}
+  editionsHref={earlierEditions ? "/archive/" : undefined}
   canOrder={Boolean(orderForm)}
   carrierName={action?.carrierName}
   theme={campaignTheme.publicTheme}

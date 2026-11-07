@@ -779,6 +779,14 @@
     {
       "file": "src/leonaid/adapters/postgres/site_host_verification.py",
       "contains": ["TLS_NEW_APPROVALS_PER_HOUR = 10"]
+    },
+    {
+      "file": "apps/public/src/layouts/PublicLayout.astro",
+      "contains": ["Frühere Ausgaben"]
+    },
+    {
+      "file": "apps/campaign-site/src/site-host-routing.ts",
+      "contains": ["\"/robots.txt\"", "\"/sitemap.xml\"", "\"/archive/\""]
     }
   ]
 }

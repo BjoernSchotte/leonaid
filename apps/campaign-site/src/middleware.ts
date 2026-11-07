@@ -22,6 +22,7 @@ import {
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
 import { publicCampaignUrl } from "./auth/public-origin";
+import { readPublicCoreCampaign } from "./public/core-campaign";
 import { campaignCreateBody } from "./auth/campaign-create-body";
 import { createCampaignWithRuntime } from "./auth/campaign-create-runtime";
 import {
@@ -94,6 +95,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
         actor,
         String(actionId),
       );
+      // The canonical URL: the campaign host when the action has one
+      // (specs/multi-domain §6.4 item 4), else the public host path.
+      try {
+        const route = await readPublicCoreCampaign(campaign.archiveSlug);
+        if (route.campaignHostUrl) return route.campaignHostUrl;
+      } catch {
+        // Core unreachable: the public host path still opens the page or
+        // its redirect.
+      }
       return publicCampaignUrl(campaign.archiveSlug);
     };
     // EmDash creates this object per request. Never mutate the shared runtime.

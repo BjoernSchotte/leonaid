@@ -1,15 +1,16 @@
 ---
 import type { PublicCampaignListItemResponse } from "@leonaid/api-client";
 import { resolvePublicTheme } from "../themes";
+import { campaignHref } from "../lib/site-hosts";
 
 interface Props {
   campaigns: readonly PublicCampaignListItemResponse[];
 }
 
 const { campaigns } = Astro.props;
-// Stage 1 lists only pages of this public host, so the link stays relative
-// and works under every name of the host (LAN, test hosts). Stage 2 links
-// campaign hosts with the absolute canonicalUrl.
+// Pages of this public host stay relative, so the link works under every
+// name of the host (LAN, test hosts); campaign hosts get the absolute
+// canonical URL (specs/multi-domain §6.5).
 const dateFormat = new Intl.DateTimeFormat("de-DE", {
   day: "numeric",
   month: "long",
@@ -49,7 +50,7 @@ const period = (startsOn: string, endsOn: string) =>
               <div class="campaign-card__body">
                 <p class="eyebrow">{campaign.carrierName}</p>
                 <h3>
-                  <a class="campaign-card__link" href={campaign.canonicalPath}>
+                  <a class="campaign-card__link" href={campaignHref(campaign)}>
                     {campaign.name}
                   </a>
                 </h3>
