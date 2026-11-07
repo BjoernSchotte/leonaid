@@ -76,10 +76,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   nothing. Delivery is at least once: a crash between the SMTP server
   accepting a mail and the ledger write sends it again on the retry. A
   confirmation whose order is already cancelled is skipped. At most 10 order
-  mails go to one address per hour; a job over that limit is dead-lettered
-  (`order_mail_recipient_limit`, operations view, manual retry). Public order
-  fields refuse line breaks, tabs and invisible control or format characters
-  (bidi overrides, zero-width); the mail also strips them from older data.
+  mails go to one mailbox per hour (`+tag` variants and Gmail dot variants
+  count as one mailbox; an advisory lock per mailbox keeps parallel workers
+  under the limit); a job over that limit is dead-lettered
+  (`order_mail_recipient_limit`, operations view, manual retry). Other
+  providers' aliases are not recognised. Public order fields refuse line
+  breaks, tabs, control, format, surrogate, private-use and unassigned
+  characters and visually blank letters (U+3164, U+2800 and similar);
+  recipient name, street and city also refuse `://`, `www.` and `@`. The
+  mail strips such characters from older data.
   The mail repeats the full delivery and billing address so the buyer can
   check it. Not covered: orders entered by members or acquirers (no mail,
   also no cancellation notice), an HTML version, a club sender address (the
@@ -155,8 +160,11 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Eine Installation bedient einen Host oder einen Verwaltungshost
   (`app.<domain>`) plus einen öffentlichen Host mit Weiterleitungsnamen
   (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
-  Eigene Kampagnen-Domains (Stufe 2) und eine Installation ohne öffentlichen
-  Host sind nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  Eigene Kampagnen-Domains (Stufe 2) sind in Arbeit: System-Admins tragen
+  Domains unter **System › Domains** ein und binden Ausgaben
+  (`site_host`, `site_binding`, Migration 0056); Hostprüfung, Zertifikate
+  und Auslieferung der Kampagnenseiten auf diesen Domains fehlen noch. Eine
+  Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
@@ -168,7 +176,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
   Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
   (Stufe 2).
-- Die Hilfe-Doku trägt auf 19 Seiten je Sprache noch den Vermerk „Prüfung
+- Die Hilfe-Doku trägt auf 21 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts

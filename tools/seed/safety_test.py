@@ -40,7 +40,12 @@ class ResetSafetyTests(unittest.TestCase):
         }
 
     def test_existing_and_isolated_local_names(self) -> None:
-        for name in ("leonaid", "leonaid-poc012-test", self.project):
+        for name in (
+            "leonaid",
+            "leonaid-wt-569081238",
+            "leonaid-poc012-test",
+            self.project,
+        ):
             with self.subTest(name=name):
                 config = copy.deepcopy(self.config)
                 config["name"] = name
@@ -51,6 +56,9 @@ class ResetSafetyTests(unittest.TestCase):
             "leonaid-production",
             "leonaid-staging",
             "leonaid-1-2",
+            "leonaid-wt-",
+            "leonaid-wt-abc",
+            "leonaid-wt-1-production",
             "leonaid-poc012-test-production",
             "leonaid-poc012-test-123",
             "leonaid-poc012-test-123-abc",
