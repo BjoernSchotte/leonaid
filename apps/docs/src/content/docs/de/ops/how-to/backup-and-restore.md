@@ -21,8 +21,11 @@ CREDENTIALS`.
    Gesichert werden beide PostgreSQL-Datenbanken, Twenty-Dateien, das ganze
    RustFS-Volume und im Pilot das Caddy-Datenvolume mit den Zertifikaten und
    dem ACME-Konto jedes Hosts. Ein restaurierter Proxy startet daher ohne neue
-   Zertifikatsanfragen. Das Archiv enthält private Schlüssel; schütze das
-   Repository-Passwort entsprechend. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
+   Zertifikatsanfragen, aber nur mit `pilot-restore --with-tls-state`: nutze
+   es, wenn du die Installation selbst auf einen neuen Server mit denselben
+   Hostnamen zurückspielst. Staging- und Übungsziele bekommen keine
+   Produktionsschlüssel und holen eigene Zertifikate. Das Archiv enthält
+   private Schlüssel; schütze das Repository-Passwort entsprechend. Der Valkey-Queue-Speicher (`twenty-redis`), Mailpit, Images
    und Klartext-Secrets sind ausgeschlossen. Ein restauriertes Projekt startet
    mit leerem Queue-Speicher; `twenty-server` registriert seine Cron-Jobs neu.
 3. Erstelle für einen Drill ein leeres Projekt namens `leonaid-restore-<name>`

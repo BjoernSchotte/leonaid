@@ -199,7 +199,10 @@ Commands:
                     (no public CRM domain; Twenty listens on 127.0.0.1)
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
                 --password-file FILE --confirm RESTORE:TARGET [--resume]
-                    Restore fresh, or resume a verified quarantined pilot target
+                [--with-tls-state]
+                    Restore fresh, or resume a verified quarantined pilot target;
+                    --with-tls-state also restores the TLS certificates (only
+                    for the installation itself on a new server)
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -2704,10 +2707,15 @@ pilot_restore() {
   credentials_file=
   confirm=
   resume=false
+  tls_state=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --resume)
         resume=true
+        shift
+        ;;
+      --with-tls-state)
+        tls_state=true
         shift
         ;;
       --env-file)
@@ -2834,6 +2842,8 @@ pilot_restore() {
     esac
   fi
   restore_topology=$(pilot_cms_topology "$target_env_file") || exit 1
+  LEONAID_RESTORE_TLS_STATE=$tls_state
+  export LEONAID_RESTORE_TLS_STATE
   LEONAID_RESTORE_RESUME="$resume" \
     LEONAID_RESTORE_EXPECTED_MANIFEST="$backup_manifest" \
     LEONAID_ENV_FILE="$target_env_file" \
