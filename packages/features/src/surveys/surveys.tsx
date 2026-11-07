@@ -63,6 +63,7 @@ import { SurveyAnalysis } from "./survey-analysis";
 import { surveyResponsesHref } from "./survey-responses";
 import taxiTemplate from "./survey-templates/krapfentaxi.json";
 import golfTemplate from "./survey-templates/golf.json";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 const labels = {
   draft: "Entwurf",
@@ -420,7 +421,7 @@ export function SurveysPage({
           creationRequest.current = null;
         throw error;
       }
-      history.replaceState(null, "", `/admin/surveys/${creation.id}`);
+      history.replaceState(null, "", `${ADMIN_BASE}surveys/${creation.id}`);
       setId(creation.id);
     }, "");
   }
@@ -503,7 +504,7 @@ export function SurveysPage({
   const leaveToList = useCallback(async () => {
     if (dirty && !(await confirmDiscard())) return;
     leaveScope.leaving = true;
-    window.location.assign("/admin/surveys");
+    window.location.assign(adminHref("surveys"));
   }, [dirty, confirmDiscard, leaveScope]);
 
   const items = list?.items ?? [];
@@ -516,7 +517,7 @@ export function SurveysPage({
     rowLinks.current[next]?.focus();
   };
   const onList = !id && !createNew;
-  const openCreate = () => window.location.assign("/admin/surveys/new");
+  const openCreate = () => window.location.assign(adminHref("surveys/new"));
   useHotkeys(
     onList
       ? [
@@ -604,7 +605,7 @@ export function SurveysPage({
           <nav aria-label="Brotkrumen" className="crumbs">
             <a
               aria-label="Alle Umfragen"
-              href="/admin/surveys"
+              href={adminHref("surveys")}
               onClick={(event) => {
                 if (!dirty || event.metaKey || event.ctrlKey || event.shiftKey)
                   return;
@@ -659,7 +660,7 @@ export function SurveysPage({
             <div className="page-actions">
               <a
                 className={buttonClassName({ variant: "primary" })}
-                href="/admin/surveys/new"
+                href={adminHref("surveys/new")}
               >
                 <Icon icon={Plus} size={16} />
                 <span className="btn-label">Neue Umfrage</span>
@@ -727,7 +728,7 @@ export function SurveysPage({
                   Löschung erneut versuchen
                 </Button>
               )}
-              <a href="/admin/surveys">Zur Umfragenübersicht</a>
+              <a href={adminHref("surveys")}>Zur Umfragenübersicht</a>
             </div>
           </section>
         )}
@@ -779,7 +780,7 @@ export function SurveysPage({
                     <span className="survey-row-main">
                       <a
                         className="survey-row-title"
-                        href={`/admin/surveys/${item.id}`}
+                        href={`${ADMIN_BASE}surveys/${item.id}`}
                         tabIndex={index === focus ? 0 : -1}
                         onFocus={() => setFocus(index)}
                         ref={(element) => {
@@ -834,7 +835,7 @@ export function SurveysPage({
                   search || filter ? undefined : (
                     <a
                       className={buttonClassName({ variant: "primary" })}
-                      href="/admin/surveys/new"
+                      href={adminHref("surveys/new")}
                     >
                       Umfrage anlegen
                     </a>
@@ -1262,7 +1263,7 @@ export function SurveysPage({
                     allowed("read_responses")) && (
                     <p className="surveys-settings surveys-settings-link">
                       <a
-                        href={`/admin/surveys/${encodeURIComponent(summary.id)}/responses/summary`}
+                        href={`${ADMIN_BASE}surveys/${encodeURIComponent(summary.id)}/responses/summary`}
                       >
                         Auswertung ansehen
                       </a>

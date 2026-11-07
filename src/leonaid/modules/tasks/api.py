@@ -18,6 +18,7 @@ from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.navigation import NavigationItem
 from leonaid.platform.http import TransportModel
 from leonaid.modules.tasks.planning import require_time_zone
+from leonaid.platform.base_paths import ADMIN_BASE, PWA_BASE
 
 Title = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
@@ -617,8 +618,8 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return (
-        NavigationItem("tasks", "Aufgaben", "/admin/tasks", "web"),
-        NavigationItem("tasks", "Aufgaben", "/app/tasks", "pwa"),
+        NavigationItem("tasks", "Aufgaben", ADMIN_BASE + "tasks", "web"),
+        NavigationItem("tasks", "Aufgaben", PWA_BASE + "tasks", "pwa"),
     )
 
 

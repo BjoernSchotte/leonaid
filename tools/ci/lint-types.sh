@@ -114,6 +114,13 @@ docker run --rm --network none \
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
   python /workspace/tools/ci/legacy_ui.py /workspace
+# Member-app links come from the base-path constants (specs/multi-domain §6.7).
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/base_path_literals_test.py
+docker run --rm --network none \
+  -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/base_path_literals.py /workspace
 # Core one-off user containers.
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \

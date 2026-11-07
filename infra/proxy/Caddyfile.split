@@ -259,7 +259,7 @@ https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443 {
 		reverse_proxy web:3000
 	}
 
-	@member_routes path /login /invite /email-change /fresh-login
+	@member_routes path /login /login/* /invite /email-change /fresh-login
 	handle @member_routes {
 		import astro_headers
 		import astro_asset_encoding
@@ -295,7 +295,17 @@ https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443 {
 	}
 
 	handle / {
-		redir * /admin/ 302
+		rewrite * /login/start
+		import astro_headers
+		import astro_asset_encoding
+		import order_declared_body_limit
+		reverse_proxy public:3000 {
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+		}
 	}
 
 	handle_path /crm/* {
@@ -398,7 +408,7 @@ https://{$LEONAID_PUBLIC_DOMAIN:localhost}:8443 {
 		respond `self.addEventListener("install", () => self.skipWaiting()); self.addEventListener("activate", (event) => event.waitUntil(self.registration.unregister().then(() => self.clients.matchAll()).then((clients) => Promise.all(clients.map((client) => client.navigate(client.url))))));` 200
 	}
 
-	@member_routes path /app/* /admin/* /login /invite /email-change /fresh-login
+	@member_routes path /app/* /admin/* /login /login/* /invite /email-change /fresh-login
 	handle @member_routes {
 		redir https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:{$LEONAID_HTTPS_PORT:8443}{uri} 308
 	}

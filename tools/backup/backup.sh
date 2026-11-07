@@ -5,7 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+project=${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is required (use ./leonaid, never a default project)}
 repository=${LEONAID_BACKUP_REPOSITORY:-}
 password_file=${LEONAID_BACKUP_PASSWORD_FILE:-}
 credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}

@@ -42,6 +42,7 @@ from leonaid.domain.delivery_board import (
     board_day,
     decide_state_change,
 )
+from leonaid.platform.base_paths import ADMIN_BASE
 
 _DELIVERABLE = sorted(DELIVERABLE_ORDER_STATUSES)
 
@@ -78,7 +79,7 @@ def order_reference(commitment_id: UUID, public_reference: str | None) -> str:
 def order_link(action_id: UUID, commitment_id: UUID) -> str:
     """The order in the orders list pane (Task 5.1 URL contract)."""
 
-    return f"/admin/orders?action={action_id}&view=all&open={commitment_id}"
+    return f"{ADMIN_BASE}orders?action={action_id}&view=all&open={commitment_id}"
 
 
 def _json(value: Any) -> dict[str, Any] | None:

@@ -62,6 +62,7 @@ import {
   useSponsorBoard,
   type AssignmentStatus,
 } from "./pwa-common";
+import { PWA_BASE } from "@leonaid/ui/base-paths";
 
 interface SponsorWorkspaceProps {
   readonly client: LeonAidApiClient;
@@ -99,7 +100,7 @@ function sponsorError(error: unknown) {
 function listHref(actionId: string, status?: AssignmentStatus | null) {
   const query = new URLSearchParams({ action: actionId });
   if (status) query.set("status", status);
-  return `/app/sponsors?${query.toString()}`;
+  return `${PWA_BASE}sponsors?${query.toString()}`;
 }
 
 /* ---------- Sponsor list ---------- */
@@ -200,7 +201,7 @@ function SponsorList({
           action={
             <a
               className={buttonClassName({ variant: "primary" })}
-              href={`/app/sponsors?action=${encodeURIComponent(actionId)}&view=new`}
+              href={`${PWA_BASE}sponsors?action=${encodeURIComponent(actionId)}&view=new`}
               onClick={followInPage}
             >
               Ersten Sponsor erfassen
@@ -266,7 +267,7 @@ function SponsorDetail({
   const contactButton = useRef<HTMLButtonElement>(null);
   const back = listHref(actionId);
   const orderHref = item
-    ? `/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`
+    ? `${PWA_BASE}commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`
     : back;
   useHotkeys(
     [

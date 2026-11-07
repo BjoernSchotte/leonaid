@@ -48,6 +48,7 @@ import {
   invoiceStatusLabels,
   type InvoiceRow,
 } from "./invoice-model";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 export type InvoiceCommand = "payment" | "cancellation" | "reversal";
 
@@ -322,7 +323,7 @@ export function InvoiceDetail({
               label: "Bestellung",
               value: (
                 <a
-                  href={`/admin/orders?action=${encodeURIComponent(invoice.actionId)}&open=${encodeURIComponent(invoice.commitmentId)}`}
+                  href={`${ADMIN_BASE}orders?action=${encodeURIComponent(invoice.actionId)}&open=${encodeURIComponent(invoice.commitmentId)}`}
                 >
                   Bestellung öffnen
                 </a>

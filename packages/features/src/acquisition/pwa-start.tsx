@@ -24,6 +24,7 @@ import {
   followUpWhen,
   useSponsorBoard,
 } from "./pwa-common";
+import { PWA_BASE } from "@leonaid/ui/base-paths";
 
 const pipelineKey = {
   open: "open",
@@ -187,7 +188,7 @@ export function AcquirerStart({
           </h2>
           <a
             className="pwa-more"
-            href={`/app/activities?view=contacts&action=${action}`}
+            href={`${PWA_BASE}activities?view=contacts&action=${action}`}
             onClick={followInPage}
           >
             Alle Wiedervorlagen
@@ -221,7 +222,7 @@ export function AcquirerStart({
                 <li key={status}>
                   <a
                     className="pipe-row"
-                    href={`/app/sponsors?action=${action}&status=${status}`}
+                    href={`${PWA_BASE}sponsors?action=${action}&status=${status}`}
                     onClick={followInPage}
                   >
                     {/* Decorative: the word follows. */}

@@ -52,6 +52,7 @@ import { actionErrorMessage } from "../action-admin/errors";
 import { useContextCommands } from "../command-palette/store";
 import { SurveySummary } from "./survey-summary";
 import "./survey-responses.css";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 /*
  * Individual responses of one survey (`/admin/surveys/<id>/responses`).
@@ -121,7 +122,7 @@ export function surveyResponsesHref(surveyId: string, search = ""): string {
   if (selection) next.set("responseSelection", selection);
   if (selection && open) next.set("open", open);
   const query = next.toString();
-  return `/admin/surveys/${encodeURIComponent(surveyId)}/responses${query ? `?${query}` : ""}`;
+  return `${ADMIN_BASE}surveys/${encodeURIComponent(surveyId)}/responses${query ? `?${query}` : ""}`;
 }
 
 /** Old links named the open response `response=`; the list reads `open=`. */
@@ -298,7 +299,7 @@ export function SurveyResponsesPage({
   const allowed = (capability: string) =>
     summary?.capabilities?.includes(capability) ?? false;
   const readable = summary !== null && summary.status !== "deleted";
-  const surveyHref = `/admin/surveys/${encodeURIComponent(surveyId)}`;
+  const surveyHref = `${ADMIN_BASE}surveys/${encodeURIComponent(surveyId)}`;
   const title = summary?.title ?? "Umfrage";
   const reader = allowed("read_responses");
   // Charts: view_aggregates OR read_responses (Björn, 2026-11-04).
@@ -315,7 +316,7 @@ export function SurveyResponsesPage({
       >
         <div className="svr-top">
           <nav aria-label="Brotkrumen" className="crumbs">
-            <a href="/admin/surveys">Umfragen</a>
+            <a href={adminHref("surveys")}>Umfragen</a>
             <span aria-hidden="true">/</span>
             <a href={surveyHref}>{title}</a>
             <span aria-hidden="true">/</span>
@@ -343,7 +344,7 @@ export function SurveyResponsesPage({
             Erneut versuchen
           </Button>
         ) : (
-          <a href="/admin/surveys">Zu allen Umfragen</a>
+          <a href={adminHref("surveys")}>Zu allen Umfragen</a>
         )}
       </div>
     );
@@ -402,7 +403,7 @@ export function responsesSectionHref(
   search = window.location.search,
 ): string {
   const selection = new URLSearchParams(search).get("responseSelection");
-  const base = `/admin/surveys/${encodeURIComponent(surveyId)}/responses${section === "summary" ? "/summary" : ""}`;
+  const base = `${ADMIN_BASE}surveys/${encodeURIComponent(surveyId)}/responses${section === "summary" ? "/summary" : ""}`;
   return selection
     ? `${base}?responseSelection=${encodeURIComponent(selection)}`
     : base;

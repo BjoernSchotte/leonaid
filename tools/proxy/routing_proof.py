@@ -69,7 +69,7 @@ SPLIT: tuple[Probe, ...] = (
     Probe(ADMIN, "/favicon.svg", 200, "public /favicon.svg"),
     Probe(ADMIN, "/favicon.ico", 200, "public /favicon.ico"),
     Probe(ADMIN, "/_actions/createPublicOrder/", 404, "", "POST"),
-    Probe(ADMIN, "/", 302, "/admin/"),
+    Probe(ADMIN, "/", 200, "public /login/start"),
     # Astro form actions run on any page; the admin host refuses them all.
     Probe(ADMIN, "/impressum?_action=createPublicOrder", 404, "", "POST"),
     Probe(ADMIN, "/login?_action=createPublicOrder", 404, "", "POST"),
@@ -142,6 +142,7 @@ SPLIT: tuple[Probe, ...] = (
         PUBLIC, "/email-change?token=t", 308, f"https://{ADMIN}{S}/email-change?token=t"
     ),
     Probe(PUBLIC, "/fresh-login", 308, f"https://{ADMIN}{S}/fresh-login"),
+    Probe(PUBLIC, "/login/start", 308, f"https://{ADMIN}{S}/login/start"),
     # The old PWA worker is replaced, never redirected (§6.7).
     Probe(
         PUBLIC,
@@ -177,7 +178,7 @@ ADMIN_ONLY: tuple[Probe, ...] = (
     Probe(ADMIN, "/archive/a", 200, "public /archive/a"),
     Probe(ADMIN, "/_actions/createPublicOrder/", 404, "", "POST"),
     Probe(ADMIN, "/surveys/7?_action=createPublicOrder", 404, "", "POST"),
-    Probe(ADMIN, "/", 302, "/admin/"),
+    Probe(ADMIN, "/", 200, "public /login/start"),
 )
 
 SINGLE_HOST: tuple[Probe, ...] = (

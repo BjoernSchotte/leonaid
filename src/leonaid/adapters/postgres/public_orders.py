@@ -18,7 +18,13 @@ from leonaid.adapters.postgres.delivery import (
     write_order_delivery,
 )
 
+from leonaid.adapters.postgres.order_mails import insert_order_mail_event
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
+from leonaid.application.order_mails import (
+    OrderMailKind,
+    OrderMailLinks,
+    order_mail_event,
+)
 from leonaid.application.public_orders import (
     PublicOrderCommand,
     PublicOrderContext,
@@ -102,6 +108,7 @@ class AsyncpgPublicOrderCommand:
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> PublicOrderResult:
         if (
             idempotency_key != self._idempotency_key
@@ -117,6 +124,7 @@ class AsyncpgPublicOrderCommand:
             idempotency_key=idempotency_key,
             request_id=request_id,
             occurred_at=occurred_at,
+            mail_links=mail_links,
         )
 
     async def complete(self, result: PublicOrderResult) -> None:
@@ -387,6 +395,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         idempotency_key: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> PublicOrderResult:
         context = await self._context(
             connection,
@@ -566,6 +575,18 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             ),
             occurred_at,
         )
+        if mail_links is not None:
+            # The buyer's order confirmation, committed with the order.
+            await insert_order_mail_event(
+                connection,
+                order_mail_event(
+                    OrderMailKind.CONFIRMATION,
+                    action_id=action_id,
+                    commitment_id=commitment.id,
+                    links=mail_links,
+                ),
+                occurred_at,
+            )
         return PublicOrderResult(
             commitment=commitment,
             crm_outcome=party.outcome,

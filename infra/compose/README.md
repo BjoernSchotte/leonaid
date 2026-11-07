@@ -73,8 +73,29 @@ files live in the git-ignored `.local/dev/` directory. Create it to opt in:
 mkdir -p .local/dev/caddy.d .local/dev/static
 ```
 
+Each checkout has its own dev project, and only one checkout may address the
+long-running main instance (project `leonaid`):
+
+- Record the main checkout once: `./leonaid bootstrap --main-instance` (writes
+  `.local/main-instance`; `LEONAID_MAIN_CHECKOUT=<path>` does the same).
+  Until then, a checkout that already runs the `leonaid` stack refuses Compose
+  commands with this hint instead of starting a second stack.
+- Every other checkout (linked worktree, clone, exported tree, or one where
+  `git` fails) uses `leonaid-wt-<cksum of its physical path>`. It never uses the
+  main instance's ports, 8080/8443 or 28080/28081: `./leonaid dev` refuses them
+  and `./leonaid bootstrap` picks a free pair. `LEONAID_COMPOSE_PROJECT=leonaid`
+  is refused outside the main checkout; other values override the project.
+- `bootstrap` writes the project to `.env.local` (`LEONAID_COMPOSE_PROJECT`), so
+  plain `docker compose --env-file .env.local --file infra/compose/compose.yml …`
+  addresses the checkout's own stack; without the setting `compose.yml` refuses
+  to load. `backup`, `maintenance` and the Twenty queue-store migration require
+  an explicit project too.
+- `./leonaid local-instance` prints the project, checkout kind and reserved
+  ports. Moving or renaming a checkout changes its project; remove the old
+  stack with `docker compose --project-name <old> down --volumes`.
+
 When `.local/dev/` exists, every `./leonaid` command that runs Compose for the
-default dev project (`leonaid`) adds these files:
+checkout's default dev project adds these files:
 
 1. `infra/compose/compose.dev-local.yml`. It mounts two directories into the
    `proxy` service, read-only:
@@ -111,7 +132,7 @@ handle_path /example/* {
 Caddy reads snippets at start. Apply new or changed snippets with a reload:
 
 ```sh
-docker compose --project-name leonaid exec proxy \
+docker compose --project-name "$(./leonaid local-instance | sed -n 's/^project=//p')" exec proxy \
   caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 

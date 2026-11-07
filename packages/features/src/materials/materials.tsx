@@ -55,6 +55,7 @@ import {
 import { downloadMaterial } from "./download";
 import { useDebouncedValue } from "../shared/use-debounced-value";
 import "./materials.css";
+import { PWA_BASE, baseRoot } from "@leonaid/ui/base-paths";
 
 type Address = "Sie" | "du";
 const says = (address: Address, du: string, sie: string) =>
@@ -645,7 +646,8 @@ export function MaterialsPage({
   surface?: "web" | "pwa";
 }) {
   const address: Address =
-    (surface ?? (basePath.startsWith("/app") ? "pwa" : "web")) === "pwa"
+    (surface ?? (basePath.startsWith(baseRoot(PWA_BASE)) ? "pwa" : "web")) ===
+    "pwa"
       ? "du"
       : "Sie";
   const cache = useQueryClient();
