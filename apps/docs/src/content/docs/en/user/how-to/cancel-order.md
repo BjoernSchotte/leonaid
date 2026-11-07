@@ -4,9 +4,9 @@ description: Cancel an order that is not delivered yet, with a reason, including
 docId: DOC-P047
 audience: [user]
 diataxis: how-to
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 05e19df19f872cc5137477166450e97438ff8348
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -44,8 +44,13 @@ finds all cancelled orders. Quantity and amount totals no longer count them.
   becomes **Storniert**. Because this changes a financial record, you may have
   to confirm your sign-in again. Reason and note are kept; after the sign-in
   the dialog opens again and you confirm once more.
-- **Buyer:** LeonAid does not e-mail the buyer. Tell them about the
-  cancellation yourself.
+- **Buyer:** if the order came in through the public order form, the buyer
+  soon gets an e-mail **Stornierung Ihrer Bestellung bei …** (your order was
+  cancelled) at the address from the form. It names the order number, items,
+  total, an invoice cancelled with it and the club's contact details from the
+  legal settings. Reason and note are not in it; they stay internal. Repeating
+  the command sends no second e-mail. Orders that members or acquirers entered
+  send no e-mail: tell those buyers yourself.
 
 ## When it does not work
 

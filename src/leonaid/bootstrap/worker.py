@@ -27,6 +27,10 @@ from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentReposito
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
+from leonaid.adapters.postgres.legal_configuration import (
+    AsyncpgLegalConfigurationRepository,
+)
+from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
@@ -35,6 +39,11 @@ from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.application.crm import CrmGateway
 from leonaid.application.object_storage import ObjectStorage
+from leonaid.application.order_mails import (
+    EVENT_TYPES,
+    OrderMailHandler,
+    OrderMailKind,
+)
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
@@ -159,10 +168,20 @@ def _inbox_handlers(
 def _action_handlers(
     dependencies: HandlerDependencies,
 ) -> dict[str, OutboxEventHandler]:
+    sender = SmtpMailHandler(dependencies.pool, transport=dependencies.mail_transport)
+    reader = AsyncpgOrderMailReader(dependencies.pool)
+    legal = AsyncpgLegalConfigurationRepository(dependencies.pool)
     return {
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(
             dependencies.pool
         ),
+        # The buyer's order confirmation and cancellation notice.
+        **{
+            EVENT_TYPES[kind]: OrderMailHandler(
+                kind, reader=reader, legal_configuration=legal, sender=sender
+            )
+            for kind in OrderMailKind
+        },
     }
 
 
