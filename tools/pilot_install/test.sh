@@ -263,7 +263,7 @@ values = {
     secrets.choice(string.ascii_letters + string.digits) for _ in range(32)
   ),
 }
-for name in ("CORE", "WEB", "PWA", "PUBLIC", "PROXY", "SURVEY_VALIDATOR"):
+for name in ("CORE", "WEB", "PWA", "PUBLIC", "PROXY", "SURVEY_VALIDATOR", "CAMPAIGN_SITE"):
   values[f"LEONAID_{name}_IMAGE"] = (
     f"registry.leonaid.org/leonaid/{name.lower()}@sha256:" + os.environ["DIGEST"]
   )
