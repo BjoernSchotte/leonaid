@@ -166,6 +166,31 @@ if (phase === "active") {
   );
 } else {
   // Lapsed: Caddy still serves the certificate, the apps refuse the host.
+  // Every cache of the host state is at most 30 s old (campaign site,
+  // public app, Core origins); wait for all of them, never longer.
+  const CACHE_SECONDS = 30;
+  const deadline = Date.now() + (CACHE_SECONDS + 5) * 1000;
+  for (;;) {
+    const states = await Promise.all([
+      call(HOST, "/").then((response) => response.status),
+      call(HOST, "/impressum").then((response) => response.status),
+      call(HOST, "/api/v1/public/inbox-cases", {
+        method: "POST",
+        body: "{}",
+        headers: {
+          Origin: ORIGIN,
+          "Content-Type": "application/json",
+          "Sec-Fetch-Site": "same-origin",
+        },
+      }).then((response) => response.status),
+    ]);
+    if (states[0] === 404 && states[1] === 404 && states[2] === 403) break;
+    assert.ok(
+      Date.now() < deadline,
+      `host still served after ${CACHE_SECONDS} s: ${states}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
   for (const path of ["/", "/2026/", "/impressum", "/robots.txt"]) {
     const response = await call(HOST, path);
     assert.equal(

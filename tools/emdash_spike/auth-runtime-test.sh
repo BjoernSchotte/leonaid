@@ -478,8 +478,8 @@ if [ "$mode" != auth ]; then
       }
       host_probe active
       fixture /repo/tools/emdash_spike/site_host_fixture.py disable
-      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s.
-      sleep 35
+      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s:
+      # the lapsed state must show within that bound (the probe polls).
       host_probe disabled
       exit 0
     fi
