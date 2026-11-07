@@ -1,5 +1,8 @@
 import { sql } from "kysely";
 
+// Stored as leonaid:campaign_binding_version; status() reads it from here.
+export const campaignBindingVersion = "2";
+
 const uuid = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 const guards = [
   {
@@ -109,7 +112,7 @@ export async function requireCampaignBindings(database) {
     .select("value")
     .where("name", "=", "leonaid:campaign_binding_version")
     .executeTakeFirst();
-  if (version?.value !== "2")
+  if (version?.value !== campaignBindingVersion)
     throw new Error("campaign_binding_version_mismatch");
 }
 
@@ -178,7 +181,7 @@ export async function installCampaignBindings(database) {
       .insertInto("options")
       .values({
         name: "leonaid:campaign_binding_version",
-        value: "2",
+        value: campaignBindingVersion,
       })
       .execute();
     await requireCampaignBindings(transaction);

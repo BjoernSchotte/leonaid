@@ -207,8 +207,21 @@ def assert_delivered(api: str, recipient: str, sender: str, word: str) -> None:
         time.sleep(2)
 
 
-def login_code(api: str, recipient: str) -> None:
-    """Print the code of the newest sign-in mail for recipient (test relay only)."""
+def login_mails(api: str, recipient: str) -> list[dict[str, object]]:
+    query = urllib.parse.urlencode({"query": f"to:{recipient} subject:LeonAid-Login"})
+    with urllib.request.urlopen(f"{api}/api/v1/search?{query}", timeout=10) as response:
+        return json.loads(response.read()).get("messages") or []
+
+
+def login_count(api: str, recipient: str) -> None:
+    print(len(login_mails(api, recipient)))
+
+
+def login_code(api: str, recipient: str, minimum: str = "1") -> None:
+    """Print the code of the newest sign-in mail for recipient (test relay only).
+
+    Waits until at least `minimum` sign-in mails arrived, so a code requested
+    just now is not confused with an older one."""
     query = urllib.parse.urlencode({"query": f"to:{recipient} subject:LeonAid-Login"})
     deadline = time.monotonic() + 90
     while True:
@@ -216,7 +229,7 @@ def login_code(api: str, recipient: str) -> None:
             f"{api}/api/v1/search?{query}", timeout=10
         ) as response:
             messages = json.loads(response.read()).get("messages") or []
-        if messages:
+        if len(messages) >= int(minimum):
             newest = max(messages, key=lambda message: message.get("Created") or "")
             with urllib.request.urlopen(
                 f"{api}/api/v1/message/{newest['ID']}", timeout=10
@@ -244,6 +257,8 @@ def main() -> None:
         assert_delivered(*arguments)
     elif command == "login-code":
         login_code(*arguments)
+    elif command == "login-count":
+        login_count(*arguments)
     else:
         raise SystemExit(f"mail-proof: unknown command {command}")
 

@@ -11,14 +11,21 @@ import { provisionPostgres } from "./provision-postgres.mjs";
 import { installIdentityMapping } from "./auth/identity-map.mjs";
 import {
   armBootstrap,
+  completeBootstrapByOperator,
   inspectBootstrap,
   rearmExpiredBootstrap,
   resetConsumedBootstrap,
 } from "./bootstrap-control.mjs";
 import { campaignSchemaVersion } from "./campaign-schema.mjs";
 import { requireCampaignSchema } from "./install-campaign-schema.mjs";
-import { requireCampaignBindings } from "./auth/campaign-bindings.mjs";
-import { requireCampaignMedia } from "./auth/campaign-media.mjs";
+import {
+  campaignBindingVersion,
+  requireCampaignBindings,
+} from "./auth/campaign-bindings.mjs";
+import {
+  campaignMediaVersion,
+  requireCampaignMedia,
+} from "./auth/campaign-media.mjs";
 import { cmsMaintenanceClosed } from "./cms-maintenance.mjs";
 import {
   databaseErrorState,
@@ -39,7 +46,10 @@ import {
 //                migration controller, never to provisioning.
 //   arm UUID     one-time setup grant for the designated Core System Admin.
 //   reset-setup  withdraw a consumed grant whose setup never completed, only
-//                while the CMS holds nothing but LeonAid's identity mapping.
+//                while the CMS holds nothing but LeonAid's identity mapping;
+//                the mapped users go too (the next sign-in maps again).
+//   complete-setup  mark the grant complete when EmDash completed the setup
+//                but the grant was not marked (crash or a raced reset).
 //   status       read-only state of every step, one "key=value" line each;
 //                database=pending: a live CMS waits for this image's EmDash
 //                migrations (pilot-release applies them).
@@ -104,6 +114,9 @@ async function provisionDatabase() {
   if (!coreDatabase || !coreRole || !corePassword)
     throw new Refused("core_operator_credentials_required");
   const { host, password } = cmsCredentials();
+  // The SCRAM verifier is computed without SASLprep (provision-postgres.mjs).
+  if (!/^[\x21-\x7e]+$/.test(password))
+    throw new Refused("cms_password_not_printable_ascii");
   const admin = new pg.Pool({
     host,
     database: coreDatabase,
@@ -215,9 +228,50 @@ async function resetSetup() {
     const row = used.rows[0];
     if (Number(row.media) || Number(row.revisions) || Number(row.local_users))
       throw new Refused("cms_already_used");
+    // The interrupted setup may have mapped its System Admin already. Remove
+    // the mapped users, so a grant for another System Admin leaves no second
+    // EmDash administrator behind; anything else referring to them aborts.
+    try {
+      await connection.transaction().execute(async (transaction) => {
+        await sql`SET LOCAL lock_timeout = '3s'`.execute(transaction);
+        await sql`DELETE FROM public.leonaid_external_identity`.execute(
+          transaction,
+        );
+        await sql`DELETE FROM public.users`.execute(transaction);
+      });
+    } catch {
+      throw new Refused("cms_already_used");
+    }
   });
   const previous = await resetConsumedBootstrap(bootstrapDirectory);
   console.log(`cms-provision: setup grant withdrawn; actor=${previous}`);
+}
+
+// EmDash completed the setup, but the grant was never marked complete: a
+// crash between the upstream success and completeBootstrap ("consumed"), or a
+// reset that raced the request ("none"). The grant's actor (or, without a
+// grant, the only mapped System Admin) must be the mapped administrator.
+async function completeSetup() {
+  const state = await inspectBootstrap(bootstrapDirectory);
+  if (!["consumed", "none"].includes(state.status))
+    throw new Refused(`bootstrap_${state.status}`);
+  const actor = await withCmsDatabase(async (connection) => {
+    if (!(await setupComplete(connection))) throw new Refused("setup_pending");
+    const admins = await sql`SELECT i.core_user_id::text AS actor
+      FROM public.leonaid_external_identity i
+      JOIN public.users u ON u.id = i.cms_user_id
+      WHERE u.role = 50`.execute(connection);
+    const actors = admins.rows.map((row) => row.actor);
+    if (state.status === "consumed") {
+      if (!actors.includes(state.actor))
+        throw new Refused("grant_actor_not_mapped");
+      return state.actor;
+    }
+    if (actors.length !== 1) throw new Refused("mapped_admin_ambiguous");
+    return actors[0];
+  });
+  await completeBootstrapByOperator(bootstrapDirectory, actor);
+  console.log(`cms-provision: setup grant completed; actor=${actor}`);
 }
 
 // Each probe reports its own state; one failing probe never hides the others.
@@ -283,8 +337,8 @@ async function status() {
         versions,
         {
           schema: JSON.stringify(campaignSchemaVersion),
-          bindings: "2",
-          media: "1",
+          bindings: campaignBindingVersion,
+          media: campaignMediaVersion,
         },
         verified,
       );
@@ -315,6 +369,8 @@ try {
     await arm(process.argv[3]);
   else if (mode === "reset-setup" && process.argv.length === 3)
     await resetSetup();
+  else if (mode === "complete-setup" && process.argv.length === 3)
+    await completeSetup();
   else if (mode === "status" && process.argv.length === 3) await status();
   else throw new Refused("invalid_arguments");
 } catch (error) {

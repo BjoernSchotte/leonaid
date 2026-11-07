@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 9
-reviewedRevision: 9
+contentRevision: 10
+reviewedRevision: 10
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -617,10 +617,21 @@ offenen Schritt weiter.
 - **„the editor setup started but did not complete“**: Eine
   Einrichtungsanfrage wurde unterbrochen (zum Beispiel durch einen Neustart
   des CMS), die Freigabe ist verbraucht. Starte den Befehl mit
-  `--reset-setup --system-admin-email ...`. Er zieht die Freigabe nur zurück,
-  solange das CMS unbenutzt ist (keine abgeschlossene Einrichtung, kein
-  Aktionsschema, keine Medien, nur die Anmeldekonten von LeonAid), hält das
-  im LeonAid-Audit-Log fest und erlaubt die Einrichtung erneut.
+  `--reset-setup --system-admin-email ...`. Er stoppt zuerst die
+  Aktionsseiten, damit keine Einrichtungsanfrage mehr läuft, und zieht die
+  Freigabe nur zurück, solange das CMS unbenutzt ist (keine abgeschlossene
+  Einrichtung, kein Aktionsschema, keine Medien, nur die Anmeldekonten von
+  LeonAid). Er entfernt auch diese Anmeldekonten, hält das im
+  LeonAid-Audit-Log fest und erlaubt die Einrichtung erneut, auch für eine
+  andere Systemadministration.
+- **Die Einrichtung ist fertig, die Freigabe aber nicht markiert** (zum
+  Beispiel stoppte die Aktionsseite direkt danach): Der nächste Lauf prüft die
+  abgeschlossene Einrichtung gegen die zugeordnete Systemadministration,
+  markiert die Freigabe als abgeschlossen, schreibt einen Audit-Eintrag und
+  macht weiter.
+- **„the CMS setup state cannot be read“** (`pilot-backup`): Das Backup
+  bricht ab, statt das CMS wegzulassen. Prüfe Docker und das Volume
+  `cms-bootstrap-state` und starte das Backup erneut.
 - **Der Schemaschritt ist mittendrin abgebrochen** (zum Beispiel ein Timeout
   unter Last): Starte den Befehl erneut. Er findet die schon installierten
   Teile und installiert den Rest; der CMS-Verkehr bleibt bis dahin
