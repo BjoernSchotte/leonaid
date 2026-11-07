@@ -914,6 +914,9 @@ class PublicActionRouteResponse(TransportModel):
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
     redirect_path: str | None = None
+    # The action's canonical URL when it lives on a campaign host
+    # (specs/multi-domain §7.7.3); its pages on the public host redirect there.
+    campaign_host_url: str | None = None
 
 
 class PublicLegalProviderResponse(TransportModel):
@@ -962,6 +965,8 @@ class PublicCampaignRouteResponse(TransportModel):
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
     order_alias: str | None
+    # The canonical URL on a campaign host, if the action has one (§7.7.3).
+    campaign_host_url: str | None = None
 
 
 class PublicOrderPartyRequest(TransportModel):

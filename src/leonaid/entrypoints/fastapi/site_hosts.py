@@ -6,7 +6,7 @@ the fresh sign-in step-up, like the other installation-wide settings.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
@@ -33,6 +33,7 @@ from leonaid.application.site_hosts import (
     SiteHostView,
     UnbindEdition,
 )
+from leonaid.adapters.postgres.site_directory import AsyncpgSiteDirectory
 from leonaid.adapters.postgres.site_host_verification import (
     AsyncpgSiteHostVerification,
 )
@@ -41,7 +42,10 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.site_hosts import check_answer, normalize_hostname
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
-from leonaid.entrypoints.fastapi.schemas import AUTHENTICATED_CONFLICT_ERROR_RESPONSES
+from leonaid.entrypoints.fastapi.schemas import (
+    AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    ERROR_RESPONSES,
+)
 from leonaid.platform.http import TransportModel
 
 HOST_CHECK_PREFIX = "/.well-known/leonaid-host-check/"
@@ -508,3 +512,104 @@ async def tls_ask(request: Request, domain: str = Query(max_length=300)) -> Resp
     ):
         raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
     return PlainTextResponse("ok", headers={"Cache-Control": "no-store"})
+
+
+# ---------- public reads of campaign hosts (§7.3) ----------
+
+public_router = APIRouter(tags=["public-sites"])
+
+
+class PublicSiteEditionResponse(TransportModel):
+    segment: str
+    at_root: bool
+    is_primary: bool
+    archive_slug: str
+    availability: Literal["published", "archive"]
+    title: str
+    starts_on: date
+    ends_on: date
+    # Permanent URL of the edition: https://<host>/<segment>/.
+    edition_url: str
+    # The action's canonical URL; may be on another host (a mirror).
+    canonical_url: str | None
+
+
+class PublicSiteHistoryResponse(TransportModel):
+    segment: str
+    archive_slug: str
+    target_url: str
+    status: Literal[302, 308]
+
+
+class PublicSiteRootResponse(TransportModel):
+    segment: str
+    mode: Literal["serve", "redirect"]
+
+
+class PublicSiteResponse(TransportModel):
+    hostname: str
+    kind: Literal["campaign", "redirect"]
+    redirect_to: str | None
+    root: PublicSiteRootResponse | None
+    editions: list[PublicSiteEditionResponse]
+    history: list[PublicSiteHistoryResponse]
+
+
+def _directory(request: Request) -> AsyncpgSiteDirectory:
+    return cast(AsyncpgSiteDirectory, request.app.state.site_directory)
+
+
+@public_router.get(
+    "/api/v1/public/sites/{hostname}",
+    operation_id="getPublicSite",
+    response_model=PublicSiteResponse,
+    responses=ERROR_RESPONSES,
+)
+async def get_public_site(
+    hostname: str, request: Request, response: Response
+) -> PublicSiteResponse:
+    """What an active campaign host serves (§7.2); 404 for every other name."""
+    try:
+        normalized = normalize_hostname(hostname)
+    except DomainInvariantError:
+        raise ResourceNotFound("site_host_not_found", "Host nicht gefunden.") from None
+    site = await _directory(request).site(normalized)
+    if site is None:
+        raise ResourceNotFound("site_host_not_found", "Host nicht gefunden.")
+    response.headers["Cache-Control"] = "public, max-age=30"
+    return PublicSiteResponse(
+        hostname=site.hostname,
+        kind=cast(Literal["campaign", "redirect"], site.kind),
+        redirect_to=site.redirect_to,
+        root=(
+            PublicSiteRootResponse(segment=site.root.segment, mode=site.root.mode)
+            if site.root
+            else None
+        ),
+        editions=[
+            PublicSiteEditionResponse(
+                segment=item.segment,
+                at_root=item.at_root,
+                is_primary=item.is_primary,
+                archive_slug=item.archive_slug,
+                availability=cast(
+                    Literal["published", "archive"], item.availability.value
+                ),
+                title=item.title,
+                starts_on=item.starts_on,
+                ends_on=item.ends_on,
+                edition_url=item.edition_url,
+                canonical_url=item.canonical_url,
+            )
+            for item in site.editions
+        ],
+        history=[
+            PublicSiteHistoryResponse(
+                segment=item.segment,
+                archive_slug=item.archive_slug,
+                target_url=item.target_url,
+                status=cast(Literal[302, 308], item.status),
+            )
+            for item in site.history
+        ],
+    )

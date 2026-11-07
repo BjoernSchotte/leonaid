@@ -137,7 +137,12 @@ from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.site_hosts import (
     infrastructure_router as site_host_infrastructure_router,
+    public_router as public_site_router,
     router as site_host_router,
+)
+from leonaid.adapters.postgres.site_directory import (
+    AsyncpgSiteDirectory,
+    SiteHostPublicOrigins,
 )
 from leonaid.adapters.postgres.site_host_verification import (
     AsyncpgSiteHostVerification,
@@ -146,7 +151,6 @@ from leonaid.adapters.site_host_checks import HostChecker
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
-    StaticPublicOrigins,
     csrf_violation,
     public_origin_allowed,
     rate_limit_violation,
@@ -328,7 +332,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.invitation_hmac_secret.get_secret_value()
         )
         application.state.allowed_origins = settings.allowed_origins
-        application.state.public_origins = StaticPublicOrigins(settings.public_origins)
         application.state.links = settings.links
         application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.maintenance_flag_path = settings.maintenance_flag_path
@@ -352,6 +355,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.configured_hosts, str(settings.site_base_url)
         )
         application.state.canonical_urls = canonical
+        site_directory = AsyncpgSiteDirectory(pool, canonical)
+        application.state.site_directory = site_directory
+        # The public host and its aliases plus every active campaign host,
+        # read at request time (§6.3, D7).
+        application.state.public_origins = SiteHostPublicOrigins(
+            settings.public_origins, site_directory
+        )
         site_host_verification = AsyncpgSiteHostVerification(pool)
         application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(
@@ -796,7 +806,12 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
 
     register_api_modules(
         application,
-        core=(router, site_host_router, site_host_infrastructure_router),
+        core=(
+            router,
+            site_host_router,
+            public_site_router,
+            site_host_infrastructure_router,
+        ),
         disabled=disabled_modules,
     )
     return application
