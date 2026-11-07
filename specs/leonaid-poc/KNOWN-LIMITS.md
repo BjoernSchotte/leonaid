@@ -17,8 +17,14 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Im Pilot-Stack läuft sie mit `LEONAID_CMS_ENABLED=true` (Profil `emdash`,
   Release-Image `campaign-site`, Manifest `release-manifest-cms.json`). Die
   einmalige Einrichtung in Produktion (CMS-Datenbankrolle, Medien-Bucket,
-  Editor-Setup) hat noch keinen `pilot-*`-Befehl; sie läuft nur über die
-  Spike-Operatoren (`infra/emdash-spike/service.test.yml`).
+  Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
+  einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
+  Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
+  Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
+  `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten
+  das CMS erst ab abgeschlossener Einrichtung. `pilot-release` migriert das
+  CMS-Schema nicht; ein Release mit neuen EmDash-Migrationen blockiert am
+  Provisionierungs-Check.
 - ERP-light umfasst Bestellungen, Ausgangsrechnungen, Typst-PDFs, Versand und
   manuell erfasste Zahlungseingänge: Teil-, Voll- und Überzahlungen sowie
   begründete Rückbuchungen einzelner Einträge (ADR-0014). Eine Überzahlung
@@ -56,8 +62,33 @@ Punkte sind keine stillschweigenden Produktzusagen.
   number and link contract is an open decision for Björn (ADR-0004/0009
   defer it). An active (not reversed) payment entry blocks the
   cancellation until it is reversed ("Zurückbuchen" in the invoice pane);
-  LeonAid books no refunds. The buyer is not e-mailed about the cancellation, and a
-  cancelled order cannot be reopened.
+  LeonAid books no refunds. A cancelled order cannot be reopened.
+- Buyer mails (`application/order_mails.py`): a public-form order sends one
+  plain-text order confirmation, and its cancellation one cancellation
+  notice, through the outbox (`order.confirmation.mail.v1`,
+  `order.cancellation.mail.v1`; one job and one SMTP ledger row per order
+  and kind). The job holds ids and links only; the worker reads the order
+  and the active legal configuration when it sends, so an erased buyer gets
+  nothing. Delivery is at least once: a crash between the SMTP server
+  accepting a mail and the ledger write sends it again on the retry. A
+  confirmation whose order is already cancelled is skipped. At most 10 order
+  mails go to one mailbox per hour (`+tag` variants and Gmail dot variants
+  count as one mailbox; an advisory lock per mailbox keeps parallel workers
+  under the limit); a job over that limit is dead-lettered
+  (`order_mail_recipient_limit`, operations view, manual retry). Other
+  providers' aliases are not recognised. Public order fields refuse line
+  breaks, tabs, control, format, surrogate, private-use and unassigned
+  characters and visually blank letters (U+3164, U+2800 and similar);
+  recipient name, street and city also refuse `://`, `www.` and `@`. The
+  mail strips such characters from older data.
+  The mail repeats the full delivery and billing address so the buyer can
+  check it. Not covered: orders entered by members or acquirers (no mail,
+  also no cancellation notice), an HTML version, a club sender address (the
+  configured `MAIL_FROM` sends), a resend button, and mails for later order
+  changes (delivery window moved, invoice issued). Fulfilment mails ignore
+  the marketing/acquisition suppression list. The campaign link is today's
+  public host page (`PublicCampaignLinks`); the permanent edition URL on a
+  campaign host (decision D8) comes with stage 2c.
 
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration

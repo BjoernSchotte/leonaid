@@ -57,6 +57,7 @@ import {
   adminHref,
   baseRoot,
   loginHref,
+  redirectsToLogin,
   startAreaChoices,
 } from "@leonaid/ui/base-paths";
 
@@ -220,9 +221,13 @@ export function App({ client }: AppProps) {
   }, [identity.data, openedWithCampaign]);
   // In-page tab switches (System ↔ Datenschutz) move the rail highlight.
   useLocationHref();
-  // Signed out: the deep link survives the login (specs/multi-domain §6.7).
+  // Without a session: the deep link survives the login (specs/multi-domain
+  // §6.7). An ended session shows the notice below first.
   useEffect(() => {
-    if (identity.error instanceof ApiError && identity.error.status === 401) {
+    if (
+      identity.error instanceof ApiError &&
+      redirectsToLogin(identity.error)
+    ) {
       window.location.replace(loginHref(window.location));
     }
   }, [identity.error]);

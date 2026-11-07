@@ -10,14 +10,25 @@ import {
   installCampaignSchema,
   requireCampaignSchema,
 } from "./install-campaign-schema.mjs";
-import { requireCampaignBindings } from "./auth/campaign-bindings.mjs";
+import {
+  installCampaignBindings,
+  requireCampaignBindings,
+} from "./auth/campaign-bindings.mjs";
 import { campaignSchemaVersion } from "./campaign-schema.mjs";
-import { requireCampaignMedia } from "./auth/campaign-media.mjs";
+import {
+  installCampaignMedia,
+  requireCampaignMedia,
+} from "./auth/campaign-media.mjs";
+import { requireCompletedBootstrap } from "./bootstrap-control.mjs";
 
 // Explicit image-owned operator. It never starts HTTP, provisions roles, runs
 // upstream upgrades, repairs guards, imports content or reopens CMS traffic.
 // The controller must stop CMS processes after closing traffic and before DDL
 // to drain/terminate requests which entered before the marker was installed.
+// "install" is the production first install (pilot-cms-provision): after the
+// designated System Admin completed the EmDash setup, it creates the campaign
+// collection, binding and media guards. Each installer verifies an existing
+// installation instead of repairing it, so a repeat or resumed run is a no-op.
 const mode = process.argv[2];
 try {
   if (process.argv.length !== 3) throw new Error("invalid_arguments");
@@ -25,13 +36,23 @@ try {
     await closeCmsTraffic();
   } else {
     if (
-      !["verify", "upgrade-v1", "upgrade-v2", "upgrade-emdash"].includes(mode)
+      ![
+        "install",
+        "verify",
+        "upgrade-v1",
+        "upgrade-v2",
+        "upgrade-emdash",
+      ].includes(mode)
     )
       throw new Error("unsupported_migration");
     if (!(await cmsMaintenanceClosed()))
       throw new Error("cms_traffic_not_closed");
     if (process.env.PGUSER !== "emdash" || process.env.PGDATABASE !== "emdash")
       throw new Error("cms_credentials_required");
+    // The setup creates the first CMS user; installing editorial schema
+    // before it would let an unconsumed setup run against a prepared schema.
+    if (mode === "install")
+      await requireCompletedBootstrap("/app/bootstrap-state");
     const database = new Kysely({
       dialect: createDialect({
         host: process.env.PGHOST,
@@ -97,6 +118,19 @@ try {
           }
           if (!exactInventory(migrations))
             throw new Error("upstream_migration_inventory_mismatch");
+          if (mode === "install") {
+            const setup = await connection
+              .selectFrom("options")
+              .select("value")
+              .where("name", "=", "emdash:setup_complete")
+              .executeTakeFirst();
+            // Same reading as setupIsComplete() in database-ready.ts.
+            if (!setup || JSON.parse(setup.value) !== true)
+              throw new Error("cms_setup_pending");
+            await installCampaignSchema(connection);
+            await installCampaignBindings(connection);
+            await installCampaignMedia(connection);
+          }
           // Reject unrelated drift BEFORE applying editorial DDL.
           await requireCampaignBindings(connection);
           await requireCampaignMedia(connection);

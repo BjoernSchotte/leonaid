@@ -24,7 +24,23 @@ from zoneinfo import ZoneInfo
 import asyncpg
 import httpx
 
+from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
+from leonaid.application.order_mails import (
+    ORDER_CANCELLATION_MAIL,
+    OrderMailError,
+    OrderMailHandler,
+    OrderMailKind,
+    recipient_sha256,
+)
 from leonaid.configuration import Settings
+from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
+from leonaid.domain.legal_configuration import (
+    EInvoiceDecision,
+    LegalConfigurationDraft,
+    LegalConfigurationVersion,
+    RetentionSchedule,
+)
+from leonaid.domain.outbox import ClaimedOutboxEvent
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -35,6 +51,52 @@ from leonaid.modules.tasks.delivery_follow_up import TaskDeliveryFollowUp
 
 BASE_URL = "https://cancellation.leonaid.invalid"
 REASON = "Sponsor hat die Bestellung zurückgezogen"
+# What the buyer typed into the public form; it stays out of the mails.
+PUBLIC_MESSAGE = "Bitte beim Pförtner abgeben, Tor-Code 2468."
+
+
+def legal_version() -> LegalConfigurationVersion:
+    """An active legal configuration as the worker reads it."""
+
+    return LegalConfigurationVersion(
+        id=uuid4(),
+        version=1,
+        configuration=LegalConfigurationDraft(
+            issuer=InvoiceIssuerSnapshot(
+                legal_name="Cancel proof Hilfswerk e.V.",
+                street_line_1="Clubweg 1",
+                postal_code="86150",
+                city="Augsburg",
+                country_code="DE",
+                tax_identifier="103/999/99999",
+                email="kontakt@cancel-proof.leonaid.invalid",
+            ),
+            bank_account_holder="Cancel proof Hilfswerk e.V.",
+            iban="DE89370400440532013000",
+            bic="COBADEFFXXX",
+            tax_treatment=TaxTreatment.SMALL_BUSINESS,
+            tax_rate_basis_points=0,
+            tax_note="Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.",
+            number_prefix="CP26-",
+            number_width=4,
+            payment_terms_days=14,
+            public_order_legal_basis="Art. 6 Abs. 1 lit. b DSGVO (Vertrag).",
+            public_order_notice_text=(
+                "Wir verarbeiten Ihre Angaben nur zur Abwicklung Ihrer Bestellung."
+            ),
+            consent_text_version="cancel-proof-v1",
+            privacy_contact_email="datenschutz@cancel-proof.leonaid.invalid",
+            retention=RetentionSchedule(3650, 1095, 730, 1095, 2190),
+            e_invoice_decision=EInvoiceDecision.NOT_REQUIRED,
+            tax_evidence_id="TAX-PROOF-1",
+            privacy_evidence_id="PRIVACY-PROOF-1",
+            e_invoice_evidence_id="EINVOICE-PROOF-1",
+            imprint_phone="+49 821 555000",
+        ),
+        created_by_user_id=uuid4(),
+        created_by_display_name="Proof",
+        created_at=datetime.now(timezone.utc),
+    )
 
 
 def settings() -> Settings:
@@ -90,6 +152,8 @@ class Fixture:
     INVOICED = tuple(f"journal_{index}" for index in range(PAIRS))
     # Deliverable orders that overlapping bulk driver assignments share.
     ASSIGNED = tuple(f"assign_{index}" for index in range(6))
+    # Orders from the public form: their buyer gets a cancellation notice.
+    PUBLIC = ("public", "public_invoiced")
 
     def __init__(self) -> None:
         self.tag = f"oc{uuid4().hex[:10]}"
@@ -101,11 +165,24 @@ class Fixture:
         self.tokens = {name: uuid4().hex + uuid4().hex for name in self.USERS}
         # The charity admin also holds a session whose login is not fresh.
         self.stale_token = uuid4().hex + uuid4().hex
-        names = (*self.ORDERS, *self.DRAFTS, *self.INVOICED, *self.ASSIGNED)
+        names = (
+            *self.ORDERS,
+            *self.DRAFTS,
+            *self.INVOICED,
+            *self.ASSIGNED,
+            *self.PUBLIC,
+        )
         self.orders = {name: uuid4() for name in names}
         self.invoices = {
             name: uuid4()
-            for name in ("invoiced", "paid", "sent", "race_issue", *self.INVOICED)
+            for name in (
+                "invoiced",
+                "paid",
+                "sent",
+                "race_issue",
+                "public_invoiced",
+                *self.INVOICED,
+            )
         }
         self.parties = {name: uuid4() for name in names}
         # A bookable window in the future: drafts complete into it.
@@ -235,6 +312,8 @@ class Fixture:
             **{name: "review_ready" for name in self.ASSIGNED},
             **{name: "draft" for name in self.DRAFTS},
             **{name: "invoiced" for name in self.INVOICED},
+            "public": "review_ready",
+            "public_invoiced": "invoiced",
         }
         with_window = {
             "missed",
@@ -287,6 +366,7 @@ class Fixture:
             ("invoiced", "issued"),
             ("paid", "issued"),
             ("sent", "sent"),
+            ("public_invoiced", "issued"),
             *((name, "issued") for name in self.INVOICED),
         ):
             await self._invoice(connection, name, status)
@@ -335,16 +415,18 @@ class Fixture:
         window_snapshot: dict[str, str] | None,
     ) -> None:
         recipient = self.recipient(name)
+        public = name in self.PUBLIC
         await connection.execute(
             """
             INSERT INTO commitment (
                 id, action_id, twenty_company_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
                 delivery_recipient_snapshot, delivery_window_id,
-                delivery_window_snapshot, currency, total_minor, idempotency_key
+                delivery_window_snapshot, currency, total_minor, idempotency_key,
+                public_reference, message_snapshot
             )
-            VALUES ($1, $2, $3, 'admin', $4, $5::jsonb, $6::jsonb, $6::jsonb,
-                    $7, $8::jsonb, 'EUR', 7200, $9)
+            VALUES ($1, $2, $3, $10, $4, $5::jsonb, $6::jsonb, $6::jsonb,
+                    $7, $8::jsonb, 'EUR', 7200, $9, $11, $12)
             """,
             order_id,
             self.action,
@@ -355,13 +437,16 @@ class Fixture:
                     "partyKind": "company",
                     "twentyId": str(self.parties[name]),
                     "displayName": f"Firma {self.tag} {name}",
-                    "email": None,
+                    "email": self.buyer_email(name) if public else None,
                 }
             ),
             json.dumps(recipient),
             self.window if window_snapshot else None,
             json.dumps(window_snapshot) if window_snapshot else None,
             f"cancel-proof:{order_id}",
+            "public_form" if public else "admin",
+            f"LA-{order_id.hex.upper()}" if public else None,
+            PUBLIC_MESSAGE if public else None,
         )
         await connection.execute(
             """
@@ -376,6 +461,9 @@ class Fixture:
             order_id,
             self.offering,
         )
+
+    def buyer_email(self, name: str) -> str:
+        return f"{name.replace('_', '-')}.{self.tag}@buyer.leonaid.invalid"
 
     def invoice_number(self, name: str) -> str:
         return f"{self.tag.upper()}-{name.upper().replace('_', '-')}"
@@ -517,6 +605,8 @@ class Proof:
         await self.plain_cancellation_and_replay()
         await self.states()
         await self.invoice_cases()
+        await self.buyer_notices()
+        await self.recipient_limit_race()
         await self.board_and_follow_up()
         await self.concurrency()
         await self.board_races()
@@ -640,6 +730,211 @@ class Proof:
         assert len(activity) == 1
         assert activity[0]["twenty_company_id"] == self.data.parties["plain"]
         assert "Rückruf" not in str(activity[0]["payload"])
+
+    async def notice_jobs(self, name: str) -> list[asyncpg.Record]:
+        return list(
+            await self.db.fetch(
+                "SELECT id, idempotency_key, payload FROM outbox_event"
+                " WHERE aggregate_id=$1 AND event_type=$2",
+                self.data.orders[name],
+                ORDER_CANCELLATION_MAIL,
+            )
+        )
+
+    async def buyer_notices(self) -> None:
+        # Members' orders got no confirmation, so no cancellation notice.
+        for name in ("plain", "draft", "invoiced"):
+            assert await self.notice_jobs(name) == [], name
+        key = f"cancel-proof:public:{uuid4()}"
+        version = await self.version("public")
+        note = "Intern: Fahrer Bernd hat schon geladen."
+        first = await self.cancel("public", key=key, version=version, note=note)
+        assert first.status_code == 201, first.text
+        replay = await self.cancel("public", key=key, version=version, note=note)
+        assert replay.json()["replayed"] is True
+        invoiced = await self.cancel("public_invoiced")
+        assert invoiced.status_code == 201, invoiced.text
+        sent: list[ClaimedOutboxEvent] = []
+
+        class Sender:
+            async def handle(self, event: ClaimedOutboxEvent) -> None:
+                sent.append(event)
+
+        class Legal:
+            async def active_configuration(self) -> LegalConfigurationVersion:
+                return legal_version()
+
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=2
+        )
+        try:
+            handler = OrderMailHandler(
+                OrderMailKind.CANCELLATION,
+                reader=AsyncpgOrderMailReader(pool),
+                legal_configuration=Legal(),
+                sender=Sender(),
+            )
+            for name in self.data.PUBLIC:
+                jobs = await self.notice_jobs(name)
+                # One notice per order, also after the replayed command.
+                assert len(jobs) == 1, (name, jobs)
+                order_id = self.data.orders[name]
+                assert jobs[0]["idempotency_key"] == (
+                    f"order-cancellation-mail:{order_id}"
+                )
+                payload = json.loads(jobs[0]["payload"])
+                assert payload == {
+                    "actionId": str(self.data.action),
+                    "commitmentId": str(order_id),
+                    # No alias in this fixture: the archive page.
+                    "campaignUrl": (
+                        f"{BASE_URL}/archive/cancel-proof-{self.data.action}"
+                    ),
+                    "privacyUrl": f"{BASE_URL}/datenschutz",
+                    "imprintUrl": f"{BASE_URL}/impressum",
+                }
+                await handler.handle(
+                    ClaimedOutboxEvent(
+                        id=jobs[0]["id"],
+                        aggregate_type="commitment",
+                        aggregate_id=order_id,
+                        event_type=ORDER_CANCELLATION_MAIL,
+                        idempotency_key=jobs[0]["idempotency_key"],
+                        payload=payload,
+                        attempts=1,
+                        claim_token=uuid4(),
+                        claimed_by="cancel-proof",
+                    )
+                )
+        finally:
+            await pool.close()
+        assert [event.payload["to"] for event in sent] == [
+            self.data.buyer_email(name) for name in self.data.PUBLIC
+        ]
+        plain_text, invoiced_text = (str(event.payload["text"]) for event in sent)
+        for text, name in ((plain_text, "public"), (invoiced_text, "public_invoiced")):
+            reference = f"LA-{self.data.orders[name].hex.upper()}"
+            assert f"Bestellnummer: {reference}" in text
+            assert "storniert. Sie wird nicht geliefert." in text
+            assert "- Krapfenbox: 2 Boxen (48 Stück) × 36,00 € = 72,00 €" in text
+            assert "kontakt@cancel-proof.leonaid.invalid" in text
+            # Reason, note and the buyer's own message stay internal.
+            for forbidden in (REASON, "Fahrer Bernd", PUBLIC_MESSAGE, "Pförtner"):
+                assert forbidden not in text, forbidden
+        assert "Rechnung" not in plain_text.split("Bei Fragen")[0]
+        assert (
+            f"Die Rechnung {self.data.invoice_number('public_invoiced')} zu dieser "
+            "Bestellung wurde ebenfalls storniert." in invoiced_text
+        )
+
+    async def recipient_limit_race(self) -> None:
+        """Two workers, one mailbox, one slot left: exactly one mail goes out.
+
+        The two public orders get addresses of the same Gmail mailbox
+        (``+tag`` and dots differ), and one earlier order mail of that
+        mailbox is in the ledger. With a limit of two, the per-mailbox lock
+        lets one notice through and dead-letters the other.
+        """
+
+        orders = [self.data.orders[name] for name in self.data.PUBLIC]
+        addresses = (
+            f"racer+{self.data.tag}@gmail.com",
+            f"r.acer+2.{self.data.tag}@googlemail.com",
+        )
+        for order_id, address in zip(orders, addresses):
+            await self.db.execute(
+                "UPDATE commitment SET customer_snapshot = customer_snapshot"
+                " || jsonb_build_object('email', $2::text) WHERE id=$1",
+                order_id,
+                address,
+            )
+        prior = f"order-confirmation-mail:{orders[0]}"
+        written = [prior]
+        await self.db.execute(
+            "INSERT INTO mail_delivery (id, outbox_event_id, idempotency_key,"
+            " message_id, recipient_sha256, status) VALUES ($1, NULL, $2, $3, $4, 'sent')",
+            uuid4(),
+            prior,
+            f"<{uuid4().hex}@race.leonaid.invalid>",
+            "0" * 64,
+        )
+        sent: list[str] = []
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=2, max_size=6
+        )
+
+        class LedgerSender:
+            """Sends slowly and records the ledger row like SmtpMailHandler."""
+
+            async def handle(self, event: ClaimedOutboxEvent) -> None:
+                await asyncio.sleep(0.3)
+                async with pool.acquire() as connection:
+                    await connection.execute(
+                        "INSERT INTO mail_delivery (id, outbox_event_id,"
+                        " idempotency_key, message_id, recipient_sha256, status)"
+                        " VALUES ($1, NULL, $2, $3, $4, 'sent')",
+                        uuid4(),
+                        event.idempotency_key,
+                        f"<{uuid4().hex}@race.leonaid.invalid>",
+                        recipient_sha256(str(event.payload["to"])),
+                    )
+                written.append(event.idempotency_key)
+                sent.append(str(event.payload["to"]))
+
+        class Legal:
+            async def active_configuration(self) -> LegalConfigurationVersion:
+                return legal_version()
+
+        jobs = {
+            order_id: await self.db.fetchrow(
+                "SELECT id, idempotency_key, payload FROM outbox_event"
+                " WHERE aggregate_id=$1 AND event_type=$2",
+                order_id,
+                ORDER_CANCELLATION_MAIL,
+            )
+            for order_id in orders
+        }
+        try:
+
+            async def run(order_id: UUID) -> str | None:
+                job = jobs[order_id]
+                handler = OrderMailHandler(
+                    OrderMailKind.CANCELLATION,
+                    reader=AsyncpgOrderMailReader(pool),
+                    legal_configuration=Legal(),
+                    sender=LedgerSender(),
+                    recipient_limit=2,
+                )
+                try:
+                    await handler.handle(
+                        ClaimedOutboxEvent(
+                            id=job["id"],
+                            aggregate_type="commitment",
+                            aggregate_id=order_id,
+                            event_type=ORDER_CANCELLATION_MAIL,
+                            idempotency_key=job["idempotency_key"],
+                            payload=json.loads(job["payload"]),
+                            attempts=1,
+                            claim_token=uuid4(),
+                            claimed_by="race",
+                        )
+                    )
+                except OrderMailError as error:
+                    assert error.retryable is False
+                    return error.code
+                return None
+
+            outcomes = await asyncio.gather(*(run(order_id) for order_id in orders))
+        finally:
+            await pool.close()
+            await self.db.execute(
+                "DELETE FROM mail_delivery WHERE idempotency_key = ANY($1::text[])",
+                written,
+            )
+        assert sorted(outcomes, key=str) == sorted(
+            [None, "order_mail_recipient_limit"], key=str
+        ), outcomes
+        assert len(sent) == 1 and sent[0] in addresses
 
     async def states(self) -> None:
         delivered = await self.cancel("delivered")

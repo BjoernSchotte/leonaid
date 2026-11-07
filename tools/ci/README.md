@@ -6,15 +6,18 @@ Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
 
 | Event | What runs |
 |---|---|
-| `pull_request` | Always: Lint and types, Unit, Build, Security, Documentation. Stack suites (Integration shards, E2E leaves, EmDash proofs, Contract, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
+| `pull_request` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
 | `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
 
 `tools/ci/select_suites.py` decides the pull-request selection; the reusable
 `.github/workflows/select-suites.yml` runs it once per workflow and exposes the
-result as job outputs. Matrices read their shard lists from it, so
+result as job outputs. Matrices read their legs from it, so
 `INTEGRATION_SHARDS`, `E2E_SHARDS` and `EMDASH_GROUPS` in that file are the
-single source of shard names. A new shard goes there and into
+single source of shard names. A new shard goes there, into
+`INTEGRATION_SECONDS` / `E2E_SECONDS` (its measured test-step seconds) and into
 `tools/ci/integration.sh` / `e2e.sh`; `select_suites_test.py` fails otherwise.
+The selected shards are bin-packed into matrix legs; see "Job layout and runner
+budget" below.
 
 Selection rules (first match wins, see `RULES`):
 
@@ -27,6 +30,21 @@ Selection rules (first match wins, see `RULES`):
   `apps/web|pwa|public`). Unknown means unsafe; map a path deliberately to make it cheaper.
 - **No stack suite** for `*.md`, `*.mdx`, `apps/docs/**`, `specs/**` (except the
   OpenAPI approvals, EmDash route inventory and pilot plan files), `tests/unit/**`.
+- **No stack suite** for the scripts and checkers of always-running jobs:
+  `tools/ci/*_test.py`, `gate.py`, `workflow_contract.py`, `lint-types.sh`,
+  `security.sh`, `build.sh`, `flake_summary.py`, the static gates
+  (`conflict_markers.py`, `legacy_ui.py`, `no_test_doubles.py`, ...) and
+  `reviewed_network_faults.json`; and for workflows that run no `ci.yml` suite
+  (`docs.yml`, `docs-watchdog.yml`, `nightly-watchdog.yml`, `pin-drift.yml`,
+  `release.yml`, `cache-benchmark.yml`). `surveys.yml`, `api-contract.yml`
+  and `pins.yml` select only their own workflow. Gate data such as
+  `infra/security/vulnerability-allowlist.json` selects only the pins
+  workflow; Security judges it on every run anyway.
+- **Only its suites** for a CI entry point: `tools/ci/e2e.sh` all E2E leaves,
+  `integration.sh` all Integration shards plus Contract, `contract.sh`
+  Contract, `emdash.sh` the EmDash proofs. Everything else in `.github/**` and
+  `tools/ci/**` (`ci.yml`, the actions, `run-job.sh`, `free-runner-disk.sh`,
+  `sanitize_artifacts.py`, `select_suites.py`, ...) still selects everything.
 - **Only the owning suite** for module and proof directories: the tasks module
   selects `E2E / tasks`; `tools/delivery/**` selects `Integration / delivery`;
   `apps/campaign-site/**`, `tools/emdash_spike/**` select the EmDash proofs;
@@ -48,8 +66,10 @@ These gates plus `Bilingual site artifact` (Documentation) are the required chec
 `.github/workflows/pin-drift.yml` dispatches exactly these workflows on its
 re-pin branch, because its `GITHUB_TOKEN` PR starts none by itself; the
 workflow contract fails when the two lists differ (`infra/locks/README.md`).
-The older summary checks (`Integration`, `E2E / <group>`, `EmDash proofs`,
-`Golden journey`, `Surveys / <group>`) apply the same selected-or-skipped rule.
+The former summary jobs (`Integration`, `E2E / <group>`, `EmDash proofs`,
+`Surveys / <group>`) are gone: they repeated what the gate checks and each
+took a runner slot per run. `workflow_contract.py` rejects them. `Golden
+journey` stays, because it compares the two installations' results.
 
 Dry-run the selector on any diff:
 
@@ -109,6 +129,93 @@ commits, no "require branch up to date", required gates) is applied by a
 maintainer. With the queue, PRs no longer need "Update branch": the queue tests
 each PR merged onto the current `main` plus the PRs ahead of it.
 
+## Job layout and runner budget
+
+The account runs at most 20 jobs at once. With several pull requests open,
+runner slots, not test speed, decided the wall time: before this layout a
+complete `ci.yml` run had 56 jobs (177 runner minutes, up to 27 minutes queue
+per job), and each job spent about two minutes on checkout, build-layer import,
+bootstrap, fixture restore and image pulls before its first test. Most of the
+58 matrix legs ran two to four minutes of tests.
+
+`ci.yml` therefore runs few, fat jobs:
+
+| Job | Legs (complete run) | Content |
+|---|---|---|
+| `select`, `fixture` | 1 + 1 | Suite selection; synthetic fixture (a cache hit takes seconds) |
+| Lint, types and unit | 1 | `tools/ci/lint-types.sh`, then `./leonaid test-unit` (also after a lint failure) |
+| Build | 1 | Canonical Compose build; the only job that writes the BuildKit cache |
+| Security | 1 | Policy checks and security stack test beside the vulnerability gate |
+| `Integration / <shards>` | 4 | All Integration shards and Contract |
+| `E2E / <leaves>` | 4 | All E2E leaves |
+| `EmDash proof / <groups>` | 2 | `krapfentaxi-orders`; `krapfentaxi-migration` + `static` |
+| Golden installation | 2 | Prepared and fresh installation (must stay separate runners) |
+| Golden journey, CI gate | 1 + 1 | Result comparison; the required check |
+
+That is 20 jobs instead of 56, 16 of them with a runner-heavy suite.
+`select_suites.py` packs the selected shards with longest-processing-time-first
+into at most `MAX_BINS` legs per kind, using the measured seconds in
+`INTEGRATION_SECONDS` / `E2E_SECONDS`, and opens a further leg only per
+`TARGET_SECONDS` (600 s) of tests. A pull request that touches two small leaves
+gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
+`EmDash proof 1/2`) so the flake history stays comparable; the shard list is
+in the job summary. The leg id names the artifact (`ci-integration-1`, ...).
+The select job warns (`CI leg near timeout`) when a leg's estimate (shard
+seconds, `LEG_SETUP_SECONDS` per leg and `SHARD_SETUP_SECONDS` per
+Integration shard or EmDash group) passes 75 % of its `timeout-minutes`
+(`JOB_TIMEOUT_MINUTES`, kept equal to `ci.yml` by `workflow_contract.py`);
+`select_suites_test.py` keeps the complete run below 60 %.
+
+Inside a leg every shard keeps its own isolation:
+
+- `tools/ci/integration.sh a b c` runs each shard as before, each on its own
+  fresh stack, and continues after a failure; the leg fails at the end and
+  names every failed shard.
+- `tools/ci/e2e.sh a b c` runs all leaves of one fixture kind (`golden`,
+  `core`) in one `shared_stack.py --keep-going` call: the stack is built once,
+  and the stopped fixture volumes are restored before every leaf, exactly as
+  between the leaves of one shard before. A failed leaf does not stop the
+  others; the exit code stays the first failure's.
+- `tools/ci/emdash.sh a b` runs each group's cases once, without retries.
+- After every shard, passed or failed (`tools/ci/run-shards.sh` for
+  Integration and EmDash, `step()` in `e2e.sh`), `tools/ci/leak-check.sh`
+  (CI runners only) compares the Compose projects before and after it. A shard that leaves
+  containers, networks or volumes behind fails, and only its leaked projects
+  are removed, so the next shard does not fail in its place.
+- `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
+  data for the 40 GB skip threshold below.
+
+`surveys.yml` packs its 26 PR checks into 7 shards of about 8 minutes
+(`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
+state.
+
+Measured on PR #103 (run 42368175283, complete selection, busy runner pool):
+19 jobs, 132 runner minutes, 112 queue minutes, longest job 12.8 min, legs of
+7.6–11.6 min; Security 6.5 min (was 10.6). Before: 56 jobs, 177–214 runner
+minutes, 385–461 queue minutes. `surveys.yml`: 11 jobs and 50 runner minutes
+(was 26 jobs, 82 runner minutes).
+
+A failed survey check prints a sanitized excerpt (failure lines, log tail
+without Compose progress, foundation harness log) to the job log and uploads
+it as `failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The
+repository is public, so redaction runs on the full text before any line is
+cut: known secrets (`.env.local`, the run's `*.env` files, the prepared
+fixture's Twenty key), then generic shapes (Authorization/Bearer,
+Cookie/Set-Cookie and Playwright `{name, value}` cookie objects,
+token/code/key/signature/X-Amz-* parameters, URL passwords, credential
+assignments, login/invitation/verification codes, OTPs and PINs (de/en), JWTs,
+and every base64url/hex run of 32+ characters except lower-case words joined
+by `-`, `_` or `/`; a test proves 20 000 generated `token_urlsafe` values are
+redacted).
+Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
+and a credential keyword still followed by a value withholds it too. Its
+self-test runs in Lint, types and unit.
+
+The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
+sets the wall time of a complete run. Re-measure with
+`gh run view <id> --json jobs` and update the seconds tables when a shard's
+runtime changes by more than a minute.
+
 ## Integration and survey shards
 
 Normal PR/main-push CI runs separate Integration shards for Compose cold start,
@@ -118,7 +225,9 @@ real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
 Survey acceptance defines 39 checks in `tools/surveys/gate.json`: the two foundation diagnostics are separate entries, and the duplicate aggregate adapter run is consolidated.
-PR checks occupy 14 shards, with short compatible pairs sharing one stack; the six nightly
+PR checks occupy 7 shards of about 8 minutes each (`foundation`, `foundation-acceptance`,
+`runner-permissions`, `editor-authoring`, `analysis-exports`, `lifecycle-contracts`,
+`journeys-responses`), with compatible checks sharing one stack; the six nightly
 shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
 
 - recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
@@ -135,11 +244,10 @@ test-pilot-release on separate runners. These cover full restore, upgrade
 rollback, the backup target, the first install on an empty host and pilot
 restore/release paths. Each selected test runs once.
 
-Existing `Surveys / <group>` check names remain conservative policy summaries:
-every shard selected for that event must succeed. They do not claim that
-nightly-only checks executed in a PR. A selected shard's failure, cancellation
-or skipping cannot produce a green summary. The entire nightly workflow fails
-if either a survey shard or a standalone backup job fails.
+`Survey gate` requires every shard selected for that event to succeed. It
+does not claim that nightly-only checks executed in a PR. A selected shard's
+failure, cancellation or skipping cannot produce a green gate. The entire
+nightly workflow fails if either a survey shard or a standalone backup job fails.
 
 Normal domain/unit tests, seed reset, migration checks and individual
 retry/restart assertions within feature tests stay in PR CI. They are not
@@ -147,7 +255,7 @@ full backup/restore rehearsals. Explicit local commands still run the full
 requested selection, independent of the CI schedule.
 
 ```sh
-./leonaid test-surveys --shard request-concurrency
+./leonaid test-surveys --shard lifecycle-contracts
 ./leonaid test-surveys --group recovery
 ```
 
@@ -157,7 +265,8 @@ The optional campaign site (Compose profile `emdash`) has its own proof cases
 (`./leonaid test-emdash-spike --case <name>`). Two regressions were only visible
 in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 (PR #38). PR and main CI therefore run `tools/ci/emdash.sh` in the
-`EmDash proof / <group>` matrix, gated by the `EmDash proofs` summary:
+`EmDash proof / <groups>` matrix, gated by `CI gate`. Two legs
+(`EMDASH_BINS`): `krapfentaxi-orders` alone, `krapfentaxi-migration` with `static`.
 
 | Group | Cases |
 |---|---|
@@ -174,10 +283,11 @@ workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,
 a path filter, `continue-on-error` or a retry in the job.
 
-Observed GitHub runtimes (PR #40): `krapfentaxi-orders` 12–15 min,
-`krapfentaxi-migration` 4–6 min, `static` 1–3 min. The legs run in parallel
-with the other jobs. `krapfentaxi-orders` is the longest job of the workflow
-(next: Security, about 8 min), so it adds roughly 4 minutes of wall time.
+Observed GitHub runtimes (PR #40, run 42360553738): `krapfentaxi-orders`
+12–15 min, `krapfentaxi-migration` 4–6 min, `static` 1–3 min.
+`krapfentaxi-orders` is one stateful case (import, three-browser commerce
+phases, Twenty start, order journeys) and remains the longest job of the run;
+the other legs are packed to finish before it.
 
 The jobs import the `emdash` BuildKit group; the Build job also exports the
 `campaign-site` cache. On failure the harness stores `compose ps` and the
@@ -275,7 +385,7 @@ python3 tools/testing/shared_stack_test.py
 python3 tools/testing/shared_stack_live.py
 python3 tools/testing/owned_teardown_live.py
 sh tools/ci/e2e.sh acquisition
-./leonaid test-surveys --shard request-concurrency
+./leonaid test-surveys --shard lifecycle-contracts
 ```
 
 The live reset proof deliberately contaminates both databases, Valkey, versioned
@@ -305,7 +415,9 @@ The first call installs it; later calls reset its data and seed the next test.
 Application input changes rebuild images with Docker's layer cache. Changes to
 migrations, Compose, environment, pinned images or fixture/provisioning inputs
 invalidate and initialize the data fixture again. This is synthetic test data,
-not an application backup/restore test.
+not an application backup/restore test. When the invocation ends, the fixture's
+containers are stopped (volumes, images and the saved data stay), so an idle
+checkout holds no Twenty, database or application memory.
 
 The existing development stack is never adopted or reset. The test fixture uses
 its own project, volumes and networks without host ports. One process holds the
@@ -360,7 +472,9 @@ with about 14 GB free, Azure-hosted ones 145 GB with 86 GB free. Every job
 that builds or loads LeonAid images therefore runs
 `tools/ci/free-runner-disk.sh start` right after checkout and
 `tools/ci/free-runner-disk.sh wait` right before its suite. Deletion overlaps
-cache import and fixture restore and frees about 18 GB.
+cache import and fixture restore and frees about 18 GB. `start` skips the
+deletion when at least `LEONAID_FREE_DISK_MIN_GB` (default 40) GB are free:
+on Azure runners the deletion only cost 30–120 s of metadata I/O.
 
 The Security job builds all own images and scans every pinned third-party
 image on one runner. Measured on an Azure runner (145 GB disk), the job
@@ -376,7 +490,15 @@ runner ran out while building the own images.
   only when that exact digest was absent before. Locally present images,
   including any other tags of the same image, stay untouched.
 - `LEONAID_CI_DISK_REPORT=1` makes the scan log `tools/ci/disk-report.sh`
-  output after every phase and target.
+  output after every phase (start, advisory databases, own images built, all
+  targets scanned). The per-target reports cost about 45 s per run.
+- In CI, `tools/ci/security.sh` runs the vulnerability gate beside the policy
+  checks and the security stack test (`LEONAID_SCAN_KEEP_PULLED=1`: the
+  third-party images stay until the job ends, because the stack may use them).
+  The scan pulls the third-party images in the background while the advisory
+  databases download and the own images build; each image is pulled again
+  right before its scan, so a failed head start cannot skip a target. The gate
+  still requires a report for every target on every event.
 
 `tools/ci/workflow_contract.py` requires both steps in every job that uses the
 build cache (except the single-image API contract and SBOM jobs), in the cold
@@ -399,12 +521,8 @@ inventory guards still exclude concurrent reset/use. Local development continues
 to use its private checkout fixture; CI activation cannot overwrite a local
 worktree's environment.
 
-Functional E2E groups and survey checks run on independent runners.
-Integration permits eight matrix jobs, E2E seven, and Survey twelve. Together
-with two Golden installations and the five other main jobs, plus API and pins,
-this requests at most 38 concurrent execution jobs after fixture preparation.
-Summary jobs run after their prerequisites release slots. Other repositories
-still share the account allowance. Long jobs appear first in each matrix;
+Functional E2E groups and survey checks run in bins on independent runners
+(see "Job layout and runner budget"). Long legs appear first in each matrix;
 GitHub creates jobs in matrix order but does not guarantee start order.
 Survey pairs are lifecycle/contracts, request-limits/concurrency,
 responses/payload-limits, preview/branding, and analysis/export-permissions.

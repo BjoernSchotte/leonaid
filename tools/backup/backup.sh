@@ -5,7 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+project=${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is required (use ./leonaid, never a default project)}
 repository=${LEONAID_BACKUP_REPOSITORY:-}
 password_file=${LEONAID_BACKUP_PASSWORD_FILE:-}
 credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
@@ -209,6 +209,17 @@ cms_database=$(compose exec -T core-postgres psql \
   "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname='emdash')")
 case "$topology:$cms_database" in
   legacy:f|emdash:t) ;;
+  legacy:t)
+    # A CMS that never completed its editor setup (provisioning under way,
+    # or switched off again before it went live) holds no editorial data and
+    # cannot be restored anyway (cms_state.py); a live CMS must be backed up.
+    . "$root/tools/backup/cms-bootstrap-state.sh"
+    cms_state=$(cms_bootstrap_state "${project}_cms-bootstrap-state") ||
+      fail "the CMS setup state cannot be read; no backup without a known CMS state"
+    [ "$cms_state" = unfinished ] ||
+      fail "the CMS is live; back it up with the CMS topology (LEONAID_CMS_ENABLED=true)"
+    echo "backup: the unfinished CMS (setup not complete) is not part of this backup"
+    ;;
   *) fail "backup topology does not match the existing CMS data" ;;
 esac
 if [ "$topology" = emdash ]; then

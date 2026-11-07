@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 6
-reviewedRevision: 6
-verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
+contentRevision: 7
+reviewedRevision: 7
+verifiedAgainst: e0a3533c57747a914cde695a334e31fb90ffbc60
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -29,6 +29,11 @@ allgemeine Produktionsfreigabe.
 - Öffentliche Bestellungen sind nur für eine veröffentlichte Aktion mit
   aktivem Bestellformular und verfügbarem Angebot möglich. Bei aktivierter
   Lieferplanung ist außerdem ein verfügbares Lieferfenster nötig.
+- Bestellbestätigung und Stornohinweis gehen als reiner Text nur an Besteller
+  aus dem öffentlichen Formular. Bestellungen von Mitgliedern oder
+  Akquisiteuren lösen keine E-Mail aus. Der Link zur Aktion zeigt auf die
+  Aktionsseite des öffentlichen Hosts; eigene Kampagnen-Domains folgen mit
+  Stufe 2. Absender ist die konfigurierte Systemadresse, nicht der Club.
 - Ein gespeicherter Rechnungsbeleg und sein PDF werden nicht nachträglich
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
 - Teil- und Überzahlungen werden als einzelne Zahlungseinträge erfasst und
