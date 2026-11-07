@@ -415,7 +415,12 @@ class Settings(BaseSettings):
             if self.public_host_enabled
             else None
         )
-        return ConfiguredHosts(admin=admin, public=public, aliases=aliases)
+        return ConfiguredHosts(
+            admin=admin,
+            public=public,
+            aliases=aliases,
+            allow_test_names=self.environment != "production",
+        )
 
     @property
     def host_check_settings(self) -> HostCheckSettings:

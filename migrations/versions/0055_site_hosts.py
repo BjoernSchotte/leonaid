@@ -108,6 +108,11 @@ def upgrade() -> None:
             "length(verification_token) BETWEEN 32 AND 128",
             name="ck_site_host_verification_token",
         ),
+        # A verified or active host passed a check at some point (§7.4).
+        sa.CheckConstraint(
+            "status NOT IN ('verified','active') OR verified_at IS NOT NULL",
+            name="ck_site_host_verified_at",
+        ),
     )
     op.create_index("uq_site_host_hostname", "site_host", ["hostname"], unique=True)
     # The ask endpoint looks a hostname up by status on every new handshake.
@@ -242,6 +247,39 @@ def upgrade() -> None:
         ["action_id"],
         postgresql_where=live,
     )
+    # Redirect hosts (§7.3): no live editions, and the target is a campaign
+    # host, never another redirect host. Checked at commit, so a command may
+    # reorder rows inside its transaction.
+    op.execute(
+        """
+        CREATE FUNCTION site_host_redirect_rules() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM site_host AS h
+            WHERE h.redirect_to_host_id IS NOT NULL AND (
+              EXISTS (SELECT 1 FROM site_binding AS b
+                      WHERE b.site_host_id = h.id AND b.valid_to IS NULL)
+              OR EXISTS (SELECT 1 FROM site_host AS t
+                         WHERE t.id = h.redirect_to_host_id
+                           AND t.redirect_to_host_id IS NOT NULL)
+            )
+          ) THEN
+            RAISE EXCEPTION 'site_host redirect rules violated'
+              USING ERRCODE = 'check_violation',
+                    CONSTRAINT = 'ck_site_host_redirect_rules';
+          END IF;
+          RETURN NULL;
+        END $$
+        """
+    )
+    for table in ("site_host", "site_binding"):
+        op.execute(
+            f"CREATE CONSTRAINT TRIGGER tg_{table}_redirect_rules "
+            f"AFTER INSERT OR UPDATE ON {table} "
+            "DEFERRABLE INITIALLY DEFERRED FOR EACH ROW "
+            "EXECUTE FUNCTION site_host_redirect_rules()"
+        )
 
 
 def downgrade() -> None:
@@ -256,3 +294,4 @@ def downgrade() -> None:
     )
     op.drop_table("site_binding")
     op.drop_table("site_host")
+    op.execute("DROP FUNCTION site_host_redirect_rules()")
