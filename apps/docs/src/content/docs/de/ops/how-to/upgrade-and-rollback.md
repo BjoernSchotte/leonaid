@@ -4,8 +4,8 @@ description: Gepinnte Core-, Twenty-, RustFS- und EmDash-Versionen mit Wartungsg
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -132,6 +132,23 @@ Recovery Point wiederhergestellt wurde.
 Nachdem 1.0.4 auf dem Volume lief, beta.11 nicht wieder starten. Der Rollback
 stellt das vollständige RustFS-Volume zusammen mit Core-PostgreSQL aus dem
 Recovery Point wieder her.
+
+## Aktionsseiten-Migrationen im Pilot-Release
+
+Mit `LEONAID_CMS_ENABLED=true` migriert `./leonaid pilot-release` die
+Aktionsseiten selbst; es gibt keinen Handschritt. Im Wartungsmodus, nach den
+Core-Migrationen, erzeugt es `campaign-site` mit dem Release-Image neu, ohne
+es zu starten, prüft das Image gegen den Checkout, schließt den CMS-Verkehr
+und führt `upgrade-emdash` aus, wenn das Release EmDash-Migrationen mitbringt
+(sonst `verify`). Das vorher erstellte Release-Backup enthält die
+CMS-Datenbank, ihren Einrichtungsstand und die Medien. Der CMS-Verkehr öffnet
+erst, wenn der migrierte Stand geprüft ist. `pilot-deploy` lehnt ein solches
+Release ab und verweist auf `pilot-release`.
+
+Scheitert der CMS-Schritt, bleibt der CMS-Verkehr geschlossen und das CMS
+gestoppt. Rolle aus dem Wiederherstellungspunkt des Releases zurück, wie im
+Release-Runbook beschrieben (`infra/pilot/RELEASE-RUNBOOK.md`, „Failure and
+rollback“); starte nie das vorherige CMS-Image auf der migrierten Datenbank.
 
 ## EmDash-Kampagnenseite 0.36 auf 1.4
 

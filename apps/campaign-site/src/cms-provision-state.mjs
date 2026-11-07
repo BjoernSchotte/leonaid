@@ -38,6 +38,15 @@ export function migrationState(migrations, names) {
     : "refused";
 }
 
+// A live CMS (completed setup) whose database lacks only later migrations of
+// a newer release image: the release's CMS migration step applies them
+// (pilot-release, cms-migration-operator upgrade-emdash), never provisioning.
+export function releaseDatabaseState(state, appliedCount, bootstrap) {
+  return state === "missing" && appliedCount > 0 && bootstrap === "complete"
+    ? "pending"
+    : state;
+}
+
 // The campaign schema step installs three parts, each in its own transaction
 // with its own version option: the collection (schema), the binding guards
 // and the media guards. `versions` holds the stored option values (undefined

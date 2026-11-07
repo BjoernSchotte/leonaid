@@ -118,6 +118,9 @@ cleanup() {
     docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
     docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || status=1
   fi
+  if [ "${next_owned:-false}" = true ]; then
+    docker image rm "$build_project-campaign-site-next:latest" >/dev/null 2>&1 || status=1
+  fi
   if [ "$build_owned" = true ]; then
     for service in $image_services; do
       docker image rm "$build_project-$service:latest" >/dev/null 2>&1 || status=1
@@ -1126,6 +1129,109 @@ verify_owned_project_removed "$restore_project"
 restore_owned=false
 echo "pilot-install-test: CMS restore drill: published page, media with the scoped key and closed setup grant restored"
 
+echo "pilot-install-test: proves the CMS step of pilot-release with a synthetic EmDash migration"
+# The next release's campaign-site image: this release plus one EmDash
+# migration (999_leonaid_release_probe) in both copies of the migration list,
+# the operators' (node_modules) and the runtime's (Astro server bundle).
+next_directory="$overlay_directory/cms-next"
+mkdir -p "$next_directory"
+cat >"$next_directory/Dockerfile" <<'NEXT'
+ARG BASE
+FROM ${BASE}
+USER root
+RUN set -eu; \
+  probe='const LEONAID_PROBE_MIGRATIONS = Object.freeze({ ...MIGRATIONS, "999_leonaid_release_probe": { async up(db) { await db.schema.createTable("leonaid_release_probe").addColumn("id", "integer").execute(); }, async down(db) { await db.schema.dropTable("leonaid_release_probe").execute(); } } });'; \
+  for file in /app/node_modules/emdash/dist/runner-*.mjs /app/dist/server/chunks/runner-*.mjs; do \
+    [ "$(grep -c 'const MIGRATION_NAMES = Object.freeze(Object.keys(MIGRATIONS));' "$file")" = 1 ]; \
+    [ "$(grep -c 'return MIGRATIONS;' "$file")" = 1 ]; \
+    sed -i "s|const MIGRATION_NAMES = Object.freeze(Object.keys(MIGRATIONS));|$probe const MIGRATION_NAMES = Object.freeze(Object.keys(LEONAID_PROBE_MIGRATIONS));|; s|return MIGRATIONS;|return LEONAID_PROBE_MIGRATIONS;|" "$file"; \
+  done
+USER node
+NEXT
+next_image_tag="$build_project-campaign-site-next:latest"
+next_owned=true
+docker build --quiet --build-arg "BASE=$build_project-campaign-site:latest" \
+  --tag "$next_image_tag" "$next_directory" >/dev/null
+previous_cms_image=$LEONAID_TEST_CAMPAIGN_SITE_IMAGE
+LEONAID_TEST_CAMPAIGN_SITE_IMAGE=$(docker image inspect --format '{{.Id}}' "$next_image_tag")
+export LEONAID_TEST_CAMPAIGN_SITE_IMAGE
+[ "$LEONAID_TEST_CAMPAIGN_SITE_IMAGE" != "$previous_cms_image" ]
+next_manifest="$workspace/release-manifest-cms-next.json"
+runtime_compose --profile emdash config --format json >"$workspace/runtime-compose-next.json"
+docker run --rm --interactive \
+  --user "$(id -u):$(id -g)" \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  sh -eu -c 'cat > /tmp/runtime-compose.json; exec python tools/pilot_release/manifest.py create "$@"' sh \
+    --root /workspace \
+    --release-id pilot-install-cms-next \
+    --version 2026.11.2 \
+    --git-commit "$release_commit" \
+    --deployment-mode test \
+    --schema-version 2 \
+    --compose-config /tmp/runtime-compose.json \
+    --output /proof/release-manifest-cms-next.json <"$workspace/runtime-compose-next.json"
+cms_state >"$workspace/cms-next-state.txt"
+grep -qx 'database=pending' "$workspace/cms-next-state.txt"
+grep -qx 'schema=pending' "$workspace/cms-next-state.txt"
+
+# pilot-deploy never starts a CMS image on an unmigrated database.
+set +e
+deploy_output=$(leonaid_test pilot-deploy --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" 2>&1)
+deploy_status=$?
+set -e
+[ "$deploy_status" -ne 0 ] &&
+  printf '%s' "$deploy_output" | grep -Fq "this release brings CMS (EmDash) migrations" || {
+  echo "pilot-install-test: ERROR: pilot-deploy accepted pending CMS migrations:" >&2
+  printf '%s\n' "$deploy_output" | tail -n 20 >&2
+  exit 1
+}
+
+# The release: backup before, maintenance, Core and CMS migrations under
+# closed CMS traffic on the verified release image, deploy, doctor.
+release_ledger="$workspace/release-ledger.jsonl"
+offset=3
+for event in staging_started staging_verified; do
+  "$root/leonaid" pilot-release-record --manifest "$next_manifest" \
+    --ledger "$release_ledger" --event "$event" --result passed \
+    --evidence-id PILOT-CMS-RELEASE-STAGING \
+    --occurred-at "$(date -u -d "-$offset minutes" +%Y-%m-%dT%H:%M:%SZ)"
+  offset=$((offset - 1))
+done
+backup_before=$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)
+leonaid_test pilot-release --env-file "$env_file" \
+  --backup-manifest "$backup_manifest" --release-manifest "$next_manifest" \
+  --ledger "$release_ledger" --password-file "$restic_password_file" \
+  --credentials-file "$backup_credentials_file" \
+  --evidence-id PILOT-CMS-RELEASE-PRODUCTION \
+  --occurred-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee "$workspace/cms-release.log"
+grep -Fq "pilot-release: OK: $project is manifest-bound, migrated and released" "$workspace/cms-release.log"
+grep -Fq "pilot-release: CMS: upgrade-emdash under closed CMS traffic" "$workspace/cms-release.log"
+grep -Fq "cms-migration: upgrade-emdash passed" "$workspace/cms-release.log"
+# The recovery point of the release holds the CMS (taken before the migration).
+assert_cms_backup
+[ "$(sed -n 's/.*"createdAt": *"\([^"]*\)".*/\1/p' "$backup_manifest" | head -n 1)" != "$backup_before" ]
+probe=$(runtime_compose exec -T core-postgres psql --username leonaid --dbname emdash \
+  --tuples-only --no-align --command \
+  "SELECT (to_regclass('public.leonaid_release_probe') IS NOT NULL)::text || ':' || count(*)::text FROM _emdash_migrations WHERE name = '999_leonaid_release_probe'")
+[ "$probe" = "true:1" ] || {
+  echo "pilot-install-test: ERROR: the release did not apply the synthetic EmDash migration ($probe)" >&2
+  exit 1
+}
+cms_state >"$workspace/cms-next-state.txt"
+for expected in database=ready schema=ready traffic=open; do
+  grep -qx "$expected" "$workspace/cms-next-state.txt"
+done
+[ "$(docker inspect --format '{{.Image}}' "$(runtime_compose --profile emdash ps --quiet campaign-site)")" = "$LEONAID_TEST_CAMPAIGN_SITE_IMAGE" ]
+# The published page survives the release on the public host.
+cms_proof public "$cms_slug" "$cms_title"
+cms_expect "repeats as a no-op after the release" 0 "pilot-cms-provision: OK: $project serves the CMS"
+echo "pilot-install-test: pilot-release migrated the CMS (synthetic EmDash migration) and kept the published page"
+
 echo "pilot-install-test: proves a second first install is refused"
 cp "$env_file" "$workspace/second.env"
 # The CMS was enabled above; a first install refuses it before the volume
@@ -1145,4 +1251,5 @@ echo "pilot-install-test: OK: empty project to verified Twenty admin, provisione
 echo "pilot-install-test:     full stack, first backup, monitoring and Watchdog,"
 echo "pilot-install-test:     Twenty and core mail over implicit TLS, scheduled CRM repair,"
 echo "pilot-install-test:     CMS provisioned, resumed and repeated, a campaign page published"
-echo "pilot-install-test:     on the public host, CMS backups and a CMS restore drill"
+echo "pilot-install-test:     on the public host, CMS backups and a CMS restore drill,"
+echo "pilot-install-test:     pilot-release with a synthetic EmDash migration"
