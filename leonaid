@@ -349,7 +349,59 @@ package_cache_directory() {
   printf '%s/%s' "$package_cache" "$1"
 }
 
+# Installed dependencies are stamped with a checksum of their lock inputs at
+# bootstrap. A changed lockfile or manifest (merge, branch switch, Renovate)
+# then stops a command with a clear hint instead of failing later with
+# missing modules. LEONAID_SKIP_DEPENDENCY_CHECK=1 skips the guard.
+dependency_inputs() {
+  case "$1" in
+    python) set -- "$root/uv.lock" "$root/pyproject.toml" ;;
+    bun)
+      set -- "$root/bun.lock" "$root/package.json" \
+        "$root"/apps/*/package.json "$root"/packages/*/package.json
+      ;;
+  esac
+  for dependency_input in "$@"; do
+    [ -f "$dependency_input" ] || continue
+    printf '%s\n' "${dependency_input#"$root"/}"
+    cat "$dependency_input"
+  done | cksum | cut -d ' ' -f 1,2
+}
+
+dependency_stamp() {
+  case "$1" in
+    python) printf '%s' "$root/.venv/.leonaid-lock-stamp" ;;
+    bun) printf '%s' "$root/node_modules/.leonaid-lock-stamp" ;;
+  esac
+}
+
+write_dependency_stamp() {
+  dependency_inputs "$1" >"$(dependency_stamp "$1")"
+}
+
+require_fresh_dependencies() {
+  [ "${LEONAID_SKIP_DEPENDENCY_CHECK:-0}" != 1 ] || return 0
+  # Once per command and toolchain.
+  case " ${dependencies_checked:-} " in *" $1 "*) return 0 ;; esac
+  stamp=$(dependency_stamp "$1")
+  case "$1" in
+    python) install_directory=.venv lock=uv.lock ;;
+    bun) install_directory=node_modules lock=bun.lock ;;
+  esac
+  if [ ! -d "$root/$install_directory" ]; then
+    echo "leonaid: ERROR: $install_directory is missing; run './leonaid bootstrap'." >&2
+    exit 1
+  elif [ ! -f "$stamp" ]; then
+    echo "leonaid: WARNING: $install_directory has no lock stamp and may be stale; run './leonaid bootstrap' once." >&2
+  elif [ "$(cat "$stamp")" != "$(dependency_inputs "$1")" ]; then
+    echo "leonaid: ERROR: $install_directory is stale: $lock or a manifest changed since the last bootstrap; run './leonaid bootstrap' (LEONAID_SKIP_DEPENDENCY_CHECK=1 to override)." >&2
+    exit 1
+  fi
+  dependencies_checked="${dependencies_checked:-} $1"
+}
+
 run_python() {
+  require_fresh_dependencies python
   uv_cache=$(package_cache_directory uv)
   docker_retry docker run --rm \
     --user "$host_user" \
@@ -365,6 +417,7 @@ run_python() {
 }
 
 run_bun() {
+  require_fresh_dependencies bun
   bun_cache=$(package_cache_directory bun)
   docker_retry docker run --rm \
     --user "$host_user" \
@@ -807,8 +860,12 @@ bootstrap() {
   fi
   chmod 600 "$root/.env.local"
   repair_ownership
+  # The installs below create what the guard checks.
+  dependencies_checked=" python bun"
   run_python uv sync --frozen --all-groups --no-install-project
+  write_dependency_stamp python
   run_bun bun install --frozen-lockfile --ignore-scripts
+  write_dependency_stamp bun
   # Checkout-local caches from before the shared package cache.
   for legacy_cache in "$root/.cache/uv" "$root/.cache/bun"; do
     if [ -d "$legacy_cache" ]; then
@@ -872,12 +929,20 @@ doctor() {
   if [ ! -L "$root/.venv/bin/python" ] && [ ! -x "$root/.venv/bin/python" ]; then
     echo "doctor: ERROR: Python environment is missing. Run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
+  elif [ ! -f "$(dependency_stamp python)" ] ||
+    [ "$(cat "$(dependency_stamp python)")" != "$(dependency_inputs python)" ]; then
+    echo "doctor: ERROR: .venv does not match uv.lock and the manifests (stale or unstamped). Run './leonaid bootstrap'." >&2
+    failures=$((failures + 1))
   else
     echo "doctor: OK: locked Python environment present"
   fi
 
   if [ ! -x "$root/node_modules/.bin/tsc" ]; then
     echo "doctor: ERROR: frontend packages are missing. Run './leonaid bootstrap'." >&2
+    failures=$((failures + 1))
+  elif [ ! -f "$(dependency_stamp bun)" ] ||
+    [ "$(cat "$(dependency_stamp bun)")" != "$(dependency_inputs bun)" ]; then
+    echo "doctor: ERROR: node_modules does not match bun.lock and the manifests (stale or unstamped). Run './leonaid bootstrap'." >&2
     failures=$((failures + 1))
   else
     echo "doctor: OK: locked frontend packages present"

@@ -391,6 +391,7 @@ class SharedPackageCacheTests(unittest.TestCase):
                     **os.environ,
                     "PATH": f"{stub}:{os.environ['PATH']}",
                     "LEONAID_PACKAGE_CACHE": str(cache),
+                    "LEONAID_SKIP_DEPENDENCY_CHECK": "1",
                 },
                 capture_output=True,
                 text=True,
@@ -402,6 +403,70 @@ class SharedPackageCacheTests(unittest.TestCase):
             self.assertIn("UV_LINK_MODE=clone", arguments)
             self.assertEqual((cache / "uv").stat().st_mode & 0o777, 0o700)
             self.assertEqual(cache.stat().st_mode & 0o777, 0o700)
+
+
+class StaleDependencyTests(unittest.TestCase):
+    def test_commands_refuse_dependencies_older_than_the_lockfile(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            checkout = base / "checkout"
+            for name in (
+                "leonaid",
+                "tools/testing/phase.sh",
+                "infra/locks/images.env",
+                "uv.lock",
+                "pyproject.toml",
+            ):
+                (checkout / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(source / name, checkout / name)
+            stub = base / "bin"
+            stub.mkdir()
+            (stub / "docker").write_text("#!/bin/sh\nexit 0\n")
+            (stub / "docker").chmod(0o755)
+            environment = {
+                **os.environ,
+                "PATH": f"{stub}:{os.environ['PATH']}",
+                "LEONAID_PACKAGE_CACHE": str(base / "packages"),
+            }
+
+            def unit() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [str(checkout / "leonaid"), "test-unit"],
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                )
+
+            result = unit()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(".venv is missing", result.stderr)
+            (checkout / ".venv").mkdir()
+            result = unit()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("no lock stamp", result.stderr)
+            # The stamp format: cksum over each input's name and content.
+            inputs = b"".join(
+                name.encode() + b"\n" + (checkout / name).read_bytes()
+                for name in ("uv.lock", "pyproject.toml")
+            )
+            stamp = " ".join(
+                subprocess.run(["cksum"], input=inputs, capture_output=True, check=True)
+                .stdout.decode()
+                .split()[:2]
+            )
+            (checkout / ".venv/.leonaid-lock-stamp").write_text(stamp + "\n")
+            result = unit()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, "")
+            with (checkout / "uv.lock").open("a") as lock:
+                lock.write("\n# changed by a merge\n")
+            result = unit()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(".venv is stale", result.stderr)
+            self.assertIn("./leonaid bootstrap", result.stderr)
+            environment["LEONAID_SKIP_DEPENDENCY_CHECK"] = "1"
+            self.assertEqual(unit().returncode, 0)
 
 
 if __name__ == "__main__":
