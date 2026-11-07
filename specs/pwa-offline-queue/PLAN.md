@@ -305,6 +305,13 @@ like any other (G2).
 - Two follow-ups for the same sponsor offline: both are sent in order; the
   second is based on the revision the first one produced (the loop updates the
   base revision of later entries from each accepted answer).
+- **Base revision rule (stage 2 server contract):** the loop moves the base
+  revision of later entries **only** when the answer has
+  `assignmentUpdated: true`, and **only** to `activity.assignmentRevision`
+  (the revision this send produced; stable across replays). It never takes
+  `assignment.revision`: on a replay or a kept contact (§11.4) that is the
+  current assignment and may contain someone else's change, which the next
+  entry must meet as a conflict instead of overwriting it.
 
 ### 9.3 Queue entry
 
@@ -342,7 +349,7 @@ The entry keeps a link to the old key for support.
 
 | Answer                                     | Meaning                               | Action                                                                   |
 | ------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------ |
-| 2xx (also `replayed: true`)                | accepted                              | remove entry; update read cache and later entries' base revision         |
+| 2xx (also `replayed: true`)                | accepted                              | remove entry; update read cache and later entries' base revision (§9.2 rule) |
 | network error, timeout (15 s), 502/503/504 | transient                             | backoff                                                                  |
 | 429                                        | rate limited                          | backoff, at least `Retry-After`                                          |
 | 409 `idempotency_incomplete`               | another send with this key is running | backoff                                                                  |
@@ -415,7 +422,13 @@ note, next action, due date, captured at, base revision) like
 `createCommitment`. The key is **required** for new clients (422
 `idempotency_key_required` when missing) after one release in which it is
 optional, so an older cached PWA keeps working during the update. The result
-stores the activity id; a replay returns the stored activity and assignment.
+stores the activity id, `assignmentUpdated` and the assignment revision the
+send produced; a replay returns the stored activity with that revision
+(`activity.assignmentRevision`), the stored `assignmentUpdated` and the
+current assignment (re-authorised at send time; another or no assignment →
+404). The receipt is read before the revision check and before the
+`capturedAt` window, so a resend after a lost answer replays even when the
+revision moved on or the 14 days have passed meanwhile.
 
 ### 11.2 Captured at
 
@@ -437,7 +450,11 @@ stores the activity id; a replay returns the stored activity and assignment.
   and keeps driving lists, the weekly value and invoices.
 - Every day rule that reads one of these instants uses
   `leonaid.domain.calendar.local_day` (club zone): dashboard "heute" and
-  overdue follow-ups, weekly order value, "Kontakte heute". `due_on` stays a
+  overdue follow-ups, weekly order value, "Kontakte heute". Stage 2 found no
+  server rule that reads an activity's `occurred_at` or an order's
+  `captured_at` per day (follow-ups read `due_at`, the weekly value reads
+  `created_at`); a "Kontakte heute" rule added later (stage 3) needs its own
+  test with a capture at 00:30 Berlin. `due_on` stays a
   calendar date from the device; the server turns it into 09:00 club time as
   today.
 - Authorisation, membership validity, delivery window availability, prices
@@ -460,8 +477,12 @@ entry on a shared sponsor is likely, and losing the acquirer's contact is
 wrong: the contact happened.
 
 Decision (D1): with `capturedAt` present and a revision mismatch, Core records
-the activity (the fact) and the history entry, but **does not** change the
-assignment's status, next action or due date. The answer is 201 with
+the activity (the fact) and its audit event (`assignmentUpdated: false`,
+`followUpRejected`), but **does not** change the assignment's status, next
+action, due date or revision, and writes **no** assignment history entry
+(nothing changed; an entry with equal before and after would be noise). The
+activity's follow-up snapshot stays empty, because the follow-up was not
+applied; the PWA entry keeps it for the resolution. The answer is 201 with
 `assignmentUpdated: false` and the current assignment. The PWA then shows the
 follow-up conflict (§10.1) and can send "Meine Wiedervorlage übernehmen" as a
 normal online update on the current revision. Without `capturedAt` the

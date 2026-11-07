@@ -978,9 +978,11 @@ docker run --rm \
   python -c 'import json,os,pathlib
 value=json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["sourceProject"]==os.environ["EXPECTED_PROJECT"]
+# The pilot proxy keeps its certificates in caddy-data, so the backup has it.
 assert set(value["files"])=={
-  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
-}'
+  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar",
+  "caddy-data.tar"
+}, sorted(value["files"])'
 
 . "$root/tools/backup/survey-recovery-fixture.sh"
 if [ "$mode" = surveys ]; then

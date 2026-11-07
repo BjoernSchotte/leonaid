@@ -2021,9 +2021,10 @@ pilot_backup() {
 value=json.loads(pathlib.Path("/pilot/backup-manifest.json").read_text(encoding="utf-8"))
 assert value.get("schemaVersion")==1
 assert value.get("sourceProject")==os.environ["EXPECTED_PROJECT"]
-assert set(value.get("files",{}))=={
-  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
-}'; then
+required={"core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"}
+files=set(value.get("files",{}))
+# caddy-data.tar is optional (tools/backup/manifest.py OPTIONAL_FILES).
+assert required<=files and files-required<={"caddy-data.tar"}, sorted(files)'; then
     rm -rf "$manifest_check_directory"
   else
     status=$?
