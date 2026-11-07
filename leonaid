@@ -60,7 +60,10 @@ Commands:
   bootstrap         Create local secrets and install locked packages in Docker
                     [--main-instance] records this checkout as the main
                     development instance (Compose project "leonaid");
-                    [--other-checkout] confirms a clone that is not it
+                    [--other-checkout] confirms a clone that is not it;
+                    [--synthetic-env] writes the public synthetic .env.local
+                    that shares the host test fixture cache (default for a
+                    fresh checkout under .claude/worktrees)
   doctor            Diagnose Docker, locks, secrets and local dependencies
   local-instance    Show this checkout's Compose project: "leonaid" only for
                     the recorded main checkout, leonaid-wt-<checksum> otherwise
@@ -85,6 +88,8 @@ Commands:
                     Analyze or import an XLSX/CSV file through the Twenty API
   repair-crm-match-keys [--changed-within MINUTES|--changed-since ISO]
                     Backfill/repair the CRM match keys stored in Twenty
+  test-api-contract Prove OpenAPI generation, typed client and the live API
+                    contract on the reusable test fixture
   test-twenty-gateway
                     Run the real Twenty CRM gateway contract
   test-crm-import   Prove the Golden XLSX import against an empty real Twenty
@@ -263,6 +268,9 @@ Commands:
   backup            Create encrypted Core, Twenty and RustFS recovery point
   restore           Restore only into an explicitly confirmed fresh project
   test-env-stop     Remove this checkout's cached test environment
+  fixture-cache [status|clear]
+                    Show or clear the host-wide synthetic test fixture cache
+                    (~/.cache/leonaid/fixtures; entries in use are kept)
   test-recovery     Explicitly run all backup/recovery acceptance
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
@@ -328,25 +336,42 @@ docker_retry() {
   done
 }
 
+# Package downloads are shared by every checkout of this user: uv and bun
+# caches are content-addressed and installs stay --frozen, so one cache serves
+# all worktrees. Installs clone files from it (copy-on-write on filesystems
+# with reflinks, e.g. ZFS block cloning or btrfs; a plain copy elsewhere).
+# LEONAID_PACKAGE_CACHE moves it.
+package_cache=${LEONAID_PACKAGE_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/leonaid/packages}
+
+package_cache_directory() {
+  mkdir -p "$package_cache/$1"
+  chmod 700 "$package_cache" "$package_cache/$1"
+  printf '%s/%s' "$package_cache" "$1"
+}
+
 run_python() {
+  uv_cache=$(package_cache_directory uv)
   docker_retry docker run --rm \
     --user "$host_user" \
     -e HOME=/tmp \
     -e PYTHONPATH=/workspace/src \
-    -e UV_CACHE_DIR=/workspace/.cache/uv \
-    -e UV_LINK_MODE=copy \
+    -e UV_CACHE_DIR=/cache/uv \
+    -e UV_LINK_MODE=clone \
     -v "$root:/workspace" \
+    -v "$uv_cache:/cache/uv" \
     -w /workspace \
     "$UV_IMAGE" \
     "$@"
 }
 
 run_bun() {
+  bun_cache=$(package_cache_directory bun)
   docker_retry docker run --rm \
     --user "$host_user" \
     -e HOME=/tmp \
-    -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
+    -e BUN_INSTALL_CACHE_DIR=/cache/bun \
     -v "$root:/workspace" \
+    -v "$bun_cache:/cache/bun" \
     -w /workspace \
     "$BUN_IMAGE" \
     "$@"
@@ -684,7 +709,20 @@ choose_local_ports() {
   exit 1
 }
 
+bootstrap_python() {
+  docker_retry docker run --rm \
+    --user "$host_user_id:$host_group_id" \
+    -e LEONAID_HTTP_PORT="$local_http_port" \
+    -e LEONAID_HTTPS_PORT="$local_https_port" \
+    -e LEONAID_COMPOSE_PROJECT="$dev_project" \
+    -v "$root:/workspace" \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    python "$@"
+}
+
 bootstrap() {
+  synthetic_env=false
   for argument in "$@"; do
     case "$argument" in
       --main-instance)
@@ -707,6 +745,7 @@ bootstrap() {
         echo "bootstrap: recorded this checkout as the main development instance (project leonaid)"
         ;;
       --other-checkout) other_checkout=true ;;
+      --synthetic-env) synthetic_env=true ;;
       *)
         echo "bootstrap: ERROR: unknown option $argument (see ./leonaid help)" >&2
         exit 2
@@ -718,16 +757,20 @@ bootstrap() {
     echo "bootstrap: run './leonaid bootstrap --main-instance' here, or '--other-checkout' if it is not the main instance." >&2
     exit 1
   fi
+  if [ "$synthetic_env" = true ] && [ "$checkout_kind" = main ]; then
+    echo "bootstrap: ERROR: the main development instance keeps its generated secrets; --synthetic-env is for other checkouts" >&2
+    exit 1
+  fi
   require_docker
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
   host_group_id=$(id -g)
   if grep -q '^LEONAID_HTTP_PORT=[0-9]' "$root/.env.local" 2>/dev/null &&
     grep -q '^LEONAID_HTTPS_PORT=[0-9]' "$root/.env.local"; then
-    local_http_port=
-    local_https_port=
+    local_http_port=$(sed -n 's/^LEONAID_HTTP_PORT=//p' "$root/.env.local")
+    local_https_port=$(sed -n 's/^LEONAID_HTTPS_PORT=//p' "$root/.env.local")
     # Earlier bootstraps let a worktree take the main instance's ports.
-    for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+    for configured_port in $local_http_port $local_https_port; do
       if reserved_ports | grep -qx "$configured_port"; then
         choose_local_ports
         echo "bootstrap: port $configured_port is reserved for the main instance; this checkout now uses HTTP $local_http_port, HTTPS $local_https_port"
@@ -743,20 +786,37 @@ bootstrap() {
     choose_local_ports
     echo "bootstrap: local ports HTTP $local_http_port, HTTPS $local_https_port"
   fi
-  docker_retry docker run --rm \
-    --user "$host_user_id:$host_group_id" \
-    -e LEONAID_HTTP_PORT="$local_http_port" \
-    -e LEONAID_HTTPS_PORT="$local_https_port" \
-    -e LEONAID_COMPOSE_PROJECT="$dev_project" \
-    -v "$root:/workspace" \
-    -w /workspace \
-    "$PYTHON_IMAGE" \
-    python tools/dx/generate_secrets.py .env.example .env.local
+  # Agent worktrees share the host-wide test fixture cache, which needs the
+  # public synthetic environment (tools/testing/ci_fixture.py). Existing
+  # generated secrets are never replaced implicitly.
+  case "$root" in
+    */.claude/worktrees/*)
+      if [ ! -f "$root/.env.local" ] ||
+        bootstrap_python tools/testing/ci_fixture.py is-synthetic .env.local; then
+        synthetic_env=true
+      fi
+      ;;
+  esac
+  if [ "$synthetic_env" = true ]; then
+    bootstrap_python tools/testing/ci_fixture.py environment .env.local \
+      --http-port "$local_http_port" --https-port "$local_https_port" \
+      --compose-project "$dev_project"
+    echo "bootstrap: OK: synthetic .env.local (public test values; shares the test fixture cache)"
+  else
+    bootstrap_python tools/dx/generate_secrets.py .env.example .env.local
+  fi
   chmod 600 "$root/.env.local"
   repair_ownership
   run_python uv sync --frozen --all-groups --no-install-project
   run_bun bun install --frozen-lockfile --ignore-scripts
-  echo "bootstrap: OK: used locked Docker toolchains only"
+  # Checkout-local caches from before the shared package cache.
+  for legacy_cache in "$root/.cache/uv" "$root/.cache/bun"; do
+    if [ -d "$legacy_cache" ]; then
+      rm -rf "$legacy_cache" ||
+        echo "bootstrap: WARNING: could not remove the old $legacy_cache" >&2
+    fi
+  done
+  echo "bootstrap: OK: used locked Docker toolchains only (packages cached in $package_cache)"
   "$root/leonaid" doctor
 }
 
@@ -4052,16 +4112,19 @@ case "$command" in
     /bin/sh "$root/tools/core/test.sh" "$root"
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
-    /bin/sh "$root/tools/openapi/test.sh" "$root"
     /bin/sh "$root/tools/twenty/test.sh" "$root"
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
-    run_feature_tests tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
+    run_feature_tests tools/openapi/test.sh tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
     ;;
   test-e2e)
     run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/actions/test.sh tools/action_admin/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh tools/privacy/test.sh
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     ;;
   test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
+  fixture-cache)
+    shift
+    python3 "$root/tools/testing/fixture_cache.py" "${1:-status}"
+    ;;
   test-multi-host)
     require_docker
     /bin/sh "$root/tools/multi_host/test.sh" "$root"
@@ -4076,6 +4139,7 @@ case "$command" in
     /bin/sh "$root/tools/pilot_release/test.sh" "$root"
     python3 "$root/tools/surveys/gate.py" --root "$root" --suite nightly
     ;;
+  test-api-contract) run_feature_tests tools/openapi/test.sh ;;
   test-twenty-gateway) run_feature_tests tools/twenty/gateway_test.sh ;;
   test-crm-import) run_feature_tests tools/twenty/import_test.sh ;;
   test-surveys) shift; python3 "$root/tools/surveys/gate.py" --root "$root" "$@" ;;
