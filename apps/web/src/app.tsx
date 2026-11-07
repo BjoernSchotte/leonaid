@@ -57,6 +57,7 @@ import {
   adminHref,
   baseRoot,
   loginHref,
+  startAreaChoices,
 } from "@leonaid/ui/base-paths";
 
 /** Opens the rail's campaign switcher (also collapsed and on phones). */
@@ -336,25 +337,24 @@ export function App({ client }: AppProps) {
   };
 
   // Members with acquisition work start in the PWA by default; they may
-  // choose the admin app instead (specs/multi-domain §6.7).
-  const startAreaCommands: PaletteCommand[] =
-    hasPwaWork(identity.data.navigation) &&
-    identity.data.landingPath.startsWith(PWA_BASE)
-      ? [
-          {
-            id: "start-area-web",
-            label: "Verwaltung als Startbereich verwenden",
-            group: "Einstellungen",
-            icon: House,
-            keywords: ["Startbereich", "Startseite", "Anmeldung", "Verwaltung"],
-            run: () => {
-              void client
-                .setPreferredSurface({ surface: "web" })
-                .then(() => identity.refetch());
-            },
-          },
-        ]
-      : [];
+  // choose the admin app instead, and return to the default rule
+  // (specs/multi-domain §6.7).
+  const startAreaCommands: PaletteCommand[] = startAreaChoices(
+    "web",
+    identity.data,
+    hasPwaWork(identity.data.navigation),
+  ).map((choice) => ({
+    id: choice.surface === null ? "start-area-default" : "start-area-web",
+    label: choice.label,
+    group: "Einstellungen",
+    icon: House,
+    keywords: ["Startbereich", "Startseite", "Anmeldung", "Verwaltung"],
+    run: () => {
+      void client
+        .setPreferredSurface({ surface: choice.surface })
+        .then(() => identity.refetch());
+    },
+  }));
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">

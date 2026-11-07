@@ -1,4 +1,6 @@
 ---
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
+
 interface Props {
   fresh?: boolean;
 }
@@ -154,7 +156,7 @@ const signIn =
   {
     fresh ? (
       <p class="login-alt">
-        <a id="auth-cancel" href="/admin/">
+        <a id="auth-cancel" href={ADMIN_BASE}>
           Abbrechen und zurück
         </a>
       </p>

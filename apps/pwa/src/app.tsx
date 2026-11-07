@@ -34,6 +34,7 @@ import {
   PWA_BASE,
   loginHref,
   pwaHref,
+  startAreaChoices,
 } from "@leonaid/ui/base-paths";
 import { hasBackOffice } from "@leonaid/features";
 
@@ -366,16 +367,16 @@ export function App({ client }: AppProps) {
   const surfaces = backOffice
     ? {
         switchTo: { label: "Zur Verwaltung", href: ADMIN_BASE },
-        startArea: identity.data.landingPath.startsWith(PWA_BASE)
-          ? undefined
-          : {
-              label: "Akquise-App als Startbereich verwenden",
-              onSelect: () => {
-                void client
-                  .setPreferredSurface({ surface: "pwa" })
-                  .then(() => identity.refetch());
-              },
+        startAreas: startAreaChoices("pwa", identity.data, true).map(
+          (choice) => ({
+            label: choice.label,
+            onSelect: () => {
+              void client
+                .setPreferredSurface({ surface: choice.surface })
+                .then(() => identity.refetch());
             },
+          }),
+        ),
       }
     : undefined;
 

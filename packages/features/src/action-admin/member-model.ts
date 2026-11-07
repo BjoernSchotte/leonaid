@@ -7,6 +7,7 @@ import type {
 import type { StatusShape } from "@leonaid/ui";
 
 import { CREATE_PARAMETER } from "../command-palette/create-request";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 export type MemberRow = MemberDirectoryMemberResponse;
 export type MemberStatus = MemberRow["status"];
@@ -198,7 +199,7 @@ export function migrateLegacyInviteParam(): void {
 }
 
 export function membersPath(section: "list" | "invitations"): string {
-  return section === "list" ? "/admin/members" : "/admin/members/invitations";
+  return section === "list" ? adminHref("members") : adminHref("members/invitations");
 }
 
 /** A plausible address; the server decides. The forms show `INVALID_EMAIL`. */

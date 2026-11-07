@@ -170,13 +170,14 @@ describe("MobileShell", () => {
   it("offers the admin app and the start area to members with both roles", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
+    const onDefault = vi.fn();
     renderShell({
       surfaces: {
         switchTo: { label: "Zur Verwaltung", href: "/admin/" },
-        startArea: {
-          label: "Akquise-App als Startbereich verwenden",
-          onSelect,
-        },
+        startAreas: [
+          { label: "Akquise-App als Startbereich verwenden", onSelect },
+          { label: "Standard-Startbereich verwenden", onSelect: onDefault },
+        ],
       },
     });
     await user.click(screen.getByRole("button", { name: "Mehr" }));
@@ -193,6 +194,16 @@ describe("MobileShell", () => {
       }),
     );
     expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onDefault).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Mehr" }));
+    await user.click(
+      within(
+        within(screen.getByRole("dialog", { name: "Mehr" })).getByTestId(
+          "pwa-surfaces",
+        ),
+      ).getByRole("button", { name: "Standard-Startbereich verwenden" }),
+    );
+    expect(onDefault).toHaveBeenCalledTimes(1);
   });
 
   it("shows no Bereiche section without a second app", async () => {

@@ -25,8 +25,24 @@ describe("deep links through the login (specs/multi-domain §6.7)", () => {
       "//evil.invalid/admin/",
       "/%2fevil.invalid/admin/",
       "/admin\\..\\evil",
+      // Dot segments leave the member app (review B4).
+      "/app/../campaigns/x/",
+      "/admin/../campaigns/x/",
+      "/app/%2e%2e/campaigns/x/",
+      "/app/%2E%2E/%2E%2E/krapfentaxi",
+      "/admin/./../impressum",
+      "/_emdash/admin/../../campaigns/x/",
     ])
       expect(memberReturnTo(path, "/app/")).toBe("/app/");
+  });
+
+  it("returns the resolved path when dot segments stay inside an app", () => {
+    expect(memberReturnTo("/admin/orders/../invoices?open=1", "/app/")).toBe(
+      "/admin/invoices?open=1",
+    );
+    expect(memberReturnTo("/app/./sponsors#new", "/admin/")).toBe(
+      "/app/sponsors#new",
+    );
   });
 
   it("redirects the entry only to Core's landing path", () => {

@@ -58,6 +58,7 @@ import {
 import { navigationZones } from "../navigation/zones";
 import { ChartsDemo } from "./charts-demo";
 import { ListViewDemo } from "./list-view-demo";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 export interface UiSystemCatalogPageProps {
   readonly identity: CurrentIdentityResponse;
@@ -419,7 +420,7 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         </div>
         <a
           className={buttonClassName({ variant: "secondary" })}
-          href="/admin/system"
+          href={adminHref("system")}
         >
           <ChevronLeft aria-hidden="true" size={18} />
           Betrieb
@@ -837,13 +838,13 @@ export function UiSystemCatalogPage({ identity }: UiSystemCatalogPageProps) {
         <div className="ui-catalog-row">
           <a
             className={buttonClassName({ variant: "secondary" })}
-            href="/admin/system/ui?listview"
+            href={adminHref("system/ui?listview")}
           >
             Listenansicht öffnen
           </a>
           <a
             className={buttonClassName({ variant: "secondary" })}
-            href="/admin/system/ui?listview&invoices"
+            href={adminHref("system/ui?listview&invoices")}
           >
             Rechnungsliste öffnen
           </a>

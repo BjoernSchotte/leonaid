@@ -49,6 +49,8 @@ Leiste der Verwaltung oder mit **Zur Verwaltung** unter **Mehr** in der App.
 In der Befehlspalette der Verwaltung wählst du **Verwaltung als Startbereich
 verwenden**, in der App unter **Mehr** **Akquise-App als Startbereich
 verwenden**. LeonAid merkt sich die Wahl, solange du eine Rolle für diesen
-Bereich hast. Öffnest du einen Link auf eine bestimmte Seite, landest du nach
-der Anmeldung genau dort.
+Bereich hast. Nach einer Wahl bieten dir beide Stellen auch
+**Standard-Startbereich verwenden** an: Die Wahl entfällt, und die Tabelle
+oben gilt wieder. Öffnest du einen Link auf eine bestimmte Seite, landest du nach der
+Anmeldung genau dort.
 

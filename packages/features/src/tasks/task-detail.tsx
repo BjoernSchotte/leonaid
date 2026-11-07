@@ -29,6 +29,7 @@ import {
   type TaskRow,
 } from "./task-model";
 import { TaskStructurePanel } from "./task-structure";
+import { ADMIN_BASE, PWA_BASE } from "@leonaid/ui/base-paths";
 
 /** How the pane may move this row (manual list order or my plan). */
 export interface TaskMoveControls {
@@ -571,10 +572,14 @@ function ListAudience({
 }
 
 /* In-app paths in a description become links; anything else stays text.
-   Only same-origin "/admin/…" and "/app/…" paths, never schemes, so a
+   Only same-origin paths below the admin or PWA base, never schemes, so a
    description cannot smuggle in a javascript: or external link. Generated
    tasks (delivery "Nachliefern") link to their order this way. */
-const IN_APP_PATH = /(\/(?:admin|app)\/[^\s<>"']*)/;
+const IN_APP_PATH = new RegExp(
+  `((?:${[ADMIN_BASE, PWA_BASE]
+    .map((base) => base.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&"))
+    .join("|")})[^\\s<>"']*)`,
+);
 
 export function LinkedText({ text }: { readonly text: string }) {
   return (

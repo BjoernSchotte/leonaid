@@ -13,15 +13,16 @@ import { navigateInPage, useLocationHref } from "../shared/location";
 import { FlagsTab } from "./feature-flag-admin";
 import { JobsTab, OperationsTab } from "./operations-admin";
 import { PrivacyTab } from "./privacy-admin";
+import { adminHref } from "@leonaid/ui/base-paths";
 
 export type SystemSection = "operations" | "jobs" | "flags" | "privacy";
 
 const TABS: readonly { id: SystemSection; label: string; path: string }[] = [
-  { id: "operations", label: "Betrieb", path: "/admin/system" },
-  { id: "jobs", label: "Hintergrundaufgaben", path: "/admin/system/jobs" },
-  { id: "flags", label: "Funktionen", path: "/admin/system/flags" },
+  { id: "operations", label: "Betrieb", path: adminHref("system") },
+  { id: "jobs", label: "Hintergrundaufgaben", path: adminHref("system/jobs") },
+  { id: "flags", label: "Funktionen", path: adminHref("system/flags") },
   // The privacy area keeps its own URL (and rail entry).
-  { id: "privacy", label: "Datenschutz", path: "/admin/privacy" },
+  { id: "privacy", label: "Datenschutz", path: adminHref("privacy") },
 ];
 
 /** `/admin/system[/jobs|/flags]` or `/admin/privacy`. */
@@ -108,7 +109,7 @@ export function SystemPage({ client, identity }: SystemPageProps) {
         <div className="page-actions">
           <a
             className={buttonClassName({ variant: "ghost" })}
-            href="/admin/system/ui"
+            href={adminHref("system/ui")}
           >
             <Icon icon={LayoutGrid} size={16} />
             <span className="btn-label">UI-Basis</span>

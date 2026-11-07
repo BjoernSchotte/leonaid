@@ -47,6 +47,8 @@ With roles for both areas, switch with **Akquise-App** in the administration
 rail or with **Zur Verwaltung** under **Mehr** in the app. In the
 administration's command palette choose **Verwaltung als Startbereich
 verwenden**; in the app, under **Mehr**, **Akquise-App als Startbereich
-verwenden**. LeonAid keeps the choice while you hold a role for that area. A
-link to a specific page brings you exactly there after sign-in.
+verwenden**. LeonAid keeps the choice while you hold a role for that area.
+After a choice, both places also offer **Standard-Startbereich verwenden**:
+it drops the choice, and the table above applies again. A link to a specific
+page brings you exactly there after sign-in.
 

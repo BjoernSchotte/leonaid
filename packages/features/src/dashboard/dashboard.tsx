@@ -43,6 +43,7 @@ import { ActionChoice, useScreenHeading } from "../acquisition/pwa-common";
 import { AcquirerStart } from "../acquisition/pwa-start";
 import { snapshotWindowLabel } from "../commitments/order-format";
 import { formatQuantities } from "../commitments/quantities";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 type DashboardMode = "acquirer" | "charity_admin";
 
@@ -271,8 +272,8 @@ function AdminDashboard({
   const href = (key: string, fallback: string) =>
     definition(dashboard, key)?.href ?? fallback;
   const action = encodeURIComponent(dashboard.actionId);
-  const ordersHref = `/admin/orders?action=${action}`;
-  const pipelineHref = href("admin.pipeline", "/admin/acquisition");
+  const ordersHref = `${ADMIN_BASE}orders?action=${action}`;
+  const pipelineHref = href("admin.pipeline", adminHref("acquisition"));
   const { commitments, invoices } = data;
   const toReview = commitments.draft + commitments.reviewReady;
 
@@ -292,7 +293,7 @@ function AdminDashboard({
       detail: `${formatMoney(invoices.overdueAmountMinor, invoices.currency)} offen`,
       href: href(
         "admin.overdue",
-        `/admin/invoices?action=${action}&view=overdue`,
+        `${ADMIN_BASE}invoices?action=${action}&view=overdue`,
       ),
       tone: "danger" as const,
     },
@@ -301,7 +302,7 @@ function AdminDashboard({
       count: invoices.deliveryFailed,
       label: "Versand fehlgeschlagen",
       detail: "Rechnung erneut senden",
-      href: href("admin.delivery_failed", `/admin/invoices?action=${action}`),
+      href: href("admin.delivery_failed", `${ADMIN_BASE}invoices?action=${action}`),
       tone: "danger" as const,
     },
     {
@@ -310,7 +311,7 @@ function AdminDashboard({
       countLabel: inquiries.data?.more ? "100+" : undefined,
       label: "Neue Anfragen",
       detail: "Aus dem Kontaktformular",
-      href: "/admin/inbox",
+      href: adminHref("inbox"),
       tone: "info" as const,
     },
     {
@@ -408,7 +409,7 @@ function AdminDashboard({
                         className="window-row"
                         href={href(
                           "admin.delivery",
-                          `/admin/delivery?action=${action}`,
+                          `${ADMIN_BASE}delivery?action=${action}`,
                         )}
                       >
                         <Icon icon={Truck} size={14} />
@@ -579,7 +580,7 @@ function AdminDashboard({
                 <a
                   href={href(
                     "admin.invoiced",
-                    `/admin/invoices?action=${action}`,
+                    `${ADMIN_BASE}invoices?action=${action}`,
                   )}
                 >
                   Fakturiert
@@ -597,7 +598,7 @@ function AdminDashboard({
                 <a
                   href={href(
                     "admin.open_receivables",
-                    `/admin/invoices?action=${action}&status=open`,
+                    `${ADMIN_BASE}invoices?action=${action}&status=open`,
                   )}
                 >
                   Offene Posten

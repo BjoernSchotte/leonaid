@@ -6,7 +6,7 @@ import base64
 import binascii
 import hashlib
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
@@ -616,7 +616,9 @@ class IdentityQueryService:
         return identity.session.fresh_login_at + self._fresh_login_window
 
     async def current_identity(self, session_token: str | None) -> CurrentIdentity:
-        identity = await self.authenticate_session(session_token)
+        return await self._identity_view(await self.authenticate_session(session_token))
+
+    async def _identity_view(self, identity: AuthenticatedIdentity) -> CurrentIdentity:
         principal = identity.principal
         memberships = tuple(
             IdentityMembershipView(
@@ -663,10 +665,14 @@ class IdentityQueryService:
         session_token: str | None,
         surface: PreferredSurface | None,
     ) -> CurrentIdentity:
-        """Store the start area; only one the member has a role for."""
+        """Store the start area; only one the member has a role for.
+
+        Loads the session and the navigation once; the stored choice only
+        changes the landing path of that view.
+        """
         identity = await self.authenticate_session(session_token)
+        current = await self._identity_view(identity)
         if surface is not None:
-            current = await self.current_identity(session_token)
             available = (
                 has_back_office(identity.principal)
                 if surface is PreferredSurface.WEB
@@ -677,10 +683,12 @@ class IdentityQueryService:
                     "preferred_surface_unavailable",
                     "Dieser Bereich steht für Ihre Rollen nicht zur Verfügung.",
                 )
-        await self._repository.set_preferred_surface(
-            identity.principal.account.id, surface
+        await self._repository.set_preferred_surface(current.user_id, surface)
+        return replace(
+            current,
+            landing_path=landing_path(identity.principal, current.navigation, surface),
+            preferred_surface=surface,
         )
-        return await self.current_identity(session_token)
 
     async def list_members(
         self,

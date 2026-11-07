@@ -61,11 +61,11 @@ export interface MobileShellMenuItem {
 export interface MobileShellSurfaces {
   /** Link into the admin web app, e.g. "Zur Verwaltung". */
   readonly switchTo?: { readonly label: string; readonly href: string };
-  /** Makes this app the start area after login. */
-  readonly startArea?: {
+  /** Start-area options: this app, or back to the default rule. */
+  readonly startAreas?: readonly {
     readonly label: string;
     readonly onSelect: () => void;
-  };
+  }[];
 }
 
 export interface MobileShellProps {
@@ -564,7 +564,7 @@ function MoreSheet({
               ))}
             </div>
           </section>
-          {surfaces?.switchTo || surfaces?.startArea ? (
+          {surfaces?.switchTo || surfaces?.startAreas?.length ? (
             <section
               aria-labelledby="pwa-sheet-surfaces"
               className="pwa-sheet-section"
@@ -586,15 +586,16 @@ function MoreSheet({
                     {surfaces.switchTo.label}
                   </a>
                 ) : null}
-                {surfaces.startArea ? (
+                {surfaces.startAreas?.map((choice) => (
                   <Button
-                    onClick={surfaces.startArea.onSelect}
+                    key={choice.label}
+                    onClick={choice.onSelect}
                     size="lg"
                     variant="ghost"
                   >
-                    {surfaces.startArea.label}
+                    {choice.label}
                   </Button>
-                ) : null}
+                ))}
               </div>
             </section>
           ) : null}

@@ -29,6 +29,7 @@ import {
 
 import { useContextCommands } from "../command-palette/store";
 import "./survey-summary.css";
+import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 
 /*
  * The evaluation of a frozen selection (prototype "Antworten" tab): one
@@ -337,7 +338,7 @@ function Quotes({
       });
     return () => controller.abort();
   }, [client, surveyId, selectionId, question.questionId]);
-  const all = `/admin/surveys/${encodeURIComponent(surveyId)}/responses?responseSelection=${encodeURIComponent(selectionId)}&freeText=${encodeURIComponent(question.questionId)}`;
+  const all = `${ADMIN_BASE}surveys/${encodeURIComponent(surveyId)}/responses?responseSelection=${encodeURIComponent(selectionId)}&freeText=${encodeURIComponent(question.questionId)}`;
   if (failed)
     return (
       <p className="svs-note" role="status">

@@ -57,6 +57,7 @@ import { useActionErrorMessage } from "../action-admin/use-action-error";
 import { useContextCommands } from "../command-palette/store";
 import { navigateInPage, useLocationHref } from "../shared/location";
 import { formatDateTime } from "../shared/dates";
+import { ADMIN_BASE, adminHref } from "@leonaid/ui/base-paths";
 
 interface LegalForm {
   legalName: string;
@@ -516,7 +517,7 @@ export type LegalPartId = Part["id"];
 
 /** `/admin/legal[/<part>]` → the part shown; unknown parts fall back. */
 export function legalPart(pathname: string): LegalPartId {
-  const id = pathname.replace(/\/+$/, "").split("/admin/legal/")[1];
+  const id = pathname.replace(/\/+$/, "").split(adminHref("legal/"))[1];
   return PARTS.find((part) => part.id === id)?.id ?? PARTS[0].id;
 }
 
@@ -681,7 +682,7 @@ export function LegalConfigurationPage({
   });
 
   const go = useCallback((next: LegalPartId) => {
-    const path = `/admin/legal/${next}`;
+    const path = `${ADMIN_BASE}legal/${next}`;
     if (window.location.pathname !== path) {
       navigateInPage(`${path}${window.location.search}`, { replace: true });
     }
@@ -843,7 +844,7 @@ export function LegalConfigurationPage({
                     className={
                       item.id === partId ? "legal-item is-active" : "legal-item"
                     }
-                    href={`/admin/legal/${item.id}`}
+                    href={`${ADMIN_BASE}legal/${item.id}`}
                     onClick={(event) => {
                       event.preventDefault();
                       go(item.id);
