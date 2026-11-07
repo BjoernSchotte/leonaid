@@ -100,6 +100,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.integration) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "2400"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,6 +168,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.e2e) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "5100"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -231,6 +237,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.emdash) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/emdash-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "3300"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

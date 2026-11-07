@@ -16,6 +16,11 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        '      LEONAID_CI_STEP_SECONDS: "5100"\n',
+        '      LEONAID_CI_STEP_SECONDS: "5400"\n',
+        "e2e: LEONAID_CI_STEP_SECONDS must stop the suite",
+    ),
+    (
         '    - cron: "37 */3 * * *"\n',
         "",
         "the 3-hourly complete run on main is missing",

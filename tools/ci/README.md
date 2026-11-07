@@ -222,6 +222,13 @@ Inside a leg every shard keeps its own isolation:
   (CI runners only) compares the Compose projects before and after it. A shard that leaves
   containers, networks or volumes behind fails, and only its leaked projects
   are removed, so the next shard does not fail in its place.
+- Every leg sets `LEONAID_CI_STEP_SECONDS` (5 minutes below its
+  `timeout-minutes`). `tools/ci/capture-command.sh` runs the suite in its own
+  process group and stops the whole group at that limit (SIGTERM, SIGKILL 30 s
+  later), abandons output streams a stray descendant still holds, and exits
+  124. `run-job.sh` then adds the last lines of every running container
+  (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
+  GitHub's own timeout would lose all of that.
 - `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
   data for the 40 GB skip threshold below.
 

@@ -240,6 +240,16 @@ def check(path: Path) -> list[str]:
                 f"{job}: timeout-minutes must equal select_suites.JOB_TIMEOUT_MINUTES"
                 f"[{kind!r}] (the selector's load warning uses it)."
             )
+        step = re.search(r'(?m)^      LEONAID_CI_STEP_SECONDS: "(\d+)"$', block)
+        if (
+            not step
+            or not timeout
+            or int(step.group(1)) > int(timeout.group(1)) * 60 - 120
+        ):
+            problems.append(
+                f"{job}: LEONAID_CI_STEP_SECONDS must stop the suite at least 2 "
+                "minutes before timeout-minutes, so evidence is still uploaded."
+            )
         name = re.search(r"(?m)^    name: (.*)$", block)
         if not name or "matrix.bin.id" not in name.group(1) or "title" in name.group(1):
             problems.append(
