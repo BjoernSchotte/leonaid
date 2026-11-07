@@ -14,6 +14,26 @@ host_user="$(id -u):$(id -g)"
 LEONAID_OPERATOR_USER=$host_user
 export LEONAID_OPERATOR_USER
 
+# Every checkout has its own local Compose project. The main checkout keeps
+# "leonaid" (the long-running development instance); a linked worktree gets
+# leonaid-wt-<checksum of its path>, so commands run in an agent or feature
+# worktree (dev, seed, reset, doctor, ...) never address the main instance.
+# Without git metadata (an exported tree) the checkout counts as the main one.
+checkout_kind=main
+main_checkout=$root
+if checkout_git_dir=$(git -C "$root" rev-parse --path-format=absolute --git-dir 2>/dev/null) &&
+  checkout_common_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) &&
+  [ "$checkout_git_dir" != "$checkout_common_dir" ]; then
+  checkout_kind=worktree
+  main_checkout=$(dirname -- "$checkout_common_dir")
+fi
+if [ "$checkout_kind" = worktree ]; then
+  default_project="leonaid-wt-$(printf %s "$root" | cksum | cut -d ' ' -f 1)"
+else
+  default_project=leonaid
+fi
+dev_project=${LEONAID_COMPOSE_PROJECT:-$default_project}
+
 usage() {
   cat <<'EOF'
 LeonAid PoC
@@ -23,6 +43,8 @@ Usage: ./leonaid <command>
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
   doctor            Diagnose Docker, locks, secrets and local dependencies
+  local-instance    Show this checkout's Compose project (worktrees never use
+                    the main checkout's "leonaid" project or its ports)
   repair-ownership  Give root-owned files in the checkout back to the current user
   release [--dry-run] [--no-ci-check]
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
@@ -485,7 +507,7 @@ compose_queue_store_guard() {
   [ "$twenty_queue_store_checked" = false ] || return 0
   for argument in "$@"; do
     if [ "$argument" = up ]; then
-      LEONAID_COMPOSE_PROJECT="${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+      LEONAID_COMPOSE_PROJECT="$dev_project" \
         /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
       twenty_queue_store_checked=true
       return 0
@@ -499,7 +521,7 @@ compose_queue_store_guard() {
 # stacks use their own project names and the pilot has its own compose
 # commands; neither ever loads these files.
 dev_local_enabled() {
-  [ "${LEONAID_COMPOSE_PROJECT:-leonaid}" = leonaid ] && [ -d "$root/.local/dev" ]
+  [ "$dev_project" = "$default_project" ] && [ -d "$root/.local/dev" ]
 }
 
 compose() {
@@ -520,7 +542,7 @@ compose() {
       "$root/.local/twenty/integration.env")
   fi
   TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
-    --project-name "${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+    --project-name "$dev_project" \
     --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
     "$@"
@@ -530,25 +552,38 @@ host_port_free() {
   ! nc -z 127.0.0.1 "$1" >/dev/null 2>&1
 }
 
+# Ports a worktree must never use, even while the main instance is stopped:
+# the main checkout's configured pair and the first fallback pair it gets.
+reserved_ports() {
+  [ "$checkout_kind" = worktree ] || return 0
+  printf '%s\n' 28080 28081
+  sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=\([0-9][0-9]*\)$/\1/p' \
+    "$main_checkout/.env.local" 2>/dev/null || true
+}
+
+port_usable() {
+  host_port_free "$1" && ! reserved_ports | grep -qx "$1"
+}
+
 # Pick the local HTTP/HTTPS pair once; generate_secrets.py keeps it afterwards.
 # A running proxy of this project keeps its ports, so it does not count as busy.
 choose_local_ports() {
   proxy=$(docker ps -q \
-    --filter "label=com.docker.compose.project=${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+    --filter "label=com.docker.compose.project=$dev_project" \
     --filter label=com.docker.compose.service=proxy | head -n 1)
   if [ -n "$proxy" ]; then
     local_http_port=$(docker port "$proxy" 8080/tcp | head -n 1 | sed 's/.*://')
     local_https_port=$(docker port "$proxy" 8443/tcp | head -n 1 | sed 's/.*://')
     [ -n "$local_http_port" ] && [ -n "$local_https_port" ] && return 0
   fi
-  if host_port_free 8080 && host_port_free 8443; then
+  if port_usable 8080 && port_usable 8443; then
     local_http_port=8080
     local_https_port=8443
     return 0
   fi
   candidate=28080
   while [ "$candidate" -lt 29000 ]; do
-    if host_port_free "$candidate" && host_port_free $((candidate + 1)); then
+    if port_usable "$candidate" && port_usable $((candidate + 1)); then
       local_http_port=$candidate
       local_https_port=$((candidate + 1))
       return 0
@@ -568,6 +603,19 @@ bootstrap() {
     grep -q '^LEONAID_HTTPS_PORT=[0-9]' "$root/.env.local"; then
     local_http_port=
     local_https_port=
+    # Earlier bootstraps let a worktree take the main instance's ports.
+    for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+      if reserved_ports | grep -qx "$configured_port"; then
+        choose_local_ports
+        echo "bootstrap: port $configured_port belongs to the main checkout; this worktree now uses HTTP $local_http_port, HTTPS $local_https_port"
+        sed -i.bak \
+          -e "s/^LEONAID_HTTP_PORT=.*/LEONAID_HTTP_PORT=$local_http_port/" \
+          -e "s/^LEONAID_HTTPS_PORT=.*/LEONAID_HTTPS_PORT=$local_https_port/" \
+          "$root/.env.local"
+        rm -f "$root/.env.local.bak"
+        break
+      fi
+    done
   else
     choose_local_ports
     echo "bootstrap: local ports HTTP $local_http_port, HTTPS $local_https_port"
@@ -2946,7 +2994,7 @@ dev() {
 }
 
 validate_reset_target() {
-  project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+  project=$dev_project
   compose --profile dev-mail config --format json |
     docker run --rm -i \
       -v "$root:/workspace:ro" \
@@ -3314,6 +3362,11 @@ command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
+  local-instance)
+    echo "project=$dev_project"
+    echo "checkout=$checkout_kind"
+    echo "reserved_ports=$(reserved_ports | sort -n | uniq | tr '\n' ' ' | sed 's/ $//')"
+    ;;
   repair-ownership) repair_ownership ;;
   release)
     shift

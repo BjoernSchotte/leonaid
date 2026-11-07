@@ -73,8 +73,16 @@ files live in the git-ignored `.local/dev/` directory. Create it to opt in:
 mkdir -p .local/dev/caddy.d .local/dev/static
 ```
 
+Each checkout has its own dev project. The main checkout uses `leonaid`; a
+linked worktree (for example an agent worktree under `.claude/worktrees/`)
+uses `leonaid-wt-<checksum of its path>` and never the main checkout's ports
+(nor 28080/28081), so `dev`, `seed`, `reset` or `doctor` in a worktree never
+touch the main instance. `./leonaid local-instance` prints the project;
+`LEONAID_COMPOSE_PROJECT` overrides it. A worktree whose `.env.local` still
+holds the main checkout's ports gets a new pair on the next `./leonaid bootstrap`.
+
 When `.local/dev/` exists, every `./leonaid` command that runs Compose for the
-default dev project (`leonaid`) adds these files:
+checkout's default dev project adds these files:
 
 1. `infra/compose/compose.dev-local.yml`. It mounts two directories into the
    `proxy` service, read-only:
@@ -111,7 +119,7 @@ handle_path /example/* {
 Caddy reads snippets at start. Apply new or changed snippets with a reload:
 
 ```sh
-docker compose --project-name leonaid exec proxy \
+docker compose --project-name "$(./leonaid local-instance | sed -n 's/^project=//p')" exec proxy \
   caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 

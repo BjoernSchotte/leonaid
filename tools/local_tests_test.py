@@ -1,6 +1,7 @@
 """Local selection, cache invalidation and process ownership regressions."""
 
 import fcntl
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -82,6 +83,87 @@ class LocalTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("no reset was performed", result.stderr)
                 self.assertFalse((cache / "owner.json").exists())
+
+
+class CheckoutIsolationTests(unittest.TestCase):
+    """A linked worktree must never address the main checkout's dev instance."""
+
+    def make_repository(self, directory: Path) -> tuple[Path, Path]:
+        source = Path(__file__).resolve().parents[1]
+        main = directory / "main"
+        for name in ("leonaid", "tools/testing/phase.sh", "infra/locks/images.env"):
+            target = main / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((source / name).read_bytes())
+        (main / "leonaid").chmod(0o755)
+        (main / ".env.local").write_text(
+            "LEONAID_HTTP_PORT=28090\nLEONAID_HTTPS_PORT=28091\n"
+        )
+        git = ["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t"]
+        subprocess.run(["git", "init", "-q", str(main)], check=True)
+        subprocess.run([*git, "add", "leonaid", "tools", "infra"], check=True)
+        subprocess.run([*git, "commit", "-qm", "init"], check=True)
+        worktree = directory / "worktree"
+        subprocess.run(
+            [*git, "worktree", "add", "-q", "--detach", str(worktree)], check=True
+        )
+        return main, worktree
+
+    def instance(self, checkout: Path, **env: str) -> dict[str, str]:
+        result = subprocess.run(
+            [str(checkout / "leonaid"), "local-instance"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, **env},
+        )
+        return dict(line.split("=", 1) for line in result.stdout.splitlines())
+
+    def test_worktree_gets_its_own_project_and_never_main_ports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main, worktree = self.make_repository(Path(directory))
+            primary = self.instance(main)
+            linked = self.instance(worktree)
+            self.assertEqual(primary["project"], "leonaid")
+            self.assertEqual(primary["reserved_ports"], "")
+            self.assertRegex(linked["project"], r"\Aleonaid-wt-[0-9]+\Z")
+            self.assertEqual(linked["checkout"], "worktree")
+            self.assertEqual(
+                linked["reserved_ports"].split(), ["28080", "28081", "28090", "28091"]
+            )
+            # Deterministic per path; an explicit override still wins.
+            self.assertEqual(self.instance(worktree)["project"], linked["project"])
+            self.assertEqual(
+                self.instance(worktree, LEONAID_COMPOSE_PROJECT="leonaid-x")["project"],
+                "leonaid-x",
+            )
+
+    def test_env_stop_refuses_a_fixture_owner_naming_the_dev_project(self):
+        # test-env-stop only follows owner.json; a tampered or stale owner that
+        # names the main dev project must be refused before any Docker call.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            cache = root / ".local/test-stack"
+            cache.mkdir(parents=True)
+            for project in ("leonaid", "leonaid-wt-1"):
+                (cache / "owner.json").write_text(
+                    '{"schemaVersion": 1, "root": "%s", "project": "%s"}'
+                    % (root.resolve(), project)
+                )
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        "from tools.testing.local_stack import LocalStack; from pathlib import Path; LocalStack(Path(__import__('sys').argv[1]), stop=True)",
+                        str(root),
+                    ],
+                    cwd=Path(__file__).resolve().parents[1],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("refusing Docker mutations", result.stderr)
 
 
 if __name__ == "__main__":
