@@ -292,6 +292,7 @@ echo "backup-test: caddy-data (certificates of every host) restored"
 # A plain restore (no --with-tls-state) takes no production TLS keys: the
 # same archive, the same restore step, and the target gets no caddy-data.
 mkdir -p "$proof/tls-root"
+# host-write-user: root reads the volume, then hands the archive to the host user
 docker run --rm --network none \
   -v "${target_project}_caddy-data:/data:ro" \
   -v "$proof/tls-root:/out" "$ALPINE_IMAGE" \
