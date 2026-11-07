@@ -593,14 +593,16 @@ class CharityActionService:
             for candidate in await self._repository.list_publication_candidates(now)
             if candidate.action.is_published_at(now)
         ]
+        # Newest publication start first; equal starts by name A→Z.
         candidates.sort(
             key=lambda candidate: (
-                candidate.action.publication_window.starts_at
-                if candidate.action.publication_window is not None
-                else now,
-                candidate.action.name,
-            ),
-            reverse=True,
+                -(
+                    candidate.action.publication_window.starts_at
+                    if candidate.action.publication_window is not None
+                    else now
+                ).timestamp(),
+                candidate.action.name.casefold(),
+            )
         )
         return [
             PublicCampaignListing(

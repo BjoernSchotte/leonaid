@@ -49,7 +49,7 @@ test("the public host serves public pages without any identity request", async (
     expect(new URL(page.url()).origin).toBe(publicUrl);
     // The session belongs to the admin host: one static sign-in link.
     const link = page.locator("[data-admin-host-link]");
-    await expect(link).toHaveText("Anmelden");
+    await expect(link).toHaveText("Mitgliederbereich");
     await expect(link).toHaveAttribute("href", `${adminUrl}/`);
   }
   await page.goto(`${publicUrl}/krapfentaxi`);

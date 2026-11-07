@@ -1251,7 +1251,7 @@ one test domain owned by the club.
 - R18 (I5): the public host cannot ask who is signed in: the session is
   host-only on the admin host, the public host serves no identity API, and the
   build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
-  header shows a static "Anmelden" link to the admin host there and sends no
+  header shows a static "Mitgliederbereich" link to the admin host there and sends no
   identity request; the admin host and single hosts keep the personal links.
 - R19 (M1): the admin host refuses every Astro form action
   (`?_action=…`) before any page route (rewrite to a 404 handler).
