@@ -143,6 +143,7 @@ MAX_BINS = {"integration": 4, "e2e": 4}
 SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-install"})
 
 ALL = "*"
+MAIN_BRANCH = "main"
 
 
 def integration(*shards: str) -> frozenset[str]:
@@ -724,6 +725,8 @@ class Selection:
     reason: str
     suites: frozenset[str]
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
+    # Security and Build: always, except in a stacked pull request.
+    heavy: bool = True
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
         return [n for n in names if f"{prefix}:{n}" in self.suites]
@@ -752,13 +755,30 @@ class Selection:
             ),
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
+            "heavy": json.dumps(self.heavy),
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
         return result
 
 
-def select(event: str, paths: Sequence[str]) -> Selection:
+def stacked(base_ref: str) -> bool:
+    """A pull request into another feature branch, not into main."""
+    return bool(base_ref) and base_ref != MAIN_BRANCH
+
+
+def select(event: str, paths: Sequence[str], base_ref: str = "") -> Selection:
+    """Suites for an event.
+
+    A stacked pull request (``base_ref`` is not main) runs only Lint, types
+    and unit plus the suites its module-local paths select; shared
+    infrastructure, unmapped paths and the former API/pins path filters
+    select nothing there, and Security/Build are skipped (``heavy``). The
+    chain reaches main only through a pull request into main, which runs the
+    normal selection on the combined diff, and the push to main runs
+    everything. So nothing reaches main less tested; only intermediate
+    pushes of a stack get cheaper.
+    """
     if event != "pull_request":
         return Selection(True, f"{event}: complete suite", everything())
     changed = sorted({p.strip() for p in paths if p.strip()})
@@ -766,21 +786,31 @@ def select(event: str, paths: Sequence[str]) -> Selection:
         return Selection(
             True, "pull_request without a readable diff: complete suite", everything()
         )
+    is_stacked = stacked(base_ref)
     suites: set[str] = set()
     explanation = []
     for path in changed:
         selected, reason = classify(path)
-        if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
-            selected = selected | {"api"}
-        if matches(path, PINS_PATHS):
-            selected = selected | {"pins"}
+        if is_stacked and selected == everything():
+            selected = frozenset()
+            reason = f"{reason}; stacked PR: verified once the stack targets main"
+        elif not is_stacked:
+            if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
+                selected = selected | {"api"}
+            if matches(path, PINS_PATHS):
+                selected = selected | {"pins"}
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
     full = frozenset(suites) >= everything()
-    reason = (
-        "pull_request: complete suite" if full else "pull_request: changed inputs only"
+    if is_stacked:
+        reason = f"stacked pull_request into {base_ref}: module-local suites only"
+    elif full:
+        reason = "pull_request: complete suite"
+    else:
+        reason = "pull_request: changed inputs only"
+    return Selection(
+        full, reason, frozenset(suites), tuple(explanation), heavy=not is_stacked
     )
-    return Selection(full, reason, frozenset(suites), tuple(explanation))
 
 
 def changed_paths(base: str, head: str) -> list[str]:
@@ -856,6 +886,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--base", help="git base revision for pull_request")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument(
+        "--base-ref",
+        default="",
+        help="pull request base branch; anything but main is a stacked PR",
+    )
+    parser.add_argument(
         "--paths-file", help="newline-separated changed paths instead of git diff"
     )
     parser.add_argument("--explain", action="store_true", help="print per-path rules")
@@ -874,7 +909,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 paths = []
-    selection = select(args.event, paths)
+    selection = select(args.event, paths, args.base_ref)
     outputs = selection.outputs()
     for warning in load_warnings(selection):
         print(f"::warning title=CI leg near timeout::{warning}")

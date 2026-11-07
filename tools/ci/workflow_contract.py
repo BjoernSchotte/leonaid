@@ -243,6 +243,20 @@ def check(path: Path) -> list[str]:
             problems.append(
                 f"{job}: the leg name must be stable (bin id/count), shards go to the summary."
             )
+    for job in ("security", "build"):
+        block = job_block(text, job)
+        found = re.search(r"(?m)^    if: (.*)$", block)
+        condition = found.group(1) if found else ""
+        if (
+            "select" not in needs_of(block)
+            or "needs.select.result == 'success'" not in condition
+            or "needs.select.outputs.heavy != 'false'" not in condition
+        ):
+            problems.append(
+                f"{job} may be skipped only for a stacked PR (selector output heavy)."
+            )
+        if f"--selectable {job}=heavy" not in job_block(text, "gate"):
+            problems.append(f"The gate must require {job} unless heavy is false.")
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))

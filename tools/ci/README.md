@@ -6,8 +6,15 @@ Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
 
 | Event | What runs |
 |---|---|
-| `pull_request` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
+| `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
+| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). |
 | `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
+
+A stack (for example `md/stage2a` → `md/stage2b` → …) is fully tested once:
+its pull request into `main` runs the normal selection on the combined diff,
+and the push to `main` runs everything. Intermediate pushes of the stack only
+pay for what their own module paths need. The gate stays fail-closed: a
+missing `heavy` output counts as selected.
 
 `tools/ci/select_suites.py` decides the pull-request selection; the reusable
 `.github/workflows/select-suites.yml` runs it once per workflow and exposes the
@@ -184,6 +191,12 @@ Inside a leg every shard keeps its own isolation:
   are removed, so the next shard does not fail in its place.
 - `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
   data for the 40 GB skip threshold below.
+
+On a fixture cache miss, `surveys.yml` waits up to 10 minutes for the
+identical fixture key that `ci.yml`'s fixture job uploads for the same ref
+(`test-fixture.yml` input `peer-wait-minutes`, polled through the Actions
+cache API with `actions: read`) instead of building it a second time. If none
+appears, it builds the fixture itself.
 
 `surveys.yml` packs its 26 PR checks into 7 shards of about 8 minutes
 (`tools/surveys/gate.json` `ciShards`); each check still gets fresh service

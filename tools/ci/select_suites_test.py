@@ -44,7 +44,9 @@ def outputs(*paths: str) -> dict[str, Any]:
 
 def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
     """Only what starts a runner: matrix shards plus the flags."""
-    return {k: v for k, v in result.items() if k in BINNED or v is True}
+    return {
+        k: v for k, v in result.items() if k in BINNED or (v is True and k != "heavy")
+    }
 
 
 # Path -> exactly the suites it must start (flags that are true, shard lists).
@@ -206,6 +208,50 @@ def main() -> int:
         outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
     )
     expect(outputs("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
+    # Stacked pull requests (base is not main): module-local suites only.
+    stack_paths = [
+        "migrations/versions/0052_x.py",
+        "infra/compose/compose.yml",
+        "apps/web/src/app.tsx",
+        "brand-new/thing.py",
+        "uv.lock",
+        "src/leonaid/modules/tasks/api.py",
+        "tools/delivery/foundation.py",
+    ]
+    stacked_run = s.select("pull_request", stack_paths, "md/stage2c")
+    raw = {k: json.loads(v) for k, v in stacked_run.outputs().items() if k != "reason"}
+    expect(raw["heavy"] is False, "a stacked PR skips Security and Build")
+    expect(
+        [leg["shards"] for leg in raw["e2e"]] == ["tasks"]
+        and [leg["shards"] for leg in raw["integration"]] == ["delivery"]
+        and raw["emdash"] == []
+        and not any(raw[flag] for flag in s.FLAGS),
+        f"a stacked PR runs only module-local suites: {raw}",
+    )
+    expect(
+        not stacked_run.full and "stacked" in stacked_run.reason,
+        f"stacked reason: {stacked_run.reason}",
+    )
+    # The same diff into main keeps the complete, heavy selection.
+    for base in ("main", ""):
+        into_main = s.select("pull_request", stack_paths, base)
+        expect(
+            into_main.full and into_main.heavy,
+            f"base {base!r} must run everything: {into_main.reason}",
+        )
+    # Every other event ignores the base branch and runs everything.
+    expect(
+        full(s.select("push", stack_paths, "md/stage2c"))
+        and s.select("push", [], "x").heavy,
+        "push stays complete",
+    )
+    # A stacked PR without a readable diff stays fail-safe.
+    expect(full(s.select("pull_request", [], "md/stage2c")), "stacked empty diff")
+    expect(
+        json.loads(pr("README.md").outputs()["heavy"]) is True,
+        "a PR into main always runs Security and Build",
+    )
+
     # Precise selection: each path starts exactly its own suites.
     for path, expected in PRECISE:
         got = stack_suites(outputs(path))

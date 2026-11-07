@@ -270,8 +270,9 @@ jobs:
           retention-days: 14
 
   security:
-    needs: fixture
-    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    # Skipped only in a stacked pull request (selector output heavy=false).
+    needs: [select, fixture]
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -322,7 +323,9 @@ jobs:
           retention-days: 14
 
   build:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    # Skipped only in a stacked pull request (selector output heavy=false).
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -474,7 +477,9 @@ jobs:
             --selectable integration-shards=integration \
             --selectable e2e=e2e \
             --selectable emdash-cases=emdash \
-            --selectable golden-parts=golden
+            --selectable golden-parts=golden \
+            --selectable security=heavy \
+            --selectable build=heavy
           if [ "$COLD_RUN" = true ]; then set -- "$@" --may-skip fixture; fi
           python3 tools/ci/gate.py "$@"
 

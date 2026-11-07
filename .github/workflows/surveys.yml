@@ -30,6 +30,13 @@ jobs:
     needs: select
     if: needs.select.outputs.surveys == 'true'
     uses: ./.github/workflows/test-fixture.yml
+    # ci.yml builds the same fixture key on a cache miss; wait for its upload
+    # instead of building it twice (test-fixture.yml peer-wait-minutes).
+    permissions:
+      actions: read
+      contents: read
+    with:
+      peer-wait-minutes: 10
 
   inventory:
     needs: select

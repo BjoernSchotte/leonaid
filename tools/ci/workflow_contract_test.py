@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "needs.select.outputs.heavy != 'false' && (needs.fixture.result",
+        "(needs.fixture.result",
+        "security may be skipped only for a stacked PR",
+    ),
+    (
+        "            --selectable build=heavy",
+        "            --may-skip build",
+        "The gate must require build unless heavy is false",
+    ),
+    (
         "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
         "    name: E2E / ${{ matrix.bin.title }}\n",
         "e2e: the leg name must be stable",
