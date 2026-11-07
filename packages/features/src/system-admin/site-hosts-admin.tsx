@@ -227,6 +227,8 @@ export function SiteHostsTab({ client }: SiteHostsTabProps) {
       <section aria-labelledby="site-hosts-title" className="panel">
         <header className="panel-header">
           <h2 id="site-hosts-title">Domains für Aktionen</h2>
+          {/* Until the full-stack campaign host proof runs green in CI. */}
+          <Badge tone="warn">Vorschau</Badge>
         </header>
         <div className="callout flag-note">
           <Icon icon={Info} size={16} />

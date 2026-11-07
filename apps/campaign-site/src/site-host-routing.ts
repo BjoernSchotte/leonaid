@@ -167,10 +167,12 @@ export function decide(
           status: 308,
           location: `/${segment}/${search}`,
         };
+      if (rest !== "/") return notFound;
       if (edition.atRoot && edition.availability === "published")
         // Temporary on purpose: a cached 308 would later send /2025/ to 2026.
-        return { kind: "respond", status: 302, location: `${rest}${search}` };
-      if (rest === "/") return servePage(edition, search);
+        // Only "/" itself: never a Location built from the request path.
+        return { kind: "respond", status: 302, location: `/${search}` };
+      return servePage(edition, search);
       return notFound;
     }
     const moved = historySegment.get(segment!);

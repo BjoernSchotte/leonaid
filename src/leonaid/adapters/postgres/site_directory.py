@@ -228,7 +228,7 @@ class AsyncpgSiteDirectory:
             return bool(
                 await db.fetchval(
                     "SELECT EXISTS(SELECT 1 FROM site_host WHERE hostname=$1 "
-                    "AND status='active')",
+                    "AND status='active' AND redirect_to_host_id IS NULL)",
                     hostname,
                 )
             )

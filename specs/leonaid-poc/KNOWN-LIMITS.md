@@ -112,9 +112,12 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Stunde; tägliche Nachprüfung) und liefern dort die Kampagnenseiten aus
   (Ausgaben unter `/<segment>/`, Archivseite nach dem Ende, `/archive/`,
   eigene `robots.txt`/`sitemap.xml`; alte Pfade und Aliase leiten weiter).
-  Eine Domain zeigt nur CMS-Kampagnenseiten. Eine Bestellbestätigung per
-  Mail an Besteller gibt es nicht; der Link dafür (Ausgaben-URL, D8) ist in
-  Core vorbereitet. Die Abnahme mit echtem ACME und einer echten Domain ist
+  Eine Domain zeigt nur CMS-Kampagnenseiten. Offen (D8): Eine
+  Bestellbestätigung per Mail an Besteller gibt es nicht; der Link dafür ist
+  in Core vorbereitet (`edition_link`, die dauerhafte Ausgaben-URL, nie die
+  Wurzel). Status-Caches: `ask` 10 s, Host-Freigabe in Campaign-Site,
+  Public-App und Core-Origins je 30 s. Die Domain-Verwaltung ist bis zum
+  grünen Stack-Nachweis als Vorschau markiert. Die Abnahme mit echtem ACME und einer echten Domain ist
   offen (`tools/site_hosts/acme_probe.py`). Eine
   Installation ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des

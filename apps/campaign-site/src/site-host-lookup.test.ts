@@ -44,6 +44,11 @@ describe("campaign host detection", () => {
       campaignHostOf(request("lionsopen.de", { forwarded: "x" })),
     ).toBeNull();
     expect(campaignHostOf(request("campaign-site:3000"))).toBeNull();
+    // The same configured names as the public app (review M3).
+    const lan = { LEONAID_LAN_HOST: "devbox.lan" };
+    expect(campaignHostOf(request("devbox.lan:8443"), lan)).toBeNull();
+    expect(campaignHostOf(request("app.localhost:8443"))).toBeNull();
+    expect(campaignHostOf(request("lionsopen.de"), lan)).toBe("lionsopen.de");
   });
 
   it("accepts a campaign host as site origin only when the middleware set it", () => {

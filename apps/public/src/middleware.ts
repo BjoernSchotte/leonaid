@@ -14,15 +14,23 @@ export const onRequest = defineMiddleware(async ({ request, url }, next) => {
       configured,
       isActiveSiteHost,
     );
-    if (admission === "unavailable")
+    if (admission.admit === "unavailable")
       return new Response("Vorübergehend nicht erreichbar", {
         status: 503,
         headers: { "Cache-Control": "no-store", "Retry-After": "30" },
       });
-    if (admission === "refuse")
+    if (admission.admit === "refuse")
       return new Response("Not Found", {
         status: 404,
         headers: { "Cache-Control": "no-store" },
+      });
+    if (admission.admit === "redirect")
+      return new Response(null, {
+        status: 308,
+        headers: {
+          Location: admission.to + url.pathname + url.search,
+          "Cache-Control": "no-store",
+        },
       });
   }
   if (!isOrderSubmission(request)) return next();

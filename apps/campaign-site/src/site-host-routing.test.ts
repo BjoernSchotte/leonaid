@@ -97,6 +97,16 @@ describe("campaign host routing", () => {
     });
   });
 
+  it("never builds a redirect from the request path (review M1)", () => {
+    for (const path of [
+      "/2026//evil.example",
+      "/2026/%2F%2Fevil.example",
+      "/2026/\\evil.example",
+      "/2026/x",
+    ])
+      expect(go(path)).toEqual({ kind: "respond", status: 404 });
+  });
+
   it("serves any other live segment, ended ones as archive", () => {
     expect(go("/2025/")).toEqual({
       kind: "serve",

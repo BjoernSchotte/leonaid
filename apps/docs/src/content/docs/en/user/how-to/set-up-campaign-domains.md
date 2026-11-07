@@ -10,6 +10,11 @@ verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
+:::caution[Preview]
+Domain management is marked as **Vorschau** (preview) until its full-stack
+proof runs green in CI.
+:::
+
 **Role:** system admin. Domains cost money and concern the whole club, so
 only the system administration manages them. Charity admins see the
 addresses of their campaign but do not change them.
@@ -81,6 +86,9 @@ Every edition stays reachable at `https://<domain>/<path>/`. The start page
 - Impressum and Datenschutz are reachable on every domain. Each domain has its
   own `robots.txt` and `sitemap.xml`.
 - **Live View** in the microsite editor opens the page on its domain.
+- Changes take effect within half a minute: that long the servers remember
+  which domains are active. A domain just activated may briefly still show an
+  error page, a disabled one briefly still the page.
 
 ## Hand the domain to a follow-up campaign
 

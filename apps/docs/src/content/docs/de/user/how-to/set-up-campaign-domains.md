@@ -10,6 +10,11 @@ verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
+:::caution[Vorschau]
+Die Domain-Verwaltung ist als **Vorschau** markiert, bis ihr vollständiger
+Stack-Nachweis in der CI grün ist.
+:::
+
 **Rolle:** System-Admin. Domains kosten Geld und betreffen den ganzen Club,
 deshalb verwaltet nur die System-Administration sie. Charity-Admins sehen die
 Adressen ihrer Aktion, ändern sie aber nicht.
@@ -81,6 +86,9 @@ läuft. Nach dem Ende leitet `/` auf die Archivseite der Ausgabe weiter.
 - Impressum und Datenschutz sind auf jeder Domain erreichbar. Jede Domain hat
   eigene `robots.txt` und `sitemap.xml`.
 - **Live-Ansicht** im Microsite-Editor öffnet die Seite auf ihrer Domain.
+- Änderungen wirken nach höchstens einer halben Minute: So lange merken sich
+  die Server, welche Domains aktiv sind. Eine eben aktivierte Domain kann
+  kurz noch eine Fehlerseite zeigen, eine abgeschaltete kurz noch die Seite.
 
 ## Domain an eine Folgeaktion übergeben
 
