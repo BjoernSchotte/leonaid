@@ -27,8 +27,10 @@ import httpx
 from leonaid.adapters.postgres.order_mails import AsyncpgOrderMailReader
 from leonaid.application.order_mails import (
     ORDER_CANCELLATION_MAIL,
+    OrderMailError,
     OrderMailHandler,
     OrderMailKind,
+    recipient_sha256,
 )
 from leonaid.configuration import Settings
 from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
@@ -604,6 +606,7 @@ class Proof:
         await self.states()
         await self.invoice_cases()
         await self.buyer_notices()
+        await self.recipient_limit_race()
         await self.board_and_follow_up()
         await self.concurrency()
         await self.board_races()
@@ -823,6 +826,111 @@ class Proof:
             f"Die Rechnung {self.data.invoice_number('public_invoiced')} zu dieser "
             "Bestellung wurde ebenfalls storniert." in invoiced_text
         )
+
+    async def recipient_limit_race(self) -> None:
+        """Two workers, one mailbox, one slot left: exactly one mail goes out.
+
+        The two public orders get addresses of the same Gmail mailbox
+        (``+tag`` and dots differ), and one earlier order mail of that
+        mailbox is in the ledger. With a limit of two, the per-mailbox lock
+        lets one notice through and dead-letters the other.
+        """
+
+        orders = [self.data.orders[name] for name in self.data.PUBLIC]
+        addresses = (
+            f"racer+{self.data.tag}@gmail.com",
+            f"r.acer+2.{self.data.tag}@googlemail.com",
+        )
+        for order_id, address in zip(orders, addresses):
+            await self.db.execute(
+                "UPDATE commitment SET customer_snapshot = customer_snapshot"
+                " || jsonb_build_object('email', $2::text) WHERE id=$1",
+                order_id,
+                address,
+            )
+        prior = f"order-confirmation-mail:{orders[0]}"
+        written = [prior]
+        await self.db.execute(
+            "INSERT INTO mail_delivery (id, outbox_event_id, idempotency_key,"
+            " message_id, recipient_sha256, status) VALUES ($1, NULL, $2, $3, $4, 'sent')",
+            uuid4(),
+            prior,
+            f"<{uuid4().hex}@race.leonaid.invalid>",
+            "0" * 64,
+        )
+        sent: list[str] = []
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=2, max_size=6
+        )
+
+        class LedgerSender:
+            """Sends slowly and records the ledger row like SmtpMailHandler."""
+
+            async def handle(self, event: ClaimedOutboxEvent) -> None:
+                await asyncio.sleep(0.3)
+                async with pool.acquire() as connection:
+                    await connection.execute(
+                        "INSERT INTO mail_delivery (id, outbox_event_id,"
+                        " idempotency_key, message_id, recipient_sha256, status)"
+                        " VALUES ($1, NULL, $2, $3, $4, 'sent')",
+                        uuid4(),
+                        event.idempotency_key,
+                        f"<{uuid4().hex}@race.leonaid.invalid>",
+                        recipient_sha256(str(event.payload["to"])),
+                    )
+                written.append(event.idempotency_key)
+                sent.append(str(event.payload["to"]))
+
+        class Legal:
+            async def active_configuration(self) -> LegalConfigurationVersion:
+                return legal_version()
+
+        try:
+
+            async def run(order_id: UUID) -> str | None:
+                job = await self.db.fetchrow(
+                    "SELECT id, idempotency_key, payload FROM outbox_event"
+                    " WHERE aggregate_id=$1 AND event_type=$2",
+                    order_id,
+                    ORDER_CANCELLATION_MAIL,
+                )
+                handler = OrderMailHandler(
+                    OrderMailKind.CANCELLATION,
+                    reader=AsyncpgOrderMailReader(pool),
+                    legal_configuration=Legal(),
+                    sender=LedgerSender(),
+                    recipient_limit=2,
+                )
+                try:
+                    await handler.handle(
+                        ClaimedOutboxEvent(
+                            id=job["id"],
+                            aggregate_type="commitment",
+                            aggregate_id=order_id,
+                            event_type=ORDER_CANCELLATION_MAIL,
+                            idempotency_key=job["idempotency_key"],
+                            payload=json.loads(job["payload"]),
+                            attempts=1,
+                            claim_token=uuid4(),
+                            claimed_by="race",
+                        )
+                    )
+                except OrderMailError as error:
+                    assert error.retryable is False
+                    return error.code
+                return None
+
+            outcomes = await asyncio.gather(*(run(order_id) for order_id in orders))
+        finally:
+            await pool.close()
+            await self.db.execute(
+                "DELETE FROM mail_delivery WHERE idempotency_key = ANY($1::text[])",
+                written,
+            )
+        assert sorted(outcomes, key=str) == sorted(
+            [None, "order_mail_recipient_limit"], key=str
+        ), outcomes
+        assert len(sent) == 1 and sent[0] in addresses
 
     async def states(self) -> None:
         delivered = await self.cancel("delivered")
