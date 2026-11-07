@@ -218,11 +218,14 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
 
 # The buyer's order mails through the real outbox worker, SMTP and Mailpit:
 # one confirmation per order, a re-run job sends nothing, the cancellation
-# notice arrives once.
+# notice arrives once, injected text is refused, and a notice over the
+# per-address limit is dead-lettered, visible and recoverable.
 run_worker confirmations
 order_mails confirmations
 run_worker redelivery
 order_mails final
+run_worker recovery
+order_mails recovered
 
 for artifact in \
   public-order-form-mobile.png \

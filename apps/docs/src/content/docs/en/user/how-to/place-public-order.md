@@ -43,8 +43,11 @@ the items with quantity and price, the total, the chosen delivery window, the
 delivery and billing addresses, a link to the campaign page, and the provider,
 contact and links to the Impressum and the privacy policy (`/datenschutz`) from
 the club's legal settings. It does not repeat the message to the club or the
-delivery contact. Each order sends exactly one confirmation, even if you submit
-the form more than once. If the e-mail is missing, check the spam folder and
+delivery contact. Each order sends one confirmation, even if you submit the form
+more than once. If the order is cancelled before the confirmation goes out,
+only the cancellation notice is sent. One address gets at most ten order
+e-mails per hour. The form refuses line breaks and invisible control
+characters in names and addresses. If the e-mail is missing, check the spam folder and
 contact the club with the reference.
 
 If the selected delivery window becomes fully booked or is retired while you

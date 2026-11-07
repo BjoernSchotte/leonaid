@@ -12,6 +12,7 @@ import asyncpg
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
+    ORDER_MAIL_KEY_PREFIXES,
     OrderCancellationFacts,
     OrderMailFacts,
     OrderMailKind,
@@ -98,6 +99,32 @@ class AsyncpgOrderMailReader:
             ordered_at=row["created_at"],
             cancellation=cancellation,
         )
+
+    async def was_sent(self, idempotency_key: str) -> bool:
+        async with self._pool.acquire() as connection:
+            return bool(
+                await connection.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM mail_delivery "
+                    "WHERE idempotency_key = $1 AND status = 'sent')",
+                    idempotency_key,
+                )
+            )
+
+    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
+        async with self._pool.acquire() as connection:
+            return int(
+                await connection.fetchval(
+                    """
+                    SELECT count(*) FROM mail_delivery
+                    WHERE recipient_sha256 = $1
+                      AND sent_at >= $2
+                      AND (idempotency_key LIKE $3 OR idempotency_key LIKE $4)
+                    """,
+                    recipient_sha256,
+                    since,
+                    *(f"{prefix}%" for prefix in ORDER_MAIL_KEY_PREFIXES),
+                )
+            )
 
 
 class PublicCampaignLinks:

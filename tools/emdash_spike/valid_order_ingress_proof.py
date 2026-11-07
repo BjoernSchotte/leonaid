@@ -28,7 +28,6 @@ async def snapshot(
         "audit_event",
         "public_submission_attempt",
         "command_receipt",
-        "outbox_event",
     )
     database = []
     for table in tables:
@@ -39,6 +38,16 @@ async def snapshot(
                 f"FROM (SELECT to_jsonb(t) AS value FROM {table} t) records"
             )
         )
+    # Which jobs exist, not how far the running worker got with them: an
+    # order's confirmation mail job may complete between two snapshots.
+    database.append(
+        await connection.fetchval(
+            "SELECT COALESCE(jsonb_agg(value ORDER BY value::text), '[]'::jsonb) "
+            "FROM (SELECT jsonb_build_object('id', id, 'eventType', event_type, "
+            "'idempotencyKey', idempotency_key, 'payload', payload) AS value "
+            "FROM outbox_event) records"
+        )
+    )
     crm = []
     for collection in ("companies", "people"):
         records = await twenty_collection(twenty, collection)

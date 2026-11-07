@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -14,6 +15,8 @@ import pytest
 from leonaid.adapters.postgres.order_mails import PublicCampaignLinks
 from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
+    RECIPIENT_LIMIT,
+    RECIPIENT_WINDOW,
     ORDER_CANCELLATION_MAIL,
     ORDER_CONFIRMATION_MAIL,
     OrderCancellationFacts,
@@ -42,7 +45,9 @@ from leonaid.domain.commitments import (
 )
 from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
-from leonaid.domain.outbox import ClaimedOutboxEvent
+from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
+from leonaid.domain.text import has_unsafe_characters, single_line
+from leonaid.application.outbox import OutboxWorker
 from tests.unit.test_legal_configuration import valid_draft
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
@@ -330,15 +335,31 @@ class RecordingSender:
 
 
 class Reader:
-    def __init__(self, value: OrderMailFacts | None) -> None:
+    def __init__(
+        self,
+        value: OrderMailFacts | None,
+        *,
+        sent: bool = False,
+        recent: int = 0,
+    ) -> None:
         self.value = value
+        self.sent = sent
+        self.recent = recent
         self.calls: list[tuple[UUID, OrderMailKind]] = []
+        self.counted: list[tuple[str, datetime]] = []
 
     async def facts(
         self, commitment_id: UUID, kind: OrderMailKind
     ) -> OrderMailFacts | None:
         self.calls.append((commitment_id, kind))
         return self.value
+
+    async def was_sent(self, idempotency_key: str) -> bool:
+        return self.sent
+
+    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
+        self.counted.append((recipient_sha256, since))
+        return self.recent
 
 
 class Legal:
@@ -535,3 +556,205 @@ async def test_link_resolver_puts_legal_pages_on_the_public_host() -> None:
         privacy_url="https://site.leonaid.invalid/datenschutz",
         imprint_url="https://site.leonaid.invalid/impressum",
     )
+
+
+# --- Injection, limit, cancelled order, issuer country (review of #111) ---
+
+PHISHING = (
+    "Max\n\nWichtig: Bitte überweisen Sie den Betrag vorab auf "
+    "DE12 3456 7890, sonst verfällt Ihre Bestellung.\r\n\t\u202eNI\u202c"
+)
+
+
+def test_stored_free_text_stays_on_its_own_line_without_format_characters() -> None:
+    poisoned = order(
+        delivery_recipient=DeliveryRecipientSnapshot(
+            recipient_name=PHISHING,
+            street_line_1="Weg 1\n\nNeuer Absatz",
+            postal_code="86150\u200b",
+            city="Augs\u202eburg",
+        ),
+    )
+
+    text = render_order_confirmation(facts(poisoned), legal(), LINKS).text
+    block = text.split("Lieferanschrift:\n")[1].split("\n\n")[0].split("\n")
+
+    assert block == [
+        "  Max Wichtig: Bitte überweisen Sie den Betrag vorab auf DE12 3456 7890, "
+        "sonst verfällt Ihre Bestellung. NI",
+        "  Weg 1 Neuer Absatz",
+        "  86150 Augsburg",
+    ]
+    assert "\n\nWichtig" not in text
+    assert all(
+        character not in text
+        for character in ("\u202e", "\u202c", "\u200b", "\t", "\r")
+    )
+
+
+def test_action_name_cannot_break_the_subject_line() -> None:
+    mail = render_order_confirmation(
+        replace(facts(), action_name="Krapfentaxi\r\nBcc: opfer@example.invalid"),
+        legal(),
+        LINKS,
+    )
+
+    assert "\n" not in mail.subject and "\r" not in mail.subject
+    assert mail.subject.startswith("Ihre Bestellung bei Krapfentaxi Bcc:")
+
+
+def test_single_line_and_unsafe_character_check() -> None:
+    assert single_line(" a\tb\n\nc\u2028d\u202ee\u200d ") == "a b c de"
+    assert has_unsafe_characters("Max\nMuster")
+    assert has_unsafe_characters("Augs\u202eburg")
+    assert has_unsafe_characters("Zero\u200bwidth")
+    assert not has_unsafe_characters("Müller-Lüdenscheidt GmbH & Co. KG")
+    assert not has_unsafe_characters("Zeile 1\nZeile 2", allow_line_breaks=True)
+    assert has_unsafe_characters("Zeile\u202e", allow_line_breaks=True)
+
+
+def test_provider_names_the_country_of_a_foreign_issuer() -> None:
+    version = legal()
+    foreign = replace(
+        version,
+        configuration=replace(
+            version.configuration,
+            issuer=replace(version.configuration.issuer, country_code="AT"),
+        ),
+    )
+
+    text = render_order_confirmation(facts(), foreign, LINKS).text
+
+    assert "Löwenweg 12, 86150 Augsburg (AT)" in text
+    assert (
+        "Löwenweg 12, 86150 Augsburg\n"
+        in render_order_confirmation(facts(), legal(), LINKS).text
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_confirmation_of_an_already_cancelled_order_is_skipped() -> None:
+    sender = RecordingSender()
+
+    await handler(
+        OrderMailKind.CONFIRMATION,
+        facts(order(status=CommitmentStatus.CANCELLED)),
+        sender,
+    ).handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert sender.events == []
+
+
+@pytest.mark.asyncio
+async def test_the_cancellation_notice_is_still_sent_for_a_cancelled_order() -> None:
+    sender = RecordingSender()
+    value = facts(
+        order(status=CommitmentStatus.CANCELLED),
+        cancellation=OrderCancellationFacts(cancelled_at=CANCELLED_AT),
+    )
+
+    await handler(OrderMailKind.CANCELLATION, value, sender).handle(
+        claimed(OrderMailKind.CANCELLATION)
+    )
+
+    assert len(sender.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_recipient_limit_dead_letters_the_job() -> None:
+    sender = RecordingSender()
+    reader = Reader(facts(), recent=RECIPIENT_LIMIT)
+    now = datetime(2026, 2, 10, 12, tzinfo=timezone.utc)
+    mail = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=reader,
+        legal_configuration=Legal(legal()),
+        sender=sender,
+        clock=lambda: now,
+    )
+
+    with pytest.raises(OrderMailError) as error:
+        await mail.handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert error.value.code == "order_mail_recipient_limit"
+    assert error.value.retryable is False
+    assert sender.events == []
+    assert reader.counted == [
+        (
+            hashlib.sha256(b"einkauf@musterwerk.invalid").hexdigest(),
+            now - RECIPIENT_WINDOW,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_below_the_limit_the_mail_goes_out() -> None:
+    sender = RecordingSender()
+    mail = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=Reader(facts(), recent=RECIPIENT_LIMIT - 1),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+    )
+
+    await mail.handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert len(sender.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_sent_job_that_runs_again_is_neither_sent_nor_limited() -> None:
+    sender = RecordingSender()
+    mail = OrderMailHandler(
+        OrderMailKind.CONFIRMATION,
+        reader=Reader(facts(), sent=True, recent=RECIPIENT_LIMIT + 5),
+        legal_configuration=Legal(legal()),
+        sender=sender,
+    )
+
+    await mail.handle(claimed(OrderMailKind.CONFIRMATION))
+
+    assert sender.events == []
+
+
+class Queue:
+    def __init__(self, event: ClaimedOutboxEvent) -> None:
+        self.event: ClaimedOutboxEvent | None = event
+        self.failures: list[dict[str, object]] = []
+
+    async def claim_next(
+        self, *, worker_id: str, now: datetime
+    ) -> ClaimedOutboxEvent | None:
+        event, self.event = self.event, None
+        return event
+
+    async def complete(self, **_: object) -> None:
+        raise AssertionError("a limited job must not complete")
+
+    async def fail(self, **values: object) -> None:
+        self.failures.append(values)
+
+
+@pytest.mark.asyncio
+async def test_the_worker_dead_letters_a_limited_job_at_the_first_attempt() -> None:
+    queue = Queue(claimed(OrderMailKind.CONFIRMATION))
+    worker = OutboxWorker(
+        worker_id="unit",
+        queue=queue,
+        handlers={
+            ORDER_CONFIRMATION_MAIL: OrderMailHandler(
+                OrderMailKind.CONFIRMATION,
+                reader=Reader(facts(), recent=RECIPIENT_LIMIT),
+                legal_configuration=Legal(legal()),
+                sender=RecordingSender(),
+            )
+        },
+        retry_policy=RetryPolicy(max_attempts=5),
+    )
+
+    assert await worker.run_once() is True
+    assert len(queue.failures) == 1
+    failure = queue.failures[0]
+    # Visible in the operations view as a failed job with this code.
+    assert failure["dead_letter"] is True
+    assert failure["error_code"] == "order_mail_recipient_limit"

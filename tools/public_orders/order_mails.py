@@ -10,8 +10,13 @@ Steps, with a real worker run (``run-until-idle``) between them:
                   order, the club details and the links. Then one sent job
                   is put back to pending (a lost completion), and one order
                   is cancelled over HTTP, twice with the same key.
+                  A name with a forged paragraph or a bidi override is
+                  refused (422). Another order is cancelled while its
+                  recipient is at the per-address limit.
 ``final``         the re-run job sent nothing new; the cancellation notice
-                  arrived exactly once, without the internal reason.
+                  arrived exactly once, without the internal reason; the
+                  limited notice is dead-lettered, sent nothing and shows in
+                  the operations view.
 """
 
 from __future__ import annotations
@@ -22,16 +27,22 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.application.order_mails import (
+    RECIPIENT_LIMIT,
+    delivery_window_label,
+    recipient_sha256,
+)
 from leonaid.application.delivery_completion import delivery_completion_version
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
-from tools.identity.contract import KLARA_ID, create_session
+from tools.identity.contract import KLARA_ID, SYSTEM_ID, create_session
+from tools.public_orders.contract import order_body, public_context, submit
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 CONFIRMATION = "order.confirmation.mail.v1"
@@ -195,8 +206,14 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
                 raise ContractFailure("The order message reached the buyer")
             if order["delivery_window_snapshot"] is not None:
                 windows += 1
-                if "Lieferfenster: " not in text:
+                window = order["delivery_window_snapshot"]
+                label = delivery_window_label(
+                    window if isinstance(window, dict) else json.loads(window)
+                )
+                if f"Lieferfenster: {label}" not in text:
                     raise ContractFailure(f"Window missing in {reference}")
+        if windows < 1:
+            raise ContractFailure("No order with a delivery window was mailed")
         # A lost completion: the job runs again and must not send twice.
         redelivered = orders[0]
         status = await connection.execute(
@@ -210,7 +227,35 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
         if status != "UPDATE 1":
             raise ContractFailure("Could not re-queue the sent confirmation")
         cancelled = orders[-1]
-        cancellation = await cancel_twice(connection, cancelled["id"])
+        cancellation = await cancel(connection, cancelled["id"], times=2)
+        # Another buyer at the per-address limit: synthetic ledger rows
+        # stand for earlier order mails to that address within the hour.
+        limited = next(
+            order
+            for order in orders[1:-1]
+            if str(order["email"]).casefold() != str(cancelled["email"]).casefold()
+        )
+        flood = [f"order-confirmation-mail:{uuid4()}" for _ in range(RECIPIENT_LIMIT)]
+        await connection.executemany(
+            """
+            INSERT INTO mail_delivery (
+                id, outbox_event_id, idempotency_key, message_id,
+                recipient_sha256, status
+            )
+            VALUES ($1, NULL, $2, $3, $4, 'sent')
+            """,
+            [
+                (
+                    uuid4(),
+                    key,
+                    f"<{uuid4().hex}@limit-proof.leonaid.invalid>",
+                    recipient_sha256(str(limited["email"])),
+                )
+                for key in flood
+            ],
+        )
+        await cancel(connection, limited["id"], times=1)
+    await refused_injection(connection)
     data.update(
         {
             "orders": [str(order["id"]) for order in orders],
@@ -221,6 +266,9 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
             "cancelledEmail": str(cancelled["email"]),
             "cancellation": cancellation,
             "windows": windows,
+            "limited": str(limited["id"]),
+            "limitedReference": str(limited["public_reference"]),
+            "flood": flood,
         }
     )
     state.write_text(json.dumps(data), encoding="utf-8")
@@ -230,7 +278,67 @@ async def confirmations(connection: asyncpg.Connection[Any], state: Path) -> Non
     )
 
 
-async def cancel_twice(connection: asyncpg.Connection[Any], order_id: UUID) -> str:
+async def refused_injection(connection: asyncpg.Connection[Any]) -> None:
+    """A forged paragraph or a bidi override in an address never gets in."""
+
+    before = await connection.fetchval(
+        "SELECT count(*) FROM commitment WHERE source = 'public_form'"
+    )
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"), timeout=30
+    ) as api:
+        token, _offering = await public_context(api)
+        for label, field, value, code in (
+            (
+                "paragraph",
+                "recipientName",
+                "Max\n\nWichtig: Bitte überweisen Sie vorab auf DE12 3456.",
+                "public_order_delivery_recipient_invalid",
+            ),
+            (
+                "bidi",
+                "city",
+                "Augs\u202egrub",
+                "public_order_delivery_recipient_invalid",
+            ),
+        ):
+            body = order_body(
+                token=token,
+                command=uuid4(),
+                given_name="Ina",
+                family_name="Injektion",
+                email="ina.injektion@leonaid.invalid",
+                company_name=None,
+                quantity=1,
+            )
+            delivery = dict(cast(dict[str, object], body["deliveryRecipient"]))
+            delivery[field] = value
+            body["deliveryRecipient"] = delivery
+            response = await submit(
+                api,
+                body,
+                label=f"mail-injection-{label}",
+                forwarded_for=f"203.0.113.{77 if label == 'bidi' else 76}",
+            )
+            payload = response.json()
+            if (
+                response.status_code != 422
+                or payload.get("error", {}).get("code") != code
+                or "Lieferanschrift" not in payload["error"]["message"]
+            ):
+                raise ContractFailure(
+                    f"Injection {label} was not refused: {response.status_code}"
+                )
+    after = await connection.fetchval(
+        "SELECT count(*) FROM commitment WHERE source = 'public_form'"
+    )
+    if after != before:
+        raise ContractFailure("A refused injection order was stored")
+
+
+async def cancel(
+    connection: asyncpg.Connection[Any], order_id: UUID, *, times: int
+) -> str:
     order = await AsyncpgCommitmentRepository._get(connection, order_id, replayed=False)
     token = await create_session(connection, KLARA_ID, now=datetime.now(timezone.utc))
     key = f"public-order-mail-cancel:{uuid4()}"
@@ -243,7 +351,7 @@ async def cancel_twice(connection: asyncpg.Connection[Any], order_id: UUID) -> s
         base_url=require_env("API_BASE_URL").rstrip("/"), timeout=30
     ) as api:
         results = []
-        for _ in range(2):
+        for _ in range(times):
             response = await api.post(
                 f"/api/v1/actions/{ACTION_ID}/commitments/{order_id}/cancellation",
                 headers={
@@ -255,7 +363,7 @@ async def cancel_twice(connection: asyncpg.Connection[Any], order_id: UUID) -> s
             if response.status_code != 201:
                 raise ContractFailure(f"Cancellation failed: {response.text}")
             results.append(response.json())
-    if results[0]["cancellation"]["id"] != results[1]["cancellation"]["id"]:
+    if len({result["cancellation"]["id"] for result in results}) != 1:
         raise ContractFailure("The replayed cancellation differs")
     jobs = await connection.fetchval(
         """
@@ -315,15 +423,100 @@ async def final(connection: asyncpg.Connection[Any], state: Path) -> None:
     )
     if sent != 1:
         raise ContractFailure(f"Cancellation ledger has {sent} rows")
+    await limited_notice(connection, data)
     print(
         "public-order-mails: re-run job sent nothing; one cancellation notice "
-        "without internal reason or note"
+        "without internal reason or note; injection refused; the notice over "
+        "the per-address limit is dead-lettered and visible in operations"
     )
+
+
+async def limited_notice(
+    connection: asyncpg.Connection[Any], data: dict[str, Any]
+) -> None:
+    key = f"order-cancellation-mail:{data['limited']}"
+    job = await connection.fetchrow(
+        "SELECT id, status, attempts, last_error_code FROM outbox_event "
+        "WHERE idempotency_key = $1",
+        key,
+    )
+    if (
+        job is None
+        or job["status"] != "dead_letter"
+        or job["attempts"] != 1
+        or job["last_error_code"] != "order_mail_recipient_limit"
+    ):
+        raise ContractFailure(f"Limited notice not dead-lettered: {dict(job or {})}")
+    if await connection.fetchval(
+        "SELECT count(*) FROM mail_delivery WHERE idempotency_key = $1", key
+    ):
+        raise ContractFailure("The limited notice was sent")
+    async with httpx.AsyncClient(
+        base_url=require_env("MAIL_TEST_API_URL").rstrip("/"), timeout=15
+    ) as mailpit:
+        if await messages_for(
+            mailpit, data["limitedReference"], "Stornierung Ihrer Bestellung bei "
+        ):
+            raise ContractFailure("The limited notice reached Mailpit")
+    token = await create_session(connection, SYSTEM_ID, now=datetime.now(timezone.utc))
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"), timeout=60
+    ) as api:
+        response = await api.get(
+            "/api/v1/admin/operations",
+            headers={"Cookie": f"{SESSION_COOKIE_NAME}={token}"},
+        )
+    if response.status_code != 200:
+        raise ContractFailure(f"Operations view failed: {response.status_code}")
+    failed = {item["id"]: item for item in response.json().get("failedJobs", [])}
+    shown = failed.get(str(job["id"]))
+    if (
+        shown is None
+        or shown["eventType"] != CANCELLATION
+        or shown["lastErrorCode"] != "order_mail_recipient_limit"
+    ):
+        raise ContractFailure("The limited notice is not visible in operations")
+    # The synthetic ledger rows only stood for earlier mails. Without them
+    # the operator's retry sends the notice (checked in ``recovered``).
+    await connection.execute(
+        "DELETE FROM mail_delivery WHERE idempotency_key = ANY($1::text[])",
+        data["flood"],
+    )
+    async with httpx.AsyncClient(
+        base_url=require_env("API_BASE_URL").rstrip("/"), timeout=30
+    ) as api:
+        retried = await api.post(
+            f"/api/v1/admin/operations/jobs/{job['id']}/retry",
+            headers={"Cookie": f"{SESSION_COOKIE_NAME}={token}"},
+        )
+    if retried.status_code != 200:
+        raise ContractFailure(f"Operator retry failed: {retried.status_code}")
+
+
+async def recovered(connection: asyncpg.Connection[Any], state: Path) -> None:
+    data = json.loads(state.read_text(encoding="utf-8"))
+    key = f"order-cancellation-mail:{data['limited']}"
+    status = await connection.fetchval(
+        "SELECT status FROM outbox_event WHERE idempotency_key = $1", key
+    )
+    if status != "completed":
+        raise ContractFailure(f"Retried notice did not complete: {status}")
+    async with httpx.AsyncClient(
+        base_url=require_env("MAIL_TEST_API_URL").rstrip("/"), timeout=15
+    ) as mailpit:
+        notices = await messages_for(
+            mailpit, data["limitedReference"], "Stornierung Ihrer Bestellung bei "
+        )
+    if len(notices) != 1:
+        raise ContractFailure(f"Retried notice sent {len(notices)} mails")
+    print("public-order-mails: the operator retry sent the limited notice once")
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("step", choices=("snapshot", "confirmations", "final"))
+    parser.add_argument(
+        "step", choices=("snapshot", "confirmations", "final", "recovered")
+    )
     parser.add_argument("state", type=Path)
     arguments = parser.parse_args()
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
@@ -332,6 +525,7 @@ async def main() -> None:
             "snapshot": snapshot,
             "confirmations": confirmations,
             "final": final,
+            "recovered": recovered,
         }[arguments.step]
         await step(connection, arguments.state)
     finally:

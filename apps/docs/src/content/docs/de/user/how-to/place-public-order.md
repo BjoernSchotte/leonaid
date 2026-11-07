@@ -45,8 +45,11 @@ Preis, den Gesamtbetrag, das gewählte Lieferfenster, Liefer- und
 Rechnungsanschrift, einen Link zur Aktionsseite sowie Anbieter, Kontakt und
 Links zu Impressum und Datenschutzerklärung (`/datenschutz`) aus den
 rechtlichen Angaben des Clubs. Die Nachricht an den Club und den Lieferkontakt
-wiederholt sie nicht. Pro Bestellung geht genau eine Bestätigung hinaus, auch
-wenn du das Formular mehrfach absendest. Fehlt die E-Mail, prüfe den
+wiederholt sie nicht. Pro Bestellung geht eine Bestätigung hinaus, auch wenn du das Formular
+mehrfach absendest. Wird die Bestellung storniert, bevor die Bestätigung
+verschickt ist, kommt nur der Stornohinweis. An dieselbe Adresse gehen höchstens
+zehn Bestell-E-Mails pro Stunde. Zeilenumbrüche und unsichtbare Steuerzeichen
+in Namen und Anschriften lehnt das Formular ab. Fehlt die E-Mail, prüfe den
 Spam-Ordner und wende dich mit der Referenz an den Club.
 
 Wird das gewählte Lieferfenster während der Eingabe ausgebucht oder

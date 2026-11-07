@@ -63,7 +63,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `order.cancellation.mail.v1`; one job and one SMTP ledger row per order
   and kind). The job holds ids and links only; the worker reads the order
   and the active legal configuration when it sends, so an erased buyer gets
-  nothing. Not covered: orders entered by members or acquirers (no mail,
+  nothing. Delivery is at least once: a crash between the SMTP server
+  accepting a mail and the ledger write sends it again on the retry. A
+  confirmation whose order is already cancelled is skipped. At most 10 order
+  mails go to one address per hour; a job over that limit is dead-lettered
+  (`order_mail_recipient_limit`, operations view, manual retry). Public order
+  fields refuse line breaks, tabs and invisible control or format characters
+  (bidi overrides, zero-width); the mail also strips them from older data.
+  The mail repeats the full delivery and billing address so the buyer can
+  check it. Not covered: orders entered by members or acquirers (no mail,
   also no cancellation notice), an HTML version, a club sender address (the
   configured `MAIL_FROM` sends), a resend button, and mails for later order
   changes (delivery window moved, invoice issued). Fulfilment mails ignore

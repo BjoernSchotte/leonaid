@@ -8,22 +8,38 @@ worker reads the order from Core when it sends, so a privacy erasure that
 ran in between leaves nothing to send, and no copy of the buyer's data waits
 in the queue.
 
-Exactly one mail per order and kind: the job id and the idempotency key are
-derived from the order id, the HTTP replay of an order or a cancellation
-returns before it writes a job, and the SMTP ledger (``mail_delivery``)
-skips a key that was already sent when a job is retried or claimed again.
+One job per order and kind: the job id and the idempotency key are derived
+from the order id, and the HTTP replay of an order or a cancellation returns
+before it writes a job. Delivery is at least once: the SMTP ledger
+(``mail_delivery``) skips a key that was already sent when a job is retried
+or claimed again, but a crash between the SMTP server accepting the mail and
+the ledger write sends it a second time on the retry.
+
+The order lines, prices, addresses and window of a public order cannot be
+changed after it is placed (only drafts get a window later), so the order
+read at send time is the order as placed. A confirmation whose order is
+already cancelled is skipped; the cancellation notice covers it.
 
 The text contains only what the buyer entered (items, quantities, delivery
 window, addresses) and the club's details from the active legal
 configuration. Internal data stays out: the order message, the delivery
-contact, the cancellation reason and note, CRM names.
+contact, the cancellation reason and note, CRM names. Every stored text is
+put on one line without control or format characters (``_clean``), so data
+entered before the input check cannot forge a paragraph or hide text.
+
+At most ``RECIPIENT_LIMIT`` order mails go to one address per
+``RECIPIENT_WINDOW``: the unauthenticated form must not make the club flood
+an address it does not own. A job over the limit is dead-lettered with
+``order_mail_recipient_limit`` and shows in the operations view, where an
+operator can retry it later.
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID, uuid5
@@ -36,17 +52,22 @@ from leonaid.domain.commitments import (
     Commitment,
     CommitmentLine,
     CommitmentSource,
+    CommitmentStatus,
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
     Money,
 )
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
 from leonaid.domain.outbox import ClaimedOutboxEvent, JsonValue, PendingOutboxEvent
+from leonaid.domain.text import single_line
 
 ORDER_MAIL_NAMESPACE = UUID("f3b0c6a2-5d1e-4c8b-9a57-0e6d2b4f8c13")
 ORDER_CONFIRMATION_MAIL = "order.confirmation.mail.v1"
 ORDER_CANCELLATION_MAIL = "order.cancellation.mail.v1"
 ORDER_MAIL_EVENT_TYPES = (ORDER_CONFIRMATION_MAIL, ORDER_CANCELLATION_MAIL)
+ORDER_MAIL_KEY_PREFIXES = ("order-confirmation-mail:", "order-cancellation-mail:")
+RECIPIENT_LIMIT = 10
+RECIPIENT_WINDOW = timedelta(hours=1)
 
 WEEKDAYS = (
     "Montag",
@@ -71,11 +92,15 @@ EVENT_TYPES = {
 
 
 class OrderMailError(RuntimeError):
-    """A stable, payload-free failure code for the outbox ledger."""
+    """A stable, payload-free failure code for the outbox ledger.
 
-    def __init__(self, code: str) -> None:
+    ``retryable=False`` dead-letters the job at once (the worker reads it).
+    """
+
+    def __init__(self, code: str, *, retryable: bool = True) -> None:
         super().__init__(code)
         self.code = code
+        self.retryable = retryable
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +205,12 @@ class RenderedOrderMail:
     text: str
 
 
+def _clean(value: str) -> str:
+    """Stored text on one line, without control or format characters."""
+
+    return single_line(value)
+
+
 def _money(value: Money) -> str:
     whole, fraction = divmod(value.amount_minor, 100)
     grouped = f"{whole:,}".replace(",", ".")
@@ -234,15 +265,15 @@ def _address(
     if recipient.country_code != "DE":
         city += f" ({recipient.country_code})"
     return [
-        f"  {recipient.recipient_name}",
-        f"  {recipient.street_line_1}",
-        f"  {city}",
+        f"  {_clean(recipient.recipient_name)}",
+        f"  {_clean(recipient.street_line_1)}",
+        f"  {_clean(city)}",
     ]
 
 
 def _lines(commitment: Commitment) -> list[str]:
     rows = [
-        f"- {line.description_snapshot}: {_quantity(line)} × "
+        f"- {_clean(line.description_snapshot)}: {_quantity(line)} × "
         f"{_money(line.unit_price)} = {_money(line.line_total)}"
         for line in commitment.lines
     ]
@@ -254,24 +285,32 @@ def _provider(legal: LegalConfigurationVersion, links: OrderMailLinks) -> list[s
 
     configuration = legal.configuration
     issuer = configuration.issuer
+    address = f"{issuer.street_line_1}, {issuer.postal_code} {issuer.city}"
+    if issuer.country_code != "DE":
+        address += f" ({issuer.country_code})"
     lines = [
         "Anbieter",
-        f"{issuer.legal_name}",
-        f"{issuer.street_line_1}, {issuer.postal_code} {issuer.city}",
+        _clean(issuer.legal_name),
+        _clean(address),
     ]
     if configuration.imprint_representatives:
-        lines.append(f"Vertreten durch: {configuration.imprint_representatives}")
+        lines.append(
+            f"Vertreten durch: {_clean(configuration.imprint_representatives)}"
+        )
     register = configuration.register_label()
     if configuration.imprint_register_number and configuration.imprint_register_court:
         lines.append(
-            f"{register or 'Registereintrag'}: {configuration.imprint_register_court}, "
-            f"{configuration.imprint_register_number}"
+            _clean(
+                f"{register or 'Registereintrag'}: "
+                f"{configuration.imprint_register_court}, "
+                f"{configuration.imprint_register_number}"
+            )
         )
     if configuration.imprint_vat_id:
-        lines.append(f"USt-IdNr.: {configuration.imprint_vat_id}")
-    lines.append(f"E-Mail: {issuer.email}")
+        lines.append(f"USt-IdNr.: {_clean(configuration.imprint_vat_id)}")
+    lines.append(f"E-Mail: {_clean(issuer.email)}")
     if configuration.imprint_phone:
-        lines.append(f"Telefon: {configuration.imprint_phone}")
+        lines.append(f"Telefon: {_clean(configuration.imprint_phone)}")
     lines.extend(
         [
             f"Impressum: {links.imprint_url}",
@@ -284,14 +323,14 @@ def _provider(legal: LegalConfigurationVersion, links: OrderMailLinks) -> list[s
 def _contact(legal: LegalConfigurationVersion, topic: str) -> str:
     configuration = legal.configuration
     phone = (
-        f" oder telefonisch unter {configuration.imprint_phone}"
+        f" oder telefonisch unter {_clean(configuration.imprint_phone)}"
         if configuration.imprint_phone
         else ""
     )
     return (
         f"Bei Fragen {topic} erreichen Sie uns unter "
-        f"{configuration.issuer.email}{phone}. Bitte nennen Sie dabei Ihre "
-        "Bestellnummer."
+        f"{_clean(configuration.issuer.email)}{phone}. Bitte nennen Sie dabei "
+        "Ihre Bestellnummer."
     )
 
 
@@ -303,7 +342,7 @@ def _footer(legal: LegalConfigurationVersion, links: OrderMailLinks) -> list[str
     return [
         "",
         "Freundliche Grüße",
-        legal.configuration.issuer.legal_name,
+        _clean(legal.configuration.issuer.legal_name),
         "",
         "-- ",
         privacy,
@@ -323,7 +362,7 @@ def render_order_confirmation(
     lines = [
         "Guten Tag,",
         "",
-        f"vielen Dank für Ihre Bestellung bei der Aktion „{facts.action_name}“. "
+        f"vielen Dank für Ihre Bestellung bei der Aktion „{_clean(facts.action_name)}“. "
         f"Wir haben sie am {_day(facts.ordered_at)} um "
         f"{_local(facts.ordered_at):%H:%M} Uhr erhalten.",
         "",
@@ -359,7 +398,7 @@ def render_order_confirmation(
     lines.extend(["", _contact(legal, "zu Ihrer Bestellung"), *_footer(legal, links)])
     return RenderedOrderMail(
         recipient=recipient,
-        subject=f"Ihre Bestellung bei {facts.action_name} · {reference}",
+        subject=f"Ihre Bestellung bei {_clean(facts.action_name)} · {reference}",
         text="\n".join(lines) + "\n",
     )
 
@@ -379,7 +418,7 @@ def render_order_cancellation(
         "Guten Tag,",
         "",
         f"Ihre Bestellung vom {_day(facts.ordered_at)} bei der Aktion "
-        f"„{facts.action_name}“ wurde am {_day(cancellation.cancelled_at)} "
+        f"„{_clean(facts.action_name)}“ wurde am {_day(cancellation.cancelled_at)} "
         "storniert. Sie wird nicht geliefert.",
         "",
         f"Bestellnummer: {reference}",
@@ -400,7 +439,7 @@ def render_order_cancellation(
     lines.extend(["", _contact(legal, "zur Stornierung"), *_footer(legal, links)])
     return RenderedOrderMail(
         recipient=recipient,
-        subject=f"Stornierung Ihrer Bestellung bei {facts.action_name} · {reference}",
+        subject=f"Stornierung Ihrer Bestellung bei {_clean(facts.action_name)} · {reference}",
         text="\n".join(lines) + "\n",
     )
 
@@ -416,6 +455,12 @@ def _reference(commitment: Commitment) -> str:
     if commitment.public_reference is None:
         raise OrderMailError("order_mail_reference_missing")
     return commitment.public_reference
+
+
+def recipient_sha256(address: str) -> str:
+    """The ledger's recipient digest (``SmtpMailHandler``)."""
+
+    return hashlib.sha256(address.strip().casefold().encode()).hexdigest()
 
 
 def mail_due(commitment: Commitment) -> bool:
@@ -436,6 +481,12 @@ class OrderMailReader(Protocol):
     async def facts(
         self, commitment_id: UUID, kind: OrderMailKind
     ) -> OrderMailFacts | None: ...
+
+    async def was_sent(self, idempotency_key: str) -> bool: ...
+
+    async def recent_order_mails(self, recipient_sha256: str, since: datetime) -> int:
+        """Order mails sent to this recipient digest since the moment."""
+        ...
 
 
 class ActiveLegalConfiguration(Protocol):
@@ -458,11 +509,13 @@ class OrderMailHandler:
         reader: OrderMailReader,
         legal_configuration: ActiveLegalConfiguration,
         sender: MailSender,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._kind = kind
         self._reader = reader
         self._legal_configuration = legal_configuration
         self._sender = sender
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         commitment_value = event.payload.get("commitmentId")
@@ -479,6 +532,23 @@ class OrderMailHandler:
         if facts is None or not mail_due(facts.commitment):
             # Nothing to send: the order is gone, not public or erased.
             return
+        if (
+            self._kind is OrderMailKind.CONFIRMATION
+            and facts.commitment.status is CommitmentStatus.CANCELLED
+        ):
+            # Cancelled before the confirmation went out: the cancellation
+            # notice tells the buyer everything.
+            return
+        if await self._reader.was_sent(event.idempotency_key):
+            # A re-run of a sent job (lost completion): nothing to send, and
+            # the limit must not dead-letter it.
+            return
+        recent = await self._reader.recent_order_mails(
+            recipient_sha256(_recipient(facts.commitment)),
+            self._clock() - RECIPIENT_WINDOW,
+        )
+        if recent >= RECIPIENT_LIMIT:
+            raise OrderMailError("order_mail_recipient_limit", retryable=False)
         legal = await self._legal_configuration.active_configuration()
         if legal is None:
             # Retried: the mail must name the club; it waits for a version.

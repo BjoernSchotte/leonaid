@@ -725,6 +725,14 @@ test("a window marked ausgebucht is shown but cannot be chosen, also when it fil
     await summary.getByRole("link", { name: /^Lieferfenster: / }).click();
     await expect(radio(second)).toBeFocused();
     await expect(radio(second)).toBeEnabled();
+    // The free window takes the order; its confirmation mail names the
+    // window (tools/public_orders/order_mails.py checks it in Mailpit).
+    await radio(second).check();
+    await form.locator('input[name="quantity"]').first().fill("1");
+    await form.locator('input[name="privacyAcknowledged"]').check();
+    await form.locator('input[name="bindingOrderConfirmed"]').check();
+    await form.locator('button[type="submit"]').click();
+    await submitOrderResult(form);
   } finally {
     // Retiring also clears "ausgebucht"; delivery_cleanup.py then restores
     // the golden state.
