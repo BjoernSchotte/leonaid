@@ -254,6 +254,65 @@ def main() -> None:
             ),
         )
 
+        # Backup topology (specs/multi-domain R11): with the CMS enabled the
+        # backup must hold the CMS data; only pilot-cms-provision accepts the
+        # last backup from before the CMS, and pilot-backup takes a new one.
+        fresh_payload = json.loads(backup_path.read_text(encoding="utf-8"))
+        cms_payload = copy.deepcopy(fresh_payload)
+        cms_payload["schemaVersion"] = 2
+        for name in ("emdash.dump", "cms-bootstrap-state.tar"):
+            cms_payload["files"][name] = {"sha256": "c" * 64, "size": 1}
+        cms_path = temporary_root / "cms-backup.json"
+        cms_path.write_text(json.dumps(cms_payload), encoding="utf-8")
+        validate_backup(
+            cms_path, project=project, maximum_age_hours=26, cms_enabled=True
+        )
+        rejected(
+            "legacy backup while the CMS is enabled",
+            lambda: validate_backup(
+                backup_path, project=project, maximum_age_hours=26, cms_enabled=True
+            ),
+        )
+        validate_backup(
+            backup_path,
+            project=project,
+            maximum_age_hours=26,
+            cms_enabled=True,
+            allow_backup_without_cms=True,
+        )
+        validate_backup(
+            backup_path,
+            project=project,
+            maximum_age_hours=26,
+            cms_enabled=True,
+            tolerate_missing_or_stale=True,
+        )
+        rejected(
+            "CMS backup while the CMS is disabled",
+            lambda: validate_backup(cms_path, project=project, maximum_age_hours=26),
+        )
+        for label, version, extra in (
+            ("schema 2 without CMS data", 2, ()),
+            ("schema 1 with CMS data", 1, ("emdash.dump",)),
+        ):
+            mismatch = copy.deepcopy(fresh_payload)
+            mismatch["schemaVersion"] = version
+            for name in extra:
+                mismatch["files"][name] = {"sha256": "d" * 64, "size": 1}
+            mismatch_path = temporary_root / f"mismatch-{version}.json"
+            mismatch_path.write_text(json.dumps(mismatch), encoding="utf-8")
+
+            def validate_mismatch(path: Path = mismatch_path) -> None:
+                validate_backup(
+                    path,
+                    project=project,
+                    maximum_age_hours=26,
+                    cms_enabled=True,
+                    allow_backup_without_cms=True,
+                )
+
+            rejected(label, validate_mismatch)
+
     print(
         "pilot-deployment-doctor-test: OK: unsafe real file and parameter "
         "mutations rejected fail-closed, including first-install, heartbeat "

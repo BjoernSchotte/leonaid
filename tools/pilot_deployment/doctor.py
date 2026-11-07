@@ -484,18 +484,30 @@ def probe_http_health(
         raise DoctorError(f"port80_unhealthy:{name}")
 
 
+# tools/backup/manifest.py: schema 1 is the stack without the CMS, schema 2
+# (topology emdash) adds the CMS database dump and its bootstrap state.
+BACKUP_CMS_FILES = frozenset({"emdash.dump", "cms-bootstrap-state.tar"})
+
+
 def validate_backup(
     path: Path,
     *,
     project: str,
     maximum_age_hours: float,
     tolerate_missing_or_stale: bool = False,
+    cms_enabled: bool = False,
+    allow_backup_without_cms: bool = False,
 ) -> None:
     """Require a fresh backup of this project.
 
     The pilot-backup gate tolerates a missing or stale manifest: a new backup
     is exactly the remedy, so one failed nightly run must not block all later
     ones. A manifest of another project or a broken manifest still blocks.
+
+    With the CMS enabled the backup must contain the CMS data (schema 2).
+    Only pilot-cms-provision accepts the last backup from before the CMS
+    (allow_backup_without_cms); the first backup after its database step
+    already takes the CMS topology.
     """
     if not path.is_file():
         if tolerate_missing_or_stale:
@@ -507,11 +519,29 @@ def validate_backup(
         raise DoctorError("backup_manifest_invalid") from error
     if not isinstance(payload, dict):
         raise DoctorError("backup_manifest_invalid")
-    if payload.get("schemaVersion") != 1 or payload.get("sourceProject") != project:
+    if (
+        payload.get("schemaVersion") not in (1, 2)
+        or payload.get("sourceProject") != project
+    ):
         raise DoctorError("backup_manifest_scope_mismatch")
     files = payload.get("files")
     if not isinstance(files, dict) or not files:
         raise DoctorError("backup_manifest_inventory_missing")
+    with_cms = payload["schemaVersion"] == 2
+    if with_cms != BACKUP_CMS_FILES.issubset(files) or (
+        not with_cms and BACKUP_CMS_FILES & set(files)
+    ):
+        raise DoctorError("backup_manifest_inventory_missing")
+    # A new backup takes the configured topology; backup.sh refuses a
+    # topology that does not match the data, so the pilot-backup gate defers.
+    if with_cms and not cms_enabled and not tolerate_missing_or_stale:
+        raise DoctorError("backup_manifest_cms_topology_mismatch")
+    if (
+        cms_enabled
+        and not with_cms
+        and not (allow_backup_without_cms or tolerate_missing_or_stale)
+    ):
+        raise DoctorError("backup_manifest_without_cms")
     created_raw = payload.get("createdAt")
     if not isinstance(created_raw, str):
         raise DoctorError("backup_timestamp_missing")
@@ -628,6 +658,14 @@ def parser() -> argparse.ArgumentParser:
         help=(
             "pilot-install only: no backup manifest and no running installation "
             "yet; the Twenty integration key may still be pending"
+        ),
+    )
+    result.add_argument(
+        "--allow-backup-without-cms",
+        action="store_true",
+        help=(
+            "pilot-cms-provision only: the latest backup may predate the CMS "
+            "while LEONAID_CMS_ENABLED=true"
         ),
     )
     result.add_argument(
@@ -801,6 +839,8 @@ def main() -> int:
                 project=project,
                 maximum_age_hours=arguments.maximum_backup_age_hours,
                 tolerate_missing_or_stale=arguments.gate == "pilot-backup",
+                cms_enabled=environment.get("LEONAID_CMS_ENABLED") == "true",
+                allow_backup_without_cms=arguments.allow_backup_without_cms,
             )
         if shutil.disk_usage(arguments.disk_path).free < arguments.minimum_free_bytes:
             raise DoctorError("disk_space_insufficient")

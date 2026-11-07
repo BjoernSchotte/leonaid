@@ -195,7 +195,7 @@
     {
       "file": "leonaid",
       "contains": [
-        "bootstrap) bootstrap ;;",
+        "  bootstrap)",
         "doctor) doctor ;;",
         "test-handoff)"
       ]
@@ -726,6 +726,7 @@
         "Stornieren",
         "wird mitstorniert.",
         "LeonAid benachrichtigt den Besteller nicht automatisch.",
+        "Der Besteller erhält eine E-Mail über die Stornierung",
         "bereits geliefert",
         "Zahlung zurückbuchen"
       ]

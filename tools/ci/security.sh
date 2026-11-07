@@ -5,6 +5,38 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 . "$root/tools/security/pulled-images.sh"
 
+# The vulnerability gate (advisory downloads, own image build, 21 scans) is
+# mostly network and image I/O; it runs beside the policy checks and the
+# security stack test instead of after them. Both lanes must pass. Images it
+# pulls stay until the job ends, because the test stack may use them too.
+scan_log=$(mktemp)
+scan_status=$(mktemp)
+(
+  status=0
+  LEONAID_SCAN_KEEP_PULLED=1 /bin/sh "$root/tools/security/vulnerability-scan.sh" \
+    >"$scan_log" 2>&1 || status=$?
+  echo "$status" >"$scan_status"
+) &
+scan_pid=$!
+finish_scan() {
+  wait "$scan_pid" || true
+  echo "ci-security: ---- vulnerability gate log ----"
+  cat "$scan_log"
+  echo "ci-security: ---- end of vulnerability gate log ----"
+  result=$(cat "$scan_status")
+  rm -f "$scan_log" "$scan_status"
+  return "${result:-1}"
+}
+on_exit() {
+  status=$?
+  if [ -n "${scan_pid:-}" ] && kill -0 "$scan_pid" 2>/dev/null; then
+    kill "$scan_pid" 2>/dev/null || true
+    finish_scan || true
+  fi
+  exit "$status"
+}
+trap on_exit EXIT HUP INT TERM
+
 python3 "$root/tools/local_tests_test.py"
 python3 "$root/tools/testing/ci_fixture_test.py"
 python3 "$root/tools/testing/phase_test.py"
@@ -81,8 +113,13 @@ docker run --rm \
   --skip-files /workspace/.env.local \
   /workspace
 
-/bin/sh "$root/tools/security/vulnerability-scan.sh"
-
 python3 "$root/tools/testing/shared_stack.py" core tools/security/test.sh
+
+if ! finish_scan; then
+  scan_pid=""
+  echo "ci-security: ERROR: vulnerability gate failed (log above)" >&2
+  exit 1
+fi
+scan_pid=""
 
 echo "ci-security: OK: policies, secrets, dependency audit and HIGH/CRITICAL image gates"

@@ -4,6 +4,7 @@ import {
   adminHref,
   loginHref,
   pwaHref,
+  redirectsToLogin,
   startAreaChoices,
 } from "./base-paths";
 
@@ -69,5 +70,26 @@ describe("start-area choices (review B3)", () => {
     expect(startAreaChoices("pwa", chosePwa, true)).toEqual([
       { surface: null, label: DEFAULT_START_AREA_LABEL },
     ]);
+  });
+});
+
+describe("sign-in redirect after a failed identity request", () => {
+  it("redirects only without any session", () => {
+    expect(
+      redirectsToLogin({
+        status: 401,
+        detail: { code: "authentication_required" },
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps the notice for an ended or revoked session and other errors", () => {
+    for (const error of [
+      { status: 401, detail: { code: "session_invalid" } },
+      { status: 401, detail: {} },
+      { status: 403, detail: { code: "authentication_required" } },
+      { status: 500, detail: { code: "internal_error" } },
+    ])
+      expect(redirectsToLogin(error)).toBe(false);
   });
 });

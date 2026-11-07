@@ -135,8 +135,9 @@ services:
   # Campaign pages and the EmDash editor (specs/multi-domain stage 0). Part of
   # the stack only with the emdash profile: LEONAID_CMS_ENABLED=true in the
   # env file makes every ./leonaid pilot command add --profile emdash. The
-  # database role, media bucket and editor setup are provisioned once
-  # (help docs "Install LeonAid on a fresh VPS"; specs/leonaid-poc/KNOWN-LIMITS.md).
+  # database role, media bucket, editor setup and campaign schema are
+  # provisioned once with ./leonaid pilot-cms-provision (specs/multi-domain
+  # §16.7; help docs "Install LeonAid on a fresh VPS").
   campaign-site:
     # Without the CMS the service stays inactive; the placeholder only keeps
     # `--profile '*'` renders valid. The pilot contract rejects it (no digest)

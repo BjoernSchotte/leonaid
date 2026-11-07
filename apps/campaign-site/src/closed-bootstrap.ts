@@ -36,6 +36,7 @@ import {
   requireArmedBootstrap,
   consumeBootstrap,
   completeBootstrap,
+  releaseBootstrap,
   requireCompletedBootstrap,
 } from "./bootstrap-control.mjs";
 
@@ -172,13 +173,25 @@ const closedGuard = defineMiddleware(
               status: 403,
               headers,
             });
-          // Consume BEFORE upstream mutation. Failure/crash cannot reopen setup.
+          // Consume BEFORE upstream mutation: a concurrent request finds no
+          // grant. Only a crash can leave it consumed (operator reset-setup).
           await consumeBootstrap(bootstrapDirectory, identity.subject);
         }
         const response = await next();
         if (setupPost) {
           // Upstream can report success despite failing to save completion.
-          if (!response.ok || !(await setupIsComplete())) throw new Error();
+          if (!response.ok || !(await setupIsComplete())) {
+            // A refused setup (validation error, upstream failure) did not
+            // complete: hand the grant back, unchanged expiry, so the System
+            // Admin can correct and retry instead of locking the CMS.
+            if (!(await setupIsComplete()))
+              await releaseBootstrap(bootstrapDirectory, identity.subject);
+            if (!response.ok) {
+              response.headers.set("Cache-Control", "no-store");
+              return response;
+            }
+            throw new Error();
+          }
           await completeBootstrap(bootstrapDirectory, identity.subject);
         }
         response.headers.set("Cache-Control", "no-store");
