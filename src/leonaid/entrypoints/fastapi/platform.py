@@ -163,8 +163,16 @@ def error_response(
     status_code: int,
     code: str,
     message: str,
+    details: dict[str, object] | None = None,
 ) -> JSONResponse:
     request.state.error_code = code
+    error: dict[str, object] = {
+        "code": code,
+        "message": message,
+        "requestId": request_id_for(request),
+    }
+    if details is not None:
+        error["details"] = details
     return JSONResponse(
         status_code=status_code,
         headers={"Cache-Control": "no-store"}
@@ -178,13 +186,7 @@ def error_response(
             and request.url.path.split("/")[5:6] == ["redirect-aliases"]
         )
         else None,
-        content={
-            "error": {
-                "code": code,
-                "message": message,
-                "requestId": request_id_for(request),
-            }
-        },
+        content={"error": error},
     )
 
 
@@ -623,6 +625,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             status_code=status_code,
             code=error.code,
             message=error.message,
+            details=error.details,
         )
 
     @application.exception_handler(DomainInvariantError)

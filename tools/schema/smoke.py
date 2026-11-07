@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+from functools import partial
 import sys
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from typing import Any
 
 import asyncpg
+from uuid import uuid4
 
 EXPECTED_TABLES = {
     "acquisition_activity",
@@ -420,6 +422,8 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         )
         """
     )
+    await verify_commitment_captured_at(connection)
+    await verify_activity_occurred_at(connection)
     await connection.execute(
         """
         INSERT INTO invoice_profile (
@@ -877,6 +881,75 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
     )
     if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None:
         raise SchemaError("audit timestamp is not timezone-aware")
+
+
+async def verify_commitment_captured_at(connection: asyncpg.Connection[Any]) -> None:
+    """0052: a queued order's device time stays inside the D5 window."""
+
+    order = "80000000-0000-4000-8000-000000000001"
+    for value, label in (
+        ("created_at + interval '6 minutes'", "capture time ahead of creation"),
+        ("created_at - interval '15 days'", "capture time beyond queue retention"),
+    ):
+        statement = f"UPDATE commitment SET captured_at = {value} WHERE id = $1"
+        await expect_database_error(
+            lambda: connection.execute(statement, order),
+            f"commitment {label}",
+            constraint="ck_commitment_captured_at",
+        )
+    await expect_database_error(
+        lambda: connection.execute(
+            "UPDATE commitment SET source = 'admin', captured_at = created_at "
+            "WHERE id = $1",
+            order,
+        ),
+        "capture time on a non-acquisition order",
+        constraint="ck_commitment_captured_at",
+    )
+    for value in (
+        "created_at - interval '13 days'",
+        "created_at + interval '4 minutes'",
+        "NULL",
+    ):
+        await connection.execute(
+            f"UPDATE commitment SET captured_at = {value} WHERE id = $1", order
+        )
+
+
+async def verify_activity_occurred_at(connection: asyncpg.Connection[Any]) -> None:
+    """0053: a manual contact's capture time stays inside the D5 window."""
+
+    insert = """
+        INSERT INTO acquisition_activity (
+            id, action_id, twenty_company_id, occurred_at, channel, outcome,
+            created_at
+        )
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP + $4::interval, $5, 'reached',
+                CURRENT_TIMESTAMP)
+    """
+    for offset, label in (
+        ("-15 days", "contact time beyond queue retention"),
+        ("6 minutes", "contact time ahead of receipt"),
+    ):
+        await expect_database_error(
+            partial(
+                connection.execute, insert, uuid4(), ACTION, COMPANY, offset, "phone"
+            ),
+            label,
+            constraint="ck_acquisition_activity_occurred_at_bound",
+        )
+    accepted = [uuid4() for _ in range(3)]
+    for activity_id, offset, channel in zip(
+        accepted,
+        ("-13 days", "4 minutes", "-200 days"),
+        # System history (seeded, derived) is not a capture: unbounded.
+        ("in_person", "email", "system"),
+        strict=True,
+    ):
+        await connection.execute(insert, activity_id, ACTION, COMPANY, offset, channel)
+    await connection.execute(
+        "DELETE FROM acquisition_activity WHERE id = ANY($1::uuid[])", accepted
+    )
 
 
 async def run(legacy: bool) -> None:

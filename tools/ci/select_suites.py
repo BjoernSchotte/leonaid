@@ -412,6 +412,7 @@ RULES: tuple[Rule, ...] = (
             "tools/schema/**",
             "tools/outbox/**",
             "tests/integration/test_order_cancellation_api.py",
+            "tests/integration/test_offline_capture_api.py",
         ),
         integration("schema-outbox"),
         "schema/outbox proofs",
