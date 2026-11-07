@@ -35,7 +35,6 @@ jobs:
     needs: select
     runs-on: ubuntu-24.04
     outputs:
-      groups: ${{ steps.manifest.outputs.groups }}
       shards: ${{ steps.manifest.outputs.shards }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,7 +56,6 @@ jobs:
           shards = gate.ci_shards(manifest, os.environ['CI_SUITE'])
           if os.environ['SELECTED'] != 'true':
               shards = []
-          print('groups=' + json.dumps(manifest['groups']))
           print('shards=' + json.dumps(shards))
           PY
 
@@ -69,8 +67,6 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      # Leave capacity for main CI and the API/pin workflows.
-      max-parallel: 12
       matrix:
         shard: ${{ fromJSON(needs.inventory.outputs.shards) }}
     steps:
@@ -80,7 +76,9 @@ jobs:
       - name: Reuse persistent Docker build layers
         uses: ./.github/actions/build-cache
         with:
-          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || ((matrix.shard == 'journeys' || startsWith(matrix.shard, 'foundation-')) && 'default' || 'survey-runtime') }}
+          # The foundation shard needs only the API and validator images; every
+          # other shard may start the browser journeys, which need the PWA too.
+          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || 'default' }}
           bootstrap: ${{ matrix.shard == 'foundation' && 'toolchains' || 'browser' }}
       - name: Use prepared synthetic data
         if: matrix.shard != 'foundation'
@@ -106,7 +104,14 @@ jobs:
           sudo find .artifacts/surveys-gate/results -maxdepth 1 -type f -name '*.json' -exec cp '{}' "$RUNNER_TEMP/surveys-ci-results/" \;
           sudo cp .artifacts/surveys-gate/results/diagnostics/metadata.json "$RUNNER_TEMP/surveys-ci-results/diagnostics.json"
           sudo chmod 644 "$RUNNER_TEMP/surveys-ci-results/"*.json
-      - name: Publish structured results only
+      # Failing test names, assertion messages and the last service lines of
+      # every failed check, redacted and PII-checked by
+      # tools/ci/sanitize_artifacts.py; a check with personal data is withheld.
+      - name: Print sanitized failure excerpts
+        if: failure()
+        # Its self-test runs in "Lint, types and unit" (tools/ci/lint-types.sh).
+        run: sudo --preserve-env=LEONAID_CI_FIXTURE python3 tools/surveys/ci_failure_excerpt.py . "$RUNNER_TEMP/surveys-ci-results/failure-excerpts.json"
+      - name: Publish structured results and sanitized excerpts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -114,28 +119,6 @@ jobs:
           path: ${{ runner.temp }}/surveys-ci-results/*.json
           if-no-files-found: error
           retention-days: 14
-
-  acceptance:
-    name: Surveys / ${{ matrix.group }}
-    needs: [inventory, surveys]
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    strategy:
-      matrix:
-        group: ${{ fromJSON(needs.inventory.outputs.groups || '["foundation","integration","editor","responses","exports","recovery","package","e2e"]') }}
-    steps:
-      - name: Require every scheduled survey shard
-        # These are policy summaries. Nightly-only checks are not claimed as
-        # executed by a PR run; inventory validates the complete partition.
-        # An unselected PR schedules no shard, which must then be skipped.
-        env:
-          INVENTORY: ${{ needs.inventory.result }}
-          SELECTED: ${{ needs.inventory.outputs.shards != '[]' }}
-          RESULT: ${{ needs.surveys.result }}
-        run: |
-          test "$INVENTORY" = success
-          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
 
   backup-recovery:
     name: Nightly backup / ${{ matrix.command }}
@@ -180,7 +163,7 @@ jobs:
     # The one required check of this workflow (branch protection and merge
     # queue): tools/ci/gate.py.
     name: Survey gate
-    needs: [select, fixture, inventory, surveys, acceptance, backup-recovery]
+    needs: [select, fixture, inventory, surveys, backup-recovery]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
