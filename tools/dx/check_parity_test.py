@@ -40,13 +40,13 @@ def local_check_text() -> str:
     cli = (ROOT / "leonaid").read_text(encoding="utf-8")
     start = cli.index("check_stdlib() {")
     end = cli.index("\ncheck_all() {")
-    return (
-        cli[start:end] + (ROOT / "tools/dx/stdlib_checks.sh").read_text(encoding="utf-8")
+    return cli[start:end] + (ROOT / "tools/dx/stdlib_checks.sh").read_text(
+        encoding="utf-8"
     )
 
 
 class CheckParityTests(unittest.TestCase):
-    def test_every_ci_python_check_runs_locally(self):
+    def test_every_ci_python_check_runs_locally(self) -> None:
         local = local_check_text()
         invocations = ci_invocations()
         self.assertGreater(len(invocations), 20, "CI scripts not parsed")
@@ -55,7 +55,7 @@ class CheckParityTests(unittest.TestCase):
         )
         self.assertEqual(missing, [], "CI runs these, ./leonaid check does not")
 
-    def test_every_ci_self_test_runs_in_ci_and_locally(self):
+    def test_every_ci_self_test_runs_in_ci_and_locally(self) -> None:
         local = local_check_text()
         invocations = ci_invocations()
         for path in sorted((ROOT / "tools/ci").glob("*_test.py")):
@@ -64,7 +64,7 @@ class CheckParityTests(unittest.TestCase):
                 self.assertIn(name, invocations, "not run by CI")
                 self.assertIn(name, local, "not run by ./leonaid check")
 
-    def test_allowlist_is_current(self):
+    def test_allowlist_is_current(self) -> None:
         invocations = ci_invocations()
         for path in CI_ONLY:
             self.assertIn(path, invocations, f"{path}: drop it from CI_ONLY")
