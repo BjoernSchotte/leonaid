@@ -207,7 +207,7 @@ test("public action page stays readable from 320 to 1440 pixels", async ({
   });
 });
 
-test("the footer names the provider and links the Impressum on every public page", async ({
+test("the footer names the provider and links Impressum and Datenschutz on every public page", async ({
   browserName,
   page,
 }) => {
@@ -215,7 +215,8 @@ test("the footer names the provider and links the Impressum on every public page
   const provider = "Lions Hilfswerk LeonAid Golden e.V.";
   const address = "Clubweg 1 · 86150 Augsburg";
 
-  // Action page: provider and address, Impressum and the page's privacy notice.
+  // Action page: provider and address, Impressum and the privacy page; the
+  // per-action notice stays on the page and links the full policy.
   await page.goto(`${baseUrl}/krapfentaxi`);
   const legal = page.locator("[data-footer-legal]");
   await expect(legal.locator("[data-footer-provider]")).toHaveText(
@@ -227,15 +228,41 @@ test("the footer names the provider and links the Impressum on every public page
   );
   await expect(
     legal.getByRole("link", { name: "Datenschutz" }),
-  ).toHaveAttribute("href", "#datenschutz");
+  ).toHaveAttribute("href", "/datenschutz");
+  await expect(page.locator("#datenschutz")).toHaveCount(1);
+  await expect(page.locator("[data-privacy-full-link]")).toHaveAttribute(
+    "href",
+    "/datenschutz",
+  );
 
-  // A page without an action keeps the Impressum link.
-  await page.goto(`${baseUrl}/`);
-  await expect(
-    page
-      .locator("[data-footer-legal]")
-      .getByRole("link", { name: "Impressum" }),
-  ).toBeVisible();
+  // Pages without an action and the legal pages themselves keep both links
+  // (a live survey: surveys-completion-message.spec.mjs).
+  for (const path of ["/", "/impressum", "/datenschutz"]) {
+    await page.goto(`${baseUrl}${path}`);
+    const footer = page.locator("[data-footer-legal]");
+    await expect(
+      footer.getByRole("link", { name: "Impressum" }),
+      path,
+    ).toHaveAttribute("href", "/impressum");
+    await expect(
+      footer.getByRole("link", { name: "Datenschutz" }),
+      path,
+    ).toHaveAttribute("href", "/datenschutz");
+  }
+
+  // Sign-in, invitation and e-mail change pages link both as well.
+  for (const path of ["/login", "/invite", "/email-change"]) {
+    await page.goto(`${baseUrl}${path}`);
+    const links = page.locator("[data-auth-legal]");
+    await expect(
+      links.getByRole("link", { name: "Impressum" }),
+      path,
+    ).toHaveAttribute("href", "/impressum");
+    await expect(
+      links.getByRole("link", { name: "Datenschutz" }),
+      path,
+    ).toHaveAttribute("href", "/datenschutz");
+  }
 
   // The Impressum comes from the active legal configuration.
   for (const [width, height] of [
@@ -253,6 +280,21 @@ test("the footer names the provider and links the Impressum on every public page
     await expect(
       page.getByRole("link", { name: "finanzen@leonaid.invalid" }),
     ).toHaveAttribute("href", "mailto:finanzen@leonaid.invalid");
+    // § 5 DDG: representatives, second channel and register entry.
+    await expect(page.locator("[data-imprint-representatives]")).toHaveText(
+      "Vorstand: Paula Golden (Präsidentin), Simone System (Schatzmeisterin)",
+    );
+    await expect(page.locator("[data-imprint-phone]")).toHaveText(
+      "+49 30 23125 044",
+    );
+    await expect(page.locator("[data-imprint-register]")).toHaveText(
+      "Vereinsregister: Amtsgericht Augsburg, VR 0044",
+    );
+    await expect(page.locator("[data-imprint-content-responsible]")).toHaveText(
+      "Paula Golden, Clubweg 1, 86150 Augsburg",
+    );
+    // No VAT ID in the golden data: the row is left out.
+    await expect(page.locator("[data-imprint-vat-id]")).toHaveCount(0);
     // Only contact data is public: no tax number, no bank account.
     await expect(page.locator("main")).not.toContainText("103/999/99999");
     await expect(page.locator("body")).not.toContainText("DE89");
@@ -268,6 +310,50 @@ test("the footer names the provider and links the Impressum on every public page
     ).toEqual([]);
     await page.screenshot({
       path: `${artifactDirectory}/public-impressum-${width}.png`,
+      fullPage: true,
+    });
+
+    // The privacy page renders the active legal configuration's texts.
+    const privacy = await page.goto(`${baseUrl}/datenschutz`);
+    expect(privacy?.status()).toBe(200);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Datenschutzerklärung" }),
+    ).toBeVisible();
+    await expect(page.locator("[data-privacy-controller-name]")).toHaveText(
+      `${provider} · ${address}`,
+    );
+    await expect(page.locator("[data-privacy-contact]")).toHaveAttribute(
+      "href",
+      "mailto:datenschutz@leonaid.invalid",
+    );
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Ihre Rechte" }),
+    ).toBeVisible();
+    await expect(page.locator("[data-privacy-orders]")).toContainText(
+      "Krapfentaxi-Bestellung",
+    );
+    await expect(
+      page.locator("#mitglieder").getByRole("heading", {
+        level: 3,
+        name: "Speicherung auf deinem Gerät",
+      }),
+    ).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("DATENSCHUTZ-GOLDEN");
+    await expect(page.locator("body")).not.toContainText("DE89");
+    await expectNoHorizontalScroll(page);
+    await expectTouchTargets(page);
+    const privacyAccessibility = await analyzeAccessibility(page, {
+      tags: WCAG_TAGS,
+    });
+    expect(
+      privacyAccessibility.violations
+        .filter((violation) =>
+          ["serious", "critical"].includes(violation.impact),
+        )
+        .map((violation) => violation.id),
+    ).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/public-datenschutz-${width}.png`,
       fullPage: true,
     });
   }

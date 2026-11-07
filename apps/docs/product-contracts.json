@@ -737,5 +737,45 @@
         "Zahlung erst in der Rechnung zurückbuchen"
       ]
     }
+  ],
+  "DOC-P048": [
+    {
+      "file": "packages/features/src/system-admin/legal-configuration.tsx",
+      "contains": [
+        "Rechtliches",
+        "Impressum",
+        "Vertretungsberechtigte",
+        "Telefon",
+        "Umsatzsteuer-ID",
+        "Registergericht",
+        "Registernummer",
+        "Inhaltlich verantwortlich",
+        "Datenschutzerklärung",
+        "Datenschutzhinweis für Mitglieder",
+        "Neuen Entwurf beginnen",
+        "Als Entwurf speichern",
+        "Entwurf freigeben",
+        "Jetzt aktivieren"
+      ]
+    },
+    {
+      "file": "packages/features/src/system-admin/legal-templates.ts",
+      "contains": ["## Speicherung auf deinem Gerät", "[["]
+    },
+    {
+      "file": "apps/public/src/components/LegalPrivacy.astro",
+      "contains": ["Bestellungen über Aktionsseiten", "Für Mitglieder"]
+    },
+    {
+      "file": "src/leonaid/domain/legal_configuration.py",
+      "contains": [
+        "imprint_representatives_missing",
+        "imprint_phone_missing",
+        "imprint_register_missing",
+        "privacy_policy_missing",
+        "member_privacy_notice_missing",
+        "template_placeholder_open"
+      ]
+    }
   ]
 }

@@ -53,6 +53,14 @@ for (const width of [1440, 390]) {
     try {
       const page = await context.newPage();
       await page.goto(`${baseURL}/surveys/${surveyId}`);
+      // A live survey links Impressum and the privacy page in its footer.
+      const legal = page.locator("[data-footer-legal]");
+      await expect(
+        legal.getByRole("link", { name: "Impressum" }),
+      ).toHaveAttribute("href", "/impressum");
+      await expect(
+        legal.getByRole("link", { name: "Datenschutz" }),
+      ).toHaveAttribute("href", "/datenschutz");
       await page.getByRole("button", { name: "Umfrage beginnen" }).click();
       await page
         .getByRole("textbox", { name: /Ihre Rückmeldung/ })
