@@ -14,6 +14,42 @@ host_user="$(id -u):$(id -g)"
 LEONAID_OPERATOR_USER=$host_user
 export LEONAID_OPERATOR_USER
 
+# Every checkout has its own local Compose project. Only the recorded main
+# checkout (the long-running development instance) uses "leonaid":
+# `./leonaid bootstrap --main-instance` records it in .local/main-instance
+# (or LEONAID_MAIN_CHECKOUT names it). Every other checkout - linked worktree,
+# independent clone, exported tree, or a checkout where git fails - uses
+# leonaid-wt-<checksum of its physical path>, so dev, seed, reset, backup,
+# doctor, ... there never address the main instance (fail closed).
+root_physical=$(CDPATH= cd -- "$root" && pwd -P)
+checkout_kind=other
+if [ -f "$root/.git" ]; then
+  : # A linked worktree is never the main checkout.
+elif [ -n "${LEONAID_MAIN_CHECKOUT:-}" ]; then
+  if [ "$(CDPATH= cd -- "$LEONAID_MAIN_CHECKOUT" 2>/dev/null && pwd -P)" = "$root_physical" ]; then
+    checkout_kind=main
+  fi
+elif [ ! -f "$root/.git" ] && [ -f "$root/.local/main-instance" ] &&
+  [ "$(cat "$root/.local/main-instance")" = "$root_physical" ]; then
+  checkout_kind=main
+fi
+if [ "$checkout_kind" = main ]; then
+  default_project=leonaid
+else
+  default_project="leonaid-wt-$(printf %s "$root_physical" | cksum | cut -d ' ' -f 1)"
+fi
+if [ "${LEONAID_COMPOSE_PROJECT:-}" = leonaid ] && [ "$checkout_kind" != main ]; then
+  echo "leonaid: ERROR: LEONAID_COMPOSE_PROJECT=leonaid names the main development instance; this checkout is not it (unset the variable)." >&2
+  exit 1
+fi
+dev_project=${LEONAID_COMPOSE_PROJECT:-$default_project}
+# The main checkout's directory, when known: its ports are reserved for it.
+main_checkout=${LEONAID_MAIN_CHECKOUT:-}
+if [ -z "$main_checkout" ] && [ -f "$root/.git" ] &&
+  main_common_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+  main_checkout=$(dirname -- "$main_common_dir")
+fi
+
 usage() {
   cat <<'EOF'
 LeonAid PoC
@@ -22,7 +58,12 @@ Usage: ./leonaid <command>
 
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
+                    [--main-instance] records this checkout as the main
+                    development instance (Compose project "leonaid");
+                    [--other-checkout] confirms a clone that is not it
   doctor            Diagnose Docker, locks, secrets and local dependencies
+  local-instance    Show this checkout's Compose project: "leonaid" only for
+                    the recorded main checkout, leonaid-wt-<checksum> otherwise
   repair-ownership  Give root-owned files in the checkout back to the current user
   release [--dry-run] [--no-ci-check]
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
@@ -499,7 +540,7 @@ compose_queue_store_guard() {
   [ "$twenty_queue_store_checked" = false ] || return 0
   for argument in "$@"; do
     if [ "$argument" = up ]; then
-      LEONAID_COMPOSE_PROJECT="${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+      LEONAID_COMPOSE_PROJECT="$dev_project" \
         /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
       twenty_queue_store_checked=true
       return 0
@@ -513,10 +554,11 @@ compose_queue_store_guard() {
 # stacks use their own project names and the pilot has its own compose
 # commands; neither ever loads these files.
 dev_local_enabled() {
-  [ "${LEONAID_COMPOSE_PROJECT:-leonaid}" = leonaid ] && [ -d "$root/.local/dev" ]
+  [ "$dev_project" = "$default_project" ] && [ -d "$root/.local/dev" ]
 }
 
 compose() {
+  require_recorded_main
   compose_queue_store_guard "$@"
   if dev_local_enabled; then
     # Create the bind-mount sources as the invoking user; a missing source
@@ -533,8 +575,10 @@ compose() {
     integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
       "$root/.local/twenty/integration.env")
   fi
-  TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
-    --project-name "${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+  # LEONAID_COMPOSE_PROJECT also satisfies `name:` in compose.yml.
+  LEONAID_COMPOSE_PROJECT="$dev_project" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
+    --project-name "$dev_project" \
     --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
     "$@"
@@ -544,25 +588,97 @@ host_port_free() {
   ! nc -z 127.0.0.1 "$1" >/dev/null 2>&1
 }
 
+# Ports a worktree must never use, even while the main instance is stopped:
+# the main checkout's configured pair and the first fallback pair it gets.
+# Ports any other checkout must never use, even while the main instance is
+# stopped: its defaults, the first fallback pair and its configured pair.
+reserved_ports() {
+  [ "$checkout_kind" = main ] && return 0
+  printf '%s\n' 8080 8443 28080 28081
+  if [ -n "$main_checkout" ]; then
+    sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=\([0-9][0-9]*\)$/\1/p' \
+      "$main_checkout/.env.local" 2>/dev/null || true
+  fi
+}
+
+# Refuse to start a checkout on ports reserved for the main instance.
+require_own_ports() {
+  for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+    if reserved_ports | grep -qx "$configured_port"; then
+      if unrecorded_main; then
+        echo "leonaid: ERROR: this checkout looks like the main development instance (port $configured_port) but is not recorded; run './leonaid bootstrap --main-instance' here once." >&2
+      else
+        echo "leonaid: ERROR: port $configured_port is reserved for the main development instance; run './leonaid bootstrap' to choose this checkout's own ports." >&2
+      fi
+      exit 1
+    fi
+  done
+}
+
+# Working directories of existing "leonaid" containers (Compose labels).
+leonaid_owner_directories() {
+  docker ps -a --filter label=com.docker.compose.project=leonaid \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u
+}
+
+owns_leonaid_stack() {
+  for owner_directory in $(leonaid_owner_directories); do
+    if [ "$owner_directory" = "$root/infra/compose" ] ||
+      [ "$owner_directory" = "$root_physical/infra/compose" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# A primary clone (.git directory) without the record that holds the main
+# instance's ports or owns its containers: the main checkout before
+# `bootstrap --main-instance`. Never rewrite it into another checkout.
+unrecorded_main() {
+  [ "$checkout_kind" != main ] && [ -d "$root/.git" ] || return 1
+  if sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local" 2>/dev/null |
+    grep -qxE '8080|8443|28080|28081'; then
+    return 0
+  fi
+  owns_leonaid_stack
+}
+
+# A checkout that already runs the "leonaid" stack but is not recorded as the
+# main instance (for example the main checkout right after this change) must
+# not silently start a second stack; tell the developer how to record it.
+require_recorded_main() {
+  [ "$checkout_kind" = main ] && return 0
+  [ "${main_owner_checked:-false}" = false ] || return 0
+  main_owner_checked=true
+  if owns_leonaid_stack; then
+    echo "leonaid: ERROR: this checkout runs the 'leonaid' development instance but is not recorded as the main checkout; run './leonaid bootstrap --main-instance' here once." >&2
+    exit 1
+  fi
+}
+
+port_usable() {
+  host_port_free "$1" && ! reserved_ports | grep -qx "$1"
+}
+
 # Pick the local HTTP/HTTPS pair once; generate_secrets.py keeps it afterwards.
 # A running proxy of this project keeps its ports, so it does not count as busy.
 choose_local_ports() {
   proxy=$(docker ps -q \
-    --filter "label=com.docker.compose.project=${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+    --filter "label=com.docker.compose.project=$dev_project" \
     --filter label=com.docker.compose.service=proxy | head -n 1)
   if [ -n "$proxy" ]; then
     local_http_port=$(docker port "$proxy" 8080/tcp | head -n 1 | sed 's/.*://')
     local_https_port=$(docker port "$proxy" 8443/tcp | head -n 1 | sed 's/.*://')
     [ -n "$local_http_port" ] && [ -n "$local_https_port" ] && return 0
   fi
-  if host_port_free 8080 && host_port_free 8443; then
+  if port_usable 8080 && port_usable 8443; then
     local_http_port=8080
     local_https_port=8443
     return 0
   fi
   candidate=28080
   while [ "$candidate" -lt 29000 ]; do
-    if host_port_free "$candidate" && host_port_free $((candidate + 1)); then
+    if port_usable "$candidate" && port_usable $((candidate + 1)); then
       local_http_port=$candidate
       local_https_port=$((candidate + 1))
       return 0
@@ -574,6 +690,39 @@ choose_local_ports() {
 }
 
 bootstrap() {
+  for argument in "$@"; do
+    case "$argument" in
+      --main-instance)
+        if [ -f "$root/.git" ]; then
+          echo "bootstrap: ERROR: a linked worktree cannot be the main development instance" >&2
+          exit 1
+        fi
+        for owner_directory in $(leonaid_owner_directories); do
+          if [ "$owner_directory" != "$root/infra/compose" ] &&
+            [ "$owner_directory" != "$root_physical/infra/compose" ]; then
+            echo "bootstrap: ERROR: the 'leonaid' instance belongs to ${owner_directory%/infra/compose}; record that checkout instead" >&2
+            exit 1
+          fi
+        done
+        mkdir -p "$root/.local"
+        printf '%s\n' "$root_physical" >"$root/.local/main-instance"
+        checkout_kind=main
+        default_project=leonaid
+        dev_project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+        echo "bootstrap: recorded this checkout as the main development instance (project leonaid)"
+        ;;
+      --other-checkout) other_checkout=true ;;
+      *)
+        echo "bootstrap: ERROR: unknown option $argument (see ./leonaid help)" >&2
+        exit 2
+        ;;
+    esac
+  done
+  if [ "${other_checkout:-false}" != true ] && unrecorded_main; then
+    echo "bootstrap: ERROR: this checkout looks like the main development instance (main ports or its 'leonaid' containers) but is not recorded; nothing was changed." >&2
+    echo "bootstrap: run './leonaid bootstrap --main-instance' here, or '--other-checkout' if it is not the main instance." >&2
+    exit 1
+  fi
   require_docker
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
@@ -582,6 +731,19 @@ bootstrap() {
     grep -q '^LEONAID_HTTPS_PORT=[0-9]' "$root/.env.local"; then
     local_http_port=
     local_https_port=
+    # Earlier bootstraps let a worktree take the main instance's ports.
+    for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+      if reserved_ports | grep -qx "$configured_port"; then
+        choose_local_ports
+        echo "bootstrap: port $configured_port is reserved for the main instance; this checkout now uses HTTP $local_http_port, HTTPS $local_https_port"
+        sed -i.bak \
+          -e "s/^LEONAID_HTTP_PORT=.*/LEONAID_HTTP_PORT=$local_http_port/" \
+          -e "s/^LEONAID_HTTPS_PORT=.*/LEONAID_HTTPS_PORT=$local_https_port/" \
+          "$root/.env.local"
+        rm -f "$root/.env.local.bak"
+        break
+      fi
+    done
   else
     choose_local_ports
     echo "bootstrap: local ports HTTP $local_http_port, HTTPS $local_https_port"
@@ -590,6 +752,7 @@ bootstrap() {
     --user "$host_user_id:$host_group_id" \
     -e LEONAID_HTTP_PORT="$local_http_port" \
     -e LEONAID_HTTPS_PORT="$local_https_port" \
+    -e LEONAID_COMPOSE_PROJECT="$dev_project" \
     -v "$root:/workspace" \
     -w /workspace \
     "$PYTHON_IMAGE" \
@@ -634,6 +797,14 @@ doctor() {
     failures=$((failures + 1))
   else
     echo "doctor: OK: local secrets present, generated and ignored"
+  fi
+
+  env_project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$root/.env.local" 2>/dev/null | tail -n 1)
+  if [ -f "$root/.env.local" ] && [ "$env_project" != "$dev_project" ]; then
+    echo "doctor: ERROR: .env.local names Compose project '${env_project:-<none>}', this checkout uses '$dev_project'. Run './leonaid bootstrap'." >&2
+    failures=$((failures + 1))
+  elif [ -f "$root/.env.local" ]; then
+    echo "doctor: OK: Compose project $dev_project ($checkout_kind checkout)"
   fi
 
   if [ -f "$root/.env.local" ] && ! compose config --quiet; then
@@ -3516,6 +3687,7 @@ dev() {
     echo "leonaid: ERROR: .env.local is missing. Run './leonaid bootstrap'." >&2
     exit 1
   fi
+  require_own_ports
   compose up --build --detach --wait --wait-timeout 420
   port=$(sed -n 's/^LEONAID_HTTP_PORT=//p' "$root/.env.local" | tail -n 1)
   port=${port:-8080}
@@ -3525,7 +3697,7 @@ dev() {
 }
 
 validate_reset_target() {
-  project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+  project=$dev_project
   compose --profile dev-mail config --format json |
     docker run --rm -i \
       -v "$root:/workspace:ro" \
@@ -3891,8 +4063,16 @@ run_feature_tests() {
 
 command=${1:-help}
 case "$command" in
-  bootstrap) bootstrap ;;
+  bootstrap)
+    shift
+    bootstrap "$@"
+    ;;
   doctor) doctor ;;
+  local-instance)
+    echo "project=$dev_project"
+    echo "checkout=$checkout_kind"
+    echo "reserved_ports=$(reserved_ports | sort -n | uniq | tr '\n' ' ' | sed 's/ $//')"
+    ;;
   repair-ownership) repair_ownership ;;
   release)
     shift
@@ -4304,8 +4484,17 @@ case "$command" in
   test-legal-configuration|test-pilot-legal-config)
     /bin/sh "$root/tools/legal_configuration/test.sh" "$root"
     ;;
-  backup) /bin/sh "$root/tools/backup/backup.sh" "$root" ;;
-  restore) /bin/sh "$root/tools/backup/restore.sh" "$root" ;;
+  backup)
+    require_recorded_main
+    LEONAID_COMPOSE_PROJECT="$dev_project" /bin/sh "$root/tools/backup/backup.sh" "$root"
+    ;;
+  restore)
+    if [ "${LEONAID_RESTORE_PROJECT:-}" = leonaid ] && [ "$checkout_kind" != main ]; then
+      echo "restore: ERROR: the target 'leonaid' is the main development instance; this checkout is not it" >&2
+      exit 1
+    fi
+    /bin/sh "$root/tools/backup/restore.sh" "$root"
+    ;;
   test-backup) /bin/sh "$root/tools/backup/test.sh" "$root" ;;
   test-upgrade) /bin/sh "$root/tools/upgrade/test.sh" "$root" ;;
   generate-api-client)

@@ -42,7 +42,7 @@ from leonaid.application.order_mails import (
 from leonaid.application.delivery_completion import delivery_completion_version
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from tools.identity.contract import KLARA_ID, SYSTEM_ID, create_session
-from tools.public_orders.contract import order_body, public_context, submit
+from tools.public_orders.contract import order_body, public_context
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 CONFIRMATION = "order.confirmation.mail.v1"
@@ -288,19 +288,36 @@ async def refused_injection(connection: asyncpg.Connection[Any]) -> None:
         base_url=require_env("API_BASE_URL").rstrip("/"), timeout=30
     ) as api:
         token, _offering = await public_context(api)
-        for label, field, value, code in (
+        for index, (label, field, value, code) in enumerate(
             (
-                "paragraph",
-                "recipientName",
-                "Max\n\nWichtig: Bitte überweisen Sie vorab auf DE12 3456.",
-                "public_order_delivery_recipient_invalid",
-            ),
-            (
-                "bidi",
-                "city",
-                "Augs\u202egrub",
-                "public_order_delivery_recipient_invalid",
-            ),
+                (
+                    "paragraph",
+                    "recipientName",
+                    "Max\n\nWichtig: Bitte überweisen Sie vorab auf DE12 3456.",
+                    "public_order_delivery_recipient_invalid",
+                ),
+                (
+                    "bidi",
+                    "city",
+                    "Augs\u202egrub",
+                    "public_order_delivery_recipient_invalid",
+                ),
+                (
+                    "link",
+                    "streetLine1",
+                    "www.zahlung-vorab.example 1",
+                    "public_order_delivery_recipient_invalid",
+                ),
+                # A lone surrogate must be a clear 422, never a 500 at storage.
+                (
+                    "surrogate",
+                    "recipientName",
+                    "Ina\ud800",
+                    # The JSON request parser refuses it already (any 422);
+                    # the domain check covers callers past the parser.
+                    None,
+                ),
+            )
         ):
             body = order_body(
                 token=token,
@@ -314,17 +331,25 @@ async def refused_injection(connection: asyncpg.Connection[Any]) -> None:
             delivery = dict(cast(dict[str, object], body["deliveryRecipient"]))
             delivery[field] = value
             body["deliveryRecipient"] = delivery
-            response = await submit(
-                api,
-                body,
-                label=f"mail-injection-{label}",
-                forwarded_for=f"203.0.113.{77 if label == 'bidi' else 76}",
+            # ASCII-escaped JSON: a lone surrogate cannot be encoded as UTF-8.
+            response = await api.post(
+                "/api/v1/public/actions/krapfentaxi/orders",
+                content=json.dumps(body),
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Request-ID": f"poc072:mail-injection-{label}",
+                    "X-LeonAid-Order-Key": require_env("LEONAID_ORDER_SUBMISSION_KEY"),
+                    "X-Forwarded-For": f"203.0.113.{76 + index}",
+                    "User-Agent": f"LeonAid Contract/mail-injection-{label}",
+                },
             )
             payload = response.json()
-            if (
-                response.status_code != 422
-                or payload.get("error", {}).get("code") != code
-                or "Lieferanschrift" not in payload["error"]["message"]
+            if response.status_code != 422 or (
+                code is not None
+                and (
+                    payload.get("error", {}).get("code") != code
+                    or "Lieferanschrift" not in payload["error"]["message"]
+                )
             ):
                 raise ContractFailure(
                     f"Injection {label} was not refused: {response.status_code}"

@@ -195,7 +195,7 @@
     {
       "file": "leonaid",
       "contains": [
-        "bootstrap) bootstrap ;;",
+        "  bootstrap)",
         "doctor) doctor ;;",
         "test-handoff)"
       ]
@@ -777,6 +777,38 @@
         "member_privacy_notice_missing",
         "template_placeholder_open"
       ]
+    }
+  ],
+  "DOC-P049": [
+    {
+      "file": "packages/features/src/system-admin/site-hosts-admin.tsx",
+      "contains": [
+        "Domain hinzufügen",
+        "Aktion binden",
+        "Pfad der Ausgabe",
+        "Diese Ausgabe unter „/“ zeigen",
+        "Binden",
+        "Domain an Folgeaktion übergeben",
+        "Übergeben",
+        "Pfad ändern",
+        "Frühere Pfade",
+        "Als Weiterleitung nutzen",
+        "Als Hauptadresse",
+        "Lösen",
+        "Domain entfernen",
+        "Entfernen",
+        "nicht mehr öffentlich erreichbar",
+        "aktuell auf /",
+        "CNAME"
+      ]
+    },
+    {
+      "file": "packages/features/src/system-admin/system-page.tsx",
+      "contains": ["Domains"]
+    },
+    {
+      "file": "src/leonaid/domain/site_hosts.py",
+      "contains": ["site_host_reserved", "RESERVED_EDITION_SEGMENTS"]
     }
   ]
 }

@@ -105,8 +105,14 @@ def _cli_functions() -> str:
     return match.group(0)
 
 
-def _compose_files(root: Path, project: str | None) -> list[str]:
-    """Run the CLI's compose() with a stub docker and return its --file values."""
+def _compose_files(
+    root: Path, project: str | None, default_project: str = "leonaid"
+) -> list[str]:
+    """Run the CLI's compose() with a stub docker and return its --file values.
+
+    `default_project` is what the CLI derives for the checkout: "leonaid" for
+    the main checkout, leonaid-wt-<checksum> for a linked worktree.
+    """
     project_line = (
         "unset LEONAID_COMPOSE_PROJECT"
         if project is None
@@ -117,7 +123,10 @@ def _compose_files(root: Path, project: str | None) -> list[str]:
             "set -eu",
             f"root='{root}'",
             project_line,
+            f"default_project='{default_project}'",
+            "dev_project=${LEONAID_COMPOSE_PROJECT:-$default_project}",
             "compose_queue_store_guard() { :; }",
+            "require_recorded_main() { :; }",
             "docker() { printf '%s\\n' \"$@\"; }",
             _cli_functions(),
             "compose up --detach",
@@ -130,6 +139,9 @@ def _compose_files(root: Path, project: str | None) -> list[str]:
     )
     arguments = result.stdout.splitlines()
     assert arguments[-2:] == ["up", "--detach"]
+    assert arguments[arguments.index("--project-name") + 1] == (
+        project or default_project
+    )
     return [arguments[i + 1] for i, value in enumerate(arguments) if value == "--file"]
 
 
@@ -149,6 +161,15 @@ def test_cli_loads_overlay_and_override_for_the_dev_project(tmp_path: Path) -> N
     (tmp_path / ".local/dev/compose.override.yml").write_text("services: {}\n")
     override = f"{tmp_path}/.local/dev/compose.override.yml"
     assert _compose_files(tmp_path, "leonaid") == [base, overlay, override]
+
+
+def test_worktree_dev_project_loads_its_own_local_files(tmp_path: Path) -> None:
+    (tmp_path / ".local/dev").mkdir(parents=True)
+    base = f"{tmp_path}/infra/compose/compose.yml"
+    overlay = f"{tmp_path}/{OVERLAY}"
+    assert _compose_files(tmp_path, None, "leonaid-wt-42") == [base, overlay]
+    # The main checkout's project is another project from a worktree's view.
+    assert _compose_files(tmp_path, "leonaid", "leonaid-wt-42") == [base]
 
 
 @pytest.mark.parametrize("project", ["leonaid-shared-0123", "leonaid-production"])

@@ -30,6 +30,10 @@ from leonaid.adapters.postgres.acquisition import (
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepository
+from leonaid.adapters.postgres.site_hosts import (
+    AsyncpgSiteHostRepository,
+    CanonicalResolver,
+)
 from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
 from leonaid.application.delivery import DeliveryService
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
@@ -86,6 +90,7 @@ from leonaid.application.activities import AcquisitionActivityService
 from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.campaign_aliases import CampaignAliasService
+from leonaid.application.site_hosts import SiteHostService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.delivery_completion import DeliveryCompletionService
 from leonaid.application.documents import GeneratedDocumentService
@@ -129,6 +134,7 @@ from leonaid.configuration import Settings, load_module_settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
+from leonaid.entrypoints.fastapi.site_hosts import router as site_host_router
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
@@ -288,6 +294,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.campaign_alias_service = CampaignAliasService(
             AsyncpgCampaignAliasRepository(pool)
+        )
+        canonical = CanonicalResolver(
+            settings.configured_hosts, str(settings.site_base_url)
+        )
+        application.state.canonical_urls = canonical
+        application.state.site_host_service = SiteHostService(
+            AsyncpgSiteHostRepository(pool, canonical), settings.configured_hosts
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)
@@ -714,7 +727,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             message="Die Anfrage ist unerwartet fehlgeschlagen.",
         )
 
-    register_api_modules(application, core=(router,), disabled=disabled_modules)
+    register_api_modules(
+        application, core=(router, site_host_router), disabled=disabled_modules
+    )
     return application
 
 
