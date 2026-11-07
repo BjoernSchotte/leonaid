@@ -1,11 +1,14 @@
 ---
+import LegalImprint from "../components/LegalImprint.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
-import { providerAddress, readLegalNotice } from "../lib/legal-notice";
+import { IMPRINT_PATH, readLegalNotice } from "../lib/legal-notice";
+import { requestOrigin } from "../lib/request-origin";
 import { resolvePublicTheme } from "../themes";
 
-// One Impressum per installation (one club), rendered from the provider of
-// the active legal configuration. Only stored data is shown.
+// One Impressum per installation (one club, multi-domain decision D4),
+// rendered from the provider of the active legal configuration. Only stored
+// data is shown.
 const notice = await readLegalNotice();
 const provider = notice.state === "ready" ? notice.provider : null;
 if (notice.state === "unavailable") Astro.response.status = 503;
@@ -13,19 +16,12 @@ Astro.response.headers.set(
   "Cache-Control",
   provider ? "public, max-age=60" : "no-store",
 );
-const forwardedProtocol = Astro.request.headers
-  .get("x-forwarded-proto")
-  ?.split(",", 1)[0]
-  ?.trim();
-const origin = new URL(Astro.url.origin);
-if (forwardedProtocol === "http" || forwardedProtocol === "https") {
-  origin.protocol = `${forwardedProtocol}:`;
-}
+const origin = requestOrigin(Astro.request, Astro.url);
 const theme = resolvePublicTheme(null);
 ---
 
 <PublicLayout
-  canonicalUrl={new URL("/impressum", origin).href}
+  canonicalUrl={new URL(IMPRINT_PATH, origin).href}
   description="Impressum: Anbieter dieser Aktionsseiten"
   imageUrl={new URL(theme.shareImage.src, origin).href}
   robots={provider ? "index,follow" : "noindex,follow"}
@@ -36,30 +32,11 @@ const theme = resolvePublicTheme(null);
   {
     provider ? (
       <section class="legal-page" aria-labelledby="imprint-heading">
-        <div class="site-shell legal-page__body">
-          <h1 id="imprint-heading">Impressum</h1>
-          <p class="legal-page__lead">Anbieter dieser Aktionsseiten</p>
-          <dl class="legal-page__facts" data-imprint>
-            <div>
-              <dt>Name</dt>
-              <dd data-imprint-name>{provider.legalName}</dd>
-            </div>
-            <div>
-              <dt>Anschrift</dt>
-              <dd data-imprint-address>{providerAddress(provider)}</dd>
-            </div>
-            <div>
-              <dt>E-Mail</dt>
-              <dd>
-                <a href={`mailto:${provider.email}`}>{provider.email}</a>
-              </dd>
-            </div>
-          </dl>
-        </div>
+        <LegalImprint provider={provider} />
       </section>
     ) : (
       <PublicState
-        actionHref={notice.state === "unavailable" ? "/impressum" : "/"}
+        actionHref={notice.state === "unavailable" ? IMPRINT_PATH : "/"}
         actionLabel={
           notice.state === "unavailable" ? "Erneut versuchen" : "Zur Startseite"
         }

@@ -37,6 +37,23 @@ OBJECT_PREFIX = "golden/v1/invoices/"
 ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
 PUBLIC_ORDER_NAMESPACE = UUID("2cfebf83-5796-49d7-8c56-8dcb224f45ed")
 GOLDEN_LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
+# Synthetic privacy texts of the golden legal configuration (/datenschutz).
+GOLDEN_PRIVACY_POLICY = (
+    "## Verantwortlicher\n\n"
+    "Verantwortlich ist der im Impressum genannte Golden-Verein. Diese "
+    "Datenschutzerklärung ist ein synthetischer Testtext.\n\n"
+    "## Ihre Rechte\n\n"
+    "- Auskunft\n"
+    "- Berichtigung\n"
+    "- Löschung\n\n"
+    "Sie können sich bei einer Datenschutz-Aufsichtsbehörde beschweren."
+)
+GOLDEN_MEMBER_PRIVACY_NOTICE = (
+    "## Speicherung auf deinem Gerät\n\n"
+    "Die Akquise-App speichert die Kontaktdaten deiner eigenen Sponsoren "
+    "verschlüsselt auf deinem Gerät, höchstens 14 Tage. Beim Abmelden "
+    "löscht sie alles."
+)
 GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
     2026,
     7,
@@ -883,7 +900,12 @@ async def seed_identity(
             contact_retention_days, consent_evidence_retention_days,
             audit_retention_days, e_invoice_decision,
             tax_evidence_id, privacy_evidence_id,
-            e_invoice_evidence_id, created_by_user_id, created_at
+            e_invoice_evidence_id, created_by_user_id, created_at,
+            imprint_representatives, imprint_phone,
+            imprint_register_court, imprint_register_number,
+            imprint_content_responsible_name,
+            imprint_content_responsible_address,
+            privacy_policy_text, member_privacy_notice_text, legal_form
         )
         VALUES (
             $1, 1, 'Lions Hilfswerk LeonAid Golden e.V.', 'Clubweg 1',
@@ -900,12 +922,20 @@ async def seed_identity(
             'public-order-golden-v1', 'datenschutz@leonaid.invalid',
             3650, 3650, 730, 3650, 3650, 'not_required',
             'STEUER-GOLDEN-V1', 'DATENSCHUTZ-GOLDEN-V1',
-            'ERECHNUNG-GOLDEN-V1', $2, $3
+            'ERECHNUNG-GOLDEN-V1', $2, $3,
+            'Vorstand: Paula Golden (Präsidentin), Simone System '
+            '(Schatzmeisterin)',
+            '+49 30 23125 044',
+            'Amtsgericht Augsburg', 'VR 0044',
+            'Paula Golden', 'Clubweg 1, 86150 Augsburg',
+            $4, $5, 'registered_association'
         )
         """,
         GOLDEN_LEGAL_CONFIGURATION_ID,
         UUID("10000000-0000-4000-8000-000000000001"),
         GOLDEN_COMMITMENT_CREATED_AT,
+        GOLDEN_PRIVACY_POLICY,
+        GOLDEN_MEMBER_PRIVACY_NOTICE,
     )
     await connection.execute(
         """

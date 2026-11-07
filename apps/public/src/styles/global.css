@@ -1615,3 +1615,83 @@ main {
   color: var(--accent-ink);
   text-decoration: underline;
 }
+
+/* ---------- Datenschutzerklärung (shares the Impressum frame) ---------- */
+.legal-page__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+}
+
+.legal-page__toc a,
+.legal-page__note a,
+.legal-text a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+.legal-page__section {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: var(--hair) solid var(--border);
+  scroll-margin-top: var(--s-8);
+}
+
+.legal-page__section > h2,
+.legal-text h2 {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.legal-text h3 {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.legal-text {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.legal-text p,
+.legal-text ul,
+.legal-page__section > p,
+.legal-page__note {
+  margin: 0;
+  line-height: var(--lh-prose);
+  overflow-wrap: anywhere;
+}
+
+.legal-text ul {
+  display: grid;
+  gap: var(--s-1);
+  padding-left: var(--s-5);
+}
+
+.legal-page__note {
+  color: var(--text-2);
+}
+
+/* The privacy notice on action pages points to the full page. */
+.privacy-section__more,
+.public-privacy__more {
+  margin: 0;
+}
+
+.privacy-section__more a,
+.public-privacy__more a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

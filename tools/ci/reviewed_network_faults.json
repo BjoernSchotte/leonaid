@@ -83,5 +83,10 @@
     "path": "tools/emdash_spike/campaign-editor-browser-proof.mjs",
     "sha256": "d87d6900f404d13f53ec52d9ffceabd679c2c4e1165785f61af74a6154e3e33d",
     "reason": "Hold real EmDash entry and revision GET responses for 1.5 s after a publish, then forward them unchanged, so input typed during the slow refetch must survive and autosave; content is never changed."
+  },
+  {
+    "path": "tests/e2e/tasks-ordering-faults.spec.mjs",
+    "sha256": "5940ed527fe230623f11d59a5f325a8482a4d7130f43ce67792131920fc28cda",
+    "reason": "Hold one real task-position PATCH until the test releases it, then forward it unchanged, so the grip and pane button must keep focus while the move saves; every response comes from the real API."
   }
 ]
