@@ -811,6 +811,9 @@ check_all() {
     python /workspace/tools/backup/compose_overlays_test.py
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/backup/cms_bootstrap_state_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/pilot_install/systemd_test.py /workspace
   docker run --rm --network none \
     --user "$host_user" -e PYTHONPATH=/workspace \
@@ -1293,10 +1296,12 @@ pilot_backup_topology() {
     echo legacy
     return 0
   fi
-  if docker volume inspect "${1}_cms-bootstrap-state" >/dev/null 2>&1 &&
-    docker run --rm --network none \
-      --volume "${1}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
-      cat /state/state.json 2>/dev/null | grep -Fq '"status":"complete"'; then
+  . "$root/tools/backup/cms-bootstrap-state.sh"
+  pilot_backup_cms_state=$(cms_bootstrap_state "${1}_cms-bootstrap-state") || {
+    echo "pilot-backup: BLOCKED: the CMS setup state cannot be read; no backup without a known CMS state" >&2
+    return 1
+  }
+  if [ "$pilot_backup_cms_state" = complete ]; then
     echo emdash
   else
     echo "pilot-backup: NOTE: the CMS setup is not complete yet; this backup does not contain the unfinished CMS" >&2
@@ -1762,9 +1767,34 @@ pilot_cms_provision() {
   # Step 3: one-time setup grant; the System Admin completes the EmDash setup
   # in the browser, then this command runs again.
   bootstrap=$(pilot_cms_status_value bootstrap "$state")
+  # EmDash completed the setup, but the grant was not marked: a crash after
+  # the upstream success, or a reset that raced the request. The operator
+  # verifies the completed setup and the mapped System Admin first.
+  if [ "$(pilot_cms_status_value setup "$state")" = complete ]; then
+    case "$bootstrap" in
+      consumed|none)
+        completed=$(pilot_compose_command "$project" "$env_file" \
+          run --rm --no-deps --pull missing --entrypoint node campaign-site \
+          /app/operator/cms-provision-operator.mjs complete-setup |
+          sed -n 's/^cms-provision: setup grant completed; actor=//p')
+        case "$completed" in
+          ????????-????-????-????-????????????) ;;
+          *)
+            echo "pilot-cms-provision: BLOCKED: the completed setup could not be confirmed for a mapped System Admin" >&2
+            exit 1
+            ;;
+        esac
+        pilot_cms_audit "$project" "$env_file" cms.setup_grant.completed_by_operator "$completed"
+        echo "pilot-cms-provision: 3/4 editor setup: completed setup confirmed, grant marked complete"
+        bootstrap=complete
+        ;;
+    esac
+  fi
   if [ "$bootstrap" = consumed ] && [ "$reset_setup" = true ]; then
     # Only a grant whose setup never completed, while the CMS holds nothing
     # an editor made (the operator checks); recorded in the Core audit log.
+    # The CMS stops first: no setup request may still be in flight.
+    pilot_compose_command "$project" "$env_file" stop campaign-site >/dev/null
     withdrawn=$(pilot_compose_command "$project" "$env_file" \
       run --rm --no-deps --pull missing --entrypoint node campaign-site \
       /app/operator/cms-provision-operator.mjs reset-setup |

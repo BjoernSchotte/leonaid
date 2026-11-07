@@ -213,12 +213,11 @@ case "$topology:$cms_database" in
     # A CMS that never completed its editor setup (provisioning under way,
     # or switched off again before it went live) holds no editorial data and
     # cannot be restored anyway (cms_state.py); a live CMS must be backed up.
-    if docker volume inspect "${project}_cms-bootstrap-state" >/dev/null 2>&1 &&
-      docker run --rm --network none \
-        -v "${project}_cms-bootstrap-state:/state:ro" "$ALPINE_IMAGE" \
-        cat /state/state.json 2>/dev/null | grep -Fq '"status":"complete"'; then
+    . "$root/tools/backup/cms-bootstrap-state.sh"
+    cms_state=$(cms_bootstrap_state "${project}_cms-bootstrap-state") ||
+      fail "the CMS setup state cannot be read; no backup without a known CMS state"
+    [ "$cms_state" = unfinished ] ||
       fail "the CMS is live; back it up with the CMS topology (LEONAID_CMS_ENABLED=true)"
-    fi
     echo "backup: the unfinished CMS (setup not complete) is not part of this backup"
     ;;
   *) fail "backup topology does not match the existing CMS data" ;;

@@ -108,6 +108,16 @@ def main() -> int:
         with os.fdopen(descriptor, "w") as output:
             output.write(tokens[0])
         print("cms-proof: the System Admin signed in with the code of the mail")
+    elif mode == "request-login":
+        # The normal sign-in request of the login page (202, mail queued).
+        expect(
+            202,
+            "POST",
+            "/api/v1/auth/login",
+            session=False,
+            body={"email": sys.argv[2]},
+        )
+        print("cms-proof: a new sign-in mail was requested")
     elif mode == "setup-closed":
         # Before the grant the setup stays closed, even for a System Admin.
         expect(503, "GET", "/_emdash/api/setup/status")

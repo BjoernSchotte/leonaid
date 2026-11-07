@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ulid = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const versionName = "leonaid:campaign_media_version";
+// Stored as leonaid:campaign_media_version; status() reads it from here.
+export const campaignMediaVersion = "1";
 const guardBody = `BEGIN
   IF TG_OP = 'DELETE' THEN
     IF EXISTS (SELECT 1 FROM public.media WHERE id = OLD.media_id) THEN
@@ -84,7 +86,7 @@ export async function installCampaignMedia(database) {
     );
     await transaction
       .insertInto("options")
-      .values({ name: versionName, value: "1" })
+      .values({ name: versionName, value: campaignMediaVersion })
       .execute();
     await requireCampaignMedia(transaction);
     return { created: true };
@@ -98,7 +100,7 @@ export async function requireCampaignMedia(database) {
     .select("value")
     .where("name", "=", versionName)
     .executeTakeFirst();
-  if (version?.value !== "1")
+  if (version?.value !== campaignMediaVersion)
     throw new Error("campaign_media_version_mismatch");
   const { rows } = await sql`
     SELECT p.prosrc, p.prosecdef, p.proconfig, t.tgenabled, t.tgtype,
