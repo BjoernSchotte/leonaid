@@ -923,6 +923,10 @@ restore_compose() {
     --file "$restore_overlay" \
     "$@"
 }
+# A full restore also needs the survey erasure checkpoint (no survey changes
+# follow in this proof).
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture runtime_compose "$workspace"
 restore_owned=true
 restore_compose --profile '*' config --format json |
   python3 "$root/tools/testing/reserve_compose_networks.py" "$restore_project" "$restore_overlay"

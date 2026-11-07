@@ -59,6 +59,8 @@ ALLOWED = {
     Path("apps/campaign-site/src/auth/leonaid-auth.ts"),
     Path("apps/campaign-site/src/closed-bootstrap.ts"),
     Path("apps/campaign-site/src/cms-maintenance.mjs"),
+    Path("apps/campaign-site/src/cms-migration-operator.mjs"),
+    Path("apps/campaign-site/src/cms-provision-operator.mjs"),
 }
 COMMENT_PREFIXES = ("//", "/*", "*", "#", "<!--")
 
