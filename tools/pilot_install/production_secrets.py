@@ -110,6 +110,7 @@ def render(template: str, source: Path) -> Rendered:
 
 
 HOST_KEYS = (
+    "LEONAID_PUBLIC_HOST_ENABLED",
     "LEONAID_PUBLIC_DOMAIN",
     "LEONAID_PUBLIC_BASE_URL",
     "LEONAID_ALLOWED_ORIGINS",
@@ -168,6 +169,25 @@ def host_settings(
     }
 
 
+def admin_only_settings(admin_domain: str) -> dict[str, str]:
+    """Admin host plus campaign hosts, no general public host (§6.6)."""
+    admin = admin_domain.strip().rstrip(".").casefold()
+    try:
+        valid_hostname(admin, "admin domain")
+    except DeploymentContractError as error:
+        raise SecretsError(str(error)) from error
+    return {
+        "LEONAID_PUBLIC_HOST_ENABLED": "false",
+        "LEONAID_PUBLIC_DOMAIN": "",
+        "LEONAID_PUBLIC_BASE_URL": f"https://{admin}",
+        "LEONAID_ALLOWED_ORIGINS": f"https://{admin}",
+        "LEONAID_ADMIN_DOMAIN": admin,
+        "LEONAID_PROXY_CADDYFILE": "Caddyfile.admin-only",
+        # Survey links and legal pages stay on the admin host.
+        "LEONAID_SITE_BASE_URL": f"https://{admin}",
+    }
+
+
 def apply_hosts(content: str, hosts: dict[str, str]) -> str:
     """Set host keys, activating the template's commented examples."""
     lines = []
@@ -207,13 +227,26 @@ def main() -> int:
     parser.add_argument("--admin-domain")
     parser.add_argument("--alias", action="append", default=[])
     parser.add_argument("--single-host", action="store_true")
+    # Only campaign hosts, no general public host (specs/multi-domain §6.6).
+    parser.add_argument("--no-public-host", action="store_true")
     arguments = parser.parse_args()
     try:
         rendered = render(
             arguments.template.read_text(encoding="utf-8"), arguments.template
         )
         content = rendered.content
-        if arguments.public_domain:
+        if arguments.no_public_host:
+            if (
+                arguments.public_domain
+                or arguments.alias
+                or arguments.single_host
+                or not arguments.admin_domain
+            ):
+                raise SecretsError(
+                    "--no-public-host takes --admin-domain only, no public domain"
+                )
+            content = apply_hosts(content, admin_only_settings(arguments.admin_domain))
+        elif arguments.public_domain:
             content = apply_hosts(
                 content,
                 host_settings(

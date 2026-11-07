@@ -278,9 +278,58 @@ and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint, types and unit.
 
 The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
-sets the wall time of a complete run. Re-measure with
-`gh run view <id> --json jobs` and update the seconds tables when a shard's
-runtime changes by more than a minute.
+sets the wall time of a complete run. `refit-timings.yml` (weekly, Monday 05:29 UTC) keeps the seconds tables
+current: `tools/ci/refit_timings.py` reads the job logs of the last 7
+successful nightly runs, takes per shard the median after dropping values
+outside half to double of it, and opens a pull request (`ci/refit-timings`,
+the required workflows dispatched like `pin-drift.yml`) only for entries
+that moved by more than 15 %. Integration shards come from
+`ci-integration: bin: <shard> passed (<n>s)`, E2E shards from the
+`shared-stack:` / `ci-e2e: own leaf:` lines of their leaf scripts plus 30 s
+of stack preparation, EmDash groups from `ci-emdash: OK: <case> (<n>s)`.
+
+Cache write discipline: the shared BuildKit cache is written only by the
+Build job of scheduled runs on `main` and dispatches; pull requests import
+it read-only. The synthetic fixture is still saved by the run that misses
+it (its key covers its inputs, so a pull request with a new migration needs
+its own), and `surveys.yml` waits for `ci.yml`'s upload instead of building
+it twice. Measured on run 42401453286: `./leonaid bootstrap` takes 20 s and
+the build-layer import 24–67 s per leg; caching the installed `.venv` and
+`node_modules` (830 MB together) would restore no faster than bootstrap
+installs them, so there is no dependency cache.
+
+Measured and decided against (2026-11-07, run 42405365220): leg setup is
+bound by CPU and I/O contention on the 4-vCPU runner, not by downloads
+(bootstrap 74 s in a leg, 20 s alone; the Twenty/Playwright prefetch of
+53–74 s already runs beside it).
+
+| Idea | Numbers | Decision |
+|---|---|---|
+| uv/bun dependency cache | `.venv` + `node_modules` 830 MB, bootstrap 20 s alone | skipped: no faster to restore |
+| Third-party image tarball cache | images 1.7 GB (Playwright 1.0 GB), pull hidden behind bootstrap | skipped: no gain, 1.7 GB of the 10 GB cache budget |
+| GHCR CI images by content hash | saves ~20–30 s of the in-step compose build per leg | deferred: needs a public package, cleanup and #122 (`ghcr.io/bjoernschotte/leonaid-ci/<service>:<tools/testing/image_tags.py hash>` agreed) |
+| Split EmDash `krapfentaxi-orders` per browser | 3 legs ≈ 20 runner-min instead of 11, +2 jobs; wall −1 min (E2E legs are as long) | not done: every E2E leaf runs only nightly now |
+| Concurrent light shards per leg | see the peaks below | not now: CPU-bound (4 vCPU, timing-sensitive browser proofs), gain ≤ ~1 min setup per merged leg |
+
+Peaks per leg on a GitHub-hosted runner (4 vCPU, 15.6 GB; `disk-peak.sh`,
+run 42414052641, complete selection):
+
+| Leg | Memory in use, peak | Disk growth, peak |
+|---|---|---|
+| Integration 1–4 | 3.5–3.8 GB | 2.5–4.7 GB |
+| E2E 1–4 | 3.7–4.1 GB | 2.3–2.4 GB |
+| EmDash 1–2 | 2.8–3.9 GB | 3.2 GB |
+
+Memory and disk would allow two or three stacks per leg; the 40 GB free-disk
+skip threshold is about eight times the largest growth. CPU is the limit and
+is not measured. If concurrency is revisited: Integration shards only, two at
+a time, first on the nightly run with a load-average sampler.
+
+Refit guards: a shard value changes only with at least 3 observations, never
+below 1 s; no nightly run, no timing line or an unreadable log fails the
+workflow, so the watchdog reports it. The shared cache is written only by
+runs on `main` (schedule or dispatch there); bot dispatches on
+`ci/refit-timings` or `pins/repin-images` only read it.
 
 ## Integration and survey shards
 

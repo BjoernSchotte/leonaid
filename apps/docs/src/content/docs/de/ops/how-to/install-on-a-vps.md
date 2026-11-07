@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 10
-reviewedRevision: 10
+contentRevision: 11
+reviewedRevision: 11
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -174,6 +174,24 @@ dig +short club.org
 Caddy holt die TLS-Zertifikate beim ersten Start. Dafür muss Port 80 aus dem
 Internet erreichbar sein.
 
+**Domains für einzelne Aktionen** (`krapfentaxi.org`) brauchen keine
+Änderung an der Installation. Die System-Administration trägt sie unter
+**System** › **Domains** ein; der Club legt `A`/`AAAA` (eigene Domain) oder
+einen `CNAME` (Subdomain) auf diesen Server an. Caddy holt ihr Zertifikat beim
+ersten Aufruf, aber nur für eine Domain, die LeonAid geprüft hat (höchstens
+zehn neue pro Stunde). Port 80 muss dafür offen bleiben, und ein `CAA`-Record
+der Domain muss `letsencrypt.org` erlauben. Jeder `A`/`AAAA`-Eintrag der
+Domain muss auf eine Adresse dieses Servers zeigen; LeonAid nimmt dafür die
+Adressen des Verwaltungshosts oder `LEONAID_SITE_HOST_EDGE_ADDRESSES`.
+Zusätzlich fragt LeonAid öffentliche DNS-Server (Standard `1.1.1.1` und
+`9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`); Port 53 nach außen muss dafür
+offen sein. Hat das Zertifikat einer Domain weniger als 20 Tage Laufzeit,
+zählt die Prüfung als fehlgeschlagen. Den Nachweis von außen liefert:
+
+```sh
+python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org
+```
+
 ## Verzeichnisse anlegen
 
 | Pfad                        | Besitzer  | Modus  | Inhalt                                          |
@@ -270,6 +288,28 @@ Der öffentliche Host sendet `Strict-Transport-Security` ohne
 `includeSubDomains`: auf der Hauptdomain des Clubs würde es ein Jahr lang
 HTTPS für jeden anderen Namen des Clubs erzwingen (Webmail, Intranet,
 Geräte). Der Verwaltungshost behält `includeSubDomains`.
+
+### Ohne allgemeinen öffentlichen Host
+
+Hat der Club keine eigene Seite unter `club.org`, nur Domains für einzelne
+Aktionen, erzeuge die Secrets mit:
+
+```sh
+./leonaid pilot-secrets --no-public-host --admin-domain app.club.org
+```
+
+Das setzt `LEONAID_PUBLIC_HOST_ENABLED=false`, lässt `LEONAID_PUBLIC_DOMAIN`
+leer und wählt `Caddyfile.admin-only`. Der Verwaltungshost zeigt dann auch
+Umfragen, Impressum und Datenschutz; alte Alias-, Archiv- und
+Kampagnenpfade leiten dort auf die Domain der Aktion weiter oder antworten
+mit 404. Eine Aktion ohne aktive Domain ist nicht öffentlich erreichbar.
+
+Ohne öffentlichen Host entfallen: die Startseite mit allen aktiven Aktionen,
+Aktionsseiten unter `club.org/campaigns/…`, das Kontaktformular außerhalb der
+Kampagnenseiten und jede Bestellseite einer Aktion ohne veröffentlichte
+Kampagnenseite im CMS (die Domain zeigt nur CMS-Seiten). Bis der
+Stack-Nachweis dieses Modus in der CI grün ist, lehnt der
+Deployment-Vertrag `Caddyfile.admin-only` ab.
 
 ### Auf einen Verwaltungshost umstellen
 

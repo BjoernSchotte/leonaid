@@ -35,6 +35,10 @@ ADMIN = "app.leonaid.test"
 PUBLIC = "leonaid.test"
 ALIAS = "www.leonaid.test"
 SINGLE = "single.leonaid.test"
+# Campaign hosts: Core's ask approves every name but REFUSED (stage 2, §7).
+CAMPAIGN = "krapfentaxi.leonaid.test"
+REFUSED = "refused.leonaid.test"
+HTTP_PORT = int(os.environ.get("ROUTING_HTTP_PORT", "80"))
 PORT = int(os.environ.get("ROUTING_PORT", "443"))
 # Redirect targets and Host headers name the port unless it is 443.
 S = "" if PORT == 443 else f":{PORT}"
@@ -204,6 +208,81 @@ SINGLE_HOST: tuple[Probe, ...] = (
 )
 
 
+def campaign_host(admin_origin: str) -> tuple[Probe, ...]:
+    """A campaign host: public API, legal pages and order RPC; the rest goes
+    to the campaign site, whose host middleware decides (§7.7.2)."""
+    return (
+        Probe(CAMPAIGN, "/", 200, f"campaign-site / xfh={CAMPAIGN}{S}"),
+        Probe(CAMPAIGN, "/2025/", 200, f"campaign-site /2025/ xfh={CAMPAIGN}{S}"),
+        Probe(
+            CAMPAIGN,
+            "/?_action=createPublicOrder",
+            200,
+            f"campaign-site /?_action=createPublicOrder xfh={CAMPAIGN}{S}",
+            "POST",
+        ),
+        Probe(
+            CAMPAIGN,
+            "/_campaign-assets/a.js",
+            200,
+            f"campaign-site /_campaign-assets/a.js xfh={CAMPAIGN}{S}",
+        ),
+        Probe(
+            CAMPAIGN,
+            "/api/v1/public/legal-notice",
+            200,
+            "api /api/v1/public/legal-notice",
+        ),
+        Probe(CAMPAIGN, "/api/v1/public/actions/a/orders", 404, "", "POST"),
+        Probe(CAMPAIGN, "/api/v1/me", 404, ""),
+        Probe(CAMPAIGN, "/api/health/live", 200, "api /health/live"),
+        Probe(CAMPAIGN, "/_emdash/admin/", 404, ""),
+        Probe(CAMPAIGN, "/impressum", 200, "public /impressum"),
+        Probe(CAMPAIGN, "/datenschutz", 200, "public /datenschutz"),
+        Probe(CAMPAIGN, "/_astro/a.css", 200, "public /_astro/a.css"),
+        Probe(
+            CAMPAIGN,
+            "/_actions/createPublicOrder/",
+            200,
+            "public /_actions/createPublicOrder/",
+            "POST",
+        ),
+        Probe(CAMPAIGN, "/admin/x", 308, f"{admin_origin}/admin/x"),
+        Probe(CAMPAIGN, "/app/", 308, f"{admin_origin}/app/"),
+        Probe(CAMPAIGN, "/login", 308, f"{admin_origin}/login"),
+    )
+
+
+def internal(host: str) -> tuple[Probe, ...]:
+    """Core's internal paths (the TLS ask) answer 404 on every host."""
+    return (
+        Probe(host, "/internal/tls/ask?domain=x", 404, ""),
+        Probe(host, "/api/internal/x", 404, ""),
+    )
+
+
+def http_request(host: str, path: str) -> tuple[int, str]:
+    """Plain HTTP: the host check of §7.4 on every name, else HTTPS."""
+    connection = http.client.HTTPConnection(
+        socket.gethostbyname(PROXY), HTTP_PORT, timeout=10
+    )
+    connection.request("GET", path, headers={"Host": host})
+    response = connection.getresponse()
+    text = response.read().decode("utf-8", "replace").strip()
+    location = response.getheader("Location") or ""
+    connection.close()
+    return response.status, location if 300 <= response.status < 400 else text
+
+
+def refused_handshake() -> str | None:
+    """Core refused the name: no certificate, the handshake fails (§9.1)."""
+    try:
+        request(Probe(REFUSED, "/", 200, ""))
+    except (ssl.SSLError, OSError):
+        return None
+    return f"https://{REFUSED}/: handshake succeeded without Core's approval"
+
+
 def request(probe: Probe) -> tuple[int, str, dict[str, str]]:
     address = socket.gethostbyname(PROXY)
     # Caddy's internal CA of this test proxy (tls internal), never a bypass.
@@ -232,11 +311,14 @@ def request(probe: Probe) -> tuple[int, str, dict[str, str]]:
 
 def main() -> int:
     mode = sys.argv[1]
+    admin = f"https://{SINGLE}" if mode == "single" else f"https://{ADMIN}{S}"
+    member_host = SINGLE if mode == "single" else ADMIN
     probes = {
-        "split": SPLIT + (ALIASES if PORT == 443 else ()),
+        "split": SPLIT + (ALIASES if PORT == 443 else ()) + internal(PUBLIC),
         "admin-only": ADMIN_ONLY,
         "single": SINGLE_HOST,
     }[mode]
+    probes += campaign_host(admin) + internal(CAMPAIGN) + internal(member_host)
     failures = []
     for probe in probes:
         status, result, received = request(probe)
@@ -252,12 +334,28 @@ def main() -> int:
                     f"{probe.method} https://{probe.host}{probe.path}: header "
                     f"{name} lacks {text!r}: {received.get(name.casefold())!r}"
                 )
+    # Campaign hosts are often apex domains: no includeSubDomains (§9).
+    _, _, received = request(Probe(CAMPAIGN, "/_health", 0, ""))
+    hsts = received.get("strict-transport-security", "")
+    if "max-age=" not in hsts or "includesubdomains" in hsts.casefold():
+        failures.append(f"https://{CAMPAIGN}/_health: HSTS {hsts!r}")
     if mode == "split":
         for host, path in NO_SUBDOMAIN_HSTS + (((ALIAS, "/x"),) if PORT == 443 else ()):
             _, _, received = request(Probe(host, path, 0, ""))
             hsts = received.get("strict-transport-security", "")
             if "max-age=" not in hsts or "includesubdomains" in hsts.casefold():
                 failures.append(f"https://{host}{path}: HSTS {hsts!r}")
+    refused = refused_handshake()
+    if refused:
+        failures.append(refused)
+    for host in (CAMPAIGN, member_host):
+        check = "/.well-known/leonaid-host-check/abc"
+        status, result = http_request(host, check)
+        if (status, result) != (200, f"api {check}"):
+            failures.append(f"http://{host}{check}: got {status} {result!r}")
+        status, result = http_request(host, "/campaigns/a/?x=1")
+        if status not in (301, 308) or not result.startswith(f"https://{host}"):
+            failures.append(f"http://{host}/campaigns/a/: got {status} {result!r}")
     for failure in failures:
         print(f"proxy-routing: ERROR: {failure}", file=sys.stderr)
     if failures:

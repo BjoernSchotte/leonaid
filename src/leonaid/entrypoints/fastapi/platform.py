@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -22,7 +25,6 @@ from leonaid.adapters.feature_flags.openfeature import (
 )
 from leonaid.adapters.http_readiness import HttpReadinessProbe
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.postgres.order_mails import PublicCampaignLinks
 from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.acquisition import (
     AsyncpgAcquisitionPolicyRepository,
@@ -134,11 +136,23 @@ from leonaid.configuration import Settings, load_module_settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
-from leonaid.entrypoints.fastapi.site_hosts import router as site_host_router
+from leonaid.entrypoints.fastapi.site_hosts import (
+    action_router as action_url_router,
+    infrastructure_router as site_host_infrastructure_router,
+    public_router as public_site_router,
+    router as site_host_router,
+)
+from leonaid.adapters.postgres.site_directory import (
+    AsyncpgSiteDirectory,
+    SiteHostPublicOrigins,
+)
+from leonaid.adapters.postgres.site_host_verification import (
+    AsyncpgSiteHostVerification,
+)
+from leonaid.adapters.site_host_checks import HostChecker
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
-    StaticPublicOrigins,
     csrf_violation,
     public_origin_allowed,
     rate_limit_violation,
@@ -160,6 +174,51 @@ REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 PATH_UUID = re.compile(
     r"/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$)"
 )
+
+
+# One API process at a time runs the re-check (§7.4).
+SITE_HOST_RECHECK_LOCK = 527063
+
+
+async def site_host_recheck_loop(
+    service: SiteHostService, pool: Any, interval_seconds: float
+) -> None:
+    """Re-checks campaign hosts in the API process, which has egress.
+
+    Verified hosts every run (until their certificate is there), active and
+    lapsed hosts once a day. Failures land on the host and in the operations
+    view; this loop never stops on them.
+    """
+    await asyncio.sleep(min(60.0, interval_seconds))
+    while True:
+        try:
+            async with pool.acquire() as connection:
+                if await connection.fetchval(
+                    "SELECT pg_try_advisory_lock($1)", SITE_HOST_RECHECK_LOCK
+                ):
+                    try:
+                        checked = await service.recheck_due(
+                            request_id=f"site-host-recheck:{uuid4()}"
+                        )
+                    finally:
+                        await connection.execute(
+                            "SELECT pg_advisory_unlock($1)", SITE_HOST_RECHECK_LOCK
+                        )
+                    if checked:
+                        print(
+                            structured_event("site_host.rechecked", hosts=checked),
+                            flush=True,
+                        )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:  # noqa: BLE001 - logged by type, retried
+            print(
+                structured_event(
+                    "site_host.recheck_failed", errorType=type(error).__name__
+                ),
+                flush=True,
+            )
+        await asyncio.sleep(interval_seconds)
 
 
 def request_id_for(request: Request) -> str:
@@ -275,7 +334,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.invitation_hmac_secret.get_secret_value()
         )
         application.state.allowed_origins = settings.allowed_origins
-        application.state.public_origins = StaticPublicOrigins(settings.public_origins)
         application.state.links = settings.links
         application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.maintenance_flag_path = settings.maintenance_flag_path
@@ -299,8 +357,24 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.configured_hosts, str(settings.site_base_url)
         )
         application.state.canonical_urls = canonical
+        site_directory = AsyncpgSiteDirectory(pool, canonical)
+        application.state.site_directory = site_directory
+        # The public host and its aliases plus every active campaign host,
+        # read at request time (§6.3, D7).
+        application.state.public_origins = SiteHostPublicOrigins(
+            settings.public_origins,
+            site_directory,
+            production=settings.environment == "production",
+        )
+        application.state.site_host_check_secret = settings.site_host_check_secret
+        application.state.host_check_settings = settings.host_check_settings
+        site_host_verification = AsyncpgSiteHostVerification(pool)
+        application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(
-            AsyncpgSiteHostRepository(pool, canonical), settings.configured_hosts
+            AsyncpgSiteHostRepository(pool, canonical),
+            settings.configured_hosts,
+            site_host_verification,
+            HostChecker(settings.host_check_settings),
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)
@@ -330,10 +404,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
         )
-        # The buyer's order mails link the campaign and the legal pages.
+        # The buyer's order mails link the campaign and the legal pages. The
+        # campaign link is the permanent edition URL on the campaign host
+        # (decision D8), else the public host page, else none (§7.6).
         order_mail_links = OrderMailLinkResolver(
-            settings.links,
-            PublicCampaignLinks(pool, settings.links).campaign_link,
+            settings.links, site_directory.edition_link
         )
         application.state.order_cancellation_service = build_order_cancellation_service(
             pool, disabled_modules, mail_links=order_mail_links
@@ -457,11 +532,26 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.activity_management_service = None
             application.state.public_order_service = None
         application.state.inbox_service = build_inbox_service(pool, crm_gateway)
+        recheck = (
+            asyncio.create_task(
+                site_host_recheck_loop(
+                    application.state.site_host_service,
+                    pool,
+                    settings.site_host_recheck_interval_seconds,
+                )
+            )
+            if settings.site_host_recheck_interval_seconds > 0
+            else None
+        )
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()
             yield
         finally:
+            if recheck is not None:
+                recheck.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await recheck
             if crm_gateway is not None:
                 await crm_gateway.close()
             await pool.close()
@@ -728,7 +818,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
 
     register_api_modules(
-        application, core=(router, site_host_router), disabled=disabled_modules
+        application,
+        core=(
+            router,
+            site_host_router,
+            public_site_router,
+            site_host_infrastructure_router,
+            action_url_router,
+        ),
+        disabled=disabled_modules,
     )
     return application
 

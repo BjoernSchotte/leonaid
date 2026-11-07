@@ -1,7 +1,38 @@
 import { defineMiddleware } from "astro:middleware";
+import { isActiveSiteHost } from "./lib/core";
 import { guardOrderBody, isOrderSubmission } from "./lib/order-body";
+import { admitHost, configuredHostnames } from "./lib/site-hosts";
 
-export const onRequest = defineMiddleware(async ({ request }, next) => {
+const configured = configuredHostnames();
+
+export const onRequest = defineMiddleware(async ({ request, url }, next) => {
+  // A name that is not one of this installation's hosts is a campaign host:
+  // served only while Core returns it as active (specs/multi-domain §9.2).
+  if (!url.pathname.startsWith("/health/")) {
+    const admission = await admitHost(
+      request.headers.get("host"),
+      configured,
+      isActiveSiteHost,
+    );
+    if (admission.admit === "unavailable")
+      return new Response("Vorübergehend nicht erreichbar", {
+        status: 503,
+        headers: { "Cache-Control": "no-store", "Retry-After": "30" },
+      });
+    if (admission.admit === "refuse")
+      return new Response("Not Found", {
+        status: 404,
+        headers: { "Cache-Control": "no-store" },
+      });
+    if (admission.admit === "redirect")
+      return new Response(null, {
+        status: 308,
+        headers: {
+          Location: admission.to + url.pathname + url.search,
+          "Cache-Control": "no-store",
+        },
+      });
+  }
   if (!isOrderSubmission(request)) return next();
   const response = (await guardOrderBody(request)) ?? (await next());
   response.headers.set("Cache-Control", "no-store");

@@ -129,6 +129,14 @@ const list: SiteHostListResponse = {
 function fakeClient() {
   return {
     listSiteHosts: vi.fn(async () => list),
+    checkSiteHost: vi.fn(async () =>
+      host({
+        id: "h-2",
+        displayHostname: "neu.example.org",
+        status: "verified",
+        lastCheckResult: "Noch kein Zertifikat.",
+      }),
+    ),
     addSiteHost: vi.fn(async () =>
       host({ displayHostname: "krapfentaxi.org" }),
     ),
@@ -191,6 +199,17 @@ describe("Domains", () => {
     expect(pending!.textContent).toContain(
       "http://neu.example.org/.well-known/leonaid-host-check/token",
     );
+  });
+
+  it("checks a host on demand", async () => {
+    const client = renderTab();
+    const [, pending] = await screen.findAllByTestId("site-host");
+    fireEvent.click(within(pending!).getByTestId("site-host-check"));
+    await waitFor(() =>
+      expect(client.checkSiteHost).toHaveBeenCalledWith("h-2"),
+    );
+    expect(await screen.findByText("neu.example.org: Geprüft")).toBeTruthy();
+    await waitFor(() => expect(client.listSiteHosts).toHaveBeenCalledTimes(2));
   });
 
   it("adds a host and reuses the command id for a retry", async () => {

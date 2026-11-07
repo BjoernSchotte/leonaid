@@ -1,4 +1,6 @@
-import { defineMiddleware } from "astro:middleware";
+import { defineMiddleware, sequence } from "astro:middleware";
+import { siteHostRouting } from "./site-host";
+import { EDITIONS_PAGE } from "./site-host-routing";
 import { guardOrderBody } from "../../public/src/lib/order-body";
 import { cmsMaintenanceClosed } from "./cms-maintenance.mjs";
 import { withEmDashRuntime } from "emdash/middleware";
@@ -42,8 +44,8 @@ const bootstrapDirectory = "/app/bootstrap-state";
 
 // Intentionally no enable environment variable. Broader access requires the
 // EMS-020/070 gates; setup additionally needs an explicit one-time operator grant.
-export const onRequest = defineMiddleware(
-  async ({ url, request, cookies }, next) => {
+const closedGuard = defineMiddleware(
+  async ({ url, request, cookies, locals }, next) => {
     const headers = { "Cache-Control": "no-store" };
     if (url.pathname === "/health/live") {
       return new Response("ok", { headers });
@@ -87,7 +89,7 @@ export const onRequest = defineMiddleware(
           headers: { ...headers, Allow: "GET, HEAD" },
         });
       try {
-        if (!hasSecureSiteOrigin(request))
+        if (!hasSecureSiteOrigin(request, locals.siteHost?.origin))
           return new Response("Invalid CMS origin", { status: 403, headers });
         if (nativeOrderPost) {
           const rejectedBody = await guardOrderBody(request);
@@ -130,6 +132,19 @@ export const onRequest = defineMiddleware(
           headers,
         });
       }
+    }
+    // The edition list of a campaign host: only after the host middleware
+    // mapped "/archive/" here for an active host (§7.7.2).
+    if (url.pathname === EDITIONS_PAGE) {
+      if (
+        !locals.siteHost ||
+        !["GET", "HEAD"].includes(request.method) ||
+        !hasSecureSiteOrigin(request, locals.siteHost.origin)
+      )
+        return new Response("Not Found", { status: 404, headers });
+      const response = await next();
+      response.headers.set("Cache-Control", "no-store");
+      return response;
     }
     const setupPage =
       url.pathname === "/_emdash/admin/setup" ||
@@ -328,3 +343,6 @@ export const onRequest = defineMiddleware(
     return new Response("CMS access is not enabled", { status: 503, headers });
   },
 );
+
+// Campaign host routing first; it maps paths before the guard sees them.
+export const onRequest = sequence(siteHostRouting, closedGuard);

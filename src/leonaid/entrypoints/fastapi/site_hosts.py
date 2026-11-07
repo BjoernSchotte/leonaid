@@ -6,14 +6,20 @@ the fresh sign-in step-up, like the other installation-wide settings.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response
+import asyncio
+import time
+from datetime import timezone
+
+from fastapi import APIRouter, Query, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import Field
 
 from leonaid.application.identity import IdentityQueryService
+from leonaid.application.policies import require_action_manager
 from leonaid.application.site_hosts import (
     AddSiteHost,
     BindEdition,
@@ -30,9 +36,20 @@ from leonaid.application.site_hosts import (
     SiteHostView,
     UnbindEdition,
 )
+from leonaid.adapters.postgres.site_directory import AsyncpgSiteDirectory
+from leonaid.adapters.site_host_checks import public_resolvers_reachable
+from leonaid.adapters.postgres.site_host_verification import (
+    AsyncpgSiteHostVerification,
+)
+from leonaid.application.errors import PermissionDenied, ResourceNotFound
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.site_hosts import check_answer, normalize_hostname
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
-from leonaid.entrypoints.fastapi.schemas import AUTHENTICATED_CONFLICT_ERROR_RESPONSES
+from leonaid.entrypoints.fastapi.schemas import (
+    AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    ERROR_RESPONSES,
+)
 from leonaid.platform.http import TransportModel
 
 HOST_CHECK_PREFIX = "/.well-known/leonaid-host-check/"
@@ -426,4 +443,292 @@ async def remove_site_host(
         request,
         response,
         RemoveSiteHost(body.command_id, host_id, body.revision),
+    )
+
+
+@router.post(
+    "/{host_id}/check", operation_id="checkSiteHost", response_model=SiteHostResponse
+)
+async def check_site_host(
+    host_id: UUID, request: Request, response: Response
+) -> SiteHostResponse:
+    """Prüfen (§7.4): the host check runs now; the answer has its result."""
+    response.headers["Cache-Control"] = "no-store"
+    # It changes the host's status, like every other write on hosts.
+    actor = await _identity(request).authenticate_fresh(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    view = await _service(request).check(
+        actor, host_id, request_id=cast(str, request.state.request_id)
+    )
+    return host_response(view)
+
+
+# Infrastructure endpoints, not part of the product API.
+infrastructure_router = APIRouter(include_in_schema=False)
+
+
+def _verification(request: Request) -> AsyncpgSiteHostVerification:
+    return cast(AsyncpgSiteHostVerification, request.app.state.site_host_verification)
+
+
+def _request_hostname(request: Request) -> str | None:
+    host = request.headers.get("host", "").strip().lower()
+    if host.startswith("["):
+        return None
+    host = host.rsplit(":", 1)[0] if ":" in host else host
+    try:
+        return normalize_hostname(host)
+    except DomainInvariantError:
+        return None
+
+
+@infrastructure_router.get(HOST_CHECK_PREFIX + "{token}")
+async def host_check_answer(
+    token: str,
+    request: Request,
+    nonce: str = Query(default="", max_length=64),
+) -> Response:
+    """Answered on port 80 of every name; proves the name reaches us (§7.4).
+
+    The answer is an HMAC over host, token and the checker's nonce, keyed
+    with the installation secret. Lookups come from an in-process snapshot.
+    """
+    hostname = _request_hostname(request)
+    if (
+        hostname is None
+        or not 32 <= len(token) <= 128
+        or not 16 <= len(nonce) <= 64
+        or not all(character in "0123456789abcdef" for character in nonce)
+        or not await _verification(request).answers(hostname, token)
+    ):
+        raise ResourceNotFound("site_host_check_unknown", "Unbekannte Host-Prüfung.")
+    return PlainTextResponse(
+        check_answer(
+            cast(str, request.app.state.site_host_check_secret),
+            hostname,
+            token,
+            nonce,
+        ),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@infrastructure_router.get("/health/site-host-dns")
+async def site_host_dns(request: Request) -> Response:
+    """Outbound DNS to the public resolvers of the host check (pilot doctor).
+
+    Cached 60 s: the path is public (/api/health/*) and must not turn the
+    API into a DNS amplifier.
+    """
+    state = request.app.state
+    if not hasattr(state, "site_host_dns_lock"):
+        state.site_host_dns_lock = asyncio.Lock()
+    # One probe at a time; concurrent callers wait for it (single flight).
+    async with state.site_host_dns_lock:
+        cached = getattr(state, "site_host_dns_cache", None)
+        if cached is None or time.monotonic() - cached[0] > 60:
+            settings = state.host_check_settings
+            reachable = await public_resolvers_reachable(
+                settings.public_resolvers, settings.edge_name or "example.org"
+            )
+            cached = (time.monotonic(), reachable)
+            state.site_host_dns_cache = cached
+    reachable = cached[1]
+    status = (
+        "off"
+        if not reachable
+        else "ready"
+        if all(reachable.values())
+        else "unavailable"
+    )
+    # Status only: the resolver addresses are configuration, not public.
+    return JSONResponse(
+        {"status": status},
+        status_code=503 if status == "unavailable" else 200,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@infrastructure_router.get("/internal/tls/ask")
+async def tls_ask(request: Request, domain: str = Query(max_length=300)) -> Response:
+    """Caddy's on-demand TLS permission (§9.1); 2xx means: issue.
+
+    Only Caddy's own ask request reaches this path: the edge answers 404 for
+    /internal/* on every host, and a request the edge proxied carries
+    forwarding headers, which are refused here as well.
+    """
+    if any(
+        name in request.headers
+        for name in ("x-forwarded-for", "x-forwarded-host", "forwarded")
+    ):
+        raise PermissionDenied("tls_ask_internal_only", "Nur intern.")
+    try:
+        hostname = normalize_hostname(domain)
+    except DomainInvariantError:
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.") from None
+    # Configured hosts have their own site blocks; never on demand.
+    if _service(request).configured.refusal(hostname) is not None:
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
+    if not await _verification(request).approve_tls(
+        hostname, datetime.now(timezone.utc)
+    ):
+        raise PermissionDenied("tls_ask_refused", "Kein Zertifikat.")
+    return PlainTextResponse("ok", headers={"Cache-Control": "no-store"})
+
+
+# ---------- an action's public addresses, for its managers (§7.1) ----------
+
+action_router = APIRouter(
+    tags=["actions"], responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES
+)
+
+
+class ActionEditionResponse(TransportModel):
+    hostname: str
+    host_status: SiteHostStatusValue
+    segment: str
+    at_root: bool
+    is_primary: bool
+    edition_url: str
+    # False: the host shows nothing for this action (R41, campaign hosts
+    # render CMS pages only).
+    campaign_page: bool
+
+
+class ActionPublicUrlsResponse(TransportModel):
+    # None: the action is not publicly reachable (§6.6).
+    canonical_url: str | None
+    editions: list[ActionEditionResponse]
+
+
+@action_router.get(
+    "/api/v1/actions/{action_id}/public-urls",
+    operation_id="getActionPublicUrls",
+    response_model=ActionPublicUrlsResponse,
+)
+async def get_action_public_urls(
+    action_id: UUID, request: Request, response: Response
+) -> ActionPublicUrlsResponse:
+    """Read only; domains are managed by the system admin (D5)."""
+    actor = await _reader(request, response)
+    require_action_manager(actor, action_id)
+    urls = await cast(
+        AsyncpgSiteDirectory, request.app.state.site_directory
+    ).action_urls(action_id)
+    return ActionPublicUrlsResponse(
+        canonical_url=urls.canonical_url,
+        editions=[
+            ActionEditionResponse(
+                hostname=item.hostname,
+                host_status=cast(SiteHostStatusValue, item.host_status),
+                segment=item.segment,
+                at_root=item.at_root,
+                is_primary=item.is_primary,
+                edition_url=item.edition_url,
+                campaign_page=item.campaign_page,
+            )
+            for item in urls.editions
+        ],
+    )
+
+
+# ---------- public reads of campaign hosts (§7.3) ----------
+
+public_router = APIRouter(tags=["public-sites"])
+
+
+class PublicSiteEditionResponse(TransportModel):
+    segment: str
+    at_root: bool
+    is_primary: bool
+    archive_slug: str
+    availability: Literal["published", "archive"]
+    title: str
+    starts_on: date
+    ends_on: date
+    # Permanent URL of the edition: https://<host>/<segment>/.
+    edition_url: str
+    # The action's canonical URL; may be on another host (a mirror).
+    canonical_url: str | None
+
+
+class PublicSiteHistoryResponse(TransportModel):
+    segment: str
+    archive_slug: str
+    target_url: str
+    status: Literal[302, 308]
+
+
+class PublicSiteRootResponse(TransportModel):
+    segment: str
+    mode: Literal["serve", "redirect"]
+
+
+class PublicSiteResponse(TransportModel):
+    hostname: str
+    kind: Literal["campaign", "redirect"]
+    redirect_to: str | None
+    root: PublicSiteRootResponse | None
+    editions: list[PublicSiteEditionResponse]
+    history: list[PublicSiteHistoryResponse]
+
+
+def _directory(request: Request) -> AsyncpgSiteDirectory:
+    return cast(AsyncpgSiteDirectory, request.app.state.site_directory)
+
+
+@public_router.get(
+    "/api/v1/public/sites/{hostname}",
+    operation_id="getPublicSite",
+    response_model=PublicSiteResponse,
+    responses=ERROR_RESPONSES,
+)
+async def get_public_site(
+    hostname: str, request: Request, response: Response
+) -> PublicSiteResponse:
+    """What an active campaign host serves (§7.2); 404 for every other name."""
+    try:
+        normalized = normalize_hostname(hostname)
+    except DomainInvariantError:
+        raise ResourceNotFound("site_host_not_found", "Host nicht gefunden.") from None
+    site = await _directory(request).site(normalized)
+    if site is None:
+        raise ResourceNotFound("site_host_not_found", "Host nicht gefunden.")
+    response.headers["Cache-Control"] = "public, max-age=30"
+    return PublicSiteResponse(
+        hostname=site.hostname,
+        kind=cast(Literal["campaign", "redirect"], site.kind),
+        redirect_to=site.redirect_to,
+        root=(
+            PublicSiteRootResponse(segment=site.root.segment, mode=site.root.mode)
+            if site.root
+            else None
+        ),
+        editions=[
+            PublicSiteEditionResponse(
+                segment=item.segment,
+                at_root=item.at_root,
+                is_primary=item.is_primary,
+                archive_slug=item.archive_slug,
+                availability=cast(
+                    Literal["published", "archive"], item.availability.value
+                ),
+                title=item.title,
+                starts_on=item.starts_on,
+                ends_on=item.ends_on,
+                edition_url=item.edition_url,
+                canonical_url=item.canonical_url,
+            )
+            for item in site.editions
+        ],
+        history=[
+            PublicSiteHistoryResponse(
+                segment=item.segment,
+                archive_slug=item.archive_slug,
+                target_url=item.target_url,
+                status=cast(Literal[302, 308], item.status),
+            )
+            for item in site.history
+        ],
     )

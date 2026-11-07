@@ -32,7 +32,7 @@ services:
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
     environment:
       CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL is missing}
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       # Set together with LEONAID_PROXY_CADDYFILE=Caddyfile.split
       # (specs/multi-domain stage 1); empty for one host.
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
@@ -63,6 +63,21 @@ services:
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS is missing}
       # Public host and its aliases: credential-free origins of /api/v1/public/*.
       LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
+      # Campaign hosts (specs/multi-domain §7.4): reserved names of the
+      # public host, the daily re-check in the API process, TLS via the edge.
+      LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
+      LEONAID_PUBLIC_HOST_ENABLED: ${LEONAID_PUBLIC_HOST_ENABLED:-true}
+      LEONAID_SITE_HOST_RECHECK_INTERVAL_SECONDS: "600"
+      LEONAID_SITE_HOST_TLS_EDGE: proxy:443
+      # Overrides of the dev values of the base file: public addresses on
+      # port 80 only, the system trust store only.
+      LEONAID_SITE_HOST_CHECK_ALLOW_PRIVATE: "false"
+      LEONAID_SITE_HOST_CHECK_HTTP_PORT: "80"
+      LEONAID_SITE_HOST_TLS_CA_FILE: ""
+      # The server's own public addresses; empty = those of the admin host.
+      LEONAID_SITE_HOST_EDGE_NAME: ""
+      LEONAID_SITE_HOST_EDGE_ADDRESSES: ${LEONAID_SITE_HOST_EDGE_ADDRESSES:-}
+      LEONAID_SITE_HOST_PUBLIC_RESOLVERS: ${LEONAID_SITE_HOST_PUBLIC_RESOLVERS:-}
       TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL is missing}
       WORKER_HEALTH_URL: http://worker:8010/health/ready
@@ -112,7 +127,7 @@ services:
     build: !reset null
     environment:
       # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
@@ -134,7 +149,7 @@ services:
       EMDASH_SITE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
       # Public origin of campaign pages; empty = EMDASH_SITE_URL (one host).
       LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
@@ -204,7 +219,7 @@ services:
       PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing}
       PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
       # Every certificate the edge serves: public host, admin host, aliases.
-      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing} ${LEONAID_ADMIN_DOMAIN:-} ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
+      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:-} ${LEONAID_ADMIN_DOMAIN:-} ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
       PILOT_TLS_PORT: "443"
       PILOT_TLS_CA_FILE: ${LEONAID_TLS_CA_FILE:-}
     volumes:

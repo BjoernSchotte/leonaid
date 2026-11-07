@@ -42,9 +42,10 @@ allgemeine Produktionsfreigabe.
 - Eine Installation bedient einen Host oder einen Verwaltungshost
   (`app.<domain>`) plus einen öffentlichen Host mit weiterleitenden
   Zusatznamen (Stufe 1 von `specs/multi-domain/PLAN.md`). Eigene
-  Kampagnen-Domains lassen sich unter **System › Domains** eintragen und mit
-  Aktionen verbinden; ausgeliefert werden sie noch nicht. Eine Installation
-  ohne öffentlichen Host ist nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  Kampagnen-Domains lassen sich unter **System › Domains** eintragen, prüfen
+  und mit Aktionen verbinden; sie zeigen nur Kampagnenseiten aus dem CMS.
+  Die Abnahme mit einer echten Domain und echten Zertifikaten steht aus. Eine Installation
+  ohne öffentlichen Host lässt sich einrichten (`pilot-secrets --no-public-host`); ihr Stack-Nachweis fehlt noch. `/` auf dem Verwaltungshost ist der
   rollenbasierte Einstieg (Anmeldung, dann Startbereich). Beim Umstellen auf zwei Hosts meldet sich
   jedes Mitglied einmal neu an (`pilot-revoke-sessions`). Auf dem
   öffentlichen Host zeigt die Kopfzeile statt der persönlichen App-Links einen

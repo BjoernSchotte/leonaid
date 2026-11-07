@@ -20,7 +20,7 @@ case "$test_case" in
   release-manifest-compatibility) ;;
   release-image-identity) ;;
   krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases|recovery-sql|recovery-local|recovery-app|recovery-orders|recovery-import) ;;
-  campaign-public-content|campaign-public-http|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
+  campaign-public-content|campaign-public-http|campaign-hosts|campaign-hosts-admin-only|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
@@ -127,6 +127,16 @@ fi
 
 if [ "$test_case" = campaign-public-http ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" public-http
+fi
+
+# Campaign hosts through the real edge (specs/multi-domain §7, §14).
+if [ "$test_case" = campaign-hosts ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" campaign-hosts
+fi
+
+# The same without a general public host (§6.6, review of #109).
+if [ "$test_case" = campaign-hosts-admin-only ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" campaign-hosts-admin-only
 fi
 
 if [ "$test_case" = campaign-public-content ]; then

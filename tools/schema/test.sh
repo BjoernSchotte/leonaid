@@ -106,7 +106,9 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tests/integration/test_public_campaigns_api.py \
     /repo/tests/integration/test_preferred_surface_service.py \
     /repo/tests/integration/test_site_hosts_api.py \
-    /repo/tests/integration/test_system_admin_bootstrap.py
+    /repo/tests/integration/test_system_admin_bootstrap.py \
+    /repo/tests/integration/test_site_host_checks_api.py \
+    /repo/tests/integration/test_public_sites_api.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans

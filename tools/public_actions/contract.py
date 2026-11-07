@@ -303,6 +303,8 @@ async def exercise(
             "availability": "inactive",
             "submissionsAllowed": False,
             "action": None,
+            # No action, so no campaign host either (specs/multi-domain §7.7.3).
+            "campaignHostUrl": None,
         }:
             raise ContractFailure("Inactive alias does not return a neutral view")
         await assert_astro_matches(public_client, "/winterpause", neutral.json())

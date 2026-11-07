@@ -12,7 +12,6 @@ from uuid import UUID
 import asyncpg
 
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
-from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
     ORDER_MAIL_KEY_PREFIXES,
     OrderCancellationFacts,
@@ -156,42 +155,3 @@ class AsyncpgOrderMailReader:
                 await connection.execute(
                     "SELECT pg_advisory_unlock(hashtextextended($1, 0))", key
                 )
-
-
-class PublicCampaignLinks:
-    """The action's page on the public host (single-host installations).
-
-    Mirrors the public host rule of specs/multi-domain §7.7.3 for a running
-    action: the campaign page when the primary alias forwards to it, else the
-    alias page, else the archive page.
-
-    Stage 2c replaces this with ``SiteDirectory.edition_link`` (decision D8):
-    the permanent edition URL on the campaign host, with this path as its
-    fallback.
-    """
-
-    def __init__(self, pool: asyncpg.Pool[Any], links: LinkBuilder) -> None:
-        self._pool = pool
-        self._links = links
-
-    async def campaign_link(self, action_id: UUID) -> str | None:
-        async with self._pool.acquire() as connection:
-            row = await connection.fetchrow(
-                """
-                SELECT action.archive_slug, alias.alias,
-                    COALESCE(alias.campaign_redirect, false) AS campaign_page
-                FROM charity_action AS action
-                LEFT JOIN public_action_alias AS alias
-                  ON alias.action_id = action.id
-                 AND alias.is_primary AND alias.enabled
-                WHERE action.id = $1
-                """,
-                action_id,
-            )
-        if row is None:
-            return None
-        if row["campaign_page"]:
-            return self._links.site_url(f"/campaigns/{row['archive_slug']}/")
-        if row["alias"] is not None:
-            return self._links.site_url(f"/{row['alias']}")
-        return self._links.site_url(f"/archive/{row['archive_slug']}")

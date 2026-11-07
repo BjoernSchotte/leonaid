@@ -30,8 +30,14 @@ export function adminOrigin(): URL | null {
   return configuredOrigin(process.env.EMDASH_SITE_URL);
 }
 
-/** Origins that serve public campaign pages. */
+/**
+ * Origins that serve public campaign pages. Without a general public host
+ * (specs/multi-domain §6.6) there is none: campaign pages exist only on
+ * campaign hosts, never on the admin host.
+ */
 export function siteOrigins(): URL[] {
+  if (process.env.LEONAID_PUBLIC_HOST_ENABLED?.trim().toLowerCase() === "false")
+    return [];
   const configured = process.env.LEONAID_SITE_BASE_URL?.trim();
   const origin = configured ? configuredOrigin(configured) : adminOrigin();
   return origin ? [origin] : [];
@@ -58,14 +64,27 @@ export function hasSecureAdminOrigin(request: Request): boolean {
   return origin !== null && forwardedFrom(request, origin);
 }
 
-/** The validated site origin a public campaign request came through. */
-export function siteOriginOf(request: Request): URL | null {
-  return siteOrigins().find((origin) => forwardedFrom(request, origin)) ?? null;
+/**
+ * The validated site origin a public campaign request came through. A
+ * campaign host counts only after the host middleware found it active in
+ * Core (`campaignHost`, from `locals.siteHost`), never from the headers alone.
+ */
+export function siteOriginOf(
+  request: Request,
+  campaignHost?: URL | null,
+): URL | null {
+  const origins = campaignHost
+    ? [campaignHost, ...siteOrigins()]
+    : siteOrigins();
+  return origins.find((origin) => forwardedFrom(request, origin)) ?? null;
 }
 
 /** Public campaign pages and their order POSTs: only through a site origin. */
-export function hasSecureSiteOrigin(request: Request): boolean {
-  return siteOriginOf(request) !== null;
+export function hasSecureSiteOrigin(
+  request: Request,
+  campaignHost?: URL | null,
+): boolean {
+  return siteOriginOf(request, campaignHost) !== null;
 }
 
 /**

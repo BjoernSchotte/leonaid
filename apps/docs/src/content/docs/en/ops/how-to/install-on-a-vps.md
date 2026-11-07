@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 10
-reviewedRevision: 10
+contentRevision: 11
+reviewedRevision: 11
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -171,6 +171,23 @@ dig +short club.org
 Caddy requests the TLS certificates on the first start. Port 80 must be
 reachable from the internet for that.
 
+**Domains for single campaigns** (`krapfentaxi.org`) need no change to the
+installation. The system administration adds them under **System** ›
+**Domains**; the club creates `A`/`AAAA` (own domain) or a `CNAME`
+(subdomain) pointing to this server. Caddy gets their certificate on the
+first request, but only for a domain LeonAid has checked (at most ten new ones
+per hour). Port 80 must stay open for this, and a `CAA` record of the domain
+must allow `letsencrypt.org`. Every `A`/`AAAA` record of the domain must
+name an address of this server; LeonAid takes the addresses of the admin host
+or `LEONAID_SITE_HOST_EDGE_ADDRESSES`. LeonAid also asks public DNS
+servers (default `1.1.1.1` and `9.9.9.9`, `LEONAID_SITE_HOST_PUBLIC_RESOLVERS`);
+outgoing port 53 must be open for this. A domain whose certificate has less
+than 20 days left fails the check. The outside proof:
+
+```sh
+python3 tools/site_hosts/acme_probe.py krapfentaxi.org --admin app.club.org
+```
+
 ## Create the directories
 
 | Path                        | Owner     | Mode   | Content                                        |
@@ -265,6 +282,27 @@ The public host sends `Strict-Transport-Security` without
 `includeSubDomains`: on the club's main domain it would force HTTPS on every
 other name of the club (webmail, intranet, devices) for a year. The admin host
 keeps `includeSubDomains`.
+
+### Without a general public host
+
+If the club has no site of its own under `club.org`, only domains for single
+campaigns, generate the secrets with:
+
+```sh
+./leonaid pilot-secrets --no-public-host --admin-domain app.club.org
+```
+
+This sets `LEONAID_PUBLIC_HOST_ENABLED=false`, leaves `LEONAID_PUBLIC_DOMAIN`
+empty and selects `Caddyfile.admin-only`. The admin host then also serves
+surveys, Impressum and Datenschutz; old alias, archive and campaign paths
+redirect there to the campaign's domain or answer 404. A campaign without an
+active domain is not publicly reachable.
+
+Without a public host you lose: the home page listing all active campaigns,
+campaign pages under `club.org/campaigns/…`, the contact form outside campaign
+pages, and any order page of a campaign without a published CMS campaign page
+(the domain shows CMS pages only). Until the stack proof of this mode is green
+in CI, the deployment contract refuses `Caddyfile.admin-only`.
 
 ### Switch to an admin host
 

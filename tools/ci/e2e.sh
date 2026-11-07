@@ -129,7 +129,10 @@ if [ -n "$core" ]; then
   step "core leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going core $core
 fi
 for script in $own; do
+  started=$(date +%s)
   step "$script" /bin/sh "$root/$script" "$root"
+  # Same shape as shared-stack's leaf line (tools/ci/refit_timings.py).
+  echo "ci-e2e: own leaf: $script $(($(date +%s) - started))s, exit $step_status"
 done
 if [ "$status" -ne 0 ]; then
   echo "ci-e2e: ERROR: failed leaves in: $*" >&2

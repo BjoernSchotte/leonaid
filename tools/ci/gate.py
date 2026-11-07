@@ -94,13 +94,17 @@ def github_fetch(path: str) -> object:
         return json.load(response)
 
 
+# Job name of select-suites.yml; workflow_contract.py keeps them equal.
+SELECT_JOB_NAME = "Select suites"
+
+
 def real_run(fetch: Fetch, repository: str, run_id: str) -> bool:
     """A run whose selector ran: not a draft or title-edit run."""
     data = fetch(f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100")
     for job in data.get("jobs", []) if isinstance(data, dict) else []:
         if (
             isinstance(job, dict)
-            and "Select suites" in str(job.get("name", ""))
+            and SELECT_JOB_NAME in str(job.get("name", ""))
             and str(job.get("conclusion") or "") not in ("", "skipped")
         ):
             return True

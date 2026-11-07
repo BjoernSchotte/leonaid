@@ -882,6 +882,56 @@
         "title": "ActionContexts",
         "type": "object"
       },
+      "ActionEditionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "atRoot": {
+            "title": "Atroot",
+            "type": "boolean"
+          },
+          "campaignPage": {
+            "title": "Campaignpage",
+            "type": "boolean"
+          },
+          "editionUrl": {
+            "title": "Editionurl",
+            "type": "string"
+          },
+          "hostStatus": {
+            "enum": [
+              "pending",
+              "verified",
+              "active",
+              "disabled"
+            ],
+            "title": "Hoststatus",
+            "type": "string"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "isPrimary": {
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "hostStatus",
+          "segment",
+          "atRoot",
+          "isPrimary",
+          "editionUrl",
+          "campaignPage"
+        ],
+        "title": "ActionEditionResponse",
+        "type": "object"
+      },
       "ActionGoalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1025,6 +1075,35 @@
           "allowedTransitions"
         ],
         "title": "ActionManagementResponse",
+        "type": "object"
+      },
+      "ActionPublicUrlsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalurl"
+          },
+          "editions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionEditionResponse"
+            },
+            "title": "Editions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonicalUrl",
+          "editions"
+        ],
+        "title": "ActionPublicUrlsResponse",
         "type": "object"
       },
       "ActionTemplateListResponse": {
@@ -10674,6 +10753,69 @@
         "title": "OperationalMonitoringResponse",
         "type": "object"
       },
+      "OperationalSiteHostResponse": {
+        "additionalProperties": false,
+        "description": "A campaign host whose check failed or that waits for its certificate.",
+        "properties": {
+          "failedChecks": {
+            "minimum": 0.0,
+            "title": "Failedchecks",
+            "type": "integer"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "lastCheckResult": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckresult"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckedat"
+          },
+          "liveBindings": {
+            "minimum": 0.0,
+            "title": "Livebindings",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "verified",
+              "active",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "status",
+          "failedChecks",
+          "lastCheckResult",
+          "lastCheckedAt",
+          "liveBindings"
+        ],
+        "title": "OperationalSiteHostResponse",
+        "type": "object"
+      },
       "OperationalStatusCountsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -10773,6 +10915,14 @@
           "requestId": {
             "title": "Requestid",
             "type": "string"
+          },
+          "siteHosts": {
+            "description": "Campaign hosts with failed checks, lapsed with live editions, or waiting for their certificate (specs/multi-domain §7.4).",
+            "items": {
+              "$ref": "#/components/schemas/OperationalSiteHostResponse"
+            },
+            "title": "Sitehosts",
+            "type": "array"
           }
         },
         "required": [
@@ -12238,6 +12388,17 @@
             "title": "Availability",
             "type": "string"
           },
+          "campaignHostUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignhosturl"
+          },
           "canonicalPath": {
             "title": "Canonicalpath",
             "type": "string"
@@ -12388,6 +12549,17 @@
             ],
             "title": "Availability",
             "type": "string"
+          },
+          "campaignHostUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaignhosturl"
           },
           "canonicalPath": {
             "title": "Canonicalpath",
@@ -13225,6 +13397,196 @@
           "policy"
         ],
         "title": "PublicPrivacyPolicyResponse",
+        "type": "object"
+      },
+      "PublicSiteEditionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "atRoot": {
+            "title": "Atroot",
+            "type": "boolean"
+          },
+          "availability": {
+            "enum": [
+              "published",
+              "archive"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalurl"
+          },
+          "editionUrl": {
+            "title": "Editionurl",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "isPrimary": {
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "atRoot",
+          "isPrimary",
+          "archiveSlug",
+          "availability",
+          "title",
+          "startsOn",
+          "endsOn",
+          "editionUrl",
+          "canonicalUrl"
+        ],
+        "title": "PublicSiteEditionResponse",
+        "type": "object"
+      },
+      "PublicSiteHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              302,
+              308
+            ],
+            "title": "Status",
+            "type": "integer"
+          },
+          "targetUrl": {
+            "title": "Targeturl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "archiveSlug",
+          "targetUrl",
+          "status"
+        ],
+        "title": "PublicSiteHistoryResponse",
+        "type": "object"
+      },
+      "PublicSiteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "editions": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSiteEditionResponse"
+            },
+            "title": "Editions",
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSiteHistoryResponse"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "campaign",
+              "redirect"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "redirectTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirectto"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicSiteRootResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "hostname",
+          "kind",
+          "redirectTo",
+          "root",
+          "editions",
+          "history"
+        ],
+        "title": "PublicSiteResponse",
+        "type": "object"
+      },
+      "PublicSiteRootResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "serve",
+              "redirect"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "mode"
+        ],
+        "title": "PublicSiteRootResponse",
         "type": "object"
       },
       "QuestionAggregate": {
@@ -24462,6 +24824,110 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/public-urls": {
+      "get": {
+        "description": "Read only; domains are managed by the system admin (D5).",
+        "operationId": "getActionPublicUrls",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionPublicUrlsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Action Public Urls",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/publication": {
       "put": {
         "operationId": "setCharityActionPublication",
@@ -28361,6 +28827,110 @@
           }
         },
         "summary": "Change Site Edition Segment",
+        "tags": [
+          "site-hosts"
+        ]
+      }
+    },
+    "/api/v1/admin/site-hosts/{host_id}/check": {
+      "post": {
+        "description": "Prüfen (§7.4): the host check runs now; the answer has its result.",
+        "operationId": "checkSiteHost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteHostResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Check Site Host",
         "tags": [
           "site-hosts"
         ]
@@ -35046,6 +35616,79 @@
         "summary": "Get Public Privacy Policy",
         "tags": [
           "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/sites/{hostname}": {
+      "get": {
+        "description": "What an active campaign host serves (§7.2); 404 for every other name.",
+        "operationId": "getPublicSite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hostname",
+            "required": true,
+            "schema": {
+              "title": "Hostname",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Public Site",
+        "tags": [
+          "public-sites"
         ]
       }
     },

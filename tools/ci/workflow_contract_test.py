@@ -16,6 +16,11 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false'",
+        "github.event_name != 'pull_request' && 'true' || 'false'",
+        "only the Build job of runs on main may write the shared cache",
+    ),
+    (
         "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
         "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true\n",
         "ci.yml: job select must not run for a draft or a title edit",
@@ -232,6 +237,12 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "select-suites.yml",
+        "    name: Select suites\n",
+        "    name: Choose suites\n",
+        "the select job must be named 'Select suites'",
+    ),
+    (
         "nightly-watchdog.yml",
         " surveys.yml:30:nightly",
         "",
@@ -347,8 +358,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        "[LeonAid CI, Survey acceptance,",
-        "[LeonAid CI,",
+        "        Survey acceptance,\n",
+        "",
         "does not react to completed runs of surveys.yml",
     ),
     (

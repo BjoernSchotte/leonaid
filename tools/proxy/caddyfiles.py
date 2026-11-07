@@ -18,10 +18,10 @@ Each route lists its action per site role:
     public  the general public host <domain> and its aliases
     admin_only  the admin host of an installation without a public host
             (§6.6, needs stage 2: the contract refuses it until then)
+    site    every campaign host (stage 2, §7): a catch-all site block with
+            on-demand TLS; Core's ask endpoint approves the host first
 
-A role without an entry falls through to the role's catch-all route. Stage 2
-adds the roles for campaign hosts and the admin host without a public host
-(§6.6); the renderer only needs a new column and a site block.
+A role without an entry falls through to the role's catch-all route.
 """
 
 from __future__ import annotations
@@ -87,6 +87,11 @@ LOCAL_IMPORT = "local_import"
 REFUSED_ACTIONS = "refused_actions"
 # Self-unregistering service worker for the PWA scope of a public host.
 RETIRED_WORKER = "retired_worker"
+# Core's internal endpoints (the on-demand TLS ask, §9.1) never leave the
+# Docker network.
+INTERNAL = ("/internal", "/internal/*", "/api/internal", "/api/internal/*")
+# The host check of §7.4 runs over plain HTTP on every name.
+HOST_CHECK = "/.well-known/leonaid-host-check/*"
 # Served below a path prefix that handle_path strips.
 STRIPPED = (WEB, PWA, CRM, MAILING)
 
@@ -132,6 +137,17 @@ ROUTES: tuple[Route, ...] = (
         {"admin": REFUSED_ACTIONS, "admin_only": REFUSED_ACTIONS},
     ),
     Route(
+        "internal",
+        INTERNAL,
+        {
+            "single": NOT_FOUND,
+            "admin": NOT_FOUND,
+            "public": NOT_FOUND,
+            "admin_only": NOT_FOUND,
+            "site": NOT_FOUND,
+        },
+    ),
+    Route(
         "health",
         ("/_health",),
         {
@@ -139,6 +155,7 @@ ROUTES: tuple[Route, ...] = (
             "admin": HEALTH,
             "public": HEALTH,
             "admin_only": HEALTH,
+            "site": HEALTH,
         },
     ),
     Route(
@@ -149,21 +166,34 @@ ROUTES: tuple[Route, ...] = (
             "admin": API_HEALTH,
             "public": API_HEALTH,
             "admin_only": API_HEALTH,
+            "site": API_HEALTH,
         },
     ),
     # The public host exposes only the public API (forms, surveys, legal
     # notice); the internal order path stays closed on every host.
-    Route("api_public", ("/api/v1/public/*",), {"public": API}),
+    Route("api_public", ("/api/v1/public/*",), {"public": API, "site": API}),
     Route(
         "api",
         ("/api/*",),
-        {"single": API, "admin": API, "public": API_NOT_FOUND, "admin_only": API},
+        {
+            "single": API,
+            "admin": API,
+            "public": API_NOT_FOUND,
+            "admin_only": API,
+            "site": API_NOT_FOUND,
+        },
     ),
     # The CMS editor lives on the admin host only.
     Route(
         "emdash",
         ("/_emdash", "/_emdash/*"),
-        {"single": CMS, "admin": CMS, "public": NOT_FOUND, "admin_only": CMS},
+        {
+            "single": CMS,
+            "admin": CMS,
+            "public": NOT_FOUND,
+            "admin_only": CMS,
+            "site": NOT_FOUND,
+        },
         group="campaign_routes",
     ),
     Route(
@@ -171,20 +201,32 @@ ROUTES: tuple[Route, ...] = (
         ("/campaigns", "/campaigns/*"),
         # Without a public host the public app answers 308 to the campaign
         # host or 404 (stage 2); the admin host never renders campaign pages.
-        {"single": CMS, "admin": TO_PUBLIC, "public": CMS, "admin_only": PUBLIC},
+        {
+            "single": CMS,
+            "admin": TO_PUBLIC,
+            "public": CMS,
+            "admin_only": PUBLIC,
+            "site": CMS,
+        },
         group="campaign_routes",
     ),
     # Build assets of the campaign site: campaign pages and the EmDash admin.
     Route(
         "campaign_assets",
         ("/_campaign-assets/*",),
-        {"single": CMS, "admin": CMS, "public": CMS, "admin_only": CMS},
+        {"single": CMS, "admin": CMS, "public": CMS, "admin_only": CMS, "site": CMS},
         group="campaign_routes",
     ),
     Route(
         "slashless_service_roots",
         (_slashless(PWA_BASE), _slashless(ADMIN_BASE)),
-        {"single": SLASH, "admin": SLASH, "public": TO_ADMIN, "admin_only": SLASH},
+        {
+            "single": SLASH,
+            "admin": SLASH,
+            "public": TO_ADMIN,
+            "admin_only": SLASH,
+            "site": TO_ADMIN,
+        },
         group="slashless_service_roots",
     ),
     Route(
@@ -202,35 +244,51 @@ ROUTES: tuple[Route, ...] = (
     Route(
         "pwa",
         (PWA_BASE + "*",),
-        {"single": PWA, "admin": PWA, "public": TO_ADMIN, "admin_only": PWA},
+        {
+            "single": PWA,
+            "admin": PWA,
+            "public": TO_ADMIN,
+            "admin_only": PWA,
+            "site": TO_ADMIN,
+        },
         group="member_routes",
     ),
     Route(
         "web",
         (ADMIN_BASE + "*",),
-        {"single": WEB, "admin": WEB, "public": TO_ADMIN, "admin_only": WEB},
+        {
+            "single": WEB,
+            "admin": WEB,
+            "public": TO_ADMIN,
+            "admin_only": WEB,
+            "site": TO_ADMIN,
+        },
         group="member_routes",
     ),
     Route(
         "member_pages",
         MEMBER_PAGES,
-        {"admin": PUBLIC, "public": TO_ADMIN, "admin_only": PUBLIC},
+        {"admin": PUBLIC, "public": TO_ADMIN, "admin_only": PUBLIC, "site": TO_ADMIN},
         group="member_routes",
     ),
     Route(
         "legal_pages",
         LEGAL_PAGES,
-        {"admin": PUBLIC, "admin_only": PUBLIC},
+        {"admin": PUBLIC, "admin_only": PUBLIC, "site": PUBLIC},
         group="admin_public_pages",
     ),
     Route(
         "public_app_assets",
         PUBLIC_APP_ASSETS,
-        {"admin": PUBLIC, "admin_only": PUBLIC},
+        {"admin": PUBLIC, "admin_only": PUBLIC, "site": PUBLIC},
         group="admin_public_pages",
     ),
     # Order forms exist only on site hosts.
-    Route("public_order", PUBLIC_ORDER, {"admin": NOT_FOUND, "admin_only": NOT_FOUND}),
+    Route(
+        "public_order",
+        PUBLIC_ORDER,
+        {"admin": NOT_FOUND, "admin_only": NOT_FOUND, "site": PUBLIC},
+    ),
     # Role-based entry: login, then the view for the member's role (§6.7).
     Route("root", ("/",), {"admin": ENTRY, "admin_only": ENTRY}),
     Route("crm", ("/crm/*",), {"single": CRM, "admin": CRM}, dev_only=True),
@@ -258,6 +316,9 @@ ROUTES: tuple[Route, ...] = (
             "admin": TO_PUBLIC,
             "public": PUBLIC,
             "admin_only": PUBLIC,
+            # Host lookup, editions, history and archive rules: the campaign
+            # site's host middleware (§7.7.2).
+            "site": CMS,
         },
     ),
 )
@@ -265,6 +326,11 @@ ROUTES: tuple[Route, ...] = (
 PILOT_GLOBAL = """{
 	email {$CADDY_ACME_EMAIL}
 	admin off
+	# Campaign hosts (specs/multi-domain §7): a certificate only for a host
+	# Core approves; Caddy 2.11 has no own rate limit, Core has (§9.1).
+	on_demand_tls {
+		ask http://api:8000/internal/tls/ask
+	}
 	servers {
 		strict_sni_host on
 		# Disabled here, applied per request by body_read_timeouts.
@@ -277,6 +343,11 @@ PILOT_GLOBAL = """{
 
 PILOT_TEST_GLOBAL = """{
 	admin off
+	# Campaign hosts (specs/multi-domain §7): a certificate only for a host
+	# Core approves; Caddy 2.11 has no own rate limit, Core has (§9.1).
+	on_demand_tls {
+		ask http://api:8000/internal/tls/ask
+	}
 	servers {
 		strict_sni_host on
 		# Disabled here, applied per request by body_read_timeouts.
@@ -288,6 +359,11 @@ PILOT_TEST_GLOBAL = """{
 """
 
 DEV_GLOBAL = """{
+	# Campaign hosts (specs/multi-domain §7): a certificate only for a host
+	# Core approves; Caddy 2.11 has no own rate limit, Core has (§9.1).
+	on_demand_tls {
+		ask http://api:8000/internal/tls/ask
+	}
 	servers {
 		strict_sni_host on
 		# Disabled here, applied per request by body_read_timeouts.
@@ -641,21 +717,39 @@ def _site_routes(role: str, environment: str) -> list[str]:
 
 def _site(addresses: str, role: str, target: Target, extra: list[str]) -> list[str]:
     lines = [f"{addresses} {{", "\timport body_read_timeouts"]
-    if target.tls_internal:
+    if role == "site":
+        lines += (
+            ["\ttls internal {", "\t\ton_demand", "\t}"]
+            if target.tls_internal
+            else ["\ttls {", "\t\ton_demand", "\t}"]
+        )
+    elif target.tls_internal:
         lines.append("\ttls internal")
     lines.append(
         "\timport public_host_headers"
-        if role == "public"
+        # A campaign host is often an apex domain, like the public host.
+        if role in ("public", "site")
         else "\timport common_headers"
     )
     lines.append("")
     lines.extend(extra)
-    lines.extend(_site_routes(role, target.environment))
+    routes = _site_routes(role, target.environment)
+    if role == "site" and target.mode == "single":
+        # One host: member pages of a campaign host go to that host.
+        admin = ADMIN_ORIGIN[target.environment]
+        routes = [
+            line.replace(admin, PUBLIC_ORIGIN[target.environment]) for line in routes
+        ]
+    lines.extend(routes)
     lines.append("}")
     return lines
 
 
 HTTP_PILOT_BODY = """	import body_read_timeouts
+	handle /.well-known/leonaid-host-check/* {
+		import leonaid_headers
+		reverse_proxy api:8000
+	}
 	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
 	handle @internal_orders {
 		header Cache-Control no-store
@@ -669,8 +763,14 @@ HTTP_PILOT_BODY = """	import body_read_timeouts
 	}
 }
 
+# Every other name, campaign hosts included: the host check of
+# specs/multi-domain §7.4 (Caddy answers ACME HTTP-01 itself), else HTTPS.
 :80 {
 	import body_read_timeouts
+	handle /.well-known/leonaid-host-check/* {
+		import leonaid_headers
+		reverse_proxy api:8000
+	}
 	handle /_health {
 		respond "ready" 200
 	}
@@ -679,6 +779,13 @@ HTTP_PILOT_BODY = """	import body_read_timeouts
 	}
 }
 """
+
+
+SITE_COMMENT = [
+    "",
+    "# Campaign hosts (specs/multi-domain §7): every other name Core approved.",
+    "# Unknown names get no certificate; the TLS handshake fails.",
+]
 
 
 def _pilot(target: Target) -> list[str]:
@@ -693,6 +800,8 @@ def _pilot(target: Target) -> list[str]:
         lines += HTTP_PILOT_BODY.splitlines()
         lines.append("")
         lines += _site("{$LEONAID_PUBLIC_DOMAIN}", "single", target, [])
+        lines += SITE_COMMENT
+        lines += _site("https://", "site", target, [])
         return lines
     if target.mode == "admin-only":
         lines.append("http://{$LEONAID_ADMIN_DOMAIN} {")
@@ -701,10 +810,9 @@ def _pilot(target: Target) -> list[str]:
         lines.append(
             "# Admin host without a general public host (specs/multi-domain §6.6)."
         )
-        lines.append(
-            "# Stage 2 adds the on-demand TLS block of the campaign hosts here."
-        )
         lines += _site("{$LEONAID_ADMIN_DOMAIN}", "admin_only", target, [])
+        lines += SITE_COMMENT
+        lines += _site("https://", "site", target, [])
         return lines
     lines.append("http://{$LEONAID_ADMIN_DOMAIN}, http://{$LEONAID_PUBLIC_DOMAIN} {")
     lines += HTTP_PILOT_BODY.splitlines()
@@ -734,6 +842,8 @@ def _pilot(target: Target) -> list[str]:
         target,
         alias,
     )
+    lines += SITE_COMMENT
+    lines += _site("https://", "site", target, [])
     return lines
 
 
@@ -767,6 +877,9 @@ def _dev(target: Target) -> list[str]:
             "http://:8080 {",
             "\timport body_read_timeouts",
             "\timport common_headers",
+            "\thandle /.well-known/leonaid-host-check/* {",
+            "\t\treverse_proxy api:8000",
+            "\t}",
             "\t@cms_https path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*",
             "\thandle @cms_https {",
             "\t\tredir https://localhost:{$LEONAID_HTTPS_PORT:8443}{uri} 308",
@@ -781,6 +894,37 @@ def _dev(target: Target) -> list[str]:
             "\timport leonaid_routes",
             "}",
         ]
+        lines += SITE_COMMENT
+        lines += _site("https://:8443", "site", Target("dev", "single", True), [])
+        return lines
+    if target.mode == "admin-only":
+        # Admin host without a public host (§6.6), for the stack proof.
+        lines += [
+            "http://:8080 {",
+            "\timport body_read_timeouts",
+            "\timport common_headers",
+            "\thandle /.well-known/leonaid-host-check/* {",
+            "\t\treverse_proxy api:8000",
+            "\t}",
+            "\thandle /_health {",
+            '\t\trespond "ready" 200',
+            "\t}",
+            "\thandle {",
+            "\t\tredir https://{host}" + DEV_PORT + "{uri} 308",
+            "\t}",
+            "}",
+            "",
+        ]
+        # localhost:8443 serves the compose healthcheck.
+        lines += _site(
+            "https://{$LEONAID_ADMIN_DOMAIN:app.localhost}:8443, https://proxy:8443, "
+            "https://localhost:8443",
+            "admin_only",
+            target,
+            [],
+        )
+        lines += SITE_COMMENT
+        lines += _site("https://:8443", "site", target, [])
         return lines
     lines += DEV_TWENTY.splitlines()
     lines.append("")
@@ -790,6 +934,9 @@ def _dev(target: Target) -> list[str]:
         "http://:8080 {",
         "\timport body_read_timeouts",
         "\timport common_headers",
+        "\thandle /.well-known/leonaid-host-check/* {",
+        "\t\treverse_proxy api:8000",
+        "\t}",
         "\thandle /_health {",
         '\t\trespond "ready" 200',
         "\t}",
@@ -812,6 +959,8 @@ def _dev(target: Target) -> list[str]:
     lines += _site(
         "https://{$LEONAID_PUBLIC_DOMAIN:localhost}:8443", "public", target, []
     )
+    lines += SITE_COMMENT
+    lines += _site("https://:8443", "site", target, [])
     return lines
 
 
@@ -824,6 +973,10 @@ TARGETS = {
     ),
     "dev-single": ("infra/proxy/Caddyfile", Target("dev", "single")),
     "dev-split": ("infra/proxy/Caddyfile.split", Target("dev", "split", True)),
+    "dev-admin-only": (
+        "infra/proxy/Caddyfile.admin-only",
+        Target("dev", "admin-only", True),
+    ),
 }
 
 

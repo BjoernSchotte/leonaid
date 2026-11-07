@@ -950,6 +950,9 @@ class PublicActionRouteResponse(TransportModel):
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
     redirect_path: str | None = None
+    # The action's canonical URL when it lives on a campaign host
+    # (specs/multi-domain §7.7.3); its pages on the public host redirect there.
+    campaign_host_url: str | None = None
 
 
 class PublicLegalProviderResponse(TransportModel):
@@ -1030,6 +1033,8 @@ class PublicCampaignRouteResponse(TransportModel):
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
     order_alias: str | None
+    # The canonical URL on a campaign host, if the action has one (§7.7.3).
+    campaign_host_url: str | None = None
 
 
 class PublicOrderPartyRequest(TransportModel):
@@ -2355,6 +2360,17 @@ class OperationalMonitoringResponse(TransportModel):
     active_alerts: list[OperationalAlertResponse]
 
 
+class OperationalSiteHostResponse(TransportModel):
+    """A campaign host whose check failed or that waits for its certificate."""
+
+    hostname: str
+    status: Literal["pending", "verified", "active", "disabled"]
+    failed_checks: int = Field(ge=0)
+    last_check_result: str | None
+    last_checked_at: datetime | None
+    live_bindings: int = Field(ge=0)
+
+
 class OperationsOverviewResponse(TransportModel):
     generated_at: datetime
     request_id: str
@@ -2374,6 +2390,11 @@ class OperationsOverviewResponse(TransportModel):
     login: OperationalLoginMetricsResponse
     failed_jobs: list[OperationalFailedJobResponse]
     monitoring: OperationalMonitoringResponse
+    site_hosts: list[OperationalSiteHostResponse] = Field(
+        default_factory=list,
+        description="Campaign hosts with failed checks, lapsed with live "
+        "editions, or waiting for their certificate (specs/multi-domain §7.4).",
+    )
 
 
 class PilotDailyDependenciesResponse(TransportModel):

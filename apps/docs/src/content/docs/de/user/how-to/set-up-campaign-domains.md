@@ -4,11 +4,16 @@ description: Eine Aktion unter einer eigenen Domain oder Subdomain zeigen, Folge
 docId: DOC-P049
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
+
+:::caution[Vorschau]
+Die Domain-Verwaltung ist als **Vorschau** markiert, bis ihr vollständiger
+Stack-Nachweis in der CI grün ist.
+:::
 
 **Rolle:** System-Admin. Domains kosten Geld und betreffen den ganzen Club,
 deshalb verwaltet nur die System-Administration sie. Charity-Admins sehen die
@@ -33,6 +38,25 @@ Aktionen, die an sie gebunden sind.
 Der Verwaltungshost, der öffentliche Host und dessen Zusatznamen lassen sich
 nicht eintragen, ebenso keine Namen unterhalb des Verwaltungshosts.
 
+## Domain prüfen
+
+1. Warte, bis der DNS-Eintrag sichtbar ist (oft Minuten, manchmal Stunden).
+2. Wähle auf der Domain-Karte **Prüfen**.
+
+LeonAid prüft, dass jeder `A`/`AAAA`-Eintrag der Domain auf diesen Server
+zeigt, und ruft die Prüfadresse der Karte über jede dieser Adressen auf.
+Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
+Beim ersten Aufruf über HTTPS holt der Server ein Zertifikat von Let's
+Encrypt; danach steht sie auf **Aktiv**. Steht sie noch auf **Geprüft**,
+prüfe nach einer Minute erneut. Erst eine geprüfte Domain erhält ein
+Zertifikat; ein Neustart ist nicht nötig.
+
+LeonAid prüft aktive Domains täglich. Schlägt die Prüfung drei Mal über
+mindestens 72 Stunden fehl, wird die Domain **Abgeschaltet** und erhält kein
+Zertifikat mehr. **System** › **Betrieb** zeigt solche Domains unter
+**Domains für Aktionen**. Wird die Prüfung wieder grün, wird die Domain
+wieder aktiv; ihre Ausgaben bleiben in der Zeit gebunden.
+
 ## Aktion binden
 
 1. Wähle auf der Domain-Karte **Aktion binden**.
@@ -48,6 +72,23 @@ veröffentlichte Kampagnenseite, warnt der Dialog.
 Jede Ausgabe ist dauerhaft unter `https://<domain>/<pfad>/` erreichbar. Die
 Startseite `/` zeigt die Ausgabe, die **aktuell auf /** steht, solange sie
 läuft. Nach dem Ende leitet `/` auf die Archivseite der Ausgabe weiter.
+
+## Was Besucher sehen
+
+- `https://<domain>/` zeigt die laufende Ausgabe. Ist sie beendet, leitet `/`
+  auf ihre Archivseite weiter, etwa `/2025/`. Die Archivseite zeigt die
+  Kampagnenseite ohne Bestellformular.
+- Hat die Domain mehrere Ausgaben, verlinkt der Seitenfuß **Frühere
+  Ausgaben**; `/archive/` listet alle Ausgaben.
+- Die bisherigen Adressen der Aktion auf dem öffentlichen Host, ihre Aliase
+  und `/campaigns/<slug>/` leiten auf die Domain weiter. Gedruckte QR-Codes
+  funktionieren also weiter.
+- Impressum und Datenschutz sind auf jeder Domain erreichbar. Jede Domain hat
+  eigene `robots.txt` und `sitemap.xml`.
+- **Live-Ansicht** im Microsite-Editor öffnet die Seite auf ihrer Domain.
+- Änderungen wirken nach höchstens einer halben Minute: So lange merken sich
+  die Server, welche Domains aktiv sind. Eine eben aktivierte Domain kann
+  kurz noch eine Fehlerseite zeigen, eine abgeschaltete kurz noch die Seite.
 
 ## Domain an eine Folgeaktion übergeben
 

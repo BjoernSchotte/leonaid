@@ -182,7 +182,14 @@ def validate_environment(
 ) -> str:
     require_private_file(env_file, "environment_file")
     require_external_path(env_file, root, "environment_file")
-    missing = sorted(key for key in REQUIRED_ENVIRONMENT_KEYS if not values.get(key))
+    # Without a general public host (§6.6) LEONAID_PUBLIC_DOMAIN stays empty.
+    no_public_host = values.get("LEONAID_PUBLIC_HOST_ENABLED", "true") == "false"
+    missing = sorted(
+        key
+        for key in REQUIRED_ENVIRONMENT_KEYS
+        if not values.get(key)
+        and not (no_public_host and key == "LEONAID_PUBLIC_DOMAIN")
+    )
     if missing:
         raise DoctorError("environment_keys_missing:" + ",".join(missing))
 
@@ -751,6 +758,19 @@ def probe_running_installation(
             expected_status=308,
             expected_location=f"{site_base}/",
         )
+    # Campaign hosts (specs/multi-domain §7.4): the API must reach the
+    # public resolvers, or every host check fails and all campaign hosts
+    # are disabled after 72 h.
+    dns_body, _ = probe_https(
+        name="site-host-dns",
+        url=f"{public_base}/api/health/site-host-dns",
+        context=context,
+        resolve=resolve,
+        timeout_seconds=arguments.timeout_seconds,
+        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+    )
+    if parse_json_body(dns_body, "site-host-dns").get("status") not in {"ready", "off"}:
+        raise DoctorError("site_host_public_dns_unreachable")
     # Port 80 per host (specs/multi-domain §10.2): DNS reaches this edge.
     hosts = [urlparse(public_base).hostname or ""]
     if site_base and site_base != public_base:

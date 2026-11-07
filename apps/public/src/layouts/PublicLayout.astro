@@ -39,6 +39,8 @@ interface Props {
     name: string;
     logo: { src: string; alt: string; width?: number; height?: number } | null;
   };
+  /** Edition list of a campaign host with several editions (multi-domain §7.7.2). */
+  editionsHref?: string;
 }
 
 const {
@@ -53,6 +55,7 @@ const {
   carrierName,
   legalNotice: pageLegalNotice,
   campaignBrand,
+  editionsHref,
 } = Astro.props;
 const legalNotice = pageLegalNotice ?? (await readLegalNotice());
 const provider = legalNotice.state === "ready" ? legalNotice.provider : null;
@@ -199,6 +202,16 @@ const header = theme.header;
           )
         }
         <nav class="site-footer__links" aria-label="Rechtliches">
+          {
+            editionsHref && (
+              <>
+                <a href={editionsHref} data-footer-editions>
+                  Frühere Ausgaben
+                </a>
+                <span aria-hidden="true">·</span>
+              </>
+            )
+          }
           <a href={IMPRINT_PATH}>Impressum</a>
           <span aria-hidden="true">·</span>
           <a href={PRIVACY_PATH}>Datenschutz</a>

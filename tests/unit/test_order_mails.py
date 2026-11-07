@@ -7,12 +7,11 @@ import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 
-from leonaid.adapters.postgres.order_mails import PublicCampaignLinks
 from leonaid.application.links import LinkBuilder
 from leonaid.application.order_mails import (
     RECIPIENT_LIMIT,
@@ -510,48 +509,6 @@ class Pool:
 
     def acquire(self) -> Any:
         return self._acquire()
-
-
-@pytest.mark.parametrize(
-    ("row", "expected"),
-    [
-        (
-            {
-                "archive_slug": "krapfentaxi-2026",
-                "alias": "krapfentaxi",
-                "campaign_page": True,
-            },
-            "https://site.leonaid.invalid/campaigns/krapfentaxi-2026/",
-        ),
-        (
-            {
-                "archive_slug": "krapfentaxi-2026",
-                "alias": "krapfentaxi",
-                "campaign_page": False,
-            },
-            "https://site.leonaid.invalid/krapfentaxi",
-        ),
-        (
-            {"archive_slug": "krapfentaxi-2026", "alias": None, "campaign_page": False},
-            "https://site.leonaid.invalid/archive/krapfentaxi-2026",
-        ),
-        (None, None),
-    ],
-    ids=["campaign-page", "alias", "archive", "missing"],
-)
-@pytest.mark.asyncio
-async def test_public_campaign_link_follows_the_public_host_rule(
-    row: dict[str, object] | None, expected: str | None
-) -> None:
-    links = LinkBuilder(
-        admin_base_url="https://app.leonaid.invalid",
-        site_base_url="https://site.leonaid.invalid",
-    )
-
-    assert (
-        await PublicCampaignLinks(cast(Any, Pool(row)), links).campaign_link(ACTION_ID)
-        == expected
-    )
 
 
 @pytest.mark.asyncio
