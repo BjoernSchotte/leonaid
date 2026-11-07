@@ -23,7 +23,7 @@ Du benötigst Git, Docker mit Compose v2 und mindestens 5 GiB freien Speicher.
    reinen Docs-Änderung sind das `./leonaid docs-check` und `docs-build`.
 6. Während der Arbeit gibt dir `./leonaid check-fast` in etwa 30 Sekunden
    Rückmeldung (Python-Lint, Typen und Unit-Tests; gegenüber `origin/main`
-   geänderte TypeScript-Pakete). `./leonaid bootstrap --pre-push-hook` führt
+   geänderte TypeScript-Pakete). `./leonaid install-pre-push-hook` führt
    es vor jedem `git push` aus; `git push --no-verify` überspringt es einmal.
    Führe vor der Übergabe das vollständige `./leonaid check` in einem
    sauberen Arbeitsbaum aus.

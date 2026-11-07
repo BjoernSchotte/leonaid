@@ -11,7 +11,9 @@ root manifest/lockfile/tsconfig change or "ALL" selects every package.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import re
 import sys
 
 # Root script per workspace directory; typecheck:ui covers both ui tsconfigs.
@@ -61,8 +63,18 @@ PRETTIER_SUFFIXES = {
 }
 
 
-def workspaces(root: Path) -> dict[str, tuple[str, set[str]]]:
-    """Map workspace directory -> (package name, internal dependency names)."""
+SOURCE_SUFFIXES = {".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".jsx", ".astro"}
+# Static and dynamic imports/re-exports with a relative specifier.
+RELATIVE_IMPORT = re.compile(
+    r"""(?:\bfrom|\bimport|\bimport\s*\()\s*['"](\.{1,2}/[^'"]+)['"]"""
+)
+
+
+def workspaces(root: Path) -> dict[str, tuple[str, set[str], bool]]:
+    """Map workspace directory -> (package name, internal dependencies, has check).
+
+    `has check` is true when the package defines its own typecheck/check script.
+    """
     result = {}
     for manifest in sorted(
         [*root.glob("apps/*/package.json"), *root.glob("packages/*/package.json")]
@@ -74,8 +86,43 @@ def workspaces(root: Path) -> dict[str, tuple[str, set[str]]]:
             for name in data.get(field, {})
             if name.startswith("@leonaid/")
         }
-        result[manifest.parent.relative_to(root).as_posix()] = (data["name"], names)
+        checked = bool({"typecheck", "check"} & set(data.get("scripts", {})))
+        result[manifest.parent.relative_to(root).as_posix()] = (
+            data["name"],
+            names,
+            checked,
+        )
     return result
+
+
+def relative_edges(root: Path, directories: list[str]) -> set[tuple[str, str]]:
+    """(importer, imported) workspace pairs linked by a relative import.
+
+    Such imports (e.g. campaign-site importing apps/public sources) are not
+    declared in package.json but still make the importer's typecheck depend
+    on the imported workspace.
+    """
+    edges = set()
+    for directory in directories:
+        base = root / directory
+        for folder, subfolders, files in os.walk(base):
+            subfolders[:] = [
+                name
+                for name in subfolders
+                if name not in {"node_modules", "dist", ".astro"}
+            ]
+            for name in files:
+                if Path(name).suffix not in SOURCE_SUFFIXES:
+                    continue
+                source = Path(folder) / name
+                text = source.read_text(encoding="utf-8", errors="replace")
+                for specifier in RELATIVE_IMPORT.findall(text):
+                    target = os.path.normpath(source.parent / specifier)
+                    relative = os.path.relpath(target, root).replace(os.sep, "/")
+                    for other in directories:
+                        if other != directory and relative.startswith(other + "/"):
+                            edges.add((directory, other))
+    return edges
 
 
 def plan(root: Path, changed: list[str]) -> tuple[list[str], list[str]]:
@@ -89,17 +136,28 @@ def plan(root: Path, changed: list[str]) -> tuple[list[str], list[str]]:
             for path in changed
             if path.startswith(directory + "/")
         }
-    # Close over dependents: a package that depends on a selected one.
-    by_name = {name: directory for directory, (name, _) in packages.items()}
+    # Close over dependents: declared @leonaid/* dependencies plus relative
+    # imports across workspace directories.
+    by_name = {name: directory for directory, (name, _, _) in packages.items()}
+    depends_on = {
+        directory: {by_name[name] for name in dependencies if name in by_name}
+        for directory, (_, dependencies, _) in packages.items()
+    }
+    for importer, imported in relative_edges(root, sorted(packages)):
+        depends_on[importer].add(imported)
     grew = True
     while grew:
         grew = False
-        for directory, (_, dependencies) in packages.items():
-            if directory not in selected and any(
-                by_name.get(dependency) in selected for dependency in dependencies
-            ):
+        for directory, dependencies in depends_on.items():
+            if directory not in selected and dependencies & selected:
                 selected.add(directory)
                 grew = True
+    # Fail safe: a selected workspace with its own check that this table does
+    # not know yet (a new app or package) selects every check.
+    if any(
+        packages[directory][2] and directory not in SCRIPTS for directory in selected
+    ):
+        selected = set(packages) | set(SCRIPTS)
     scripts = [SCRIPTS[d] for d in SCRIPTS if d in selected]
     prettier = sorted(
         path

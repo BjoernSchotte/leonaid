@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """check-fast selection against the real workspace manifests."""
 
+import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.dx.fast_plan import SCRIPTS, plan
+from tools.dx.fast_plan import SCRIPTS, plan, relative_edges, workspaces
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).parents[2])
 
@@ -52,6 +54,47 @@ class FastPlanTests(unittest.TestCase):
             ["package.json", "apps/web/package.json", "apps/web/gone.ts", "src/x.py"],
         )
         self.assertEqual(prettier, ["apps/web/package.json", "package.json"])
+
+    def test_relative_imports_across_workspaces_are_dependencies(self) -> None:
+        # campaign-site imports apps/public sources by relative path; that is
+        # not in package.json but breaks campaign-site when public changes.
+        edges = relative_edges(ROOT, sorted(workspaces(ROOT)))
+        self.assertIn(("apps/campaign-site", "apps/public"), edges)
+        scripts, _ = plan(ROOT, ["apps/public/src/lib/order-body.ts"])
+        self.assertIn("typecheck:campaign-site", scripts)
+
+    def test_synthetic_relative_edge_and_unknown_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, script in (("apps/web", True), ("packages/lib", False)):
+                (root / name / "src").mkdir(parents=True)
+                (root / name / "package.json").write_text(
+                    json.dumps(
+                        {
+                            "name": f"@leonaid/{name.split('/')[1]}",
+                            "scripts": {"typecheck": "tsc"} if script else {},
+                        }
+                    )
+                )
+            (root / "apps/web/src/a.ts").write_text(
+                'export { x } from "../../../packages/lib/src/x";\n'
+                'const later = import("../../../packages/lib/src/y");\n'
+            )
+            self.assertEqual(
+                relative_edges(root, ["apps/web", "packages/lib"]),
+                {("apps/web", "packages/lib")},
+            )
+            self.assertEqual(
+                plan(root, ["packages/lib/src/x.ts"])[0], ["typecheck:web"]
+            )
+            # A new workspace with its own check is unknown to SCRIPTS: all.
+            (root / "apps/new").mkdir()
+            (root / "apps/new/package.json").write_text(
+                '{"name": "@leonaid/new", "scripts": {"check": "astro check"}}'
+            )
+            self.assertEqual(
+                plan(root, ["apps/new/src/page.ts"])[0], list(SCRIPTS.values())
+            )
 
 
 if __name__ == "__main__":

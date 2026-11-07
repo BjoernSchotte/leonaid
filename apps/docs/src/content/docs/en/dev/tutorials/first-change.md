@@ -22,7 +22,7 @@ You need Git, Docker with Compose v2, and at least 5 GiB of free space.
    change, run `./leonaid docs-check` and `docs-build`.
 6. While you work, `./leonaid check-fast` gives feedback in about 30 seconds
    (Python lint, types and unit tests; TypeScript packages changed against
-   `origin/main`). `./leonaid bootstrap --pre-push-hook` runs it before every
+   `origin/main`). `./leonaid install-pre-push-hook` runs it before every
    `git push`; `git push --no-verify` skips it once. Before handoff, run the
    full `./leonaid check` from a clean working tree.
 7. Inspect the diff, generated files, secrets, and unexpected changes.
