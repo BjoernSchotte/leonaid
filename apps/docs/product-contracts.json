@@ -195,7 +195,7 @@
     {
       "file": "leonaid",
       "contains": [
-        "bootstrap) bootstrap ;;",
+        "  bootstrap)",
         "doctor) doctor ;;",
         "test-handoff)"
       ]
