@@ -66,10 +66,26 @@ GENERIC_SECRETS = (
         r"session|cookie|credential|signature)[a-z_-]*\"?\s*[:=]\s*\"?)"
         r"[^\s\",;&]+"
     ),
+    # One-time login, invitation and verification codes (six digits in
+    # LeonAid, any value when the key names the code).
+    re.compile(
+        r"(?i)((?:\"|\b)[a-z_-]*(?:login|magic|invite|invitation|verification|"
+        r"one[-_]?time|anmelde|bestaetigungs|bestätigungs|einmal)[_-]?code\"?\s*[:=]\s*\"?)"
+        r"[^\s\",;&]+"
+    ),
+    re.compile(r"(?i)((?:\"|\b)(?:otp|pin)\"?\s*[:=]\s*\"?)[^\s\",;&]+"),
+    re.compile(r"(?i)(\b[a-zäöü_-]*code\b\"?\s*[:=]?\s*\"?)(?:\d{6})\b"),
+    # Cookie objects in Playwright's {name, value} form.
+    re.compile(
+        r"(?i)([\"']?name[\"']?\s*:\s*[\"'][^\"'\n]{1,200}[\"']\s*,\s*"
+        r"[\"']?value[\"']?\s*:\s*[\"'])[^\"'\n]+"
+    ),
     # JSON Web Tokens.
     re.compile(r"()\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"),
 )
-# Long opaque strings: hex digests/keys and mixed-case base64(url) values.
+# Long opaque strings: every base64(url) or hex run of 32+ characters, except
+# lower-case words joined by - _ / (Compose names, paths, slugs). A random
+# token_urlsafe(32) value has that shape with a probability below 1e-9.
 OPAQUE = re.compile(r"(?<![A-Za-z0-9_+/=-])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
 HEX = re.compile(r"[0-9a-fA-F]{32,}")
 # After redaction a credential keyword must not be followed by a value.
@@ -77,7 +93,9 @@ LEFTOVER = re.compile(
     r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|bearer|cookie)s?\b"
     r"[\"']?\s*(?:[:=]|->|is)?\s*[\"']?(?!\[REDACTED)"
     r"(?=[^\s\"']*\d)[A-Za-z0-9+/_.~-]{8,}"
+    r"|code\W{0,3}\d{6}\b"
 )
+WORDS = re.compile(r"[a-z0-9]+(?:[-_/][a-z0-9]+)*")
 MAX_FAILURE_LINES = 80
 TAIL_LINES = 150
 MAX_LINE = 400
@@ -122,13 +140,7 @@ class Withheld(RuntimeError):
 
 def opaque(match: re.Match[str]) -> str:
     value = match.group(0)
-    if HEX.fullmatch(value):
-        return REDACTED
-    has_digit = any(c.isdigit() for c in value)
-    has_upper = any(c.isupper() for c in value)
-    has_lower = any(c.islower() for c in value)
-    # Compose names, paths and slugs are lower-case words; secrets are mixed.
-    if has_upper and has_lower and has_digit:
+    if HEX.fullmatch(value) or not WORDS.fullmatch(value):
         return REDACTED
     return value
 

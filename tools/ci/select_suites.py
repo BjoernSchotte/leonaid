@@ -134,6 +134,9 @@ TARGET_SECONDS = 600
 # turns into timeouts.
 JOB_TIMEOUT_MINUTES = {"integration": 45, "e2e": 90, "emdash": 60}
 LEG_SETUP_SECONDS = 150
+# Every Integration shard and EmDash group boots its own stack; E2E leaves of
+# one fixture kind share one (tools/ci/e2e.sh).
+SHARD_SETUP_SECONDS = {"integration": 90, "e2e": 0, "emdash": 90}
 LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that need the Twenty image prefetched (seed bootstrap).
@@ -792,6 +795,15 @@ def changed_paths(base: str, head: str) -> list[str]:
     return output.splitlines()
 
 
+def leg_estimate(kind: str, names: Sequence[str], seconds: Mapping[str, int]) -> int:
+    """Estimated leg runtime: job setup, per-shard stack boot and test time."""
+    return (
+        LEG_SETUP_SECONDS
+        + SHARD_SETUP_SECONDS[kind] * len(names)
+        + sum(seconds[name] for name in names)
+    )
+
+
 def load_warnings(selection: Selection) -> list[str]:
     """Legs whose estimated runtime nears their job timeout."""
     warnings = []
@@ -802,7 +814,7 @@ def load_warnings(selection: Selection) -> list[str]:
     ):
         limit = JOB_TIMEOUT_MINUTES[kind] * 60
         for number, names in enumerate(bins, start=1):
-            estimate = LEG_SETUP_SECONDS + sum(seconds[name] for name in names)
+            estimate = leg_estimate(kind, names, seconds)
             if estimate > LOAD_WARNING * limit:
                 warnings.append(
                     f"{kind} leg {number} ({', '.join(names)}) is estimated at "

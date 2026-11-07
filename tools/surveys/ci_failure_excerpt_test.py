@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import secrets
 from pathlib import Path
 import tempfile
 import unittest
@@ -143,6 +144,45 @@ class ExcerptTests(unittest.TestCase):
         # Ordinary prose about tokens is not withheld.
         text = self.excerpt_of("Error: token validation failed for invitation\n")
         self.assertIn("token validation failed", text)
+
+    def test_every_generated_session_and_link_token_is_redacted(self):
+        tokens = [secrets.token_urlsafe(32) for _ in range(10_000)]
+        tokens += [secrets.token_urlsafe(48) for _ in range(10_000)]
+        self.assertEqual({len(t) for t in tokens}, {43, 64})
+        text = module.redact(
+            "".join(f"Error: got {token} back\n" for token in tokens), {}
+        )
+        leaked = [token for token in tokens if token in text]
+        self.assertEqual(leaked, [])
+        self.assertEqual(text.count("[REDACTED]"), len(tokens))
+
+    def test_one_time_codes_are_redacted_and_status_codes_kept(self):
+        cases = {
+            '{"loginCode": "482913"}': "482913",
+            "Code: 517204": "517204",
+            "Dein Anmeldecode: 630418": "630418",
+            "your login code 774102 expires": "774102",
+            '{"invitationCode":"Kx7Pq2"}': "Kx7Pq2",
+            "otp=918273": "918273",
+            "pin: 4711": "4711",
+        }
+        text = self.excerpt_of(
+            "".join(f"Error: {line}\n" for line in cases)
+            + 'Error: {"statusCode":200,"exitCode":1}\n'
+        )
+        for line, code in cases.items():
+            self.assertNotIn(code, text, line)
+        self.assertIn('"statusCode":200', text)
+        self.assertIn('"exitCode":1', text)
+
+    def test_playwright_cookie_objects_are_redacted(self):
+        text = self.excerpt_of(
+            "Error: cookies [ { name: '__Host-leonaid_session', value: 'shortval-1' },"
+            ' {"name": "theme", "value": "dark2"} ]\n'
+        )
+        self.assertNotIn("shortval-1", text)
+        self.assertNotIn("dark2", text)
+        self.assertIn("__Host-leonaid_session", text)
 
     def test_personal_data_withholds_the_excerpt(self):
         self.report({"id": "editor", "pass": 1, "exitCode": 1})

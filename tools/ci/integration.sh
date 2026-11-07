@@ -8,26 +8,8 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 # fails at the end and names every failed shard. tools/ci/leak-check.sh fails
 # a shard that leaves Compose objects behind for the next one.
 if [ "$#" -gt 1 ]; then
-  failed=""
-  snapshot=$(mktemp)
-  trap 'rm -f "$snapshot"' EXIT
-  for part in "$@"; do
-    started=$(date +%s)
-    /bin/sh "$root/tools/ci/leak-check.sh" snapshot "$snapshot"
-    if /bin/sh "$root/tools/ci/integration.sh" "$part" &&
-      /bin/sh "$root/tools/ci/leak-check.sh" check "$snapshot" "$part"; then
-      echo "ci-integration: bin: $part passed ($(( $(date +%s) - started ))s)"
-    else
-      echo "ci-integration: bin: $part FAILED ($(( $(date +%s) - started ))s)" >&2
-      failed="$failed $part"
-    fi
-  done
-  if [ -n "$failed" ]; then
-    echo "ci-integration: ERROR: failed shards:$failed" >&2
-    exit 1
-  fi
-  echo "ci-integration: OK: $*"
-  exit 0
+  # Leak check after every shard, also a failed one (run-shards.sh).
+  exec /bin/sh "$root/tools/ci/run-shards.sh" integration "$root/tools/ci/integration.sh" "$@"
 fi
 
 shard=${1:-all}

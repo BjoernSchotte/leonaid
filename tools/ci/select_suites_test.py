@@ -255,12 +255,17 @@ def main() -> int:
         ("e2e", full_selection.e2e_bins(), s.E2E_SECONDS),
         ("emdash", full_selection.emdash_bins(), s.EMDASH_SECONDS),
     ):
-        longest = max(sum(seconds[n] for n in b) for b in bins) + s.LEG_SETUP_SECONDS
+        longest = max(s.leg_estimate(kind, b, seconds) for b in bins)
         expect(
             longest < 0.6 * s.JOB_TIMEOUT_MINUTES[kind] * 60,
             f"{kind}: longest leg {longest} s is too close to its timeout",
         )
     expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
+    expect(
+        s.leg_estimate("integration", ["core", "policy"], s.INTEGRATION_SECONDS)
+        == s.LEG_SETUP_SECONDS + 2 * s.SHARD_SETUP_SECONDS["integration"] + 226 + 206,
+        "Integration estimates count a stack boot per shard",
+    )
     original = dict(s.E2E_SECONDS)
     try:
         s.E2E_SECONDS["operations"] = 4000

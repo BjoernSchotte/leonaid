@@ -161,7 +161,8 @@ gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
 `EmDash proof 1/2`) so the flake history stays comparable; the shard list is
 in the job summary. The leg id names the artifact (`ci-integration-1`, ...).
 The select job warns (`CI leg near timeout`) when a leg's estimate (shard
-seconds plus `LEG_SETUP_SECONDS`) passes 75 % of its `timeout-minutes`
+seconds, `LEG_SETUP_SECONDS` per leg and `SHARD_SETUP_SECONDS` per
+Integration shard or EmDash group) passes 75 % of its `timeout-minutes`
 (`JOB_TIMEOUT_MINUTES`, kept equal to `ci.yml` by `workflow_contract.py`);
 `select_suites_test.py` keeps the complete run below 60 %.
 
@@ -176,8 +177,9 @@ Inside a leg every shard keeps its own isolation:
   between the leaves of one shard before. A failed leaf does not stop the
   others; the exit code stays the first failure's.
 - `tools/ci/emdash.sh a b` runs each group's cases once, without retries.
-- Between shards, `tools/ci/leak-check.sh` (CI runners only) compares the
-  Compose projects before and after each shard. A shard that leaves
+- After every shard, passed or failed (`tools/ci/run-shards.sh` for
+  Integration and EmDash, `step()` in `e2e.sh`), `tools/ci/leak-check.sh`
+  (CI runners only) compares the Compose projects before and after it. A shard that leaves
   containers, networks or volumes behind fails, and only its leaked projects
   are removed, so the next shard does not fail in its place.
 - `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
@@ -199,8 +201,12 @@ it as `failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The
 repository is public, so redaction runs on the full text before any line is
 cut: known secrets (`.env.local`, the run's `*.env` files, the prepared
 fixture's Twenty key), then generic shapes (Authorization/Bearer,
-Cookie/Set-Cookie, token/code/key/signature/X-Amz-* parameters, URL
-passwords, credential assignments, JWTs, long mixed-case or hex strings).
+Cookie/Set-Cookie and Playwright `{name, value}` cookie objects,
+token/code/key/signature/X-Amz-* parameters, URL passwords, credential
+assignments, login/invitation/verification codes, OTPs and PINs (de/en), JWTs,
+and every base64url/hex run of 32+ characters except lower-case words joined
+by `-`, `_` or `/`; a test proves 20 000 generated `token_urlsafe` values are
+redacted).
 Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
 and a credential keyword still followed by a value withholds it too. Its
 self-test runs in Lint, types and unit.

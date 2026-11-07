@@ -8,21 +8,8 @@ set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ "$#" -gt 1 ]; then
-  failed=""
-  snapshot=$(mktemp)
-  trap 'rm -f "$snapshot"' EXIT
-  for group in "$@"; do
-    /bin/sh "$root/tools/ci/leak-check.sh" snapshot "$snapshot"
-    if ! /bin/sh "$root/tools/ci/emdash.sh" "$group" ||
-      ! /bin/sh "$root/tools/ci/leak-check.sh" check "$snapshot" "$group"; then
-      failed="$failed $group"
-    fi
-  done
-  if [ -n "$failed" ]; then
-    echo "ci-emdash: ERROR: failed groups:$failed" >&2
-    exit 1
-  fi
-  exit 0
+  # Leak check after every group, also a failed one (run-shards.sh).
+  exec /bin/sh "$root/tools/ci/run-shards.sh" emdash "$root/tools/ci/emdash.sh" "$@"
 fi
 group=${1:-}
 
