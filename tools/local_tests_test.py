@@ -96,6 +96,7 @@ class LocalTests(unittest.TestCase):
             shutil.copy(source / "infra/locks/images.env", root / "infra/locks")
             cache = LocalStack(root)
             stack = cache.stack
+            assert stack is not None
             container = subprocess.run(
                 [
                     "docker",
