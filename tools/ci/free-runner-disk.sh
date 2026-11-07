@@ -3,6 +3,10 @@
 # toolchains LeonAid never uses (every LeonAid toolchain runs in a pinned
 # container). Small AWS-hosted runners start with about 14 GB free; jobs that
 # build or load LeonAid images need more. Deleting frees about 18 GB.
+# Azure-hosted runners of the same label start with about 86 GB free; there
+# the deletion only costs time (30-120 s of metadata I/O competing with the
+# image import), so `start` skips it when at least LEONAID_FREE_DISK_MIN_GB
+# (default 40; the heaviest job, Security, peaks at about 25 GB) are free.
 #
 # Usage: free-runner-disk.sh start   delete in the background, return at once
 #        free-runner-disk.sh wait    block until deletion ended, fail on error
@@ -24,6 +28,19 @@ case ${1:-} in
     mkdir -p "$state"
     date +%s >"$state/started"
     df -h / | tail -n 1 | sed 's/^/free-runner-disk: before: /' >"$state/log"
+    minimum=${LEONAID_FREE_DISK_MIN_GB:-40}
+    case "$minimum" in
+      ''|*[!0-9]*)
+        echo "free-runner-disk: ERROR: LEONAID_FREE_DISK_MIN_GB must be a whole number" >&2
+        exit 64
+        ;;
+    esac
+    available=$(df -Pk / | awk 'NR == 2 { print int($4 / 1048576) }')
+    if [ "$available" -ge "$minimum" ]; then
+      echo "free-runner-disk: skipped: ${available} GB free (minimum ${minimum} GB)" >>"$state/log"
+      echo 0 >"$state/status"
+      exit 0
+    fi
     # Deletion is bound by file-system metadata (the Android SDK alone has
     # hundreds of thousands of files), so second-level entries are removed in
     # parallel before the now nearly empty top-level directories.

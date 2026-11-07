@@ -558,6 +558,11 @@ def main():
         help="Remove only the cached local test environment",
     )
     parser.add_argument(
+        "--keep-going",
+        action="store_true",
+        help="Run every leaf after a failure; exit with the first failure's code",
+    )
+    parser.add_argument(
         "kind", nargs="?", default="documents", choices=["core", "golden", "documents"]
     )
     parser.add_argument("scripts", nargs="*")
@@ -594,6 +599,7 @@ def main():
         sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)
     }
     try:
+        failed: list[tuple[str, int]] = []
         for script in args.scripts:
             env = dict(os.environ, **stack.prepare())
             print(f"shared-stack: testing {script}", flush=True)
@@ -607,7 +613,16 @@ def main():
                 flush=True,
             )
             if code:
-                return code
+                if not args.keep_going:
+                    return code
+                failed.append((script, code))
+        if failed:
+            print(
+                "shared-stack: failed leaves: "
+                + ", ".join(f"{script} (exit {code})" for script, code in failed),
+                flush=True,
+            )
+            return failed[0][1]
         return 0
     finally:
         for sig, handler in previous.items():
