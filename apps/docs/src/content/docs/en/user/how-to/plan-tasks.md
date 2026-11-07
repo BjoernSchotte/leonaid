@@ -4,9 +4,9 @@ description: Create task lists, share them, assign tasks and plan your own day i
 docId: DOC-P041
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: a77c9527329c3bf72fa8fab3687c7cd7bdbb5cf3
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 1098635f282c7ab89dbaf25be05f645248026ddd
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -56,7 +56,9 @@ browser.
 6. **Reihenfolge ändern** (reorder): in a list sorted by **Reihenfolge** and in
    **Mein Plan**, drag a task by its grip, pick the grip up with the space bar
    and move it with the arrow keys, or use **Nach oben**, **Nach unten**, **In
-   Abschnitt** and **Für Tag planen** in the details.
+   Abschnitt** and **Für Tag planen** in the details. While the move saves,
+   the keyboard focus stays on the grip or button you used; after a keyboard
+   move it stays on the moved task's grip, so you can go on from there.
 
 If someone else changed the task in the meantime, saving is refused and your
 input stays in the form. Reload the current state and save again. Leaving the

@@ -27,6 +27,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** A binding such as "c" or "mod+enter", shown as subtle keycaps. */
   readonly shortcut?: string;
   readonly loading?: boolean;
+  /**
+   * Keep the button focusable while `disabled`: it is marked
+   * `aria-disabled` and ignores activation instead of carrying the HTML
+   * `disabled` attribute, which would drop focus to `<body>`. For buttons
+   * that disable themselves after being pressed (a move that saves), so a
+   * keyboard user keeps their place.
+   */
+  readonly focusableWhenDisabled?: boolean;
   /** For anchoring a Popover to the button. */
   readonly ref?: Ref<HTMLButtonElement>;
 }
@@ -51,12 +59,32 @@ function renderIcon(icon: ButtonProps["icon"], size: number): ReactNode {
   return icon;
 }
 
+/**
+ * `disabled` as native attribute, or (with `focusableWhenDisabled`) as
+ * `aria-disabled` with activation ignored, so the button keeps focus.
+ */
+function disabledProps(
+  inactive: boolean,
+  focusable: boolean | undefined,
+  onClick: ButtonProps["onClick"],
+): Pick<ButtonProps, "aria-disabled" | "disabled" | "onClick"> {
+  if (!inactive || !focusable) return { disabled: inactive, onClick };
+  return {
+    "aria-disabled": true,
+    disabled: false,
+    // Also stops a submit button from submitting its form.
+    onClick: (event) => event.preventDefault(),
+  };
+}
+
 export function Button({
   children,
   className,
   disabled,
+  focusableWhenDisabled,
   icon,
   loading,
+  onClick,
   shortcut,
   size = "md",
   type = "button",
@@ -67,9 +95,13 @@ export function Button({
     <button
       aria-busy={loading || undefined}
       className={cn(buttonClassName({ size, variant }), className)}
-      disabled={disabled || loading}
       type={type}
       {...props}
+      {...disabledProps(
+        !!(disabled || loading),
+        focusableWhenDisabled,
+        onClick,
+      )}
     >
       {loading ? (
         <span aria-hidden="true" className="spinner" />
@@ -93,8 +125,11 @@ export interface IconButtonProps
 
 export function IconButton({
   className,
+  disabled,
+  focusableWhenDisabled,
   icon,
   label,
+  onClick,
   size = "md",
   type = "button",
   variant = "ghost",
@@ -113,6 +148,7 @@ export function IconButton({
       title={label}
       type={type}
       {...props}
+      {...disabledProps(!!disabled, focusableWhenDisabled, onClick)}
     >
       {renderIcon(icon, size === "sm" ? 14 : 18)}
     </button>
