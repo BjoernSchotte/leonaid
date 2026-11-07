@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Fail on literal "/admin/" or "/app/" base paths outside the constants.
+"""Fail on literal "/admin" or "/app" base paths outside the constants.
 
 specs/multi-domain §6.7: the base paths of the two member apps live in
 packages/ui/src/lib/base-paths.ts (ADMIN_BASE, PWA_BASE, adminHref, pwaHref)
 and src/leonaid/platform/base_paths.py. Code builds its links from them, so a
 later change of a base path is one edit and not a hunt through every screen.
 
-A finding is a string literal (``"``, ``'`` or a template literal) that starts
-with ``/admin/`` or ``/app/`` in a script, markup or Python file under apps/,
-packages/ or src/leonaid/. Comment lines and tests do not count. Exceptions
-are listed in ALLOWED with the reason.
+A finding is a string literal (``"``, ``'`` or a template literal) that is
+``/admin`` or ``/app`` or starts with it followed by ``/``, ``?`` or ``#``,
+or a CSS ``url(/admin…)``/``url(/app…)``, in a script, markup, style, web
+manifest or Python file under apps/, packages/ or src/leonaid/. Comment lines
+and tests do not count. Whole-file exceptions are listed in ALLOWED and line
+patterns in ALLOWED_TEXT, each with the reason.
 
 Runs in ./leonaid check. ``--report`` lists findings without failing.
 """
@@ -21,7 +23,10 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
-LITERAL = re.compile(r"""["'`]/(?:admin|app)/""")
+# The base itself ("/app"), below it ("/app/x") or with a query ("/app?x");
+# not "/apps" or "/administration".
+LITERAL = re.compile(r"""["'`]/(?:admin|app)(?=["'`/?#])""")
+CSS_URL = re.compile(r"""url\(\s*/(?:admin|app)(?=[/?#)])""")
 ROOTS = ("apps", "packages", "src/leonaid")
 SUFFIXES = {
     ".ts",
@@ -35,6 +40,8 @@ SUFFIXES = {
     ".astro",
     ".html",
     ".py",
+    ".css",
+    ".webmanifest",
 }
 SKIPPED = {
     "node_modules",
@@ -55,14 +62,10 @@ ALLOWED = {
     # A SHA-256-pinned backport into the vendored EmDash editor bundle; its
     # exact bytes are reviewed, so it cannot import the constants.
     Path("apps/campaign-site/emdash-editor-patch.mjs"),
-    # Directories inside the campaign-site container (WORKDIR /app), no URLs.
-    Path("apps/campaign-site/src/auth/leonaid-auth.ts"),
-    Path("apps/campaign-site/src/closed-bootstrap.ts"),
-    Path("apps/campaign-site/src/cms-maintenance.mjs"),
-    Path("apps/campaign-site/src/cms-migration-operator.mjs"),
-    Path("apps/campaign-site/src/cms-provision-operator.mjs"),
 }
-COMMENT_PREFIXES = ("//", "/*", "*", "#", "<!--")
+# A directory inside the campaign-site container (WORKDIR /app), no URL.
+ALLOWED_TEXT = ("/app/bootstrap-state",)
+COMMENT_PREFIXES = ("//", "/*", "*", "<!--")
 
 
 def _is_test(path: Path) -> bool:
@@ -89,10 +92,15 @@ def _line_findings(line: str, suffix: str) -> bool:
     stripped = line.strip()
     if stripped.startswith(COMMENT_PREFIXES):
         return False
-    # OpenAPI examples document a response; they build no link.
-    if suffix == ".py" and "examples=" in stripped:
-        return False
-    return LITERAL.search(line) is not None
+    if suffix == ".py":
+        if stripped.startswith("#"):
+            return False
+        # OpenAPI examples document a response; they build no link.
+        if "examples=" in stripped:
+            return False
+    for allowed in ALLOWED_TEXT:
+        line = line.replace(allowed, "")
+    return LITERAL.search(line) is not None or CSS_URL.search(line) is not None
 
 
 def findings(root: Path) -> list[str]:

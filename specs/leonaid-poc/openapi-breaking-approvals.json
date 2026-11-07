@@ -94,6 +94,22 @@
         "property-type-changed:QuestionAggregate.unanswered"
       ],
       "rationale": "Leitsystem milestone 2, approved by Björn Schotte on 2026-11-04 and 2026-11-05. Survey analysis applies the k = 5 disclosure rule to every aggregate for all viewers: counts become nullable when withheld, and QuestionAggregate.sum is removed because a sum leaks withheld answers; raw exports are unchanged. MemberDirectoryActionResponse.leadRequired tells the member page when an action needs a lead. The dashboard (delivery, orderValueWeeks), invoice dashboard (deliveryFailed, overdue, overdueAmountMinor) and delivery window (fullyBooked) fields are additive, always-serialized response data. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "08022d34ca98310af7440aec9dc82b46bba37a4c500f7d9e895f2eaea2b78762",
+      "newSha256": "f7dd1ee0cef7b0a05a20bceb5b97a073a1701cc7d5c3426b3e21cbe10db940d9",
+      "changes": [
+        "property-newly-required:CurrentIdentityResponse.landingPath"
+      ],
+      "rationale": "Multi-domain stage 1b adds landingPath, the role-based start page computed by Core for the signed-in member, to the authenticated identity response. It is output-only: Core always serializes it, and no request contract changes. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approved by Björn Schotte on 2026-11-07. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "f6562325a917bb65910422ef4da970562e5d078a00e9eb322ffacedd4548e3ca",
+      "newSha256": "f7dd1ee0cef7b0a05a20bceb5b97a073a1701cc7d5c3426b3e21cbe10db940d9",
+      "changes": [
+        "property-newly-required:CurrentIdentityResponse.landingPath"
+      ],
+      "rationale": "Multi-domain stage 1b adds landingPath, the role-based start page computed by Core for the signed-in member, to the authenticated identity response. It is output-only: Core always serializes it, and no request contract changes. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approved by Björn Schotte on 2026-11-07. Approval is bound to these exact contract hashes and changes."
     }
   ]
 }

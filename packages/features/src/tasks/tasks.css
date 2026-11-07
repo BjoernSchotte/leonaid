@@ -173,7 +173,7 @@
   display: inline-block;
   width: 20px;
 }
-.task-order-handle:hover {
+.task-order-handle:hover:not([aria-disabled="true"]) {
   background: var(--surface-3);
   color: var(--text);
 }
@@ -181,7 +181,7 @@
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
-.task-order-handle:disabled {
+.task-order-handle[aria-disabled="true"] {
   cursor: default;
   opacity: 0.5;
 }

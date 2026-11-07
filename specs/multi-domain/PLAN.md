@@ -1285,7 +1285,7 @@ one test domain owned by the club.
 - Core: `landingPath` and `preferredSurface` in `GET /api/v1/identity/me`;
   `PUT /api/v1/identity/me/preferred-surface` (409
   `preferred_surface_unavailable` without a role for that app); migration
-  `0054_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
+  `0055_preferred_surface` (nullable, `web`/`pwa`, plain downgrade). The rule
   lives in `landing_path()` (`application/identity.py`).
 - Entry: `apps/public/src/pages/login/start.ts`; Caddy rewrites `/` on the
   admin host to it. No session → `/login`; else 302 to `landingPath`.
@@ -1300,8 +1300,11 @@ one test domain owned by the club.
   `startAreaChoices` in `base-paths.ts`).
 - `memberReturnTo` checks the path the URL parser resolves (dot segments,
   also encoded), so `/app/../campaigns/x/` falls back.
-- `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin/` and
-  `/app/` strings outside the base-path files, tests and comments.
+- `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin` and
+  `/app` strings (also without the trailing slash, with `?`/`#`, and CSS
+  `url()`), in scripts, markup, styles, web manifests and Python, outside the
+  base-path files, tests and comments. Code without a trailing slash uses
+  `baseRoot()`.
 - Base paths: `src/leonaid/platform/base_paths.py` and
   `packages/ui/src/lib/base-paths.ts` (contract test
   `tests/unit/test_base_paths.py`); read by Core navigation and deep links,

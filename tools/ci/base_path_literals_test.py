@@ -26,11 +26,22 @@ CLEAN = {
     ),
     "src/leonaid/application/identity.py": "# Lands on '/admin/system'.\n",
     "tests/e2e/flow.spec.mjs": 'await page.goto("/admin/");\n',
+    # G2: the container directory is allowed as text, not the whole file.
     "apps/campaign-site/src/closed-bootstrap.ts": (
         'const bootstrapDirectory = "/app/bootstrap-state";\n'
     ),
-    # A prefix that only looks alike.
+    "apps/campaign-site/src/cms-maintenance.mjs": (
+        'const marker = "/app/bootstrap-state/cms-maintenance";\n'
+    ),
+    # The pinned EmDash patch keeps its whole-file exception.
+    "apps/campaign-site/emdash-editor-patch.mjs": 'href: "/admin/",\n',
+    # Prefixes that only look alike.
     "packages/features/src/apps.ts": 'const path = "/apps/list";\n',
+    "packages/features/src/administration.ts": 'const path = "/administration";\n',
+    "packages/features/src/roots.tsx": "const root = baseRoot(PWA_BASE);\n",
+    # G3: styles and manifests without base literals; a CSS id selector.
+    "apps/web/src/clean.css": '#app { background: url("/assets/x.svg"); }\n',
+    "apps/pwa/public/manifest.webmanifest": '{"start_url": "__LEONAID_PWA_BASE__"}\n',
 }
 DIRTY = {
     "packages/features/src/double.tsx": 'window.location.assign("/admin/actions");\n',
@@ -41,6 +52,20 @@ DIRTY = {
     "apps/web/index.html": '<script src="/admin/theme-init.js"></script>\n',
     "src/leonaid/application/links.py": 'path = "/admin/orders"\n',
     "apps/pwa/src/start.mjs": "location.href = '/app/';\n",
+    # G1: the base without its trailing slash, with a query or a hash.
+    "packages/features/src/root.tsx": 'return surface === "web" ? "/admin" : "/app";\n',
+    "packages/features/src/prefix.tsx": 'basePath.startsWith("/app")\n',
+    "packages/features/src/inbox.tsx": 'basePath={`${web ? "/admin" : x}/inbox`}\n',
+    "packages/features/src/query.ts": 'const href = "/admin?open=1";\n',
+    "packages/features/src/hash.ts": "const href = '/app#new';\n",
+    # G2: other text on a line with the allowed directory still counts.
+    "apps/campaign-site/src/mixed.ts": (
+        'requireCompletedBootstrap("/app/bootstrap-state", "/admin/");\n'
+    ),
+    # G3: styles and web manifests.
+    "apps/web/src/theme.css": '.logo { background: url("/admin/logo.svg"); }\n',
+    "apps/pwa/src/bare.css": ".x { background: url(/app/icon.png); }\n",
+    "apps/pwa/public/app.webmanifest": '{"start_url": "/app/"}\n',
 }
 
 

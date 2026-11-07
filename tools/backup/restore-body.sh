@@ -292,26 +292,11 @@ docker run --rm \
   -v "$backup_root:/backup:ro" \
   "$ALPINE_IMAGE" \
   tar -C /target -xf /backup/rustfs-data.tar
-# The manifest verified this archive above. It holds the TLS private keys
-# and the ACME account of the production hosts, so only an explicit restore
-# of the installation itself (new server, same host names) takes it:
-# LEONAID_RESTORE_TLS_STATE=true (pilot-restore --with-tls-state). Staging
-# and drill targets request their own certificates.
-restore_tls_state=${LEONAID_RESTORE_TLS_STATE:-false}
-case "$restore_tls_state" in true|false) ;; *) fail "LEONAID_RESTORE_TLS_STATE must be true or false" ;; esac
-if [ -f "$backup_root/caddy-data.tar" ] && [ "$restore_tls_state" = false ]; then
-  echo "restore: TLS certificates of the source not restored (no --with-tls-state)"
-fi
-if [ -f "$backup_root/caddy-data.tar" ] && [ "$restore_tls_state" = true ]; then
-  docker volume create \
-    --label "com.docker.compose.project=$target_project" \
-    --label "com.docker.compose.volume=caddy-data" \
-    "${target_project}_caddy-data" >/dev/null
-  docker run --rm --network none \
-    -v "${target_project}_caddy-data:/target" \
-    -v "$backup_root:/backup:ro" "$ALPINE_IMAGE" \
-    tar -C /target -xf /backup/caddy-data.tar
-fi
+# The manifest verified caddy-data.tar above; restore-tls-state.sh decides
+# whether the target takes the production TLS keys (N2).
+. "$root/tools/backup/restore-tls-state.sh"
+restore_tls_state "$backup_root" "$target_project" ||
+  fail "TLS state of the source could not be restored"
 
 
 if [ "$restore_scope" = full ]; then

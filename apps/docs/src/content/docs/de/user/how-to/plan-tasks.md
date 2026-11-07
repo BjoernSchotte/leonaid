@@ -4,9 +4,9 @@ description: Aufgabenlisten anlegen und freigeben, Aufgaben zuweisen und den eig
 docId: DOC-P041
 audience: [user]
 diataxis: how-to
-contentRevision: 3
-reviewedRevision: 3
-verifiedAgainst: a77c9527329c3bf72fa8fab3687c7cd7bdbb5cf3
+contentRevision: 4
+reviewedRevision: 4
+verifiedAgainst: 1098635f282c7ab89dbaf25be05f645248026ddd
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
 
@@ -60,7 +60,10 @@ diesem Browser.
    und in **Mein Plan** ziehst du eine Aufgabe am Griff, nimmst den Griff mit
    der Leertaste auf und bewegst ihn mit den Pfeiltasten, oder nutzt in den
    Details **Nach oben**, **Nach unten**, **In Abschnitt** und **Für Tag
-   planen**.
+   planen**. Während die Bewegung gespeichert wird, bleibt der Tastaturfokus
+   auf dem Griff oder der Schaltfläche, die du benutzt hast; nach einer
+   Bewegung per Tastatur bleibt er auf dem Griff der verschobenen Aufgabe,
+   sodass du dort weitermachen kannst.
 
 Hat jemand die Aufgabe inzwischen geändert, wird das Speichern abgelehnt und
 deine Eingabe bleibt im Formular. Lade den aktuellen Stand und speichere erneut.
