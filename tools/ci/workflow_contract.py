@@ -230,7 +230,10 @@ def check(path: Path) -> list[str]:
     ):
         block = job_block(text, job)
         timeout = re.search(r"(?m)^    timeout-minutes: (\d+)$", block)
-        if not timeout or int(timeout.group(1)) != select_suites.JOB_TIMEOUT_MINUTES[kind]:
+        if (
+            not timeout
+            or int(timeout.group(1)) != select_suites.JOB_TIMEOUT_MINUTES[kind]
+        ):
             problems.append(
                 f"{job}: timeout-minutes must equal select_suites.JOB_TIMEOUT_MINUTES"
                 f"[{kind!r}] (the selector's load warning uses it)."

@@ -122,7 +122,11 @@ E2E_SECONDS = {
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
-EMDASH_SECONDS = {"krapfentaxi-orders": 736, "krapfentaxi-migration": 328, "static": 107}
+EMDASH_SECONDS = {
+    "krapfentaxi-orders": 736,
+    "krapfentaxi-migration": 328,
+    "static": 107,
+}
 TARGET_SECONDS = 600
 # ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
 # equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the

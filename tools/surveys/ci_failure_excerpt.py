@@ -162,11 +162,9 @@ def excerpt(text: str) -> str:
         if not COMPOSE_PROGRESS.match(clean := ANSI.sub("", line)[:MAX_LINE])
     ]
     tail_start = max(0, len(lines) - TAIL_LINES)
-    failures = [
-        line
-        for line in lines[:tail_start]
-        if FAILURE_LINE.search(line)
-    ][-MAX_FAILURE_LINES:]
+    failures = [line for line in lines[:tail_start] if FAILURE_LINE.search(line)][
+        -MAX_FAILURE_LINES:
+    ]
     parts = []
     if failures:
         parts += ["--- failure lines before the tail ---", *failures]
@@ -215,7 +213,9 @@ def logs_for(root: Path, iteration: int, check: str) -> list[tuple[str, Path]]:
     found = [
         (f"{iteration}-{check}", path)
         for path in sorted(
-            (root / ".artifacts/surveys-gate").glob(f"private-*/{iteration}-{check}.log")
+            (root / ".artifacts/surveys-gate").glob(
+                f"private-*/{iteration}-{check}.log"
+            )
         )
     ]
     if check in FOUNDATION_LOGS:

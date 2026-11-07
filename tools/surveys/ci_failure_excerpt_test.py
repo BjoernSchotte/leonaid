@@ -158,7 +158,9 @@ class ExcerptTests(unittest.TestCase):
         harness.mkdir(parents=True)
         (harness / "infrastructure.log").write_text("Timeout waiting for api\n")
         printed = dict(module.export(self.root, self.destination))
-        self.assertIn("Timeout waiting for api", printed["foundation-diagnostics-harness"])
+        self.assertIn(
+            "Timeout waiting for api", printed["foundation-diagnostics-harness"]
+        )
 
     def test_no_failure_no_excerpt_and_unsafe_ids_ignored(self):
         self.report(
