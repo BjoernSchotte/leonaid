@@ -4,8 +4,8 @@ description: Eine Aktion unter einer eigenen Domain oder Subdomain zeigen, Folge
 docId: DOC-P048
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: e61f18a07a9f9aaa59f7e91e19008a6c185dd136
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -13,6 +13,11 @@ reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 **Rolle:** System-Admin. Domains kosten Geld und betreffen den ganzen Club,
 deshalb verwaltet nur die System-Administration sie. Charity-Admins sehen die
 Adressen ihrer Aktion, ändern sie aber nicht.
+
+:::caution[Vorschau]
+Domains lassen sich eintragen, prüfen und binden. Die Kampagnenseiten liefert
+die Domain erst mit dem nächsten Release aus.
+:::
 
 Eine Aktion kann unter einer eigenen Domain (`krapfentaxi.org`) oder einer
 Subdomain des Clubs (`weihnachtsmarkt.example.org`) laufen. Die Verwaltung
@@ -32,6 +37,25 @@ Aktionen, die an sie gebunden sind.
 
 Der Verwaltungshost, der öffentliche Host und dessen Zusatznamen lassen sich
 nicht eintragen, ebenso keine Namen unterhalb des Verwaltungshosts.
+
+## Domain prüfen
+
+1. Warte, bis der DNS-Eintrag sichtbar ist (oft Minuten, manchmal Stunden).
+2. Wähle auf der Domain-Karte **Prüfen**.
+
+LeonAid prüft, dass jeder `A`/`AAAA`-Eintrag der Domain auf diesen Server
+zeigt, und ruft die Prüfadresse der Karte über jede dieser Adressen auf.
+Antwortet überall dieser Server, steht die Domain auf **Geprüft**.
+Beim ersten Aufruf über HTTPS holt der Server ein Zertifikat von Let's
+Encrypt; danach steht sie auf **Aktiv**. Steht sie noch auf **Geprüft**,
+prüfe nach einer Minute erneut. Erst eine geprüfte Domain erhält ein
+Zertifikat; ein Neustart ist nicht nötig.
+
+LeonAid prüft aktive Domains täglich. Schlägt die Prüfung drei Mal über
+mindestens 72 Stunden fehl, wird die Domain **Abgeschaltet** und erhält kein
+Zertifikat mehr. **System** › **Betrieb** zeigt solche Domains unter
+**Domains für Aktionen**. Wird die Prüfung wieder grün, wird die Domain
+wieder aktiv; ihre Ausgaben bleiben in der Zeit gebunden.
 
 ## Aktion binden
 

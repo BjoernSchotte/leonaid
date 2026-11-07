@@ -368,6 +368,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     MemberRoleChangeResponse,
     MemberStatusChangeResponse,
     OperationalAlertResponse,
+    OperationalSiteHostResponse,
     OperationalApiMetricsResponse,
     OperationalCheckResponse,
     OperationalDependencyResponse,
@@ -2709,6 +2710,17 @@ async def operations_overview(
                 for item in snapshot.monitoring.active_alerts
             ],
         ),
+        site_hosts=[
+            OperationalSiteHostResponse(
+                hostname=issue.hostname,
+                status=issue.status.value,
+                failed_checks=issue.failed_checks,
+                last_check_result=issue.last_check_result,
+                last_checked_at=issue.last_checked_at,
+                live_bindings=issue.live_bindings,
+            )
+            for issue in await request.app.state.site_host_verification.issues()
+        ],
     )
 
 

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -132,7 +135,14 @@ from leonaid.configuration import Settings, load_module_settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
-from leonaid.entrypoints.fastapi.site_hosts import router as site_host_router
+from leonaid.entrypoints.fastapi.site_hosts import (
+    infrastructure_router as site_host_infrastructure_router,
+    router as site_host_router,
+)
+from leonaid.adapters.postgres.site_host_verification import (
+    AsyncpgSiteHostVerification,
+)
+from leonaid.adapters.site_host_checks import HostChecker
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
@@ -158,6 +168,51 @@ REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 PATH_UUID = re.compile(
     r"/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$)"
 )
+
+
+# One API process at a time runs the re-check (§7.4).
+SITE_HOST_RECHECK_LOCK = 527063
+
+
+async def site_host_recheck_loop(
+    service: SiteHostService, pool: Any, interval_seconds: float
+) -> None:
+    """Re-checks campaign hosts in the API process, which has egress.
+
+    Verified hosts every run (until their certificate is there), active and
+    lapsed hosts once a day. Failures land on the host and in the operations
+    view; this loop never stops on them.
+    """
+    await asyncio.sleep(min(60.0, interval_seconds))
+    while True:
+        try:
+            async with pool.acquire() as connection:
+                if await connection.fetchval(
+                    "SELECT pg_try_advisory_lock($1)", SITE_HOST_RECHECK_LOCK
+                ):
+                    try:
+                        checked = await service.recheck_due(
+                            request_id=f"site-host-recheck:{uuid4()}"
+                        )
+                    finally:
+                        await connection.execute(
+                            "SELECT pg_advisory_unlock($1)", SITE_HOST_RECHECK_LOCK
+                        )
+                    if checked:
+                        print(
+                            structured_event("site_host.rechecked", hosts=checked),
+                            flush=True,
+                        )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:  # noqa: BLE001 - logged by type, retried
+            print(
+                structured_event(
+                    "site_host.recheck_failed", errorType=type(error).__name__
+                ),
+                flush=True,
+            )
+        await asyncio.sleep(interval_seconds)
 
 
 def request_id_for(request: Request) -> str:
@@ -297,8 +352,14 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.configured_hosts, str(settings.site_base_url)
         )
         application.state.canonical_urls = canonical
+        application.state.site_host_check_secret = settings.site_host_check_secret
+        site_host_verification = AsyncpgSiteHostVerification(pool)
+        application.state.site_host_verification = site_host_verification
         application.state.site_host_service = SiteHostService(
-            AsyncpgSiteHostRepository(pool, canonical), settings.configured_hosts
+            AsyncpgSiteHostRepository(pool, canonical),
+            settings.configured_hosts,
+            site_host_verification,
+            HostChecker(settings.host_check_settings),
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)
@@ -449,11 +510,26 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.activity_management_service = None
             application.state.public_order_service = None
         application.state.inbox_service = build_inbox_service(pool, crm_gateway)
+        recheck = (
+            asyncio.create_task(
+                site_host_recheck_loop(
+                    application.state.site_host_service,
+                    pool,
+                    settings.site_host_recheck_interval_seconds,
+                )
+            )
+            if settings.site_host_recheck_interval_seconds > 0
+            else None
+        )
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()
             yield
         finally:
+            if recheck is not None:
+                recheck.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await recheck
             if crm_gateway is not None:
                 await crm_gateway.close()
             await pool.close()
@@ -720,7 +796,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
 
     register_api_modules(
-        application, core=(router, site_host_router), disabled=disabled_modules
+        application,
+        core=(router, site_host_router, site_host_infrastructure_router),
+        disabled=disabled_modules,
     )
     return application
 

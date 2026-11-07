@@ -13,11 +13,13 @@ indexes.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import ipaddress
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Literal
 
@@ -399,3 +401,81 @@ def public_host_path(
     if primary_alias is not None:
         return f"/{primary_alias}"
     return f"/archive/{archive_slug}"
+
+
+# ---------- host check (§7.4) ----------
+
+# Nightly re-check: three consecutive failures over at least 72 h disable a
+# verified or active host, so a lapsed domain cannot keep a certificate path.
+DISABLE_AFTER_FAILURES = 3
+DISABLE_AFTER = timedelta(hours=72)
+
+
+@dataclass(frozen=True, slots=True)
+class HostCheckOutcome:
+    """One check. ``tls_ok`` is None when the HTTP part already failed."""
+
+    http_ok: bool
+    tls_ok: bool | None
+    message: str
+
+
+def check_answer(secret: str, hostname: str, token: str, nonce: str) -> str:
+    """The body this installation serves on the check path of ``hostname``.
+
+    An HMAC under the installation secret over host, token and the checker's
+    fresh nonce: nobody else can produce it, and a captured answer is worth
+    nothing for the next check (§7.4).
+    """
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        f"{hostname}\n{token}\n{nonce}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"leonaid-host-check:{digest}"
+
+
+@dataclass(frozen=True, slots=True)
+class CheckTransition:
+    status: SiteHostStatus
+    consecutive_failures: int
+    failing_since: datetime | None
+    verified_now: bool
+
+
+def check_transition(
+    *,
+    status: SiteHostStatus,
+    has_live_bindings: bool,
+    consecutive_failures: int,
+    failing_since: datetime | None,
+    outcome: HostCheckOutcome,
+    now: datetime,
+) -> CheckTransition:
+    """The host status after one check (§7.4, §7.7.6).
+
+    pending → verified on a passing HTTP check, → active once TLS passes. A
+    disabled host comes back only while it still has live bindings (lapsed
+    DNS); a removed host must be added again. Failures of a verified or
+    active host count; DISABLE_AFTER_FAILURES in a row over at least
+    DISABLE_AFTER disable it. A pending host's failures do not count.
+    """
+    returning = status in {SiteHostStatus.PENDING, SiteHostStatus.DISABLED}
+    if status is SiteHostStatus.DISABLED and not has_live_bindings:
+        return CheckTransition(status, consecutive_failures, failing_since, False)
+    if outcome.http_ok and outcome.tls_ok:
+        return CheckTransition(SiteHostStatus.ACTIVE, 0, None, returning)
+    if outcome.http_ok and (returning or status is SiteHostStatus.VERIFIED):
+        # The name points here; the certificate is not there yet.
+        return CheckTransition(SiteHostStatus.VERIFIED, 0, None, returning)
+    if status is SiteHostStatus.PENDING:
+        return CheckTransition(status, 0, None, False)
+    failures = consecutive_failures + 1
+    since = failing_since or now
+    if (
+        status is not SiteHostStatus.DISABLED
+        and failures >= DISABLE_AFTER_FAILURES
+        and now - since >= DISABLE_AFTER
+    ):
+        return CheckTransition(SiteHostStatus.DISABLED, failures, since, False)
+    return CheckTransition(status, failures, since, False)

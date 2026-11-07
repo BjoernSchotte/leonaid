@@ -233,8 +233,9 @@ export type OperationalFailedJobResponse = { readonly aggregateId: string; reado
 export type OperationalJobRetryResponse = { readonly id: string; readonly manualRetryCount: number; readonly requestId: string; readonly status: "pending"; };
 export type OperationalLoginMetricsResponse = { readonly challengesLast24h: number; readonly completionsLast24h: number; readonly failuresLast24h: number; };
 export type OperationalMonitoringResponse = { readonly activeAlerts: Array<OperationalAlertResponse>; readonly checks: Array<OperationalCheckResponse>; readonly status: "inactive" | "ready" | "attention" | "unavailable"; };
+export type OperationalSiteHostResponse = { readonly failedChecks: number; readonly hostname: string; readonly lastCheckResult: string | null; readonly lastCheckedAt: string | null; readonly liveBindings: number; readonly status: "pending" | "verified" | "active" | "disabled"; };
 export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
-export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly nextPendingAttemptAt?: string | null; readonly oldestDuePendingAgeSeconds?: number | null; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; };
+export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly nextPendingAttemptAt?: string | null; readonly oldestDuePendingAgeSeconds?: number | null; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; readonly siteHosts?: Array<OperationalSiteHostResponse>; };
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
 export type Page = { readonly actionId: string | null; readonly content: Record<string, unknown>; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type PageAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
@@ -1833,6 +1834,17 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async checkSiteHost(
+    hostId: string,
+    options: RequestOptions = {},
+  ): Promise<SiteHostResponse> {
+    return this.request<SiteHostResponse>(
+      `/api/v1/admin/site-hosts/${encodeURIComponent(String(hostId))}/check`,
+      { method: "POST" },
       options,
     );
   }

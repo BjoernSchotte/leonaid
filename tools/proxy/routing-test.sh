@@ -40,12 +40,22 @@ for service in api web pwa public campaign-site twenty-server mailpit listmonk; 
     campaign-site) reply='campaign-site {uri} xfh={header.X-Forwarded-Host}' ;;
     *) reply="$service {uri}" ;;
   esac
+  # Core's on-demand TLS ask (specs/multi-domain §9.1) refuses one name.
+  deny=""
+  if [ "$service" = api ]; then
+    deny='@refused {
+		path /internal/tls/ask
+		query domain=refused.leonaid.test
+	}
+	respond @refused 403'
+  fi
   cat >"$work/$service.caddy" <<EOF
 {
 	admin off
 	auto_https off
 }
 :3000, :8000, :8025, :9000 {
+	$deny
 	respond "$reply" 200
 }
 EOF
@@ -63,7 +73,8 @@ run_case() {
   render=$2
   mode=$3
   port=$4
-  shift 4
+  http_port=$5
+  shift 5
   python3 "$root/tools/proxy/caddyfiles.py" --root "$root" --render "$render" \
     --tls-internal >"$work/$label.Caddyfile"
   chmod 0644 "$work/$label.Caddyfile"
@@ -91,6 +102,7 @@ run_case() {
   done
   if ! docker run --rm --network "$network" \
     --env ROUTING_CA_FILE="$ca" --env ROUTING_PORT="$port" \
+    --env ROUTING_HTTP_PORT="$http_port" \
     --volume "$network-data:/data:ro" \
     --volume "$root/tools/proxy/routing_proof.py:/proof/routing_proof.py:ro" \
     "$PYTHON_IMAGE" python /proof/routing_proof.py "$mode"; then
@@ -101,18 +113,18 @@ run_case() {
   docker volume rm "$network-data" >/dev/null
 }
 
-run_case pilot-single pilot-single single 443 \
+run_case pilot-single pilot-single single 443 80 \
   --env LEONAID_PUBLIC_DOMAIN=single.leonaid.test \
   --env CADDY_ACME_EMAIL=operator@leonaid.invalid
-run_case pilot-split pilot-split split 443 \
+run_case pilot-split pilot-split split 443 80 \
   --env LEONAID_ADMIN_DOMAIN=app.leonaid.test \
   --env LEONAID_PUBLIC_DOMAIN=leonaid.test \
   --env "LEONAID_PUBLIC_DOMAIN_ALIASES=www.leonaid.test" \
   --env CADDY_ACME_EMAIL=operator@leonaid.invalid
-run_case pilot-admin-only pilot-admin-only admin-only 443 \
+run_case pilot-admin-only pilot-admin-only admin-only 443 80 \
   --env LEONAID_ADMIN_DOMAIN=app.leonaid.test \
   --env CADDY_ACME_EMAIL=operator@leonaid.invalid
-run_case dev-split dev-split split 8443 \
+run_case dev-split dev-split split 8443 8080 \
   --env LEONAID_ADMIN_DOMAIN=app.leonaid.test \
   --env LEONAID_PUBLIC_DOMAIN=leonaid.test
-echo "proxy-routing: OK: pilot single-host, split, admin-only and dev split routing proven"
+echo "proxy-routing: OK: pilot single-host, split, admin-only and dev split routing proven, campaign hosts included"

@@ -10555,6 +10555,69 @@
         "title": "OperationalMonitoringResponse",
         "type": "object"
       },
+      "OperationalSiteHostResponse": {
+        "additionalProperties": false,
+        "description": "A campaign host whose check failed or that waits for its certificate.",
+        "properties": {
+          "failedChecks": {
+            "minimum": 0.0,
+            "title": "Failedchecks",
+            "type": "integer"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "lastCheckResult": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckresult"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckedat"
+          },
+          "liveBindings": {
+            "minimum": 0.0,
+            "title": "Livebindings",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "verified",
+              "active",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "status",
+          "failedChecks",
+          "lastCheckResult",
+          "lastCheckedAt",
+          "liveBindings"
+        ],
+        "title": "OperationalSiteHostResponse",
+        "type": "object"
+      },
       "OperationalStatusCountsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -10654,6 +10717,14 @@
           "requestId": {
             "title": "Requestid",
             "type": "string"
+          },
+          "siteHosts": {
+            "description": "Campaign hosts with failed checks, lapsed with live editions, or waiting for their certificate (specs/multi-domain §7.4).",
+            "items": {
+              "$ref": "#/components/schemas/OperationalSiteHostResponse"
+            },
+            "title": "Sitehosts",
+            "type": "array"
           }
         },
         "required": [
@@ -27947,6 +28018,110 @@
           }
         },
         "summary": "Change Site Edition Segment",
+        "tags": [
+          "site-hosts"
+        ]
+      }
+    },
+    "/api/v1/admin/site-hosts/{host_id}/check": {
+      "post": {
+        "description": "Prüfen (§7.4): the host check runs now; the answer has its result.",
+        "operationId": "checkSiteHost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteHostResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Check Site Host",
         "tags": [
           "site-hosts"
         ]

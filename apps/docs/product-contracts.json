@@ -757,7 +757,11 @@
         "Entfernen",
         "nicht mehr öffentlich erreichbar",
         "aktuell auf /",
-        "CNAME"
+        "CNAME",
+        "Prüfen",
+        "Geprüft",
+        "Aktiv",
+        "Abgeschaltet"
       ]
     },
     {
@@ -767,6 +771,14 @@
     {
       "file": "src/leonaid/domain/site_hosts.py",
       "contains": ["site_host_reserved", "RESERVED_EDITION_SEGMENTS"]
+    },
+    {
+      "file": "packages/features/src/system-admin/operations-admin.tsx",
+      "contains": ["Domains für Aktionen"]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/site_host_verification.py",
+      "contains": ["TLS_NEW_APPROVALS_PER_HOUR = 10"]
     }
   ]
 }
