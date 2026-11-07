@@ -75,7 +75,8 @@ export function useDevice(
     retryDelay: (attempt) => 150 * (attempt + 1),
     staleTime: 30_000,
   });
-  const [prepared, setPrepared] = useState<PreparedDevice | null>(null);
+  // undefined until the online start decided; null keeps nothing.
+  const [prepared, setPrepared] = useState<PreparedDevice | null>();
   const startedOffline = Boolean(identity.data) && fromCache.current;
 
   // Online: the flag decides whether the device keeps anything.
@@ -108,10 +109,15 @@ export function useDevice(
     if (startedOffline && online) void identity.refetch();
   }, [startedOffline, online]);
 
-  const store = startedOffline
+  // Back online after an offline start, the device copy stays in use
+  // until the flag has been read again, so the queue never disappears.
+  const undecided = startedOffline || prepared === undefined;
+  const store = undecided ? cachedStore.current : (prepared?.store ?? null);
+  const mode = undecided
     ? cachedStore.current
-    : (prepared?.store ?? null);
-  const mode = startedOffline ? "on" : (prepared?.mode ?? null);
+      ? "on"
+      : null
+    : (prepared?.mode ?? null);
   const userId = identity.data?.userId ?? "";
 
   // The read cache follows Core while online and visible (§8.2).

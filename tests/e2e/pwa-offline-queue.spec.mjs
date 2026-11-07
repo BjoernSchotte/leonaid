@@ -225,8 +225,11 @@ test("captures made offline are kept on the device and sent once online", async 
 
   // Back online: sent without a tap, each once.
   await context.setOffline(false);
-  await expect(indicator).toHaveAccessibleName("Online", { timeout: 30_000 });
-  expect(await rawQueue(page)).toEqual([]);
+  await expect(indicator).toHaveAttribute("data-queue-state", "empty", {
+    timeout: 30_000,
+  });
+  await expect(indicator).toHaveAccessibleName("Online");
+  await expect.poll(() => rawQueue(page)).toEqual([]);
   const board = await apiJson(
     page,
     `/api/v1/actions/${ACTION_ID}/acquisition/activity-board?limit=100`,
