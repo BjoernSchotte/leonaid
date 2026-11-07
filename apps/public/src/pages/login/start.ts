@@ -4,6 +4,7 @@
 // Core computes (landingPath). Server-side only: no client flash, no service
 // worker involved.
 import type { APIRoute } from "astro";
+import { ApiError, LeonAidApiClient } from "@leonaid/api-client";
 import { ADMIN_BASE } from "@leonaid/ui/base-paths";
 import { entryDestination } from "../../lib/entry";
 
@@ -29,37 +30,34 @@ function redirect(location: string): Response {
   });
 }
 
+function unavailable(): Response {
+  return new Response("LeonAid ist gerade nicht erreichbar.", {
+    status: 503,
+    headers: { "Cache-Control": "no-store", "Retry-After": "30" },
+  });
+}
+
 export const GET: APIRoute = async ({ request }) => {
   const session = sessionCookie(request.headers.get("cookie"));
   if (!session) return redirect("/login");
   const core = process.env.CORE_API_URL?.trim() || "http://api:8000";
-  let response: Response;
   try {
     // Only the session cookie reaches Core, never other cookies of the host.
-    response = await fetch(`${core}/api/v1/identity/me`, {
+    const identity = await new LeonAidApiClient(core).getCurrentIdentity({
       headers: {
         Cookie: `${SESSION_COOKIE}=${session}`,
         "X-Request-ID": `entry:${crypto.randomUUID()}`,
       },
       signal: AbortSignal.timeout(timeoutMilliseconds),
     });
-  } catch {
+    return redirect(entryDestination(identity.landingPath, ADMIN_BASE));
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 401 || error.status === 403)
+    )
+      return redirect("/login");
     console.warn("entry_identity_unavailable");
-    return new Response("LeonAid ist gerade nicht erreichbar.", {
-      status: 503,
-      headers: { "Cache-Control": "no-store", "Retry-After": "30" },
-    });
+    return unavailable();
   }
-  if (response.status === 401 || response.status === 403) {
-    return redirect("/login");
-  }
-  if (!response.ok) {
-    console.warn("entry_identity_failed");
-    return new Response("LeonAid ist gerade nicht erreichbar.", {
-      status: 503,
-      headers: { "Cache-Control": "no-store", "Retry-After": "30" },
-    });
-  }
-  const identity = (await response.json()) as { landingPath?: unknown };
-  return redirect(entryDestination(identity.landingPath, ADMIN_BASE));
 };
