@@ -36,8 +36,8 @@ general production approval.
 - One installation serves one host, or an admin host (`app.<domain>`)
   plus a public host with redirecting extra names (stage 1 of
   `specs/multi-domain/PLAN.md`). Own campaign domains and an installation
-  without a public host are only specified. Until the role-based entry ships,
-  `/` on the admin host redirects to `/admin/`. Switching to two hosts signs
+  without a public host are only specified. `/` on the admin host is the role-based
+  entry (sign-in, then the start area). Switching to two hosts signs
   every member out once (`pilot-revoke-sessions`). On the public host the
   header shows a static "Anmelden" link instead of the personal app links:
   the session belongs to the admin host.

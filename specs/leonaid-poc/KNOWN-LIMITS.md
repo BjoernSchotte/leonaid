@@ -100,8 +100,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`app.<domain>`) plus einen öffentlichen Host mit Weiterleitungsnamen
   (`specs/multi-domain/PLAN.md`, Stufe 1; `infra/pilot/Caddyfile.split`).
   Eigene Kampagnen-Domains (Stufe 2) und eine Installation ohne öffentlichen
-  Host sind nur spezifiziert. `/` auf dem Verwaltungshost leitet vorerst auf
-  `/admin/` (rollenbasierter Einstieg: Stufe 1b). Weiterleitungsnamen des
+  Host sind nur spezifiziert. `/` auf dem Verwaltungshost ist der
+  rollenbasierte Einstieg (`/login/start`: Anmeldung, dann `landingPath`). Weiterleitungsnamen des
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
   (`pilot-revoke-sessions`). Auf dem öffentlichen Host zeigt die Kopfzeile
