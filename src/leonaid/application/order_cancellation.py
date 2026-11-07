@@ -7,7 +7,8 @@ version, the one the delivery completion uses: a stale view answers 409.
 In one transaction the order becomes ``cancelled``, leaves the delivery board,
 an open "Nachliefern" task closes, and an issued, unpaid invoice is cancelled
 under ADR-0009. The invoice part changes a financial record, so it needs a
-confirmed fresh login, like the invoice journal's own cancellation.
+confirmed fresh login, like the invoice journal's own cancellation. The buyer
+of a public order gets a cancellation notice (``application.order_mails``).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.commitments import IDEMPOTENCY_KEY
+from leonaid.application.order_mails import OrderMailLinkResolver, OrderMailLinks
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.commitments import Commitment
 from leonaid.domain.errors import DomainInvariantError
@@ -88,12 +90,20 @@ class OrderCancellationRepository(Protocol):
         request_hash: str,
         request_id: str,
         occurred_at: datetime,
+        mail_links: OrderMailLinks | None = None,
     ) -> OrderCancellationResult: ...
 
 
 class OrderCancellationService:
-    def __init__(self, repository: OrderCancellationRepository) -> None:
+    def __init__(
+        self,
+        repository: OrderCancellationRepository,
+        *,
+        mail_links: OrderMailLinkResolver | None = None,
+    ) -> None:
         self._repository = repository
+        # Without a resolver no cancellation notice is queued.
+        self._mail_links = mail_links
 
     async def cancel(
         self,
@@ -118,6 +128,12 @@ class OrderCancellationService:
                 "commitment_idempotency_key_invalid",
                 "Die Vorgangs-ID besitzt ein ungültiges Format.",
             )
+        # Resolved before the cancellation transaction holds a connection.
+        mail_links = (
+            await self._mail_links.for_action(action_id)
+            if self._mail_links is not None
+            else None
+        )
         return await self._repository.cancel(
             action_id=action_id,
             commitment_id=commitment_id,
@@ -132,4 +148,5 @@ class OrderCancellationService:
             ),
             request_id=request_id,
             occurred_at=occurred_at or datetime.now(timezone.utc),
+            mail_links=mail_links,
         )

@@ -228,6 +228,11 @@ class CharityActionRepository(Protocol):
         archive_slug: str,
     ) -> tuple[CharityAction, ActionConfiguration | None] | None: ...
 
+    async def list_publication_candidates(
+        self,
+        evaluated_at: datetime,
+    ) -> Sequence[PublicationCandidate]: ...
+
     async def update_details(
         self,
         action: CharityAction,
@@ -293,6 +298,38 @@ class CharityActionRepository(Protocol):
         request_id: str,
         occurred_at: datetime,
     ) -> CharityAction: ...
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationCandidate:
+    """An action inside its publication window with its public entry points."""
+
+    action: CharityAction
+    primary_alias: str | None
+    campaign_page: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PublicCampaignListing:
+    """One active campaign on the public home page (specs/multi-domain §6.5)."""
+
+    action: CharityAction
+    canonical_path: str
+
+
+def public_listing_path(candidate: PublicationCandidate) -> str:
+    """The page that shows the running campaign on the public host.
+
+    A published CMS campaign page wins, then the primary alias page with its
+    order form, else the permanent archive page. Stage 2 returns campaign
+    host URLs from the site bindings instead (§7.7.3).
+    """
+    slug = candidate.action.archive_slug
+    if candidate.campaign_page:
+        return f"/campaigns/{slug}/"
+    if candidate.primary_alias is not None:
+        return f"/{candidate.primary_alias}"
+    return f"/archive/{slug}"
 
 
 class CharityActionService:
@@ -543,6 +580,37 @@ class CharityActionService:
             offerings=offerings,
             order_form=order_form,
         )
+
+    async def list_active_public_campaigns(
+        self,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> list[PublicCampaignListing]:
+        """Active, published actions; newest publication start first."""
+        now = evaluated_at or datetime.now(timezone.utc)
+        candidates = [
+            candidate
+            for candidate in await self._repository.list_publication_candidates(now)
+            if candidate.action.is_published_at(now)
+        ]
+        # Newest publication start first; equal starts by name A→Z.
+        candidates.sort(
+            key=lambda candidate: (
+                -(
+                    candidate.action.publication_window.starts_at
+                    if candidate.action.publication_window is not None
+                    else now
+                ).timestamp(),
+                candidate.action.name.casefold(),
+            )
+        )
+        return [
+            PublicCampaignListing(
+                action=candidate.action,
+                canonical_path=public_listing_path(candidate),
+            )
+            for candidate in candidates
+        ]
 
     async def resolve_public_campaign(
         self,

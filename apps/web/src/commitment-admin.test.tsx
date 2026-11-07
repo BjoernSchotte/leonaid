@@ -840,7 +840,7 @@ describe("order cancellation", () => {
       "order-cancellation-note",
     ) as HTMLTextAreaElement;
 
-  it("cancels with reason, note, version and key and says nobody is e-mailed", async () => {
+  it("cancels with reason, note, version and key and says the buyer is not e-mailed", async () => {
     const { client, cancel } = clientWith(rows);
     await renderPage("?view=all&open=c1", client);
     fireEvent.click(await screen.findByTestId("open-order-cancellation"));
@@ -889,6 +889,26 @@ describe("order cancellation", () => {
     expect(
       window.sessionStorage.getItem("leonaid.order-cancellation.c1"),
     ).toBeNull();
+  });
+
+  it("tells that the buyer of a public order gets an e-mail", async () => {
+    const publicOrder = order("c4", "Café Mitte", "review_ready", {
+      buyer: {
+        displayName: "Café Mitte",
+        email: "kasse@cafe-mitte.leonaid.invalid",
+        partyKind: "company",
+        twentyId: "t-c4",
+      },
+      source: "public_form",
+    });
+    const { client } = clientWith([publicOrder]);
+    await renderPage("?view=all&open=c4", client);
+    fireEvent.click(await screen.findByTestId("open-order-cancellation"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      "Der Besteller erhält eine E-Mail über die Stornierung, ohne Grund und Notiz.",
+    );
+    expect(dialog.textContent).not.toContain("nicht automatisch");
   });
 
   it("names the open invoice it cancels with the order", async () => {
