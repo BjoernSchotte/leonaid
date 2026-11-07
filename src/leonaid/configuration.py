@@ -20,6 +20,8 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from leonaid.application.links import LinkBuilder
+
 
 CLUB_NAME_MAX_LENGTH = 120
 DEVELOPMENT_CLUB_NAME = "Lions Club Musterstadt"
@@ -90,7 +92,14 @@ class Settings(BaseSettings):
     order_submission_key: SecretStr | None = Field(
         default=None, alias="LEONAID_ORDER_SUBMISSION_KEY"
     )
+    # Admin base URL: member mails (login, invitation, e-mail change). In a
+    # single-host installation the only host (specs/multi-domain §6.1).
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    # Public host base URL for public links (survey invitations). Unset: the
+    # admin base URL.
+    site_base_url_value: HttpUrl | None = Field(
+        default=None, alias="LEONAID_SITE_BASE_URL"
+    )
     # One club per installation; shown in the admin rail. Required in production.
     club_name_value: str | None = Field(default=None, alias="LEONAID_CLUB_NAME")
     survey_erasure_archive_dir: Path | None = Field(
@@ -100,6 +109,9 @@ class Settings(BaseSettings):
         default="",
         alias="LEONAID_ALLOWED_ORIGINS",
     )
+    # Origins allowed for /api/v1/public/* without credentials: the public
+    # host and its aliases (specs/multi-domain §6.3).
+    public_origins_value: str = Field(default="", alias="LEONAID_PUBLIC_ORIGINS")
     trust_proxy_headers: bool = Field(
         default=False,
         alias="LEONAID_TRUST_PROXY_HEADERS",
@@ -171,6 +183,13 @@ class Settings(BaseSettings):
     @field_validator("twenty_integration_api_key", mode="before")
     @classmethod
     def empty_twenty_key_is_unconfigured(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("site_base_url_value", mode="before")
+    @classmethod
+    def empty_site_base_url_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value
@@ -254,6 +273,19 @@ class Settings(BaseSettings):
             parsed = urlparse(origin)
             if parsed.scheme != "https" or _is_forbidden_public_host(parsed.hostname):
                 raise ValueError("Production origins must be public HTTPS origins.")
+        site = self.site_base_url
+        if site.scheme != "https" or _is_forbidden_public_host(site.host):
+            raise ValueError("Production requires a public HTTPS site base URL.")
+        for origin in self.public_origins:
+            parsed = urlparse(origin)
+            if parsed.scheme != "https" or _is_forbidden_public_host(parsed.hostname):
+                raise ValueError(
+                    "Production public origins must be public HTTPS origins."
+                )
+        if set(self.public_origins) & set(self.allowed_origins):
+            raise ValueError(
+                "A public origin must not also be a credentialed admin origin."
+            )
         if (self.mail_health_url.host or "").casefold() == "mailpit":
             raise ValueError("Mailpit is not allowed in production.")
         if self.object_storage_bucket == "leonaid":
@@ -288,6 +320,8 @@ class Settings(BaseSettings):
             "apiVersion": self.api_version,
             "publicBaseHost": self.public_base_url.host or "invalid",
             "allowedOriginCount": str(len(self.allowed_origins)),
+            "siteBaseHost": self.site_base_url.host or "invalid",
+            "publicOriginCount": str(len(self.public_origins)),
             "trustedProxyHeaders": str(self.trust_proxy_headers).lower(),
             "invitationTtlMinutes": str(self.invitation_ttl_minutes),
             "loginChallengeTtlMinutes": str(self.login_challenge_ttl_minutes),
@@ -317,19 +351,39 @@ class Settings(BaseSettings):
         }
 
     @property
+    def site_base_url(self) -> HttpUrl:
+        return self.site_base_url_value or self.public_base_url
+
+    @property
+    def links(self) -> LinkBuilder:
+        return LinkBuilder(
+            admin_base_url=str(self.public_base_url),
+            site_base_url=str(self.site_base_url),
+        )
+
+    @property
+    def public_origins(self) -> tuple[str, ...]:
+        """Static credential-free origins of the public API (§6.3)."""
+        return tuple(
+            dict.fromkeys(
+                item.strip().rstrip("/").casefold()
+                for item in self.public_origins_value.split(",")
+                if item.strip()
+            )
+        )
+
+    @property
     def allowed_origins(self) -> tuple[str, ...]:
         configured = tuple(
             item.strip().rstrip("/")
             for item in self.allowed_origins_value.split(",")
             if item.strip()
         )
-        public_origin = (
-            f"{self.public_base_url.scheme}://{self.public_base_url.host}"
-            + (
-                f":{self.public_base_url.port}"
-                if self.public_base_url.port is not None
-                else ""
-            )
+        url = self.public_base_url
+        # Browsers omit the scheme's default port in Origin.
+        default_port = {"http": 80, "https": 443}.get(url.scheme)
+        public_origin = f"{url.scheme}://{url.host}" + (
+            f":{url.port}" if url.port not in (None, default_port) else ""
         )
         return tuple(dict.fromkeys((*configured, public_origin.rstrip("/"))))
 

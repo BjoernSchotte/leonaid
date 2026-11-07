@@ -45,7 +45,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks tools/materials tools/knowledge tools/inbox \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade tools/emdash_spike packages/testkit
+  tools/upgrade tools/emdash_spike tools/proxy packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments tools/delivery \
@@ -56,7 +56,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks tools/materials tools/knowledge tools/inbox \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade tools/emdash_spike packages/testkit
+  tools/upgrade tools/emdash_spike tools/proxy packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments tools/delivery \
@@ -67,7 +67,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed tools/tasks tools/materials tools/knowledge tools/inbox \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade tools/emdash_spike packages/testkit
+  tools/upgrade tools/emdash_spike tools/proxy packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check
 run_python uv run --frozen --no-sync \
@@ -111,6 +111,10 @@ docker run --rm --network none \
 docker run --rm --network none \
   -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
   python /workspace/tools/ci/core_oneoff_user.py /workspace
+# Generated Caddyfiles: drift, adapt/validate with the pinned Caddy, and the
+# host routing table of specs/multi-domain proven against a running Caddy.
+/bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
+/bin/sh "$root/tools/proxy/routing-test.sh" "$root"
 run_bun bun run typecheck
 # Leitsystem token contrast (WCAG targets in light and dark, all zones).
 run_bun bun run test:ui
@@ -118,6 +122,8 @@ run_bun bun run test:ui
 run_bun bun run test:pwa
 # Legal-notice cache of the public pages (footer and /impressum).
 run_bun bun run test:public
+# Admin/site origins and the Live View URL of the campaign site.
+run_bun bun run test:campaign-site
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
   .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features \
   tools/emdash_spike/*.mjs \

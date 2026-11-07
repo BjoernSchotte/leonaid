@@ -165,8 +165,11 @@ Commands:
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
                [--first-install]
                     Validate deployment and decisions for productive actions
-  pilot-secrets --output FILE
-                    Write production.env.example with fresh secrets (0600)
+  pilot-secrets --output FILE [--public-domain DOMAIN [--admin-domain HOST]
+                [--alias HOST]... | --public-domain DOMAIN --single-host]
+                    Write production.env.example with fresh secrets (0600);
+                    with --public-domain also every host setting (admin host
+                    app.DOMAIN unless --admin-domain or --single-host)
   pilot-install --env-file FILE --release-manifest FILE
                 --twenty-bootstrap-file FILE --password-file FILE
                 [--credentials-file FILE]
@@ -738,6 +741,7 @@ check_all() {
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/security/vuln_policy.py check /workspace
   /bin/sh "$root/tools/proxy/validate-caddyfiles.sh" "$root"
+  /bin/sh "$root/tools/proxy/routing-test.sh" "$root"
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
@@ -1216,10 +1220,28 @@ pilot_test_overlay() {
   printf '%s\n' "$overlay"
 }
 
+# The CMS (campaign pages and the EmDash editor, specs/multi-domain stage 0)
+# belongs to a pilot stack only when its env file enables it.
+pilot_cms_enabled() {
+  grep -qx 'LEONAID_CMS_ENABLED=true' "$1"
+}
+
+pilot_cms_profile() {
+  if pilot_cms_enabled "$1"; then
+    printf '%s\n' --profile emdash
+  fi
+}
+
+pilot_cms_topology() {
+  if pilot_cms_enabled "$1"; then echo emdash; else echo legacy; fi
+}
+
 pilot_compose_config() {
   project=$1
   env_file=$2
   output=$3
+  # shellcheck disable=SC2046 # empty or exactly "--profile emdash"
+  set -- $(pilot_cms_profile "$env_file")
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1228,14 +1250,14 @@ pilot_compose_config() {
       --file "$root/infra/compose/compose.yml" \
       --file "$root/infra/pilot/compose.yml" \
       --file "$overlay" \
-      config --format json >"$output"
+      "$@" config --format json >"$output"
   else
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
       --file "$root/infra/compose/compose.yml" \
       --file "$root/infra/pilot/compose.yml" \
-      config --format json >"$output"
+      "$@" config --format json >"$output"
   fi
 }
 
@@ -1282,6 +1304,8 @@ pilot_compose_command() {
   project=$1
   env_file=$2
   shift 2
+  # shellcheck disable=SC2046 # empty or exactly "--profile emdash"
+  set -- $(pilot_cms_profile "$env_file") "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1337,6 +1361,14 @@ pilot_verify_release_manifest() {
   manifest=$1
   compose_config=$2
   expected_commit=$3
+  # A stack with the CMS needs the CMS release contract (manifest schema 2);
+  # one without it must not accept one (tools/pilot_release/manifest.py).
+  schema_version=1
+  if docker run --rm --network none \
+    --volume "$compose_config:/pilot/compose.json:ro" "$PYTHON_IMAGE" \
+    python -c 'import json,sys; sys.exit(0 if "campaign-site" in json.load(open("/pilot/compose.json"))["services"] else 1)'; then
+    schema_version=2
+  fi
   docker run --rm \
     --env PYTHONPATH=/workspace \
     --volume "$root:/workspace:ro" \
@@ -1348,6 +1380,7 @@ pilot_verify_release_manifest() {
       --root /workspace \
       --manifest /pilot/release-manifest.json \
       --expected-commit "$expected_commit" \
+      --expected-schema-version "$schema_version" \
       --compose-config /pilot/compose.json
 }
 
@@ -1441,6 +1474,8 @@ pilot_bootstrap_compose() {
   project=$1
   env_file=$2
   shift 2
+  # shellcheck disable=SC2046 # empty or exactly "--profile emdash"
+  set -- $(pilot_cms_profile "$env_file") "$@"
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     overlay=$(pilot_test_overlay "$project") || return
     docker compose \
@@ -1517,6 +1552,7 @@ pilot_monitoring() {
 pilot_secrets() {
   require_docker
   secrets_output=
+  secrets_hosts=
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --output)
@@ -1526,6 +1562,24 @@ pilot_secrets() {
         }
         secrets_output=$2
         shift 2
+        ;;
+      --public-domain|--admin-domain|--alias)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-secrets: ERROR: $1 needs a host name" >&2
+          exit 64
+        }
+        case "$2" in
+          *[!a-zA-Z0-9.-]*|'')
+            echo "pilot-secrets: ERROR: $1 needs a host name" >&2
+            exit 64
+            ;;
+        esac
+        secrets_hosts="$secrets_hosts $1 $2"
+        shift 2
+        ;;
+      --single-host)
+        secrets_hosts="$secrets_hosts --single-host"
+        shift
         ;;
       *)
         echo "pilot-secrets: ERROR: unknown option '$1'" >&2
@@ -1563,7 +1617,7 @@ pilot_secrets() {
     "$PYTHON_IMAGE" \
     python /workspace/tools/pilot_install/production_secrets.py \
       --template /workspace/infra/pilot/production.env.example \
-      --output "/output/$secrets_name"
+      --output "/output/$secrets_name" $secrets_hosts
   pilot_require_private_external pilot-secrets \
     "$secrets_directory/$secrets_name" "generated environment file"
 }
@@ -1935,6 +1989,7 @@ pilot_backup() {
     LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
     LEONAID_BACKUP_MANIFEST_OUTPUT="$backup_manifest" \
     LEONAID_BACKUP_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_BACKUP_TOPOLOGY="$(pilot_cms_topology "$env_file")" \
     LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY="$backup_overlay_secondary" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     /bin/sh "$root/tools/backup/backup.sh" "$root"
@@ -2718,6 +2773,7 @@ pilot_restore() {
     LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_RESTORE_TOPOLOGY="$(pilot_cms_topology "$target_env_file")" \
     LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$restore_overlay_secondary" \
     LEONAID_RESTORE_NETWORKS_PRERESERVED="$restore_networks_prereserved" \
     LEONAID_RESTORE_ISOLATED_PILOT_TEST="$restore_isolated_test" \

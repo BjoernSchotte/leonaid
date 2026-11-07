@@ -135,7 +135,7 @@ Jeder dauerhaft laufende Dienst hat eine Speicher-, CPU- und Prozessgrenze
 (`mem_limit`, `cpus`, `pids_limit`) und rotierte Logs (Treiber `local`,
 5 × 10 MB). Die Grenzen sind Obergrenzen, keine Reservierungen. Der Pilotumfang
 einschließlich Monitoring-Profil passt auf einen VPS mit 8 GB und lässt etwa
-1,6 GiB für Betriebssystem und Docker frei. Der Deployment-Vertrag
+1,9 GiB (mit Kampagnenseite 1,5 GiB) für Betriebssystem und Docker frei. Der Deployment-Vertrag
 (`pilot-doctor`, `pilot-deploy`) lehnt Grenzen ab, deren Summe weniger als
 1,5 GiB frei lässt. „Spitze“ ist der höchste unter Last gemessene Working Set
 (Upgrade, Installation, CRM-Import mit 3000 Zeilen, Golden Journey, Backup und
@@ -144,27 +144,30 @@ Restore; gemessen am 2. November 2026 mit Twenty 2.54). „Leerlauf“ reicht vo
 | Dienst                         | Beobachtet (Leerlauf) | Spitze (Last) | Speichergrenze | CPUs | PIDs |
 | ------------------------------ | --------------------- | ------------- | -------------- | ---- | ---- |
 | twenty-server                  | 330–680 MiB           | 1223 MiB      | 1728 MiB       | 2    | 512  |
-| twenty-worker                  | 590–640 MiB           | 960 MiB       | 1400 MiB       | 1,5  | 512  |
-| worker (inkl. Typst)           | 70 MiB                | 94 MiB        | 512 MiB        | 1,5  | 256  |
+| twenty-worker                  | 590–640 MiB           | 960 MiB       | 1280 MiB       | 1,5  | 512  |
+| worker (inkl. Typst)           | 70 MiB                | 94 MiB        | 384 MiB        | 1,5  | 256  |
 | api                            | 105–110 MiB           | 151 MiB       | 384 MiB        | 1,5  | 256  |
 | core-postgres                  | 20–22 MiB             | 70 MiB        | 384 MiB        | 1,5  | 256  |
 | twenty-postgres                | 29–65 MiB             | 139 MiB       | 384 MiB        | 1,5  | 256  |
 | twenty-redis (Valkey)          | 4–15 MiB              | 30 MiB        | 512 MiB        | 0,5  | 64   |
 | rustfs                         | 22–23 MiB             | 49 MiB        | 256 MiB        | 1    | 256  |
-| survey-validator               | 14–17 MiB             | 27 MiB        | 128 MiB        | 1    | 64   |
+| survey-validator               | 14–17 MiB             | 27 MiB        | 96 MiB         | 1    | 64   |
 | proxy (Caddy)                  | 13–18 MiB             | 31 MiB        | 128 MiB        | 1    | 128  |
 | public                         | 23–25 MiB             | 75 MiB        | 128 MiB        | 1    | 64   |
 | web, pwa                       | je 13–14 MiB          | 20 MiB        | je 64 MiB      | 0,5  | 64   |
-| **Summe Core**                 | ca. 1,7 GiB           | 2,4 GiB¹      | **5,9 GiB**    |      |      |
+| **Summe Core**                 | ca. 1,7 GiB           | 2,4 GiB¹      | **5,7 GiB**    |      |      |
 | prometheus                     | 59–63 MiB             | 69 MiB        | 256 MiB        | 0,5  | 128  |
 | pilot-exporter                 | 18–19 MiB             | 30 MiB        | 128 MiB        | 0,5  | 64   |
 | alertmanager                   | 22–25 MiB             | 27 MiB        | 64 MiB         | 0,25 | 64   |
-| **Summe Pilot mit Monitoring** |                       |               | **6,4 GiB**    |      |      |
+| **Summe Pilot mit Monitoring** |                       |               | **6,1 GiB**    |      |      |
 
 ¹ Höchste Summe aller Working Sets zum selben Zeitpunkt, nicht die Summe der
 Spitzen.
 
-Die optionale Kampagnenseite (Profil `emdash`) kommt mit 384 MiB hinzu. Wird
+Die optionale Kampagnenseite (Profil `emdash`, `LEONAID_CMS_ENABLED=true`)
+kommt mit 384 MiB hinzu; mit ihr bleiben genau die 1,5 GiB Reserve frei.
+Dafür haben `worker`, `twenty-worker` und `survey-validator` seit November
+2026 kleinere Grenzen, jeweils weit über der gemessenen Spitze. Wird
 ein Dienst wegen Speichermangels beendet (`docker inspect` zeigt
 `OOMKilled: true`), hebt man seine Grenze an und senkt eine andere, sodass die
 Summe weiter auf den Host passt.

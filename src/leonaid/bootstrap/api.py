@@ -142,7 +142,7 @@ def build_survey_services(
             invitation_mail=SecureMailPayload(
                 settings.mail_payload_secret.get_secret_value()
             ),
-            public_base_url=str(settings.public_base_url),
+            links=settings.links,
             checkpoint_publisher=publisher,
         )
     )

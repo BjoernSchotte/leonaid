@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
-from typing import Final
+from typing import Final, Protocol
 
 from fastapi import Request
 
@@ -18,6 +18,45 @@ from leonaid.adapters.postgres.security import (
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 
 UNSAFE_METHODS: Final = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# The only API prefix a public or campaign host may call (specs/multi-domain
+# §6.3). Its origins get CORS without credentials and pass CSRF; every other
+# endpoint accepts the credentialed admin origins only.
+PUBLIC_API_PREFIX: Final = "/api/v1/public/"
+
+
+class PublicOrigins(Protocol):
+    """Decides which browser origins may call the public API."""
+
+    async def allows(self, origin: str, request_host: str) -> bool: ...
+
+
+@dataclass(frozen=True, slots=True)
+class StaticPublicOrigins:
+    """The public host and its aliases from LEONAID_PUBLIC_ORIGINS.
+
+    Stage 2 adds the active campaign hosts, read per request from the site
+    host table, behind the same protocol.
+    """
+
+    origins: tuple[str, ...]
+
+    async def allows(self, origin: str, request_host: str) -> bool:
+        return origin.rstrip("/").casefold() in self.origins
+
+
+async def public_origin_allowed(
+    request: Request,
+    origin: str | None,
+    *,
+    allowed_origins: tuple[str, ...],
+    public_origins: PublicOrigins,
+) -> bool:
+    """A credential-free public origin, never one of the admin origins."""
+    if origin is None or origin.rstrip("/") in allowed_origins:
+        return False
+    if not request.url.path.startswith(PUBLIC_API_PREFIX):
+        return False
+    return await public_origins.allows(origin, request.headers.get("host", ""))
 
 
 @dataclass(frozen=True, slots=True)

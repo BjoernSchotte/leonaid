@@ -231,6 +231,116 @@ def main() -> None:
         f"pilot-deployment-contract-test: OK: {len(mutations)} real Compose "
         "mutations rejected fail-closed"
     )
+    if len(sys.argv) > 2:
+        split_hosts_and_cms(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+
+
+def _environment(config: dict[str, Any], service: str) -> dict[str, Any]:
+    environment: dict[str, Any] = config["services"][service]["environment"]
+    return environment
+
+
+def split_hosts_and_cms(config: dict[str, Any]) -> None:
+    """Admin host + public host + CMS (specs/multi-domain stages 0 and 1)."""
+    validate(config)
+    mutations: list[tuple[str, dict[str, Any]]] = []
+
+    def mutate(label: str, service: str, key: str, value: object) -> None:
+        changed = copy.deepcopy(config)
+        if value is None:
+            _environment(changed, service).pop(key, None)
+        else:
+            _environment(changed, service)[key] = value
+        mutations.append((label, changed))
+
+    mutate(
+        "admin host equals public host", "proxy", "LEONAID_ADMIN_DOMAIN", "leonaid.org"
+    )
+    mutate(
+        "admin host equals an alias",
+        "proxy",
+        "LEONAID_ADMIN_DOMAIN",
+        "www.leonaid.org",
+    )
+    mutate(
+        "admin host is reserved", "proxy", "LEONAID_ADMIN_DOMAIN", "app.leonaid.test"
+    )
+    mutate(
+        "aliases without space after comma",
+        "proxy",
+        "LEONAID_PUBLIC_DOMAIN_ALIASES",
+        "www.leonaid.org,web.leonaid.org",
+    )
+    mutate(
+        "mail links on the public host",
+        "api",
+        "LEONAID_PUBLIC_BASE_URL",
+        "https://leonaid.org",
+    )
+    mutate("site base URL missing", "api", "LEONAID_SITE_BASE_URL", "")
+    mutate(
+        "credentialed public origin",
+        "api",
+        "LEONAID_ALLOWED_ORIGINS",
+        "https://app.leonaid.org,https://leonaid.org",
+    )
+    mutate(
+        "alias missing from public origins",
+        "api",
+        "LEONAID_PUBLIC_ORIGINS",
+        "https://leonaid.org",
+    )
+    mutate("public app lacks the admin host", "public", "LEONAID_ADMIN_DOMAIN", "")
+    mutate(
+        "CMS editor on the public host",
+        "campaign-site",
+        "EMDASH_SITE_URL",
+        "https://leonaid.org",
+    )
+    mutate(
+        "CMS site base differs",
+        "campaign-site",
+        "LEONAID_SITE_BASE_URL",
+        "https://leonaid.invalid",
+    )
+    mutate("CMS database password empty", "campaign-site", "PGPASSWORD", "")
+    mutate(
+        "CMS encryption key placeholder",
+        "campaign-site",
+        "EMDASH_ENCRYPTION_KEY",
+        "__CMS_ENCRYPTION_KEY__",
+    )
+    mutate(
+        "CMS order key differs",
+        "campaign-site",
+        "LEONAID_ORDER_SUBMISSION_KEY",
+        "0" * 64,
+    )
+
+    changed = copy.deepcopy(config)
+    for volume in changed["services"]["proxy"]["volumes"]:
+        if volume.get("target") == "/etc/caddy/Caddyfile":
+            volume["source"] = volume["source"].removesuffix(".split")
+    mutations.append(("admin host with the single-host Caddyfile", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["campaign-site"]["image"] = (
+        "registry.example.org/leonaid/campaign-site:latest"
+    )
+    mutations.append(("unpinned CMS image", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["campaign-site"]["ports"] = [
+        {"target": 3000, "published": "3000", "protocol": "tcp"}
+    ]
+    mutations.append(("CMS host port", changed))
+
+    for label, mutation in mutations:
+        rejected(mutation, label)
+    print(
+        f"pilot-deployment-contract-test: OK: admin/public hosts and CMS valid; "
+        f"{len(mutations)} host and CMS mutations rejected fail-closed"
+    )
 
 
 if __name__ == "__main__":

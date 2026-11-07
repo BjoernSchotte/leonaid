@@ -49,7 +49,13 @@ services:
       S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY:-}
       S3_REGION: us-east-1
       LEONAID_DISABLED_MODULES: ${LEONAID_DISABLED_MODULES:-}
-      EMDASH_SITE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
+      # Admin origin: CMS editor and its sign-in links.
+      EMDASH_SITE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
+      # Public origin of campaign pages; empty = EMDASH_SITE_URL (one host).
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
+      # Hosts Astro trusts for Astro.url and checkOrigin, besides localhost.
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
     networks: [edge, cms-data, storage-data]
@@ -92,11 +98,16 @@ services:
       LEONAID_HTTPS_PORT: ${LEONAID_HTTPS_PORT:-8443}
       LEONAID_LAN_HOST: ${LEONAID_LAN_HOST:-127.0.0.1}
       LEONAID_REMOTE_HOST: ${LEONAID_REMOTE_HOST:-127.0.0.1}
+      # Admin/public host split (specs/multi-domain), read by Caddyfile.split
+      # only; see infra/compose/README.md "Separate admin and public host".
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-app.localhost}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-localhost}
     ports:
       - "${LEONAID_BIND_ADDRESS:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080}:8080"
       - "${LEONAID_BIND_ADDRESS:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}:8443"
     volumes:
-      - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Caddyfile (one host) or Caddyfile.split (admin + public host).
+      - ../proxy/${LEONAID_PROXY_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
     networks:
       - edge
     depends_on:
@@ -132,7 +143,7 @@ services:
     logging: *default-logging
     restart: unless-stopped
     <<: *hardened-runtime
-    mem_limit: 128m
+    mem_limit: 96m
     cpus: 1
     pids_limit: 64
     networks:
@@ -168,7 +179,12 @@ services:
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
-      LEONAID_PUBLIC_BASE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
+      # Admin base URL: member mails (login, invitation, e-mail change).
+      LEONAID_PUBLIC_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-https://localhost:${LEONAID_HTTPS_PORT:-8443}}
+      # Public base URL: survey invitations. Empty = the admin base URL.
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
+      # Credential-free origins for /api/v1/public/* (the public host).
+      LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
       LEONAID_ALLOWED_ORIGINS: http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443,http://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443},http://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}
       LEONAID_TRUST_PROXY_HEADERS: "true"
       LEONAID_INVITATION_TTL_MINUTES: "30"
@@ -236,7 +252,7 @@ services:
     # Typst renders invoices and survey reports in temporary directories.
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m
-    mem_limit: 512m
+    mem_limit: 384m
     cpus: 1.5
     pids_limit: 256
     command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
@@ -402,6 +418,9 @@ services:
     pids_limit: 64
     environment:
       CORE_API_URL: http://api:8000
+      # Hosts Astro trusts for Astro.url and checkOrigin, besides localhost.
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       # Named on the sign-in pages' brand panel.
       LEONAID_CLUB_NAME: ${LEONAID_CLUB_NAME:-Lions Club Musterstadt}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
@@ -472,7 +491,7 @@ services:
     logging: *default-logging
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
-    mem_limit: 1400m
+    mem_limit: 1280m
     cpus: 1.5
     pids_limit: 512
     # Same process as `yarn worker:prod`, without the two yarn wrapper

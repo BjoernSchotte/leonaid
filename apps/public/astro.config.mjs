@@ -6,7 +6,13 @@ import runtimeAllowedDomains, {
 
 export default defineConfig({
   adapter: node({ mode: "standalone" }),
-  integrations: [runtimeAllowedDomains("LEONAID_PUBLIC_DOMAIN")],
+  integrations: [
+    runtimeAllowedDomains([
+      "LEONAID_ADMIN_DOMAIN",
+      "LEONAID_PUBLIC_DOMAIN",
+      "LEONAID_PUBLIC_DOMAIN_ALIASES",
+    ]),
+  ],
   output: "server",
   // Styles always ship as files: no <style> elements in the rendered HTML.
   build: { inlineStylesheets: "never" },
@@ -16,8 +22,8 @@ export default defineConfig({
   },
   security: {
     // Hosts that may set Astro.url (canonical URLs, checkOrigin): local and
-    // in-network test hosts plus the installation's LEONAID_PUBLIC_DOMAIN,
-    // read at runtime (runtime-allowed-domains.mjs).
+    // in-network test hosts plus the installation's admin host, public host
+    // and its aliases, read at runtime (runtime-allowed-domains.mjs).
     allowedDomains: [
       { hostname: "localhost" },
       { hostname: "127.0.0.1" },

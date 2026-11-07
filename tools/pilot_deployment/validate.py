@@ -27,6 +27,20 @@ REQUIRED_SERVICES = {
     "web",
     "worker",
 }
+# Campaign pages and the EmDash editor (specs/multi-domain stage 0), present
+# only when the env file enables the emdash profile.
+CMS_SERVICE = "campaign-site"
+CMS_SECRETS = ("PGPASSWORD", "S3_SECRET_ACCESS_KEY", "EMDASH_ENCRYPTION_KEY")
+# Caddyfile per host mode (tools/proxy/caddyfiles.py): one host, or the
+# admin host plus the public host (specs/multi-domain stage 1).
+CADDYFILES = {
+    "single": "/infra/pilot/Caddyfile",
+    "split": "/infra/pilot/Caddyfile.split",
+}
+# Caddy reads the aliases as site addresses: separated by ", " or spaces.
+HOSTNAME = re.compile(
+    r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$"
+)
 PRIVATE_NETWORKS = {"core-data", "crm-data", "mail-data", "storage-data", "telemetry"}
 # The only network with a route out of the host besides the public edge. It
 # carries SMTP of the two mail senders and nothing else.
@@ -198,7 +212,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
         raise DeploymentContractError("Compose project is not environment-specific")
 
     services = object_value(config.get("services"), "services")
-    if set(services) != REQUIRED_SERVICES:
+    if set(services) - {CMS_SERVICE} != REQUIRED_SERVICES:
         raise DeploymentContractError("active service set differs from the pilot core")
 
     published: list[tuple[str, int, int]] = []
@@ -233,11 +247,11 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                 service_name != "proxy"
                 or not source.endswith(
                     (
-                        "/infra/pilot/Caddyfile",
+                        *CADDYFILES.values(),
                         "/infra/pilot/Caddyfile.test",
                     )
                     if isolated_test_mode
-                    else ("/infra/pilot/Caddyfile",)
+                    else tuple(CADDYFILES.values())
                 )
                 or target != "/etc/caddy/Caddyfile"
                 or volume.get("read_only") is not True
@@ -377,6 +391,149 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
     validate_mail_egress(services, networks)
     validate_twenty_admin_access(services, networks, api_environment, admin_port)
     validate_twenty_mail(services, worker_environment)
+    validate_hosts(services, api_environment, isolated_test_mode=isolated_test_mode)
+    if CMS_SERVICE in services:
+        validate_cms(services, api_environment)
+
+
+def origin_of(url: str) -> str:
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}".casefold()
+
+
+def split_hosts(value: object) -> list[str]:
+    if not isinstance(value, str):
+        return []
+    return [item for item in re.split(r"[,\s]+", value.strip().casefold()) if item]
+
+
+def valid_hostname(value: str, label: str) -> None:
+    if HOSTNAME.fullmatch(value) is None:
+        raise DeploymentContractError(f"{label} is not a host name: {value!r}")
+    validate_public_url(f"https://{value}/", label)
+
+
+def mounted_caddyfile(proxy: dict[str, Any]) -> str:
+    for raw_volume in proxy.get("volumes", []):
+        volume = object_value(raw_volume, "proxy.volumes")
+        if volume.get("target") == "/etc/caddy/Caddyfile":
+            return str(volume.get("source", ""))
+    raise DeploymentContractError("proxy mounts no Caddyfile")
+
+
+def validate_hosts(
+    services: dict[str, Any],
+    api_environment: dict[str, Any],
+    *,
+    isolated_test_mode: bool = False,
+) -> None:
+    """One host, or admin host plus public host (specs/multi-domain §6.1)."""
+
+    proxy = object_value(services["proxy"], "services.proxy")
+    proxy_environment = object_value(proxy.get("environment"), "proxy.environment")
+    caddyfile = mounted_caddyfile(proxy)
+    public_domain = string_value(proxy_environment, "LEONAID_PUBLIC_DOMAIN").casefold()
+    admin_domain = str(proxy_environment.get("LEONAID_ADMIN_DOMAIN") or "").casefold()
+    raw_aliases = str(proxy_environment.get("LEONAID_PUBLIC_DOMAIN_ALIASES") or "")
+    aliases = split_hosts(raw_aliases)
+    public_origins = split_hosts(api_environment.get("LEONAID_PUBLIC_ORIGINS"))
+    site_base = str(api_environment.get("LEONAID_SITE_BASE_URL") or "")
+    admin_base = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
+    allowed = split_hosts(api_environment.get("LEONAID_ALLOWED_ORIGINS"))
+    valid_hostname(public_domain, "LEONAID_PUBLIC_DOMAIN")
+    if not admin_domain:
+        if not (
+            caddyfile.endswith(CADDYFILES["single"])
+            or isolated_test_mode
+            and caddyfile.endswith("/infra/pilot/Caddyfile.test")
+        ):
+            raise DeploymentContractError(
+                "one host needs infra/pilot/Caddyfile (LEONAID_PROXY_CADDYFILE unset)"
+            )
+        if aliases or public_origins or site_base:
+            raise DeploymentContractError(
+                "public host aliases, public origins and a site base URL need "
+                "LEONAID_ADMIN_DOMAIN"
+            )
+        return
+    valid_hostname(admin_domain, "LEONAID_ADMIN_DOMAIN")
+    if not caddyfile.endswith(CADDYFILES["split"]):
+        raise DeploymentContractError(
+            "an admin host needs LEONAID_PROXY_CADDYFILE=Caddyfile.split"
+        )
+    for alias in aliases:
+        valid_hostname(alias, "LEONAID_PUBLIC_DOMAIN_ALIASES")
+    if re.search(r",(?! )", raw_aliases):
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_DOMAIN_ALIASES must separate names with ', ' (Caddy)"
+        )
+    if admin_domain == public_domain or admin_domain in aliases:
+        raise DeploymentContractError(
+            "the admin host must differ from the public host and its aliases"
+        )
+    if public_domain in aliases or len(set(aliases)) != len(aliases):
+        raise DeploymentContractError("public host aliases repeat a host")
+    admin_origin = f"https://{admin_domain}"
+    public_origin = f"https://{public_domain}"
+    if origin_of(admin_base) != admin_origin:
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_BASE_URL must be the admin host origin"
+        )
+    if origin_of(site_base) != public_origin:
+        raise DeploymentContractError("LEONAID_SITE_BASE_URL must be the public host")
+    # Sessions and credentialed CORS stay on the admin origin (G6).
+    if allowed != [admin_origin]:
+        raise DeploymentContractError(
+            "LEONAID_ALLOWED_ORIGINS must be exactly the admin origin"
+        )
+    expected_public = {public_origin, *(f"https://{alias}" for alias in aliases)}
+    if set(public_origins) != expected_public:
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_ORIGINS must list the public host and its aliases"
+        )
+    public = object_value(services["public"], "services.public")
+    public_environment = object_value(public.get("environment"), "public.environment")
+    if (
+        str(public_environment.get("LEONAID_ADMIN_DOMAIN") or "").casefold()
+        != admin_domain
+        or str(public_environment.get("LEONAID_PUBLIC_DOMAIN") or "").casefold()
+        != public_domain
+    ):
+        raise DeploymentContractError("public app hosts differ from the proxy hosts")
+
+
+def validate_cms(services: dict[str, Any], api_environment: dict[str, Any]) -> None:
+    """Campaign site in production (specs/multi-domain stage 0)."""
+
+    cms = object_value(services[CMS_SERVICE], f"services.{CMS_SERVICE}")
+    if cms.get("ports"):
+        raise DeploymentContractError("campaign-site may not publish a port")
+    environment = object_value(cms.get("environment"), "campaign-site.environment")
+    site_url = string_value(environment, "EMDASH_SITE_URL")
+    validate_public_url(site_url, "EMDASH_SITE_URL")
+    # The editor and its sign-in links belong to the admin origin.
+    if origin_of(site_url) != origin_of(
+        string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
+    ):
+        raise DeploymentContractError("EMDASH_SITE_URL must be the admin origin")
+    if str(environment.get("LEONAID_SITE_BASE_URL") or "") != str(
+        api_environment.get("LEONAID_SITE_BASE_URL") or ""
+    ):
+        raise DeploymentContractError(
+            "campaign-site and api use different public base URLs"
+        )
+    for key in CMS_SECRETS:
+        value = str(environment.get(key) or "")
+        if is_placeholder(value) or len(value) < 24:
+            raise DeploymentContractError(
+                f"campaign-site {key} is a placeholder or too short"
+            )
+    if environment.get("LEONAID_ORDER_SUBMISSION_KEY") != api_environment.get(
+        "LEONAID_ORDER_SUBMISSION_KEY"
+    ):
+        raise DeploymentContractError(
+            "campaign-site and api use different order submission keys"
+        )
 
 
 def service_networks(service: dict[str, Any]) -> set[str]:

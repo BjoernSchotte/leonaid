@@ -130,7 +130,9 @@ from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
+    StaticPublicOrigins,
     csrf_violation,
+    public_origin_allowed,
     rate_limit_violation,
 )
 
@@ -263,6 +265,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             settings.invitation_hmac_secret.get_secret_value()
         )
         application.state.allowed_origins = settings.allowed_origins
+        application.state.public_origins = StaticPublicOrigins(settings.public_origins)
         application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.maintenance_flag_path = settings.maintenance_flag_path
         identity_repository = AsyncpgIdentityRepository(pool)
@@ -372,21 +375,21 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             AsyncpgInvitationRepository(pool),
             mail_payload,
             hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
-            public_base_url=str(settings.public_base_url),
+            links=settings.links,
             ttl=timedelta(minutes=settings.invitation_ttl_minutes),
         )
         application.state.email_change_service = EmailChangeService(
             AsyncpgEmailChangeRepository(pool),
             mail_payload,
             hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
-            public_base_url=str(settings.public_base_url),
+            links=settings.links,
             ttl=timedelta(minutes=settings.invitation_ttl_minutes),
         )
         application.state.session_service = SessionService(
             AsyncpgSessionRepository(pool),
             mail_payload,
             hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
-            public_base_url=str(settings.public_base_url),
+            links=settings.links,
             challenge_ttl=timedelta(minutes=settings.login_challenge_ttl_minutes),
         )
         crm_gateway: TwentyCrmGateway | None = None
@@ -467,12 +470,20 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             return denied
         allowed_origins = tuple(request.app.state.allowed_origins)
         origin = request.headers.get("origin")
+        # Public and campaign hosts call only the public API, without
+        # credentials; the admin origins keep the credentialed CORS (§6.3).
+        public_origin = await public_origin_allowed(
+            request,
+            origin,
+            allowed_origins=allowed_origins,
+            public_origins=request.app.state.public_origins,
+        )
         if (
             request.method == "OPTIONS"
             and origin is not None
             and request.headers.get("access-control-request-method")
         ):
-            if origin.rstrip("/") not in allowed_origins:
+            if origin.rstrip("/") not in allowed_origins and not public_origin:
                 return error_response(
                     request,
                     status_code=403,
@@ -481,7 +492,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 )
             preflight = Response(status_code=204)
             preflight.headers["Access-Control-Allow-Origin"] = origin
-            preflight.headers["Access-Control-Allow-Credentials"] = "true"
+            if not public_origin:
+                preflight.headers["Access-Control-Allow-Credentials"] = "true"
             preflight.headers["Access-Control-Allow-Methods"] = (
                 "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"
             )
@@ -508,7 +520,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             return maintenance_response
         csrf_reason = csrf_violation(
             request,
-            allowed_origins=allowed_origins,
+            allowed_origins=(
+                (*allowed_origins, origin.rstrip("/"))
+                if public_origin and origin is not None
+                else allowed_origins
+            ),
         )
         if csrf_reason is not None:
             return error_response(
@@ -545,6 +561,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             response.headers["Access-Control-Expose-Headers"] = (
                 "Content-Disposition, X-Request-ID"
             )
+            response.headers["Vary"] = "Origin"
+        elif public_origin and origin is not None:
+            # Never Access-Control-Allow-Credentials for a public origin.
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Expose-Headers"] = "X-Request-ID"
             response.headers["Vary"] = "Origin"
         return response
 

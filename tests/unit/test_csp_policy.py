@@ -15,7 +15,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 CADDYFILES = (
     "infra/proxy/Caddyfile",
+    "infra/proxy/Caddyfile.split",
     "infra/pilot/Caddyfile",
+    "infra/pilot/Caddyfile.split",
     "infra/pilot/Caddyfile.test",
 )
 ASTRO_CONFIGS = ("apps/public/astro.config.mjs", "apps/campaign-site/astro.config.mjs")

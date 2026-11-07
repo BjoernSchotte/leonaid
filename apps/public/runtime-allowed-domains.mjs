@@ -9,27 +9,46 @@ import { fileURLToPath } from "node:url";
 // URLs) and `checkOrigin` rejects every form POST from the real site.
 //
 // The allowed domains are serialized into the server build, but one release
-// image serves every installation, each under its own domain. The config
+// image serves every installation, each under its own domains. The config
 // therefore carries a placeholder pattern, and after the build this
-// integration replaces it in the serialized server manifest with the domain
-// from an environment variable read at runtime. An unset or empty variable
-// adds no domain.
+// integration replaces it in the serialized server manifest with the host
+// names from environment variables read at runtime: the admin host, the
+// public host and its aliases (specs/multi-domain §6.4). Each variable may
+// hold several names separated by commas or spaces; a ":port" suffix is
+// ignored. An unset or empty variable adds no domain.
 export const RUNTIME_DOMAIN_PLACEHOLDER = "leonaid-runtime-domain.invalid";
 const SERIALIZED = JSON.stringify({ hostname: RUNTIME_DOMAIN_PLACEHOLDER });
 
 /** The config entry that the server build replaces at runtime. */
 export const runtimeDomainPattern = { hostname: RUNTIME_DOMAIN_PLACEHOLDER };
 
-export function patchRuntimeDomain(source, variable) {
-  assert.match(variable, /^[A-Z][A-Z0-9_]*$/);
+// Host names from the variables' values. The patched build inlines exactly
+// this function's source, because the server bundle cannot import it.
+export function runtimeHostnames(values) {
+  return values
+    .flatMap((value) => (value ?? "").split(/[\s,]+/))
+    .map((name) =>
+      name
+        .trim()
+        .toLowerCase()
+        .replace(/:[0-9]+$/, ""),
+    )
+    .filter((name) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name));
+}
+
+export function patchRuntimeDomain(source, variables) {
+  const names = [variables].flat();
+  assert.ok(names.length > 0);
+  for (const variable of names) assert.match(variable, /^[A-Z][A-Z0-9_]*$/);
   assert.equal(
     source.split(SERIALIZED).length,
     2,
     "Serialized allowedDomains changed; re-review the runtime domain patch",
   );
+  const values = names.map((variable) => `process.env.${variable}`).join(", ");
   const runtime =
-    `...((domain) => domain ? [{ hostname: domain }] : [])(` +
-    `(process.env.${variable} ?? "").trim().toLowerCase())`;
+    `...(${runtimeHostnames.toString()})([${values}])` +
+    `.map((hostname) => ({ hostname }))`;
   return source.replace(SERIALIZED, runtime);
 }
 
@@ -43,7 +62,7 @@ async function serverModules(directory) {
   return files;
 }
 
-export default function runtimeAllowedDomains(variable) {
+export default function runtimeAllowedDomains(variables) {
   let serverDirectory;
   return {
     name: "leonaid-runtime-allowed-domains",
@@ -64,7 +83,7 @@ export default function runtimeAllowedDomains(variable) {
         for (const path of await serverModules(serverDirectory)) {
           const source = await readFile(path, "utf8");
           if (!source.includes(SERIALIZED)) continue;
-          await writeFile(path, patchRuntimeDomain(source, variable));
+          await writeFile(path, patchRuntimeDomain(source, variables));
           patched += 1;
         }
         assert.equal(

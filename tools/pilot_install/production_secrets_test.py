@@ -18,7 +18,7 @@ from tools.pilot_install.production_secrets import GENERATORS, PENDING_INTEGRATI
 OPERATOR_SECRETS = {"MAIL_SMTP_PASSWORD"}
 
 
-def run(root: Path, output: Path) -> subprocess.CompletedProcess[str]:
+def run(root: Path, output: Path, *options: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -27,6 +27,7 @@ def run(root: Path, output: Path) -> subprocess.CompletedProcess[str]:
             str(root / "infra/pilot/production.env.example"),
             "--output",
             str(output),
+            *options,
         ],
         check=False,
         capture_output=True,
@@ -107,6 +108,109 @@ def main() -> None:
     print(
         f"pilot-secrets-test: OK: {len(generated)} distinct fresh secrets, 0600, "
         "pending key, no overwrite and no secret output"
+    )
+    hosts(root)
+
+
+def hosts(root: Path) -> None:
+    """Host settings derived from the public and admin domain (multi-domain §6.1)."""
+    with tempfile.TemporaryDirectory() as directory:
+        split = Path(directory) / "split.env"
+        result = run(
+            root,
+            split,
+            "--public-domain",
+            "Leonaid.org",
+            "--alias",
+            "www.leonaid.org",
+            "--alias",
+            "web.leonaid.org",
+        )
+        if result.returncode != 0:
+            raise AssertionError(result.stderr)
+        values = parse_env(split.read_text(encoding="utf-8"), split)
+        expected = {
+            "LEONAID_PUBLIC_DOMAIN": "leonaid.org",
+            "LEONAID_ADMIN_DOMAIN": "app.leonaid.org",
+            "LEONAID_PROXY_CADDYFILE": "Caddyfile.split",
+            "LEONAID_PUBLIC_BASE_URL": "https://app.leonaid.org",
+            "LEONAID_ALLOWED_ORIGINS": "https://app.leonaid.org",
+            "LEONAID_SITE_BASE_URL": "https://leonaid.org",
+            "LEONAID_PUBLIC_ORIGINS": (
+                "https://leonaid.org,https://www.leonaid.org,https://web.leonaid.org"
+            ),
+            "LEONAID_PUBLIC_DOMAIN_ALIASES": "www.leonaid.org, web.leonaid.org",
+        }
+        for key, value in expected.items():
+            if values.get(key) != value:
+                raise AssertionError(f"{key}={values.get(key)!r}, want {value!r}")
+        if not values["CMS_ENCRYPTION_KEY"].startswith("emdash_enc_v1_"):
+            raise AssertionError("CMS key lacks the EmDash key prefix")
+
+        own = Path(directory) / "own-admin.env"
+        result = run(
+            root,
+            own,
+            "--public-domain",
+            "leonaid.org",
+            "--admin-domain",
+            "mitglieder.leonaid.org",
+        )
+        values = parse_env(own.read_text(encoding="utf-8"), own)
+        if result.returncode != 0 or values["LEONAID_ADMIN_DOMAIN"] != (
+            "mitglieder.leonaid.org"
+        ):
+            raise AssertionError("an explicit admin domain was not kept")
+        if "LEONAID_PUBLIC_DOMAIN_ALIASES" in values:
+            raise AssertionError("an unused alias line was activated")
+
+        single = Path(directory) / "single.env"
+        result = run(
+            root, single, "--public-domain", "portal.leonaid.org", "--single-host"
+        )
+        values = parse_env(single.read_text(encoding="utf-8"), single)
+        if (
+            result.returncode != 0
+            or values["LEONAID_PUBLIC_BASE_URL"] != "https://portal.leonaid.org"
+            or "LEONAID_ADMIN_DOMAIN" in values
+            or "LEONAID_SITE_BASE_URL" in values
+        ):
+            raise AssertionError("--single-host must keep one host")
+
+        for label, options in (
+            (
+                "admin equals public",
+                ("--public-domain", "leonaid.org", "--admin-domain", "leonaid.org"),
+            ),
+            (
+                "admin equals alias",
+                (
+                    "--public-domain",
+                    "leonaid.org",
+                    "--admin-domain",
+                    "www.leonaid.org",
+                    "--alias",
+                    "www.leonaid.org",
+                ),
+            ),
+            ("reserved domain", ("--public-domain", "leonaid.test")),
+            ("alias without public domain", ("--alias", "www.leonaid.org")),
+            (
+                "single host with alias",
+                (
+                    "--public-domain",
+                    "leonaid.org",
+                    "--single-host",
+                    "--alias",
+                    "www.leonaid.org",
+                ),
+            ),
+        ):
+            target = Path(directory) / "refused.env"
+            if run(root, target, *options).returncode == 0 or target.exists():
+                raise AssertionError(f"pilot-secrets accepted {label}")
+    print(
+        "pilot-secrets-test: OK: admin/public host settings derived; unsafe hosts refused"
     )
 
 
