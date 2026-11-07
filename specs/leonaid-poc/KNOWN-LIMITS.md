@@ -41,7 +41,15 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
 - Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
   und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
-  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Der Core nimmt
+  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Stufe 1 ist gebaut, aber
+  hinter dem Feature-Flag `pwa.offline_queue` (Standard aus): mit Flag startet
+  die PWA offline aus dem Cache des Service Workers und zeigt die eigene
+  Sponsorenliste und die Bestellangaben aus einer verschlüsselten Kopie auf
+  dem Gerät (IndexedDB je Nutzer, AES-GCM mit nicht exportierbarem Schlüssel;
+  7 Tage anzeigen, 14 Tage behalten; Löschen bei Abmelden, Kontowechsel und
+  Flag aus). Die Startseite (Aktionsstand), Module und das Lieferboard bleiben
+  offline gesperrt. Die Prüfung auf einem echten iPhone (PLAN §13, Speicher
+  einer Home-Screen-App) steht aus; bewiesen ist WebKit in Playwright. Der Core nimmt
   nachgereichte Erfassungen schon an (Stufe 2, PLAN §11): `Idempotency-Key`
   für Kontakte (noch optional), `capturedAt` für Kontakte und Bestellungen
   (höchstens 14 Tage zurück, 5 Minuten voraus), Preisprüfung
@@ -113,7 +121,10 @@ Punkte sind keine stillschweigenden Produktzusagen.
   Abschnitts zur Gerätespeicherung der Akquise-App (PWA-Offline-Queue, D8),
   sind noch nicht von Björn Schotte geprüft. Der Gerätespeicher-Abschnitt
   beschreibt die geplante Offline-Erfassung; die Akquise-App speichert diese
-  Daten erst mit deren Stufe 3. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
+  Daten nur mit eingeschaltetem Flag `pwa.offline_queue` (Sponsorenliste ab
+  Stufe 1, Warteschlange ab Stufe 3). Der Abschnitt nennt die auf dem Gerät
+  gespeicherte Kurzform der eigenen Identität (Name, Aktionen, Rollen) für den
+  Offline-Start noch nicht. Ein `[[ … ]]`-Hinweis im Abschnitt blockiert
   die produktive Aktivierung, bis der Club ihn bewusst behält oder löscht.
 - Es gibt ein Impressum und eine Datenschutzerklärung je Installation, auf
   allen Hosts unter denselben Pfaden (Multi-Domain D4). Eigene Inhalte je Host

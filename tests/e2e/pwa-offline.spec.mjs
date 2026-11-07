@@ -41,21 +41,31 @@ async function authenticate(context, token) {
   ]);
 }
 
-/** Waits until the service worker controls the page. */
+/**
+ * Waits until the service worker is active and controls the page: the
+ * first load registers it, a reload puts the page under it.
+ */
 async function controlled(page) {
   await expect
     .poll(
       async () => {
         try {
-          return await page.evaluate(async () => {
-            await navigator.serviceWorker.ready;
-            return Boolean(navigator.serviceWorker.controller);
-          });
+          return await page.evaluate(async () =>
+            Boolean(
+              (await navigator.serviceWorker.getRegistration())?.active,
+            ),
+          );
         } catch {
           return false;
         }
       },
       { timeout: 30_000 },
+    )
+    .toBe(true);
+  await page.reload();
+  await expect
+    .poll(() =>
+      page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
     )
     .toBe(true);
 }
@@ -268,6 +278,7 @@ test("account switch and sign-out delete the device copy (D6, §8.5)", async ({
   await authenticate(context, annaSession);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.getByTestId("sponsor-row").first()).toBeVisible();
+  await controlled(page);
   await expect
     .poll(() => databaseNames(page), { timeout: 30_000 })
     .toEqual([`leonaid-pwa-v1-${ANNA_ID}`]);
