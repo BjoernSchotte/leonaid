@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -411,10 +411,15 @@ invites everyone else in the admin area.
 - Once a System Admin exists, another address is refused. Add a deliberate
   second System Admin (for example a deputy) with `--additional`.
 - An existing active account with that address is promoted instead of
-  duplicated; a suspended or archived account is refused (only a System
-  Admin changes that in the admin area).
+  duplicated; it keeps its name (`--display-name` is ignored, the output
+  says so). A suspended or archived account is refused (only a System Admin
+  changes that in the admin area).
+- If every System Admin is suspended or archived, no active one is left: the
+  command then creates the new one without `--additional` and says so
+  (recovery of access).
 - Each change is written to the LeonAid audit log without a person as actor
-  (`identity.account.created`, `identity.global_role.granted`).
+  (`identity.account.created`, `identity.global_role.granted`); the payload
+  names the operator account and host that ran the command.
 
 If the mail does not arrive, check the relay (see
 [Mail for LeonAid and Twenty](#mail-for-leonaid-and-twenty)); the address can

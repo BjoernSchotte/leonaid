@@ -2604,7 +2604,8 @@ pilot_create_system_admin() {
   # shellcheck disable=SC2086 # empty or exactly "--additional"
   pilot_compose_command "$project" "$env_file" exec -T api \
     python -m leonaid.entrypoints.system_admin \
-    --email "$admin_email" --display-name "$admin_name" $additional
+    --email "$admin_email" --display-name "$admin_name" \
+    --operator "$(id -un)@$(hostname)" $additional
 }
 
 pilot_revoke_sessions() {

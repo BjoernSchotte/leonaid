@@ -89,8 +89,11 @@ backup, monitoring with the watchdog heartbeat and the full doctor follow.
 After the installation, `./leonaid pilot-create-system-admin --env-file …
 --email … --display-name …` creates the first LeonAid System Admin and sends
 the normal sign-in mail (no password). It is idempotent, refuses a further
-System Admin unless `--additional` is given, never reactivates a suspended
-account and writes `audit_event` rows without an actor.
+System Admin unless `--additional` is given (when every System Admin is
+suspended or archived it restores access without the flag and says so),
+never reactivates a suspended account, keeps a promoted member's name, and
+writes `audit_event` rows without an actor but with the operator
+(`user@host`).
 
 `systemd/leonaid-backup.timer` schedules daily backups.
 `./leonaid pilot-repair-crm-match-keys` repairs the CRM match keys:

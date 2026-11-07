@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
@@ -16,6 +17,14 @@ class SystemAdminOutcome(Enum):
     CREATED = "created"
     PROMOTED = "promoted"
     ALREADY = "already"
+
+
+@dataclass(frozen=True, slots=True)
+class SystemAdminResult:
+    outcome: SystemAdminOutcome
+    #: No active System Admin was left, but inactive ones exist: the command
+    #: restored access without --additional (recovery, stated in the output).
+    recovery: bool = False
 
 
 class SystemAdminRefused(RuntimeError):
@@ -56,7 +65,8 @@ async def ensure_system_admin(
     display_name: str,
     additional: bool,
     request_id: str,
-) -> SystemAdminOutcome:
+    operator: str,
+) -> SystemAdminResult:
     """One transaction under the admin-access lock (same lock as role changes)."""
 
     email = email.strip().lower()
@@ -82,7 +92,7 @@ async def ensure_system_admin(
                 and account["status"] == "active"
                 and account["is_system_admin"]
             ):
-                return SystemAdminOutcome.ALREADY
+                return SystemAdminResult(SystemAdminOutcome.ALREADY)
             active_admins = int(
                 await connection.fetchval(
                     """
@@ -98,9 +108,24 @@ async def ensure_system_admin(
                     "an active System Admin exists already; pass --additional "
                     "to add another one, or let a System Admin invite members"
                 )
+            # Only *active* System Admins block: when every one is suspended or
+            # archived, this command is the documented way back in.
+            inactive_admins = int(
+                await connection.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM user_global_role AS role
+                    JOIN user_account AS account ON account.id = role.user_id
+                    WHERE role.role = 'system_admin' AND account.status <> 'active'
+                    """
+                )
+            )
+            recovery = not active_admins and bool(inactive_admins)
             payload: dict[str, str | bool] = {
                 "source": "pilot-create-system-admin",
                 "additional": bool(active_admins),
+                "recovery": recovery,
+                "operator": operator,
             }
             if account is None:
                 user_id = uuid4()
@@ -156,4 +181,4 @@ async def ensure_system_admin(
                 request_id=request_id,
                 payload={**payload, "role": "system_admin", "enabled": True},
             )
-            return outcome
+            return SystemAdminResult(outcome, recovery=recovery)
