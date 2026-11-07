@@ -985,7 +985,7 @@ export function LegalConfigurationPage({
   const authoredByViewer = draft?.createdByUserId === identity.userId;
   const blockers = draft?.values.activationBlockers ?? [];
   // A version activated before newer requirements (e.g. the Impressum fields
-  // of migration 0052) can be incomplete now; say so instead of hiding it.
+  // of migration 0054) can be incomplete now; say so instead of hiding it.
   const activeBlockers = active?.values.activationBlockers ?? [];
   const changedParts = new Set(
     PARTS.filter(

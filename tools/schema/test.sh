@@ -100,7 +100,8 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
     /repo/tools/inbox/task_contract.py \
     /repo/tools/inbox/material_contract.py \
     /repo/tests/integration/test_search_api.py \
-    /repo/tests/integration/test_order_cancellation_api.py
+    /repo/tests/integration/test_order_cancellation_api.py \
+    /repo/tests/integration/test_offline_capture_api.py
 
 echo "poc021-test: migrating the versioned previous snapshot with its data"
 compose --profile '*' down --volumes --remove-orphans
@@ -121,7 +122,49 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
-echo "poc021-test: 0052 keeps Impressum and privacy texts and guards its downgrade"
+capture_sql() {
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -t -A -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+}
+
+echo "poc021-test: 0053 upgrade names existing manual contacts outside the window"
+compose run --rm --no-deps --entrypoint alembic api downgrade 0052_commitment_captured_at
+printf '%s\n' "INSERT INTO acquisition_activity (id, action_id, occurred_at, channel, outcome, created_at) VALUES ('95300000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', CURRENT_TIMESTAMP - interval '20 days', 'phone', 'reached', CURRENT_TIMESTAMP);" | capture_sql
+if output=$(compose run --rm --no-deps --entrypoint alembic api upgrade head 2>&1); then
+  echo "poc021-test: ERROR: 0053 accepted a manual contact outside the window" >&2
+  exit 1
+fi
+case "$output" in
+  *"0053 refused: 1 manual contact(s)"*"95300000-0000-4000-8000-000000000001"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0053 failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM acquisition_activity WHERE id = '95300000-0000-4000-8000-000000000001';" | capture_sql
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+validated=$(printf '%s\n' "SELECT convalidated FROM pg_constraint WHERE conname = 'ck_acquisition_activity_occurred_at_bound';" | capture_sql)
+if [ "$validated" != "t" ]; then
+  echo "poc021-test: ERROR: 0053 left its check unvalidated: $validated" >&2
+  exit 1
+fi
+
+echo "poc021-test: 0052 downgrade keeps a queued order without its capture time"
+# The legacy order is an admin order; only acquisition orders carry a
+# capture time, so it is one for this step and gets its source back after.
+legacy_source=$(printf '%s\n' "SELECT source FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql)
+printf '%s\n' "UPDATE commitment SET source = 'acquisition', captured_at = created_at - interval '1 hour' WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql
+compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
+remaining=$(printf '%s\n' "SELECT count(*) FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001'; SELECT count(*) FROM information_schema.columns WHERE table_name = 'commitment' AND column_name = 'captured_at';" | capture_sql | tr '\n' ' ')
+if [ "$remaining" != "1 0 " ]; then
+  echo "poc021-test: ERROR: 0052 downgrade lost the order or kept the column: $remaining" >&2
+  exit 1
+fi
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+printf '%s\n' "UPDATE commitment SET source = '$legacy_source' WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql
+
+echo "poc021-test: 0054 keeps Impressum and privacy texts and guards its downgrade"
 legal_sql() {
   compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
@@ -161,7 +204,7 @@ if printf '%s\n' "UPDATE legal_configuration_version SET imprint_register_number
   exit 1
 fi
 if output=$(compose run --rm --no-deps --entrypoint alembic api \
-  downgrade 0051_commitment_cancellation 2>&1); then
+  downgrade 0053_activity_occurred_at_bound 2>&1); then
   echo "poc021-test: ERROR: downgrade dropped a published Impressum" >&2
   exit 1
 fi
@@ -169,14 +212,14 @@ case "$output" in
   *"downgrade refused"*) ;;
   *)
     printf '%s\n' "$output" >&2
-    echo "poc021-test: ERROR: 0052 downgrade failed for another reason" >&2
+    echo "poc021-test: ERROR: 0054 downgrade failed for another reason" >&2
     exit 1
     ;;
 esac
 printf '%s\n' "DELETE FROM legal_configuration_version WHERE id = '97700000-0000-4000-8000-000000000052';" \
   | legal_sql
-compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
-# Versions from before 0052: an "e. V." name gets the registered association
+compose run --rm --no-deps --entrypoint alembic api downgrade 0053_activity_occurred_at_bound
+# Versions from before 0054: an "e. V." name gets the registered association
 # form, every other name stays without a form (chosen before activation).
 legal_sql <<'SQL'
 INSERT INTO legal_configuration_version (
@@ -208,7 +251,7 @@ forms=$(printf '%s\n' "SELECT string_agg(coalesce(legal_form, 'null'), ',' ORDER
   | compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
 if [ "$forms" != "registered_association,null" ]; then
-  echo "poc021-test: ERROR: 0052 legal form backfill is wrong: $forms" >&2
+  echo "poc021-test: ERROR: 0054 legal form backfill is wrong: $forms" >&2
   exit 1
 fi
 printf '%s\n' "DELETE FROM legal_configuration_version WHERE version IN (9053, 9054);" \

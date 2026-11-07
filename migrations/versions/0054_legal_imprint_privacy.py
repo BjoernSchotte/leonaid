@@ -1,7 +1,7 @@
 """Impressum details (§ 5 DDG, § 18 Abs. 2 MStV) and the privacy policy.
 
-Revision ID: 0052_legal_imprint_privacy
-Revises: 0051_commitment_cancellation
+Revision ID: 0054_legal_imprint_privacy
+Revises: 0053_activity_occurred_at_bound
 
 Legal configuration versions gain the Impressum fields that were missing
 (authorised representatives, telephone, register entry, VAT ID, person
@@ -22,8 +22,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0052_legal_imprint_privacy"
-down_revision: str | None = "0051_commitment_cancellation"
+revision: str = "0054_legal_imprint_privacy"
+down_revision: str | None = "0053_activity_occurred_at_bound"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

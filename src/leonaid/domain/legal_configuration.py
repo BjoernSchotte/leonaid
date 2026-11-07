@@ -31,7 +31,7 @@ REGISTER_NUMBER_PREFIXES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^gnr\b"), "Genossenschaftsregister"),
     (re.compile(r"^pr\b"), "Partnerschaftsregister"),
 )
-# Fields added after the first contract (migration 0052). A client that does
+# Fields added after the first contract (migration 0054). A client that does
 # not send them (an admin app from before the update) keeps the previous
 # version's values instead of clearing them.
 LATER_OPTIONAL_FIELDS = frozenset(
@@ -144,11 +144,11 @@ class LegalConfigurationDraft:
     tax_evidence_id: str
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
-    # Carrier's legal form; None for versions before 0052 without a known
+    # Carrier's legal form; None for versions before 0054 without a known
     # form. Production activation requires it.
     legal_form: LegalForm | None = None
     # Impressum (§ 5 DDG, § 18 Abs. 2 MStV). Optional in the type because
-    # versions before 0052 have none; production activation requires the
+    # versions before 0054 have none; production activation requires the
     # mandatory ones (activation_blockers).
     imprint_representatives: str | None = None
     imprint_phone: str | None = None

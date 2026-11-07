@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
 from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.identity import require_aware
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
@@ -453,8 +454,19 @@ class Commitment:
     public_reference: str | None = None
     idempotency_key: str | None = None
     replayed: bool = False
+    # When the acquirer saved the order on the device (PWA queue); history
+    # only. The server's creation time keeps driving lists and invoices.
+    captured_at: datetime | None = None
 
     def __post_init__(self) -> None:
+        if self.captured_at is not None:
+            require_aware(self.captured_at, "captured_at")
+            if self.source is not CommitmentSource.ACQUISITION:
+                raise DomainInvariantError(
+                    "captured_at_source_invalid",
+                    "Nur Akquise-Bestellungen besitzen einen Erfassungszeitpunkt "
+                    "auf dem Gerät.",
+                )
         if (self.delivery_window_id is None) != (self.delivery_window_snapshot is None):
             raise DomainInvariantError(
                 "delivery_snapshot_required",

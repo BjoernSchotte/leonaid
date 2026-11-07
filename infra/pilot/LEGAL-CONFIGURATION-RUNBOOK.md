@@ -95,7 +95,7 @@ placeholder until the club decides it applies.
 ## After an update
 
 A version activated before new requirements can be incomplete afterwards
-(for example after migration 0052 added the Impressum fields). The page
+(for example after migration 0054 added the Impressum fields). The page
 **Rechtliches** then shows the warning „Die aktive Version … ist
 unvollständig" with the missing points. Create a new draft, have it approved
 and activate it. A save from an admin page loaded before the update keeps the

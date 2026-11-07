@@ -28,7 +28,13 @@ Punkte sind keine stillschweigenden Produktzusagen.
   (`src/leonaid/application/delivery.py`), keine Überbuchungswarnung.
 - Offline-Erfassung fehlt: die PWA zeigt offline nur bereits geladene Inhalte
   und speichert keine Änderungen (`packages/ui/src/components/mobile-shell.tsx`;
-  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Push-Nachrichten,
+  Spezifikation `specs/pwa-offline-queue/PLAN.md`). Der Core nimmt
+  nachgereichte Erfassungen schon an (Stufe 2, PLAN §11): `Idempotency-Key`
+  für Kontakte (noch optional), `capturedAt` für Kontakte und Bestellungen
+  (höchstens 14 Tage zurück, 5 Minuten voraus), Preisprüfung
+  `commitment_price_changed` und Kontakt trotz geänderter Zuordnung
+  (`assignmentUpdated: false`). Die Bestelldetails zeigen `capturedAt` noch
+  nicht an; das kommt mit der Warteschlange (Stufe 3). Push-Nachrichten,
   Etikettendruck, Druck-/Packliste, Herstellerabrechnung und Materialbestand
   fehlen.
 - Dokumentverwaltung umfasst erzeugte und fachlich zugeordnete Belege sowie
@@ -52,7 +58,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
 
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
-  0052). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
+  0054). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
   fehlendes Telefon, eine nicht gewählte Rechtsform, ein fehlender
   Registereintrag bei einer Rechtsform mit Register (e. V., GmbH, gGmbH, eG),
   eine fehlende USt-ID, wenn die Steuerkennung eine ist, fehlende
@@ -60,7 +66,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   prüft nur das Vorhandensein, nicht die rechtliche Richtigkeit der Texte. Die
   Rechtsformen sind eine feste Liste; weitere Formen fallen unter „Sonstige“
   ohne Registerpflicht.
-- Nach dem Update auf 0052 ist eine schon aktive Version unvollständig;
+- Nach dem Update auf 0054 ist eine schon aktive Version unvollständig;
   `/admin/legal` warnt, bis eine neue Version aktiviert ist. Der
   Readiness-Endpunkt (`/api/health/ready`) prüft die rechtlichen Angaben
   nicht.

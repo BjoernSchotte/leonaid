@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from typing import Protocol
@@ -28,12 +31,20 @@ from leonaid.domain.acquisition import (
     reminder_urgency,
 )
 from leonaid.domain.calendar import INSTALLATION_TIME_ZONE
+from leonaid.domain.captures import bounded_captured_at
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.privacy import (
     ContactChannel,
     PrivacyPurpose,
     normalize_recipient,
 )
+
+# The format every Core command key follows (application/commitments.py);
+# the PWA queue sends ``pwa-q:<entryId>``. Repeated here so the activity use
+# case does not depend on the ordering module.
+IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
+ACTIVITY_COMMAND_TYPE = "acquisition.activity.record"
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +107,57 @@ class AcquisitionActivityBoard:
 class ActivityRecordingResult:
     assignment: AcquisitionAssignment
     activity: RecordedAcquisitionActivity
+    # False when a queued capture met a moved assignment (PLAN §11.4, D1):
+    # the contact is recorded, status and follow-up stay as they are.
+    assignment_updated: bool = True
+    replayed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityCommand:
+    """The idempotency receipt of one activity send (``Idempotency-Key``)."""
+
+    idempotency_key: str
+    request_hash: str
+
+
+def activity_request_hash(
+    *,
+    action_id: UUID,
+    actor_user_id: UUID,
+    party_kind: AssignmentPartyKind,
+    party_id: UUID,
+    expected_revision: int,
+    channel: ActivityChannel,
+    outcome: ActivityOutcome,
+    note: str | None,
+    next_action: str | None,
+    due_on: date | None,
+    captured_at: datetime | None,
+) -> str:
+    """SHA-256 over the request as sent; actor and action bind the key."""
+
+    payload = {
+        "actionId": str(action_id),
+        "actorUserId": str(actor_user_id),
+        "partyKind": party_kind.value,
+        "partyId": str(party_id),
+        "revision": expected_revision,
+        "channel": channel.value,
+        "outcome": outcome.value,
+        "note": note,
+        "nextAction": next_action,
+        "dueOn": due_on.isoformat() if due_on is not None else None,
+        "capturedAt": (
+            captured_at.astimezone(timezone.utc).isoformat()
+            if captured_at is not None
+            else None
+        ),
+    }
+    canonical = json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class AcquisitionActivityRepository(Protocol):
@@ -148,16 +210,50 @@ class AcquisitionActivityRepository(Protocol):
         limit: int,
     ) -> tuple[RecordedAcquisitionActivity, ...]: ...
 
+    async def replayed_activity(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        command: ActivityCommand,
+        evaluated_at: datetime,
+    ) -> ActivityRecordingResult | None:
+        """The stored result of ``command``, or None when the key is new.
+
+        Raises ``idempotency_conflict`` for a key used with other content and
+        conceals the result when the actor no longer holds the assignment.
+        """
+        ...
+
     async def record_activity(
         self,
         previous: AcquisitionAssignment,
         changed: AcquisitionAssignment,
         capture: ActivityCapture,
         *,
+        expected_revision: int,
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
-    ) -> ActivityRecordingResult | None: ...
+        received_at: datetime,
+        command: ActivityCommand | None = None,
+        keep_contact_on_moved_assignment: bool = False,
+    ) -> ActivityRecordingResult | None:
+        """Persist the activity and, unless the assignment moved, the change.
+
+        ``previous`` is the assignment as read, ``changed`` is built from it
+        and ``expected_revision`` is the revision the capture was based on.
+        The change is applied only when ``expected_revision`` equals the read
+        revision and the row still has it; otherwise the assignment moved.
+        ``occurred_at`` is when the contact happened (``capturedAt`` or the
+        receive time); ``received_at`` is Core's time and drives membership
+        checks, ``updated_at``, the history and the audit event. With
+        ``keep_contact_on_moved_assignment`` a revision mismatch records the
+        activity without changing the assignment instead of a conflict. With
+        ``command`` the receipt is stored in the same transaction, and a
+        concurrent send of the same key returns that send's result.
+        """
+        ...
 
 
 class AcquisitionActivityService:
@@ -337,19 +433,80 @@ class AcquisitionActivityService:
         next_action: str | None,
         due_on: date | None,
         request_id: str,
+        captured_at: datetime | None = None,
+        idempotency_key: str | None = None,
     ) -> tuple[ActivityRecordingResult, AcquisitionActivityItem]:
         self._require_acquirer(actor, action_id)
-        occurred_at = datetime.now(timezone.utc)
+        received_at = datetime.now(timezone.utc)
+        # The key is optional for one release so that an older cached PWA
+        # keeps working (PLAN §11.1, risk R3).
+        command: ActivityCommand | None = None
+        if idempotency_key is not None:
+            if not IDEMPOTENCY_KEY.fullmatch(idempotency_key):
+                raise DomainInvariantError(
+                    "activity_idempotency_key_invalid",
+                    "Die Vorgangs-ID besitzt ein ungültiges Format.",
+                )
+            command = ActivityCommand(
+                idempotency_key=idempotency_key,
+                request_hash=activity_request_hash(
+                    action_id=action_id,
+                    actor_user_id=actor.account.id,
+                    party_kind=party_kind,
+                    party_id=party_id,
+                    expected_revision=expected_revision,
+                    channel=channel,
+                    outcome=outcome,
+                    note=note,
+                    next_action=next_action,
+                    due_on=due_on,
+                    captured_at=captured_at,
+                ),
+            )
+            # A resend after a lost answer carries the revision the first
+            # send already moved on, and may arrive after the capture-time
+            # window closed: the receipt is read before any check.
+            replayed = await self._replay(
+                action_id=action_id,
+                actor_user_id=actor.account.id,
+                command=command,
+                received_at=received_at,
+                request_id=request_id,
+            )
+            if replayed is not None:
+                return replayed
+        # Only a new write is bound to the window (PLAN §11.2, D5).
+        occurred_at = (
+            bounded_captured_at(captured_at, received_at=received_at)
+            if captured_at is not None
+            else received_at
+        )
         previous = await self._repository.active_assignment_for_actor(
             action_id=action_id,
             actor_user_id=actor.account.id,
             party_kind=party_kind,
             party_id=party_id,
-            evaluated_at=occurred_at,
+            evaluated_at=received_at,
         )
         if previous is None:
             raise concealed_resource()
-        if previous.revision != expected_revision:
+        # A queued capture (capturedAt) keeps the contact when the assignment
+        # moved meanwhile (D1); an online capture is refused as before, and
+        # before any CRM lookup.
+        keep_contact = captured_at is not None
+        if previous.revision != expected_revision and not keep_contact:
+            if command is not None:
+                # A revision moved by a concurrent send of this very key is
+                # committed together with its receipt: replay it.
+                replayed = await self._replay(
+                    action_id=action_id,
+                    actor_user_id=actor.account.id,
+                    command=command,
+                    received_at=received_at,
+                    request_id=request_id,
+                )
+                if replayed is not None:
+                    return replayed
             raise Conflict(
                 "assignment_revision_conflict",
                 "Die Zuordnung wurde zwischenzeitlich geändert. Bitte neu laden.",
@@ -379,6 +536,7 @@ class AcquisitionActivityService:
                         "contact_suppressed",
                         "Dieser Kontakt ist für diesen Kommunikationskanal gesperrt.",
                     )
+        # due_on stays a calendar date from the device: 09:00 club time.
         due_at = (
             datetime.combine(
                 due_on,
@@ -395,26 +553,60 @@ class AcquisitionActivityService:
             next_action=next_action,
             due_at=due_at,
         )
-        changed = previous.record_activity(capture, occurred_at=occurred_at)
+        # ``changed`` is built from the state read at ``previous.revision``;
+        # the repository applies it only when the capture was based on that
+        # very revision and the row still has it.
+        changed = previous.record_activity(capture, occurred_at=received_at)
         result = await self._repository.record_activity(
             previous,
             changed,
             capture,
+            expected_revision=expected_revision,
             actor_user_id=actor.account.id,
             request_id=request_id,
             occurred_at=occurred_at,
+            received_at=received_at,
+            command=command,
+            keep_contact_on_moved_assignment=keep_contact,
         )
         if result is None:
             raise concealed_resource()
+        return result, await self._activity_item(result, request_id=request_id)
+
+    async def _replay(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        command: ActivityCommand,
+        received_at: datetime,
+        request_id: str,
+    ) -> tuple[ActivityRecordingResult, AcquisitionActivityItem] | None:
+        replayed = await self._repository.replayed_activity(
+            action_id=action_id,
+            actor_user_id=actor_user_id,
+            command=command,
+            evaluated_at=received_at,
+        )
+        if replayed is None:
+            return None
+        return replayed, await self._activity_item(replayed, request_id=request_id)
+
+    async def _activity_item(
+        self,
+        result: ActivityRecordingResult,
+        *,
+        request_id: str,
+    ) -> AcquisitionActivityItem:
+        key = (result.activity.party_kind, result.activity.party_id)
         details = await self._party_details(
-            {(party_kind, party_id)},
+            {key},
             correlation_prefix=f"{request_id}:activity-party",
         )
-        item = AcquisitionActivityItem(
+        return AcquisitionActivityItem(
             activity=result.activity,
-            party_display_name=details[(party_kind, party_id)].display_name,
+            party_display_name=details[key].display_name,
         )
-        return result, item
 
     async def _assigned_acquirers(
         self,
