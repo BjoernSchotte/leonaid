@@ -244,8 +244,105 @@ def test_retry_allowlist() -> None:
     )
 
 
+def check_run(run: int, status: str, conclusion: str | None, started: str) -> dict:
+    return {
+        "details_url": f"https://github.com/o/r/actions/runs/{run}/job/1",
+        "status": status,
+        "conclusion": conclusion,
+        "started_at": started,
+    }
+
+
+def test_pull_request_context() -> None:
+    base_env = {"EVENT_NAME": "pull_request", "GITHUB_REPOSITORY": "o/r"}
+
+    def never(path: str) -> object:
+        raise AssertionError(f"unexpected API call {path}")
+
+    # Drafts fail the gate: no CI ran.
+    decision, message = gate.pull_request_context(
+        {**base_env, "DRAFT": "true"}, {}, never
+    )
+    expect(decision is False and "draft" in message, f"draft: {decision} {message}")
+    # Ordinary events evaluate the needs.
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "synchronize"}, {}, never
+        )
+        == (None, ""),
+        "synchronize evaluates normally",
+    )
+    expect(
+        gate.pull_request_context({"EVENT_NAME": "schedule"}, {}, never) == (None, ""),
+        "schedule evaluates normally",
+    )
+    # A base change is a real run, not a mirror.
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "edited", "BASE_CHANGED": "true"}, {}, never
+        )
+        == (None, ""),
+        "a base change runs the normal selection",
+    )
+    edit = {
+        **base_env,
+        "EVENT_ACTION": "edited",
+        "BASE_CHANGED": "false",
+        "HEAD_SHA": "abc",
+        "GATE_NAME": "CI gate",
+        "GITHUB_RUN_ID": "9",
+    }
+    for runs, expected in (
+        ([check_run(5, "completed", "success", "2026-11-07T10:00:00Z")], True),
+        ([check_run(5, "completed", "failure", "2026-11-07T10:00:00Z")], False),
+        (
+            [
+                check_run(5, "completed", "success", "2026-11-07T09:00:00Z"),
+                check_run(6, "completed", "failure", "2026-11-07T10:00:00Z"),
+            ],
+            False,
+        ),
+        # Our own (skipped) check run never counts.
+        ([check_run(9, "completed", "success", "2026-11-07T11:00:00Z")], False),
+        ([], False),
+    ):
+        decision, _ = gate.pull_request_context(
+            edit, {}, lambda path, runs=runs: {"check_runs": runs}
+        )
+        expect(decision is expected, f"mirror {runs}: {decision}")
+    # A still-running real gate is awaited, then mirrored.
+    answers = iter(
+        [
+            {"check_runs": [check_run(5, "in_progress", None, "2026-11-07T10:00:00Z")]},
+            {
+                "check_runs": [
+                    check_run(5, "completed", "success", "2026-11-07T10:00:00Z")
+                ]
+            },
+        ]
+    )
+    result = gate.mirrored_result(
+        lambda path: next(answers), "o/r", "abc", "CI gate", "9", sleep=lambda _: None
+    )
+    expect(result == "success", f"awaited mirror: {result}")
+    # A stacked selection must still target its stack base.
+    stacked = {**base_env, "PR_NUMBER": "7", "STACK_BASE": "md/stage2c"}
+    for base, expected in (("md/stage2c", False), ("main", True), (None, True)):
+        found = gate.stacked_into_main(
+            stacked,
+            {"heavy": "false"},
+            lambda path, base=base: {"base": {"ref": base}} if base else {},
+        )
+        expect(found is expected, f"stacked, current base {base}: {found}")
+    expect(
+        not gate.stacked_into_main(stacked, {"heavy": "true"}, never),
+        "a selection into main needs no base lookup",
+    )
+
+
 def main() -> int:
     test_gate()
+    test_pull_request_context()
     test_flake_tally()
     test_retry_allowlist()
     if FAILURES:

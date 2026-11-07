@@ -33,9 +33,10 @@ jobs:
       # workflow file:maximum hours since its last scheduled run on main.
       # workflow file:maximum hours since its last scheduled run on main
       # [:word the run title must contain]. ci.yml and surveys.yml run on
-      # main every 3 hours (no push runs); ci.yml's nightly run is the only
-      # one with every E2E leaf and is tracked on its own.
-      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 pin-drift.yml:30 pins.yml:192"
+      # main every 3 hours (no push runs); their nightly runs (ci.yml: every
+      # E2E leaf; surveys.yml: recovery and backup) are tracked on their own.
+      # Runs after every completed scheduled run (workflow_run), not daily.
+      WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly pin-drift.yml:30 pins.yml:192"
     steps:
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |

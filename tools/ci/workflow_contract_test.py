@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true\n",
+        "ci.yml: job select must not run for a draft or a title edit",
+    ),
+    (
+        "${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}",
+        "",
+        "a title edit must not share the PR's concurrency group",
+    ),
+    (
         '      LEONAID_CI_STEP_SECONDS: "5100"\n',
         '      LEONAID_CI_STEP_SECONDS: "5400"\n',
         "e2e: LEONAID_CI_STEP_SECONDS must stop the suite",
@@ -31,9 +41,9 @@ CI_MUTATIONS = (
         "no complete run per push to main",
     ),
     (
+        "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]\n",
         "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]\n",
-        "",
-        "ci.yml: pull_request must list ready_for_review and converted_to_draft",
+        "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
     ),
     (
         "  lint-unit:\n",
@@ -178,13 +188,13 @@ CI_MUTATIONS = (
         "golden-parts must not run when the suite selector failed",
     ),
     (
-        "      - golden-journey\n    # Skipped",
-        "    # Skipped",
+        "      - golden-journey\n    if: ${{ always()",
+        "    if: ${{ always()",
         "gate does not require: golden-journey",
     ),
     (
-        "    if: ${{ always() && github.event.pull_request.draft != true && github.ref",
-        "    if: ${{ success() && github.event.pull_request.draft != true && github.ref",
+        "    if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe'",
+        "    if: ${{ success() && github.ref != 'refs/heads/ci-artifact-probe'",
         "the gate must run after failures",
     ),
     (
@@ -223,21 +233,33 @@ CI_MUTATIONS = (
 OTHER_MUTATIONS = (
     (
         "nightly-watchdog.yml",
+        " surveys.yml:30:nightly",
+        "",
+        "must track surveys.yml's nightly run",
+    ),
+    (
+        "surveys.yml",
+        "run-name: ",
+        "x-run-name: ",
+        "surveys.yml: several schedules need a run-name",
+    ),
+    (
+        "nightly-watchdog.yml",
         " ci.yml:30:nightly",
         "",
         "must track ci.yml's nightly run",
     ),
     (
         "docs.yml",
-        "    if: github.event.pull_request.draft != true\n    name: Bilingual site artifact\n",
-        "    name: Bilingual site artifact\n",
+        "        if: github.event.pull_request.draft == true\n",
+        "        if: false\n",
         "docs.yml: job build must not run for a draft",
     ),
     (
         "pins.yml",
-        "    if: ${{ always() && github.event.pull_request.draft != true }}\n",
-        "    if: ${{ always() }}\n",
-        "pins.yml: job gate must not run for a draft",
+        "          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n",
+        "",
+        "pins.yml: the gate must hand the draft/edit/stack context to gate.py",
     ),
     (
         "surveys.yml",
@@ -319,7 +341,7 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8',
+        'WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly',
         'WATCHED: "ci.yml:8 ci.yml:30:nightly',
         "scheduled workflow surveys.yml is not watched",
     ),

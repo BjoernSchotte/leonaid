@@ -1,10 +1,16 @@
 name: Survey acceptance
+# The nightly run (recovery shards and backup proofs) is the only one with
+# those checks; its own name lets nightly-watchdog.yml track it apart from
+# the 3-hourly runs.
+run-name: ${{ github.event.schedule == '17 1 * * *' && 'Survey acceptance nightly (recovery and backup)' || github.event.schedule == '47 */3 * * *' && 'Survey acceptance main every 3 hours' || github.event.pull_request.title || github.workflow }}
 
 on:
   pull_request:
-    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
-    # cancels the running one (same concurrency group, no job runs).
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+    # Drafts run nothing (their gate fails); ready_for_review starts CI,
+    # converted_to_draft cancels the running one. edited: a base change (a
+    # stacked PR retargeted to main) runs the normal selection; a title or
+    # body edit runs no job and its gate mirrors the commit's real result.
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
   # No run per push to main: the 3-hourly schedule runs the PR selection
   # on main, the nightly one the recovery shards and backup proofs.
   schedule:
@@ -22,12 +28,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
-    if: github.event.pull_request.draft != true
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
 
   fixture:
@@ -175,10 +181,14 @@ jobs:
     # queue): tools/ci/gate.py.
     name: Survey gate
     needs: [select, fixture, inventory, surveys, backup-recovery]
-    # Skipped (and so passing) only for a draft, which cannot be merged.
-    if: ${{ always() && github.event.pull_request.draft != true }}
+    if: ${{ always() }}
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # Up to 50 minutes when a title edit waits for the commit's real gate.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,6 +196,18 @@ jobs:
       - name: Require every selected survey job
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # Pull request context for tools/ci/gate.py: drafts fail, title
+          # edits mirror the commit's real gate, a stacked result fails once
+          # the pull request no longer targets its stack base.
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          STACK_BASE: ${{ github.base_ref }}
+          GATE_NAME: Survey gate
         # backup-recovery runs only nightly or on dispatch; when it runs it
         # must pass.
         run: >-

@@ -734,6 +734,65 @@ E2E_OWNERS: dict[str, tuple[str, ...]] = {
     "search": ("leitsystem-ui",),
     "public_orders": ("public-orders",),
 }
+# Leaves that send mail, sync the CRM or deliver invoices through the outbox.
+_MESSAGING = (
+    "membership",
+    "invoice-flows",
+    "public-orders",
+    "matching",
+    "acquisition-management",
+)
+ALL_E2E = "*"
+# Modules the reverse import graph cannot reach: LeonAid wires adapters and
+# entry points by dependency injection (bootstrap/, entrypoints/), so the
+# import edges point from them to the application, never back. Mapped by
+# module prefix, checked in order; the first match wins. ALL_E2E: the
+# module serves every leaf (HTTP surface, wiring, platform).
+MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
+    ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
+    (
+        "leonaid.adapters.twenty",
+        ("matching", "acquisition-management", "public-orders"),
+    ),
+    ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
+    ("leonaid.adapters.storage", ("materials", "knowledge", "inbox", "invoices")),
+    ("leonaid.adapters.feature_flags", ("operations",)),
+    ("leonaid.adapters.operations", ("operations",)),
+    ("leonaid.adapters.postgres.outbox", _MESSAGING),
+    ("leonaid.entrypoints.worker.outbox", _MESSAGING),
+    ("leonaid.entrypoints.worker.retention", ("operations",)),
+    ("leonaid.entrypoints.fastapi.order_proxy", ("public-orders", "public-catalog")),
+    ("leonaid.entrypoints.fastapi.maintenance", ("operations",)),
+    # The HTTP surface (routes, schemas, security, app), the worker
+    # process, the wiring, configuration and the platform serve every leaf.
+    ("leonaid.entrypoints.fastapi", ALL_E2E),
+    ("leonaid.entrypoints.worker", ALL_E2E),
+    ("leonaid.entrypoints", ALL_E2E),
+    ("leonaid.bootstrap", ALL_E2E),
+    ("leonaid.platform", ALL_E2E),
+    ("leonaid.configuration", ALL_E2E),
+    ("leonaid.adapters", ALL_E2E),
+    ("leonaid.application.platform", ALL_E2E),
+    ("leonaid.domain.platform", ALL_E2E),
+    ("leonaid.domain.identifiers", ALL_E2E),
+    ("leonaid", ALL_E2E),
+)
+# Reviewed modules that no browser leaf exercises. Keep this short; every
+# entry needs a reason. Anything else without an owner runs every leaf.
+E2E_NEUTRAL: dict[str, str] = {
+    "leonaid.entrypoints.monitoring": "Prometheus exporter and log sink; "
+    "covered by the Integration and Compose proofs, no browser path",
+    "leonaid.entrypoints.fastapi.prometheus": "metrics endpoint, no browser path",
+    "leonaid.entrypoints.crm_match_keys": "operator CLI (pilot repair units), "
+    "covered by Integration / crm-gateway",
+    "leonaid.entrypoints.material_cleanup": "operator CLI, covered by the "
+    "materials schema contracts in Integration / schema-outbox",
+    "leonaid.application.documents": "document proofs run in Integration / "
+    "documents, including their browser coverage",
+    "leonaid.adapters.postgres.documents": "document proofs run in Integration / "
+    "documents, including their browser coverage",
+}
+
 OWNER_PACKAGES = (
     "leonaid.application.",
     "leonaid.domain.",
@@ -797,13 +856,19 @@ def stem_owners(module: str) -> set[str]:
     return set()
 
 
+def matches_module(module: str, prefix: str) -> bool:
+    return module == prefix or module.startswith(prefix + ".")
+
+
 def e2e_owners(path: str, root: Path | None = None) -> set[str] | None:
     """E2E leaves a changed src/leonaid module reaches; None for other paths.
 
-    The module and everything that imports it (transitively) are mapped by
-    stem through E2E_OWNERS. A module that nothing owner-like imports
-    (entry points, shared helpers only used there) maps to no leaf: the smoke
-    leg, the 3-hourly main run and the nightly full E2E cover it.
+    1. The module and everything that imports it (transitively) are mapped
+       by stem through E2E_OWNERS.
+    2. Without a stem owner, the module's own prefix in MODULE_OWNERS
+       decides (adapters and entry points wired by dependency injection).
+    3. A reviewed E2E_NEUTRAL module selects no leaf.
+    4. Anything else selects every leaf: an unmapped module is unsafe.
     """
     module = module_of(path)
     if module is None:
@@ -819,7 +884,16 @@ def e2e_owners(path: str, root: Path | None = None) -> set[str] | None:
     owners: set[str] = set()
     for name in seen:
         owners |= stem_owners(name)
-    return owners
+    if owners:
+        return owners
+    for prefix, mapped in MODULE_OWNERS:
+        if matches_module(module, prefix):
+            if any(matches_module(module, n) for n in E2E_NEUTRAL):
+                return set()
+            return set(E2E_SHARDS) if mapped == ALL_E2E else set(mapped)
+    if any(matches_module(module, n) for n in E2E_NEUTRAL):
+        return set()
+    return set(E2E_SHARDS)
 
 
 def classify(path: str) -> tuple[frozenset[str], str]:
@@ -988,6 +1062,9 @@ def select(
         explanation.append((path, reason, tuple(sorted(selected))))
     if full_e2e and not is_stacked:
         suites |= e2e(*E2E_SHARDS)
+    if e2e(*E2E_SHARDS) <= suites:
+        # Every leaf runs; the smoke leg would only repeat three of them.
+        suites.discard(SMOKE)
     full = frozenset(suites) >= everything()
     if is_stacked:
         reason = f"stacked pull_request into {base_ref}: module-local suites only"

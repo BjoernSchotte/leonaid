@@ -2,9 +2,11 @@ name: Documentation
 
 on:
   pull_request:
-    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
-    # cancels the running one (same concurrency group, no job runs).
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+    # Drafts run nothing (their gate fails); ready_for_review starts CI,
+    # converted_to_draft cancels the running one. edited: a base change (a
+    # stacked PR retargeted to main) runs the normal selection; a title or
+    # body edit rebuilds the site (cheap) instead of mirroring.
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
   push:
     branches: [main]
   schedule:
@@ -20,7 +22,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event.pull_request.draft != true
     name: Bilingual site artifact
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -30,6 +31,13 @@ jobs:
       LEONAID_DOCS_REVISION: ${{ github.sha }}
       LEONAID_DOCS_SITE_URL: https://bjoernschotte.github.io
     steps:
+      - name: Refuse a draft
+        # Drafts run nothing; a red required check cannot be mistaken for a
+        # result after ready_for_review (a draft cannot be merged anyway).
+        if: github.event.pull_request.draft == true
+        run: |
+          echo "Draft pull request: no CI ran; mark it ready for review" >&2
+          exit 1
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

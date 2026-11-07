@@ -12,17 +12,22 @@ day: pull requests run only the E2E leaves their change reaches, the
 |---|---|
 | `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, EmDash proofs, Golden Journey, Surveys, API contract, pins) when their inputs changed; shared infrastructure and unmapped paths select all of them. E2E leaves only when mapped (module paths and specs, or the import graph for `src/leonaid/**`), plus the short `smoke` leg for every shared or unmapped change. |
 | `pull_request` with the `full-e2e` label | As above plus every E2E leaf. The label is read from the event, so it takes effect at the next push (or start `ci.yml` by `workflow_dispatch` on the branch for a complete run now). A `labeled` trigger is deliberately absent: a run for an unrelated label would replace the PR's gate result. |
-| draft `pull_request` | Nothing. Every job is skipped, so the gates report skipped (passing; a draft cannot be merged). `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. |
-| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). |
+| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. |
+| `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's real gate result and waits while that run is still going (`gate.py`). `docs.yml` simply rebuilds. |
+| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). Defence in depth: such a gate fails when the PR's current base, read from the API, is no longer the stack base. |
 | `schedule` every 3 hours on `main` (`37 */3 * * *`) | Every suite except the E2E leaves, plus the smoke leg. |
 | nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. |
 
-`nightly-watchdog.yml` opens one issue per scheduled workflow when its latest
-scheduled run on `main` is red or overdue, and closes it on green. `ci.yml`
-is watched twice: every scheduled run (8 hours) and the nightly run alone
-(30 hours, matched by its run name `LeonAid CI nightly (every E2E leaf)`), so
-a green 3-hourly run cannot hide a red nightly E2E run. Scheduled runs on
-`main` are never cancelled by the next one.
+`nightly-watchdog.yml` runs after every completed scheduled run
+(`workflow_run`) and daily. It opens one issue per watched entry when its
+latest scheduled run on `main` is red or overdue, and closes it on green.
+`ci.yml` and `surveys.yml` are each watched twice: every scheduled run (8
+hours) and the nightly run alone (30 hours, matched by its run name: `LeonAid
+CI nightly (every E2E leaf)`, `Survey acceptance nightly (recovery and
+backup)`). A green 3-hourly run cannot hide a red nightly one; the contract
+requires this for every workflow with more than one schedule. Scheduled runs
+on `main` are never cancelled, and each cron has its own concurrency group,
+so a still-queued 3-hourly run cannot cancel a pending nightly run.
 
 The **smoke leg** (`tools/ci/e2e.sh smoke`, always alone in its leg) runs
 three existing tests on the prepared fixture: the real login flow
@@ -37,9 +42,17 @@ The **import graph** (`e2e_owners`) parses `src/leonaid/**` with `ast`. A
 changed module selects the leaves that own it or any module importing it,
 directly or transitively, by module stem (`E2E_OWNERS`: `invoices` →
 `invoices`, `invoice-flows`; `sessions` → `membership`; ...). A shared
-domain module therefore fans out to most leaves; an entry point that nothing
-owner-like imports (`entrypoints/fastapi/routes.py`) maps to no leaf and is
-covered by the smoke leg, the scheduled runs and the nightly E2E.
+domain module therefore fans out to most leaves. LeonAid wires adapters and
+entry points by dependency injection, so the graph cannot reach them;
+`MODULE_OWNERS` maps them by module prefix (`adapters/mail` → membership,
+invoice flows, public orders; `adapters/twenty` → matching, acquisition;
+`adapters/typst` → invoices; the outbox and worker handlers → every
+messaging leaf). The HTTP surface (`entrypoints/fastapi/routes.py`, schemas,
+security), the wiring, configuration and the platform select **every** leaf.
+A module with no owner selects every leaf too, unless it is in the reviewed
+`E2E_NEUTRAL` list (monitoring, metrics, operator CLIs, documents; each with
+a reason). `select_suites_test.py` enumerates every `src/leonaid` module, so
+a new one cannot fall to the smoke leg silently.
 
 A stack (for example `md/stage2a` → `md/stage2b` → …) is tested in full only
 on its way to `main`: its pull request into `main` runs the normal selection

@@ -356,25 +356,57 @@ def check_emdash(text: str) -> list[str]:
 
 
 DRAFT = "github.event.pull_request.draft != true"
-DRAFT_TYPES = (
-    "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]"
+EDIT = "(github.event.action != 'edited' || github.event.changes.base)"
+DRAFT_TYPES = "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]"
+# Environment the gate step hands to tools/ci/gate.py for drafts, title
+# edits and stacked results.
+GATE_CONTEXT = (
+    "DRAFT: ${{ github.event.pull_request.draft == true }}",
+    "EVENT_ACTION: ${{ github.event.action }}",
+    "BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}",
+    "STACK_BASE: ${{ github.base_ref }}",
+    "HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
+    "GATE_NAME: ",
+)
+EDIT_GROUP = (
+    "${{ github.event.action == 'edited' && !github.event.changes.base "
+    "&& format('-edit-{0}', github.run_id) || '' }}"
 )
 
 
 def check_drafts(text: str, name: str) -> list[str]:
-    """Drafts run nothing: every job without a `needs` must skip a draft.
+    """Drafts and title edits run no suite; their gate decides fail-closed.
 
-    Jobs that need another job are skipped through it (or, like the gate
-    and Golden journey, carry the condition themselves). A skipped required
-    check passes, which is harmless: a draft cannot be merged.
+    Every job without a `needs` (and every always()/!cancelled() job that
+    does not wait for a successful selector) must skip drafts and edits that
+    did not change the base. The gate runs anyway: tools/ci/gate.py fails a
+    draft, mirrors the commit's real gate result for a title edit and fails
+    a stacked result that no longer targets its base. A base change runs
+    the normal selection. A title edit has its own concurrency group, so it
+    never cancels the commit's real run.
     """
     problems: list[str] = []
-    if DRAFT_TYPES not in triggers(text):
+    on = triggers(text)
+    if DRAFT_TYPES not in on:
         problems.append(
-            f"{name}: pull_request must list ready_for_review and converted_to_draft."
+            f"{name}: pull_request must list ready_for_review, converted_to_draft "
+            "and edited."
+        )
+    gated = name in GATED_WORKFLOWS
+    if gated and EDIT_GROUP not in text[: text.find("\njobs:\n")]:
+        problems.append(
+            f"{name}: a title edit must not share the PR's concurrency group."
         )
     for job in jobs_of(text):
         block = job_block(text, job)
+        if gated and job == "gate":
+            if "permissions:" not in block or not all(
+                item in block for item in GATE_CONTEXT
+            ):
+                problems.append(
+                    f"{name}: the gate must hand the draft/edit/stack context to gate.py."
+                )
+            continue
         condition = re.search(r"(?m)^    if: (.*)$", block)
         needs = needs_of(block)
         always = condition is not None and (
@@ -382,22 +414,30 @@ def check_drafts(text: str, name: str) -> list[str]:
         )
         runs_on_pr = condition is None or not re.search(
             r"github\.event_name == 'schedule'|github\.event\.schedule == "
-            r"|inputs\.(?:cold_run|artifact_probe) == true",
+            r"|inputs\.(?:cold_run|artifact_probe) == true|needs: build",
             condition.group(1),
         )
+        if not ((not needs or always) and runs_on_pr):
+            continue
         if (
-            (not needs or always)
-            and runs_on_pr
-            and (condition is None or DRAFT not in condition.group(1))
+            needs
+            and always
+            and condition is not None
+            and "needs.select.result == 'success'" in condition.group(1)
         ):
-            if (
-                needs
-                and always
-                and condition is not None
-                and "needs.select.result == 'success'" in condition.group(1)
-            ):
-                continue
-            problems.append(f"{name}: job {job} must not run for a draft.")
+            continue
+        if not gated and "if: github.event.pull_request.draft == true" in block:
+            # A single required job (docs.yml) fails a draft at once and
+            # simply rebuilds on an edit.
+            continue
+        if (
+            condition is None
+            or DRAFT not in condition.group(1)
+            or (gated and EDIT not in condition.group(1))
+        ):
+            problems.append(
+                f"{name}: job {job} must not run for a draft or a title edit."
+            )
     return problems
 
 
@@ -595,12 +635,27 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         if watched
         else set()
     )
-    # The nightly run is the only one with every E2E leaf; a green 3-hourly
-    # run must not hide a red nightly one.
-    if not watched or "ci.yml:30:nightly" not in watched.group(1).split():
-        problems.append(
-            f"{NIGHTLY_WATCHDOG}: must track ci.yml's nightly run (ci.yml:30:nightly)."
-        )
+    # A workflow with several schedules runs different checks per cron; a
+    # green frequent run must not hide a red nightly one. Each such workflow
+    # needs a run name for its nightly cron and a title-tracked entry.
+    entries = watched.group(1).split() if watched else []
+    for candidate in sorted(workflows.glob("*.yml")):
+        candidate_text = candidate.read_text(encoding="utf-8")
+        if candidate.name in OWN_WATCHDOG:
+            continue
+        crons = re.findall(r'(?m)^    - cron: "([^"]+)"$', triggers(candidate_text))
+        if len(crons) < 2:
+            continue
+        run_name = re.search(r"(?m)^run-name: (.*)$", candidate_text)
+        if not run_name or "nightly" not in run_name.group(1):
+            problems.append(
+                f"{candidate.name}: several schedules need a run-name marking the nightly run."
+            )
+        if f"{candidate.name}:30:nightly" not in entries:
+            problems.append(
+                f"{NIGHTLY_WATCHDOG}: must track {candidate.name}'s nightly run "
+                f"({candidate.name}:30:nightly)."
+            )
     for candidate in sorted(workflows.glob("*.yml")):
         if candidate.name in OWN_WATCHDOG:
             continue

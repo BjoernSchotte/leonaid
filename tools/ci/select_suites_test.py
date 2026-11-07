@@ -29,6 +29,8 @@ def pr(*paths: str) -> s.Selection:
 
 def broad(selection: s.Selection, *owners: str) -> bool:
     """Unknown/shared: every non-E2E suite, the smoke leg, mapped leaves only."""
+    if set(owners) >= set(s.E2E_SHARDS):
+        return full(selection)
     return not selection.full and selection.suites == s.everything_but_e2e() | {
         s.SMOKE
     } | s.e2e(*owners)
@@ -278,10 +280,45 @@ def main() -> int:
     expect(s.e2e_owners("apps/web/src/app.tsx", ROOT) is None, "non-Python path")
     errors = s.e2e_owners("src/leonaid/domain/errors.py", ROOT) or set()
     expect(len(errors) >= 10, f"a shared domain module fans out: {errors}")
+    # Fail safe: a module without any owner runs every leaf, unless it is a
+    # reviewed E2E_NEUTRAL entry.
     expect(
-        s.e2e_owners("src/leonaid/domain/brand_new_thing.py", ROOT) == set(),
-        "a new module nothing imports maps to no leaf",
+        s.e2e_owners("src/leonaid/domain/brand_new_thing.py", ROOT)
+        == set(s.E2E_SHARDS),
+        "an unmapped new module runs every E2E leaf",
     )
+    for path, must in (
+        ("src/leonaid/entrypoints/fastapi/routes.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/entrypoints/fastapi/schemas.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
+        ("src/leonaid/adapters/twenty/gateway.py", {"matching"}),
+        ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
+        ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "matching"}),
+    ):
+        mapped = s.e2e_owners(path, ROOT) or set()
+        expect(
+            must <= mapped, f"{path}: {sorted(mapped)} lacks {sorted(must - mapped)}"
+        )
+    expect(
+        all(len(reason) >= 20 for reason in s.E2E_NEUTRAL.values())
+        and len(s.E2E_NEUTRAL) <= 10,
+        "E2E_NEUTRAL stays short and every entry has a reason",
+    )
+    # Every src/leonaid module that shared rules leave to the graph has
+    # owners or a reviewed neutral entry: nothing falls to smoke silently.
+    for module_path in sorted((ROOT / "src/leonaid").rglob("*.py")):
+        relative = module_path.relative_to(ROOT).as_posix()
+        if s.classify(relative)[0] != s.everything():
+            continue
+        mapped = s.e2e_owners(relative, ROOT)
+        module = s.module_of(relative) or ""
+        neutral = any(s.matches_module(module, n) for n in s.E2E_NEUTRAL)
+        expect(
+            bool(mapped) or neutral,
+            f"{relative} maps to no E2E leaf and is not in E2E_NEUTRAL",
+        )
     # A graph hit adds exactly its leaves; the smoke leg runs alone.
     invoice_pr = s.select(
         "pull_request", ["src/leonaid/application/invoices.py"], "main", root=ROOT
