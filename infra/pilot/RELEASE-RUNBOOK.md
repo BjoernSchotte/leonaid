@@ -145,6 +145,20 @@ revision, files and SHAs come from the already verified manifest.
 If the ledger lacks `staging_verified` for the same manifest SHA, the command
 stops before the started event, backup, maintenance mode and deployment.
 
+With `LEONAID_CMS_ENABLED=true` the release manifest is the CMS manifest
+(`release-manifest-cms.json`), and `pilot-release` also migrates the CMS, in
+maintenance mode after Core and before the deploy. It closes CMS traffic as
+soon as maintenance starts, so editors (who write without Core) cannot change
+anything after the recovery point; from the backup to that moment the window
+of release spec R8 applies. Its recovery point (taken
+before maintenance) holds the CMS database, setup state and media. The
+command recreates `campaign-site` on the release image without starting it,
+and `tools/pilot_release/migrate-cms.sh` verifies that image against the
+checkout, closes CMS traffic and runs `upgrade-emdash` when the image brings
+EmDash migrations, else `verify`. CMS traffic reopens only after the migrated
+state verifies; the deploy then starts the CMS. `pilot-deploy` refuses a
+release with pending CMS migrations and points to `pilot-release`.
+
 `pilot-release` and `pilot-deploy` leave the monitoring profile unchanged.
 After every successful release,
 `./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` starts
@@ -174,6 +188,29 @@ On a failure:
 
 An operator needs no SQL access for this. Direct database work counts as a
 failed operations proof.
+
+CMS: when the CMS step of `pilot-release` fails, CMS traffic stays closed and
+`campaign-site` stays stopped; Core and the rest of the release are not
+touched further (the deploy does not run). The proof shows that a failing
+EmDash migration rolls back completely (one transaction), so the database
+keeps the previous state.
+
+1. **Retry forward first** when the cause is transient or fixed (a pull or
+   network error, a timeout, a corrected release image): lift maintenance as
+   after any failed release and run `pilot-release` again. It accepts the
+   closed CMS when no `<project>-cms-migration-lock` container exists, and
+   reopens traffic only after the migrated state verifies. A failure before
+   the CMS step (backup, maintenance, Core migration) changed no CMS data:
+   rerun as well.
+2. **Restore** when the rerun fails again or the database was changed
+   partly. Never start the previous CMS image against a partly or fully
+   migrated CMS database; `pilot-deploy` with the previous manifest refuses
+   the closed CMS. Roll back with steps 3 to 8:
+restore the recovery point of this release (it contains the CMS database,
+its setup state, the media and, through the release manifest, the CMS image)
+into a fresh `leonaid-restore-*` project, start it with the previous release
+manifest, check the campaign pages and switch over. Orders and edits made
+after the recovery point are lost (release spec R8).
 
 ## Reproducible technical proof
 
