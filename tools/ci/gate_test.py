@@ -182,6 +182,26 @@ def test_flake_tally() -> None:
             ]
         ],
     ]
+    # A draft run (only the gate ran and failed) is not a test result.
+    draft_run = [
+        [
+            job("select / Select suites", "skipped"),
+            job("Unit", "skipped"),
+            job("CI gate", "failure"),
+        ]
+    ]
+    draft_stats, draft_total, _ = flake_summary.tally([draft_run])
+    expect(draft_total == 0 and not draft_stats, f"drafts are ignored: {draft_stats}")
+    docs_draft = [
+        [
+            {
+                "name": "Bilingual site artifact",
+                "conclusion": "failure",
+                "steps": [{"name": "Refuse a draft", "conclusion": "failure"}],
+            }
+        ]
+    ]
+    expect(flake_summary.tally([docs_draft])[1] == 0, "a refused docs draft is ignored")
     stats, total, reruns = flake_summary.tally(runs)
     expect(total == 2 and reruns == 1, f"run counts: {total}, {reruns}")
     expect(
@@ -244,8 +264,115 @@ def test_retry_allowlist() -> None:
     )
 
 
+def check_run(
+    run: int, status: str, conclusion: str | None, started: str | None
+) -> dict[str, object]:
+    return {
+        "id": run * 10,
+        "details_url": f"https://github.com/o/r/actions/runs/{run}/job/1",
+        "status": status,
+        "conclusion": conclusion,
+        "started_at": started,
+    }
+
+
+def api(check_runs: list[dict[str, object]], real: set[int]) -> gate.Fetch:
+    """Check runs of the commit; the jobs of a run show if its selector ran."""
+
+    def fetch(path: str) -> object:
+        if "/check-runs" in path:
+            return {"check_runs": check_runs}
+        run = int(path.split("/actions/runs/")[1].split("/")[0])
+        conclusion = "success" if run in real else "skipped"
+        return {"jobs": [{"name": "select / Select suites", "conclusion": conclusion}]}
+
+    return fetch
+
+
+def test_pull_request_context() -> None:
+    base_env = {"EVENT_NAME": "pull_request", "GITHUB_REPOSITORY": "o/r"}
+
+    def never(path: str) -> object:
+        raise AssertionError(f"unexpected API call {path}")
+
+    # Drafts fail the gate: no CI ran.
+    decision, message = gate.pull_request_context(
+        {**base_env, "DRAFT": "true"}, {}, never
+    )
+    expect(decision is False and "draft" in message, f"draft: {decision} {message}")
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "synchronize"}, {}, never
+        )
+        == (None, ""),
+        "synchronize evaluates normally",
+    )
+    expect(
+        gate.pull_request_context({"EVENT_NAME": "schedule"}, {}, never) == (None, ""),
+        "schedule evaluates normally",
+    )
+    expect(
+        gate.pull_request_context(
+            {**base_env, "EVENT_ACTION": "edited", "BASE_CHANGED": "true"}, {}, never
+        )
+        == (None, ""),
+        "a base change runs the normal selection",
+    )
+    edit = {
+        **base_env,
+        "EVENT_ACTION": "edited",
+        "BASE_CHANGED": "false",
+        "HEAD_SHA": "abc",
+        "GATE_NAME": "CI gate",
+        "GITHUB_RUN_ID": "9",
+    }
+    for runs, real, expected in (
+        ([check_run(5, "completed", "success", "t")], {5}, True),
+        ([check_run(5, "completed", "failure", "t")], {5}, False),
+        # The newest completed real gate decides.
+        (
+            [
+                check_run(5, "completed", "success", "t"),
+                check_run(6, "completed", "failure", "t"),
+            ],
+            {5, 6},
+            False,
+        ),
+        # Another title-edit run's gate is never mirrored.
+        (
+            [
+                check_run(5, "completed", "failure", "t"),
+                check_run(7, "completed", "success", "t"),
+            ],
+            {5},
+            False,
+        ),
+        # Our own check run never counts; nothing real yet fails fast.
+        ([check_run(9, "completed", "success", "t")], {9}, False),
+        ([], set(), False),
+        # A real gate still in progress is not a result yet: fail fast.
+        ([check_run(6, "in_progress", None, None)], {6}, False),
+    ):
+        decision, message = gate.pull_request_context(edit, {}, api(runs, real))
+        expect(decision is expected, f"mirror {runs} real={real}: {decision}")
+        if not expected:
+            expect("supersedes" in message, f"fail-fast message: {message}")
+    # A stacked selection never passes; a selection into main does.
+    expect(
+        gate.stacked_result(base_env, {"heavy": "false"}),
+        "a stacked result never passes the gate",
+    )
+    expect(not gate.stacked_result(base_env, {"heavy": "true"}), "heavy passes")
+    expect(not gate.stacked_result(base_env, {}), "a missing output is not stacked")
+    expect(
+        not gate.stacked_result({"EVENT_NAME": "schedule"}, {"heavy": "false"}),
+        "only pull requests can be stacked",
+    )
+
+
 def main() -> int:
     test_gate()
+    test_pull_request_context()
     test_flake_tally()
     test_retry_allowlist()
     if FAILURES:

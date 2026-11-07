@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Check the stable, branch-protectable GitHub Actions job contract.
 
-Two tiers: pull requests run the cheap gates plus the stack suites
-tools/ci/select_suites.py selects; merge_group, push, schedule and dispatch
-run everything. One aggregate gate per workflow is the required check.
+Pull requests run the cheap gates plus the stack suites
+tools/ci/select_suites.py selects (drafts nothing, stacks module-local
+suites only); scheduled runs on main and dispatch run everything (the
+3-hourly run without the E2E leaves). One aggregate gate per workflow is the
+required check.
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ E2E_SHARDS = (
 )
 
 # Workflows whose gate is a required check. Each must run on pull_request
-# and merge_group, must not use path filters and must end in its gate.
+# (never merge_group), must not use path filters and must end in its gate.
 GATED_WORKFLOWS = {
     "ci.yml": "CI gate",
     "surveys.yml": "Survey gate",
@@ -240,13 +242,38 @@ def check(path: Path) -> list[str]:
                 f"{job}: timeout-minutes must equal select_suites.JOB_TIMEOUT_MINUTES"
                 f"[{kind!r}] (the selector's load warning uses it)."
             )
+        step = re.search(r'(?m)^      LEONAID_CI_STEP_SECONDS: "(\d+)"$', block)
+        if (
+            not step
+            or not timeout
+            or int(step.group(1)) > int(timeout.group(1)) * 60 - 120
+        ):
+            problems.append(
+                f"{job}: LEONAID_CI_STEP_SECONDS must stop the suite at least 2 "
+                "minutes before timeout-minutes, so evidence is still uploaded."
+            )
         name = re.search(r"(?m)^    name: (.*)$", block)
         if not name or "matrix.bin.id" not in name.group(1) or "title" in name.group(1):
             problems.append(
                 f"{job}: the leg name must be stable (bin id/count), shards go to the summary."
             )
+    for job in ("security", "build"):
+        block = job_block(text, job)
+        found = re.search(r"(?m)^    if: (.*)$", block)
+        condition = found.group(1) if found else ""
+        if (
+            "select" not in needs_of(block)
+            or "needs.select.result == 'success'" not in condition
+            or "needs.select.outputs.heavy != 'false'" not in condition
+        ):
+            problems.append(
+                f"{job} may be skipped only for a stacked PR (selector output heavy)."
+            )
+        if f"--selectable {job}=heavy" not in job_block(text, "gate"):
+            problems.append(f"The gate must require {job} unless heavy is false.")
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
+    problems.extend(check_drafts(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))
     problems.extend(check_retries(text, "ci.yml"))
     problems.extend(check_free_disk(text, "ci.yml"))
@@ -330,14 +357,122 @@ def check_emdash(text: str) -> list[str]:
     return problems
 
 
+DRAFT = "github.event.pull_request.draft != true"
+EDIT = "(github.event.action != 'edited' || github.event.changes.base)"
+DRAFT_TYPES = frozenset(
+    {
+        "opened",
+        "reopened",
+        "synchronize",
+        "ready_for_review",
+        "converted_to_draft",
+        "edited",
+    }
+)
+# Environment the gate step hands to tools/ci/gate.py for drafts, title
+# edits and stacked results.
+GATE_CONTEXT = (
+    "DRAFT: ${{ github.event.pull_request.draft == true }}",
+    "EVENT_ACTION: ${{ github.event.action }}",
+    "BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}",
+    "STACK_BASE: ${{ github.base_ref }}",
+    "HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
+    "GATE_NAME: ",
+)
+EDIT_GROUP = (
+    "${{ github.event.action == 'edited' && !github.event.changes.base "
+    "&& format('-edit-{0}', github.run_id) || '' }}"
+)
+
+
+def pull_request_types(on: str) -> set[str]:
+    """Activity types of the pull_request trigger, inline or block list."""
+    found = re.search(r"\n  pull_request:\n((?:    .*\n|      .*\n)*)", on + "\n")
+    if not found:
+        return set()
+    body = found.group(1)
+    types = re.search(r"(?ms)^    types:(.*?)(?=^    [a-z_-]+:|\Z)", body)
+    if not types:
+        return set()
+    text = re.sub(r"(?m)#.*$", "", types.group(1))
+    return set(re.findall(r"[a-z_]+", text))
+
+
+def check_drafts(text: str, name: str) -> list[str]:
+    """Drafts and title edits run no suite; their gate decides fail-closed.
+
+    Every job without a `needs` (and every always()/!cancelled() job that
+    does not wait for a successful selector) must skip drafts and edits that
+    did not change the base. The gate runs anyway: tools/ci/gate.py fails a
+    draft, mirrors the commit's real gate result for a title edit and fails
+    a stacked result that no longer targets its base. A base change runs
+    the normal selection. A title edit has its own concurrency group, so it
+    never cancels the commit's real run.
+    """
+    problems: list[str] = []
+    on = triggers(text)
+    if not DRAFT_TYPES <= pull_request_types(on):
+        problems.append(
+            f"{name}: pull_request must list ready_for_review, converted_to_draft "
+            "and edited."
+        )
+    gated = name in GATED_WORKFLOWS
+    if gated and EDIT_GROUP not in text[: text.find("\njobs:\n")]:
+        problems.append(
+            f"{name}: a title edit must not share the PR's concurrency group."
+        )
+    for job in jobs_of(text):
+        block = job_block(text, job)
+        if gated and job == "gate":
+            if "permissions:" not in block or not all(
+                item in block for item in GATE_CONTEXT
+            ):
+                problems.append(
+                    f"{name}: the gate must hand the draft/edit/stack context to gate.py."
+                )
+            continue
+        condition = re.search(r"(?m)^    if: (.*)$", block)
+        needs = needs_of(block)
+        always = condition is not None and (
+            "always()" in condition.group(1) or "!cancelled()" in condition.group(1)
+        )
+        runs_on_pr = condition is None or not re.search(
+            r"github\.event_name == 'schedule'|github\.event\.schedule == "
+            r"|inputs\.(?:cold_run|artifact_probe) == true|needs: build",
+            condition.group(1),
+        )
+        if not ((not needs or always) and runs_on_pr):
+            continue
+        if (
+            needs
+            and always
+            and condition is not None
+            and "needs.select.result == 'success'" in condition.group(1)
+        ):
+            continue
+        if not gated and "if: github.event.pull_request.draft == true" in block:
+            # A single required job (docs.yml) fails a draft at once and
+            # simply rebuilds on an edit.
+            continue
+        if (
+            condition is None
+            or DRAFT not in condition.group(1)
+            or (gated and EDIT not in condition.group(1))
+        ):
+            problems.append(
+                f"{name}: job {job} must not run for a draft or a title edit."
+            )
+    return problems
+
+
 def check_tiers(text: str, name: str) -> list[str]:
     problems: list[str] = []
     on = triggers(text)
-    for event in ("pull_request:", "merge_group:"):
-        if f"\n  {event}" not in on:
-            problems.append(
-                f"{name}: must run on {event.rstrip(':')} (merge queue tier)."
-            )
+    if "\n  pull_request:" not in on:
+        problems.append(f"{name}: must run on pull_request.")
+    # GitHub's merge queue is not available for a personal-account repository.
+    if "\n  merge_group:" in on:
+        problems.append(f"{name}: merge_group is dead here (no merge queue).")
     if "paths:" in on or "paths-ignore:" in on:
         problems.append(f"{name}: required CI must not use path filters.")
     if name in GATED_WORKFLOWS:
@@ -384,10 +519,22 @@ def check_retries(text: str, name: str) -> list[str]:
     return problems
 
 
+NIGHTLY_CRON = '"7 3 * * *"'
+MAIN_CRON = '"37 */3 * * *"'
+
+
 def check_nightly(text: str) -> list[str]:
+    """Main is proven by scheduled complete runs, not by a run per push."""
     problems: list[str] = []
-    if not re.search(r"\n  schedule:\n    - cron: ", triggers(text)):
+    on = triggers(text)
+    if not re.search(r"\n  schedule:\n    - cron: ", on) or NIGHTLY_CRON not in on:
         problems.append("ci.yml: nightly complete run (schedule) missing.")
+    if MAIN_CRON not in on:
+        problems.append("ci.yml: the 3-hourly complete run on main is missing.")
+    if re.search(r"(?m)^      - main$", on):
+        problems.append(
+            "ci.yml: no complete run per push to main; the schedule proves main."
+        )
     report = job_block(text, "flake-summary")
     if (
         "github.event_name == 'schedule'" not in report
@@ -512,6 +659,27 @@ def check_nightly_watchdog(root: Path) -> list[str]:
         if watched
         else set()
     )
+    # A workflow with several schedules runs different checks per cron; a
+    # green frequent run must not hide a red nightly one. Each such workflow
+    # needs a run name for its nightly cron and a title-tracked entry.
+    entries = watched.group(1).split() if watched else []
+    for candidate in sorted(workflows.glob("*.yml")):
+        candidate_text = candidate.read_text(encoding="utf-8")
+        if candidate.name in OWN_WATCHDOG:
+            continue
+        crons = re.findall(r'(?m)^    - cron: "([^"]+)"$', triggers(candidate_text))
+        if len(crons) < 2:
+            continue
+        run_name = re.search(r"(?m)^run-name: (.*)$", candidate_text)
+        if not run_name or "nightly" not in run_name.group(1):
+            problems.append(
+                f"{candidate.name}: several schedules need a run-name marking the nightly run."
+            )
+        if f"{candidate.name}:30:nightly" not in entries:
+            problems.append(
+                f"{NIGHTLY_WATCHDOG}: must track {candidate.name}'s nightly run "
+                f"({candidate.name}:30:nightly)."
+            )
     for candidate in sorted(workflows.glob("*.yml")):
         if candidate.name in OWN_WATCHDOG:
             continue
@@ -537,12 +705,14 @@ def check_repository(root: Path) -> list[str]:
             continue
         text = (workflows / name).read_text(encoding="utf-8")
         problems.extend(check_tiers(text, name))
+        problems.extend(check_drafts(text, name))
         problems.extend(check_gate(text, name))
         problems.extend(check_retries(text, name))
         problems.extend(check_free_disk(text, name))
     for name, job in UNGATED_REQUIRED.items():
         text = (workflows / name).read_text(encoding="utf-8")
         problems.extend(check_tiers(text, name))
+        problems.extend(check_drafts(text, name))
         problems.extend(check_retries(text, name))
         if f"name: {job}\n" not in text:
             problems.append(f"{name}: required job '{job}' missing.")
@@ -566,7 +736,7 @@ def main() -> None:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract: OK: tiers, merge queue, gates, selector, infra-only "
+        "ci-workflow-contract: OK: tiers, schedules, drafts, gates, selector, infra-only "
         "retries, shards, cold rehearsal and failure artifacts"
     )
 

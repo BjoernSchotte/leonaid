@@ -1,17 +1,35 @@
 name: LeonAid CI
+# The nightly run is the only scheduled run with every E2E leaf; its own
+# name lets nightly-watchdog.yml track it apart from the 3-hourly runs.
+run-name: ${{ github.event.schedule == '7 3 * * *' && 'LeonAid CI nightly (every E2E leaf)' || github.event.schedule == '37 */3 * * *' && 'LeonAid CI main every 3 hours' || github.event.pull_request.title || github.workflow }}
 
 on:
   # PR tier: cheap gates plus only the stack suites whose inputs changed.
   pull_request:
-  # Queue tier: the complete suite before anything reaches main.
-  merge_group:
+    # Drafts run nothing (their gate fails); ready_for_review starts CI,
+    # converted_to_draft cancels the running one. edited: a base change (a
+    # stacked PR retargeted to main) runs the normal selection; a title or
+    # body edit runs no job and its gate mirrors the commit's real result.
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
+  # No full run per push to main (decision 2026-11-07): main is proven by
+  # the scheduled complete runs below; nightly-watchdog.yml opens an issue
+  # when one is red. Only the artifact probe branch still runs on push.
   push:
     branches:
-      - main
       - ci-artifact-probe
-  # Nightly complete run on main with a flake summary.
+  # Nightly complete run with the flake summary (7 3), and a complete run
+  # on main every 3 hours (37 */3).
   schedule:
     - cron: "7 3 * * *"
+    - cron: "37 */3 * * *"
   workflow_dispatch:
     inputs:
       cold_run:
@@ -29,22 +47,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
+  # A new push supersedes a pull request's run; scheduled runs on main are
+  # never cancelled by the next one.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
-    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
+    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
 
   fixture:
-    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
+    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/test-fixture.yml
 
   lint-unit:
     # One runner for the two stack-free gates: both need only the locked
     # toolchains, and a second job would repeat checkout and bootstrap.
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     name: Lint, types and unit
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -90,6 +110,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.integration) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "2400"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -155,6 +178,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.e2e) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "5100"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -221,6 +247,9 @@ jobs:
         bin: ${{ fromJSON(needs.select.outputs.emdash) }}
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/emdash-${{ matrix.bin.id }}
+      # Stops the suite 5 minutes before timeout-minutes, so the evidence
+      # is still collected and uploaded (tools/ci/capture-command.sh).
+      LEONAID_CI_STEP_SECONDS: "3300"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -270,8 +299,9 @@ jobs:
           retention-days: 14
 
   security:
-    needs: fixture
-    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    # Skipped only in a stacked pull request (selector output heavy=false).
+    needs: [select, fixture]
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -322,7 +352,9 @@ jobs:
           retention-days: 14
 
   build:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    # Skipped only in a stacked pull request (selector output heavy=false).
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.heavy != 'false' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -416,7 +448,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: [select, golden-parts]
-    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -442,8 +474,8 @@ jobs:
           cmp comparison/ci-golden-primary/comparison.txt comparison/ci-golden-repeat/comparison.txt
 
   gate:
-    # The one required check of this workflow (branch protection and merge
-    # queue). tools/ci/gate.py: selected jobs succeeded, unselected ones were
+    # The one required check of this workflow (repository ruleset).
+    # tools/ci/gate.py: selected jobs succeeded, unselected ones were
     # skipped, everything else succeeded.
     name: CI gate
     needs:
@@ -458,6 +490,10 @@ jobs:
       - golden-parts
       - golden-journey
     if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -467,6 +503,18 @@ jobs:
       - name: Require every selected job
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # Pull request context for tools/ci/gate.py: drafts fail, title
+          # edits mirror the commit's newest completed real gate (or fail
+          # fast), a stacked result never passes.
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          STACK_BASE: ${{ github.base_ref }}
+          GATE_NAME: CI gate
           COLD_RUN: ${{ inputs.cold_run == true }}
         # A cold run rebuilds everything and deliberately skips the fixture.
         run: |
@@ -474,7 +522,9 @@ jobs:
             --selectable integration-shards=integration \
             --selectable e2e=e2e \
             --selectable emdash-cases=emdash \
-            --selectable golden-parts=golden
+            --selectable golden-parts=golden \
+            --selectable security=heavy \
+            --selectable build=heavy
           if [ "$COLD_RUN" = true ]; then set -- "$@" --may-skip fixture; fi
           python3 tools/ci/gate.py "$@"
 
@@ -482,7 +532,7 @@ jobs:
     # Nightly only: which jobs failed or needed a rerun across recent runs.
     name: Flake summary
     needs: gate
-    if: ${{ always() && github.event_name == 'schedule' }}
+    if: ${{ always() && github.event_name == 'schedule' && github.event.schedule == '7 3 * * *' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

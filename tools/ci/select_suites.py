@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
-"""Select the expensive CI suites a pull request has to run.
+"""Select the expensive CI suites a run has to execute.
 
-Two tiers:
+Tiers (there is no merge queue: GitHub offers none for a personal-account
+repository, so ``main`` is proven by scheduled runs):
 
-* ``pull_request``: cheap gates always run (lint/types, unit, build,
-  security, docs). Stack suites run only when their inputs changed.
-* every other event (``merge_group``, ``push``, ``schedule``,
-  ``workflow_dispatch``): everything. Nothing reaches ``main`` without the
-  complete suite, because the merge queue runs it before the merge.
+* ``pull_request`` into main: cheap gates always run (lint/types, unit,
+  build, security, docs). Stack suites run only when their inputs changed.
+  Browser E2E leaves run only when mapped: module paths, their specs, and
+  for ``src/leonaid/**`` the reverse import graph (``e2e_owners``). Shared
+  infrastructure and unmapped paths select every non-E2E suite plus the
+  short ``smoke`` leg (login, one list view, one public order). The
+  ``full-e2e`` label adds every E2E leaf.
+* stacked ``pull_request`` (base is not main): module-local suites only.
+* ``schedule`` every 3 hours on main: everything except the E2E leaves,
+  plus the smoke leg.
+* nightly ``schedule``, ``workflow_dispatch``, ``push`` (probe branch):
+  everything, including every E2E leaf.
 
 Each changed path is matched against ``RULES``; the first matching rule wins.
-A path that no rule matches selects everything, so a new directory is safe by
-default and only becomes cheaper once someone maps it here deliberately.
-Shared infrastructure (Compose, locks, CI, test harness, migrations, platform,
-dependency manifests, the ``leonaid`` CLI) is mapped to everything explicitly.
+A path that no rule matches selects every non-E2E suite, so a new directory
+is safe by default and only becomes cheaper once someone maps it here
+deliberately. Shared infrastructure (Compose, locks, CI, test harness,
+migrations, platform, dependency manifests, the ``leonaid`` CLI) is mapped
+the same way explicitly.
 
 The script only uses the standard library: it runs in the workflow on the
 plain runner Python and in ``./leonaid check`` inside the pinned image.
@@ -22,6 +31,7 @@ plain runner Python and in ``./leonaid check`` inside the pinned image.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import math
 import os
@@ -32,6 +42,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # Matrix order is the request order: long jobs first.
 INTEGRATION_SHARDS = (
@@ -70,6 +82,9 @@ E2E_SHARDS = (
     "operations",
     "invoice-flows",
 )
+# Short browser smoke leg (tools/ci/e2e.sh smoke): real login, one list view,
+# one public order. Runs alone in its leg.
+SMOKE = "smoke"
 EMDASH_GROUPS = ("krapfentaxi-orders", "krapfentaxi-migration", "static")
 # Whole-workflow or whole-job suites.
 FLAGS = ("contract", "golden", "surveys", "api", "pins")
@@ -119,6 +134,8 @@ E2E_SECONDS = {
     "leitsystem-ui": 278,
     "operations": 294,
     "invoice-flows": 188,
+    # Estimate: three single tests on two prepared stacks.
+    SMOKE: 240,
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
@@ -143,6 +160,12 @@ MAX_BINS = {"integration": 4, "e2e": 4}
 SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-install"})
 
 ALL = "*"
+MAIN_BRANCH = "main"
+# ci.yml schedules: the nightly run executes every E2E leaf, the 3-hourly
+# main run every suite except the E2E leaves (smoke only).
+NIGHTLY_SCHEDULE = "7 3 * * *"
+MAIN_SCHEDULE = "37 */3 * * *"
+FULL_E2E_LABEL = "full-e2e"
 
 
 def integration(*shards: str) -> frozenset[str]:
@@ -662,6 +685,223 @@ def everything() -> frozenset[str]:
     )
 
 
+def everything_but_e2e() -> frozenset[str]:
+    return everything() - e2e(*E2E_SHARDS)
+
+
+# E2E leaves that own a Python module, by module stem. The stem matches in
+# leonaid.application, leonaid.domain, leonaid.adapters.postgres and
+# leonaid.modules.<stem>.*. A changed module selects the owners of every
+# module that imports it, directly or transitively (``e2e_owners``).
+E2E_OWNERS: dict[str, tuple[str, ...]] = {
+    "tasks": ("tasks",),
+    "materials": ("materials",),
+    "inbox": ("inbox",),
+    "knowledge": ("knowledge",),
+    "acquisition": ("acquisition-management", "matching"),
+    "sponsor_matching": ("matching",),
+    "crm_matching": ("matching",),
+    "activities": ("acquisition-management",),
+    "assignments": ("acquisition-management",),
+    "activity_feed": ("public-catalog",),
+    "activity_projection": ("public-catalog",),
+    "campaign_aliases": ("public-catalog",),
+    "campaign_renderer": ("public-catalog",),
+    "action_progress": ("action-templates", "action-admin"),
+    "actions": ("action-templates", "action-admin", "public-catalog"),
+    "action_templates": ("action-templates",),
+    "commitments": ("commitments",),
+    "order_cancellation": ("commitments",),
+    "delivery": ("action-admin", "invoices"),
+    "delivery_board": ("invoices",),
+    "delivery_completion": ("action-admin", "invoices"),
+    "invoices": ("invoices", "invoice-flows"),
+    "invoice_documents": ("invoices",),
+    "invoice_deliveries": ("invoice-flows",),
+    "invoice_settlements": ("invoice-flows",),
+    "invoice_payments": ("invoice-flows",),
+    "invoice_payment_state": ("invoice-flows",),
+    "identity": ("identity", "membership"),
+    "sessions": ("membership",),
+    "email_changes": ("membership",),
+    "invitations": ("membership",),
+    "policies": ("identity",),
+    "feature_flags": ("operations",),
+    "privacy": ("operations",),
+    "operations": ("operations",),
+    "legal_configuration": ("operations",),
+    "dashboard": ("leitsystem-ui",),
+    "search": ("leitsystem-ui",),
+    "public_orders": ("public-orders",),
+}
+# Leaves that send mail, sync the CRM or deliver invoices through the outbox.
+_MESSAGING = (
+    "membership",
+    "invoice-flows",
+    "public-orders",
+    "matching",
+    "acquisition-management",
+)
+ALL_E2E = "*"
+# Modules the reverse import graph cannot reach: LeonAid wires adapters and
+# entry points by dependency injection (bootstrap/, entrypoints/), so the
+# import edges point from them to the application, never back. Mapped by
+# module prefix, checked in order; the first match wins. ALL_E2E: the
+# module serves every leaf (HTTP surface, wiring, platform).
+MODULE_OWNERS: tuple[tuple[str, tuple[str, ...] | str], ...] = (
+    ("leonaid.adapters.mail", ("membership", "invoice-flows", "public-orders")),
+    (
+        "leonaid.adapters.twenty",
+        ("matching", "acquisition-management", "public-orders"),
+    ),
+    ("leonaid.adapters.typst", ("invoices", "invoice-flows")),
+    ("leonaid.adapters.storage", ("materials", "knowledge", "inbox", "invoices")),
+    ("leonaid.adapters.feature_flags", ("operations",)),
+    ("leonaid.adapters.operations", ("operations",)),
+    ("leonaid.adapters.postgres.outbox", _MESSAGING),
+    ("leonaid.entrypoints.worker.outbox", _MESSAGING),
+    ("leonaid.entrypoints.worker.retention", ("operations",)),
+    ("leonaid.entrypoints.fastapi.order_proxy", ("public-orders", "public-catalog")),
+    ("leonaid.entrypoints.fastapi.maintenance", ("operations",)),
+    # The HTTP surface (routes, schemas, security, app), the worker
+    # process, the wiring, configuration and the platform serve every leaf.
+    ("leonaid.entrypoints.fastapi", ALL_E2E),
+    ("leonaid.entrypoints.worker", ALL_E2E),
+    ("leonaid.entrypoints", ALL_E2E),
+    ("leonaid.bootstrap", ALL_E2E),
+    ("leonaid.platform", ALL_E2E),
+    ("leonaid.configuration", ALL_E2E),
+    ("leonaid.adapters", ALL_E2E),
+    ("leonaid.application.platform", ALL_E2E),
+    ("leonaid.domain.platform", ALL_E2E),
+    ("leonaid.domain.identifiers", ALL_E2E),
+    ("leonaid", ALL_E2E),
+)
+# Fallback prefixes of MODULE_OWNERS; every other prefix is specific and
+# unioned with the stem owners of the module's importers.
+CATCH_ALL_PREFIXES = frozenset({"leonaid", "leonaid.adapters"})
+# Reviewed modules that no browser leaf exercises. Keep this short; every
+# entry needs a reason. Anything else without an owner runs every leaf.
+E2E_NEUTRAL: dict[str, str] = {
+    "leonaid.entrypoints.monitoring": "Prometheus exporter and log sink; "
+    "covered by the Integration and Compose proofs, no browser path",
+    "leonaid.entrypoints.fastapi.prometheus": "metrics endpoint, no browser path",
+    "leonaid.entrypoints.crm_match_keys": "operator CLI (pilot repair units), "
+    "covered by Integration / crm-gateway",
+    "leonaid.entrypoints.material_cleanup": "operator CLI, covered by the "
+    "materials schema contracts in Integration / schema-outbox",
+    "leonaid.application.documents": "document proofs run in Integration / "
+    "documents, including their browser coverage",
+    "leonaid.adapters.postgres.documents": "document proofs run in Integration / "
+    "documents, including their browser coverage",
+}
+
+OWNER_PACKAGES = (
+    "leonaid.application.",
+    "leonaid.domain.",
+    "leonaid.adapters.postgres.",
+    "leonaid.modules.",
+)
+
+
+@cache
+def import_graph(root: Path) -> dict[str, frozenset[str]]:
+    """Reverse import graph of src/leonaid: module -> modules importing it."""
+    source = root / "src"
+    modules: dict[str, Path] = {}
+    for path in sorted((source / "leonaid").rglob("*.py")):
+        parts = list(path.relative_to(source).with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        modules[".".join(parts)] = path
+    importers: dict[str, set[str]] = {name: set() for name in modules}
+    for name, path in modules.items():
+        package = name if path.name == "__init__.py" else name.rpartition(".")[0]
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        targets: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                targets.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                base = node.module or ""
+                if node.level:
+                    anchor = package.split(".")
+                    anchor = anchor[: len(anchor) - node.level + 1]
+                    base = ".".join([*anchor, base] if base else anchor)
+                targets.add(base)
+                targets.update(f"{base}.{alias.name}" for alias in node.names)
+        for target in targets:
+            # "import leonaid.a.b" also imports its packages.
+            while target:
+                if target in importers and target != name:
+                    importers[target].add(name)
+                target = target.rpartition(".")[0]
+    return {name: frozenset(found) for name, found in importers.items()}
+
+
+def module_of(path: str) -> str | None:
+    if not (path.startswith("src/leonaid/") and path.endswith(".py")):
+        return None
+    parts = path[len("src/") : -len(".py")].split("/")
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def stem_owners(module: str) -> set[str]:
+    for package in OWNER_PACKAGES:
+        if module.startswith(package):
+            stem = module[len(package) :].split(".")[0]
+            return set(E2E_OWNERS.get(stem, ()))
+    return set()
+
+
+def matches_module(module: str, prefix: str) -> bool:
+    return module == prefix or module.startswith(prefix + ".")
+
+
+def e2e_owners(path: str, root: Path | None = None) -> set[str] | None:
+    """E2E leaves a changed src/leonaid module reaches; None for other paths.
+
+    1. The module and everything that imports it (transitively) are mapped
+       by stem through E2E_OWNERS.
+    2. A specific MODULE_OWNERS prefix of the module itself is added
+       (adapters and entry points wired by dependency injection; ALL_E2E
+       for the HTTP surface, wiring and platform).
+    3. A reviewed E2E_NEUTRAL module adds nothing beyond its stem owners.
+    4. A module with no owner at all selects every leaf (CATCH_ALL).
+    """
+    module = module_of(path)
+    if module is None:
+        return None
+    graph = import_graph((root or ROOT).resolve())
+    seen = {module}
+    queue = [module]
+    while queue:
+        for importer in graph.get(queue.pop(), ()):
+            if importer not in seen:
+                seen.add(importer)
+                queue.append(importer)
+    owners: set[str] = set()
+    for name in seen:
+        owners |= stem_owners(name)
+    neutral = any(matches_module(module, n) for n in E2E_NEUTRAL)
+    for prefix, mapped in MODULE_OWNERS:
+        if not matches_module(module, prefix):
+            continue
+        if prefix in CATCH_ALL_PREFIXES:
+            # Fallback only: an unmapped module without stem owners.
+            if owners or neutral:
+                return owners
+        elif neutral:
+            return owners
+        return owners | (set(E2E_SHARDS) if mapped == ALL_E2E else set(mapped))
+    return owners if (owners or neutral) else set(E2E_SHARDS)
+
+
 def classify(path: str) -> tuple[frozenset[str], str]:
     for rule in RULES:
         if matches(path, rule.patterns):
@@ -724,6 +964,8 @@ class Selection:
     reason: str
     suites: frozenset[str]
     explanation: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
+    # Security and Build: always, except in a stacked pull request.
+    heavy: bool = True
 
     def shards(self, prefix: str, names: Sequence[str]) -> list[str]:
         return [n for n in names if f"{prefix}:{n}" in self.suites]
@@ -738,7 +980,12 @@ class Selection:
         )
 
     def e2e_bins(self) -> list[list[str]]:
-        return pack(self.shards("e2e", E2E_SHARDS), E2E_SECONDS, MAX_BINS["e2e"])
+        bins = pack(self.shards("e2e", E2E_SHARDS), E2E_SECONDS, MAX_BINS["e2e"])
+        # The smoke leg runs alone (tools/ci/e2e.sh) and only when not every
+        # E2E leaf runs anyway.
+        if SMOKE in self.suites and not e2e(*E2E_SHARDS) <= self.suites:
+            bins.append([SMOKE])
+        return bins
 
     def emdash_bins(self) -> list[list[str]]:
         return [list(b) for b in EMDASH_BINS] if "emdash" in self.suites else []
@@ -752,13 +999,42 @@ class Selection:
             ),
             "e2e": json.dumps(matrix(self.e2e_bins(), lambda _: "browser")),
             "emdash": json.dumps(matrix(self.emdash_bins(), emdash_bootstrap)),
+            "heavy": json.dumps(self.heavy),
         }
         for flag in FLAGS:
             result[flag] = json.dumps(flag in self.suites)
         return result
 
 
-def select(event: str, paths: Sequence[str]) -> Selection:
+def stacked(base_ref: str) -> bool:
+    """A pull request into another feature branch, not into main."""
+    return bool(base_ref) and base_ref != MAIN_BRANCH
+
+
+def select(
+    event: str,
+    paths: Sequence[str],
+    base_ref: str = "",
+    schedule: str = "",
+    full_e2e: bool = False,
+    root: Path | None = None,
+) -> Selection:
+    """Suites for an event (see the module docstring for the tiers).
+
+    A stacked pull request (``base_ref`` is not main) runs only Lint, types
+    and unit plus the suites its module-local paths select; shared
+    infrastructure, unmapped paths and the former API/pins path filters
+    select nothing there, and Security/Build are skipped (``heavy``). The
+    stack's pull request into main runs the normal selection on the combined
+    diff, and the scheduled runs on main cover the rest.
+    """
+    if event == "schedule" and schedule == MAIN_SCHEDULE:
+        return Selection(
+            False,
+            "schedule every 3 hours: complete suite without the E2E leaves "
+            "(smoke only; every leaf runs nightly)",
+            everything_but_e2e() | {SMOKE},
+        )
     if event != "pull_request":
         return Selection(True, f"{event}: complete suite", everything())
     changed = sorted({p.strip() for p in paths if p.strip()})
@@ -766,21 +1042,47 @@ def select(event: str, paths: Sequence[str]) -> Selection:
         return Selection(
             True, "pull_request without a readable diff: complete suite", everything()
         )
+    is_stacked = stacked(base_ref)
     suites: set[str] = set()
     explanation = []
     for path in changed:
         selected, reason = classify(path)
-        if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
-            selected = selected | {"api"}
-        if matches(path, PINS_PATHS):
-            selected = selected | {"pins"}
+        if is_stacked and selected == everything():
+            selected = frozenset()
+            reason = f"{reason}; stacked PR: verified once the stack targets main"
+        elif selected == everything():
+            # Unknown or shared: every non-E2E suite, the smoke leg, and the
+            # E2E leaves the import graph maps.
+            owners = e2e_owners(path, root)
+            selected = everything_but_e2e() | {SMOKE} | e2e(*(owners or ()))
+            if owners is not None:
+                reason = (
+                    f"{reason}; import graph: {', '.join(sorted(owners)) or 'no leaf'}"
+                )
+        if not is_stacked:
+            if matches(path, API_PATHS) and not matches(path, API_EXCLUDED):
+                selected = selected | {"api"}
+            if matches(path, PINS_PATHS):
+                selected = selected | {"pins"}
         suites |= selected
         explanation.append((path, reason, tuple(sorted(selected))))
+    if full_e2e and not is_stacked:
+        suites |= e2e(*E2E_SHARDS)
+    if e2e(*E2E_SHARDS) <= suites:
+        # Every leaf runs; the smoke leg would only repeat three of them.
+        suites.discard(SMOKE)
     full = frozenset(suites) >= everything()
-    reason = (
-        "pull_request: complete suite" if full else "pull_request: changed inputs only"
+    if is_stacked:
+        reason = f"stacked pull_request into {base_ref}: module-local suites only"
+    elif full:
+        reason = "pull_request: complete suite"
+    elif full_e2e:
+        reason = f"pull_request: changed inputs and every E2E leaf ({FULL_E2E_LABEL})"
+    else:
+        reason = "pull_request: changed inputs only"
+    return Selection(
+        full, reason, frozenset(suites), tuple(explanation), heavy=not is_stacked
     )
-    return Selection(full, reason, frozenset(suites), tuple(explanation))
 
 
 def changed_paths(base: str, head: str) -> list[str]:
@@ -856,6 +1158,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--base", help="git base revision for pull_request")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument(
+        "--schedule", default="", help="cron of a scheduled run (github.event.schedule)"
+    )
+    parser.add_argument(
+        "--labels",
+        default="",
+        help=f"pull request labels, comma-separated; {FULL_E2E_LABEL} runs every E2E leaf",
+    )
+    parser.add_argument(
+        "--base-ref",
+        default="",
+        help="pull request base branch; anything but main is a stacked PR",
+    )
+    parser.add_argument(
         "--paths-file", help="newline-separated changed paths instead of git diff"
     )
     parser.add_argument("--explain", action="store_true", help="print per-path rules")
@@ -874,7 +1189,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 paths = []
-    selection = select(args.event, paths)
+    labels = {label.strip() for label in args.labels.split(",") if label.strip()}
+    selection = select(
+        args.event,
+        paths,
+        args.base_ref,
+        schedule=args.schedule,
+        full_e2e=FULL_E2E_LABEL in labels,
+    )
     outputs = selection.outputs()
     for warning in load_warnings(selection):
         print(f"::warning title=CI leg near timeout::{warning}")

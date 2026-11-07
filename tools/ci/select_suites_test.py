@@ -27,6 +27,15 @@ def pr(*paths: str) -> s.Selection:
     return s.select("pull_request", list(paths))
 
 
+def broad(selection: s.Selection, *owners: str) -> bool:
+    """Unknown/shared: every non-E2E suite, the smoke leg, mapped leaves only."""
+    if set(owners) >= set(s.E2E_SHARDS):
+        return full(selection)
+    return not selection.full and selection.suites == s.everything_but_e2e() | {
+        s.SMOKE
+    } | s.e2e(*owners)
+
+
 def full(selection: s.Selection) -> bool:
     return bool(selection.full and selection.suites == s.everything())
 
@@ -44,7 +53,9 @@ def outputs(*paths: str) -> dict[str, Any]:
 
 def stack_suites(result: dict[str, Any]) -> dict[str, Any]:
     """Only what starts a runner: matrix shards plus the flags."""
-    return {k: v for k, v in result.items() if k in BINNED or v is True}
+    return {
+        k: v for k, v in result.items() if k in BINNED or (v is True and k != "heavy")
+    }
 
 
 # Path -> exactly the suites it must start (flags that are true, shard lists).
@@ -99,7 +110,7 @@ def case_labels(script: Path) -> set[str]:
 
 def main() -> int:
     # Every event except pull_request runs everything.
-    for event in ("merge_group", "push", "schedule", "workflow_dispatch"):
+    for event in ("push", "schedule", "workflow_dispatch"):
         selection = s.select(event, ["README.md"])
         expect(full(selection), f"{event} must select the complete suite")
     # No readable diff is never an excuse to skip.
@@ -110,8 +121,8 @@ def main() -> int:
         "tools/new_module/test.sh",
         "apps/web/src/app.tsx",
     ):
-        expect(full(pr(path)), f"unmapped {path} must select everything")
-    # Shared infrastructure selects everything.
+        expect(broad(pr(path)), f"unmapped {path}: all non-E2E suites plus smoke")
+    # Shared infrastructure: every non-E2E suite plus smoke, E2E only mapped.
     for path in (
         ".github/workflows/ci.yml",
         ".github/workflows/select-suites.yml",
@@ -139,7 +150,11 @@ def main() -> int:
         "tools/surveys/network_override.py",
         "tests/fixtures/golden/v1/README.md",
     ):
-        expect(full(pr(path)), f"shared {path} must select everything")
+        owners = s.e2e_owners(path, ROOT) or set()
+        expect(
+            broad(pr(path), *owners),
+            f"shared {path}: all non-E2E suites, smoke, mapped leaves {owners}",
+        )
     # Documentation-only PRs run no stack suite at all.
     docs = outputs(
         "apps/docs/src/content/docs/en/user/how-to/plan-tasks.md",
@@ -206,6 +221,177 @@ def main() -> int:
         outputs("tests/unit/test_x.py")["api"] is True, "API filter keeps tests/unit"
     )
     expect(outputs("tests/unit/test_x.py")["e2e"] == [], "unit tests run no stack")
+    # Stacked pull requests (base is not main): module-local suites only.
+    stack_paths = [
+        "migrations/versions/0052_x.py",
+        "infra/compose/compose.yml",
+        "apps/web/src/app.tsx",
+        "brand-new/thing.py",
+        "uv.lock",
+        "src/leonaid/modules/tasks/api.py",
+        "tools/delivery/foundation.py",
+    ]
+    stacked_run = s.select("pull_request", stack_paths, "md/stage2c")
+    raw = {k: json.loads(v) for k, v in stacked_run.outputs().items() if k != "reason"}
+    expect(raw["heavy"] is False, "a stacked PR skips Security and Build")
+    expect(
+        [leg["shards"] for leg in raw["e2e"]] == ["tasks"]
+        and [leg["shards"] for leg in raw["integration"]] == ["delivery"]
+        and raw["emdash"] == []
+        and not any(raw[flag] for flag in s.FLAGS),
+        f"a stacked PR runs only module-local suites: {raw}",
+    )
+    expect(
+        not stacked_run.full and "stacked" in stacked_run.reason,
+        f"stacked reason: {stacked_run.reason}",
+    )
+    # The same diff into main keeps the complete, heavy selection.
+    for base in ("main", ""):
+        into_main = s.select("pull_request", stack_paths, base)
+        expect(
+            into_main.heavy
+            and s.everything_but_e2e() <= into_main.suites
+            and s.SMOKE in into_main.suites,
+            f"base {base!r} must run every non-E2E suite: {into_main.reason}",
+        )
+    # Every other event ignores the base branch and runs everything.
+    expect(
+        full(s.select("push", stack_paths, "md/stage2c"))
+        and s.select("push", [], "x").heavy,
+        "push stays complete",
+    )
+    # A stacked PR without a readable diff stays fail-safe.
+    expect(full(s.select("pull_request", [], "md/stage2c")), "stacked empty diff")
+    expect(
+        json.loads(pr("README.md").outputs()["heavy"]) is True,
+        "a PR into main always runs Security and Build",
+    )
+
+    # E2E policy (2026-11-07): import graph, smoke leg, label, schedules.
+    graph_cases = {
+        "src/leonaid/application/invoices.py": {"invoices", "invoice-flows"},
+        "src/leonaid/modules/tasks/api.py": {"tasks"},
+        "src/leonaid/domain/sessions.py": {"membership"},
+        "src/leonaid/application/public_orders.py": {"public-orders"},
+    }
+    for path, must in graph_cases.items():
+        mapped = s.e2e_owners(path, ROOT)
+        expect(mapped is not None and must <= mapped, f"{path}: owners {mapped}")
+    expect(s.e2e_owners("apps/web/src/app.tsx", ROOT) is None, "non-Python path")
+    errors = s.e2e_owners("src/leonaid/domain/errors.py", ROOT) or set()
+    expect(len(errors) >= 10, f"a shared domain module fans out: {errors}")
+    # Fail safe: a module without any owner runs every leaf, unless it is a
+    # reviewed E2E_NEUTRAL entry.
+    expect(
+        s.e2e_owners("src/leonaid/domain/brand_new_thing.py", ROOT)
+        == set(s.E2E_SHARDS),
+        "an unmapped new module runs every E2E leaf",
+    )
+    for path, must in (
+        ("src/leonaid/entrypoints/fastapi/routes.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/entrypoints/fastapi/schemas.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/bootstrap/api.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/configuration.py", set(s.E2E_SHARDS)),
+        ("src/leonaid/adapters/mail/smtp.py", {"membership", "invoice-flows"}),
+        ("src/leonaid/adapters/twenty/gateway.py", {"matching"}),
+        ("src/leonaid/adapters/typst/invoice_renderer.py", {"invoices"}),
+        ("src/leonaid/entrypoints/worker/outbox.py", {"membership", "matching"}),
+    ):
+        mapped = s.e2e_owners(path, ROOT) or set()
+        expect(
+            must <= mapped, f"{path}: {sorted(mapped)} lacks {sorted(must - mapped)}"
+        )
+    # Every module under a specific ALL_E2E prefix selects every leaf, even
+    # when owner modules import it (platform.http, base_paths, ...).
+    for module_path in sorted((ROOT / "src/leonaid").rglob("*.py")):
+        relative = module_path.relative_to(ROOT).as_posix()
+        module = s.module_of(relative) or ""
+        prefix = next(
+            (p for p, _ in s.MODULE_OWNERS if s.matches_module(module, p)), None
+        )
+        mapped_all = prefix is not None and dict(s.MODULE_OWNERS)[prefix] == s.ALL_E2E
+        neutral = any(s.matches_module(module, n) for n in s.E2E_NEUTRAL)
+        if prefix and prefix not in s.CATCH_ALL_PREFIXES and mapped_all and not neutral:
+            expect(
+                s.e2e_owners(relative, ROOT) == set(s.E2E_SHARDS),
+                f"{relative} ({prefix}) must select every E2E leaf",
+            )
+    expect(
+        s.e2e_owners("src/leonaid/platform/http.py", ROOT) == set(s.E2E_SHARDS),
+        "platform.http selects every leaf",
+    )
+    expect(
+        all(len(reason) >= 20 for reason in s.E2E_NEUTRAL.values())
+        and len(s.E2E_NEUTRAL) <= 10,
+        "E2E_NEUTRAL stays short and every entry has a reason",
+    )
+    # Every src/leonaid module that shared rules leave to the graph has
+    # owners or a reviewed neutral entry: nothing falls to smoke silently.
+    for module_path in sorted((ROOT / "src/leonaid").rglob("*.py")):
+        relative = module_path.relative_to(ROOT).as_posix()
+        if s.classify(relative)[0] != s.everything():
+            continue
+        mapped = s.e2e_owners(relative, ROOT)
+        module = s.module_of(relative) or ""
+        neutral = any(s.matches_module(module, n) for n in s.E2E_NEUTRAL)
+        expect(
+            bool(mapped) or neutral,
+            f"{relative} maps to no E2E leaf and is not in E2E_NEUTRAL",
+        )
+    # A graph hit adds exactly its leaves; the smoke leg runs alone.
+    invoice_pr = s.select(
+        "pull_request", ["src/leonaid/application/invoices.py"], "main", root=ROOT
+    )
+    legs = json.loads(invoice_pr.outputs()["e2e"])
+    expect(legs[-1]["shards"] == s.SMOKE, f"smoke leg last and alone: {legs}")
+    expect(
+        all(s.SMOKE not in leg["shards"].split() for leg in legs[:-1]),
+        f"the smoke leg is never packed with leaves: {legs}",
+    )
+    # The full-e2e label adds every leaf and drops the redundant smoke leg.
+    labelled = s.select("pull_request", ["apps/web/src/app.tsx"], "main", full_e2e=True)
+    labelled_legs = json.loads(labelled.outputs()["e2e"])
+    expect(
+        labelled.full
+        and sorted(x for leg in labelled_legs for x in leg["shards"].split())
+        == sorted(s.E2E_SHARDS),
+        f"full-e2e label: every leaf, no smoke: {labelled_legs}",
+    )
+    expect(
+        not s.select(
+            "pull_request", ["tools/pwa/test.sh"], "md/x", full_e2e=True
+        ).suites
+        & s.e2e(*[x for x in s.E2E_SHARDS if x != "pwa"]),
+        "the label does not widen a stacked PR",
+    )
+    # The 3-hourly main run: everything except the E2E leaves, plus smoke.
+    every3h = s.select("schedule", [], schedule=s.MAIN_SCHEDULE)
+    every3h_legs = json.loads(every3h.outputs()["e2e"])
+    expect(
+        every3h.suites == s.everything_but_e2e() | {s.SMOKE}
+        and [leg["shards"] for leg in every3h_legs] == [s.SMOKE]
+        and every3h.heavy,
+        f"3-hourly main run: {every3h.reason} {every3h_legs}",
+    )
+    # The nightly run (and any other schedule or dispatch) runs every leaf.
+    for event, cron in (("schedule", s.NIGHTLY_SCHEDULE), ("workflow_dispatch", "")):
+        nightly = s.select(event, [], schedule=cron)
+        expect(full(nightly), f"{event} {cron!r} must run every E2E leaf")
+        expect(
+            all(
+                s.SMOKE not in leg["shards"]
+                for leg in json.loads(nightly.outputs()["e2e"])
+            ),
+            "a complete run needs no smoke leg",
+        )
+    # Docs-only pull requests still start no stack suite, not even smoke.
+    expect(
+        json.loads(pr("README.md").outputs()["e2e"]) == [],
+        "docs-only PR runs no smoke leg",
+    )
+    # The smoke leg is defined in the CI entry point.
+    expect(s.SMOKE in case_labels(ROOT / "tools/ci/e2e.sh"), "tools/ci/e2e.sh smoke")
+
     # Precise selection: each path starts exactly its own suites.
     for path, expected in PRECISE:
         got = stack_suites(outputs(path))
@@ -218,7 +404,10 @@ def main() -> int:
         set(s.INTEGRATION_SECONDS) == {*s.INTEGRATION_SHARDS, "contract"},
         "INTEGRATION_SECONDS must list every Integration shard and contract",
     )
-    expect(set(s.E2E_SECONDS) == set(s.E2E_SHARDS), "E2E_SECONDS must list every leaf")
+    expect(
+        set(s.E2E_SECONDS) == {*s.E2E_SHARDS, s.SMOKE},
+        "E2E_SECONDS must list every leaf and the smoke leg",
+    )
     expect(
         sorted(g for b in s.EMDASH_BINS for g in b) == sorted(s.EMDASH_GROUPS),
         "EMDASH_BINS must hold every EmDash group exactly once",

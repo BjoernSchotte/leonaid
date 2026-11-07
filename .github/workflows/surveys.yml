@@ -1,12 +1,29 @@
 name: Survey acceptance
+# The nightly run (recovery shards and backup proofs) is the only one with
+# those checks; its own name lets nightly-watchdog.yml track it apart from
+# the 3-hourly runs.
+run-name: ${{ github.event.schedule == '17 1 * * *' && 'Survey acceptance nightly (recovery and backup)' || github.event.schedule == '47 */3 * * *' && 'Survey acceptance main every 3 hours' || github.event.pull_request.title || github.workflow }}
 
 on:
   pull_request:
-  merge_group:
-  push:
-    branches: [main]
+    # Drafts run nothing (their gate fails); ready_for_review starts CI,
+    # converted_to_draft cancels the running one. edited: a base change (a
+    # stacked PR retargeted to main) runs the normal selection; a title or
+    # body edit runs no job and its gate mirrors the commit's real result.
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
+  # No run per push to main: the 3-hourly schedule runs the PR selection
+  # on main, the nightly one the recovery shards and backup proofs.
   schedule:
     - cron: "17 1 * * *"
+    - cron: "47 */3 * * *"
   workflow_dispatch:
     inputs:
       suite:
@@ -19,17 +36,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
 
   fixture:
     needs: select
     if: needs.select.outputs.surveys == 'true'
     uses: ./.github/workflows/test-fixture.yml
+    # ci.yml builds the same fixture key on a cache miss; wait for its upload
+    # instead of building it twice (test-fixture.yml peer-wait-minutes).
+    permissions:
+      actions: read
+      contents: read
+    with:
+      peer-wait-minutes: 10
 
   inventory:
     needs: select
@@ -43,7 +68,7 @@ jobs:
       - name: Read the same group inventory as the local aggregate
         id: manifest
         env:
-          CI_SUITE: ${{ github.event_name == 'schedule' && 'nightly' || inputs.suite || 'pr' }}
+          CI_SUITE: ${{ github.event.schedule == '17 1 * * *' && 'nightly' || inputs.suite || 'pr' }}
           # tools/ci/select_suites.py: survey inputs changed, or not a PR.
           SELECTED: ${{ needs.select.outputs.surveys }}
         run: |
@@ -122,7 +147,7 @@ jobs:
 
   backup-recovery:
     name: Nightly backup / ${{ matrix.command }}
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
+    if: github.event.schedule == '17 1 * * *' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -165,6 +190,10 @@ jobs:
     name: Survey gate
     needs: [select, fixture, inventory, surveys, backup-recovery]
     if: ${{ always() }}
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -174,6 +203,18 @@ jobs:
       - name: Require every selected survey job
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # Pull request context for tools/ci/gate.py: drafts fail, title
+          # edits mirror the commit's newest completed real gate (or fail
+          # fast), a stacked result never passes.
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          STACK_BASE: ${{ github.base_ref }}
+          GATE_NAME: Survey gate
         # backup-recovery runs only nightly or on dispatch; when it runs it
         # must pass.
         run: >-

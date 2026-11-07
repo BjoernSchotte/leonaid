@@ -39,6 +39,15 @@ if [ "$status" -ne 0 ]; then
     '{{.Names}}\t{{.Image}}\t{{.Status}}' \
     >"$artifact_directory/docker-containers.txt" 2>&1 || true
 fi
+# Step time limit (capture-command.sh, LEONAID_CI_STEP_SECONDS): the suite
+# was stopped, so its own failure diagnostics never ran. Keep the last
+# lines of every container still alive; the sanitizer below checks them.
+if [ "$status" -eq 124 ]; then
+  for container in $(docker ps --format '{{.Names}}' 2>/dev/null); do
+    printf '=== %s ===\n' "$container"
+    docker logs --tail 80 "$container" 2>&1 || true
+  done >"$artifact_directory/timeout-container-logs.txt"
+fi
 
 if ! docker run --rm \
   --user "$(id -u):$(id -g)" \

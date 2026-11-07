@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -91,6 +93,53 @@ class CaptureTests(unittest.TestCase):
                 timeout=20,
             )
             self.assertEqual(result.returncode, 74)
+
+    def test_time_limit_stops_the_whole_process_group(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "command.log"
+            marker = Path(directory) / "child-survived"
+            # A parent and a grandchild that would both outlive the limit.
+            script = f"(sleep 8; touch {marker}) & echo started; sleep 60"
+            started = time.monotonic()
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "tools/ci/capture-command.sh"),
+                    str(log),
+                    "sh",
+                    "-c",
+                    script,
+                ],
+                capture_output=True,
+                timeout=60,
+                env={**os.environ, "LEONAID_CI_STEP_SECONDS": "2"},
+            )
+            elapsed = time.monotonic() - started
+            time.sleep(8)
+            text = log.read_bytes()
+        self.assertEqual(result.returncode, 124)
+        self.assertLess(elapsed, 40)
+        self.assertIn(b"started", text)
+        self.assertIn(b"time limit of 2s reached", text)
+        self.assertFalse(marker.exists(), "a descendant outlived the limit")
+
+    def test_no_limit_keeps_the_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "command.log"
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "tools/ci/capture-command.sh"),
+                    str(log),
+                    "sh",
+                    "-c",
+                    "exit 3",
+                ],
+                capture_output=True,
+                timeout=20,
+                env={**os.environ, "LEONAID_CI_STEP_SECONDS": "30"},
+            )
+        self.assertEqual(result.returncode, 3)
 
 
 if __name__ == "__main__":

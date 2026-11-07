@@ -1,13 +1,64 @@
 # CI runtime
 
-## Two tiers and the merge queue
+## Tiers
 
-Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
+There is no merge queue: GitHub offers none for a repository owned by a
+personal account. `main` is proven by scheduled runs instead of a run per
+push (decision 2026-11-07). Browser E2E follows Björn's policy of the same
+day: pull requests run only the E2E leaves their change reaches, the
+3-hourly main run none (smoke only), the nightly run all of them.
 
 | Event | What runs |
 |---|---|
-| `pull_request` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
-| `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
+| `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, EmDash proofs, Golden Journey, Surveys, API contract, pins) when their inputs changed; shared infrastructure and unmapped paths select all of them. E2E leaves only when mapped (module paths and specs, or the import graph for `src/leonaid/**`), plus the short `smoke` leg for every shared or unmapped change. |
+| `pull_request` with the `full-e2e` label | As above plus every E2E leaf. The label is read from the event, so it takes effect at the next push (or start `ci.yml` by `workflow_dispatch` on the branch for a complete run now). A `labeled` trigger is deliberately absent: a run for an unrelated label would replace the PR's gate result. |
+| draft `pull_request` | No suite. The gates (and `Bilingual site artifact`) **fail** with "draft: no CI ran", so a stale result can never pass between `ready_for_review` and the new run's gate. `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. Expect red checks (and GitHub's failure notifications) on every draft push; `gh pr checks` reports a draft as failed; `flake_summary.py` ignores such runs. |
+| `pull_request` `edited` | A base change (a stacked PR retargeted to `main`) runs the normal selection against the new base. A title or body edit runs no suite, in its own concurrency group (it never cancels the real run); its gate mirrors this commit's newest **completed** gate of a **real** run (draft and title-edit runs are skipped, so mirrors never copy each other) and fails fast when there is none yet. GitHub creates a gate's check run only when its jobs finish, so the real run's later gate supersedes the mirror; re-running the real run's gate job or pushing also does. `docs.yml` simply rebuilds. |
+| stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). The gates of a stacked run never pass ("retarget to main for the real gate"): GitHub creates a later run's gate only when its jobs finish, so a stacked green would stay the newest result for 20–60 minutes after a retarget. The ruleset applies only to `main`, so merging into the parent branch is not blocked. |
+| `schedule` every 3 hours on `main` (`37 */3 * * *`) | Every suite except the E2E leaves, plus the smoke leg. |
+| nightly `schedule` (`7 3 * * *`), `workflow_dispatch` | Everything, including every E2E leaf. |
+
+`nightly-watchdog.yml` runs after every completed scheduled run
+(`workflow_run`) and daily. It opens one issue per watched entry when its
+latest scheduled run on `main` is red or overdue, and closes it on green.
+`ci.yml` and `surveys.yml` are each watched twice: every scheduled run (8
+hours) and the nightly run alone (30 hours, matched by its run name: `LeonAid
+CI nightly (every E2E leaf)`, `Survey acceptance nightly (recovery and
+backup)`). A green 3-hourly run cannot hide a red nightly one; the contract
+requires this for every workflow with more than one schedule. Scheduled runs
+on `main` are never cancelled, and each cron has its own concurrency group,
+so a still-queued 3-hourly run cannot cancel a pending nightly run.
+
+The **smoke leg** (`tools/ci/e2e.sh smoke`, always alone in its leg) runs
+three existing tests on the prepared fixture: the real login flow
+(`sessions.spec.mjs` "login, normal work, fresh login, admin action and
+logout"), one list view (`modules-tasks.spec.mjs` "admin: S1 compact rows,
+status undo and concurrent conflict") and one public order
+(`public-orders.spec.mjs` "new company, existing company and private person
+order in the guided form", with its Core/Twenty verification). Each leaf filters its own specs with `--grep` when
+`LEONAID_E2E_SMOKE=1`.
+
+The **import graph** (`e2e_owners`) parses `src/leonaid/**` with `ast`. A
+changed module selects the leaves that own it or any module importing it,
+directly or transitively, by module stem (`E2E_OWNERS`: `invoices` →
+`invoices`, `invoice-flows`; `sessions` → `membership`; ...). A shared
+domain module therefore fans out to most leaves. LeonAid wires adapters and
+entry points by dependency injection, so the graph cannot reach them;
+`MODULE_OWNERS` maps them by module prefix (`adapters/mail` → membership,
+invoice flows, public orders; `adapters/twenty` → matching, acquisition;
+`adapters/typst` → invoices; the outbox and worker handlers → every
+messaging leaf). The HTTP surface (`entrypoints/fastapi/routes.py`, schemas,
+security), the wiring, configuration and the platform select **every** leaf.
+A module with no owner selects every leaf too, unless it is in the reviewed
+`E2E_NEUTRAL` list (monitoring, metrics, operator CLIs, documents; each with
+a reason). `select_suites_test.py` enumerates every `src/leonaid` module, so
+a new one cannot fall to the smoke leg silently.
+
+A stack (for example `md/stage2a` → `md/stage2b` → …) is tested in full only
+on its way to `main`: its pull request into `main` runs the normal selection
+on the combined diff, and the scheduled runs on `main` cover the rest.
+Intermediate pushes of the stack only pay for what their own module paths
+need. The gate stays fail-closed: a missing `heavy` output counts as selected.
 
 `tools/ci/select_suites.py` decides the pull-request selection; the reusable
 `.github/workflows/select-suites.yml` runs it once per workflow and exposes the
@@ -21,13 +72,15 @@ budget" below.
 
 Selection rules (first match wins, see `RULES`):
 
-- **Everything** for shared infrastructure: `.github/**`, `tools/ci/**`,
+- **Every non-E2E suite, the smoke leg and the mapped E2E leaves** for
+  shared infrastructure: `.github/**`, `tools/ci/**`,
   `tools/testing/**`, `tools/seed|twenty|typst|surveys/**`, `infra/compose|locks|proxy/**`,
   `migrations/**`, `src/leonaid/platform|bootstrap|adapters/postgres/**`,
   `package.json`, `bun.lock`, `uv.lock`, `pyproject.toml`, `leonaid`,
   `tests/fixtures/**`, shared E2E configuration.
-- **Everything** for any path no rule maps (including the rest of `src/` and
-  `apps/web|pwa|public`). Unknown means unsafe; map a path deliberately to make it cheaper.
+- **The same** for any path no rule maps (including the rest of `src/`, where
+  the import graph adds its E2E leaves, and `apps/web|pwa|public`). Unknown
+  means unsafe; map a path deliberately to make it cheaper.
 - **No stack suite** for `*.md`, `*.mdx`, `apps/docs/**`, `specs/**` (except the
   OpenAPI approvals, EmDash route inventory and pilot plan files), `tests/unit/**`.
 - **No stack suite** for the scripts and checkers of always-running jobs:
@@ -44,7 +97,7 @@ Selection rules (first match wins, see `RULES`):
   `integration.sh` all Integration shards plus Contract, `contract.sh`
   Contract, `emdash.sh` the EmDash proofs. Everything else in `.github/**` and
   `tools/ci/**` (`ci.yml`, the actions, `run-job.sh`, `free-runner-disk.sh`,
-  `sanitize_artifacts.py`, `select_suites.py`, ...) still selects everything.
+  `sanitize_artifacts.py`, `select_suites.py`, ...) is shared infrastructure.
 - **Only the owning suite** for module and proof directories: the tasks module
   selects `E2E / tasks`; `tools/delivery/**` selects `Integration / delivery`;
   `apps/campaign-site/**`, `tools/emdash_spike/**` select the EmDash proofs;
@@ -98,7 +151,7 @@ follow-up retry.
 
 ### Nightly run and flake summary
 
-`ci.yml` runs completely on `main` every night at 03:07 UTC. Its `Flake summary`
+`ci.yml` runs completely on `main` every 3 hours (`37 */3 * * *`) and every night at 03:07 UTC; only the nightly run has the `Flake summary`. `surveys.yml` runs its PR selection every 3 hours (`47 */3 * * *`) and its nightly selection with the backup proofs at 01:17 UTC. The nightly `Flake summary`
 job runs `tools/ci/flake_summary.py` over the last 50 completed runs of `ci.yml`
 and `surveys.yml` (all events) and writes a table to the workflow summary:
 failures in the final attempt and failures that were followed by a rerun
@@ -114,7 +167,7 @@ workflow it reads the latest completed scheduled run on `main`:
 - not green: it opens the issue
   `[nightly-watchdog] <workflow> scheduled run needs attention` with the run
   link and the failed jobs, or adds one comment per new failed run;
-- older than its limit (30 hours; 8 days for the weekly `pins.yml`): the same
+- older than its limit (8 hours for the 3-hourly `ci.yml` and `surveys.yml`, 30 hours for `pin-drift.yml`, 8 days for the weekly `pins.yml`): the same
   issue reports a stopped schedule;
 - green and current: it closes the issue.
 
@@ -124,10 +177,10 @@ It uses only `GITHUB_TOKEN` with `actions: read` and `issues: write`.
 
 ### Required checks
 
-The workflow side is above; the repository ruleset (merge queue with merge
-commits, no "require branch up to date", required gates) is applied by a
-maintainer. With the queue, PRs no longer need "Update branch": the queue tests
-each PR merged onto the current `main` plus the PRs ahead of it.
+The workflow side is above; the repository ruleset 26444840 (required gates,
+no "require branch up to date") is applied by a maintainer. There is no merge
+queue (personal-account repository); merges use merge commits, and the
+scheduled runs on `main` test the merged result.
 
 ## Job layout and runner budget
 
@@ -182,8 +235,21 @@ Inside a leg every shard keeps its own isolation:
   (CI runners only) compares the Compose projects before and after it. A shard that leaves
   containers, networks or volumes behind fails, and only its leaked projects
   are removed, so the next shard does not fail in its place.
+- Every leg sets `LEONAID_CI_STEP_SECONDS` (5 minutes below its
+  `timeout-minutes`). `tools/ci/capture-command.sh` runs the suite in its own
+  process group and stops the whole group at that limit (SIGTERM, SIGKILL 30 s
+  later), abandons output streams a stray descendant still holds, and exits
+  124. `run-job.sh` then adds the last lines of every running container
+  (`timeout-container-logs.txt`), sanitizes and uploads. A job killed by
+  GitHub's own timeout would lose all of that.
 - `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
   data for the 40 GB skip threshold below.
+
+On a fixture cache miss, `surveys.yml` waits up to 10 minutes for the
+identical fixture key that `ci.yml`'s fixture job uploads for the same ref
+(`test-fixture.yml` input `peer-wait-minutes`, polled through the Actions
+cache API with `actions: read`) instead of building it a second time. If none
+appears, it builds the fixture itself.
 
 `surveys.yml` packs its 26 PR checks into 7 shards of about 8 minutes
 (`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
@@ -275,9 +341,8 @@ in them: an EmDash editor load race (PR #37) and a Caddy body-drain regression
 | `static` | stack-free `dependencies`, `krapfentaxi-source`, `authorization-inventory`, `release-manifest-compatibility`, `release-legacy-boundary`, `release-image-identity`, `closed-runtime`; plus `proxy-routing` (Caddy, public and CMS only, no database) |
 
 The jobs need no prepared fixture: every case builds its own isolated stack and
-seeds synthetic data. The merge queue, `main` and the nightly run always run
-them. In a pull request the selector starts them for EmDash inputs and for every
-shared Core, proxy or public change (see "Two tiers" above); there is no
+seeds synthetic data. The scheduled runs on `main` always run them. In a pull request the selector starts them for EmDash inputs and for every
+shared Core, proxy or public change (see "Tiers" above); there is no
 workflow path filter. Each case runs exactly once. Neither the script nor the
 workflow retries a failed case, so an intermittent failure stays red and must
 be fixed at its cause. `tools/ci/workflow_contract.py` rejects a missing group,

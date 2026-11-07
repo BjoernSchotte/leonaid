@@ -1,8 +1,9 @@
 # Sourced by module browser leaves (tools/<module>/test.sh) inside a borrowed
 # shared stack. Expects root, leaf and module_specs; seeds two synthetic
 # accounts and runs the module's Playwright specs against the real proxy.
-# Optional: shared_services (services the leaf needs) and module_seed (a
-# repository script that extends the fixture with module data).
+# Optional: shared_services (services the leaf needs), module_seed (a
+# repository script that extends the fixture with module data) and
+# module_smoke_grep (the test the CI smoke leg runs when LEONAID_E2E_SMOKE=1).
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 integration_key=""
@@ -38,6 +39,14 @@ if [ -n "${module_seed:-}" ]; then
     --entrypoint python api "/repo/$module_seed"
 fi
 
+smoke_grep=""
+if [ -n "${LEONAID_E2E_SMOKE:-}" ]; then
+  if [ -z "${module_smoke_grep:-}" ]; then
+    echo "$leaf: ERROR: no smoke test defined (module_smoke_grep)" >&2
+    exit 64
+  fi
+  smoke_grep=$module_smoke_grep
+fi
 # Intentional splitting of the module's spec list.
 # shellcheck disable=SC2086
 docker run --rm --network "${project}_edge" \
@@ -46,4 +55,5 @@ docker run --rm --network "${project}_edge" \
   --env LEONAID_MODULE_FIXTURE=/proof/module-fixture.json \
   --volume "$root:/workspace:ro" --volume "$proof:/proof" --workdir /workspace \
   "$PLAYWRIGHT_IMAGE" node_modules/.bin/playwright test $module_specs \
+  ${smoke_grep:+--grep "$smoke_grep"} \
   --output=/proof/test-results --trace=retain-on-failure --reporter=line

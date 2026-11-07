@@ -16,6 +16,51 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)\n",
+        "    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true\n",
+        "ci.yml: job select must not run for a draft or a title edit",
+    ),
+    (
+        "${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}",
+        "",
+        "a title edit must not share the PR's concurrency group",
+    ),
+    (
+        '      LEONAID_CI_STEP_SECONDS: "5100"\n',
+        '      LEONAID_CI_STEP_SECONDS: "5400"\n',
+        "e2e: LEONAID_CI_STEP_SECONDS must stop the suite",
+    ),
+    (
+        '    - cron: "37 */3 * * *"\n',
+        "",
+        "the 3-hourly complete run on main is missing",
+    ),
+    (
+        "      - ci-artifact-probe\n",
+        "      - ci-artifact-probe\n      - main\n",
+        "no complete run per push to main",
+    ),
+    (
+        "        converted_to_draft,\n        edited,\n",
+        "        converted_to_draft,\n",
+        "ci.yml: pull_request must list ready_for_review, converted_to_draft and edited",
+    ),
+    (
+        "  lint-unit:\n",
+        "  lint-unit:\n    if: true\n  lint-unit-copy:\n",
+        "ci.yml: job lint-unit must not run for a draft",
+    ),
+    (
+        "needs.select.outputs.heavy != 'false' && (needs.fixture.result",
+        "(needs.fixture.result",
+        "security may be skipped only for a stacked PR",
+    ),
+    (
+        "            --selectable build=heavy",
+        "            --may-skip build",
+        "The gate must require build unless heavy is false",
+    ),
+    (
         "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
         "    name: E2E / ${{ matrix.bin.title }}\n",
         "e2e: the leg name must be stable",
@@ -128,9 +173,9 @@ CI_MUTATIONS = (
         "path filters",
     ),
     (
-        "  merge_group:\n",
-        "",
-        "must run on merge_group",
+        "  pull_request:\n",
+        "  merge_group:\n  pull_request:\n",
+        "merge_group is dead here",
     ),
     (
         "needs.select.outputs.emdash != '[]'",
@@ -187,6 +232,36 @@ CI_MUTATIONS = (
 
 OTHER_MUTATIONS = (
     (
+        "nightly-watchdog.yml",
+        " surveys.yml:30:nightly",
+        "",
+        "must track surveys.yml's nightly run",
+    ),
+    (
+        "surveys.yml",
+        "run-name: ",
+        "x-run-name: ",
+        "surveys.yml: several schedules need a run-name",
+    ),
+    (
+        "nightly-watchdog.yml",
+        " ci.yml:30:nightly",
+        "",
+        "must track ci.yml's nightly run",
+    ),
+    (
+        "docs.yml",
+        "        if: github.event.pull_request.draft == true\n",
+        "        if: false\n",
+        "docs.yml: job build must not run for a draft",
+    ),
+    (
+        "pins.yml",
+        "          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n",
+        "",
+        "pins.yml: the gate must hand the draft/edit/stack context to gate.py",
+    ),
+    (
         "surveys.yml",
         "run: sh tools/ci/free-runner-disk.sh wait",
         "run: true",
@@ -200,7 +275,7 @@ OTHER_MUTATIONS = (
         "      - name: Run isolated backup and recovery proof\n",
         "job backup-recovery must free runner disk",
     ),
-    ("surveys.yml", "  merge_group:\n", "", "must run on merge_group"),
+    ("surveys.yml", "  pull_request:\n", "  push:\n", "must run on pull_request"),
     (
         "surveys.yml",
         "inventory, surveys, backup-recovery]",
@@ -226,7 +301,12 @@ OTHER_MUTATIONS = (
         "sh tools/ci/retry-infra.sh /bin/sh tools/pins/reproduce.sh",
         "only infrastructure commands may be retried",
     ),
-    ("docs.yml", "  merge_group:\n", "", "must run on merge_group"),
+    (
+        "docs.yml",
+        "  pull_request:\n",
+        "  merge_group:\n  pull_request:\n",
+        "merge_group is dead here",
+    ),
     (
         "pin-drift.yml",
         "for workflow in ci.yml surveys.yml api-contract.yml pins.yml docs.yml; do",
@@ -261,8 +341,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:30 surveys.yml:30',
-        'WATCHED: "ci.yml:30',
+        'WATCHED: "ci.yml:8 ci.yml:30:nightly surveys.yml:8 surveys.yml:30:nightly',
+        'WATCHED: "ci.yml:8 ci.yml:30:nightly',
         "scheduled workflow surveys.yml is not watched",
     ),
     (
@@ -381,7 +461,7 @@ def main() -> None:
             print(f"ci-workflow-contract-test: ERROR: {failure}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract-test: OK: tiers, merge queue, gates, selector, retries, "
+        "ci-workflow-contract-test: OK: tiers, schedules, drafts, gates, selector, retries, "
         "shards, cold rehearsal and missing upload are checked"
     )
 

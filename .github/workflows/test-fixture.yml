@@ -1,6 +1,14 @@
 name: Prepare synthetic test fixture
 on:
   workflow_call:
+    inputs:
+      peer-wait-minutes:
+        # A second workflow of the same push (surveys.yml) waits this long
+        # for ci.yml's fixture job to upload the same key before building
+        # it again; 0 builds at once. Needs actions: read in the caller.
+        description: Minutes to wait for another workflow's identical fixture
+        type: number
+        default: 0
     outputs:
       key:
         value: ${{ jobs.fixture.outputs.key }}
@@ -9,7 +17,7 @@ permissions:
 jobs:
   fixture:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     outputs:
       key: ${{ steps.key.outputs.value }}
     steps:
@@ -22,37 +30,59 @@ jobs:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture
           key: ${{ steps.key.outputs.value }}
           lookup-only: true
+      - name: Wait for the same fixture from another workflow of this push
+        id: peer
+        if: steps.cached.outputs.cache-hit != 'true' && inputs.peer-wait-minutes > 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEY: ${{ steps.key.outputs.value }}
+          MINUTES: ${{ inputs.peer-wait-minutes }}
+        # Only an exact key on this ref counts; a missing cache after the
+        # wait builds it here, so a failed peer never blocks this workflow.
+        run: |
+          deadline=$(( $(date +%s) + MINUTES * 60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/caches?key=$KEY&ref=$GITHUB_REF" \
+              --jq "[.actions_caches[] | select(.key == \"$KEY\")] | length" 2>/dev/null || echo 0)
+            if [ "${found:-0}" -gt 0 ]; then
+              echo "Fixture $KEY was uploaded by another workflow; reusing it"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "No peer upload of $KEY within $MINUTES minutes; building it here"
       - name: Start freeing runner disk from unused toolchains
-        if: steps.cached.outputs.cache-hit != 'true'
+        if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         run: sh tools/ci/free-runner-disk.sh start
-      - if: steps.cached.outputs.cache-hit != 'true'
+      - if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         uses: ./.github/actions/build-cache
       - name: Finish freeing runner disk
-        if: steps.cached.outputs.cache-hit != 'true'
+        if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         run: sh tools/ci/free-runner-disk.sh wait
-      - if: steps.cached.outputs.cache-hit != 'true'
+      - if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         name: Build an isolated synthetic fixture from repository inputs
         run: python3 tools/testing/ci_fixture.py build "$RUNNER_TEMP/leonaid-synthetic-fixture"
       # A failed upload (GitHub cache 429) only warns; every consumer would
       # then miss the key. Verify the upload and retry it once.
-      - if: steps.cached.outputs.cache-hit != 'true'
+      - if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture
           key: ${{ steps.key.outputs.value }}
       - id: saved
-        if: steps.cached.outputs.cache-hit != 'true'
+        if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true'
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture
           key: ${{ steps.key.outputs.value }}
           lookup-only: true
       - name: Back off before retrying the fixture upload
-        if: steps.cached.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+        if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true' && steps.saved.outputs.cache-hit != 'true'
         run: |
           echo "::warning title=Infrastructure retry::Fixture cache upload is missing; retrying once in 30s"
           sleep 30
-      - if: steps.cached.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+      - if: steps.cached.outputs.cache-hit != 'true' && steps.peer.outputs.found != 'true' && steps.saved.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/leonaid-synthetic-fixture

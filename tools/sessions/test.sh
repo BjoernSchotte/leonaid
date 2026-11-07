@@ -114,16 +114,19 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/sessions.spec.mjs \
+  ${LEONAID_E2E_SMOKE:+--grep "login, normal work, fresh login, admin action and logout"} \
   --browser=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
 
 mkdir -p "$artifact_directory"
-for screenshot in \
-  session-fresh-admin.png \
-  session-login.png \
-  session-finance-default-route.png; do
+screenshots="session-fresh-admin.png session-login.png session-finance-default-route.png"
+# The CI smoke leg runs only the login test; the finance test is not run.
+if [ -n "${LEONAID_E2E_SMOKE:-}" ]; then
+  screenshots="session-fresh-admin.png session-login.png"
+fi
+for screenshot in $screenshots; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "session-test: ERROR: browser screenshot missing: $screenshot" >&2
     exit 1

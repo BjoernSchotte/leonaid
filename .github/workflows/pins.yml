@@ -2,10 +2,22 @@ name: Dependency pins
 
 # Formerly path-filtered. tools/ci/select_suites.py keeps the same filter
 # (PINS_PATHS) for pull requests, so "Dependency pins gate" always reports;
-# merge_group, push, schedule and dispatch run every job.
+# push, schedule and dispatch run every job.
 on:
   pull_request:
-  merge_group:
+    # Drafts run nothing (their gate fails); ready_for_review starts CI,
+    # converted_to_draft cancels the running one. edited: a base change (a
+    # stacked PR retargeted to main) runs the normal selection; a title or
+    # body edit runs no job and its gate mirrors the commit's real result.
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+      ]
   push:
     branches:
       - main
@@ -17,11 +29,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: pins-${{ github.ref }}
+  group: pins-${{ github.ref }}-${{ github.event.schedule }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   select:
+    if: github.event.pull_request.draft != true && (github.event.action != 'edited' || github.event.changes.base)
     uses: ./.github/workflows/select-suites.yml
 
   policy:
@@ -71,11 +84,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
-          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
         run: |
           case "$EVENT_NAME" in
             pull_request) base=$PR_BASE ;;
-            merge_group) base=$QUEUE_BASE ;;
             *) base=main ;;
           esac
           git fetch --no-tags --depth=1 origin "$base"
@@ -112,6 +123,10 @@ jobs:
     name: Dependency pins gate
     needs: [select, policy, reproducibility, sbom]
     if: ${{ always() }}
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -121,6 +136,18 @@ jobs:
       - name: Require every selected pin job
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # Pull request context for tools/ci/gate.py: drafts fail, title
+          # edits mirror the commit's newest completed real gate (or fail
+          # fast), a stacked result never passes.
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ toJSON(github.event.changes.base) != 'null' }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          STACK_BASE: ${{ github.base_ref }}
+          GATE_NAME: Dependency pins gate
         run: >-
           python3 tools/ci/gate.py --name "Dependency pins gate"
           --selectable policy=pins
