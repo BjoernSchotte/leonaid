@@ -121,7 +121,7 @@ Punkte sind keine stillschweigenden Produktzusagen.
   `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
   Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
   (Stufe 2).
-- Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
+- Die Hilfe-Doku trägt auf 20 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.
   Ein externes Flag-Backend, Segmentierung und gestaffelte Prozent-Rollouts
