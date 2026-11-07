@@ -471,12 +471,15 @@ about 7 s instead of 33 s, and its `node_modules` allocates 75 MB instead of
 ## Stale dependency guard
 
 `./leonaid bootstrap` stamps `.venv` and `node_modules` with a checksum of
-their lock inputs (`uv.lock` + `pyproject.toml`; `bun.lock` + every workspace
-`package.json`). Commands that run the Python or Bun toolchain (`check`,
-`check-fast`, `test-unit`, `docs-*`, …) stop with "… is stale … run
+what decides their content: the lockfile (`uv.lock`, `bun.lock`; installs are
+`--frozen`, so every dependency change in `pyproject.toml` or a `package.json`
+changes it, while scripts, versions and tool config do not) and the pinned
+toolchain image (`UV_IMAGE`, `BUN_IMAGE`). Commands that run the Python or Bun
+toolchain (`check`, `check-fast`, `test-unit`, …) stop with "… is stale … run
 `./leonaid bootstrap`" when a merge, branch switch or Renovate update changed
-those inputs, instead of failing later with missing modules. An install
-without a stamp (from before this guard) only warns; `doctor` reports both.
+them, instead of failing later with missing modules. An install without a
+stamp (from before this guard) or a missing install only warns, in commands
+and in `doctor`; a stale stamp is an error in both.
 `LEONAID_SKIP_DEPENDENCY_CHECK=1` skips the guard.
 
 ## Persistent GitHub BuildKit cache
