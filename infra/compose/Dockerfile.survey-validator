@@ -10,7 +10,8 @@ COPY packages/api-client/package.json ./packages/api-client/package.json
 COPY packages/features/package.json ./packages/features/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/surveys/package.json ./packages/surveys/package.json
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN --mount=type=cache,id=leonaid-bun,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --ignore-scripts
 COPY packages/surveys ./packages/surveys
 COPY infra/compose/survey-validator.mjs ./infra/compose/survey-validator.mjs
 RUN bun build infra/compose/survey-validator.mjs --target=bun --outfile=/validator.mjs

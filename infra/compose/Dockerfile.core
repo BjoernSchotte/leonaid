@@ -31,8 +31,10 @@ ENV PATH="/workspace/.venv/bin:${PATH}" \
 COPY --from=typst /bin/typst /usr/local/bin/typst
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project \
-    && rm -rf /root/.cache/uv
+# Downloads stay in BuildKit's cache mount (shared by all builds on the host),
+# never in a layer; UV_LINK_MODE=copy puts real files into the venv.
+RUN --mount=type=cache,id=leonaid-uv,target=/root/.cache/uv,sharing=locked \
+    uv sync --frozen --no-dev --no-install-project
 
 # The application lives in /workspace/.venv and is managed by uv. The base
 # image's system pip (and its bundled wheel) vendors outdated msgpack, urllib3
