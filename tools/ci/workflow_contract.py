@@ -367,7 +367,8 @@ def check_drafts(text: str, name: str) -> list[str]:
             "always()" in condition.group(1) or "!cancelled()" in condition.group(1)
         )
         runs_on_pr = condition is None or not re.search(
-            r"github\.event_name == 'schedule'|inputs\.(?:cold_run|artifact_probe) == true",
+            r"github\.event_name == 'schedule'|github\.event\.schedule == "
+            r"|inputs\.(?:cold_run|artifact_probe) == true",
             condition.group(1),
         )
         if (not needs or always) and runs_on_pr and (
@@ -433,10 +434,22 @@ def check_retries(text: str, name: str) -> list[str]:
     return problems
 
 
+NIGHTLY_CRON = '"7 3 * * *"'
+MAIN_CRON = '"37 */3 * * *"'
+
+
 def check_nightly(text: str) -> list[str]:
+    """Main is proven by scheduled complete runs, not by a run per push."""
     problems: list[str] = []
-    if not re.search(r"\n  schedule:\n    - cron: ", triggers(text)):
+    on = triggers(text)
+    if not re.search(r"\n  schedule:\n    - cron: ", on) or NIGHTLY_CRON not in on:
         problems.append("ci.yml: nightly complete run (schedule) missing.")
+    if MAIN_CRON not in on:
+        problems.append("ci.yml: the 3-hourly complete run on main is missing.")
+    if re.search(r"(?m)^      - main$", on):
+        problems.append(
+            "ci.yml: no complete run per push to main; the schedule proves main."
+        )
     report = job_block(text, "flake-summary")
     if (
         "github.event_name == 'schedule'" not in report

@@ -6,10 +6,11 @@ on:
     # cancels the running one (same concurrency group, no job runs).
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   merge_group:
-  push:
-    branches: [main]
+  # No run per push to main: the 3-hourly schedule runs the PR selection
+  # on main, the nightly one the recovery shards and backup proofs.
   schedule:
     - cron: "17 1 * * *"
+    - cron: "47 */3 * * *"
   workflow_dispatch:
     inputs:
       suite:
@@ -23,7 +24,7 @@ permissions:
 
 concurrency:
   group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
@@ -54,7 +55,7 @@ jobs:
       - name: Read the same group inventory as the local aggregate
         id: manifest
         env:
-          CI_SUITE: ${{ github.event_name == 'schedule' && 'nightly' || inputs.suite || 'pr' }}
+          CI_SUITE: ${{ github.event.schedule == '17 1 * * *' && 'nightly' || inputs.suite || 'pr' }}
           # tools/ci/select_suites.py: survey inputs changed, or not a PR.
           SELECTED: ${{ needs.select.outputs.surveys }}
         run: |
@@ -133,7 +134,7 @@ jobs:
 
   backup-recovery:
     name: Nightly backup / ${{ matrix.command }}
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
+    if: github.event.schedule == '17 1 * * *' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:

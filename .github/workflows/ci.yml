@@ -8,13 +8,17 @@ on:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   # Queue tier: the complete suite before anything reaches main.
   merge_group:
+  # No full run per push to main (decision 2026-11-07): main is proven by
+  # the scheduled complete runs below; nightly-watchdog.yml opens an issue
+  # when one is red. Only the artifact probe branch still runs on push.
   push:
     branches:
-      - main
       - ci-artifact-probe
-  # Nightly complete run on main with a flake summary.
+  # Nightly complete run with the flake summary (7 3), and a complete run
+  # on main every 3 hours (37 */3).
   schedule:
     - cron: "7 3 * * *"
+    - cron: "37 */3 * * *"
   workflow_dispatch:
     inputs:
       cold_run:
@@ -33,7 +37,9 @@ permissions:
 
 concurrency:
   group: leonaid-ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A new push supersedes a pull request's run; scheduled runs on main are
+  # never cancelled by the next one.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
@@ -491,7 +497,7 @@ jobs:
     # Nightly only: which jobs failed or needed a rerun across recent runs.
     name: Flake summary
     needs: gate
-    if: ${{ always() && github.event_name == 'schedule' }}
+    if: ${{ always() && github.event_name == 'schedule' && github.event.schedule == '7 3 * * *' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

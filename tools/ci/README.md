@@ -9,7 +9,7 @@ Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
 | `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
 | draft `pull_request` | Nothing. Every job is skipped, so the gates report skipped (passing; a draft cannot be merged). `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. |
 | stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). |
-| `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
+| `schedule` on `main` (every 3 hours and nightly), `merge_group`, `workflow_dispatch` | Everything. There is no run per push to `main` (decision 2026-11-07; GitHub's merge queue is not available for a personal-account repository): the 3-hourly complete runs of `ci.yml` and `surveys.yml` prove `main`, and `nightly-watchdog.yml` opens an issue when one is red. Scheduled runs on `main` are never cancelled by the next one. |
 
 A stack (for example `md/stage2a` → `md/stage2b` → …) is fully tested once:
 its pull request into `main` runs the normal selection on the combined diff,
@@ -106,7 +106,7 @@ follow-up retry.
 
 ### Nightly run and flake summary
 
-`ci.yml` runs completely on `main` every night at 03:07 UTC. Its `Flake summary`
+`ci.yml` runs completely on `main` every 3 hours (`37 */3 * * *`) and every night at 03:07 UTC; only the nightly run has the `Flake summary`. `surveys.yml` runs its PR selection every 3 hours (`47 */3 * * *`) and its nightly selection with the backup proofs at 01:17 UTC. The nightly `Flake summary`
 job runs `tools/ci/flake_summary.py` over the last 50 completed runs of `ci.yml`
 and `surveys.yml` (all events) and writes a table to the workflow summary:
 failures in the final attempt and failures that were followed by a rerun
@@ -122,7 +122,7 @@ workflow it reads the latest completed scheduled run on `main`:
 - not green: it opens the issue
   `[nightly-watchdog] <workflow> scheduled run needs attention` with the run
   link and the failed jobs, or adds one comment per new failed run;
-- older than its limit (30 hours; 8 days for the weekly `pins.yml`): the same
+- older than its limit (8 hours for the 3-hourly `ci.yml` and `surveys.yml`, 30 hours for `pin-drift.yml`, 8 days for the weekly `pins.yml`): the same
   issue reports a stopped schedule;
 - green and current: it closes the issue.
 

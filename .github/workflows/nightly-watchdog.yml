@@ -31,7 +31,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       # workflow file:maximum hours since its last scheduled run on main.
-      WATCHED: "ci.yml:30 surveys.yml:30 pin-drift.yml:30 pins.yml:192"
+      # ci.yml and surveys.yml run on main every 3 hours (no push runs).
+      WATCHED: "ci.yml:8 surveys.yml:8 pin-drift.yml:30 pins.yml:192"
     steps:
       - name: Check the latest scheduled run of each workflow and maintain alerts
         run: |

@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        '    - cron: "37 */3 * * *"\n',
+        "",
+        "the 3-hourly complete run on main is missing",
+    ),
+    (
+        "      - ci-artifact-probe\n",
+        "      - ci-artifact-probe\n      - main\n",
+        "no complete run per push to main",
+    ),
+    (
         "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]\n",
         "",
         "ci.yml: pull_request must list ready_for_review and converted_to_draft",
@@ -293,8 +303,8 @@ OTHER_MUTATIONS = (
     ),
     (
         "nightly-watchdog.yml",
-        'WATCHED: "ci.yml:30 surveys.yml:30',
-        'WATCHED: "ci.yml:30',
+        'WATCHED: "ci.yml:8 surveys.yml:8',
+        'WATCHED: "ci.yml:8',
         "scheduled workflow surveys.yml is not watched",
     ),
     (
