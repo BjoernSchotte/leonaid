@@ -8737,6 +8737,26 @@
           "issuer": {
             "$ref": "#/components/schemas/LegalIssuerResponse"
           },
+          "legalForm": {
+            "anyOf": [
+              {
+                "enum": [
+                  "registered_association",
+                  "unregistered_association",
+                  "ggmbh",
+                  "gmbh",
+                  "cooperative",
+                  "foundation",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legalform"
+          },
           "memberPrivacyNoticeText": {
             "anyOf": [
               {
@@ -13949,6 +13969,26 @@
           },
           "issuer": {
             "$ref": "#/components/schemas/LegalIssuerRequest"
+          },
+          "legalForm": {
+            "anyOf": [
+              {
+                "enum": [
+                  "registered_association",
+                  "unregistered_association",
+                  "ggmbh",
+                  "gmbh",
+                  "cooperative",
+                  "foundation",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legalform"
           },
           "memberPrivacyNoticeText": {
             "anyOf": [

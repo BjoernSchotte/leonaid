@@ -9,6 +9,7 @@ from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
 from leonaid.domain.legal_configuration import (
     EInvoiceDecision,
     LegalConfigurationDraft,
+    LegalForm,
     RetentionSchedule,
 )
 
@@ -67,6 +68,7 @@ def valid_draft() -> LegalConfigurationDraft:
         tax_evidence_id="TAX-2026-001",
         privacy_evidence_id="PRIVACY-2026-001",
         e_invoice_evidence_id="EINVOICE-2026-001",
+        legal_form=LegalForm.REGISTERED_ASSOCIATION,
         imprint_representatives="Vorstand: Erika Muster (Präsidentin)",
         imprint_phone="+49 821 123456",
         imprint_register_court="Amtsgericht Augsburg",
@@ -148,43 +150,35 @@ def test_production_lists_missing_imprint_and_privacy_fields() -> None:
         imprint_register_number=None,
         privacy_policy_text="",
         member_privacy_notice_text=None,
+        legal_form=None,
     )
 
     assert draft.imprint_phone is None
     assert draft.privacy_policy_text is None
     assert draft.activation_blockers(production=False) == ()
     assert draft.activation_blockers(production=True) == (
+        # Without a chosen legal form no register can be required yet.
+        "legal_form_missing",
         "imprint_representatives_missing",
         "imprint_phone_missing",
-        "imprint_register_missing",
         "privacy_policy_missing",
         "member_privacy_notice_missing",
     )
 
 
-def test_register_is_required_only_for_a_registered_association() -> None:
-    for legal_name in (
-        "Lions Club Augsburg Förderverein e. V.",
-        "Förderverein e.V., Augsburg",
-        "Lions Hilfswerk eingetragener Verein",
-    ):
-        draft = replace(
-            production_draft(),
-            issuer=replace(production_draft().issuer, legal_name=legal_name),
-            imprint_register_court=None,
-            imprint_register_number=None,
-        )
-        assert draft.activation_blockers(production=True) == (
-            "imprint_register_missing",
-        ), legal_name
-
+def test_the_legal_form_is_chosen_not_read_from_the_name() -> None:
+    # "AG" in the name is an Arbeitsgemeinschaft here, not a stock company.
     unregistered = replace(
         production_draft(),
-        issuer=replace(production_draft().issuer, legal_name="Lions Club Augsburg"),
-        bank_account_holder="Lions Club Augsburg",
+        issuer=replace(
+            production_draft().issuer, legal_name="Lions AG Jugendhilfe Augsburg"
+        ),
+        bank_account_holder="Lions AG Jugendhilfe Augsburg",
+        legal_form=LegalForm.UNREGISTERED_ASSOCIATION,
         imprint_register_court=None,
         imprint_register_number=None,
     )
+    assert unregistered.required_register() is None
     assert unregistered.activation_blockers(production=True) == ()
 
 
@@ -245,26 +239,31 @@ def test_invalid_imprint_and_privacy_values_are_rejected() -> None:
 
 def test_register_follows_the_legal_form() -> None:
     cases = (
-        ("Lions Hilfswerk gGmbH", "Handelsregister"),
-        ("Club Service GmbH", "Handelsregister"),
-        ("Lions Service UG (haftungsbeschränkt)", "Handelsregister"),
-        ("Dorfladen Musterstadt eG", "Genossenschaftsregister"),
-        ("Förderverein e. V.", "Vereinsregister"),
-        ("Lions Club Musterstadt", None),
-        ("Stiftung Lions Musterstadt", None),
+        (LegalForm.REGISTERED_ASSOCIATION, "Vereinsregister"),
+        (LegalForm.GGMBH, "Handelsregister"),
+        (LegalForm.GMBH, "Handelsregister"),
+        (LegalForm.COOPERATIVE, "Genossenschaftsregister"),
+        (LegalForm.UNREGISTERED_ASSOCIATION, None),
+        (LegalForm.FOUNDATION, None),
+        (LegalForm.OTHER, None),
     )
-    for legal_name, register in cases:
+    for legal_form, register in cases:
         draft = replace(
             production_draft(),
-            issuer=replace(production_draft().issuer, legal_name=legal_name),
-            bank_account_holder=legal_name,
+            legal_form=legal_form,
             imprint_register_court=None,
             imprint_register_number=None,
         )
-        assert draft.required_register() == register, legal_name
+        assert draft.required_register() == register, legal_form
         assert (
             "imprint_register_missing" in draft.activation_blockers(production=True)
-        ) == (register is not None), legal_name
+        ) == (register is not None), legal_form
+
+
+def test_a_missing_legal_form_blocks_production_only() -> None:
+    draft = replace(production_draft(), legal_form=None)
+    assert draft.activation_blockers(production=False) == ()
+    assert draft.activation_blockers(production=True) == ("legal_form_missing",)
 
 
 def test_register_label_prefers_the_number_prefix() -> None:
@@ -278,7 +277,7 @@ def test_register_label_prefers_the_number_prefix() -> None:
     )
     unknown = replace(
         draft,
-        issuer=replace(draft.issuer, legal_name="Lions Club Augsburg"),
+        legal_form=LegalForm.OTHER,
         imprint_register_number="1234",
     )
     assert unknown.register_label() is None

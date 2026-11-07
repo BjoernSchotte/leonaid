@@ -42,6 +42,7 @@ MEMBER_NOTICE = (
     "verschlüsselt auf deinem Gerät, höchstens 14 Tage."
 )
 IMPRINT = {
+    "legalForm": "registered_association",
     "imprintRepresentatives": "Vorstand: Paula Golden (Präsidentin)",
     "imprintPhone": "+49 30 23125 044",
     "imprintRegisterCourt": "Amtsgericht Augsburg",
@@ -425,7 +426,8 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
 
     imprint = await connection.fetchrow(
         """
-        SELECT imprint_representatives, imprint_phone, imprint_register_court,
+        SELECT legal_form, imprint_representatives, imprint_phone,
+               imprint_register_court,
                imprint_register_number, imprint_vat_id,
                imprint_content_responsible_name,
                imprint_content_responsible_address,
@@ -436,6 +438,7 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         active_version_id,
     )
     if imprint is None or dict(imprint) != {
+        "legal_form": "registered_association",
         "imprint_representatives": IMPRINT["imprintRepresentatives"],
         "imprint_phone": IMPRINT["imprintPhone"],
         "imprint_register_court": IMPRINT["imprintRegisterCourt"],

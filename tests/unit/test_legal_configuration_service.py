@@ -70,6 +70,7 @@ def admin() -> IdentityPrincipal:
 def without_imprint() -> LegalConfigurationDraft:
     return replace(
         valid_draft(),
+        legal_form=None,
         imprint_representatives=None,
         imprint_phone=None,
         imprint_register_court=None,
@@ -93,6 +94,7 @@ async def test_omitted_later_fields_keep_the_previous_values() -> None:
         request_id="req-legal-carry",
         omitted_fields=frozenset(
             {
+                "legal_form",
                 "imprint_representatives",
                 "imprint_phone",
                 "imprint_register_court",
@@ -108,6 +110,7 @@ async def test_omitted_later_fields_keep_the_previous_values() -> None:
 
     saved = repository.saved
     assert saved is not None
+    assert saved.legal_form == previous.legal_form is not None
     assert saved.imprint_representatives == previous.imprint_representatives
     assert saved.imprint_phone == previous.imprint_phone
     assert saved.imprint_register_number == "VR 1234"

@@ -176,7 +176,43 @@ esac
 printf '%s\n' "DELETE FROM legal_configuration_version WHERE id = '97700000-0000-4000-8000-000000000052';" \
   | legal_sql
 compose run --rm --no-deps --entrypoint alembic api downgrade 0051_commitment_cancellation
+# Versions from before 0052: an "e. V." name gets the registered association
+# form, every other name stays without a form (chosen before activation).
+legal_sql <<'SQL'
+INSERT INTO legal_configuration_version (
+    id, version, legal_name, street_line_1, postal_code, city, country_code,
+    tax_identifier, issuer_email, bank_account_holder, iban, tax_treatment,
+    tax_rate_basis_points, tax_note, number_prefix, number_width,
+    payment_terms_days, public_order_legal_basis, public_order_notice_text,
+    consent_text_version, privacy_contact_email, invoice_retention_days,
+    commitment_retention_days, contact_retention_days,
+    consent_evidence_retention_days, audit_retention_days, e_invoice_decision,
+    tax_evidence_id, privacy_evidence_id, created_by_user_id
+)
+SELECT id::uuid, version, legal_name, 'Testweg 52', '86150', 'Augsburg', 'DE',
+    '103/052/00000', 'schema@leonaid.invalid', legal_name,
+    'DE89370400440532013000', 'tax_exempt', 0,
+    'Steuerbefreit laut Schema-Nachweis.', 'SN', 5, 14,
+    'Vertragserfüllung für den Schema-Nachweis.',
+    'Schema-Nachweis: Datenschutzhinweis für die öffentliche Bestellung.',
+    'schema-v1', 'datenschutz@leonaid.invalid', 3650, 3650, 730, 3650, 3650,
+    'pending', 'STEUER-SCHEMA-052', 'DATENSCHUTZ-SCHEMA-052',
+    '10000000-0000-4000-8000-000000000001'
+FROM (VALUES
+    ('97700000-0000-4000-8000-000000000053', 9053, 'Förderverein Schema e. V.'),
+    ('97700000-0000-4000-8000-000000000054', 9054, 'Lions AG Schema Augsburg')
+) AS form_case(id, version, legal_name);
+SQL
 compose run --rm --no-deps --entrypoint alembic api upgrade head
+forms=$(printf '%s\n' "SELECT string_agg(coalesce(legal_form, 'null'), ',' ORDER BY version) FROM legal_configuration_version WHERE version IN (9053, 9054);" \
+  | compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
+if [ "$forms" != "registered_association,null" ]; then
+  echo "poc021-test: ERROR: 0052 legal form backfill is wrong: $forms" >&2
+  exit 1
+fi
+printf '%s\n' "DELETE FROM legal_configuration_version WHERE version IN (9053, 9054);" \
+  | legal_sql
 
 echo "poc021-test: 0051 downgrade refuses recorded order cancellations"
 cancellation_sql() {

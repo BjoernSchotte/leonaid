@@ -53,12 +53,13 @@ Punkte sind keine stillschweigenden Produktzusagen.
 - Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) kommen
   aus der aktiven rechtlichen Konfiguration (Vier-Augen-Freigabe, Migration
   0052). Im Produktivbetrieb blockieren fehlende Vertretungsberechtigte,
-  fehlendes Telefon, fehlender Registereintrag bei einer Rechtsform mit
-  Register (e. V., GmbH, gGmbH, eG …), eine fehlende USt-ID, wenn die
-  Steuerkennung eine ist, fehlende Datenschutztexte und offene
-  `[[ … ]]`-Platzhalter die Aktivierung. LeonAid prüft nur das Vorhandensein,
-  nicht die rechtliche Richtigkeit der Texte. Die Rechtsform wird aus dem
-  Namen des Trägers erkannt, nicht aus einem eigenen Feld.
+  fehlendes Telefon, eine nicht gewählte Rechtsform, ein fehlender
+  Registereintrag bei einer Rechtsform mit Register (e. V., GmbH, gGmbH, eG),
+  eine fehlende USt-ID, wenn die Steuerkennung eine ist, fehlende
+  Datenschutztexte und offene `[[ … ]]`-Platzhalter die Aktivierung. LeonAid
+  prüft nur das Vorhandensein, nicht die rechtliche Richtigkeit der Texte. Die
+  Rechtsformen sind eine feste Liste; weitere Formen fallen unter „Sonstige“
+  ohne Registerpflicht.
 - Nach dem Update auf 0052 ist eine schon aktive Version unvollständig;
   `/admin/legal` warnt, bis eine neue Version aktiviert ist. Der
   Readiness-Endpunkt (`/api/health/ready`) prüft die rechtlichen Angaben

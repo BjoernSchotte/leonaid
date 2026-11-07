@@ -61,6 +61,7 @@ function values(
     eInvoiceDecision: "pending",
     eInvoiceEvidenceId: null,
     iban: "DE02120300000000202051",
+    legalForm: "registered_association",
     imprintPhone: "+49 821 123456",
     imprintRepresentatives: "Vorstand: Erika Muster (Präsidentin)",
     issuer: {
@@ -582,6 +583,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
       stateWith({
         draft: version(2, klara, {
           activationBlockers: [
+            "legal_form_missing",
             "imprint_representatives_missing",
             "imprint_phone_missing",
             "imprint_register_missing",
@@ -596,6 +598,7 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     renderPage(client);
     const blockers = (await screen.findByTestId("legal-blockers")).textContent;
     for (const label of [
+      "Die Rechtsform des Trägers ist nicht gewählt.",
       "Im Impressum fehlen die vertretungsberechtigten Personen.",
       "Im Impressum fehlt die Telefonnummer.",
       "Im Impressum fehlt der Registereintrag",
@@ -686,5 +689,72 @@ describe("LegalConfigurationPage four-eyes flow", () => {
     renderPage(client);
     await screen.findByText("Kein offener Entwurf");
     expect(screen.queryByTestId("legal-active-blockers")).toBeNull();
+  });
+
+  it("requires an explicit legal form and shows its change for review", async () => {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { legalForm: null }),
+        draft: version(2, klara, { legalForm: "unregistered_association" }),
+      }),
+    );
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/carrier",
+    );
+    const diff = within(await screen.findByTestId("legal-draft")).getByRole(
+      "group",
+      { name: "Änderungen" },
+    );
+    expect(diff.textContent).toContain("Rechtsform");
+    expect(diff.textContent).toContain("Nicht eingetragener Verein");
+  });
+
+  it("does not save without a legal form", async () => {
+    const client = fakeClient(
+      stateWith({
+        active: version(1, simone, { legalForm: null }),
+        draft: null,
+      }),
+    );
+    renderPage(client);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte füllen Sie „Rechtsform“ im Bereich Träger & Anschrift aus.",
+      ),
+    ).toBeTruthy();
+    expect(client.saveLegalConfigurationDraft).not.toHaveBeenCalled();
+  });
+
+  it("sends the chosen legal form", async () => {
+    const client = fakeClient(stateWith({ draft: null }));
+    client.saveLegalConfigurationDraft.mockResolvedValueOnce(stateWith());
+    renderPage(
+      client,
+      identity(simoneId, "Simone System"),
+      "/admin/legal/carrier",
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuen Entwurf beginnen" }),
+    );
+    const editor = screen.getByTestId("legal-editor");
+    fireEvent.change(within(editor).getByLabelText(/^Rechtsform/), {
+      target: { value: "ggmbh" },
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(client.saveLegalConfigurationDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ legalForm: "ggmbh" }),
+      ),
+    );
   });
 });

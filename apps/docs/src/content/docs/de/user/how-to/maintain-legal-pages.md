@@ -25,14 +25,17 @@ deinem Namen beziehungsweise im Menü **Mehr**.
 1. Öffne in der Verwaltung **Rechtliches** und wähle **Neuen Entwurf beginnen**
    (oder **Entwurf bearbeiten**, wenn schon ein Entwurf offen ist).
 2. Prüfe im Bereich **Träger & Anschrift** Name, Anschrift und E-Mail. Diese
-   Angaben erscheinen auch im Impressum.
+   Angaben erscheinen auch im Impressum. Wähle die **Rechtsform**, zum Beispiel
+   „Eingetragener Verein (e. V.)“ oder „Nicht eingetragener Verein“. Sie
+   bestimmt, ob ein Registereintrag ins Impressum gehört; LeonAid liest sie
+   nicht aus dem Namen.
 3. Wechsle in den Bereich **Impressum** und trage ein:
    - **Vertretungsberechtigte**: wer den Verein vertritt, mit Funktion, zum
      Beispiel der Vorstand nach § 26 BGB. Pflichtfeld.
    - **Telefon**: der zweite schnelle Kontaktweg neben der E-Mail-Adresse.
      Pflichtfeld.
    - **Registergericht** und **Registernummer**: der Registereintrag, den die
-     Rechtsform verlangt, zum Beispiel „Amtsgericht Augsburg“ und „VR 1234“
+     gewählte Rechtsform verlangt, zum Beispiel „Amtsgericht Augsburg“ und „VR 1234“
      beim eingetragenen Verein, „HRB 5678“ bei einer GmbH oder gGmbH, „GnR 12“
      bei einer Genossenschaft. Beide Felder gehören zusammen. Das Impressum
      nennt das Register nach dem Kürzel der Nummer.
@@ -89,9 +92,13 @@ fehlt:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** oder **fehlt
   die Telefonnummer**: Bereich **Impressum** ergänzen.
-- **Im Impressum fehlt der Registereintrag**: Der Name des Trägers enthält
-  eine Rechtsform mit Register, zum Beispiel „e. V.“, „GmbH“, „gGmbH“ oder
-  „eG“. Trage Registergericht und Registernummer ein.
+- **Die Rechtsform des Trägers ist nicht gewählt**: Wähle sie im Bereich
+  **Träger & Anschrift**. Versionen von vor dem Update haben sie nur, wenn der
+  Name „e. V.“ enthielt.
+- **Im Impressum fehlt der Registereintrag**: Die gewählte Rechtsform hat ein
+  Register (e. V., GmbH, gGmbH, eG). Trage Registergericht und Registernummer
+  ein. Ein nicht eingetragener Verein, eine Stiftung und „Sonstige“ brauchen
+  keinen Eintrag.
 - **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
   Impressum**: Trage sie unter **Umsatzsteuer-ID** ein.
 - **Die Datenschutzerklärung fehlt** oder **Der Datenschutzhinweis für

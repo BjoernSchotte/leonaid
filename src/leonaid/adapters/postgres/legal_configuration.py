@@ -17,6 +17,7 @@ from leonaid.domain.legal_configuration import (
     LegalConfigurationDraft,
     LegalConfigurationState,
     LegalConfigurationVersion,
+    LegalForm,
     RetentionSchedule,
 )
 
@@ -87,13 +88,14 @@ class AsyncpgLegalConfigurationRepository:
                         imprint_register_court, imprint_register_number,
                         imprint_vat_id, imprint_content_responsible_name,
                         imprint_content_responsible_address,
-                        privacy_policy_text, member_privacy_notice_text
+                        privacy_policy_text, member_privacy_notice_text,
+                        legal_form
                     )
                     VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
                         $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33,
-                        $34, $35, $36, $37, $38, $39, $40, $41, $42
+                        $34, $35, $36, $37, $38, $39, $40, $41, $42, $43
                     )
                     """,
                     version_id,
@@ -138,6 +140,11 @@ class AsyncpgLegalConfigurationRepository:
                     configuration.imprint_content_responsible_address,
                     configuration.privacy_policy_text,
                     configuration.member_privacy_notice_text,
+                    (
+                        configuration.legal_form.value
+                        if configuration.legal_form is not None
+                        else None
+                    ),
                 )
                 revision = await self._update_state(
                     connection,
@@ -411,6 +418,11 @@ class AsyncpgLegalConfigurationRepository:
             e_invoice_evidence_id=(
                 str(row["e_invoice_evidence_id"])
                 if row["e_invoice_evidence_id"] is not None
+                else None
+            ),
+            legal_form=(
+                LegalForm(str(row["legal_form"]))
+                if row["legal_form"] is not None
                 else None
             ),
             imprint_representatives=_optional(row, "imprint_representatives"),

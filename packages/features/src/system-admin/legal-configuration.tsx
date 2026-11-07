@@ -64,6 +64,7 @@ import {
 
 interface LegalForm {
   legalName: string;
+  legalForm: string;
   streetLine1: string;
   postalCode: string;
   city: string;
@@ -127,6 +128,7 @@ const emptyForm: LegalForm = {
   imprintVatId: "",
   invoiceRetentionDays: "3650",
   issuerEmail: "",
+  legalForm: "",
   legalName: "",
   memberPrivacyNoticeText: MEMBER_PRIVACY_NOTICE_TEMPLATE,
   numberPrefix: "KT",
@@ -154,11 +156,12 @@ const blockerLabels: Record<string, string> = {
     "E-Rechnungen sind erforderlich; das liegt außerhalb des ERP-light-Piloten.",
   synthetic_or_placeholder_value:
     "Produktive Angaben enthalten noch Test- oder Platzhalterwerte.",
+  legal_form_missing: "Die Rechtsform des Trägers ist nicht gewählt.",
   imprint_representatives_missing:
     "Im Impressum fehlen die vertretungsberechtigten Personen.",
   imprint_phone_missing: "Im Impressum fehlt die Telefonnummer.",
   imprint_register_missing:
-    "Im Impressum fehlt der Registereintrag (Gericht und Nummer), den die Rechtsform verlangt.",
+    "Im Impressum fehlt der Registereintrag (Gericht und Nummer), den die gewählte Rechtsform verlangt.",
   imprint_vat_id_missing:
     "Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins Impressum.",
   privacy_policy_missing: "Die Datenschutzerklärung fehlt.",
@@ -191,6 +194,7 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
     imprintVatId: values.imprintVatId ?? "",
     invoiceRetentionDays: String(values.retention.invoiceDays),
     issuerEmail: values.issuer.email,
+    legalForm: values.legalForm ?? "",
     legalName: values.issuer.legalName,
     // Shows what is stored: an empty text stays empty (four-eyes review).
     memberPrivacyNoticeText: values.memberPrivacyNoticeText ?? "",
@@ -273,6 +277,8 @@ function requestFromForm(
       streetLine1: form.streetLine1,
       taxIdentifier: form.taxIdentifier.toUpperCase(),
     },
+    legalForm: (form.legalForm ||
+      null) as SaveLegalConfigurationDraftRequest["legalForm"],
     memberPrivacyNoticeText: optionalText(form.memberPrivacyNoticeText),
     numberPrefix: form.numberPrefix.toUpperCase(),
     numberWidth: toInteger(form.numberWidth),
@@ -341,6 +347,22 @@ const PARTS = [
         hint: "Der vollständige juristische Name des Vereins oder Trägers, genau wie auf Rechnungen.",
         placeholder: "z. B. Förderverein Lions Club Musterstadt e. V.",
         wide: true,
+      },
+      {
+        key: "legalForm",
+        label: "Rechtsform",
+        hint: "Bestimmt, welcher Registereintrag ins Impressum gehört. LeonAid liest die Rechtsform nicht aus dem Namen.",
+        kind: "select",
+        options: [
+          ["", "Bitte wählen"],
+          ["registered_association", "Eingetragener Verein (e. V.)"],
+          ["unregistered_association", "Nicht eingetragener Verein"],
+          ["ggmbh", "Gemeinnützige GmbH (gGmbH)"],
+          ["gmbh", "GmbH"],
+          ["cooperative", "Eingetragene Genossenschaft (eG)"],
+          ["foundation", "Stiftung"],
+          ["other", "Sonstige"],
+        ],
       },
       {
         key: "issuerEmail",
@@ -414,7 +436,7 @@ const PARTS = [
       {
         key: "imprintRegisterCourt",
         label: "Registergericht",
-        hint: "Bei eingetragenem Verein, GmbH, gGmbH oder Genossenschaft: das Registergericht. Zusammen mit der Registernummer angeben.",
+        hint: "Pflicht, wenn die Rechtsform ein Register hat (e. V., GmbH, gGmbH, eG): das Registergericht. Zusammen mit der Registernummer angeben.",
         placeholder: "Amtsgericht Augsburg",
         optional: true,
       },

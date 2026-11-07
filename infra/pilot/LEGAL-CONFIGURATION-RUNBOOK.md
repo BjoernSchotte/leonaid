@@ -80,8 +80,10 @@ golden/test/placeholder values such as `.invalid`, `.test`, `example.org`,
 it blocks a version when:
 
 - the representatives or the telephone number are missing;
-- the legal form in the carrier's name (e. V., GmbH, gGmbH, UG, AG, KG, OHG,
-  e. K., eG, PartG) requires a register entry and none is given;
+- no legal form is chosen (an explicit field in Träger & Anschrift; the
+  migration sets "eingetragener Verein" only for names with "e. V.");
+- the chosen legal form (e. V., GmbH, gGmbH, eG) requires a register entry
+  and none is given;
 - the invoice tax identifier is a VAT ID and the Impressum VAT ID is empty;
 - the privacy policy or the members' privacy notice is missing;
 - any text still contains a template placeholder `[[ … ]]`.

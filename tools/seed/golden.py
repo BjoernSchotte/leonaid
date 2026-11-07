@@ -905,7 +905,7 @@ async def seed_identity(
             imprint_register_court, imprint_register_number,
             imprint_content_responsible_name,
             imprint_content_responsible_address,
-            privacy_policy_text, member_privacy_notice_text
+            privacy_policy_text, member_privacy_notice_text, legal_form
         )
         VALUES (
             $1, 1, 'Lions Hilfswerk LeonAid Golden e.V.', 'Clubweg 1',
@@ -928,7 +928,7 @@ async def seed_identity(
             '+49 30 23125 044',
             'Amtsgericht Augsburg', 'VR 0044',
             'Paula Golden', 'Clubweg 1, 86150 Augsburg',
-            $4, $5
+            $4, $5, 'registered_association'
         )
         """,
         GOLDEN_LEGAL_CONFIGURATION_ID,

@@ -25,14 +25,17 @@ app and in the acquisition app, the links are below your name or in the
 1. In the admin app, open **Rechtliches** and choose **Neuen Entwurf
    beginnen** (or **Entwurf bearbeiten** if a draft is open already).
 2. In **Träger & Anschrift**, check name, address and e-mail. These also
-   appear in the Impressum.
+   appear in the Impressum. Choose the **Rechtsform** (legal form), for example
+   "Eingetragener Verein (e. V.)" or "Nicht eingetragener Verein". It decides
+   whether a register entry belongs in the Impressum; LeonAid does not read it
+   from the name.
 3. Switch to the **Impressum** part and enter:
    - **Vertretungsberechtigte**: who represents the club, with their function,
      for example the board under § 26 BGB. Required.
    - **Telefon**: the second fast contact channel next to the e-mail address.
      Required.
-   - **Registergericht** and **Registernummer**: the register entry the legal
-     form requires, for example "Amtsgericht Augsburg" and "VR 1234" for a
+   - **Registergericht** and **Registernummer**: the register entry the chosen
+     legal form requires, for example "Amtsgericht Augsburg" and "VR 1234" for a
      registered association, "HRB 5678" for a GmbH or gGmbH, "GnR 12" for a
      cooperative. Both fields belong together. The Impressum names the
      register from the number's prefix.
@@ -85,9 +88,12 @@ aktivierbar**:
 
 - **Im Impressum fehlen die vertretungsberechtigten Personen** or **fehlt die
   Telefonnummer**: complete the **Impressum** part.
-- **Im Impressum fehlt der Registereintrag**: the carrier's name contains a
-  legal form with a register, for example "e. V.", "GmbH", "gGmbH" or "eG".
-  Enter the register court and number.
+- **Die Rechtsform des Trägers ist nicht gewählt**: choose it in **Träger &
+  Anschrift**. Versions from before the update have it only if the name
+  contained "e. V.".
+- **Im Impressum fehlt der Registereintrag**: the chosen legal form has a
+  register (e. V., GmbH, gGmbH, eG). Enter the register court and number. An
+  unregistered association, a foundation and "Sonstige" need none.
 - **Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins
   Impressum**: enter it under **Umsatzsteuer-ID**.
 - **Die Datenschutzerklärung fehlt** or **Der Datenschutzhinweis für

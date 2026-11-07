@@ -371,6 +371,18 @@ class PrivacyErasureResponse(TransportModel):
     completed_at: datetime
 
 
+# Carrier's legal form; decides the register § 5 Abs. 1 Nr. 4 DDG requires.
+LegalFormValue = Literal[
+    "registered_association",
+    "unregistered_association",
+    "ggmbh",
+    "gmbh",
+    "cooperative",
+    "foundation",
+    "other",
+]
+
+
 class LegalIssuerRequest(TransportModel):
     legal_name: str = Field(min_length=2, max_length=200)
     street_line_1: str = Field(min_length=2, max_length=200)
@@ -414,6 +426,7 @@ class SaveLegalConfigurationDraftRequest(TransportModel):
         min_length=3,
         max_length=120,
     )
+    legal_form: LegalFormValue | None = None
     # Impressum (§ 5 DDG). Optional in the contract; production activation
     # lists the missing mandatory ones as activation blockers.
     imprint_representatives: str | None = Field(default=None, max_length=1_000)
@@ -477,6 +490,7 @@ class LegalConfigurationValuesResponse(TransportModel):
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
     activation_blockers: list[str]
+    legal_form: LegalFormValue | None = None
     imprint_representatives: str | None = None
     imprint_phone: str | None = None
     imprint_register_court: str | None = None

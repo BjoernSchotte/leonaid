@@ -9,6 +9,11 @@ responsible for editorial content) and the texts of the public privacy page:
 the privacy policy and the members' privacy notice. All columns are nullable:
 versions saved before this revision have none of them, and production
 activation (not the schema) requires the mandatory ones.
+
+The carrier's legal form is now an explicit field (it decides which register
+§ 5 Abs. 1 Nr. 4 DDG requires). Existing versions whose name says "e. V." or
+"eingetragener Verein" are set to `registered_association`; all others stay
+NULL and must be chosen before a production activation.
 """
 
 from __future__ import annotations
@@ -22,6 +27,17 @@ down_revision: str | None = "0051_commitment_cancellation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+LEGAL_FORMS = (
+    "registered_association",
+    "unregistered_association",
+    "ggmbh",
+    "gmbh",
+    "cooperative",
+    "foundation",
+    "other",
+)
+# Published content the old schema cannot hold; legal_form is not listed: it
+# is either backfilled from the name or a setting, not published text.
 COLUMNS = (
     "imprint_representatives",
     "imprint_phone",
@@ -39,6 +55,7 @@ def upgrade() -> None:
     op.execute(
         """
         ALTER TABLE legal_configuration_version
+            ADD COLUMN legal_form text,
             ADD COLUMN imprint_representatives text,
             ADD COLUMN imprint_phone text,
             ADD COLUMN imprint_register_court text,
@@ -72,6 +89,23 @@ def upgrade() -> None:
             )
         """
     )
+    forms = ", ".join(f"'{form}'" for form in LEGAL_FORMS)
+    op.execute(
+        f"""
+        ALTER TABLE legal_configuration_version
+            ADD CONSTRAINT ck_legal_configuration_legal_form CHECK (
+                legal_form IS NULL OR legal_form IN ({forms})
+            )
+        """
+    )
+    op.execute(
+        r"""
+        UPDATE legal_configuration_version
+        SET legal_form = 'registered_association'
+        WHERE legal_name ~* '(^|[^[:alnum:]])e\.\s*v\.?($|[\s,;)])'
+           OR legal_name ~* 'eingetragener\s+verein'
+        """
+    )
 
 
 def downgrade() -> None:
@@ -95,5 +129,5 @@ def downgrade() -> None:
     )
     op.execute(
         "ALTER TABLE legal_configuration_version "
-        + ", ".join(f"DROP COLUMN {column}" for column in COLUMNS)
+        + ", ".join(f"DROP COLUMN {column}" for column in (*COLUMNS, "legal_form"))
     )

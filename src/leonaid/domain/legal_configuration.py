@@ -24,26 +24,6 @@ NUMBER_PREFIX = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,23}$")
 PHONE = re.compile(r"^[+(]?[0-9][0-9 ()/.-]{4,28}[0-9]$")
 # § 27a UStG identification number: country prefix and 2–12 characters.
 VAT_ID = re.compile(r"^[A-Z]{2}[A-Z0-9]{2,12}$")
-# § 5 Abs. 1 Nr. 4 DDG: the register a carrier is entered in follows from the
-# legal form in its (casefolded) name. First match wins.
-LEGAL_FORM_REGISTERS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (
-        re.compile(r"(?:\be\.\s*v\.?(?=$|[\s,;)])|\beingetragener verein\b)"),
-        "Vereinsregister",
-    ),
-    (
-        re.compile(r"(?:\beg\b|\beingetragene genossenschaft\b)"),
-        "Genossenschaftsregister",
-    ),
-    (re.compile(r"\bpartg(?:\s*mbb)?\b"), "Partnerschaftsregister"),
-    (
-        re.compile(
-            r"(?:\bg?gmbh\b|\bug\b|\bg?ag\b|\bkgaa\b|\bkg\b|\bohg\b"
-            r"|\be\.\s*k\.?(?=$|[\s,;)]))"
-        ),
-        "Handelsregister",
-    ),
-)
 # The register number's prefix names the register more precisely.
 REGISTER_NUMBER_PREFIXES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^vr\b"), "Vereinsregister"),
@@ -56,6 +36,7 @@ REGISTER_NUMBER_PREFIXES: tuple[tuple[re.Pattern[str], str], ...] = (
 # version's values instead of clearing them.
 LATER_OPTIONAL_FIELDS = frozenset(
     {
+        "legal_form",
         "imprint_representatives",
         "imprint_phone",
         "imprint_register_court",
@@ -87,6 +68,28 @@ def _block_text(value: str | None) -> str | None:
     lines = [line.rstrip() for line in value.replace("\r\n", "\n").split("\n")]
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     return text or None
+
+
+class LegalForm(StrEnum):
+    """Legal form of the carrier, chosen explicitly (never read from the name)."""
+
+    REGISTERED_ASSOCIATION = "registered_association"
+    UNREGISTERED_ASSOCIATION = "unregistered_association"
+    GGMBH = "ggmbh"
+    GMBH = "gmbh"
+    COOPERATIVE = "cooperative"
+    FOUNDATION = "foundation"
+    OTHER = "other"
+
+
+# § 5 Abs. 1 Nr. 4 DDG: the register the legal form requires. Forms without
+# an entry here need none (unregistered association, foundation, other).
+LEGAL_FORM_REGISTERS: dict[LegalForm, str] = {
+    LegalForm.REGISTERED_ASSOCIATION: "Vereinsregister",
+    LegalForm.GGMBH: "Handelsregister",
+    LegalForm.GMBH: "Handelsregister",
+    LegalForm.COOPERATIVE: "Genossenschaftsregister",
+}
 
 
 class EInvoiceDecision(StrEnum):
@@ -141,6 +144,9 @@ class LegalConfigurationDraft:
     tax_evidence_id: str
     privacy_evidence_id: str
     e_invoice_evidence_id: str | None
+    # Carrier's legal form; None for versions before 0052 without a known
+    # form. Production activation requires it.
+    legal_form: LegalForm | None = None
     # Impressum (§ 5 DDG, § 18 Abs. 2 MStV). Optional in the type because
     # versions before 0052 have none; production activation requires the
     # mandatory ones (activation_blockers).
@@ -333,12 +339,10 @@ class LegalConfigurationDraft:
         object.__setattr__(self, "imprint_vat_id", vat_id)
 
     def required_register(self) -> str | None:
-        """The register the carrier's legal form implies, if any."""
-        name = self.issuer.legal_name.casefold()
-        for pattern, register in LEGAL_FORM_REGISTERS:
-            if pattern.search(name):
-                return register
-        return None
+        """The register the carrier's legal form requires, if any."""
+        if self.legal_form is None:
+            return None
+        return LEGAL_FORM_REGISTERS.get(self.legal_form)
 
     def register_label(self) -> str | None:
         """Name of the entered register for the Impressum, or None."""
@@ -401,6 +405,8 @@ class LegalConfigurationDraft:
                 )
             ):
                 blockers.append("synthetic_or_placeholder_value")
+            if self.legal_form is None:
+                blockers.append("legal_form_missing")
             # § 5 DDG: who represents the club and a second fast channel.
             if self.imprint_representatives is None:
                 blockers.append("imprint_representatives_missing")

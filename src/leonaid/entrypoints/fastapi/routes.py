@@ -218,6 +218,7 @@ from leonaid.domain.legal_configuration import (
     LegalConfigurationDraft,
     LegalConfigurationState,
     LegalConfigurationVersion,
+    LegalForm,
     RetentionSchedule,
 )
 from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
@@ -860,6 +861,9 @@ def legal_configuration_version_response(
             privacy_evidence_id=values.privacy_evidence_id,
             e_invoice_evidence_id=values.e_invoice_evidence_id,
             activation_blockers=list(values.activation_blockers(production=production)),
+            legal_form=(
+                values.legal_form.value if values.legal_form is not None else None
+            ),
             imprint_representatives=values.imprint_representatives,
             imprint_phone=values.imprint_phone,
             imprint_register_court=values.imprint_register_court,
@@ -2956,6 +2960,9 @@ async def save_legal_configuration_draft(
             tax_evidence_id=body.tax_evidence_id,
             privacy_evidence_id=body.privacy_evidence_id,
             e_invoice_evidence_id=body.e_invoice_evidence_id,
+            legal_form=(
+                LegalForm(body.legal_form) if body.legal_form is not None else None
+            ),
             imprint_representatives=body.imprint_representatives,
             imprint_phone=body.imprint_phone,
             imprint_register_court=body.imprint_register_court,
