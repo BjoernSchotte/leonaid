@@ -36,6 +36,8 @@ CMS_SECRETS = ("PGPASSWORD", "S3_SECRET_ACCESS_KEY", "EMDASH_ENCRYPTION_KEY")
 CADDYFILES = {
     "single": "/infra/pilot/Caddyfile",
     "split": "/infra/pilot/Caddyfile.split",
+    # Admin host plus campaign hosts, no general public host (§6.6).
+    "admin-only": "/infra/pilot/Caddyfile.admin-only",
 }
 # Caddy reads the aliases as site addresses: separated by ", " or spaces.
 HOSTNAME = re.compile(
@@ -440,6 +442,25 @@ def validate_hosts(
     site_base = str(api_environment.get("LEONAID_SITE_BASE_URL") or "")
     admin_base = string_value(api_environment, "LEONAID_PUBLIC_BASE_URL")
     allowed = split_hosts(api_environment.get("LEONAID_ALLOWED_ORIGINS"))
+    if caddyfile.endswith(CADDYFILES["admin-only"]):
+        validate_admin_only(
+            services,
+            api_environment,
+            public_domain=public_domain,
+            admin_domain=admin_domain,
+            aliases=aliases,
+            public_origins=public_origins,
+            site_base=site_base,
+            admin_base=admin_base,
+            allowed=allowed,
+        )
+        return
+    if str(api_environment.get("LEONAID_PUBLIC_HOST_ENABLED", "true")).casefold() != (
+        "true"
+    ):
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_HOST_ENABLED=false needs Caddyfile.admin-only"
+        )
     valid_hostname(public_domain, "LEONAID_PUBLIC_DOMAIN")
     if not admin_domain:
         if not (
@@ -499,6 +520,56 @@ def validate_hosts(
         != admin_domain
         or str(public_environment.get("LEONAID_PUBLIC_DOMAIN") or "").casefold()
         != public_domain
+    ):
+        raise DeploymentContractError("public app hosts differ from the proxy hosts")
+
+
+def validate_admin_only(
+    services: dict[str, Any],
+    api_environment: dict[str, Any],
+    *,
+    public_domain: str,
+    admin_domain: str,
+    aliases: list[str],
+    public_origins: list[str],
+    site_base: str,
+    admin_base: str,
+    allowed: list[str],
+) -> None:
+    """Admin host plus campaign hosts, no general public host (§6.6)."""
+
+    if public_domain or aliases or public_origins:
+        raise DeploymentContractError(
+            "without a public host LEONAID_PUBLIC_DOMAIN, its aliases and "
+            "LEONAID_PUBLIC_ORIGINS stay empty"
+        )
+    valid_hostname(admin_domain, "LEONAID_ADMIN_DOMAIN")
+    admin_origin = f"https://{admin_domain}"
+    if origin_of(admin_base) != admin_origin:
+        raise DeploymentContractError(
+            "LEONAID_PUBLIC_BASE_URL must be the admin host origin"
+        )
+    # Survey links and legal pages stay on the admin host (§6.6).
+    if site_base and origin_of(site_base) != admin_origin:
+        raise DeploymentContractError(
+            "without a public host LEONAID_SITE_BASE_URL is the admin host"
+        )
+    if allowed != [admin_origin]:
+        raise DeploymentContractError(
+            "LEONAID_ALLOWED_ORIGINS must be exactly the admin origin"
+        )
+    if str(api_environment.get("LEONAID_PUBLIC_HOST_ENABLED") or "").casefold() != (
+        "false"
+    ):
+        raise DeploymentContractError(
+            "Caddyfile.admin-only needs LEONAID_PUBLIC_HOST_ENABLED=false"
+        )
+    public = object_value(services["public"], "services.public")
+    public_environment = object_value(public.get("environment"), "public.environment")
+    if str(
+        public_environment.get("LEONAID_ADMIN_DOMAIN") or ""
+    ).casefold() != admin_domain or str(
+        public_environment.get("LEONAID_PUBLIC_DOMAIN") or ""
     ):
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
 

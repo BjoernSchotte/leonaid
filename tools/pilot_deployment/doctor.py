@@ -182,7 +182,14 @@ def validate_environment(
 ) -> str:
     require_private_file(env_file, "environment_file")
     require_external_path(env_file, root, "environment_file")
-    missing = sorted(key for key in REQUIRED_ENVIRONMENT_KEYS if not values.get(key))
+    # Without a general public host (§6.6) LEONAID_PUBLIC_DOMAIN stays empty.
+    no_public_host = values.get("LEONAID_PUBLIC_HOST_ENABLED", "true") == "false"
+    missing = sorted(
+        key
+        for key in REQUIRED_ENVIRONMENT_KEYS
+        if not values.get(key)
+        and not (no_public_host and key == "LEONAID_PUBLIC_DOMAIN")
+    )
     if missing:
         raise DoctorError("environment_keys_missing:" + ",".join(missing))
 

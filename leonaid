@@ -2224,7 +2224,10 @@ crm_admin() {
   }
   project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
   if [ -z "$ssh_target" ]; then
-    ssh_target="ADMIN@$(pilot_environment_value LEONAID_PUBLIC_DOMAIN "$env_file")"
+    ssh_host=$(pilot_environment_value LEONAID_PUBLIC_DOMAIN "$env_file")
+    # Without a public host (multi-domain §6.6) the admin host is the server.
+    [ -n "$ssh_host" ] || ssh_host=$(pilot_environment_value LEONAID_ADMIN_DOMAIN "$env_file")
+    ssh_target="ADMIN@$ssh_host"
   fi
   case "$ssh_target" in
     -*|*[!A-Za-z0-9@._:-]*)

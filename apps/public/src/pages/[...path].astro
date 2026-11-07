@@ -8,7 +8,11 @@ import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { resolvePublicTheme } from "../themes";
 import { campaignRedirect } from "../lib/campaign-redirect";
-import { canonicalRedirect } from "../lib/site-hosts";
+import {
+  adminOnlyTarget,
+  canonicalRedirect,
+  hasPublicHost,
+} from "../lib/site-hosts";
 import { moduleEnabled } from "../lib/modules";
 import { listActiveCampaigns } from "../lib/core";
 
@@ -20,6 +24,34 @@ const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 let state: "home" | "inactive" | "not-found" | "unavailable" | "action" =
   "home";
 let route = null;
+
+// Without a general public host (§6.6, review N4) the admin host never
+// renders campaign or alias pages: it redirects to the campaign host or
+// answers 404.
+if (!hasPublicHost()) {
+  const target = adminOnlyTarget(segments);
+  if (target === null)
+    return new Response("Not Found", {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  const result = await Astro.callAction(actions.resolvePublicAction, target);
+  if (result.error && result.error.code !== "NOT_FOUND")
+    return new Response("Vorübergehend nicht erreichbar", {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "Retry-After": "30" },
+    });
+  if (
+    !result.error &&
+    result.data.campaignHostUrl &&
+    ["GET", "HEAD"].includes(Astro.request.method)
+  )
+    return canonicalRedirect(result.data.campaignHostUrl);
+  return new Response("Not Found", {
+    status: 404,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
 
 if (segments.length > 0) {
   const routeKind =

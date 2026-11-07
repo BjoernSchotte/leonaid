@@ -136,6 +136,7 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.site_hosts import (
+    action_router as action_url_router,
     infrastructure_router as site_host_infrastructure_router,
     public_router as public_site_router,
     router as site_host_router,
@@ -812,6 +813,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             site_host_router,
             public_site_router,
             site_host_infrastructure_router,
+            action_url_router,
         ),
         disabled=disabled_modules,
     )

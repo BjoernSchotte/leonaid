@@ -32,7 +32,7 @@ services:
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
     environment:
       CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL is missing}
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       # Set together with LEONAID_PROXY_CADDYFILE=Caddyfile.split
       # (specs/multi-domain stage 1); empty for one host.
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
@@ -127,7 +127,7 @@ services:
     build: !reset null
     environment:
       # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
@@ -148,7 +148,7 @@ services:
       EMDASH_SITE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
       # Public origin of campaign pages; empty = EMDASH_SITE_URL (one host).
       LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
-      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
@@ -218,7 +218,7 @@ services:
       PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing}
       PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
       # Every certificate the edge serves: public host, admin host, aliases.
-      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing} ${LEONAID_ADMIN_DOMAIN:-} ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
+      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:-} ${LEONAID_ADMIN_DOMAIN:-} ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
       PILOT_TLS_PORT: "443"
       PILOT_TLS_CA_FILE: ${LEONAID_TLS_CA_FILE:-}
     volumes:

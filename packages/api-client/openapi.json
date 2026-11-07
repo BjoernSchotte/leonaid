@@ -882,6 +882,51 @@
         "title": "ActionContexts",
         "type": "object"
       },
+      "ActionEditionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "atRoot": {
+            "title": "Atroot",
+            "type": "boolean"
+          },
+          "editionUrl": {
+            "title": "Editionurl",
+            "type": "string"
+          },
+          "hostStatus": {
+            "enum": [
+              "pending",
+              "verified",
+              "active",
+              "disabled"
+            ],
+            "title": "Hoststatus",
+            "type": "string"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "isPrimary": {
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "hostStatus",
+          "segment",
+          "atRoot",
+          "isPrimary",
+          "editionUrl"
+        ],
+        "title": "ActionEditionResponse",
+        "type": "object"
+      },
       "ActionGoalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1025,6 +1070,35 @@
           "allowedTransitions"
         ],
         "title": "ActionManagementResponse",
+        "type": "object"
+      },
+      "ActionPublicUrlsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalurl"
+          },
+          "editions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionEditionResponse"
+            },
+            "title": "Editions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonicalUrl",
+          "editions"
+        ],
+        "title": "ActionPublicUrlsResponse",
         "type": "object"
       },
       "ActionTemplateListResponse": {
@@ -24326,6 +24400,110 @@
           }
         },
         "summary": "Get Charity Action Management",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/public-urls": {
+      "get": {
+        "description": "Read only; domains are managed by the system admin (D5).",
+        "operationId": "getActionPublicUrls",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionPublicUrlsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Action Public Urls",
         "tags": [
           "actions"
         ]

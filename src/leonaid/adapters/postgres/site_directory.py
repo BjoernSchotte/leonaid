@@ -67,6 +67,22 @@ class PublicSite:
     history: tuple[PublicHistory, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ActionEdition:
+    hostname: str
+    host_status: str
+    segment: str
+    at_root: bool
+    is_primary: bool
+    edition_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class ActionPublicUrls:
+    canonical_url: str | None
+    editions: tuple[ActionEdition, ...]
+
+
 class AsyncpgSiteDirectory:
     def __init__(self, pool: asyncpg.Pool[Any], canonical: CanonicalResolver) -> None:
         self._pool = pool
@@ -222,6 +238,31 @@ class AsyncpgSiteDirectory:
         if action_id is None:
             return None
         return (await self.campaign_host_urls([action_id])).get(action_id)
+
+    async def action_urls(self, action_id: UUID) -> ActionPublicUrls:
+        """Canonical URL and live editions of one action (§7.1, §6.6)."""
+        now = datetime.now(timezone.utc)
+        async with self._pool.acquire() as db:
+            rows = await db.fetch(
+                _BINDING_SELECT + " WHERE b.action_id=$1 AND b.valid_to IS NULL "
+                "ORDER BY b.is_primary DESC, h.hostname",
+                action_id,
+            )
+            canonical = await self._canonical.for_actions(db, [action_id], now)
+        return ActionPublicUrls(
+            canonical_url=canonical.get(action_id),
+            editions=tuple(
+                ActionEdition(
+                    hostname=row["hostname"],
+                    host_status=row["host_status"],
+                    segment=row["edition_segment"],
+                    at_root=row["at_root"],
+                    is_primary=row["is_primary"],
+                    edition_url=edition_url(live_edition(row, now)),
+                )
+                for row in rows
+            ),
+        )
 
     async def is_active(self, hostname: str) -> bool:
         async with self._pool.acquire() as db:
