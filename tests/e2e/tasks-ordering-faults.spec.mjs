@@ -48,12 +48,41 @@ async function holdMove(page, taskId) {
   return { held, release: () => release(), response };
 }
 
+/** Counts the PATCH requests to the task's position from now on. */
+function countMoves(page, taskId) {
+  const counter = { count: 0 };
+  page.on("request", (request) => {
+    if (
+      request.method() === "PATCH" &&
+      request.url().endsWith(`/api/v1/tasks/${taskId}/position`)
+    ) {
+      counter.count += 1;
+    }
+  });
+  return counter;
+}
+
+/** Picks up the focused grip, moves it one row down and drops it. */
+async function keyboardMoveDown(page) {
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(50);
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Space");
+}
+
+function gripOf(page, task) {
+  return page.getByRole("button", {
+    name: `Aufgabe verschieben: ${task.title}`,
+  });
+}
+
 test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   browser,
 }) => {
   const owner = await signedInContext(browser, 0, { width: 1440 });
   // No plans: the S6 journey counts the plans of both users.
-  const { list, tasks } = await createFixture(owner, null);
+  const { list, epics, tasks } = await createFixture(owner, null);
 
   const page = await owner.newPage();
   await page.goto(`${baseURL}/admin/tasks/${list.id}?sort=created`);
@@ -63,21 +92,22 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   await expect.poll(() => rowTitles(page)).toEqual(titles);
 
   // Keyboard: pick up the first grip, move it one down, drop it.
-  const grip = page.getByRole("button", {
-    name: `Aufgabe verschieben: ${tasks[0].title}`,
-  });
+  const grip = gripOf(page, tasks[0]);
   const keyboardMove = await holdMove(page, tasks[0].id);
+  const gripRequests = countMoves(page, tasks[0].id);
   await grip.focus();
-  await page.keyboard.press("Space");
-  await page.waitForTimeout(50);
-  await page.keyboard.press("ArrowDown");
-  await page.waitForTimeout(100);
-  await page.keyboard.press("Space");
+  await keyboardMoveDown(page);
   await keyboardMove.held;
   // While it saves the grip is inert but still focusable and focused.
   await expect(grip).toHaveAttribute("aria-disabled", "true");
   // Not the HTML attribute: that would drop focus to <body>.
   expect(await grip.evaluate((element) => element.disabled)).toBe(false);
+  await expect(grip).toBeFocused();
+  // Inert while saving: a second pick-up and move starts no drag and sends
+  // nothing.
+  await keyboardMoveDown(page);
+  await expect(grip).not.toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".tasks-page .row[data-dragging]")).toHaveCount(0);
   await expect(grip).toBeFocused();
   keyboardMove.release();
   expect((await keyboardMove.response).ok()).toBe(true);
@@ -86,20 +116,13 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
     .toEqual([titles[1], titles[0], ...titles.slice(2)]);
   await expect(grip).toHaveAttribute("aria-disabled", "false");
   await expect(grip).toBeFocused();
+  expect(gripRequests.count).toBe(1);
 
   // Pane: "Nach oben" by keyboard keeps its focus while the move saves.
   const pane = await openTask(page, { id: tasks[3].id });
   const up = pane.getByRole("button", { name: "Nach oben" });
   const paneMove = await holdMove(page, tasks[3].id);
-  let paneRequests = 0;
-  page.on("request", (request) => {
-    if (
-      request.method() === "PATCH" &&
-      request.url().endsWith(`/api/v1/tasks/${tasks[3].id}/position`)
-    ) {
-      paneRequests += 1;
-    }
-  });
+  const paneRequests = countMoves(page, tasks[3].id);
   await up.focus();
   await page.keyboard.press("Enter");
   await paneMove.held;
@@ -110,11 +133,47 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   await page.keyboard.press("Enter");
   paneMove.release();
   expect((await paneMove.response).ok()).toBe(true);
-  await expect
-    .poll(() => rowTitles(page))
-    .toEqual([titles[1], titles[0], titles[3], titles[2], ...titles.slice(4)]);
+  const afterPane = [
+    titles[1],
+    titles[0],
+    titles[3],
+    titles[2],
+    ...titles.slice(4),
+  ];
+  await expect.poll(() => rowTitles(page)).toEqual(afterPane);
   await expect(up).not.toHaveAttribute("aria-disabled", "true");
   await expect(up).toBeFocused();
-  expect(paneRequests).toBe(1);
+  expect(paneRequests.count).toBe(1);
+
+  // Into another section: the row leaves its group and is mounted anew
+  // under the other section header; focus must follow it to the new grip.
+  await page.keyboard.press("Escape");
+  const last = await openTask(page, { id: tasks[11].id });
+  await last.getByLabel("In Abschnitt").selectOption(epics[1].id);
+  const sectionResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith(`/api/v1/tasks/${tasks[11].id}/position`),
+  );
+  await last.getByRole("button", { name: "Verschieben", exact: true }).click();
+  expect((await sectionResponse).ok()).toBe(true);
+  await page.keyboard.press("Escape");
+  const section = page.locator(".group-header", { hasText: epics[1].title });
+  await expect(section).toBeVisible();
+  const crossing = gripOf(page, tasks[10]);
+  const oldGrip = await crossing.elementHandle();
+  const crossMove = await holdMove(page, tasks[10].id);
+  await crossing.focus();
+  await keyboardMoveDown(page);
+  await crossMove.held;
+  await expect(crossing).toBeFocused();
+  crossMove.release();
+  expect((await crossMove.response).ok()).toBe(true);
+  await expect
+    .poll(() => rowTitles(page))
+    .toEqual([...afterPane.slice(0, 10), titles[11], titles[10]]);
+  // The grip now sits in the other section, as a newly mounted element.
+  expect(await oldGrip.evaluate((element) => element.isConnected)).toBe(false);
+  await expect(crossing).toBeFocused();
   await owner.close();
 });

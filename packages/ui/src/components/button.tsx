@@ -59,6 +59,24 @@ function renderIcon(icon: ButtonProps["icon"], size: number): ReactNode {
   return icon;
 }
 
+/**
+ * `disabled` as native attribute, or (with `focusableWhenDisabled`) as
+ * `aria-disabled` with activation ignored, so the button keeps focus.
+ */
+function disabledProps(
+  inactive: boolean,
+  focusable: boolean | undefined,
+  onClick: ButtonProps["onClick"],
+): Pick<ButtonProps, "aria-disabled" | "disabled" | "onClick"> {
+  if (!inactive || !focusable) return { disabled: inactive, onClick };
+  return {
+    "aria-disabled": true,
+    disabled: false,
+    // Also stops a submit button from submitting its form.
+    onClick: (event) => event.preventDefault(),
+  };
+}
+
 export function Button({
   children,
   className,
@@ -73,24 +91,17 @@ export function Button({
   variant = "primary",
   ...props
 }: ButtonProps) {
-  const inactive = !!(disabled || loading);
-  const soft = inactive && !!focusableWhenDisabled;
   return (
     <button
       aria-busy={loading || undefined}
-      aria-disabled={soft || undefined}
       className={cn(buttonClassName({ size, variant }), className)}
-      disabled={inactive && !soft}
       type={type}
       {...props}
-      onClick={
-        soft
-          ? (event) => {
-              // Also stops a submit button from submitting its form.
-              event.preventDefault();
-            }
-          : onClick
-      }
+      {...disabledProps(
+        !!(disabled || loading),
+        focusableWhenDisabled,
+        onClick,
+      )}
     >
       {loading ? (
         <span aria-hidden="true" className="spinner" />
@@ -114,8 +125,11 @@ export interface IconButtonProps
 
 export function IconButton({
   className,
+  disabled,
+  focusableWhenDisabled,
   icon,
   label,
+  onClick,
   size = "md",
   type = "button",
   variant = "ghost",
@@ -134,6 +148,7 @@ export function IconButton({
       title={label}
       type={type}
       {...props}
+      {...disabledProps(!!disabled, focusableWhenDisabled, onClick)}
     >
       {renderIcon(icon, size === "sm" ? 14 : 18)}
     </button>
