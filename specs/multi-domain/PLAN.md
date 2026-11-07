@@ -1211,7 +1211,8 @@ one test domain owned by the club.
   absolute canonical URLs.
 - R11: the production CMS provisioning (database role, media bucket, editor
   setup) has no `pilot-*` command yet; `LEONAID_CMS_ENABLED` stays `false`
-  until it exists. Open point for the launch.
+  until it exists. Open point for the launch. Resolved by
+  `pilot-cms-provision` (§16.7).
 
 ### 16.3 Stage 1a (PR `md/stage1a`)
 
@@ -1326,3 +1327,78 @@ one test domain owned by the club.
   answer these paths on the admin host with 308 to the canonical URL or 404
   only (§6.6).
 
+### 16.7 Production CMS provisioning (PR `md/cms-provision`, R11)
+
+`./leonaid pilot-cms-provision --env-file --backup-manifest
+--release-manifest [--system-admin-email]` provisions the CMS of a running
+pilot. It verifies the CMS release manifest (schema 2) and runs the doctor
+(gate `pilot-deploy`) first, then four steps. Each step reads its state
+from the image-owned operator `apps/campaign-site/src/cms-provision-operator.mjs
+status` and runs only when it is open:
+
+1. Database: `provisionPostgres` (moved from `tools/emdash_spike` to
+   `apps/campaign-site/src/provision-postgres.mjs`), the EmDash migrations of
+   an empty database and the identity mapping, all from the campaign-site
+   image (`cms-provision-operator.mjs database`).
+2. Media bucket: `tools/emdash_spike/provision_rustfs.py` in the Core image.
+3. Setup grant: `cms-provision-operator.mjs arm <uuid>` for the active Core
+   System Admin of `--system-admin-email`; the command starts the CMS, prints
+   the setup URL and exits 75. The System Admin completes the EmDash setup in
+   the browser; the next run continues.
+4. Campaign schema: `migrate-cms.sh … install` (new mode `install` of
+   `cms-migration-operator.mjs`: setup complete, exact EmDash inventory, then
+   the three idempotent installers) under closed traffic; afterwards the
+   command removes the maintenance marker and starts the CMS.
+
+Gates and backups:
+
+- `pilot-deploy` (before anything starts), `pilot-release` and `pilot-doctor`
+  (all gates except backup and restore) refuse `LEONAID_CMS_ENABLED=true`
+  until every step is done and CMS traffic is open.
+- `pilot-install` refuses `LEONAID_CMS_ENABLED=true`.
+- Backups with the CMS have manifest schema 2 (`emdash.dump`,
+  `cms-bootstrap-state.tar`). `pilot-backup`'s own check, the doctor and the
+  monitoring exporter accept it; before, all three accepted schema 1 only, so
+  every backup with the CMS failed. The exporter also rejected
+  `caddy-data.tar` (stage 1), so `leonaid_backup_valid` was 0 on every pilot.
+- `pilot-restore` passes the target's campaign-site image as
+  `LEONAID_RESTORE_CMS_IMAGE`; the CMS recovery operator then runs from the
+  image copy under `/app/recovery` (a production checkout has no
+  node_modules).
+
+Rulings (RD = PR D, numbered apart from the stage 2 rulings):
+
+- RD1: the flag comes first. `pilot-cms-provision` requires
+  `LEONAID_CMS_ENABLED=true`, because the first step creates CMS data that
+  every later backup must contain (`backup.sh` refuses a topology that does
+  not match the data). "Accepted" means: deploy, release and doctor take the
+  flag only for a provisioned CMS. Only `pilot-cms-provision` passes the
+  doctor `--allow-backup-without-cms` (its last backup predates the CMS).
+- RD2: the schema install runs after the EmDash setup, as in the local
+  procedure (`initialize-local-campaign.mjs`): the setup creates the first
+  CMS user, and the schema installer requires a completed bootstrap.
+- RD3: an armed grant that expired unused may be replaced
+  (`rearmExpiredBootstrap`); a consumed or complete grant stays final.
+- RD4: an existing database is migrated only from a gapless prefix and only
+  while no grant was ever written (resume after a crash in the first run).
+  Everything else is the release's CMS migration path, never provisioning.
+- RD5: the command's exit status 75 (EX_TEMPFAIL) means "waiting for the
+  System Admin's setup", not an error.
+- RD6: the pilot install proof runs the product's own single-host route table
+  (`caddyfiles.py --render pilot-single --tls-internal`) instead of the
+  hand-written `Caddyfile.test`, which has no CMS routes; the contract accepts
+  that file (`Caddyfile.pilot-single-test`) in isolated test mode only.
+
+Proof: `./leonaid test-pilot-install` now also builds the campaign-site image
+and proves: CMS refused at the first install and without the flag; deploy
+refused before provisioning; a foreign bucket policy stops step 2 after step
+1, the next run resumes; a member without the System Admin role is refused;
+setup grant, setup through the edge as the System Admin, schema install; a
+repeat changes nothing; no secret in the output; backup schema 2; deploy with
+the CMS; a campaign page created and published in the editor and served at
+`https://portal.leonaid.org/campaigns/<slug>/`; restore drill into a second
+project with the page and the complete setup state.
+
+Open: `pilot-release` does not run CMS migrations (verify/upgrade) yet; a
+release with new EmDash migrations blocks at the provisioning check until the
+release spec adds the CMS migration step.

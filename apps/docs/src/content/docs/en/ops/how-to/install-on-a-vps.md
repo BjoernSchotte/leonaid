@@ -4,8 +4,8 @@ description: Prepare an empty Ubuntu or Debian server and run the first installa
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 5
-reviewedRevision: 5
+contentRevision: 6
+reviewedRevision: 6
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -246,9 +246,10 @@ overwrites an existing file. It lists the keys that you still fill in by hand:
 Keep `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL`. `pilot-install`
 creates the real key.
 
-Keep `LEONAID_CMS_ENABLED=false` for the first installation. The campaign
-pages (`campaign-site`, EmDash editor) need their database and media bucket
-first; their one-time setup is not part of `pilot-install` yet. With
+Keep `LEONAID_CMS_ENABLED=false` for the first installation;
+`pilot-install` refuses `true`. The campaign pages (`campaign-site`, EmDash
+editor) follow after the installation with `pilot-cms-provision` (see
+[Set up the campaign pages](#set-up-the-campaign-pages)). With
 `LEONAID_CMS_ENABLED=true` every `pilot-*` command adds the campaign site to
 the stack, and the release needs `release-manifest-cms.json` instead of
 `release-manifest.json`.
@@ -502,6 +503,72 @@ for the administrator on the sign-in page and confirm that the mail arrives
 from `TWENTY_MAIL_FROM_ADDRESS`. If it does not, `docker compose ... logs
 twenty-worker` shows the SMTP error.
 :::
+
+## Set up the campaign pages
+
+The campaign pages and their editor (EmDash) need a database, a media bucket,
+a first setup by a LeonAid System Admin and the campaign schema.
+`./leonaid pilot-cms-provision` does these four steps on the running
+installation. Before it, `pilot-deploy`, `pilot-release` and `pilot-doctor`
+refuse `LEONAID_CMS_ENABLED=true` with the hint to run it.
+
+You need:
+
+- a running installation from `pilot-install` and a backup younger than 26
+  hours;
+- `release-manifest-cms.json` of the same release (from the release files);
+- the e-mail address of an active LeonAid System Admin who can sign in now.
+
+As `leonaid` in `/opt/leonaid`:
+
+1. Set `LEONAID_CMS_ENABLED=true` in `/etc/leonaid/production.env`. From now
+   on every backup also holds the CMS database and its setup state. Run
+   step 2 right away: until its database step has passed, `pilot-backup`
+   refuses to run.
+2. Start the provisioning:
+
+   ```sh
+   ./leonaid pilot-cms-provision \
+     --env-file /etc/leonaid/production.env \
+     --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+     --release-manifest /var/lib/leonaid/releases/release-manifest-cms.json \
+     --system-admin-email admin@club.org
+   ```
+
+   The command creates the database role, the database and the media bucket
+   with its own access key. Then it allows the EmDash setup for 15 minutes,
+   for this System Admin only, and ends with `PENDING` (exit status 75).
+3. Within the 15 minutes, the System Admin signs in at
+   `https://app.club.org/admin/` (or the one host), opens
+   `https://app.club.org/_emdash/admin/setup` and completes the setup. Any
+   other account gets a refusal.
+4. Run the same command again; `--system-admin-email` is no longer needed.
+   It installs the campaign schema while the CMS is closed and opens the CMS
+   again. The last line is `pilot-cms-provision: OK`.
+5. Run `./leonaid pilot-backup` once: the doctor now requires a backup with
+   the CMS data. Then `./leonaid pilot-deploy` with
+   `release-manifest-cms.json`. Later releases also use the CMS manifest.
+
+Each step first checks its own state. A second run changes nothing and
+prints `already` for every step. When a run stops with an error, fix the
+cause and run the command again: it continues at the open step.
+
+- **The grant expired** (the setup did not happen within 15 minutes): run
+  the command again with `--system-admin-email`. Only an unused grant is
+  replaced.
+- **"the editor setup started but did not complete"**: the setup request
+  reached EmDash but did not finish. The grant cannot be used again on
+  purpose. Restore the CMS from the backup taken before (`pilot-restore`)
+  or ask the development team to inspect the CMS database.
+- **"the CMS database exists with another EmDash migration state"**: the
+  database was not created by this release. The command does not provision
+  over it.
+- **"existing CMS bucket policy requires review"** (`emdash-rustfs:
+  FAILED`): the bucket `emdash-media` already has a policy. Check who set it;
+  the CMS media stay private and get no bucket policy.
+
+Published campaign pages are served at `https://club.org/campaigns/<slug>/`
+(or on the one host).
 
 ## Next steps
 

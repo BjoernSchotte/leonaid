@@ -345,11 +345,11 @@ rm -f "$workspace/mailpit.env"
 # infra/pilot/Caddyfile, campaign routes included) with an internal CA instead
 # of ACME.
 python3 "$root/tools/proxy/caddyfiles.py" --render pilot-single --tls-internal \
-  >"$overlay_directory/Caddyfile"
+  >"$overlay_directory/Caddyfile.pilot-single-test"
 # Test-only additions: Twenty and the core worker trust the relay's test CA.
 # Production relays need a certificate from a public CA.
 write_overlay() {
-python3 - "$root/infra/pilot/compose.test.yml" "$1" "$2" "$mail_directory/ca.pem" "$overlay_directory/Caddyfile" <<'OVERLAY'
+python3 - "$root/infra/pilot/compose.test.yml" "$1" "$2" "$mail_directory/ca.pem" "$overlay_directory/Caddyfile.pilot-single-test" <<'OVERLAY'
 from pathlib import Path
 import sys
 base, network, target, ca, caddyfile = sys.argv[1:]
