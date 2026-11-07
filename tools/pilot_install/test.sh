@@ -687,6 +687,7 @@ create_admin() {
   admin_output=$(leonaid_test pilot-create-system-admin --env-file "$env_file" "$@" 2>&1)
   admin_status=$?
   set -e
+  printf '%s\n' "$admin_output" >>"$workspace/system-admin.log"
 }
 expect_admin() {
   label=$1
@@ -724,10 +725,18 @@ admin_audit=$(runtime_compose exec -T core-postgres psql --quiet --username leon
   printf '%s\n' "$admin_audit" >&2
   exit 1
 }
-if printf '%s' "$admin_output" | grep -Eq '[0-9]{6}'; then
-  echo "pilot-install-test: ERROR: pilot-create-system-admin printed a code" >&2
+# No run printed a sign-in code, a magic link or its token.
+if grep -Eq '(^|[^0-9])[0-9]{6}([^0-9]|$)|token=|/login\?' "$workspace/system-admin.log"; then
+  echo "pilot-install-test: ERROR: pilot-create-system-admin printed sign-in data" >&2
   exit 1
 fi
+operators=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
+  --tuples-only --no-align --command \
+  "SELECT DISTINCT payload->>'operator' FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' AND entity_type IN ('user_account', 'user_global_role')")
+[ "$operators" = "$(id -un)@$(hostname)" ] || {
+  echo "pilot-install-test: ERROR: the audit does not name the operator: $operators" >&2
+  exit 1
+}
 
 echo "pilot-install-test: proves CMS provisioning (pilot-cms-provision) end to end"
 cms_release_manifest="$workspace/release-manifest-cms.json"

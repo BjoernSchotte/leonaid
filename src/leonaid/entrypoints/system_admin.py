@@ -32,6 +32,7 @@ from leonaid.adapters.postgres.system_admin import (
     SystemAdminRefused,
     ensure_system_admin,
 )
+import re
 from leonaid.application.sessions import SessionService
 from leonaid.configuration import ConfigurationError, load_settings
 from leonaid.domain.errors import DomainInvariantError
@@ -45,6 +46,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--email", required=True)
     result.add_argument("--display-name", required=True)
     result.add_argument(
+        "--operator",
+        default="unknown",
+        help="who runs it (user@host), recorded in the audit payload",
+    )
+    result.add_argument(
         "--additional",
         action="store_true",
         help="add a System Admin although one exists already",
@@ -52,20 +58,22 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-async def run(email: str, display_name: str, *, additional: bool) -> int:
+async def run(email: str, display_name: str, *, additional: bool, operator: str) -> int:
     settings = load_settings()
     request_id = f"{PREFIX}:{uuid4()}"
     pool = await create_pool(
         settings.core_database_url.get_secret_value(), minimum_size=1, maximum_size=2
     )
     try:
-        outcome = await ensure_system_admin(
+        result = await ensure_system_admin(
             pool,
             email=email,
             display_name=display_name,
             additional=additional,
             request_id=request_id,
+            operator=operator,
         )
+        outcome = result.outcome
         if outcome is SystemAdminOutcome.ALREADY:
             print(
                 f"{PREFIX}: OK: {email} already is an active System Admin; "
@@ -79,6 +87,16 @@ async def run(email: str, display_name: str, *, additional: bool) -> int:
             links=settings.links,
         )
         await sessions.request_login(email, request_id=request_id)
+        if result.recovery:
+            print(
+                f"{PREFIX}: NOTE: no active System Admin was left (all suspended "
+                "or archived); access restored without --additional"
+            )
+        if outcome is SystemAdminOutcome.PROMOTED:
+            print(
+                f"{PREFIX}: NOTE: existing member promoted; --display-name is "
+                "ignored, the member keeps their name"
+            )
         what = "created" if outcome is SystemAdminOutcome.CREATED else "promoted"
         print(
             f"{PREFIX}: OK: System Admin {what}; the sign-in mail for {email} "
@@ -103,8 +121,19 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 64
+    operator = arguments.operator
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}(@[A-Za-z0-9._-]{1,253})?", operator):
+        print(f"{PREFIX}: ERROR: --operator must be user@host", file=sys.stderr)
+        return 64
     try:
-        return asyncio.run(run(email, display_name, additional=arguments.additional))
+        return asyncio.run(
+            run(
+                email,
+                display_name,
+                additional=arguments.additional,
+                operator=operator,
+            )
+        )
     except SystemAdminRefused as error:
         print(f"{PREFIX}: BLOCKED: {error}", file=sys.stderr)
         return 1

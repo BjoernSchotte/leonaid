@@ -4,8 +4,8 @@ description: Einen leeren Ubuntu- oder Debian-Server vorbereiten und die Erstins
 docId: DOC-P039
 audience: [ops]
 diataxis: how-to
-contentRevision: 8
-reviewedRevision: 8
+contentRevision: 9
+reviewedRevision: 9
 verifiedAgainst: ee007bf6c2e21edf0b939ee5641b3a9f98674560
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -424,10 +424,16 @@ Verwaltungsbereich alle anderen ein.
   abgelehnt. Eine bewusst zweite Systemadministration (zum Beispiel eine
   Vertretung) legst du mit `--additional` an.
 - Ein bestehendes aktives Konto mit dieser Adresse bekommt die Rolle, statt
-  doppelt angelegt zu werden; ein gesperrtes oder archiviertes Konto wird
-  abgelehnt (das ändert nur eine Systemadministration im Verwaltungsbereich).
+  doppelt angelegt zu werden; es behält seinen Namen (`--display-name` wird
+  ignoriert, die Ausgabe sagt das). Ein gesperrtes oder archiviertes Konto
+  wird abgelehnt (das ändert nur eine Systemadministration im
+  Verwaltungsbereich).
+- Ist keine aktive Systemadministration mehr vorhanden (alle gesperrt oder
+  archiviert), legt der Befehl die neue ohne `--additional` an und sagt das
+  (Wiederherstellung des Zugangs).
 - Jede Änderung steht ohne Person als Akteur im LeonAid-Audit-Log
-  (`identity.account.created`, `identity.global_role.granted`).
+  (`identity.account.created`, `identity.global_role.granted`); die Nutzlast
+  nennt Betriebsaccount und Host, die den Befehl ausgeführt haben.
 
 Kommt die Mail nicht an, prüfe das Mail-Relay (siehe
 [Mail für LeonAid und Twenty](#mail-für-leonaid-und-twenty)); unter `/login`

@@ -33,17 +33,22 @@ async def main() -> None:
     )
     tag = uuid4().hex[:8]
     request_id = f"pilot-create-system-admin:{tag}"
-    emails = [f"{name}.{tag}@leonaid.invalid" for name in ("first", "member", "gone")]
+    emails = [
+        f"{name}.{tag}@leonaid.invalid"
+        for name in ("first", "member", "gone", "rescue")
+    ]
     try:
 
         async def ensure(email: str, *, additional: bool) -> SystemAdminOutcome:
-            return await ensure_system_admin(
+            result = await ensure_system_admin(
                 pool,
                 email=email,
                 display_name="Proof Admin",
                 additional=additional,
                 request_id=request_id,
+                operator="leonaid@proof-host",
             )
+            return result.outcome
 
         async def audit() -> list[tuple[str, bool]]:
             rows = await pool.fetch(
@@ -118,6 +123,46 @@ async def main() -> None:
             == "suspended"
         )
         assert len(await audit()) == 3
+        operator = await pool.fetchval(
+            "SELECT payload->>'operator' FROM audit_event WHERE request_id = $1 LIMIT 1",
+            request_id,
+        )
+        assert operator == "leonaid@proof-host"
+        # Recovery: every System Admin suspended -> a new one without
+        # `additional`, stated as recovery. The statuses are restored after.
+        active_admins = [
+            row["id"]
+            for row in await pool.fetch(
+                "SELECT account.id FROM user_account AS account JOIN user_global_role AS role "
+                "ON role.user_id = account.id WHERE role.role = 'system_admin' "
+                "AND account.status = 'active'"
+            )
+        ]
+        await pool.execute(
+            "UPDATE user_account SET status = 'suspended' WHERE id = ANY($1::uuid[])",
+            active_admins,
+        )
+        try:
+            rescued = await ensure_system_admin(
+                pool,
+                email=emails[3],
+                display_name="Proof Rescue",
+                additional=False,
+                request_id=request_id,
+                operator="leonaid@proof-host",
+            )
+        finally:
+            await pool.execute(
+                "UPDATE user_account SET status = 'active' WHERE id = ANY($1::uuid[])",
+                active_admins,
+            )
+        assert rescued.outcome is SystemAdminOutcome.CREATED and rescued.recovery
+        assert await pool.fetchval(
+            "SELECT bool_and((payload->>'recovery')::boolean) FROM audit_event "
+            "WHERE request_id = $1 AND entity_id = (SELECT id FROM user_account WHERE email = $2)",
+            request_id,
+            emails[3],
+        )
     finally:
         await pool.execute("DELETE FROM audit_event WHERE request_id = $1", request_id)
         ids: list[UUID] = [
@@ -130,7 +175,7 @@ async def main() -> None:
         await pool.close()
     print(
         "system-admin-bootstrap: OK: create, promote, idempotent repeat, "
-        "--additional rule, no reactivation, audit without actor"
+        "--additional rule, no reactivation, recovery, audit with operator"
     )
 
 
