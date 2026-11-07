@@ -591,6 +591,10 @@ class SharedStack:
                 shutil.rmtree(self.directory)
 
 
+# Grace period between SIGTERM and SIGKILL for a cancelled leaf.
+KILL_AFTER_SECONDS = 30
+
+
 def exit_status(code):
     """A signal-terminated child reports -N; report it like a shell (128+N)."""
     return 128 - code if code < 0 else code
@@ -626,6 +630,8 @@ class LeafRunner:
         self.children_lock = threading.Lock()
         self.children = set()
         self.healthy = len(stacks)
+        self.busy = 0
+        self.kill_timer = None
         self.state_lock = threading.Lock()
 
     def say(self, text):
@@ -634,10 +640,22 @@ class LeafRunner:
 
     def cancel(self):
         with self.children_lock:
+            first = not self.cancelled.is_set()
             self.cancelled.set()
             for child in list(self.children):
                 if child.poll() is None:
                     child.terminate()
+        if first:
+            # A leaf that ignores SIGTERM is killed after the grace period.
+            self.kill_timer = threading.Timer(KILL_AFTER_SECONDS, self.kill_remaining)
+            self.kill_timer.daemon = True
+            self.kill_timer.start()
+
+    def kill_remaining(self):
+        with self.children_lock:
+            for child in list(self.children):
+                if child.poll() is None:
+                    child.kill()
 
     def start_leaf(self, script, env, log):
         """Popen unless cancelled; atomic with cancel()'s view of children."""
@@ -710,24 +728,25 @@ class LeafRunner:
         try:
             while not (self.stopped.is_set() or self.cancelled.is_set()):
                 try:
-                    script = self.pending.get_nowait()
+                    script = self.pending.get(timeout=0.2)
                 except queue.Empty:
-                    return
-                code = self.run_leaf(stack, script)
-                if code is None:
-                    # Broken stack: give the leaf to a healthy one.
+                    # Stay available while another worker may still requeue
+                    # a leaf from a stack that breaks.
                     with self.state_lock:
-                        self.problems.append(
-                            f"stack {getattr(stack, 'project', '?')} failed to reset"
-                        )
-                        self.healthy -= 1
-                        if self.healthy > 0:
-                            self.pending.put(script)
-                        else:
-                            self.results.append((script, 1))
-                    return
+                        if self.busy == 0:
+                            return
+                    continue
                 with self.state_lock:
-                    self.results.append((script, code))
+                    self.busy += 1
+                try:
+                    code = self.run_leaf(stack, script)
+                except BaseException:
+                    with self.state_lock:
+                        self.busy -= 1
+                    raise
+                self.leaf_done(stack, script, code)
+                if code is None:
+                    return
                 if code and not self.keep_going:
                     self.stopped.set()
         except Exception as error:
@@ -736,6 +755,24 @@ class LeafRunner:
                     f"worker for {getattr(stack, 'project', '?')}: {error}"
                 )
                 self.healthy -= 1
+
+    def leaf_done(self, stack, script, code):
+        """Record a leaf (or requeue it from a broken stack), then mark idle."""
+        with self.state_lock:
+            try:
+                if code is None:
+                    self.problems.append(
+                        f"stack {getattr(stack, 'project', '?')} failed to reset"
+                    )
+                    self.healthy -= 1
+                    if self.healthy > 0:
+                        self.pending.put(script)
+                    else:
+                        self.results.append((script, 1))
+                else:
+                    self.results.append((script, code))
+            finally:
+                self.busy -= 1
 
     def run(self):
         threads = [
@@ -746,6 +783,9 @@ class LeafRunner:
             thread.start()
         for thread in threads:
             thread.join()
+        if self.kill_timer is not None:
+            # Every leaf ended; nothing left to kill.
+            self.kill_timer.cancel()
         if not (self.cancelled.is_set() or self.stopped.is_set()):
             # Leaves no healthy stack could take.
             while True:
@@ -853,8 +893,6 @@ def main():
             root, [stack, *extra_stacks], args.scripts, args.keep_going, output_lock
         )
         runners.append(runner)
-        if received:  # A signal between setup and start.
-            runner.cancel()
         results = runner.run()
         if received or runner.cancelled.is_set():
             print("shared-stack: interrupted; no further leaves started", flush=True)

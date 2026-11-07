@@ -196,6 +196,29 @@ class SchedulingTests(unittest.TestCase):
         self.assertEqual(len(results), 5)
         self.assertTrue(all(code == 1 for _, code in results))
 
+    def test_a_late_broken_stack_still_finds_a_healthy_worker(self):
+        scripts = self.leaves(2)
+        runner = self.runner(
+            [self.Stack("a"), self.Stack("broken", broken=True, delay=1.5)],
+            scripts,
+            True,
+        )
+        results = runner.run()
+        self.assertEqual(sorted(results), sorted((s, 0) for s in scripts))
+        self.assertEqual(runner.problems, ["stack broken failed to reset"])
+
+    def test_a_leaf_ignoring_sigterm_is_killed_after_the_grace_period(self):
+        scripts = self.leaves(1, body="trap '' TERM\nsleep 60\n")
+        original = shared_stack.KILL_AFTER_SECONDS
+        shared_stack.KILL_AFTER_SECONDS = 1
+        self.addCleanup(setattr, shared_stack, "KILL_AFTER_SECONDS", original)
+        runner = self.runner([self.Stack("a")], scripts, True)
+        threading.Timer(0.5, runner.cancel).start()
+        begin = time.monotonic()
+        results = runner.run()
+        self.assertLess(time.monotonic() - begin, 10)
+        self.assertEqual(results, [(scripts[0], 137)])
+
     def test_signal_exit_codes_follow_the_shell(self):
         self.assertEqual(shared_stack.exit_status(-15), 143)
         self.assertEqual(shared_stack.exit_status(3), 3)
