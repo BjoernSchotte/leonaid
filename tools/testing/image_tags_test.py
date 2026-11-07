@@ -95,6 +95,42 @@ class ContentHashTests(unittest.TestCase):
             with self.assertRaises(image_tags.Unsupported, msg=dockerfile):
                 self.tag()
 
+    def test_copy_from_must_be_a_stage_or_pinned(self):
+        for origin, shared in (
+            ("build", True),
+            ("0", True),
+            (PINNED, True),
+            ("node:22", False),
+            ("ghcr.io/x/y:latest", False),
+        ):
+            (self.root / "Dockerfile").write_text(
+                f"FROM {PINNED} AS build\nFROM {PINNED}\nCOPY --from={origin} /x /x\n"
+            )
+            if shared:
+                self.tag()
+            else:
+                with self.assertRaises(image_tags.Unsupported, msg=origin):
+                    self.tag()
+
+    def test_symlinks_and_dockerignore_details(self):
+        root = self.root
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(subprocess.run, ["rm", "-rf", str(outside)])
+        (root / "apps/web/src/leak").symlink_to(outside)
+        with self.assertRaises(image_tags.Unsupported):
+            self.tag()
+        (root / "apps/web/src/leak").unlink()
+        # [!...] is a negated class in Go's filepath.Match.
+        (root / ".dockerignore").write_text("apps/web/src/[!m]*\n")
+        before = self.tag()
+        (root / "apps/web/src/other.ts").write_text("ignored")
+        self.assertEqual(self.tag(), before)
+        (root / "apps/web/src/main.ts").write_text("copied")
+        self.assertNotEqual(self.tag(), before)
+        (root / "Dockerfile.dockerignore").write_text("*\n")
+        with self.assertRaises(image_tags.Unsupported):
+            self.tag()
+
     def test_cli_prints_the_hash_or_refuses(self):
         script = ROOT / "tools/testing/image_tags.py"
         result = subprocess.run(
@@ -139,53 +175,150 @@ class ComposeMirrorTests(unittest.TestCase):
         }
         self.assertEqual(set(builds), set(image_tags.BUILDS))
         for name, build in builds.items():
-            context, dockerfile = image_tags.BUILDS[name]
-            self.assertEqual(Path(build["context"]), (ROOT / context).resolve(), name)
-            self.assertEqual(build.get("dockerfile", "Dockerfile"), dockerfile, name)
-            self.assertFalse(
-                set(build) - {"context", "dockerfile"},
-                f"{name}: build args/targets must be hashed too",
+            # The CLI (BUILDS) and the harness (rendered config) hash alike.
+            self.assertEqual(
+                image_tags.normalize(ROOT, build),
+                image_tags.normalize(ROOT, image_tags.BUILDS[name]),
+                name,
             )
+        self.assertEqual(
+            image_tags.spec_hash(ROOT, builds["api"]),
+            image_tags.content_hash(ROOT, "api"),
+        )
 
 
 class TaggingTests(unittest.TestCase):
-    def test_adopt_record_and_prune_only_touch_their_repository(self):
-        project = "leonaid-imagetagtest"
-        alpine = next(
+    """adopt/record/prune with the real Docker CLI in a test-only repository."""
+
+    project = "leonaid-imagetagtest"
+
+    def setUp(self):
+        self.alpine = next(
             line.split("=", 1)[1].strip("\"'")
             for line in (ROOT / "infra/locks/images.env").read_text().splitlines()
             if line.startswith("ALPINE_IMAGE=")
         )
         subprocess.run(
-            ["docker", "pull", "-q", alpine], check=True, capture_output=True
+            ["docker", "pull", "-q", self.alpine], check=True, capture_output=True
         )
-        shared = image_tags.tag(ROOT, "proxy")
-        self.addCleanup(
-            subprocess.run,
-            ["docker", "image", "rm", f"{project}-proxy", shared],
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(subprocess.run, ["rm", "-rf", str(self.root)])
+        (self.root / "ctx").mkdir()
+        (self.root / "ctx/Dockerfile").write_text(
+            f"FROM {PINNED}\nCOPY app.txt /app.txt\n"
+        )
+        (self.root / "ctx/app.txt").write_text("one")
+        self.builds = {
+            "svc": {"context": str(self.root / "ctx"), "dockerfile": "Dockerfile"}
+        }
+        self.state = Path(tempfile.mkdtemp())
+        self.addCleanup(subprocess.run, ["rm", "-rf", str(self.state)])
+        self.previous_state = image_tags.STATE
+        image_tags.STATE = self.state
+        self.addCleanup(setattr, image_tags, "STATE", self.previous_state)
+        self.addCleanup(self.remove_tags)
+
+    def remove_tags(self):
+        listing = subprocess.run(
+            [
+                "docker",
+                "image",
+                "ls",
+                f"{image_tags.REPOSITORY}/svc",
+                "--format",
+                "{{.Repository}}:{{.Tag}}",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.split()
+        subprocess.run(
+            ["docker", "image", "rm", f"{self.project}-svc", *listing],
             capture_output=True,
         )
-        self.assertEqual(image_tags.adopt(ROOT, project, ["proxy"]), ["proxy"])
-        subprocess.run(["docker", "tag", alpine, f"{project}-proxy"], check=True)
-        image_tags.record(ROOT, project, ["proxy"])
-        self.assertTrue(image_tags.exists(shared))
-        subprocess.run(["docker", "image", "rm", f"{project}-proxy"], check=True)
-        self.assertEqual(image_tags.adopt(ROOT, project, ["proxy"]), [])
-        self.assertTrue(image_tags.exists(f"{project}-proxy"))
-        # Pruning keeps the newest tags and never another repository.
-        old = f"{image_tags.REPOSITORY}/proxy:old"
-        subprocess.run(["docker", "tag", alpine, old], check=True)
-        self.addCleanup(
-            subprocess.run, ["docker", "image", "rm", old], capture_output=True
+
+    def build(self):
+        # Stands in for `compose build`: any image under the project tag.
+        subprocess.run(
+            ["docker", "tag", self.alpine, f"{self.project}-svc"], check=True
         )
-        image_tags.prune("proxy", keep=10)
-        self.assertTrue(image_tags.exists(old))
-        image_tags.prune("proxy", keep=1)
+
+    def test_build_is_recorded_and_then_adopted(self):
+        missing = image_tags.adopt(self.root, self.project, self.builds, ["svc"])
+        self.assertEqual(list(missing), ["svc"])
+        self.build()
         self.assertEqual(
-            [image_tags.exists(old), image_tags.exists(shared)].count(True), 1
+            image_tags.record(self.root, self.project, self.builds, missing), ["svc"]
         )
-        self.assertTrue(image_tags.exists(alpine))
-        self.assertTrue(image_tags.exists(f"{project}-proxy"))
+        shared = f"{image_tags.REPOSITORY}/svc:{missing['svc']}"
+        self.assertTrue(image_tags.exists(shared))
+        subprocess.run(["docker", "image", "rm", f"{self.project}-svc"], check=True)
+        os.environ["LEONAID_IMAGE_MAX_AGE_DAYS"] = "100000"
+        self.addCleanup(os.environ.pop, "LEONAID_IMAGE_MAX_AGE_DAYS", None)
+        self.assertEqual(
+            image_tags.adopt(self.root, self.project, self.builds, ["svc"]), {}
+        )
+        self.assertTrue(image_tags.exists(f"{self.project}-svc"))
+
+    def test_inputs_changed_during_the_build_are_not_recorded(self):
+        missing = image_tags.adopt(self.root, self.project, self.builds, ["svc"])
+        self.build()
+        (self.root / "ctx/app.txt").write_text("edited while building")
+        self.assertEqual(
+            image_tags.record(self.root, self.project, self.builds, missing), []
+        )
+        self.assertFalse(
+            image_tags.exists(f"{image_tags.REPOSITORY}/svc:{missing['svc']}")
+        )
+
+    def test_old_or_vanished_images_are_rebuilt(self):
+        missing = image_tags.adopt(self.root, self.project, self.builds, ["svc"])
+        self.build()
+        image_tags.record(self.root, self.project, self.builds, missing)
+        subprocess.run(["docker", "image", "rm", f"{self.project}-svc"], check=True)
+        # The stand-in image (alpine) is months old: beyond the default age.
+        self.assertEqual(
+            image_tags.adopt(self.root, self.project, self.builds, ["svc"]), missing
+        )
+        subprocess.run(
+            ["docker", "image", "rm", f"{image_tags.REPOSITORY}/svc:{missing['svc']}"],
+            check=True,
+        )
+        os.environ["LEONAID_IMAGE_MAX_AGE_DAYS"] = "100000"
+        self.addCleanup(os.environ.pop, "LEONAID_IMAGE_MAX_AGE_DAYS", None)
+        self.assertEqual(
+            image_tags.adopt(self.root, self.project, self.builds, ["svc"]), missing
+        )
+
+    def test_overlay_build_sections_are_hashed(self):
+        base = image_tags.spec_hash(self.root, self.builds["svc"])
+        with_args = dict(self.builds["svc"], args={"BUN_IMAGE": "x"})
+        self.assertNotEqual(image_tags.spec_hash(self.root, with_args), base)
+        with_target = dict(self.builds["svc"], target="build")
+        self.assertNotEqual(image_tags.spec_hash(self.root, with_target), base)
+        for key in ("secrets", "ssh", "additional_contexts"):
+            with self.assertRaises(image_tags.Unsupported):
+                image_tags.spec_hash(self.root, dict(self.builds["svc"], **{key: {}}))
+        config = {
+            "services": {
+                "svc": {"build": with_args},
+                "named": {"build": self.builds["svc"], "image": "x/y:1"},
+                "pulled": {"image": "x/z:1"},
+            }
+        }
+        self.assertEqual(image_tags.effective_builds(config), {"svc": with_args})
+
+    def test_prune_keeps_the_most_recently_used_tags(self):
+        references = [f"{image_tags.REPOSITORY}/svc:t{n}" for n in range(3)]
+        for index, reference in enumerate(references):
+            subprocess.run(["docker", "tag", self.alpine, reference], check=True)
+            marker = self.state / "svc" / f"t{index}"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+            os.utime(marker, (1000 + index, 1000 + index))
+        self.assertEqual(sorted(image_tags.prune("svc", keep=2)), ["t0"])
+        self.assertFalse(image_tags.exists(references[0]))
+        self.assertTrue(image_tags.exists(references[2]))
+        self.assertTrue(image_tags.exists(self.alpine))
 
 
 if __name__ == "__main__":
