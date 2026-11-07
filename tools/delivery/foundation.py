@@ -343,10 +343,14 @@ def main() -> None:
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
         assert (
             db.execute(
-                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' FROM commitment ORDER BY id"
+                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' - 'captured_at' FROM commitment ORDER BY id"
             ).fetchall()
             == baseline_order
         )
+        # 0052 adds captured_at: no existing order was queued offline.
+        assert db.execute(
+            "SELECT count(*) FROM commitment WHERE captured_at IS NOT NULL"
+        ).fetchone() == (0,)
         # 0045 adds issued_on: the UTC day of issued_at for existing invoices.
         assert baseline_invoice is not None
         assert db.execute(

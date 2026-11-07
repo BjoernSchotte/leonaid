@@ -798,7 +798,9 @@ async def exercise_repository_races(connection: asyncpg.Connection[Any]) -> None
     before a concurrent change.
     """
 
-    pool = await asyncpg.create_pool(require_env("CORE_DATABASE_URL"), max_size=2)
+    pool = await asyncpg.create_pool(
+        require_env("CORE_DATABASE_URL"), min_size=1, max_size=2
+    )
     try:
         repository = AsyncpgAcquisitionPolicyRepository(pool)
 
