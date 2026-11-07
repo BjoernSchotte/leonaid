@@ -959,7 +959,10 @@ echo "pilot-install-test: CMS restore drill: published page and closed setup gra
 
 echo "pilot-install-test: proves a second first install is refused"
 cp "$env_file" "$workspace/second.env"
-sed -i 's/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL/' \
+# The CMS was enabled above; a first install refuses it before the volume
+# check, so the second install keeps the install-time setting.
+sed -i -e 's/^TWENTY_INTEGRATION_API_KEY=.*/TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL/' \
+  -e 's/^LEONAID_CMS_ENABLED=true$/LEONAID_CMS_ENABLED=false/' \
   "$workspace/second.env"
 chmod 600 "$workspace/second.env"
 expect_refusal "install over an existing project" "already has Docker volumes" \
