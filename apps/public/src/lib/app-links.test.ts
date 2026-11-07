@@ -2,7 +2,12 @@
 import { ApiError, type NavigationItemResponse } from "@leonaid/api-client";
 import { describe, expect, it } from "vitest";
 
-import { appLinksFor, loadAppLinks, renderAppLinks } from "./app-links";
+import {
+  adminHostLink,
+  appLinksFor,
+  loadAppLinks,
+  renderAppLinks,
+} from "./app-links";
 
 const item = (
   key: string,
@@ -126,5 +131,34 @@ describe("public header app links", () => {
         item("delivery", "/app/delivery", "pwa"),
       ]).map((link) => link.href),
     ).toEqual(["/admin/", "/app/"]);
+  });
+});
+
+describe("admin host link (specs/multi-domain)", () => {
+  it("links the public host statically to the admin host", () => {
+    expect(adminHostLink("https://app.club.org", "club.org")).toEqual({
+      href: "https://app.club.org/",
+      label: "Anmelden",
+    });
+    expect(
+      adminHostLink("https://app.localhost:28443/", "localhost:28443"),
+    ).toEqual({ href: "https://app.localhost:28443/", label: "Anmelden" });
+  });
+
+  it("keeps the identity-based links on the admin host and with one host", () => {
+    expect(adminHostLink("https://app.club.org", "app.club.org")).toBeNull();
+    expect(adminHostLink("https://portal.club.org/", "portal.club.org")).toBeNull();
+    expect(adminHostLink(undefined, "club.org")).toBeNull();
+    expect(adminHostLink("", "club.org")).toBeNull();
+  });
+
+  it("refuses admin base URLs that are not plain HTTPS origins", () => {
+    for (const base of [
+      "http://app.club.org",
+      "https://user@app.club.org",
+      "https://app.club.org/?x=1",
+      "javascript:alert(1)",
+    ])
+      expect(adminHostLink(base, "club.org")).toBeNull();
   });
 });

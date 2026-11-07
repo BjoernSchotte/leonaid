@@ -253,9 +253,40 @@ first; their one-time setup is not part of `pilot-install` yet. With
 the stack, and the release needs `release-manifest-cms.json` instead of
 `release-manifest.json`.
 
-With an admin host, every member signs in again once on `app.club.org`
-(the session cookie belongs to one host). Acquirers install the app again
-from `https://app.club.org/app/`.
+With an admin host, every member signs in on `app.club.org` (the session
+cookie belongs to one host). The acquisition app lives at
+`https://app.club.org/app/`. Nobody has installed it from an older single
+host yet; should a device still hold the app of the old host, the public host
+replaces its service worker with one that removes itself, and the next visit
+lands on the admin host.
+
+The public host sends `Strict-Transport-Security` without
+`includeSubDomains`: on the club's main domain it would force HTTPS on every
+other name of the club (webmail, intranet, devices) for a year. The admin host
+keeps `includeSubDomains`.
+
+### Switch to an admin host
+
+An installation that runs on one host today keeps that host as its public
+host; printed and mailed public links stay valid. In this order:
+
+1. Create the DNS record for `app.club.org` and check it with `dig`.
+2. In `/etc/leonaid/production.env` set `LEONAID_PUBLIC_BASE_URL` and
+   `LEONAID_ALLOWED_ORIGINS` to `https://app.club.org` and add
+   `LEONAID_ADMIN_DOMAIN=app.club.org`,
+   `LEONAID_PROXY_CADDYFILE=Caddyfile.split`,
+   `LEONAID_SITE_BASE_URL=https://club.org` and
+   `LEONAID_PUBLIC_ORIGINS=https://club.org` (the old host, unchanged in
+   `LEONAID_PUBLIC_DOMAIN`). Further names go into
+   `LEONAID_PUBLIC_DOMAIN_ALIASES`, separated by ", ".
+3. Run `./leonaid pilot-doctor` with the env file; it refuses inconsistent
+   host settings.
+4. Deploy with `./leonaid pilot-deploy`. Caddy requests the certificate of
+   the admin host on its first start.
+5. Run `./leonaid pilot-revoke-sessions --env-file /etc/leonaid/production.env`.
+   Old sessions of the single host stay valid on the server until they
+   expire; this signs every member out once. Tell the members to sign in on
+   `https://app.club.org/`.
 
 ### Mail for LeonAid and Twenty
 

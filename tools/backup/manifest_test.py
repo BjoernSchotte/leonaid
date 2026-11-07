@@ -423,6 +423,35 @@ def main() -> None:
                     ),
                 )
 
+
+    # The pilot certificate volume is carried when it exists and verified
+    # like every other file (specs/multi-domain §10.1).
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        write_backup(directory, project)
+        (directory / "manifest.json").unlink()
+        (directory / "caddy-data.tar").write_bytes(b"synthetic-certificates\n")
+        created = create(directory, source_project=project, topology="legacy")
+        assert "caddy-data.tar" in created["files"]
+        verify(directory, source_project=project, topology="legacy")
+        (directory / "caddy-data.tar").write_bytes(b"tampered-certificates\n")
+        rejected(
+            "tampered certificate archive",
+            lambda: verify(directory, source_project=project, topology="legacy"),
+        )
+        (directory / "manifest.json").unlink()
+        (directory / "caddy-data.tar").unlink()
+        assert "caddy-data.tar" not in create(
+            directory, source_project=project, topology="legacy"
+        )["files"]
+        manifest = json.loads((directory / "manifest.json").read_text())
+        manifest["files"]["unknown.tar"] = manifest["files"]["core.dump"]
+        (directory / "manifest.json").write_text(json.dumps(manifest))
+        rejected(
+            "unknown archive in the inventory",
+            lambda: verify(directory, source_project=project, topology="legacy"),
+        )
+
     print(
         "backup-manifest-test: OK: explicit legacy/CMS topology, exact v1/v2 inventories, missing/corrupt parts, unsupported versions and symlink denial proved with real files"
     )

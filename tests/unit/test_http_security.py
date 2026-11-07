@@ -117,8 +117,14 @@ PUBLIC_ORIGINS = StaticPublicOrigins(
 )
 
 
-def public(origin: str | None, path: str) -> bool:
-    headers = () if origin is None else ((b"origin", origin.encode()),)
+def public(origin: str | None, path: str, host: str | None = None) -> bool:
+    # Same-origin by default: the request goes to the origin's own host.
+    sent_to = host or (origin or "https://leonaid.invalid").split("://", 1)[1].rstrip(
+        "/"
+    )
+    headers: tuple[tuple[bytes, bytes], ...] = ((b"host", sent_to.encode()),)
+    if origin is not None:
+        headers += ((b"origin", origin.encode()),)
     return asyncio.run(
         public_origin_allowed(
             request(headers=headers, path=path),
@@ -138,3 +144,13 @@ def test_public_origins_reach_only_the_public_api() -> None:
     assert not public(None, "/api/v1/public/inbox-cases")
     # The admin origin keeps its credentialed path, never the public one.
     assert not public("https://portal.leonaid.invalid", "/api/v1/public/legal-notice")
+
+
+def test_public_origins_reach_only_their_own_host() -> None:
+    # A page of the public host calling the admin host's public API would be
+    # same-site and carry the admin host's cookies: refused.
+    path = "/api/v1/public/surveys/1/participations"
+    assert not public("https://leonaid.invalid", path, host="app.leonaid.invalid")
+    assert not public("https://www.leonaid.invalid", path, host="leonaid.invalid")
+    assert not public("https://leonaid.invalid", path, host="leonaid.invalid:8443")
+    assert public("https://leonaid.invalid", path, host="LEONAID.invalid")

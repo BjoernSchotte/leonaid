@@ -486,10 +486,11 @@ def validate_hosts(
         raise DeploymentContractError(
             "LEONAID_ALLOWED_ORIGINS must be exactly the admin origin"
         )
-    expected_public = {public_origin, *(f"https://{alias}" for alias in aliases)}
-    if set(public_origins) != expected_public:
+    # Aliases redirect every path at the edge, so no page runs on them; only
+    # the public host itself calls the public API.
+    if public_origins != [public_origin]:
         raise DeploymentContractError(
-            "LEONAID_PUBLIC_ORIGINS must list the public host and its aliases"
+            "LEONAID_PUBLIC_ORIGINS must be exactly the public host origin"
         )
     public = object_value(services["public"], "services.public")
     public_environment = object_value(public.get("environment"), "public.environment")

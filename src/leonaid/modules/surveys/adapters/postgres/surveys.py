@@ -110,6 +110,20 @@ def version_payload(row: Any) -> dict[str, Any]:
     }
 
 
+def survey_invitation_text(
+    links: LinkBuilder, title: str, survey_id: object, token: str, expires: datetime
+) -> str:
+    """Survey invitations link the public host (specs/multi-domain §7.6)."""
+    link = links.site_url(f"/surveys/{survey_id}#invitation={token}")
+    return (
+        f"Sie sind zur Umfrage {title} eingeladen.\n\n"
+        "Ihre Antworten können dieser Einladung zugeordnet werden.\n\n"
+        f"{link}\n\n"
+        f"Gültig bis {expires.isoformat()}. "
+        "Bitte geben Sie diesen persönlichen Link nicht weiter."
+    )
+
+
 class AsyncpgSurveyRepository:
     def __init__(
         self,
@@ -959,7 +973,9 @@ class AsyncpgSurveyRepository:
             mail = self.invitation_mail.protect(
                 recipient=body["recipientEmail"],
                 subject="Ihre Rückmeldung: " + " ".join(survey["title"].split()),
-                text=f"Sie sind zur Umfrage {survey['title']} eingeladen.\n\nIhre Antworten können dieser Einladung zugeordnet werden.\n\n{self.links.site_url(f'/surveys/{sid}#invitation={token}')}\n\nGültig bis {expires.isoformat()}. Bitte geben Sie diesen persönlichen Link nicht weiter.",
+                text=survey_invitation_text(
+                    self.links, survey["title"], sid, token, expires
+                ),
             )
             row = await conn.fetchrow(
                 "INSERT INTO survey_invitation(id,survey_id,recipient_email,recipient_name,token_digest,expires_at,mail_payload) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",

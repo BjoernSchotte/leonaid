@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Final, Protocol
+from urllib.parse import urlsplit
 
 from fastapi import Request
 
@@ -44,6 +45,17 @@ class StaticPublicOrigins:
         return origin.rstrip("/").casefold() in self.origins
 
 
+def same_host(origin: str, request_host: str) -> bool:
+    """The browser origin names the host the request was sent to.
+
+    Caddy forwards the original Host header. A page of the public host may
+    therefore reach the public API of its own host only, never the admin host
+    (a same-site request that would carry the admin host's cookies, §6.3).
+    """
+    netloc = urlsplit(origin.rstrip("/")).netloc.casefold()
+    return bool(netloc) and netloc == request_host.strip().casefold()
+
+
 async def public_origin_allowed(
     request: Request,
     origin: str | None,
@@ -56,7 +68,10 @@ async def public_origin_allowed(
         return False
     if not request.url.path.startswith(PUBLIC_API_PREFIX):
         return False
-    return await public_origins.allows(origin, request.headers.get("host", ""))
+    host = request.headers.get("host", "")
+    if not same_host(origin, host):
+        return False
+    return await public_origins.allows(origin, host)
 
 
 @dataclass(frozen=True, slots=True)

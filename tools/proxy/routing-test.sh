@@ -109,7 +109,10 @@ run_case pilot-split pilot-split split 443 \
   --env LEONAID_PUBLIC_DOMAIN=leonaid.test \
   --env "LEONAID_PUBLIC_DOMAIN_ALIASES=www.leonaid.test" \
   --env CADDY_ACME_EMAIL=operator@leonaid.invalid
+run_case pilot-admin-only pilot-admin-only admin-only 443 \
+  --env LEONAID_ADMIN_DOMAIN=app.leonaid.test \
+  --env CADDY_ACME_EMAIL=operator@leonaid.invalid
 run_case dev-split dev-split split 8443 \
   --env LEONAID_ADMIN_DOMAIN=app.leonaid.test \
   --env LEONAID_PUBLIC_DOMAIN=leonaid.test
-echo "proxy-routing: OK: pilot single-host, pilot split and dev split routing proven"
+echo "proxy-routing: OK: pilot single-host, split, admin-only and dev split routing proven"

@@ -47,7 +47,13 @@ LEONAID_PUBLIC_DOMAIN=localhost
 LEONAID_ADMIN_BASE_URL=https://app.localhost:28443
 LEONAID_SITE_BASE_URL=https://localhost:28443
 LEONAID_PUBLIC_ORIGINS=https://localhost:28443
+LEONAID_ALLOWED_ORIGINS=https://app.localhost:28443,https://proxy:8443
 ```
+
+`LEONAID_ALLOWED_ORIGINS` replaces the dev list of credentialed origins, so
+the public host takes the credential-free path of production.
+`./leonaid test-multi-host` runs the same split with the real services and a
+browser.
 
 Browsers resolve `*.localhost` to the loopback address, so no hosts-file entry
 is needed. `https://app.localhost:28443/` is then the admin host (members,

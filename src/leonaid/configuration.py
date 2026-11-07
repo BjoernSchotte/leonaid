@@ -364,11 +364,12 @@ class Settings(BaseSettings):
     @property
     def public_origins(self) -> tuple[str, ...]:
         """Static credential-free origins of the public API (§6.3)."""
+        # Commas or whitespace, like every other host list (ruling R3).
         return tuple(
             dict.fromkeys(
-                item.strip().rstrip("/").casefold()
-                for item in self.public_origins_value.split(",")
-                if item.strip()
+                item.rstrip("/").casefold()
+                for item in re.split(r"[\s,]+", self.public_origins_value)
+                if item
             )
         )
 

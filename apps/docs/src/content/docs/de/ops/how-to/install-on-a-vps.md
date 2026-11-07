@@ -258,9 +258,41 @@ nicht zu `pilot-install`. Mit `LEONAID_CMS_ENABLED=true` nimmt jeder
 `pilot-*`-Befehl die Aktionsseiten in den Stack auf, und das Release braucht
 `release-manifest-cms.json` statt `release-manifest.json`.
 
-Mit Verwaltungshost meldet sich jedes Mitglied einmal neu auf `app.club.org`
-an (das Sitzungs-Cookie gehört zu genau einem Host). Akquisiteure
-installieren die App einmal neu von `https://app.club.org/app/`.
+Mit Verwaltungshost melden sich Mitglieder auf `app.club.org` an (das
+Sitzungs-Cookie gehört zu genau einem Host). Die Akquise-App liegt unter
+`https://app.club.org/app/`. Von einem früheren einzelnen Host hat sie noch
+niemand installiert; hat ein Gerät doch noch die App des alten Hosts, ersetzt
+der öffentliche Host ihren Service Worker durch einen, der sich selbst
+entfernt, und der nächste Aufruf landet auf dem Verwaltungshost.
+
+Der öffentliche Host sendet `Strict-Transport-Security` ohne
+`includeSubDomains`: auf der Hauptdomain des Clubs würde es ein Jahr lang
+HTTPS für jeden anderen Namen des Clubs erzwingen (Webmail, Intranet,
+Geräte). Der Verwaltungshost behält `includeSubDomains`.
+
+### Auf einen Verwaltungshost umstellen
+
+Eine Installation, die heute auf einem Host läuft, behält diesen Host als
+öffentlichen Host; gedruckte und verschickte öffentliche Links bleiben
+gültig. In dieser Reihenfolge:
+
+1. Lege den DNS-Eintrag für `app.club.org` an und prüfe ihn mit `dig`.
+2. Setze in `/etc/leonaid/production.env` `LEONAID_PUBLIC_BASE_URL` und
+   `LEONAID_ALLOWED_ORIGINS` auf `https://app.club.org` und ergänze
+   `LEONAID_ADMIN_DOMAIN=app.club.org`,
+   `LEONAID_PROXY_CADDYFILE=Caddyfile.split`,
+   `LEONAID_SITE_BASE_URL=https://club.org` und
+   `LEONAID_PUBLIC_ORIGINS=https://club.org` (der alte Host, unverändert in
+   `LEONAID_PUBLIC_DOMAIN`). Weitere Namen kommen in
+   `LEONAID_PUBLIC_DOMAIN_ALIASES`, getrennt durch ", ".
+3. Führe `./leonaid pilot-doctor` mit der Env-Datei aus; er lehnt
+   widersprüchliche Host-Einstellungen ab.
+4. Stelle mit `./leonaid pilot-deploy` bereit. Caddy holt das Zertifikat des
+   Verwaltungshosts beim ersten Start.
+5. Führe `./leonaid pilot-revoke-sessions --env-file /etc/leonaid/production.env`
+   aus. Alte Sitzungen des einzelnen Hosts blieben sonst bis zu ihrem Ablauf
+   gültig; so meldet sich jedes Mitglied einmal neu an. Sag den Mitgliedern,
+   dass sie sich auf `https://app.club.org/` anmelden.
 
 ### Mail für LeonAid und Twenty
 

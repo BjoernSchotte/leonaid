@@ -372,7 +372,7 @@ cp "$env_file" "$split_env_file"
     "LEONAID_PUBLIC_BASE_URL=https://app.leonaid.org" \
     "LEONAID_SITE_BASE_URL=https://leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://app.leonaid.org" \
-    "LEONAID_PUBLIC_ORIGINS=https://leonaid.org,https://www.leonaid.org" \
+    "LEONAID_PUBLIC_ORIGINS=https://leonaid.org" \
     "CMS_POSTGRES_PASSWORD=cms-postgres-production-test-010" \
     "CMS_S3_SECRET_ACCESS_KEY=cms-media-production-test-011" \
     "CMS_ENCRYPTION_KEY=emdash_enc_v1_cms-production-test-012-abcdefgh"

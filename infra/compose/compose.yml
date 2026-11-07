@@ -56,6 +56,8 @@ services:
       # Hosts Astro trusts for Astro.url and checkOrigin, besides localhost.
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
     networks: [edge, cms-data, storage-data]
@@ -189,7 +191,9 @@ services:
       LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
       # Credential-free origins for /api/v1/public/* (the public host).
       LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
-      LEONAID_ALLOWED_ORIGINS: http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443,http://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443},http://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}
+      # Credentialed origins. The dev split sets only the admin host here, so
+      # the public host takes the credential-free path as in production.
+      LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:-http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443,http://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_LAN_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443},http://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTP_PORT:-8080},https://${LEONAID_REMOTE_HOST:-127.0.0.1}:${LEONAID_HTTPS_PORT:-8443}}
       LEONAID_TRUST_PROXY_HEADERS: "true"
       LEONAID_INVITATION_TTL_MINUTES: "30"
       LEONAID_LOGIN_CHALLENGE_TTL_MINUTES: ${LEONAID_LOGIN_CHALLENGE_TTL_MINUTES:-10}
@@ -425,6 +429,8 @@ services:
       # Hosts Astro trusts for Astro.url and checkOrigin, besides localhost.
       LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-}
       # Named on the sign-in pages' brand panel.
       LEONAID_CLUB_NAME: ${LEONAID_CLUB_NAME:-Lions Club Musterstadt}
       LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}

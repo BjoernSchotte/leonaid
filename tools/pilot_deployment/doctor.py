@@ -348,6 +348,8 @@ def probe_https(
     timeout_seconds: float,
     min_certificate_validity_hours: float,
     required_headers: tuple[str, ...] = (),
+    expected_status: int = 200,
+    expected_location: str | None = None,
 ) -> tuple[bytes, dt.datetime | None]:
     parsed = urlparse(url)
     public_host = (parsed.hostname or "").rstrip(".").casefold()
@@ -413,8 +415,13 @@ def probe_https(
         response = http.client.HTTPResponse(tls_socket)
         response.begin()
         body = response.read(1_048_577)
-        if response.status != 200:
+        if response.status != expected_status:
             raise DoctorError(f"http_status_unhealthy:{name}")
+        if (
+            expected_location is not None
+            and response.getheader("Location") != expected_location
+        ):
+            raise DoctorError(f"redirect_target_wrong:{name}")
         if len(body) > 1_048_576:
             raise DoctorError(f"http_body_too_large:{name}")
         headers = {key.casefold(): value for key, value in response.getheaders()}
@@ -439,6 +446,35 @@ def probe_https(
             tls_socket.close()
         if raw_socket is not None:
             raw_socket.close()
+
+
+def probe_http_health(
+    *,
+    name: str,
+    host: str,
+    resolve: dict[str, tuple[str, int | None]],
+    timeout_seconds: float,
+) -> None:
+    """Port 80 answers for the host: DNS points here and ACME HTTP-01 works.
+
+    A --resolve override names the HTTPS target; port 80 is the same address.
+    """
+    connect_host, _ = resolve.get(host, (host, None))
+    connection = http.client.HTTPConnection(connect_host, 80, timeout=timeout_seconds)
+    try:
+        connection.request(
+            "GET",
+            "/_health",
+            headers={"Host": host, "User-Agent": "leonaid-pilot-doctor/1"},
+        )
+        response = connection.getresponse()
+        body = response.read(64)
+    except OSError as error:
+        raise DoctorError(f"port80_unreachable:{name}") from error
+    finally:
+        connection.close()
+    if response.status != 200 or body.strip() != b"ready":
+        raise DoctorError(f"port80_unhealthy:{name}")
 
 
 def validate_backup(
@@ -658,6 +694,36 @@ def probe_running_installation(
         )
         if parse_json_body(site_body, "site").get("status") != "ready":
             raise DoctorError("site_api_readiness_failed")
+    # Every further name of the public host: own certificate, 308 to it.
+    aliases = [
+        name
+        for name in re.split(
+            r"[\s,]+", environment.get("LEONAID_PUBLIC_DOMAIN_ALIASES", "")
+        )
+        if name
+    ]
+    for alias in aliases:
+        probe_https(
+            name=f"alias:{alias}",
+            url=f"https://{alias}/",
+            context=context,
+            resolve=resolve,
+            timeout_seconds=arguments.timeout_seconds,
+            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+            expected_status=308,
+            expected_location=f"{site_base}/",
+        )
+    # Port 80 per host (specs/multi-domain §10.2): DNS reaches this edge.
+    hosts = [urlparse(public_base).hostname or ""]
+    if site_base and site_base != public_base:
+        hosts.append(urlparse(site_base).hostname or "")
+    for host in dict.fromkeys([*hosts, *aliases]):
+        probe_http_health(
+            name=f"http:{host}",
+            host=host,
+            resolve=resolve,
+            timeout_seconds=arguments.timeout_seconds,
+        )
     mail_body, provider_date = probe_https(
         name="mail-provider",
         url=environment["MAIL_HEALTH_URL"],
