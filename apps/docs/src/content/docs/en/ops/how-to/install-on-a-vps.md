@@ -297,6 +297,12 @@ surveys, Impressum and Datenschutz; old alias, archive and campaign paths
 redirect there to the campaign's domain or answer 404. A campaign without an
 active domain is not publicly reachable.
 
+Without a public host you lose: the home page listing all active campaigns,
+campaign pages under `club.org/campaigns/…`, the contact form outside campaign
+pages, and any order page of a campaign without a published CMS campaign page
+(the domain shows CMS pages only). Until the stack proof of this mode is green
+in CI, the deployment contract refuses `Caddyfile.admin-only`.
+
 ### Switch to an admin host
 
 An installation that runs on one host today keeps that host as its public

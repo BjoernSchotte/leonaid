@@ -75,6 +75,7 @@ class ActionEdition:
     at_root: bool
     is_primary: bool
     edition_url: str
+    campaign_page: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +260,7 @@ class AsyncpgSiteDirectory:
                     at_root=row["at_root"],
                     is_primary=row["is_primary"],
                     edition_url=edition_url(live_edition(row, now)),
+                    campaign_page=row["campaign_page"],
                 )
                 for row in rows
             ),

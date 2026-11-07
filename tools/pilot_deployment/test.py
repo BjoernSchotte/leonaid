@@ -362,6 +362,12 @@ def admin_only(split: dict[str, Any]) -> None:
     api["LEONAID_PUBLIC_ORIGINS"] = ""
     api["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
     _environment(config, "campaign-site")["LEONAID_SITE_BASE_URL"] = f"https://{admin}"
+    _environment(config, "campaign-site")["LEONAID_PUBLIC_HOST_ENABLED"] = "false"
+    # Not released for production until its stack proof is green in CI.
+    rejected(config, "admin-only before its stack proof")
+    from tools.pilot_deployment import validate as contract
+
+    contract.ADMIN_ONLY_RELEASED = True
     validate(config)
     mutations: list[tuple[str, dict[str, Any]]] = []
 
@@ -383,10 +389,18 @@ def admin_only(split: dict[str, Any]) -> None:
     changed = copy.deepcopy(split)
     _environment(changed, "api")["LEONAID_PUBLIC_HOST_ENABLED"] = "false"
     mutations.append(("no-public-host flag with the split Caddyfile", changed))
+    mutate(
+        "CMS keeps a site origin",
+        "campaign-site",
+        "LEONAID_PUBLIC_HOST_ENABLED",
+        "true",
+    )
     for label, mutation in mutations:
         rejected(mutation, label)
+    contract.ADMIN_ONLY_RELEASED = False
     print(
-        "pilot-deployment-contract-test: OK: admin host without public host valid; "
+        "pilot-deployment-contract-test: OK: admin host without public host refused "
+        "until released, otherwise valid; "
         f"{len(mutations)} mutations rejected fail-closed"
     )
 

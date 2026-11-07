@@ -889,6 +889,10 @@
             "title": "Atroot",
             "type": "boolean"
           },
+          "campaignPage": {
+            "title": "Campaignpage",
+            "type": "boolean"
+          },
           "editionUrl": {
             "title": "Editionurl",
             "type": "string"
@@ -922,7 +926,8 @@
           "segment",
           "atRoot",
           "isPrimary",
-          "editionUrl"
+          "editionUrl",
+          "campaignPage"
         ],
         "title": "ActionEditionResponse",
         "type": "object"

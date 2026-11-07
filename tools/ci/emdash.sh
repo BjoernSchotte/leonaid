@@ -16,7 +16,7 @@ case "$group" in
     # under the strict CSP (short case, shares the browser bootstrap).
     # campaign-hosts: a campaign on its own host through the real edge
     # (specs/multi-domain §7, §14).
-    cases="krapfentaxi-migration redirect-aliases campaign-hosts"
+    cases="krapfentaxi-migration redirect-aliases campaign-hosts campaign-hosts-admin-only"
     ;;
   static)
     # Stack-free proofs (dependency pins, source fixtures, authorization

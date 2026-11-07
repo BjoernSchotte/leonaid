@@ -4,12 +4,15 @@
 //
 //   node campaign-host-http-proof.mjs active    krapfentaxi.test is active
 //   node campaign-host-http-proof.mjs disabled  the same host has lapsed
+// A second argument "admin-only" runs the stack without a general public
+// host (§6.6): proxy is then the admin host only (review of #109).
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { request } from "node:https";
 import { connect } from "node:tls";
 
 const phase = process.argv[2];
+const adminOnly = process.argv[3] === "admin-only";
 assert.ok(phase === "active" || phase === "disabled");
 const ca = await readFile("/proof/root.crt");
 const HOST = "krapfentaxi.test";
@@ -161,6 +164,32 @@ if (phase === "active") {
   // Editor and member paths never run on a campaign host.
   assert.equal((await call(HOST, "/_emdash/admin/")).status, 404);
   assert.equal((await call(HOST, "/api/v1/identity/me")).status, 404);
+  if (adminOnly) {
+    // N4: the admin host never renders public or campaign pages; the CMS
+    // never sees /campaigns/* there (no campaign-site state header).
+    assert.equal(fromSingle.headers["x-leonaid-campaign-state"], undefined);
+    const alias = await call("proxy", "/krapfentaxi");
+    assert.equal(alias.status, 302, `alias on the admin host: ${alias.status}`);
+    assert.equal(alias.headers.location, "https://krapfentaxi.test/");
+    for (const path of [
+      "/no-such-alias-x",
+      "/campaigns/krapfentaxi-2026/x",
+      "/a/b",
+    ]) {
+      const missing = await call("proxy", path);
+      assert.equal(
+        missing.status,
+        404,
+        `${path} on the admin host: ${missing.status}`,
+      );
+    }
+    const entry = await call("proxy", "/");
+    assert.equal(entry.status, 302, `entry: ${entry.status}`);
+    assert.match(entry.headers.location ?? "", /\/login/);
+    assert.equal((await call("proxy", "/impressum")).status, 200);
+    const robots = await call("proxy", "/robots.txt");
+    assert.match(robots.body, /Disallow: \//);
+  }
   console.log(
     "campaign-host-http: OK: on-demand TLS, root edition, redirects in one hop, legal pages, native and JS order admission, public origin, redirect host",
   );
@@ -218,9 +247,10 @@ if (phase === "active") {
     },
   });
   assert.equal(inbox.status, 403, `inbox from a lapsed host: ${inbox.status}`);
-  // The public host falls back to its own path again (§7.7.6).
+  // The public host falls back to its own path again (§7.7.6); without a
+  // public host the action has no public URL any more.
   const fromSingle = await call("proxy", "/campaigns/krapfentaxi-2026/");
-  assert.equal(fromSingle.status, 200);
+  assert.equal(fromSingle.status, adminOnly ? 404 : 200);
   console.log(
     "campaign-host-http: OK: a lapsed host with a still-valid certificate serves nothing and is no public origin",
   );

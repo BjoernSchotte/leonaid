@@ -201,6 +201,7 @@ function fakeClient(state: ActionManagementResponse = management()) {
       editions: [
         {
           atRoot: true,
+          campaignPage: false,
           editionUrl: "https://krapfentaxi.org/2099/",
           hostStatus: "active",
           hostname: "krapfentaxi.org",
@@ -492,6 +493,10 @@ describe("action detail: drafts and revisions", () => {
     expect(section.textContent).toContain("https://krapfentaxi.org/");
     expect(section.textContent).toContain("krapfentaxi.org/2099/");
     expect(section.textContent).toContain("aktuell auf /");
+    // R41: the host shows nothing without a published CMS page.
+    expect(section.textContent).toContain(
+      "Keine veröffentlichte Kampagnenseite",
+    );
     expect(within(section).queryByRole("button")).toBeNull();
   });
 

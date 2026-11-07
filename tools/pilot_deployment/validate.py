@@ -524,6 +524,12 @@ def validate_hosts(
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
 
 
+# Until the EmDash case campaign-hosts-admin-only is green in CI, production
+# refuses the mode (review of #109); the contract test lifts it to prove the
+# remaining rules.
+ADMIN_ONLY_RELEASED = False
+
+
 def validate_admin_only(
     services: dict[str, Any],
     api_environment: dict[str, Any],
@@ -538,6 +544,12 @@ def validate_admin_only(
 ) -> None:
     """Admin host plus campaign hosts, no general public host (§6.6)."""
 
+    if not ADMIN_ONLY_RELEASED:
+        raise DeploymentContractError(
+            "Caddyfile.admin-only (no public host) is not released yet: its "
+            "stack proof (test-emdash-spike --case campaign-hosts-admin-only) "
+            "must pass in CI first"
+        )
     if public_domain or aliases or public_origins:
         raise DeploymentContractError(
             "without a public host LEONAID_PUBLIC_DOMAIN, its aliases and "
@@ -572,6 +584,19 @@ def validate_admin_only(
         public_environment.get("LEONAID_PUBLIC_DOMAIN") or ""
     ):
         raise DeploymentContractError("public app hosts differ from the proxy hosts")
+    cms = services.get(CMS_SERVICE)
+    if cms is not None:
+        cms_environment = object_value(
+            object_value(cms, CMS_SERVICE).get("environment"),
+            "campaign-site.environment",
+        )
+        if str(cms_environment.get("LEONAID_PUBLIC_HOST_ENABLED") or "").casefold() != (
+            "false"
+        ):
+            raise DeploymentContractError(
+                "without a public host the campaign site needs "
+                "LEONAID_PUBLIC_HOST_ENABLED=false"
+            )
 
 
 def validate_cms(services: dict[str, Any], api_environment: dict[str, Any]) -> None:

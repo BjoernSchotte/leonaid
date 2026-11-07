@@ -591,6 +591,9 @@ class ActionEditionResponse(TransportModel):
     at_root: bool
     is_primary: bool
     edition_url: str
+    # False: the host shows nothing for this action (R41, campaign hosts
+    # render CMS pages only).
+    campaign_page: bool
 
 
 class ActionPublicUrlsResponse(TransportModel):
@@ -623,6 +626,7 @@ async def get_action_public_urls(
                 at_root=item.at_root,
                 is_primary=item.is_primary,
                 edition_url=item.edition_url,
+                campaign_page=item.campaign_page,
             )
             for item in urls.editions
         ],

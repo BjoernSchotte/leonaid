@@ -30,8 +30,14 @@ export function adminOrigin(): URL | null {
   return configuredOrigin(process.env.EMDASH_SITE_URL);
 }
 
-/** Origins that serve public campaign pages. */
+/**
+ * Origins that serve public campaign pages. Without a general public host
+ * (specs/multi-domain §6.6) there is none: campaign pages exist only on
+ * campaign hosts, never on the admin host.
+ */
 export function siteOrigins(): URL[] {
+  if (process.env.LEONAID_PUBLIC_HOST_ENABLED?.trim().toLowerCase() === "false")
+    return [];
   const configured = process.env.LEONAID_SITE_BASE_URL?.trim();
   const origin = configured ? configuredOrigin(configured) : adminOrigin();
   return origin ? [origin] : [];

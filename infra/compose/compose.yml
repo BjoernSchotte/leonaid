@@ -59,6 +59,8 @@ services:
       # Development names of the one host: never taken for a campaign host.
       LEONAID_LAN_HOST: ${LEONAID_LAN_HOST:-}
       LEONAID_REMOTE_HOST: ${LEONAID_REMOTE_HOST:-}
+      # false: no general public host (§6.6), no site origin in the CMS.
+      LEONAID_PUBLIC_HOST_ENABLED: ${LEONAID_PUBLIC_HOST_ENABLED:-true}
       # Public header: a separate admin host gets a static sign-in link.
       LEONAID_ADMIN_BASE_URL: ${LEONAID_ADMIN_BASE_URL:-}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}

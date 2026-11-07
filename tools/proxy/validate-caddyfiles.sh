@@ -19,6 +19,7 @@ count=0
 for entry in \
   infra/proxy/Caddyfile \
   infra/proxy/Caddyfile.split \
+  infra/proxy/Caddyfile.admin-only \
   "infra/proxy/Caddyfile.split|www.leonaid.invalid, alt.leonaid.invalid" \
   infra/pilot/Caddyfile \
   infra/pilot/Caddyfile.split \
