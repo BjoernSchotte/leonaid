@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,7 +20,9 @@ from leonaid.application.acquisition import (
     PartyAssignmentRoster,
 )
 from leonaid.application.activities import (
+    ACTIVITY_COMMAND_TYPE,
     AcquisitionActivityRepository,
+    ActivityCommand,
     ActivityRecordingResult,
     RecordedAcquisitionActivity,
 )
@@ -30,6 +33,7 @@ from leonaid.application.assignments import (
 )
 from leonaid.application.crm import CrmPartyKind
 from leonaid.application.errors import Conflict
+from leonaid.application.policies import concealed_resource
 from leonaid.application.sponsor_matching import (
     AssignedAcquirer,
     RecordedAssignment,
@@ -1415,55 +1419,78 @@ class AsyncpgAcquisitionPolicyRepository(
         party_id: UUID,
         evaluated_at: datetime,
     ) -> AcquisitionAssignment | None:
+        async with self._pool.acquire() as connection:
+            return await self._active_assignment(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                party_kind=party_kind,
+                party_id=party_id,
+                evaluated_at=evaluated_at,
+            )
+
+    @classmethod
+    async def _active_assignment(
+        cls,
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        party_kind: AssignmentPartyKind,
+        party_id: UUID,
+        evaluated_at: datetime,
+        for_update: bool = False,
+    ) -> AcquisitionAssignment | None:
         party_column = (
             "assignment.twenty_company_id"
             if party_kind is AssignmentPartyKind.COMPANY
             else "assignment.twenty_person_id"
         )
-        async with self._pool.acquire() as connection:
-            row = await connection.fetchrow(
-                f"""
-                SELECT
-                    assignment.id,
-                    assignment.action_id,
-                    assignment.twenty_company_id,
-                    assignment.twenty_person_id,
-                    assignment.acquirer_user_id,
-                    account.display_name AS acquirer_display_name,
-                    assignment.status,
-                    assignment.priority,
-                    assignment.next_action,
-                    assignment.due_at,
-                    assignment.revision,
-                    assignment.created_at,
-                    assignment.updated_at
-                FROM acquisition_assignment AS assignment
-                JOIN user_account AS account
-                  ON account.id = assignment.acquirer_user_id
-                 AND account.status = 'active'
-                JOIN action_membership AS membership
-                  ON membership.action_id = assignment.action_id
-                 AND membership.user_id = assignment.acquirer_user_id
-                 AND membership.role = 'acquirer'
-                 AND membership.active_from <= $4
-                 AND (
-                    membership.active_until IS NULL
-                    OR membership.active_until > $4
-                 )
-                JOIN charity_action_capability AS capability
-                  ON capability.action_id = assignment.action_id
-                 AND capability.capability = 'acquisition'
-                WHERE assignment.action_id = $1
-                  AND assignment.acquirer_user_id = $2
-                  AND {party_column} = $3
-                  AND assignment.status <> 'handed_over'
-                """,
-                action_id,
-                actor_user_id,
-                party_id,
-                evaluated_at,
-            )
-        return self._assignment(row) if row is not None else None
+        lock = " FOR UPDATE OF assignment" if for_update else ""
+        row = await connection.fetchrow(
+            f"""
+            SELECT
+                assignment.id,
+                assignment.action_id,
+                assignment.twenty_company_id,
+                assignment.twenty_person_id,
+                assignment.acquirer_user_id,
+                account.display_name AS acquirer_display_name,
+                assignment.status,
+                assignment.priority,
+                assignment.next_action,
+                assignment.due_at,
+                assignment.revision,
+                assignment.created_at,
+                assignment.updated_at
+            FROM acquisition_assignment AS assignment
+            JOIN user_account AS account
+              ON account.id = assignment.acquirer_user_id
+             AND account.status = 'active'
+            JOIN action_membership AS membership
+              ON membership.action_id = assignment.action_id
+             AND membership.user_id = assignment.acquirer_user_id
+             AND membership.role = 'acquirer'
+             AND membership.active_from <= $4
+             AND (
+                membership.active_until IS NULL
+                OR membership.active_until > $4
+             )
+            JOIN charity_action_capability AS capability
+              ON capability.action_id = assignment.action_id
+             AND capability.capability = 'acquisition'
+            WHERE assignment.action_id = $1
+              AND assignment.acquirer_user_id = $2
+              AND {party_column} = $3
+              AND assignment.status <> 'handed_over'
+            {lock}
+            """,
+            action_id,
+            actor_user_id,
+            party_id,
+            evaluated_at,
+        )
+        return cls._assignment(row) if row is not None else None
 
     async def activity_timeline_for_actor(
         self,
@@ -1586,15 +1613,131 @@ class AsyncpgAcquisitionPolicyRepository(
             )
         return tuple(self._recorded_activity(row) for row in rows)
 
+    async def replayed_activity(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        command: ActivityCommand,
+        evaluated_at: datetime,
+    ) -> ActivityRecordingResult | None:
+        async with self._pool.acquire() as connection:
+            return await self._activity_replay(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                command=command,
+                evaluated_at=evaluated_at,
+            )
+
+    @classmethod
+    async def _activity_replay(
+        cls,
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        command: ActivityCommand,
+        evaluated_at: datetime,
+    ) -> ActivityRecordingResult | None:
+        receipt = await connection.fetchrow(
+            """
+            SELECT command_type, request_hash, result
+            FROM command_receipt
+            WHERE idempotency_key = $1
+            """,
+            command.idempotency_key,
+        )
+        if receipt is None:
+            return None
+        if (
+            str(receipt["command_type"]) != ACTIVITY_COMMAND_TYPE
+            or str(receipt["request_hash"]) != command.request_hash
+        ):
+            raise Conflict(
+                "idempotency_conflict",
+                "Diese Vorgangs-ID wurde bereits für andere Daten verwendet.",
+            )
+        result = cls._json_object(receipt["result"]) if receipt["result"] else {}
+        activity_id = result.get("activityId")
+        if activity_id is None:
+            # Activity receipts are written complete in one transaction; an
+            # empty one is not ours to finish.
+            raise Conflict(
+                "idempotency_incomplete",
+                "Die vorherige Verarbeitung ist noch nicht abgeschlossen. "
+                "Bitte erneut versuchen.",
+            )
+        row = await connection.fetchrow(
+            """
+            SELECT
+                activity.id,
+                activity.action_id,
+                activity.assignment_id,
+                activity.twenty_company_id,
+                activity.twenty_person_id,
+                activity.actor_user_id,
+                actor.display_name AS actor_display_name,
+                activity.channel,
+                activity.outcome,
+                activity.note,
+                activity.next_action_snapshot,
+                activity.due_at_snapshot,
+                activity.assignment_revision,
+                activity.occurred_at
+            FROM acquisition_activity AS activity
+            JOIN user_account AS actor
+              ON actor.id = activity.actor_user_id
+            WHERE activity.id = $1
+              AND activity.action_id = $2
+              AND activity.actor_user_id = $3
+            """,
+            UUID(str(activity_id)),
+            action_id,
+            actor_user_id,
+        )
+        if row is None:
+            # Removed meanwhile, or recorded for another action or actor.
+            raise concealed_resource()
+        activity = cls._recorded_activity(row)
+        # Authorisation is evaluated at send time, also for a replay.
+        assignment = await cls._active_assignment(
+            connection,
+            action_id=action_id,
+            actor_user_id=actor_user_id,
+            party_kind=activity.party_kind,
+            party_id=activity.party_id,
+            evaluated_at=evaluated_at,
+        )
+        if assignment is None or assignment.id != activity.assignment_id:
+            # Handed over or replaced by another assignment for the party.
+            raise concealed_resource()
+        # The revision this send produced (or met, see assignmentUpdated),
+        # never the current one: the queue advances later entries' base only
+        # from it (PLAN §9.2, §11.1).
+        stored_revision = result.get("assignmentRevision")
+        if stored_revision is not None:
+            activity = replace(activity, assignment_revision=int(str(stored_revision)))
+        return ActivityRecordingResult(
+            assignment=assignment,
+            activity=activity,
+            assignment_updated=bool(result.get("assignmentUpdated", True)),
+            replayed=True,
+        )
+
     async def record_activity(
         self,
         previous: AcquisitionAssignment,
         changed: AcquisitionAssignment,
         capture: ActivityCapture,
         *,
+        expected_revision: int,
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
+        received_at: datetime,
+        command: ActivityCommand | None = None,
+        keep_contact_on_moved_assignment: bool = False,
     ) -> ActivityRecordingResult | None:
         activity_id = uuid4()
         company_id = (
@@ -1610,8 +1753,31 @@ class AsyncpgAcquisitionPolicyRepository(
         persisted_row: asyncpg.Record | None = None
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                persisted_revision = await connection.fetchval(
-                    """
+                if command is not None:
+                    # One send per key at a time; the loser of a race sees
+                    # the winner's receipt and replays it.
+                    await connection.execute(
+                        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                        command.idempotency_key,
+                    )
+                    replayed = await self._activity_replay(
+                        connection,
+                        action_id=previous.action_id,
+                        actor_user_id=actor_user_id,
+                        command=command,
+                        evaluated_at=received_at,
+                    )
+                    if replayed is not None:
+                        return replayed
+                # ``changed`` derives from the state read at previous.revision,
+                # so it may only replace exactly that revision. A capture based
+                # on any other revision meets a moved assignment.
+                based_on_read = expected_revision == previous.revision
+                persisted_revision = (
+                    None
+                    if not based_on_read
+                    else await connection.fetchval(
+                        """
                     UPDATE acquisition_assignment AS assignment
                     SET status = $6,
                         priority = $7,
@@ -1644,26 +1810,51 @@ class AsyncpgAcquisitionPolicyRepository(
                       )
                     RETURNING revision
                     """,
-                    previous.id,
-                    previous.action_id,
-                    actor_user_id,
-                    previous.revision,
-                    occurred_at,
-                    changed.state.status.value,
-                    changed.state.priority,
-                    changed.state.next_action,
-                    changed.state.due_at,
-                    occurred_at,
-                )
-                if persisted_revision is None:
-                    await self._raise_revision_if_changed(
-                        connection,
                         previous.id,
+                        previous.action_id,
+                        actor_user_id,
                         previous.revision,
+                        received_at,
+                        changed.state.status.value,
+                        changed.state.priority,
+                        changed.state.next_action,
+                        changed.state.due_at,
+                        received_at,
                     )
-                    return None
-                if int(persisted_revision) != changed.revision:
+                )
+                assignment_updated = persisted_revision is not None
+                if persisted_revision is None:
+                    if not keep_contact_on_moved_assignment:
+                        if not based_on_read:
+                            raise Conflict(
+                                "assignment_revision_conflict",
+                                "Die Zuordnung wurde zwischenzeitlich geändert. "
+                                "Bitte neu laden.",
+                            )
+                        await self._raise_revision_if_changed(
+                            connection,
+                            previous.id,
+                            previous.revision,
+                        )
+                        return None
+                    # D1: the contact happened. Record it on the assignment
+                    # as it is now and leave status and follow-up untouched.
+                    current = await self._active_assignment(
+                        connection,
+                        action_id=previous.action_id,
+                        actor_user_id=actor_user_id,
+                        party_kind=previous.party_kind,
+                        party_id=previous.party_id,
+                        evaluated_at=received_at,
+                        for_update=True,
+                    )
+                    if current is None or current.id != previous.id:
+                        return None
+                    activity_revision = current.revision
+                elif int(persisted_revision) != changed.revision:
                     raise RuntimeError("Aktivitätsrevision ist inkonsistent.")
+                else:
+                    activity_revision = changed.revision
                 await connection.execute(
                     """
                     INSERT INTO acquisition_activity (
@@ -1684,7 +1875,7 @@ class AsyncpgAcquisitionPolicyRepository(
                     )
                     VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                        $11, $12, $13, $7
+                        $11, $12, $13, $14
                     )
                     """,
                     activity_id,
@@ -1697,19 +1888,38 @@ class AsyncpgAcquisitionPolicyRepository(
                     capture.channel.value,
                     capture.outcome.value,
                     capture.note,
-                    capture.next_action,
-                    capture.due_at,
-                    changed.revision,
+                    # The snapshot is the follow-up this activity set; a
+                    # follow-up that was not applied is not one.
+                    capture.next_action if assignment_updated else None,
+                    capture.due_at if assignment_updated else None,
+                    activity_revision,
+                    received_at,
                 )
-                await self._append_history(
-                    connection,
-                    assignment=changed,
-                    actor_user_id=actor_user_id,
-                    previous_state=previous.state.snapshot(
-                        acquirer_user_id=previous.acquirer_user_id,
-                    ),
-                    occurred_at=occurred_at,
-                )
+                if assignment_updated:
+                    await self._append_history(
+                        connection,
+                        assignment=changed,
+                        actor_user_id=actor_user_id,
+                        previous_state=previous.state.snapshot(
+                            acquirer_user_id=previous.acquirer_user_id,
+                        ),
+                        occurred_at=received_at,
+                    )
+                audit_payload: dict[str, object] = {
+                    "assignmentId": str(previous.id),
+                    "assignmentRevision": activity_revision,
+                    "channel": capture.channel.value,
+                    "outcome": capture.outcome.value,
+                    "hasReminder": capture.due_at is not None and assignment_updated,
+                    "noteLength": len(capture.note or ""),
+                }
+                if occurred_at != received_at:
+                    audit_payload["capturedAt"] = occurred_at.astimezone(
+                        timezone.utc
+                    ).isoformat()
+                if not assignment_updated:
+                    audit_payload["assignmentUpdated"] = False
+                    audit_payload["followUpRejected"] = capture.due_at is not None
                 await connection.execute(
                     """
                     INSERT INTO audit_event (
@@ -1733,19 +1943,43 @@ class AsyncpgAcquisitionPolicyRepository(
                     actor_user_id,
                     activity_id,
                     request_id,
-                    json.dumps(
-                        {
-                            "assignmentId": str(previous.id),
-                            "assignmentRevision": changed.revision,
-                            "channel": capture.channel.value,
-                            "outcome": capture.outcome.value,
-                            "hasReminder": capture.due_at is not None,
-                            "noteLength": len(capture.note or ""),
-                        },
-                        separators=(",", ":"),
-                    ),
-                    occurred_at,
+                    json.dumps(audit_payload, separators=(",", ":")),
+                    received_at,
                 )
+                if command is not None:
+                    # Written complete inside the transaction: a refused
+                    # send rolls back and leaves no receipt (PLAN §11.5).
+                    stored = await connection.fetchval(
+                        """
+                        INSERT INTO command_receipt (
+                            idempotency_key, command_type, request_hash,
+                            result, completed_at
+                        )
+                        VALUES ($1, $2, $3, $4::jsonb, $5)
+                        ON CONFLICT (idempotency_key) DO NOTHING
+                        RETURNING true
+                        """,
+                        command.idempotency_key,
+                        ACTIVITY_COMMAND_TYPE,
+                        command.request_hash,
+                        json.dumps(
+                            {
+                                "activityId": str(activity_id),
+                                "assignmentUpdated": assignment_updated,
+                                "assignmentRevision": activity_revision,
+                            },
+                            separators=(",", ":"),
+                        ),
+                        received_at,
+                    )
+                    if not stored:
+                        # Another command wrote this key without the key lock.
+                        # Roll this activity back; a resend replays or conflicts.
+                        raise Conflict(
+                            "idempotency_incomplete",
+                            "Die vorherige Verarbeitung ist noch nicht "
+                            "abgeschlossen. Bitte erneut versuchen.",
+                        )
                 persisted_row = await self._assignment_record(
                     connection,
                     action_id=previous.action_id,
@@ -1767,11 +2001,12 @@ class AsyncpgAcquisitionPolicyRepository(
                 channel=capture.channel,
                 outcome=capture.outcome,
                 note=capture.note,
-                next_action=capture.next_action,
-                due_at=capture.due_at,
-                assignment_revision=persisted.revision,
+                next_action=capture.next_action if assignment_updated else None,
+                due_at=capture.due_at if assignment_updated else None,
+                assignment_revision=activity_revision,
                 occurred_at=occurred_at,
             ),
+            assignment_updated=assignment_updated,
         )
 
     async def activities(
