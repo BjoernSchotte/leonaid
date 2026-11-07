@@ -139,7 +139,7 @@ if [ "$seed_part" = reset ]; then
   # still uses the unmodified operator CLI and creates new empty volumes.
   cp "$compose_file" "$proof/cold-compose.json"
   phase seed-fixture-import python3 "$checkout_root/tools/testing/seed_fixture.py" "$checkout_root" "$root" "$project"
-  compose build api
+  build_shared_images api
   phase seed-starting-services compose --profile dev-mail up --no-build --detach \
     --wait --wait-timeout 420 core-postgres rustfs mailpit twenty-server twenty-worker
   phase seed-starting-data compose run --rm --user "$(id -u):$(id -g)" --no-deps \
