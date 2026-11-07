@@ -3,7 +3,8 @@
   max-width: 72ch;
   margin-bottom: var(--s-5);
 }
-.legal-error {
+.legal-error,
+.legal-active-blockers {
   margin-bottom: var(--s-5);
 }
 .legal-layout {

@@ -57,9 +57,14 @@ import { useActionErrorMessage } from "../action-admin/use-action-error";
 import { useContextCommands } from "../command-palette/store";
 import { navigateInPage, useLocationHref } from "../shared/location";
 import { formatDateTime } from "../shared/dates";
+import {
+  MEMBER_PRIVACY_NOTICE_TEMPLATE,
+  PRIVACY_POLICY_TEMPLATE,
+} from "./legal-templates";
 
 interface LegalForm {
   legalName: string;
+  legalForm: string;
   streetLine1: string;
   postalCode: string;
   city: string;
@@ -88,6 +93,15 @@ interface LegalForm {
   taxEvidenceId: string;
   privacyEvidenceId: string;
   eInvoiceEvidenceId: string;
+  imprintRepresentatives: string;
+  imprintPhone: string;
+  imprintRegisterCourt: string;
+  imprintRegisterNumber: string;
+  imprintVatId: string;
+  imprintContentResponsibleName: string;
+  imprintContentResponsibleAddress: string;
+  privacyPolicyText: string;
+  memberPrivacyNoticeText: string;
 }
 
 type FieldKey = keyof LegalForm;
@@ -105,15 +119,25 @@ const emptyForm: LegalForm = {
   eInvoiceDecision: "pending",
   eInvoiceEvidenceId: "",
   iban: "",
+  imprintContentResponsibleAddress: "",
+  imprintContentResponsibleName: "",
+  imprintPhone: "",
+  imprintRegisterCourt: "",
+  imprintRegisterNumber: "",
+  imprintRepresentatives: "",
+  imprintVatId: "",
   invoiceRetentionDays: "3650",
   issuerEmail: "",
+  legalForm: "",
   legalName: "",
+  memberPrivacyNoticeText: MEMBER_PRIVACY_NOTICE_TEMPLATE,
   numberPrefix: "KT",
   numberWidth: "5",
   paymentTermsDays: "14",
   postalCode: "",
   privacyContactEmail: "",
   privacyEvidenceId: "",
+  privacyPolicyText: PRIVACY_POLICY_TEMPLATE,
   publicOrderLegalBasis: "",
   publicOrderNoticeText: "",
   streetLine1: "",
@@ -132,6 +156,18 @@ const blockerLabels: Record<string, string> = {
     "E-Rechnungen sind erforderlich; das liegt außerhalb des ERP-light-Piloten.",
   synthetic_or_placeholder_value:
     "Produktive Angaben enthalten noch Test- oder Platzhalterwerte.",
+  legal_form_missing: "Die Rechtsform des Trägers ist nicht gewählt.",
+  imprint_representatives_missing:
+    "Im Impressum fehlen die vertretungsberechtigten Personen.",
+  imprint_phone_missing: "Im Impressum fehlt die Telefonnummer.",
+  imprint_register_missing:
+    "Im Impressum fehlt der Registereintrag (Gericht und Nummer), den die gewählte Rechtsform verlangt.",
+  imprint_vat_id_missing:
+    "Die Steuerkennung ist eine Umsatzsteuer-ID; sie gehört auch ins Impressum.",
+  privacy_policy_missing: "Die Datenschutzerklärung fehlt.",
+  member_privacy_notice_missing: "Der Datenschutzhinweis für Mitglieder fehlt.",
+  template_placeholder_open:
+    "Ein Text enthält noch offene Vorlagen-Platzhalter in [[ ]].",
 };
 
 function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
@@ -148,15 +184,27 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
     eInvoiceDecision: values.eInvoiceDecision,
     eInvoiceEvidenceId: values.eInvoiceEvidenceId ?? "",
     iban: values.iban,
+    imprintContentResponsibleAddress:
+      values.imprintContentResponsibleAddress ?? "",
+    imprintContentResponsibleName: values.imprintContentResponsibleName ?? "",
+    imprintPhone: values.imprintPhone ?? "",
+    imprintRegisterCourt: values.imprintRegisterCourt ?? "",
+    imprintRegisterNumber: values.imprintRegisterNumber ?? "",
+    imprintRepresentatives: values.imprintRepresentatives ?? "",
+    imprintVatId: values.imprintVatId ?? "",
     invoiceRetentionDays: String(values.retention.invoiceDays),
     issuerEmail: values.issuer.email,
+    legalForm: values.legalForm ?? "",
     legalName: values.issuer.legalName,
+    // Shows what is stored: an empty text stays empty (four-eyes review).
+    memberPrivacyNoticeText: values.memberPrivacyNoticeText ?? "",
     numberPrefix: values.numberPrefix,
     numberWidth: String(values.numberWidth),
     paymentTermsDays: String(values.paymentTermsDays),
     postalCode: values.issuer.postalCode,
     privacyContactEmail: values.privacyContactEmail,
     privacyEvidenceId: values.privacyEvidenceId,
+    privacyPolicyText: values.privacyPolicyText ?? "",
     publicOrderLegalBasis: values.publicOrderLegalBasis,
     publicOrderNoticeText: values.publicOrderNoticeText,
     streetLine1: values.issuer.streetLine1,
@@ -168,9 +216,29 @@ function formFromValues(values: LegalConfigurationValuesResponse): LegalForm {
   };
 }
 
+/**
+ * The form a new edit starts from: empty privacy texts get the templates.
+ * Only an edit seeds them; stored versions are always shown as stored, so
+ * the reviewer sees a new policy as new.
+ */
+function seedForEditing(form: LegalForm): LegalForm {
+  return {
+    ...form,
+    memberPrivacyNoticeText:
+      form.memberPrivacyNoticeText || MEMBER_PRIVACY_NOTICE_TEMPLATE,
+    privacyPolicyText: form.privacyPolicyText || PRIVACY_POLICY_TEMPLATE,
+  };
+}
+
 /** Evidence IDs: the server accepts upper case without surrounding spaces. */
 function evidenceId(value: string) {
   return value.trim().toUpperCase();
+}
+
+/** Optional text: empty means "not applicable" (null on the wire). */
+function optionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 function toInteger(value: string) {
@@ -189,6 +257,17 @@ function requestFromForm(
     eInvoiceEvidenceId: evidenceId(form.eInvoiceEvidenceId) || null,
     expectedRevision: revision,
     iban: form.iban,
+    imprintContentResponsibleAddress: optionalText(
+      form.imprintContentResponsibleAddress,
+    ),
+    imprintContentResponsibleName: optionalText(
+      form.imprintContentResponsibleName,
+    ),
+    imprintPhone: optionalText(form.imprintPhone),
+    imprintRegisterCourt: optionalText(form.imprintRegisterCourt),
+    imprintRegisterNumber: optionalText(form.imprintRegisterNumber),
+    imprintRepresentatives: optionalText(form.imprintRepresentatives),
+    imprintVatId: optionalText(form.imprintVatId.toUpperCase()),
     issuer: {
       city: form.city,
       countryCode: form.countryCode.toUpperCase(),
@@ -198,11 +277,15 @@ function requestFromForm(
       streetLine1: form.streetLine1,
       taxIdentifier: form.taxIdentifier.toUpperCase(),
     },
+    legalForm: (form.legalForm ||
+      null) as SaveLegalConfigurationDraftRequest["legalForm"],
+    memberPrivacyNoticeText: optionalText(form.memberPrivacyNoticeText),
     numberPrefix: form.numberPrefix.toUpperCase(),
     numberWidth: toInteger(form.numberWidth),
     paymentTermsDays: toInteger(form.paymentTermsDays),
     privacyContactEmail: form.privacyContactEmail,
     privacyEvidenceId: evidenceId(form.privacyEvidenceId),
+    privacyPolicyText: optionalText(form.privacyPolicyText),
     publicOrderLegalBasis: form.publicOrderLegalBasis,
     publicOrderNoticeText: form.publicOrderNoticeText,
     retention: {
@@ -225,7 +308,7 @@ interface FieldSpec {
   readonly key: FieldKey;
   readonly label: string;
   readonly hint: string;
-  readonly kind?: "email" | "number" | "select" | "textarea";
+  readonly kind?: "email" | "number" | "select" | "tel" | "textarea";
   readonly options?: readonly (readonly [string, string])[];
   readonly placeholder?: string;
   readonly min?: number;
@@ -266,6 +349,22 @@ const PARTS = [
         wide: true,
       },
       {
+        key: "legalForm",
+        label: "Rechtsform",
+        hint: "Bestimmt, welcher Registereintrag ins Impressum gehört. LeonAid liest die Rechtsform nicht aus dem Namen.",
+        kind: "select",
+        options: [
+          ["", "Bitte wählen"],
+          ["registered_association", "Eingetragener Verein (e. V.)"],
+          ["unregistered_association", "Nicht eingetragener Verein"],
+          ["ggmbh", "Gemeinnützige GmbH (gGmbH)"],
+          ["gmbh", "GmbH"],
+          ["cooperative", "Eingetragene Genossenschaft (eG)"],
+          ["foundation", "Stiftung"],
+          ["other", "Sonstige"],
+        ],
+      },
+      {
         key: "issuerEmail",
         label: "Rechnungs-E-Mail",
         hint: "Zentrale Kontaktadresse für Rückfragen zu ausgestellten Rechnungen.",
@@ -301,6 +400,67 @@ const PARTS = [
         label: "Steuerkennung",
         hint: "Steuernummer oder Umsatzsteuer-ID, wie von der Steuerberatung bestätigt.",
         placeholder: "z. B. 103/123/45678",
+      },
+    ],
+  },
+  {
+    id: "imprint",
+    name: "Impressum",
+    intro:
+      "Pflichtangaben nach § 5 DDG für alle öffentlichen Seiten der Installation. Name, Anschrift und E-Mail kommen aus „Träger & Anschrift“.",
+    fields: [
+      {
+        key: "imprintRepresentatives",
+        label: "Vertretungsberechtigte",
+        hint: "Wer den Verein vertritt, mit Funktion, z. B. der Vorstand nach § 26 BGB.",
+        kind: "textarea",
+        rows: 2,
+        wide: true,
+        placeholder:
+          "z. B. Vorstand: Erika Muster (Präsidentin), Max Muster (Schatzmeister)",
+      },
+      {
+        key: "imprintPhone",
+        label: "Telefon",
+        hint: "Zweiter schneller Kontaktweg neben der E-Mail-Adresse.",
+        kind: "tel",
+        placeholder: "+49 821 123456",
+      },
+      {
+        key: "imprintVatId",
+        label: "Umsatzsteuer-ID",
+        hint: "Angeben, wenn der Verein eine USt-IdNr. nach § 27a UStG hat; Pflicht, wenn sie als Steuerkennung auf Rechnungen steht.",
+        placeholder: "DE123456789",
+        optional: true,
+      },
+      {
+        key: "imprintRegisterCourt",
+        label: "Registergericht",
+        hint: "Pflicht, wenn die Rechtsform ein Register hat (e. V., GmbH, gGmbH, eG): das Registergericht. Zusammen mit der Registernummer angeben.",
+        placeholder: "Amtsgericht Augsburg",
+        optional: true,
+      },
+      {
+        key: "imprintRegisterNumber",
+        label: "Registernummer",
+        hint: "Nummer im Register, z. B. VR 1234 (Vereinsregister) oder HRB 5678 (Handelsregister).",
+        placeholder: "VR 1234",
+        optional: true,
+      },
+      {
+        key: "imprintContentResponsibleName",
+        label: "Inhaltlich verantwortlich",
+        hint: "Für redaktionelle Inhalte wie Kampagnenseiten und Neuigkeiten (§ 18 Abs. 2 MStV). Zusammen mit der Anschrift angeben.",
+        placeholder: "Erika Muster",
+        optional: true,
+      },
+      {
+        key: "imprintContentResponsibleAddress",
+        label: "Anschrift der verantwortlichen Person",
+        hint: "Ladungsfähige Anschrift der inhaltlich verantwortlichen Person.",
+        placeholder: "Musterstraße 12, 86150 Augsburg",
+        optional: true,
+        wide: true,
       },
     ],
   },
@@ -441,6 +601,30 @@ const PARTS = [
         label: "Nachweis der Datenschutzfreigabe",
         hint: "Referenz auf die dokumentierte Datenschutzprüfung; keine personenbezogenen oder vertraulichen Inhalte.",
         placeholder: "z. B. DATENSCHUTZ-2026-01",
+        wide: true,
+      },
+    ],
+  },
+  {
+    id: "privacy-page",
+    name: "Datenschutzerklärung",
+    intro:
+      "Die öffentliche Seite /datenschutz für alle Besucher und Mitglieder. Die Vorlagen beschreiben nur, was LeonAid selbst tut; Angaben in [[ ]] muss der Verein ergänzen, sonst lässt sich die Version produktiv nicht aktivieren.",
+    fields: [
+      {
+        key: "privacyPolicyText",
+        label: "Datenschutzerklärung",
+        hint: "Absätze durch eine Leerzeile trennen. „## “ am Zeilenanfang beginnt eine Überschrift, „- “ einen Listenpunkt.",
+        kind: "textarea",
+        rows: 18,
+        wide: true,
+      },
+      {
+        key: "memberPrivacyNoticeText",
+        label: "Datenschutzhinweis für Mitglieder",
+        hint: "Erscheint auf /datenschutz im Abschnitt für Mitglieder, verlinkt aus Verwaltung und Akquise-App. Er nennt auch, was die Akquise-App auf dem Gerät speichert.",
+        kind: "textarea",
+        rows: 14,
         wide: true,
       },
     ],
@@ -709,7 +893,9 @@ export function LegalConfigurationPage({
   const startEditing = useCallback(() => {
     if (!state) return;
     const source = state.draft ?? state.active;
-    const values = source ? formFromValues(source.values) : emptyForm;
+    const values = seedForEditing(
+      source ? formFromValues(source.values) : emptyForm,
+    );
     setForm(values);
     setBaseline(values);
     setError(undefined);
@@ -798,6 +984,9 @@ export function LegalConfigurationPage({
   const draftForm = draft ? formFromValues(draft.values) : null;
   const authoredByViewer = draft?.createdByUserId === identity.userId;
   const blockers = draft?.values.activationBlockers ?? [];
+  // A version activated before newer requirements (e.g. the Impressum fields
+  // of migration 0054) can be incomplete now; say so instead of hiding it.
+  const activeBlockers = active?.values.activationBlockers ?? [];
   const changedParts = new Set(
     PARTS.filter(
       (item) => changedFields(item, activeForm, draftForm).length,
@@ -820,6 +1009,26 @@ export function LegalConfigurationPage({
         Vier-Augen-Prinzip: Eine Person entwirft, eine zweite gibt frei. Jede
         Version bleibt nachvollziehbar.
       </p>
+
+      {active && activeBlockers.length ? (
+        <div
+          className="callout tone-warn legal-active-blockers"
+          data-testid="legal-active-blockers"
+          role="status"
+        >
+          <Icon icon={CircleAlert} size={16} />
+          <span>
+            <strong>
+              Die aktive Version {active.version} ist unvollständig:
+            </strong>{" "}
+            {activeBlockers
+              .map((blocker) => blockerLabels[blocker] ?? blocker)
+              .join(" ")}{" "}
+            Legen Sie einen neuen Entwurf an, lassen Sie ihn freigeben und
+            aktivieren Sie ihn.
+          </span>
+        </div>
+      ) : null}
 
       {error ? (
         <StatusMessage className="legal-error" tone="error">
