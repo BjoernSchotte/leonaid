@@ -92,6 +92,29 @@ owned=true
 compose --profile dev-mail up --build --detach --wait --wait-timeout 420 \
   proxy worker mailpit
 
+# The proxy is healthy once `proxy` and `localhost` have certificates; the
+# two test hosts may not. Caddy's startup storage clean can delete a site
+# folder while its first certificate is written ("deleting site folder
+# because key is empty"), and the issuance then retries after 60 s. The
+# browsers start only after a TLS handshake for each test host succeeds.
+tls_ready=false
+attempt=0
+while [ "$attempt" -lt 90 ]; do
+  if compose exec -T proxy sh -ec \
+    "wget -qO- https://$public_host:8443/_health && wget -qO- https://$admin_host:8443/_health" \
+    >/dev/null 2>&1; then
+    tls_ready=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 2
+done
+[ "$tls_ready" = true ] || {
+  echo "multi-host-test: ERROR: no TLS certificate for $public_host and $admin_host after 180 s" >&2
+  exit 1
+}
+echo "multi-host-test: TLS ready for $admin_host and $public_host after $((attempt * 2)) s"
+
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
