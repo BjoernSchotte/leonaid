@@ -70,6 +70,7 @@ run_case() {
   proxy="leonaid-proxy-routing-proxy-$label-$suffix"
   docker volume create "$network-data" >/dev/null
   # shellcheck disable=SC2068 # word splitting of the --env pairs is intended
+  # host-write-user: Caddy writes its internal CA into a named volume, no host path
   docker run --detach --name "$proxy" --network "$network" \
     --network-alias proxy \
     --env LEONAID_HTTPS_PORT="$port" \
