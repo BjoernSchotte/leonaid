@@ -19,6 +19,8 @@ Punkte sind keine stillschweigenden Produktzusagen.
   einmalige Einrichtung in Produktion (CMS-Datenbankrolle, Medien-Bucket,
   Editor-Setup, Aktionsschema) läuft mit `./leonaid pilot-cms-provision` auf
   einer laufenden Installation; `pilot-install` richtet das CMS nicht mit ein.
+  Die erste LeonAid-Systemadministration legt `./leonaid
+  pilot-create-system-admin` an (Anmeldemail, kein Passwort).
   Die erste EmDash-Einrichtung braucht eine LeonAid-Systemadministration im
   Browser (15-Minuten-Freigabe). Eine unterbrochene Einrichtung gibt
   `--reset-setup` nur frei, solange das CMS unbenutzt ist. Backups enthalten

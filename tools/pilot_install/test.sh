@@ -43,7 +43,7 @@ admin_port=$3
 # Twenty admin port of the CMS restore drill's target project.
 restore_admin_port=$4
 workspace=$(mktemp -d)
-mkdir -p "$workspace/evidence" "$root/.artifacts"
+mkdir -p "$workspace/evidence" "$workspace/session" "$root/.artifacts"
 overlay_directory=$(mktemp -d "$root/.artifacts/pilot-install.XXXXXX")
 overlay="$overlay_directory/overlay.yml"
 env_file="$workspace/production.env"
@@ -364,9 +364,13 @@ mount = (
     "      - source: smtp-test-ca\n"
     "        target: /run/leonaid-test/smtp-ca.pem\n"
 )
+# The core worker's default TLS context (no MAIL_SMTP_CA_FILE in the pilot)
+# reads the trust store from SSL_CERT_FILE: test relay CA only, test only.
 text = text.replace(
     anchor,
     anchor
+    + "    environment:\n"
+    + "      SSL_CERT_FILE: /run/leonaid-test/smtp-ca.pem\n"
     + mount
     + "\n  twenty-worker:\n"
     + "    environment:\n"
@@ -674,15 +678,72 @@ for secret in alert-webhook-url alert-heartbeat-url; do
   }
 done
 
+echo "pilot-install-test: proves the first System Admin (pilot-create-system-admin)"
+create_admin() {
+  set +e
+  admin_output=$(leonaid_test pilot-create-system-admin --env-file "$env_file" "$@" 2>&1)
+  admin_status=$?
+  set -e
+  printf '%s\n' "$admin_output" >>"$workspace/system-admin.log"
+}
+expect_admin() {
+  label=$1
+  expected_status=$2
+  expected_text=$3
+  shift 3
+  create_admin "$@"
+  if [ "$admin_status" -ne "$expected_status" ] ||
+    ! printf '%s' "$admin_output" | grep -Fq -- "$expected_text"; then
+    echo "pilot-install-test: ERROR: system admin $label: status $admin_status, expected $expected_status with '$expected_text':" >&2
+    printf '%s\n' "$admin_output" | tail -n 15 >&2
+    exit 1
+  fi
+  echo "pilot-install-test: system admin $label"
+}
+expect_admin "needs an address" 64 "--email is missing" --display-name "CMS System Admin"
+expect_admin "creates the first one on an empty installation" 0 \
+  "System Admin created; the sign-in mail for cms-admin@leonaid.org is queued" \
+  --email Cms-Admin@leonaid.org --display-name "CMS System Admin"
+# The normal sign-in mail through the relay: code and link, no password.
+assert_delivered cms-admin@leonaid.org noreply@leonaid.org "LeonAid-Login"
+expect_admin "repeats without a change" 0 "already is an active System Admin; nothing changed" \
+  --email cms-admin@leonaid.org --display-name "CMS System Admin"
+expect_admin "refuses a second one without --additional" 1 \
+  "an active System Admin exists already; pass --additional" \
+  --email cms-second-admin@leonaid.org --display-name "Second System Admin"
+expect_admin "adds a second one with --additional" 0 "System Admin created" \
+  --email cms-second-admin@leonaid.org --display-name "Second System Admin" --additional
+assert_delivered cms-second-admin@leonaid.org noreply@leonaid.org "LeonAid-Login"
+admin_audit=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
+  --tuples-only --no-align --command \
+  "SELECT event_type || ':' || (actor_user_id IS NULL)::text FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' ORDER BY occurred_at")
+[ "$admin_audit" = "$(printf '%s\n' identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true identity.account.created:true identity.global_role.granted:true identity.login_challenge.created:true)" ] || {
+  echo "pilot-install-test: ERROR: unexpected system admin audit trail:" >&2
+  printf '%s\n' "$admin_audit" >&2
+  exit 1
+}
+# No run printed a sign-in code, a magic link or its token.
+if grep -Eq '(^|[^0-9])[0-9]{6}([^0-9]|$)|token=|/login\?' "$workspace/system-admin.log"; then
+  echo "pilot-install-test: ERROR: pilot-create-system-admin printed sign-in data" >&2
+  exit 1
+fi
+operators=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid --dbname leonaid \
+  --tuples-only --no-align --command \
+  "SELECT DISTINCT payload->>'operator' FROM audit_event WHERE request_id LIKE 'pilot-create-system-admin:%' AND entity_type IN ('user_account', 'user_global_role')")
+[ "$operators" = "$(id -un)@$(hostname)" ] || {
+  echo "pilot-install-test: ERROR: the audit does not name the operator: $operators" >&2
+  exit 1
+}
+
 echo "pilot-install-test: proves CMS provisioning (pilot-cms-provision) end to end"
 cms_release_manifest="$workspace/release-manifest-cms.json"
-cms_admin_id=10000000-0000-4000-8000-0000000000c1
+cms_admin_id=$(runtime_compose exec -T core-postgres psql --quiet --username leonaid \
+  --dbname leonaid --tuples-only --no-align \
+  --command "SELECT id FROM user_account WHERE email = 'cms-admin@leonaid.org'")
 cms_admin_email=cms-admin@leonaid.org
 cms_action_id=20000000-0000-4000-8000-0000000000c1
 cms_slug=pilot-cms-proof
 cms_title="Pilot CMS proof campaign"
-cms_session=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
-cms_session_digest=$(printf '%s' "$cms_session" | sha256sum | cut -d ' ' -f 1)
 core_sql() {
   runtime_compose exec -T core-postgres psql --quiet --set ON_ERROR_STOP=1 \
     --username leonaid --dbname leonaid "$@"
@@ -730,13 +791,45 @@ assert_backup_schema() {
 value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["schemaVersion"] == int(os.environ["EXPECTED_SCHEMA"]), value["schemaVersion"]'
 }
-# A session of the second System Admin (fixture session in this proof).
+# real_sign_in EMAIL: the real code sign-in of a member through the edge with
+# the code of its newest sign-in mail; prints the session.
+real_sign_in() {
+  edge_proof() {
+    docker run --rm --network "container:$project-proxy-1" \
+      --env CMS_PROOF_HOST=portal.leonaid.org \
+      --env CMS_PROOF_CA_FILE=/session/proxy-ca.crt \
+      --env CMS_PROOF_SESSION_FILE=/session/token \
+      --volume "$workspace/session:/session" \
+      --user "$(id -u):$(id -g)" \
+      --volume "$root:/workspace:ro" --workdir /workspace \
+      "$PYTHON_IMAGE" python tools/pilot_install/cms_proof.py "$@"
+  }
+  if [ ! -f "$workspace/session/proxy-ca.crt" ]; then
+    # The proxy CA is root-only in its volume; the host copies the public
+    # cert so the sign-in runs as the host user and writes a token only it reads.
+    docker run --rm --network none --volume "${project}_caddy-data:/caddy:ro" \
+      "$ALPINE_IMAGE" cat /caddy/caddy/pki/authorities/local/root.crt \
+      >"$workspace/session/proxy-ca.crt"
+  fi
+  sign_in_mails() {
+    docker run --rm --network "${project}_mail-egress" \
+      --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
+      python tools/pilot_install/mail_proof.py "$@"
+  }
+  # The newest sign-in mail first. Core keeps one pending code per member and
+  # sends no new mail while it is valid; only an expired code needs a new one.
+  sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" 1)
+  rm -f "$workspace/session/token"
+  if ! edge_proof login "$1" "$sign_in_code" >&2 2>/dev/null; then
+    sign_in_minimum=$(( $(sign_in_mails login-count "$mail_api" "$1") + 1 ))
+    edge_proof request-login "$1" >&2
+    sign_in_code=$(sign_in_mails login-code "$mail_api" "$1" "$sign_in_minimum")
+    edge_proof login "$1" "$sign_in_code" >&2
+  fi
+  cat "$workspace/session/token"
+}
 second_admin_session() {
-  second_token=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
-  second_digest=$(printf '%s' "$second_token" | sha256sum | cut -d ' ' -f 1)
-  printf '%s\n' "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) SELECT gen_random_uuid(), id, '$second_digest', now() + interval '90 days', now(), now(), 'pilot CMS proof', now(), now() FROM user_account WHERE email = 'cms-second-admin@leonaid.org';" |
-    core_sql >/dev/null
-  printf '%s\n' "$second_token"
+  real_sign_in cms-second-admin@leonaid.org
 }
 cms_proof() {
   cms_proof_run "$@" || {
@@ -846,10 +939,7 @@ printf '%s' "$cms_output" | grep -Fq "1/4 database: already provisioned"
 printf '%s' "$cms_output" | grep -Fq "2/4 media bucket: provisioning"
 
 printf '%s\n' \
-  "INSERT INTO user_account (id, email, display_name, status) VALUES ('$cms_admin_id', '$cms_admin_email', 'CMS System Admin', 'active');" \
-  "INSERT INTO user_global_role (user_id, role) VALUES ('$cms_admin_id', 'system_admin');" \
-  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c2', 'cms-member@leonaid.org', 'CMS Member', 'active');" \
-  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES (gen_random_uuid(), '$cms_admin_id', '$cms_session_digest', now() + interval '90 days', now(), now(), 'pilot CMS proof', now(), now());" |
+  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c2', 'cms-member@leonaid.org', 'CMS Member', 'active');" |
   core_sql
 cms_expect "refuses a member without the System Admin role" 1 \
   "is no active LeonAid System Admin" --system-admin-email cms-member@leonaid.org
@@ -860,10 +950,6 @@ cms_state | grep -qx 'bootstrap=armed'
 # Still pending: a repeat neither re-arms nor needs the address again.
 cms_expect "waits for the setup" 75 "3/4 editor setup: PENDING"
 # One grant at a time: another System Admin's address is refused, not ignored.
-printf '%s\n' \
-  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c3', 'cms-second-admin@leonaid.org', 'Second System Admin', 'active');" \
-  "INSERT INTO user_global_role (user_id, role) VALUES ('10000000-0000-4000-8000-0000000000c3', 'system_admin');" |
-  core_sql
 cms_expect "refuses a second System Admin while armed" 1 \
   "the setup is armed for another System Admin until" \
   --system-admin-email cms-second-admin@leonaid.org
@@ -895,6 +981,8 @@ sed -i 's/^LEONAID_CMS_ENABLED=false$/LEONAID_CMS_ENABLED=true/' "$env_file"
 echo "pilot-install-test: CMS backups and the switch-off work while the setup is pending"
 
 # A refused setup request hands the grant back instead of locking the CMS.
+# The System Admin signs in for real: the code of its sign-in mail.
+cms_session=$(real_sign_in cms-admin@leonaid.org)
 cms_proof setup-refused
 cms_state | grep -qx 'bootstrap=armed'
 # A grant left consumed (a crash during the setup request, after EmDash had
