@@ -122,11 +122,35 @@ compose run --rm --user "$(id -u):$(id -g)" --no-deps \
   --entrypoint python \
   api /repo/tools/schema/smoke.py --legacy
 
-echo "poc021-test: 0052 downgrade keeps a queued order without its capture time"
 capture_sql() {
   compose exec -T core-postgres sh -ec \
     'psql -v ON_ERROR_STOP=1 -q -t -A -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
+
+echo "poc021-test: 0053 upgrade names existing manual contacts outside the window"
+compose run --rm --no-deps --entrypoint alembic api downgrade 0052_commitment_captured_at
+printf '%s\n' "INSERT INTO acquisition_activity (id, action_id, occurred_at, channel, outcome, created_at) VALUES ('95300000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', CURRENT_TIMESTAMP - interval '20 days', 'phone', 'reached', CURRENT_TIMESTAMP);" | capture_sql
+if output=$(compose run --rm --no-deps --entrypoint alembic api upgrade head 2>&1); then
+  echo "poc021-test: ERROR: 0053 accepted a manual contact outside the window" >&2
+  exit 1
+fi
+case "$output" in
+  *"0053 refused: 1 manual contact(s)"*"95300000-0000-4000-8000-000000000001"*) ;;
+  *)
+    printf '%s\n' "$output" >&2
+    echo "poc021-test: ERROR: 0053 failed for another reason" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "DELETE FROM acquisition_activity WHERE id = '95300000-0000-4000-8000-000000000001';" | capture_sql
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+validated=$(printf '%s\n' "SELECT convalidated FROM pg_constraint WHERE conname = 'ck_acquisition_activity_occurred_at_bound';" | capture_sql)
+if [ "$validated" != "t" ]; then
+  echo "poc021-test: ERROR: 0053 left its check unvalidated: $validated" >&2
+  exit 1
+fi
+
+echo "poc021-test: 0052 downgrade keeps a queued order without its capture time"
 # The legacy order is an admin order; only acquisition orders carry a
 # capture time, so it is one for this step and gets its source back after.
 legacy_source=$(printf '%s\n' "SELECT source FROM commitment WHERE id = '80000000-0000-4000-8000-000000000001';" | capture_sql)
