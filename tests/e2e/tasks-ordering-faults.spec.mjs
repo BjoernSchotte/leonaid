@@ -63,7 +63,7 @@ function countMoves(page, taskId) {
 }
 
 /** Picks up the focused grip, moves it one row down (or up) and drops it. */
-async function keyboardMove(page, key = "ArrowDown") {
+async function pressMove(page, key = "ArrowDown") {
   await page.keyboard.press("Space");
   await page.waitForTimeout(50);
   await page.keyboard.press(key);
@@ -96,7 +96,7 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   const keyboardMove = await holdMove(page, tasks[0].id);
   const gripRequests = countMoves(page, tasks[0].id);
   await grip.focus();
-  await keyboardMove(page);
+  await pressMove(page);
   await keyboardMove.held;
   // While it saves the grip is inert but still focusable and focused.
   await expect(grip).toHaveAttribute("aria-disabled", "true");
@@ -105,7 +105,7 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   await expect(grip).toBeFocused();
   // Inert while saving: a second pick-up and move starts no drag and sends
   // nothing.
-  await keyboardMove(page);
+  await pressMove(page);
   await expect(grip).not.toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".tasks-page .row[data-dragging]")).toHaveCount(0);
   await expect(grip).toBeFocused();
@@ -172,7 +172,7 @@ test("S6 a held reorder keeps focus on the grip and the pane button", async ({
   const oldGrip = await crossing.elementHandle();
   const crossMove = await holdMove(page, mover.id);
   await crossing.focus();
-  await keyboardMove(page, first ? "ArrowUp" : "ArrowDown");
+  await pressMove(page, first ? "ArrowUp" : "ArrowDown");
   await crossMove.held;
   await expect(crossing).toBeFocused();
   crossMove.release();
