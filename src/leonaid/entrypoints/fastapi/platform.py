@@ -361,7 +361,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         # The public host and its aliases plus every active campaign host,
         # read at request time (§6.3, D7).
         application.state.public_origins = SiteHostPublicOrigins(
-            settings.public_origins, site_directory
+            settings.public_origins,
+            site_directory,
+            production=settings.environment == "production",
         )
         application.state.site_host_check_secret = settings.site_host_check_secret
         application.state.host_check_settings = settings.host_check_settings

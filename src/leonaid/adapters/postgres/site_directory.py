@@ -285,8 +285,13 @@ class SiteHostPublicOrigins:
     TTL_SECONDS = 30.0
 
     def __init__(
-        self, static: tuple[str, ...], directory: AsyncpgSiteDirectory
+        self,
+        static: tuple[str, ...],
+        directory: AsyncpgSiteDirectory,
+        *,
+        production: bool = True,
     ) -> None:
+        self._production = production
         self._static = static
         self._directory = directory
         self._cache: dict[str, tuple[float, bool]] = {}
@@ -295,7 +300,12 @@ class SiteHostPublicOrigins:
         if origin.rstrip("/").casefold() in self._static:
             return True
         parts = urlsplit(origin.rstrip("/").casefold())
-        if parts.scheme != "https" or not parts.hostname:
+        # Production edges serve 443 only; dev stacks use another port.
+        if (
+            parts.scheme != "https"
+            or not parts.hostname
+            or (self._production and parts.port not in (None, 443))
+        ):
             return False
         hostname = parts.hostname
         cached = self._cache.get(hostname)

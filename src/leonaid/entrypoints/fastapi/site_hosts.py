@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Literal, cast
 from uuid import UUID
 
+import asyncio
 import time
 from datetime import timezone
 
@@ -520,15 +521,19 @@ async def site_host_dns(request: Request) -> Response:
     Cached 60 s: the path is public (/api/health/*) and must not turn the
     API into a DNS amplifier.
     """
-    now = time.monotonic()
-    cached = getattr(request.app.state, "site_host_dns_cache", None)
-    if cached is None or now - cached[0] > 60:
-        settings = request.app.state.host_check_settings
-        reachable = await public_resolvers_reachable(
-            settings.public_resolvers, settings.edge_name or "example.org"
-        )
-        cached = (now, reachable)
-        request.app.state.site_host_dns_cache = cached
+    state = request.app.state
+    if not hasattr(state, "site_host_dns_lock"):
+        state.site_host_dns_lock = asyncio.Lock()
+    # One probe at a time; concurrent callers wait for it (single flight).
+    async with state.site_host_dns_lock:
+        cached = getattr(state, "site_host_dns_cache", None)
+        if cached is None or time.monotonic() - cached[0] > 60:
+            settings = state.host_check_settings
+            reachable = await public_resolvers_reachable(
+                settings.public_resolvers, settings.edge_name or "example.org"
+            )
+            cached = (time.monotonic(), reachable)
+            state.site_host_dns_cache = cached
     reachable = cached[1]
     status = (
         "off"
@@ -537,14 +542,9 @@ async def site_host_dns(request: Request) -> Response:
         if all(reachable.values())
         else "unavailable"
     )
+    # Status only: the resolver addresses are configuration, not public.
     return JSONResponse(
-        {
-            "status": status,
-            "resolvers": [
-                {"address": address, "reachable": ok}
-                for address, ok in reachable.items()
-            ],
-        },
+        {"status": status},
         status_code=503 if status == "unavailable" else 200,
         headers={"Cache-Control": "no-store"},
     )
