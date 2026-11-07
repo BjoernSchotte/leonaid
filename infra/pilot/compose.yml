@@ -123,7 +123,10 @@ services:
   # database role, media bucket and editor setup are provisioned once
   # (help docs "Install LeonAid on a fresh VPS"; specs/leonaid-poc/KNOWN-LIMITS.md).
   campaign-site:
-    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:-}
+    # Without the CMS the service stays inactive; the placeholder only keeps
+    # `--profile '*'` renders valid. The pilot contract rejects it (no digest)
+    # should the profile ever be enabled without a release image.
+    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:-leonaid-cms-disabled.invalid/campaign-site:unset}
     build: !reset null
     environment:
       # Admin origin: the editor and its sign-in links live on the admin host.
