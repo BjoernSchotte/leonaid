@@ -33,8 +33,16 @@ services:
     environment:
       CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL is missing}
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      # Set together with LEONAID_PROXY_CADDYFILE=Caddyfile.split
+      # (specs/multi-domain stage 1); empty for one host.
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      LEONAID_PUBLIC_DOMAIN_ALIASES: ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
     volumes: !override
-      - ../pilot/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Long syntax: the ":-" default would split the short volume syntax.
+      - type: bind
+        source: ../pilot/${LEONAID_PROXY_CADDYFILE:-Caddyfile}
+        target: /etc/caddy/Caddyfile
+        read_only: true
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
@@ -47,9 +55,14 @@ services:
       LEONAID_ENV: production
       LEONAID_SERVICE_VERSION: ${LEONAID_SERVICE_VERSION:?LEONAID_SERVICE_VERSION is missing}
       LEONAID_RELEASE_COMMIT: ${LEONAID_RELEASE_COMMIT:?LEONAID_RELEASE_COMMIT is missing}
+      # Admin base URL (member mails); the only host without an admin domain.
       LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
+      # Public host base URL (survey invitations); empty = admin base URL.
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
       LEONAID_CLUB_NAME: ${LEONAID_CLUB_NAME:?LEONAID_CLUB_NAME is missing}
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS is missing}
+      # Public host and its aliases: credential-free origins of /api/v1/public/*.
+      LEONAID_PUBLIC_ORIGINS: ${LEONAID_PUBLIC_ORIGINS:-}
       TWENTY_ORIGIN: http://localhost:${TWENTY_ADMIN_PORT:?TWENTY_ADMIN_PORT is missing}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL is missing}
       WORKER_HEALTH_URL: http://worker:8010/health/ready
@@ -100,6 +113,30 @@ services:
     environment:
       # Astro trusts only allowed Host headers for Astro.url and checkOrigin.
       LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
+
+  # Campaign pages and the EmDash editor (specs/multi-domain stage 0). Part of
+  # the stack only with the emdash profile: LEONAID_CMS_ENABLED=true in the
+  # env file makes every ./leonaid pilot command add --profile emdash. The
+  # database role, media bucket and editor setup are provisioned once
+  # (help docs "Install LeonAid on a fresh VPS"; specs/leonaid-poc/KNOWN-LIMITS.md).
+  campaign-site:
+    # Without the CMS the service stays inactive; the placeholder only keeps
+    # `--profile '*'` renders valid. The pilot contract rejects it (no digest)
+    # should the profile ever be enabled without a release image.
+    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:-leonaid-cms-disabled.invalid/campaign-site:unset}
+    build: !reset null
+    environment:
+      # Admin origin: the editor and its sign-in links live on the admin host.
+      EMDASH_SITE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
+      # Public origin of campaign pages; empty = EMDASH_SITE_URL (one host).
+      LEONAID_SITE_BASE_URL: ${LEONAID_SITE_BASE_URL:-}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      LEONAID_ADMIN_DOMAIN: ${LEONAID_ADMIN_DOMAIN:-}
+      # Public header: a separate admin host gets a static sign-in link.
+      LEONAID_ADMIN_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL is missing}
 
   # The CRM UI is for the system administrator only and has no public domain.
   # twenty-server publishes its port on the host's loopback interface only;
@@ -165,7 +202,8 @@ services:
       PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
       PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing}
       PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
-      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing}
+      # Every certificate the edge serves: public host, admin host, aliases.
+      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN is missing} ${LEONAID_ADMIN_DOMAIN:-} ${LEONAID_PUBLIC_DOMAIN_ALIASES:-}
       PILOT_TLS_PORT: "443"
       PILOT_TLS_CA_FILE: ${LEONAID_TLS_CA_FILE:-}
     volumes:

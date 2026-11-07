@@ -8,6 +8,8 @@ match static asset content types. HTML, JSON and dynamic routes stay plain
 
 import json
 import sys
+from collections.abc import Iterator
+from typing import Any
 
 ALLOWED_PATHS = {
     "/assets/*",
@@ -24,7 +26,7 @@ ALLOWED_TYPES = {
 }
 
 
-def routes(node):
+def routes(node: Any) -> Iterator[dict[str, Any]]:
     if isinstance(node, dict):
         if isinstance(node.get("handle"), list):
             yield node
@@ -35,7 +37,7 @@ def routes(node):
             yield from routes(value)
 
 
-def problems(config):
+def problems(config: Any) -> list[str]:
     found = []
     for route in routes(config):
         for handler in route["handle"]:
@@ -56,7 +58,7 @@ def problems(config):
     return found
 
 
-def main():
+def main() -> int:
     name = sys.argv[1]
     found = problems(json.load(sys.stdin))
     for problem in found:

@@ -26,6 +26,7 @@ IMAGE_VARIABLES = {
     "public": "LEONAID_PUBLIC_IMAGE",
     "proxy": "LEONAID_PROXY_IMAGE",
     "survey-validator": "LEONAID_SURVEY_VALIDATOR_IMAGE",
+    "campaign-site": "LEONAID_CAMPAIGN_SITE_IMAGE",
 }
 
 

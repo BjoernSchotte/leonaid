@@ -53,6 +53,12 @@ SECRET_KEYS = (
     "TWENTY_INTEGRATION_API_KEY",
     "TWENTY_LOGIN_TOKEN_SECRET",
 )
+# Campaign pages and the EmDash editor (specs/multi-domain stage 0).
+CMS_SECRET_KEYS = (
+    "CMS_ENCRYPTION_KEY",
+    "CMS_POSTGRES_PASSWORD",
+    "CMS_S3_SECRET_ACCESS_KEY",
+)
 REQUIRED_ENVIRONMENT_KEYS = (
     "CADDY_ACME_EMAIL",
     "LEONAID_ALLOWED_ORIGINS",
@@ -213,6 +219,22 @@ def validate_environment(
         if len(value) < 24 or is_placeholder(value):
             raise DoctorError(f"secret_invalid:{key}")
         secret_values.append(value)
+    cms_setting = values.get("LEONAID_CMS_ENABLED", "false")
+    if cms_setting not in {"true", "false"}:
+        raise DoctorError("cms_enabled_invalid")
+    cms_enabled = cms_setting == "true"
+    # ./leonaid adds --profile emdash exactly when the env file enables it.
+    if cms_enabled != ("campaign-site" in compose_config.get("services", {})):
+        raise DoctorError("cms_profile_mismatch")
+    if cms_enabled:
+        image = values.get("LEONAID_CAMPAIGN_SITE_IMAGE", "")
+        if not image or is_placeholder(image):
+            raise DoctorError("environment_keys_missing:LEONAID_CAMPAIGN_SITE_IMAGE")
+        for key in CMS_SECRET_KEYS:
+            value = values.get(key, "")
+            if len(value) < 24 or is_placeholder(value):
+                raise DoctorError(f"secret_invalid:{key}")
+            secret_values.append(value)
     if len(secret_values) != len(set(secret_values)):
         raise DoctorError("secrets_not_distinct")
 
@@ -255,6 +277,7 @@ def validate_environment(
     for key in (
         "LEONAID_PUBLIC_BASE_URL",
         "MAIL_HEALTH_URL",
+        *(("LEONAID_SITE_BASE_URL",) if values.get("LEONAID_SITE_BASE_URL") else ()),
     ):
         parsed = urlparse(values[key])
         if parsed.scheme != "https" or not parsed.hostname:
@@ -325,6 +348,8 @@ def probe_https(
     timeout_seconds: float,
     min_certificate_validity_hours: float,
     required_headers: tuple[str, ...] = (),
+    expected_status: int = 200,
+    expected_location: str | None = None,
 ) -> tuple[bytes, dt.datetime | None]:
     parsed = urlparse(url)
     public_host = (parsed.hostname or "").rstrip(".").casefold()
@@ -390,8 +415,13 @@ def probe_https(
         response = http.client.HTTPResponse(tls_socket)
         response.begin()
         body = response.read(1_048_577)
-        if response.status != 200:
+        if response.status != expected_status:
             raise DoctorError(f"http_status_unhealthy:{name}")
+        if (
+            expected_location is not None
+            and response.getheader("Location") != expected_location
+        ):
+            raise DoctorError(f"redirect_target_wrong:{name}")
         if len(body) > 1_048_576:
             raise DoctorError(f"http_body_too_large:{name}")
         headers = {key.casefold(): value for key, value in response.getheaders()}
@@ -416,6 +446,35 @@ def probe_https(
             tls_socket.close()
         if raw_socket is not None:
             raw_socket.close()
+
+
+def probe_http_health(
+    *,
+    name: str,
+    host: str,
+    resolve: dict[str, tuple[str, int | None]],
+    timeout_seconds: float,
+) -> None:
+    """Port 80 answers for the host: DNS points here and ACME HTTP-01 works.
+
+    A --resolve override names the HTTPS target; port 80 is the same address.
+    """
+    connect_host, _ = resolve.get(host, (host, None))
+    connection = http.client.HTTPConnection(connect_host, 80, timeout=timeout_seconds)
+    try:
+        connection.request(
+            "GET",
+            "/_health",
+            headers={"Host": host, "User-Agent": "leonaid-pilot-doctor/1"},
+        )
+        response = connection.getresponse()
+        body = response.read(64)
+    except OSError as error:
+        raise DoctorError(f"port80_unreachable:{name}") from error
+    finally:
+        connection.close()
+    if response.status != 200 or body.strip() != b"ready":
+        raise DoctorError(f"port80_unhealthy:{name}")
 
 
 def validate_backup(
@@ -621,6 +680,50 @@ def probe_running_installation(
     # Twenty itself has no public endpoint to probe.
     if parse_json_body(api_body, "api").get("status") != "ready":
         raise DoctorError("api_dependency_readiness_failed")
+    # With an admin host the public host has its own certificate and routes.
+    site_base = environment.get("LEONAID_SITE_BASE_URL", "").rstrip("/")
+    if site_base and site_base != public_base:
+        site_body, _ = probe_https(
+            name="site",
+            url=f"{site_base}/api/health/ready",
+            context=context,
+            resolve=resolve,
+            timeout_seconds=arguments.timeout_seconds,
+            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+            required_headers=common_headers,
+        )
+        if parse_json_body(site_body, "site").get("status") != "ready":
+            raise DoctorError("site_api_readiness_failed")
+    # Every further name of the public host: own certificate, 308 to it.
+    aliases = [
+        name
+        for name in re.split(
+            r"[\s,]+", environment.get("LEONAID_PUBLIC_DOMAIN_ALIASES", "")
+        )
+        if name
+    ]
+    for alias in aliases:
+        probe_https(
+            name=f"alias:{alias}",
+            url=f"https://{alias}/",
+            context=context,
+            resolve=resolve,
+            timeout_seconds=arguments.timeout_seconds,
+            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+            expected_status=308,
+            expected_location=f"{site_base}/",
+        )
+    # Port 80 per host (specs/multi-domain §10.2): DNS reaches this edge.
+    hosts = [urlparse(public_base).hostname or ""]
+    if site_base and site_base != public_base:
+        hosts.append(urlparse(site_base).hostname or "")
+    for host in dict.fromkeys([*hosts, *aliases]):
+        probe_http_health(
+            name=f"http:{host}",
+            host=host,
+            resolve=resolve,
+            timeout_seconds=arguments.timeout_seconds,
+        )
     mail_body, provider_date = probe_https(
         name="mail-provider",
         url=environment["MAIL_HEALTH_URL"],

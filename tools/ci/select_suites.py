@@ -101,7 +101,8 @@ INTEGRATION_SECONDS = {
 }
 E2E_SECONDS = {
     "acquisition-management": 156,
-    "public-catalog": 183,
+    # 183 s measured plus an estimate for the own-stack multi-host proof (#97).
+    "public-catalog": 300,
     "membership": 160,
     "invoices": 120,
     "commitments": 175,
@@ -507,6 +508,8 @@ RULES: tuple[Rule, ...] = (
             "tests/e2e/public-actions.spec.mjs",
             "tests/e2e/public-audit.spec.mjs",
             "tests/e2e/activity-feed.spec.mjs",
+            "tools/multi_host/**",
+            "tests/e2e/multi-host.spec.mjs",
         ),
         e2e("public-catalog"),
         "public catalog proofs",

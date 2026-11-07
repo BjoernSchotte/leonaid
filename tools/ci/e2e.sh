@@ -14,7 +14,8 @@ if [ "$#" -eq 0 ]; then
   exit 64
 fi
 
-# Prints "<kind> <leaf script>..." for one shard.
+# Prints one "<kind> <leaf script>..." line per fixture kind of one shard.
+# Kind "own": the script builds and removes its own stack (no shared fixture).
 leaves() {
   case "$1" in
   membership)
@@ -28,6 +29,8 @@ leaves() {
     ;;
   public-catalog)
     echo golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    # Admin host + public host on their own stack (specs/multi-domain stage 1).
+    echo own tools/multi_host/test.sh
     ;;
   invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
     echo golden "tools/$1/test.sh"
@@ -68,17 +71,21 @@ leaves() {
 
 golden=""
 core=""
+own=""
 for shard in "$@"; do
-  if ! line=$(leaves "$shard"); then
+  if ! lines=$(leaves "$shard"); then
     echo "ci-e2e: ERROR: unknown shard: $shard" >&2
     exit 64
   fi
-  kind=${line%% *}
-  scripts=${line#* }
-  case "$kind" in
-    golden) golden="$golden $scripts" ;;
-    core) core="$core $scripts" ;;
-  esac
+  while read -r kind scripts; do
+    case "$kind" in
+      golden) golden="$golden $scripts" ;;
+      core) core="$core $scripts" ;;
+      own) own="$own $scripts" ;;
+    esac
+  done <<EOF_LEAVES
+$lines
+EOF_LEAVES
 done
 
 status=0
@@ -90,6 +97,12 @@ fi
 if [ -n "$core" ]; then
   python3 "$root/tools/testing/shared_stack.py" --keep-going core $core || status=1
 fi
+for script in $own; do
+  if ! /bin/sh "$root/$script" "$root"; then
+    echo "ci-e2e: leaf $script FAILED" >&2
+    status=1
+  fi
+done
 if [ "$status" -ne 0 ]; then
   echo "ci-e2e: ERROR: failed leaves in: $*" >&2
   exit 1
