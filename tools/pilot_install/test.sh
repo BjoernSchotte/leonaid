@@ -263,7 +263,7 @@ values = {
     secrets.choice(string.ascii_letters + string.digits) for _ in range(32)
   ),
 }
-for name in ("CORE", "WEB", "PWA", "PUBLIC", "PROXY", "SURVEY_VALIDATOR"):
+for name in ("CORE", "WEB", "PWA", "PUBLIC", "PROXY", "SURVEY_VALIDATOR", "CAMPAIGN_SITE"):
   values[f"LEONAID_{name}_IMAGE"] = (
     f"registry.leonaid.org/leonaid/{name.lower()}@sha256:" + os.environ["DIGEST"]
   )
@@ -520,7 +520,8 @@ docker run --rm \
   python -c 'import json, os, pathlib
 value = json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
 assert value["sourceProject"] == os.environ["EXPECTED_PROJECT"]
-assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar"}'
+# The pilot proxy keeps its certificates in caddy-data, so the backup has it.
+assert set(value["files"]) == {"core.dump", "twenty.dump", "twenty-storage.tar", "rustfs-data.tar", "caddy-data.tar"}, sorted(value["files"])'
 
 echo "pilot-install-test: proves mail from Twenty and the core worker through the relay"
 # The relay joins the egress network under its public name, like an external

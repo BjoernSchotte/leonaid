@@ -3,9 +3,9 @@ import {
   LeonAidApiClient,
   type CreatePublicOrderRequest,
   type PublicActionRouteResponse,
-  type PublicCampaignListItemResponse,
   type PublicOrderResultResponse,
 } from "@leonaid/api-client";
+import { createCampaignListReader } from "./campaign-list";
 
 const routeTimeoutMilliseconds = 5_000;
 const mutationTimeoutMilliseconds = 12_000;
@@ -29,26 +29,20 @@ export async function resolvePublicAction(
 }
 
 /**
- * Active campaigns for the home page (specs/multi-domain §6.5). The home page
- * stays usable without them: an unreachable Core yields an empty list.
+ * Active campaigns for the home page (specs/multi-domain §6.5), cached per
+ * process (campaign-list.ts). The home page stays usable without them: an
+ * unreachable Core yields the last known or an empty list.
  */
-export async function listActiveCampaigns(): Promise<
-  readonly PublicCampaignListItemResponse[]
-> {
-  try {
-    const result = await client().listPublicCampaigns(
-      { availability: "active" },
-      {
-        headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
-        signal: AbortSignal.timeout(routeTimeoutMilliseconds),
-      },
-    );
-    return result.items;
-  } catch {
-    console.warn("public_campaign_list_unavailable");
-    return [];
-  }
-}
+export const listActiveCampaigns = createCampaignListReader(async () => {
+  const result = await client().listPublicCampaigns(
+    { availability: "active" },
+    {
+      headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
+      signal: AbortSignal.timeout(routeTimeoutMilliseconds),
+    },
+  );
+  return result.items;
+});
 
 export async function submitPublicOrder(
   publicAlias: string,

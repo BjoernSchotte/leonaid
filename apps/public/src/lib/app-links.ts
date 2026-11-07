@@ -126,5 +126,5 @@ export function adminHostLink(
     admin.host.toLowerCase() === requestHost.toLowerCase()
   )
     return null;
-  return { href: `${admin.origin}/`, label: "Anmelden" };
+  return { href: `${admin.origin}/`, label: "Mitgliederbereich" };
 }

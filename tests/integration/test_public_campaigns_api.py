@@ -47,7 +47,7 @@ def settings() -> Settings:
 
 
 class Fixture:
-    """Six actions: three listed, three not."""
+    """Ten actions: five listed, five not."""
 
     def __init__(self) -> None:
         self.tag = uuid4().hex[:10]
@@ -60,14 +60,22 @@ class Fixture:
         now = datetime.now(timezone.utc)
         hour = timedelta(hours=1)
         day = timedelta(days=1)
+        tie = now - 4 * day
         rows = (
             # name, status, publication start, publication end, alias, CMS page
             ("cms", "active", now - 3 * day, now + day, "primary", True),
             ("alias", "active", now - 2 * day, now + day, "primary", False),
             ("plain", "active", now - day, now + day, None, False),
+            # Only a redirect alias: the card shows the permanent archive page.
+            ("redirectonly", "active", now - 5 * day, now + day, "secondary", False),
+            # Equal publication starts: names A→Z.
+            ("tieb", "active", tie, now + day, None, False),
+            ("tiea", "active", tie, now + day, None, False),
             ("draft", "draft", now - day, now + day, None, False),
             ("scheduled", "active", now + hour, now + day, None, False),
             ("ended", "active", now - 2 * day, now - hour, None, False),
+            # Ended by status while the window is still open.
+            ("completed", "completed", now - day, now + day, None, False),
         )
         for name, status, starts, ends, alias, cms in rows:
             action_id = uuid4()
@@ -100,9 +108,10 @@ class Fixture:
                 await connection.execute(
                     "INSERT INTO public_action_alias "
                     "(alias, action_id, is_primary, enabled, campaign_redirect) "
-                    "VALUES ($1, $2, true, true, $3)",
+                    "VALUES ($1, $2, $3, true, $4)",
                     f"home{name}{self.tag}",
                     action_id,
+                    alias == "primary",
                     cms,
                 )
 
@@ -146,11 +155,15 @@ async def main() -> None:
                     for item in response.json()["items"]
                     if item["archiveSlug"].endswith(fixture.tag)
                 ]
-                # Newest publication start first; draft, scheduled, ended absent.
+                # Newest publication start first, equal starts A→Z; draft,
+                # scheduled, window-ended and status-completed absent.
                 assert [item["archiveSlug"] for item in items] == [
                     fixture.slug("plain"),
                     fixture.slug("alias"),
                     fixture.slug("cms"),
+                    fixture.slug("tiea"),
+                    fixture.slug("tieb"),
+                    fixture.slug("redirectonly"),
                 ], items
                 paths = {item["archiveSlug"]: item["canonicalPath"] for item in items}
                 assert (
@@ -159,6 +172,9 @@ async def main() -> None:
                 assert paths[fixture.slug("alias")] == f"/homealias{fixture.tag}"
                 assert (
                     paths[fixture.slug("plain")] == f"/archive/{fixture.slug('plain')}"
+                )
+                assert paths[fixture.slug("redirectonly")] == (
+                    f"/archive/{fixture.slug('redirectonly')}"
                 )
                 for item in items:
                     assert item["canonicalUrl"] == PUBLIC + item["canonicalPath"]
@@ -177,6 +193,17 @@ async def main() -> None:
                     "/api/v1/public/campaigns", params={"availability": "archive"}
                 )
                 assert response.status_code == 422, response.text
+        # A primary alias is always enabled (constraint since 0028), so the
+        # CMS page link never depends on a disabled alias.
+        try:
+            await connection.execute(
+                "UPDATE public_action_alias SET enabled = false WHERE action_id = $1",
+                fixture.actions["cms"],
+            )
+        except asyncpg.CheckViolationError:
+            pass
+        else:
+            raise AssertionError("a primary alias was disabled")
     finally:
         await fixture.remove(connection)
         await connection.close()

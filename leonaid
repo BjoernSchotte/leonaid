@@ -199,7 +199,10 @@ Commands:
                     (no public CRM domain; Twenty listens on 127.0.0.1)
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
                 --password-file FILE --confirm RESTORE:TARGET [--resume]
-                    Restore fresh, or resume a verified quarantined pilot target
+                [--with-tls-state]
+                    Restore fresh, or resume a verified quarantined pilot target;
+                    --with-tls-state also restores the TLS certificates (only
+                    for the installation itself on a new server)
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -2018,9 +2021,10 @@ pilot_backup() {
 value=json.loads(pathlib.Path("/pilot/backup-manifest.json").read_text(encoding="utf-8"))
 assert value.get("schemaVersion")==1
 assert value.get("sourceProject")==os.environ["EXPECTED_PROJECT"]
-assert set(value.get("files",{}))=={
-  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
-}'; then
+required={"core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"}
+files=set(value.get("files",{}))
+# caddy-data.tar is optional (tools/backup/manifest.py OPTIONAL_FILES).
+assert required<=files and files-required<={"caddy-data.tar"}, sorted(files)'; then
     rm -rf "$manifest_check_directory"
   else
     status=$?
@@ -2153,9 +2157,30 @@ pilot_revoke_sessions() {
   pilot_require_private_external pilot-revoke-sessions "$env_file" \
     "environment file" || return
   project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  # One statement: the revocation and its audit entry commit together. The
+  # entry names no actor (an operator command, not a member) and only the
+  # count, never a session or user id.
   revoked=$(pilot_compose_command "$project" "$env_file" exec -T core-postgres \
-    sh -ec 'psql -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "WITH revoked AS (UPDATE user_session SET revoked_at = now(), updated_at = now() WHERE revoked_at IS NULL RETURNING 1) SELECT count(*) FROM revoked"') ||
-    return
+    sh -ec 'psql -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+WITH revoked AS (
+  UPDATE user_session SET revoked_at = now(), updated_at = now()
+  WHERE revoked_at IS NULL
+  RETURNING 1
+), audit AS (
+  INSERT INTO audit_event (
+    id, actor_user_id, event_type, entity_type, entity_id, request_id,
+    payload, occurred_at
+  )
+  SELECT gen_random_uuid(), NULL, 'identity.sessions.revoked_all',
+    'installation', '00000000-0000-0000-0000-000000000000',
+    'pilot-revoke-sessions:' || to_char(now(), 'YYYYMMDD"T"HH24MISS'),
+    jsonb_build_object('revokedCount', (SELECT count(*) FROM revoked)::text),
+    now()
+  RETURNING 1
+)
+SELECT count(*) FROM revoked, (SELECT count(*) FROM audit) AS recorded;
+SQL
+) || return
   echo "pilot-revoke-sessions: OK: $revoked sessions revoked; every member signs in again"
 }
 
@@ -2683,10 +2708,15 @@ pilot_restore() {
   credentials_file=
   confirm=
   resume=false
+  tls_state=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --resume)
         resume=true
+        shift
+        ;;
+      --with-tls-state)
+        tls_state=true
         shift
         ;;
       --env-file)
@@ -2813,6 +2843,8 @@ pilot_restore() {
     esac
   fi
   restore_topology=$(pilot_cms_topology "$target_env_file") || exit 1
+  LEONAID_RESTORE_TLS_STATE=$tls_state
+  export LEONAID_RESTORE_TLS_STATE
   LEONAID_RESTORE_RESUME="$resume" \
     LEONAID_RESTORE_EXPECTED_MANIFEST="$backup_manifest" \
     LEONAID_ENV_FILE="$target_env_file" \

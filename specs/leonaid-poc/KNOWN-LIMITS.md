@@ -111,11 +111,13 @@ Punkte sind keine stillschweigenden Produktzusagen.
   öffentlichen Hosts gibt es im Dev-Stack nicht. Beim Umstellen auf zwei
   Hosts melden sich alle Mitglieder einmal neu an
   (`pilot-revoke-sessions`). Auf dem öffentlichen Host zeigt die Kopfzeile
-  einen festen Link „Anmelden“ statt der persönlichen App-Links (#82): die
+  einen festen Link „Mitgliederbereich“ statt der persönlichen App-Links (#82): die
   Sitzung gehört zum Verwaltungshost, und die CSP (`connect-src 'self'`)
   erlaubt keine Abfrage dort. Die Live-Abnahme der Aktionsseiten im
   Split-Modus (CMS hinter `Caddyfile.split`) fehlt; der Stack-Beweis
-  `test-multi-host` läuft ohne CMS.
+  `test-multi-host` läuft ohne CMS. Die öffentliche Startseite listet aktive
+  Aktionen; eine `sitemap.xml` des öffentlichen Hosts gibt es noch nicht
+  (Stufe 2).
 - Die Hilfe-Doku trägt auf 13 Seiten je Sprache noch den Vermerk „Prüfung
   durch Björn Schotte offen“ (Frontmatter `reviewer:` in `apps/docs`).
 - OpenFeature ist integriert; der PoC bietet zwei administrative Flags.

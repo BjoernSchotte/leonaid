@@ -54,7 +54,7 @@ cleanup() {
     compose logs --no-color --tail=120 api public proxy >&2 || true
   fi
   if [ "$owned" = true ]; then
-    if ! compose down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    if ! compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
     if ! verify_owned_project_removed "$project"; then status=1; fi
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
@@ -88,7 +88,9 @@ services:
         - wget -qO- http://localhost:8080/_health && wget -qO- https://proxy:8443/_health
 EOF
 owned=true
-compose up --build --detach --wait --wait-timeout 420 proxy
+# Mailpit and the worker deliver the real login mail of the magic-link proof.
+compose --profile dev-mail up --build --detach --wait --wait-timeout 420 \
+  proxy worker mailpit
 
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
@@ -100,6 +102,13 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/seed/golden.py seed-core \
   /repo/tests/fixtures/golden/v1
+# The golden data has no member with roles in both apps: Felix Fremd (charity
+# admin of another action) also acquires for Krapfentaxi here, for the
+# start-area proof (specs/multi-domain §6.7).
+printf '%s\n' \
+  "INSERT INTO action_membership (id, action_id, user_id, role, active_from) VALUES ('21000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'acquirer', now() - interval '1 day');" |
+  compose exec -T core-postgres sh -ec \
+    'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 compose run --rm --no-deps \
   --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
@@ -117,6 +126,7 @@ docker run --rm \
   --env HOME=/tmp \
   --env LEONAID_E2E_ADMIN_URL="$admin_url" \
   --env LEONAID_E2E_PUBLIC_URL="$public_url" \
+  --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
   --env FINN_SESSION="$finn_session" \
   --env ANNA_SESSION="$anna_session" \
   --volume "$root:/workspace:ro" \

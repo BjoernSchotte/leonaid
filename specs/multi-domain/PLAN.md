@@ -1234,6 +1234,13 @@ one test domain owned by the club.
   that host. Stage 2 uses `canonicalUrl` for campaign hosts.
 - R13: the theme image is the theme's share image (`resolvePublicTheme`);
   Core returns only the theme key, no media id.
+- R30 (review #98): `apps/public` caches the list per process (60 s, a
+  failure 10 s and the last known list kept); equal publication starts sort
+  A→Z; a primary alias is always enabled (constraint since 0028), so the CMS
+  link never depends on a disabled alias.
+- Deferred: the §6.5 bullet "the public host's sitemap" is not built; no
+  `sitemap.xml` exists in `apps/public` yet. It comes with stage 2's per-host
+  sitemap/robots (§7.5).
 
 
 ### 16.4 Review of #97 (rv-md1)
@@ -1247,11 +1254,13 @@ one test domain owned by the club.
   `includeSubDomains`, because the public host is usually the club's apex.
   Admin and single hosts keep `includeSubDomains`.
 - R17 (I3): `caddy-data` is backed up and restored when the volume exists
-  (pilot); `caddy-data.tar` is an optional, verified manifest entry.
+  (pilot); `caddy-data.tar` is an optional, verified manifest entry. Restore
+  takes it only with `pilot-restore --with-tls-state` (N2): staging and drill
+  targets never receive the production keys or ACME account.
 - R18 (I5): the public host cannot ask who is signed in: the session is
   host-only on the admin host, the public host serves no identity API, and the
   build-time CSP (`connect-src 'self'`) forbids a cross-host request. The
-  header shows a static "Anmelden" link to the admin host there and sends no
+  header shows a static "Mitgliederbereich" link to the admin host there and sends no
   identity request; the admin host and single hosts keep the personal links.
 - R19 (M1): the admin host refuses every Astro form action
   (`?_action=…`) before any page route (rewrite to a 404 handler).
@@ -1285,7 +1294,13 @@ one test domain owned by the club.
   `/admin/`, `/app/` or the CMS editor (`memberReturnTo`).
 - Switch: the web rail keeps its "Akquise-App" link; the PWA "Mehr" sheet
   shows "Zur Verwaltung" and "Akquise-App als Startbereich verwenden"; the web
-  palette offers "Verwaltung als Startbereich verwenden".
+  palette offers "Verwaltung als Startbereich verwenden". After a choice both
+  also offer "Standard-Startbereich verwenden" (surface `null`;
+  `startAreaChoices` in `base-paths.ts`).
+- `memberReturnTo` checks the path the URL parser resolves (dot segments,
+  also encoded), so `/app/../campaigns/x/` falls back.
+- `tools/ci/base_path_literals.py` (lint-types) rejects literal `/admin/` and
+  `/app/` strings outside the base-path files, tests and comments.
 - Base paths: `src/leonaid/platform/base_paths.py` and
   `packages/ui/src/lib/base-paths.ts` (contract test
   `tests/unit/test_base_paths.py`); read by Core navigation and deep links,
@@ -1302,4 +1317,12 @@ one test domain owned by the club.
   paths: they assert the product URLs, and a rename must show up there.
 - R29: stage 1c (rename `/app/`) is dropped; the retired worker of §6.7 serves
   the old host (R20).
+
+### 16.6 Stage 2 preconditions from the reviews
+
+- N4 (rv-md1): `Caddyfile.admin-only` routes `/campaigns/*`, aliases and
+  `/archive/*` to `public:3000`, which today renders campaign and alias pages.
+  Before the contract may accept the admin-only mode, the public app must
+  answer these paths on the admin host with 308 to the canonical URL or 404
+  only (§6.6).
 
