@@ -830,7 +830,7 @@ printf '%s' "$cms_output" | grep -Fq "2/4 media bucket: provisioning"
 printf '%s\n' \
   "INSERT INTO user_account (id, email, display_name, status) VALUES ('$cms_admin_id', '$cms_admin_email', 'CMS System Admin', 'active');" \
   "INSERT INTO user_global_role (user_id, role) VALUES ('$cms_admin_id', 'system_admin');" \
-  "INSERT INTO user_account (id, email, display_name, status) VALUES (gen_random_uuid(), 'cms-member@leonaid.org', 'CMS Member', 'active');" \
+  "INSERT INTO user_account (id, email, display_name, status) VALUES ('10000000-0000-4000-8000-0000000000c2', 'cms-member@leonaid.org', 'CMS Member', 'active');" \
   "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES (gen_random_uuid(), '$cms_admin_id', '$cms_session_digest', now() + interval '90 days', now(), now(), 'pilot CMS proof', now(), now());" |
   core_sql
 cms_expect "refuses a member without the System Admin role" 1 \
@@ -889,10 +889,12 @@ grep -Fq "pilot-deploy: OK: $project runs exactly from the verified release mani
 [ "$(docker inspect --format '{{.State.Health.Status}}' \
   "$(runtime_compose --profile emdash ps --quiet campaign-site)")" = healthy ]
 
-# Publish a campaign page in the editor; the public host serves it.
+# Publish a campaign page in the editor; the public host serves it. A Core
+# campaign needs a responsible charity admin (action management invariant).
 printf '%s\n' \
   "INSERT INTO charity_action (id, carrier_name, name, purpose, status, starts_on, ends_on, publication_starts_at, publication_ends_at, archive_slug) VALUES ('$cms_action_id', 'Lions Club Beispielstadt', 'Pilot CMS proof', 'Proof of the provisioned CMS', 'active', current_date, current_date + 7, now() - interval '1 day', now() + interval '7 days', '$cms_slug');" \
-  "INSERT INTO beneficiary (id, action_id, organization_name, public_description, sort_order) VALUES (gen_random_uuid(), '$cms_action_id', 'Proof beneficiary', 'Proof of the provisioned CMS', 0);" |
+  "INSERT INTO beneficiary (id, action_id, organization_name, public_description, sort_order) VALUES (gen_random_uuid(), '$cms_action_id', 'Proof beneficiary', 'Proof of the provisioned CMS', 0);" \
+  "INSERT INTO action_membership (id, action_id, user_id, role, active_from) VALUES (gen_random_uuid(), '$cms_action_id', '10000000-0000-4000-8000-0000000000c2', 'charity_admin', now() - interval '1 day');" |
   core_sql
 cms_proof publish "$cms_action_id" "$cms_slug" "$cms_title"
 cms_proof public "$cms_slug" "$cms_title"
