@@ -3,6 +3,9 @@ name: LeonAid CI
 on:
   # PR tier: cheap gates plus only the stack suites whose inputs changed.
   pull_request:
+    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
+    # cancels the running one (same concurrency group, no job runs).
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   # Queue tier: the complete suite before anything reaches main.
   merge_group:
   push:
@@ -34,17 +37,17 @@ concurrency:
 
 jobs:
   select:
-    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
+    if: inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true
     uses: ./.github/workflows/select-suites.yml
 
   fixture:
-    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
+    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe' && github.event.pull_request.draft != true
     uses: ./.github/workflows/test-fixture.yml
 
   lint-unit:
     # One runner for the two stack-free gates: both need only the locked
     # toolchains, and a second job would repeat checkout and bootstrap.
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true && github.event.pull_request.draft != true
     name: Lint, types and unit
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -419,7 +422,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: [select, golden-parts]
-    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -460,7 +463,8 @@ jobs:
       - build
       - golden-parts
       - golden-journey
-    if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
+    # Skipped (and so passing) only for a draft, which cannot be merged.
+    if: ${{ always() && github.event.pull_request.draft != true && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

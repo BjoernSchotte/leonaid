@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]\n",
+        "",
+        "ci.yml: pull_request must list ready_for_review and converted_to_draft",
+    ),
+    (
+        "  lint-unit:\n",
+        "  lint-unit:\n    if: true\n  lint-unit-copy:\n",
+        "ci.yml: job lint-unit must not run for a draft",
+    ),
+    (
         "needs.select.outputs.heavy != 'false' && (needs.fixture.result",
         "(needs.fixture.result",
         "security may be skipped only for a stacked PR",
@@ -153,13 +163,13 @@ CI_MUTATIONS = (
         "golden-parts must not run when the suite selector failed",
     ),
     (
-        "      - golden-journey\n    if: ${{ always()",
-        "    if: ${{ always()",
+        "      - golden-journey\n    # Skipped",
+        "    # Skipped",
         "gate does not require: golden-journey",
     ),
     (
-        "    if: ${{ always() && github.ref != 'refs/heads/ci-artifact-probe'",
-        "    if: ${{ success() && github.ref != 'refs/heads/ci-artifact-probe'",
+        "    if: ${{ always() && github.event.pull_request.draft != true && github.ref",
+        "    if: ${{ success() && github.event.pull_request.draft != true && github.ref",
         "the gate must run after failures",
     ),
     (
@@ -196,6 +206,18 @@ CI_MUTATIONS = (
 )
 
 OTHER_MUTATIONS = (
+    (
+        "docs.yml",
+        "    if: github.event.pull_request.draft != true\n    name: Bilingual site artifact\n",
+        "    name: Bilingual site artifact\n",
+        "docs.yml: job build must not run for a draft",
+    ),
+    (
+        "pins.yml",
+        "    if: ${{ always() && github.event.pull_request.draft != true }}\n",
+        "    if: ${{ always() }}\n",
+        "pins.yml: job gate must not run for a draft",
+    ),
     (
         "surveys.yml",
         "run: sh tools/ci/free-runner-disk.sh wait",

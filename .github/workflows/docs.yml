@@ -2,6 +2,9 @@ name: Documentation
 
 on:
   pull_request:
+    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
+    # cancels the running one (same concurrency group, no job runs).
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   merge_group:
   push:
     branches: [main]
@@ -18,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.pull_request.draft != true
     name: Bilingual site artifact
     runs-on: ubuntu-24.04
     timeout-minutes: 30

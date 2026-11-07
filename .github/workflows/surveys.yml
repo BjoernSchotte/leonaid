@@ -2,6 +2,9 @@ name: Survey acceptance
 
 on:
   pull_request:
+    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
+    # cancels the running one (same concurrency group, no job runs).
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   merge_group:
   push:
     branches: [main]
@@ -24,6 +27,7 @@ concurrency:
 
 jobs:
   select:
+    if: github.event.pull_request.draft != true
     uses: ./.github/workflows/select-suites.yml
 
   fixture:
@@ -171,7 +175,8 @@ jobs:
     # queue): tools/ci/gate.py.
     name: Survey gate
     needs: [select, fixture, inventory, surveys, backup-recovery]
-    if: ${{ always() }}
+    # Skipped (and so passing) only for a draft, which cannot be merged.
+    if: ${{ always() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -7,6 +7,7 @@ Changes reach `main` only through the GitHub merge queue. CI runs in two tiers:
 | Event | What runs |
 |---|---|
 | `pull_request` into `main` | Always: Lint, types and unit; Build; Security; Documentation. Stack suites (Integration shards incl. Contract, E2E leaves, EmDash proofs, Golden Journey, Surveys, API contract, pins) only when their inputs changed. |
+| draft `pull_request` | Nothing. Every job is skipped, so the gates report skipped (passing; a draft cannot be merged). `ready_for_review` starts the normal run; `converted_to_draft` cancels a running one through the shared concurrency group. Agents open PRs as drafts and mark them ready when done. |
 | stacked `pull_request` (base is another branch) | Lint, types and unit; Documentation; only the suites that module-local paths select. Shared infrastructure, unmapped paths and the API/pins path filters select nothing; Security and Build are skipped (`heavy=false`). |
 | `merge_group`, `push` to `main`, nightly `schedule`, `workflow_dispatch` | Everything. Nothing reaches `main` without the complete suite. |
 

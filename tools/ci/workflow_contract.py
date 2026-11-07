@@ -259,6 +259,7 @@ def check(path: Path) -> list[str]:
             problems.append(f"The gate must require {job} unless heavy is false.")
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
+    problems.extend(check_drafts(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))
     problems.extend(check_retries(text, "ci.yml"))
     problems.extend(check_free_disk(text, "ci.yml"))
@@ -339,6 +340,42 @@ def check_emdash(text: str) -> list[str]:
         r"(?i)retry", cases.replace("tools/ci/retry-infra.sh", "")
     ):
         problems.append("EmDash proofs must not retry or ignore failures.")
+    return problems
+
+
+DRAFT = "github.event.pull_request.draft != true"
+DRAFT_TYPES = "types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]"
+
+
+def check_drafts(text: str, name: str) -> list[str]:
+    """Drafts run nothing: every job without a `needs` must skip a draft.
+
+    Jobs that need another job are skipped through it (or, like the gate
+    and Golden journey, carry the condition themselves). A skipped required
+    check passes, which is harmless: a draft cannot be merged.
+    """
+    problems: list[str] = []
+    if DRAFT_TYPES not in triggers(text):
+        problems.append(
+            f"{name}: pull_request must list ready_for_review and converted_to_draft."
+        )
+    for job in jobs_of(text):
+        block = job_block(text, job)
+        condition = re.search(r"(?m)^    if: (.*)$", block)
+        needs = needs_of(block)
+        always = condition is not None and (
+            "always()" in condition.group(1) or "!cancelled()" in condition.group(1)
+        )
+        runs_on_pr = condition is None or not re.search(
+            r"github\.event_name == 'schedule'|inputs\.(?:cold_run|artifact_probe) == true",
+            condition.group(1),
+        )
+        if (not needs or always) and runs_on_pr and (
+            condition is None or DRAFT not in condition.group(1)
+        ):
+            if needs and always and "needs.select.result == 'success'" in condition.group(1):
+                continue
+            problems.append(f"{name}: job {job} must not run for a draft.")
     return problems
 
 
@@ -549,12 +586,14 @@ def check_repository(root: Path) -> list[str]:
             continue
         text = (workflows / name).read_text(encoding="utf-8")
         problems.extend(check_tiers(text, name))
+        problems.extend(check_drafts(text, name))
         problems.extend(check_gate(text, name))
         problems.extend(check_retries(text, name))
         problems.extend(check_free_disk(text, name))
     for name, job in UNGATED_REQUIRED.items():
         text = (workflows / name).read_text(encoding="utf-8")
         problems.extend(check_tiers(text, name))
+        problems.extend(check_drafts(text, name))
         problems.extend(check_retries(text, name))
         if f"name: {job}\n" not in text:
             problems.append(f"{name}: required job '{job}' missing.")

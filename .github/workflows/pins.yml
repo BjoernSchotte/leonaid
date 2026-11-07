@@ -5,6 +5,9 @@ name: Dependency pins
 # merge_group, push, schedule and dispatch run every job.
 on:
   pull_request:
+    # Drafts run nothing; ready_for_review starts CI, converted_to_draft
+    # cancels the running one (same concurrency group, no job runs).
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   merge_group:
   push:
     branches:
@@ -22,6 +25,7 @@ concurrency:
 
 jobs:
   select:
+    if: github.event.pull_request.draft != true
     uses: ./.github/workflows/select-suites.yml
 
   policy:
@@ -111,7 +115,8 @@ jobs:
     # The one required check of this workflow: tools/ci/gate.py.
     name: Dependency pins gate
     needs: [select, policy, reproducibility, sbom]
-    if: ${{ always() }}
+    # Skipped (and so passing) only for a draft, which cannot be merged.
+    if: ${{ always() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
