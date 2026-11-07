@@ -128,6 +128,29 @@ def forbidden_address(address: str) -> bool:
     return False
 
 
+async def public_resolvers_reachable(
+    resolvers: Sequence[str],
+    probe_name: str,
+    resolve: PublicResolver = public_dns_resolver,
+) -> dict[str, bool]:
+    """Whether each public resolver answers for ``probe_name`` (§7.4).
+
+    Without outbound DNS every check fails and all campaign hosts are
+    disabled after 72 h, so the pilot doctor asks this before.
+    """
+    result: dict[str, bool] = {}
+    for nameserver in resolvers:
+        try:
+            found = await asyncio.wait_for(
+                resolve(probe_name, nameserver), HTTP_TIMEOUT_SECONDS
+            )
+        except (OSError, asyncio.TimeoutError):
+            result[nameserver] = False
+        else:
+            result[nameserver] = bool(found)
+    return result
+
+
 class HostChecker:
     def __init__(
         self,

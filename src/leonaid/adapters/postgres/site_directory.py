@@ -269,7 +269,7 @@ class AsyncpgSiteDirectory:
             return bool(
                 await db.fetchval(
                     "SELECT EXISTS(SELECT 1 FROM site_host WHERE hostname=$1 "
-                    "AND status='active')",
+                    "AND status='active' AND redirect_to_host_id IS NULL)",
                     hostname,
                 )
             )
@@ -295,11 +295,7 @@ class SiteHostPublicOrigins:
         if origin.rstrip("/").casefold() in self._static:
             return True
         parts = urlsplit(origin.rstrip("/").casefold())
-        if (
-            parts.scheme != "https"
-            or not parts.hostname
-            or parts.port not in (None, 443)
-        ):
+        if parts.scheme != "https" or not parts.hostname:
             return False
         hostname = parts.hostname
         cached = self._cache.get(hostname)

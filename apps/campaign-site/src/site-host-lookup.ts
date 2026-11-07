@@ -1,4 +1,8 @@
 import { adminOrigin, siteOrigins } from "./auth/public-origin";
+import {
+  campaignHostname,
+  configuredHostnames,
+} from "../../public/src/lib/site-hosts";
 import type { PublicSite } from "./site-host-routing";
 
 // The Core lookup and host detection of the campaign host middleware
@@ -39,8 +43,15 @@ export async function lookupSite(
   return site;
 }
 
-/** The request's host when it came through the edge for a campaign host. */
-export function campaignHostOf(request: Request): string | null {
+/** The request's host when it came through the edge for a campaign host.
+
+The configured names are the same set the public app uses (one helper), plus
+the CMS's own admin and site origins.
+*/
+export function campaignHostOf(
+  request: Request,
+  env: Record<string, string | undefined> = process.env,
+): string | null {
   const host = request.headers.get("host")?.toLowerCase() ?? "";
   if (
     !host ||
@@ -49,14 +60,8 @@ export function campaignHostOf(request: Request): string | null {
     request.headers.has("forwarded")
   )
     return null;
-  const configured = [adminOrigin(), ...siteOrigins()]
-    .filter((origin): origin is URL => origin !== null)
-    .map((origin) => origin.host);
-  if (configured.includes(host)) return null;
-  const hostname = host.replace(/:[0-9]+$/, "");
-  return /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/.test(
-    hostname,
-  )
-    ? host
-    : null;
+  const configured = configuredHostnames(env);
+  for (const origin of [adminOrigin(), ...siteOrigins()])
+    if (origin) configured.add(origin.hostname);
+  return campaignHostname(host, configured) === null ? null : host;
 }

@@ -6,7 +6,7 @@ import {
   type PublicOrderResultResponse,
 } from "@leonaid/api-client";
 import { createCampaignListReader } from "./campaign-list";
-import { createSiteHostCheck } from "./site-hosts";
+import { createSiteHostCheck, type SiteHostKind } from "./site-hosts";
 
 const routeTimeoutMilliseconds = 5_000;
 const mutationTimeoutMilliseconds = 12_000;
@@ -46,18 +46,22 @@ export const listActiveCampaigns = createCampaignListReader(async () => {
 });
 
 /** Core serves this campaign host (active, §7.4); cached 30 s. */
-export const isActiveSiteHost = createSiteHostCheck(async (hostname) => {
-  try {
-    await client().getPublicSite(hostname, {
-      headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
-      signal: AbortSignal.timeout(routeTimeoutMilliseconds),
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return false;
-    throw error;
-  }
-});
+export const isActiveSiteHost = createSiteHostCheck(
+  async (hostname): Promise<SiteHostKind | null> => {
+    try {
+      const site = await client().getPublicSite(hostname, {
+        headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
+        signal: AbortSignal.timeout(routeTimeoutMilliseconds),
+      });
+      return site.kind === "redirect"
+        ? { kind: "redirect", to: site.redirectTo ?? "" }
+        : { kind: "campaign" };
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+);
 
 export async function submitPublicOrder(
   publicAlias: string,

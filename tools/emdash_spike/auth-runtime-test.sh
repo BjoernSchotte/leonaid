@@ -17,7 +17,7 @@ if [ "$recovery:$orders" = true:true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|campaign-hosts|public-media|order-component|migration|migration-operator|alias-http|alias-browser|emdash-upgrade) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$recovery" = false ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
@@ -44,13 +44,13 @@ LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
   node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
 export LEONAID_ORDER_SUBMISSION_KEY
 order_submission_key=$LEONAID_ORDER_SUBMISSION_KEY
-if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = campaign-hosts ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-presentation-proof.ts
 fi
-if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+if [ "$mode" = public-http ] || [ "$mode" = campaign-hosts ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/editorial-html-proof.mjs
 fi
@@ -328,7 +328,7 @@ if [ "$mode" = migration-operator ]; then
   . "$root/tools/emdash_spike/migration-operator-phase.sh"
   exit 0
 fi
-if [ "$mode" = order-component ] || [ "$mode" = public-http ]; then
+if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = campaign-hosts ]; then
   fixture /repo/tools/emdash_spike/core_order_proxy_proof.py
   LEONAID_ORDER_SUBMISSION_KEY= compose up --no-deps --detach --wait api
   export LEONAID_ORDER_SUBMISSION_KEY="$order_submission_key"
@@ -452,7 +452,7 @@ if [ "$mode" != auth ]; then
     fi
     exit 0
   fi
-  if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+  if [ "$mode" = public-http ] || [ "$mode" = campaign-hosts ] || [ "$mode" = public-media ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
       node tools/emdash_spike/order-ingress-proof.mjs
     compose up --no-deps --build --detach --wait public
@@ -466,6 +466,22 @@ if [ "$mode" != auth ]; then
       compose logs --no-color campaign-site | docker run --rm -i --network none "$NODE_IMAGE" \
         node --input-type=module -e 'let input=""; for await (const chunk of process.stdin) input+=chunk; for (const signal of ["public_campaign_core_unavailable", "public_campaign_content_unavailable", "public_campaign_pipeline_unavailable"]) if(input.includes(signal)) console.log(signal);'
       exit 1
+    fi
+    if [ "$mode" = campaign-hosts ]; then
+      # specs/multi-domain §7 and §14, review of #107 I1: the published
+      # campaign on its own host through the real Caddy (on-demand TLS with
+      # Core's ask), campaign site, public app and Core.
+      fixture /repo/tools/emdash_spike/site_host_fixture.py activate
+      host_probe() {
+        compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+          node tools/emdash_spike/campaign-host-http-proof.mjs "$@"
+      }
+      host_probe active
+      fixture /repo/tools/emdash_spike/site_host_fixture.py disable
+      # Ask snapshot 10 s; host caches of both apps and Core origins 30 s.
+      sleep 35
+      host_probe disabled
+      exit 0
     fi
     if [ "$mode" = public-media ]; then
       compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs install

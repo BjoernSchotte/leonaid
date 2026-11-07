@@ -45,38 +45,71 @@ export function campaignHostname(
  * host. A lapsed or removed host is refused here even while Caddy still
  * holds its certificate.
  */
+export type SiteHostKind =
+  | { kind: "campaign" }
+  | { kind: "redirect"; to: string };
+
 export async function admitHost(
   hostHeader: string | null,
   configured: Set<string>,
-  isActive: (hostname: string) => Promise<boolean>,
-): Promise<"serve" | "refuse" | "unavailable"> {
+  lookup: (hostname: string) => Promise<SiteHostKind | null>,
+): Promise<
+  | { readonly admit: "serve" | "refuse" | "unavailable" }
+  | { readonly admit: "redirect"; readonly to: string }
+> {
   const hostname = campaignHostname(hostHeader, configured);
-  if (hostname === null) return "serve";
+  if (hostname === null) return { admit: "serve" };
+  let site: SiteHostKind | null;
   try {
-    return (await isActive(hostname)) ? "serve" : "refuse";
+    site = await lookup(hostname);
   } catch {
-    return "unavailable";
+    return { admit: "unavailable" };
   }
+  if (site === null) return { admit: "refuse" };
+  // A redirect host redirects as a whole, path kept: no legal pages, no
+  // order RPC there (§7.1, review M2).
+  if (site.kind === "redirect") {
+    if (!/^https:\/\/[a-z0-9.-]+(:[0-9]+)?$/.test(site.to))
+      return { admit: "unavailable" };
+    return { admit: "redirect", to: site.to };
+  }
+  return { admit: "serve" };
 }
 
 const TTL_MS = 30_000;
-type Lookup = (hostname: string) => Promise<boolean>;
 
-/** Active campaign hosts, cached 30 s, positive and negative. */
-export function createSiteHostCheck(lookup: Lookup, clock = Date.now) {
-  const cache = new Map<string, { at: number; active: boolean }>();
-  return async (hostname: string): Promise<boolean> => {
+/**
+ * Active site hosts, cached 30 s, positive and negative: a disabled host is
+ * served for at most 30 s more, a fresh one shows 404 for at most 30 s.
+ */
+export function createSiteHostCheck<T>(
+  lookup: (hostname: string) => Promise<T>,
+  clock = Date.now,
+) {
+  const cache = new Map<string, { at: number; value: T }>();
+  return async (hostname: string): Promise<T> => {
     const cached = cache.get(hostname);
-    if (cached && clock() - cached.at < TTL_MS) return cached.active;
-    const active = await lookup(hostname);
+    if (cached && clock() - cached.at < TTL_MS) return cached.value;
+    const value = await lookup(hostname);
     if (cache.size > 500) cache.clear();
-    cache.set(hostname, { at: clock(), active });
-    return active;
+    cache.set(hostname, { at: clock(), value });
+    return value;
   };
 }
 
-/** 302 to a host root (reused by the next edition), else 308 (§7.7.3). */
+const CAMPAIGN_HOST_URL =
+  /^https:\/\/[a-z0-9.-]+(:[0-9]+)?\/([a-z0-9]+(-[a-z0-9]+)*\/)?$/;
+
+/**
+ * 302 to a host root (reused by the next edition), else 308 (§7.7.3). Only
+ * the shapes Core builds (review M4); anything else is a 503.
+ */
 export function canonicalRedirect(target: string): Response {
+  if (!CAMPAIGN_HOST_URL.test(target))
+    return new Response(null, {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
   return new Response(null, {
     status: new URL(target).pathname === "/" ? 302 : 308,
     headers: {

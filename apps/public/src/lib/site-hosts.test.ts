@@ -60,19 +60,38 @@ describe("campaign hosts in the public app", () => {
   it("refuses a lapsed or removed host although its certificate still works", async () => {
     // Acceptance (review of #105): Caddy keeps serving a certificate it
     // already holds; the app itself must refuse every non-active host.
-    const inactive = async () => false;
-    expect(await admitHost("lionsopen.de", configured, inactive)).toBe(
-      "refuse",
-    );
+    const inactive = async () => null;
+    expect(await admitHost("lionsopen.de", configured, inactive)).toEqual({
+      admit: "refuse",
+    });
     expect(
       await admitHost("lionsopen.de", configured, async () => {
         throw new Error("core down");
       }),
-    ).toBe("unavailable");
-    expect(await admitHost("lionsopen.de", configured, async () => true)).toBe(
-      "serve",
-    );
-    expect(await admitHost("example.org", configured, inactive)).toBe("serve");
+    ).toEqual({ admit: "unavailable" });
+    expect(
+      await admitHost("lionsopen.de", configured, async () => ({
+        kind: "campaign" as const,
+      })),
+    ).toEqual({ admit: "serve" });
+    expect(await admitHost("example.org", configured, inactive)).toEqual({
+      admit: "serve",
+    });
+  });
+
+  it("redirects a redirect host as a whole (review M2)", async () => {
+    expect(
+      await admitHost("www.lionsopen.de", configured, async () => ({
+        kind: "redirect" as const,
+        to: "https://lionsopen.de",
+      })),
+    ).toEqual({ admit: "redirect", to: "https://lionsopen.de" });
+    expect(
+      await admitHost("www.lionsopen.de", configured, async () => ({
+        kind: "redirect" as const,
+        to: "javascript:alert(1)",
+      })),
+    ).toEqual({ admit: "unavailable" });
   });
 
   it("caches Core's answer for 30 s", async () => {
@@ -92,6 +111,15 @@ describe("campaign hosts in the public app", () => {
 
   it("redirects with 302 to a host root and 308 to a segment", () => {
     expect(canonicalRedirect("https://lionsopen.de/").status).toBe(302);
+    // Only the shapes Core builds (review M4).
+    for (const odd of [
+      "//evil.example/",
+      "http://lionsopen.de/",
+      "https://lionsopen.de/a/b/",
+      "https://user@evil.example/",
+      "javascript:alert(1)",
+    ])
+      expect(canonicalRedirect(odd).status).toBe(503);
     const segment = canonicalRedirect("https://lionsopen.de/2025/");
     expect(segment.status).toBe(308);
     expect(segment.headers.get("Location")).toBe("https://lionsopen.de/2025/");
