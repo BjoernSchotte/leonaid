@@ -236,5 +236,5 @@ def test_invalid_imprint_and_privacy_values_are_rejected() -> None:
     )
     for overrides, code in cases:
         with raises(DomainInvariantError) as error:
-            replace(valid_draft(), **overrides)  # type: ignore[arg-type]
+            replace(valid_draft(), **overrides)
         assert error.value.code == code, overrides
