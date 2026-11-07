@@ -78,7 +78,8 @@ jobs:
   integration-shards:
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.integration != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: Integration / ${{ matrix.bin.title }}
+    # Stable names keep the flake history comparable; shards: job summary.
+    name: Integration ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -114,11 +115,23 @@ jobs:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
+      - name: List this leg's shards in the job summary
+        env:
+          SHARDS: ${{ matrix.bin.title }}
+        run: printf '### Integration leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Start sampling peak runner disk
+        run: sh tools/ci/disk-peak.sh start
       - name: Run real service integration shards
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard; every shard runs on its own fresh stack.
         run: bash tools/ci/run-job.sh "integration-${{ matrix.bin.id }}" bash tools/ci/integration.sh $SHARDS
+      - name: Report peak runner disk of this leg
+        # Data for the free-runner-disk.sh skip threshold (40 GB).
+        if: always()
+        run: |
+          sh tools/ci/disk-peak.sh stop
+          sh tools/ci/disk-report.sh "job end"
       - name: Publish integration evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -131,7 +144,7 @@ jobs:
   e2e:
     needs: [select, fixture]
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.e2e != '[]' && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: E2E / ${{ matrix.bin.title }}
+    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -165,11 +178,23 @@ jobs:
           key: ${{ needs.fixture.outputs.key }}
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
+      - name: List this leg's shards in the job summary
+        env:
+          SHARDS: ${{ matrix.bin.title }}
+        run: printf '### E2E leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Start sampling peak runner disk
+        run: sh tools/ci/disk-peak.sh start
       - name: Run real browser leaves
         env:
           SHARDS: ${{ matrix.bin.shards }}
         # One word per shard.
         run: bash tools/ci/run-job.sh "e2e-${{ matrix.bin.id }}" bash tools/ci/e2e.sh $SHARDS
+      - name: Report peak runner disk of this leg
+        # Data for the free-runner-disk.sh skip threshold (40 GB).
+        if: always()
+        run: |
+          sh tools/ci/disk-peak.sh stop
+          sh tools/ci/disk-report.sh "job end"
       - name: Publish browser evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -185,7 +210,7 @@ jobs:
     # and every shared Core, proxy or public change; the queue runs them all.
     needs: select
     if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.emdash != '[]' && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
-    name: EmDash proof / ${{ matrix.bin.title }}
+    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -217,12 +242,24 @@ jobs:
         run: sh tools/ci/retry-infra.sh sh tools/ci/bootstrap-prefetch.sh "$BOOTSTRAP_PROFILE"
       - name: Finish freeing runner disk
         run: sh tools/ci/free-runner-disk.sh wait
+      - name: List this leg's shards in the job summary
+        env:
+          SHARDS: ${{ matrix.bin.title }}
+        run: printf '### EmDash leg ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n\n%s\n' "$SHARDS" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Start sampling peak runner disk
+        run: sh tools/ci/disk-peak.sh start
       - name: Run EmDash proof cases
         env:
           EMDASH_ID: ${{ matrix.bin.id }}
           EMDASH_GROUPS: ${{ matrix.bin.shards }}
         # One word per group.
         run: bash tools/ci/run-job.sh "emdash-$EMDASH_ID" sh tools/ci/emdash.sh $EMDASH_GROUPS
+      - name: Report peak runner disk of this leg
+        # Data for the free-runner-disk.sh skip threshold (40 GB).
+        if: always()
+        run: |
+          sh tools/ci/disk-peak.sh stop
+          sh tools/ci/disk-report.sh "job end"
       - name: Publish EmDash proof evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

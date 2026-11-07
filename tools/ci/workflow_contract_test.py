@@ -16,6 +16,16 @@ from tools.ci import workflow_contract as contract  # noqa: E402
 
 CI_MUTATIONS = (
     (
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
+        "    name: E2E / ${{ matrix.bin.title }}\n",
+        "e2e: the leg name must be stable",
+    ),
+    (
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    runs-on: ubuntu-24.04\n    timeout-minutes: 90\n",
+        "    name: E2E ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    runs-on: ubuntu-24.04\n    timeout-minutes: 30\n",
+        "e2e: timeout-minutes must equal",
+    ),
+    (
         "run: sh tools/ci/free-runner-disk.sh wait",
         "run: true",
         "job integration-shards must free runner disk",
@@ -108,8 +118,8 @@ CI_MUTATIONS = (
         "EmDash proofs do not run through tools/ci/emdash.sh",
     ),
     (
-        "    name: EmDash proof / ${{ matrix.bin.title }}\n",
-        "    name: EmDash proof / ${{ matrix.bin.title }}\n    continue-on-error: true\n",
+        "    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n",
+        "    name: EmDash proof ${{ matrix.bin.id }}/${{ matrix.bin.count }}\n    continue-on-error: true\n",
         "retry or ignore",
     ),
     (

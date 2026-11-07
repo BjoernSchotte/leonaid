@@ -9,8 +9,14 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ "$#" -gt 1 ]; then
   failed=""
+  snapshot=$(mktemp)
+  trap 'rm -f "$snapshot"' EXIT
   for group in "$@"; do
-    /bin/sh "$root/tools/ci/emdash.sh" "$group" || failed="$failed $group"
+    /bin/sh "$root/tools/ci/leak-check.sh" snapshot "$snapshot"
+    if ! /bin/sh "$root/tools/ci/emdash.sh" "$group" ||
+      ! /bin/sh "$root/tools/ci/leak-check.sh" check "$snapshot" "$group"; then
+      failed="$failed $group"
+    fi
   done
   if [ -n "$failed" ]; then
     echo "ci-emdash: ERROR: failed groups:$failed" >&2

@@ -122,7 +122,15 @@ E2E_SECONDS = {
 }
 # EmDash bins are fixed: the order proof alone is the longest job of the run.
 EMDASH_BINS = (("krapfentaxi-orders",), ("krapfentaxi-migration", "static"))
+EMDASH_SECONDS = {"krapfentaxi-orders": 736, "krapfentaxi-migration": 328, "static": 107}
 TARGET_SECONDS = 600
+# ci.yml timeout-minutes of each leg kind (workflow_contract.py keeps them
+# equal). A leg's estimate is its shards' seconds plus LEG_SETUP_SECONDS; the
+# selector warns at LOAD_WARNING of the timeout, before a growing shard table
+# turns into timeouts.
+JOB_TIMEOUT_MINUTES = {"integration": 45, "e2e": 90, "emdash": 60}
+LEG_SETUP_SECONDS = 150
+LOAD_WARNING = 0.75
 MAX_BINS = {"integration": 4, "e2e": 4}
 # Integration shards that need the Twenty image prefetched (seed bootstrap).
 SEED_BOOTSTRAP = frozenset({"compose", "seed-cold", "seed-reset", "twenty-install"})
@@ -686,6 +694,7 @@ def matrix(
     return [
         {
             "id": str(number),
+            "count": str(len(bins)),
             "title": ", ".join(names),
             "shards": " ".join(names),
             "bootstrap": bootstrap(names),
@@ -779,6 +788,26 @@ def changed_paths(base: str, head: str) -> list[str]:
     return output.splitlines()
 
 
+def load_warnings(selection: Selection) -> list[str]:
+    """Legs whose estimated runtime nears their job timeout."""
+    warnings = []
+    for kind, bins, seconds in (
+        ("integration", selection.integration_bins(), INTEGRATION_SECONDS),
+        ("e2e", selection.e2e_bins(), E2E_SECONDS),
+        ("emdash", selection.emdash_bins(), EMDASH_SECONDS),
+    ):
+        limit = JOB_TIMEOUT_MINUTES[kind] * 60
+        for number, names in enumerate(bins, start=1):
+            estimate = LEG_SETUP_SECONDS + sum(seconds[name] for name in names)
+            if estimate > LOAD_WARNING * limit:
+                warnings.append(
+                    f"{kind} leg {number} ({', '.join(names)}) is estimated at "
+                    f"{estimate} s, over {LOAD_WARNING:.0%} of its {limit} s "
+                    "timeout: raise MAX_BINS or split a shard"
+                )
+    return warnings
+
+
 def summary(selection: Selection) -> str:
     outputs = selection.outputs()
     lines = [
@@ -831,6 +860,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 paths = []
     selection = select(args.event, paths)
     outputs = selection.outputs()
+    for warning in load_warnings(selection):
+        print(f"::warning title=CI leg near timeout::{warning}")
 
     target = os.environ.get("GITHUB_OUTPUT")
     if target:

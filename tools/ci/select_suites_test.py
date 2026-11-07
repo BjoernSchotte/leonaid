@@ -248,6 +248,29 @@ def main() -> int:
             leg["bootstrap"] == ("seed" if seed else "toolchains"),
             f"integration bootstrap: {leg}",
         )
+    full_selection = s.select("push", [])
+    expect(s.load_warnings(full_selection) == [], "complete run warns about leg load")
+    for kind, bins, seconds in (
+        ("integration", full_selection.integration_bins(), s.INTEGRATION_SECONDS),
+        ("e2e", full_selection.e2e_bins(), s.E2E_SECONDS),
+        ("emdash", full_selection.emdash_bins(), s.EMDASH_SECONDS),
+    ):
+        longest = max(sum(seconds[n] for n in b) for b in bins) + s.LEG_SETUP_SECONDS
+        expect(
+            longest < 0.6 * s.JOB_TIMEOUT_MINUTES[kind] * 60,
+            f"{kind}: longest leg {longest} s is too close to its timeout",
+        )
+    expect(set(s.EMDASH_SECONDS) == set(s.EMDASH_GROUPS), "EMDASH_SECONDS")
+    original = dict(s.E2E_SECONDS)
+    try:
+        s.E2E_SECONDS["operations"] = 4000
+        expect(
+            any("e2e leg" in w for w in s.load_warnings(full_selection)),
+            "a leg near its timeout must warn",
+        )
+    finally:
+        s.E2E_SECONDS.clear()
+        s.E2E_SECONDS.update(original)
     total = sum(len(json.loads(complete[key])) for key in BINNED)
     expect(total <= 10, f"a complete run must stay at 10 stack legs or fewer: {total}")
     # A small PR packs into one leg; packing is deterministic.

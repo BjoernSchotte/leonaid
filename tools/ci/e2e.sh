@@ -89,19 +89,31 @@ EOF_LEAVES
 done
 
 status=0
+snapshot=$(mktemp)
+trap 'rm -f "$snapshot"' EXIT
+# Runs one step; tools/ci/leak-check.sh fails it if it left Compose objects.
+step() {
+  label=$1
+  shift
+  /bin/sh "$root/tools/ci/leak-check.sh" snapshot "$snapshot"
+  step_status=0
+  "$@" || step_status=1
+  /bin/sh "$root/tools/ci/leak-check.sh" check "$snapshot" "$label" || step_status=1
+  if [ "$step_status" -ne 0 ]; then
+    echo "ci-e2e: $label FAILED" >&2
+    status=1
+  fi
+}
 # shellcheck disable=SC2086 # one word per leaf script
 if [ -n "$golden" ]; then
-  python3 "$root/tools/testing/shared_stack.py" --keep-going golden $golden || status=1
+  step "golden leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going golden $golden
 fi
 # shellcheck disable=SC2086
 if [ -n "$core" ]; then
-  python3 "$root/tools/testing/shared_stack.py" --keep-going core $core || status=1
+  step "core leaves" python3 "$root/tools/testing/shared_stack.py" --keep-going core $core
 fi
 for script in $own; do
-  if ! /bin/sh "$root/$script" "$root"; then
-    echo "ci-e2e: leaf $script FAILED" >&2
-    status=1
-  fi
+  step "$script" /bin/sh "$root/$script" "$root"
 done
 if [ "$status" -ne 0 ]; then
   echo "ci-e2e: ERROR: failed leaves in: $*" >&2

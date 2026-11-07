@@ -157,8 +157,13 @@ That is 20 jobs instead of 56, 16 of them with a runner-heavy suite.
 into at most `MAX_BINS` legs per kind, using the measured seconds in
 `INTEGRATION_SECONDS` / `E2E_SECONDS`, and opens a further leg only per
 `TARGET_SECONDS` (600 s) of tests. A pull request that touches two small leaves
-gets one E2E leg. The leg title lists its shards; the leg id (`1`..`n`) names the
-artifact (`ci-integration-1`, ...).
+gets one E2E leg. Legs have stable names (`Integration 1/4`, `E2E 2/4`,
+`EmDash proof 1/2`) so the flake history stays comparable; the shard list is
+in the job summary. The leg id names the artifact (`ci-integration-1`, ...).
+The select job warns (`CI leg near timeout`) when a leg's estimate (shard
+seconds plus `LEG_SETUP_SECONDS`) passes 75 % of its `timeout-minutes`
+(`JOB_TIMEOUT_MINUTES`, kept equal to `ci.yml` by `workflow_contract.py`);
+`select_suites_test.py` keeps the complete run below 60 %.
 
 Inside a leg every shard keeps its own isolation:
 
@@ -171,6 +176,12 @@ Inside a leg every shard keeps its own isolation:
   between the leaves of one shard before. A failed leaf does not stop the
   others; the exit code stays the first failure's.
 - `tools/ci/emdash.sh a b` runs each group's cases once, without retries.
+- Between shards, `tools/ci/leak-check.sh` (CI runners only) compares the
+  Compose projects before and after each shard. A shard that leaves
+  containers, networks or volumes behind fails, and only its leaked projects
+  are removed, so the next shard does not fail in its place.
+- `tools/ci/disk-peak.sh` logs start, peak and end disk use of each leg, the
+  data for the 40 GB skip threshold below.
 
 `surveys.yml` packs its 26 PR checks into 7 shards of about 8 minutes
 (`tools/surveys/gate.json` `ciShards`); each check still gets fresh service
@@ -182,11 +193,17 @@ Measured on PR #103 (run 42368175283, complete selection, busy runner pool):
 minutes, 385–461 queue minutes. `surveys.yml`: 11 jobs and 50 runner minutes
 (was 26 jobs, 82 runner minutes).
 
-A failed survey check prints a sanitized excerpt (failure lines, log tail,
-foundation harness log) to the job log and uploads it as
-`failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The text
-passes `tools/ci/sanitize_artifacts.py`; an excerpt with personal data is
-withheld.
+A failed survey check prints a sanitized excerpt (failure lines, log tail
+without Compose progress, foundation harness log) to the job log and uploads
+it as `failure-excerpts.json` (`tools/surveys/ci_failure_excerpt.py`). The
+repository is public, so redaction runs on the full text before any line is
+cut: known secrets (`.env.local`, the run's `*.env` files, the prepared
+fixture's Twenty key), then generic shapes (Authorization/Bearer,
+Cookie/Set-Cookie, token/code/key/signature/X-Amz-* parameters, URL
+passwords, credential assignments, JWTs, long mixed-case or hex strings).
+Then `tools/ci/sanitize_artifacts.py` withholds the excerpt on personal data,
+and a credential keyword still followed by a value withholds it too. Its
+self-test runs in Lint, types and unit.
 
 The heaviest single case, `krapfentaxi-orders` (about 12 minutes of tests),
 sets the wall time of a complete run. Re-measure with

@@ -223,6 +223,23 @@ def check(path: Path) -> list[str]:
             problems.append(f"{job} must depend on the suite selector output {key}.")
         if "needs.select.result == 'success'" not in condition:
             problems.append(f"{job} must not run when the suite selector failed.")
+    for job, kind in (
+        ("integration-shards", "integration"),
+        ("e2e", "e2e"),
+        ("emdash-cases", "emdash"),
+    ):
+        block = job_block(text, job)
+        timeout = re.search(r"(?m)^    timeout-minutes: (\d+)$", block)
+        if not timeout or int(timeout.group(1)) != select_suites.JOB_TIMEOUT_MINUTES[kind]:
+            problems.append(
+                f"{job}: timeout-minutes must equal select_suites.JOB_TIMEOUT_MINUTES"
+                f"[{kind!r}] (the selector's load warning uses it)."
+            )
+        name = re.search(r"(?m)^    name: (.*)$", block)
+        if not name or "matrix.bin.id" not in name.group(1) or "title" in name.group(1):
+            problems.append(
+                f"{job}: the leg name must be stable (bin id/count), shards go to the summary."
+            )
     problems.extend(check_emdash(text))
     problems.extend(check_tiers(text, "ci.yml"))
     problems.extend(check_gate(text, "ci.yml"))

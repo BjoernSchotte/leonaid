@@ -5,12 +5,17 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 
 # Several shards (one CI bin, tools/ci/select_suites.py): each runs on its own
 # fresh stack, in order; a failure does not stop the later shards, the bin
-# fails at the end and names every failed shard.
+# fails at the end and names every failed shard. tools/ci/leak-check.sh fails
+# a shard that leaves Compose objects behind for the next one.
 if [ "$#" -gt 1 ]; then
   failed=""
+  snapshot=$(mktemp)
+  trap 'rm -f "$snapshot"' EXIT
   for part in "$@"; do
     started=$(date +%s)
-    if /bin/sh "$root/tools/ci/integration.sh" "$part"; then
+    /bin/sh "$root/tools/ci/leak-check.sh" snapshot "$snapshot"
+    if /bin/sh "$root/tools/ci/integration.sh" "$part" &&
+      /bin/sh "$root/tools/ci/leak-check.sh" check "$snapshot" "$part"; then
       echo "ci-integration: bin: $part passed ($(( $(date +%s) - started ))s)"
     else
       echo "ci-integration: bin: $part FAILED ($(( $(date +%s) - started ))s)" >&2
