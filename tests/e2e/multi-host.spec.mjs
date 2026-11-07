@@ -202,11 +202,10 @@ test("member paths move to the admin host and sign-in works there", async ({
   page,
 }) => {
   for (const path of ["/admin/", "/app/", "/login?returnTo=%2Fadmin%2F"]) {
-    // The redirect is the server's 308; the app on the admin host may then
-    // navigate on to its sign-in page by script. Waiting for "load" raced
-    // that second navigation (WebKit: "interrupted by another navigation").
+    // The 308 is done at commit; the signed-out app then moves on to the
+    // login by script, which would abort a wait for "load".
     await page.goto(`${publicUrl}${path}`, { waitUntil: "commit" });
-    await expect.poll(() => new URL(page.url()).origin).toBe(adminUrl);
+    expect(new URL(page.url()).origin).toBe(adminUrl);
   }
   // The sign-in page on the admin host loads its own styles and scripts.
   const login = await page.goto(`${adminUrl}/login`);

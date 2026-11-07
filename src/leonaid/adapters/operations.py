@@ -242,7 +242,9 @@ class OperationsService:
                 FROM outbox_event
                 WHERE event_type IN (
                     'mail.send.v1',
-                    'invoice.mail.send.requested.v1'
+                    'invoice.mail.send.requested.v1',
+                    'order.confirmation.mail.v1',
+                    'order.cancellation.mail.v1'
                 )
                 GROUP BY status
                 ORDER BY status
