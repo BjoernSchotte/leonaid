@@ -831,7 +831,7 @@ printf '%s\n' \
   "INSERT INTO user_account (id, email, display_name, status) VALUES ('$cms_admin_id', '$cms_admin_email', 'CMS System Admin', 'active');" \
   "INSERT INTO user_global_role (user_id, role) VALUES ('$cms_admin_id', 'system_admin');" \
   "INSERT INTO user_account (id, email, display_name, status) VALUES (gen_random_uuid(), 'cms-member@leonaid.org', 'CMS Member', 'active');" \
-  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES (gen_random_uuid(), '$cms_admin_id', '$cms_session_digest', now() + interval '1 day', now(), now(), 'pilot CMS proof', now(), now());" |
+  "INSERT INTO user_session (id, user_id, token_digest, expires_at, last_seen_at, fresh_login_at, device_hint, created_at, updated_at) VALUES (gen_random_uuid(), '$cms_admin_id', '$cms_session_digest', now() + interval '90 days', now(), now(), 'pilot CMS proof', now(), now());" |
   core_sql
 cms_expect "refuses a member without the System Admin role" 1 \
   "is no active LeonAid System Admin" --system-admin-email cms-member@leonaid.org
