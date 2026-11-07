@@ -46,7 +46,7 @@ def expect(condition: bool, message: str) -> None:
 
 def run(
     directory: Path, *arguments: str, ci: bool = True
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     env = dict(
         os.environ,
         PATH=f"{directory}:{os.environ['PATH']}",
