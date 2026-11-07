@@ -434,7 +434,7 @@ def validate_hosts(
     proxy = object_value(services["proxy"], "services.proxy")
     proxy_environment = object_value(proxy.get("environment"), "proxy.environment")
     caddyfile = mounted_caddyfile(proxy)
-    public_domain = string_value(proxy_environment, "LEONAID_PUBLIC_DOMAIN").casefold()
+    public_domain = str(proxy_environment.get("LEONAID_PUBLIC_DOMAIN") or "").casefold()
     admin_domain = str(proxy_environment.get("LEONAID_ADMIN_DOMAIN") or "").casefold()
     raw_aliases = str(proxy_environment.get("LEONAID_PUBLIC_DOMAIN_ALIASES") or "")
     aliases = split_hosts(raw_aliases)
