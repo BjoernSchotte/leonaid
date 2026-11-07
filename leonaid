@@ -1584,6 +1584,14 @@ pilot_cms_require_provisioned() {
   if [ "${4:-}" = release ]; then
     pilot_cms_state=$(printf '%s\n' "$pilot_cms_state" |
       sed 's/^database=pending$/database=ready/; s/^schema=pending$/schema=ready/')
+    # Retry forward: a release that stopped after closing CMS traffic (or a
+    # transient failure of its CMS step) leaves traffic closed. Without a
+    # migration controller holding the lock, a new pilot-release may continue;
+    # its CMS step reopens traffic only after the migrated state verifies.
+    if [ -z "$(docker ps -aq --filter "name=^$1-cms-migration-lock\$")" ]; then
+      pilot_cms_state=$(printf '%s\n' "$pilot_cms_state" |
+        sed 's/^traffic=closed$/traffic=open/')
+    fi
   elif printf '%s\n' "$pilot_cms_state" | grep -qx 'database=pending'; then
     echo "$3: BLOCKED: this release brings CMS (EmDash) migrations; release it with './leonaid pilot-release', which migrates the CMS under closed traffic" >&2
     return 1
@@ -2970,6 +2978,17 @@ print(value["schemas"]["coreAlembicHead"])'
 # brings EmDash migrations (database=pending), else verify. Traffic reopens
 # only after the CMS state verifies; pilot-deploy then starts the CMS. On any
 # failure the CMS stays closed and stopped (rollback: RELEASE-RUNBOOK.md).
+# The durable close-only marker (apps/campaign-site/src/cms-maintenance.mjs):
+# every CMS process answers 503 until the CMS step reopens it.
+pilot_release_cms_close() (
+  set -e
+  pilot_cms_enabled "$2" || exit 0
+  pilot_compose_command "$1" "$2" \
+    run --rm --no-deps --pull missing --entrypoint mkdir campaign-site \
+    -p -m 0700 /app/bootstrap-state/cms-maintenance
+  echo "pilot-release: CMS traffic closed for the release (editors wait until it reopens)"
+)
+
 pilot_release_cms_migrate() (
   set -e
   project=$1
@@ -3208,6 +3227,9 @@ pilot_release() {
   if [ "$status" -eq 0 ]; then
     (
       set -e
+      # CMS editors write without Core; close their traffic with maintenance,
+      # so nothing is written after the release's recovery point.
+      pilot_release_cms_close "$project" "$env_file"
       pilot_release_migrate "$project" "$env_file" "$release_manifest"
       pilot_release_cms_migrate "$project" "$env_file"
     )

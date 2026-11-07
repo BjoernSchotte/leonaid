@@ -1442,3 +1442,11 @@ image without starting it and runs `migrate-cms.sh upgrade-emdash` (else
 it. `pilot-deploy` refuses `pending`. Not covered: editorial schema version
 changes (`upgrade-v<N>` under the previous image, release spec §6.2 step 2);
 rollback is the restore of the release backup (RELEASE-RUNBOOK §4).
+Review #113: CMS traffic closes when maintenance starts
+(`pilot_release_cms_close`), so no editor write follows the recovery point;
+the release doctor gate accepts `traffic=closed` without a migration lock
+(retry forward). Proof: a release image whose EmDash migration throws stops
+the release with maintenance on, the CMS closed and stopped and no lock; the
+migration rolled back (one transaction); `pilot-deploy` of the previous
+release refuses the closed CMS; the release's recovery point restores the
+CMS; after lifting maintenance the corrected release goes through.

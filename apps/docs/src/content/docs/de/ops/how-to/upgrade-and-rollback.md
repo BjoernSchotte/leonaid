@@ -4,8 +4,8 @@ description: Gepinnte Core-, Twenty-, RustFS- und EmDash-Versionen mit Wartungsg
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 9
-reviewedRevision: 9
+contentRevision: 10
+reviewedRevision: 10
 verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -145,10 +145,16 @@ CMS-Datenbank, ihren Einrichtungsstand und die Medien. Der CMS-Verkehr öffnet
 erst, wenn der migrierte Stand geprüft ist. `pilot-deploy` lehnt ein solches
 Release ab und verweist auf `pilot-release`.
 
+Der CMS-Verkehr schließt, sobald der Wartungsmodus beginnt; die Redaktion
+kann nach dem Wiederherstellungspunkt des Releases nichts mehr ändern.
 Scheitert der CMS-Schritt, bleibt der CMS-Verkehr geschlossen und das CMS
-gestoppt. Rolle aus dem Wiederherstellungspunkt des Releases zurück, wie im
+gestoppt; eine scheiternde EmDash-Migration wird vollständig zurückgerollt.
+Hebe zuerst den Wartungsmodus auf und starte `pilot-release` erneut (es nimmt
+das geschlossene CMS an, wenn keine Migrationssperre übrig ist). Scheitert
+auch das, rolle aus dem Wiederherstellungspunkt des Releases zurück, wie im
 Release-Runbook beschrieben (`infra/pilot/RELEASE-RUNBOOK.md`, „Failure and
-rollback“); starte nie das vorherige CMS-Image auf der migrierten Datenbank.
+rollback“); starte nie das vorherige CMS-Image auf einer migrierten
+Datenbank.
 
 ## EmDash-Kampagnenseite 0.36 auf 1.4
 

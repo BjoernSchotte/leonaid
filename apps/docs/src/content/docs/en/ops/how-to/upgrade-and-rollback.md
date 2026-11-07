@@ -4,8 +4,8 @@ description: Update pinned Core, Twenty, RustFS, and EmDash versions behind a ma
 docId: DOC-P024
 audience: [ops]
 diataxis: how-to
-contentRevision: 9
-reviewedRevision: 9
+contentRevision: 10
+reviewedRevision: 10
 verifiedAgainst: af276b7f67eacba45f02af82695ecd9e506b7ced
 reviewer: Claude Code (Prüfung durch Björn Schotte offen)
 ---
@@ -137,10 +137,14 @@ setup state and media. CMS traffic reopens only after the migrated state
 verifies. `pilot-deploy` refuses such a release and points to
 `pilot-release`.
 
-If the CMS step fails, CMS traffic stays closed and the CMS stays stopped.
-Roll back from the release's recovery point as in the release runbook
+CMS traffic closes as soon as maintenance starts, so editors cannot change
+anything after the release's recovery point. If the CMS step fails, CMS
+traffic stays closed and the CMS stays stopped; a failing EmDash migration
+rolls back completely. First lift maintenance and run `pilot-release` again
+(it accepts the closed CMS when no migration lock remains). If that fails
+too, roll back from the release's recovery point as in the release runbook
 (`infra/pilot/RELEASE-RUNBOOK.md`, "Failure and rollback"); never start the
-previous CMS image on the migrated database.
+previous CMS image on a migrated database.
 
 ## EmDash campaign site 0.36 to 1.4
 
