@@ -14,6 +14,42 @@ host_user="$(id -u):$(id -g)"
 LEONAID_OPERATOR_USER=$host_user
 export LEONAID_OPERATOR_USER
 
+# Every checkout has its own local Compose project. Only the recorded main
+# checkout (the long-running development instance) uses "leonaid":
+# `./leonaid bootstrap --main-instance` records it in .local/main-instance
+# (or LEONAID_MAIN_CHECKOUT names it). Every other checkout - linked worktree,
+# independent clone, exported tree, or a checkout where git fails - uses
+# leonaid-wt-<checksum of its physical path>, so dev, seed, reset, backup,
+# doctor, ... there never address the main instance (fail closed).
+root_physical=$(CDPATH= cd -- "$root" && pwd -P)
+checkout_kind=other
+if [ -f "$root/.git" ]; then
+  : # A linked worktree is never the main checkout.
+elif [ -n "${LEONAID_MAIN_CHECKOUT:-}" ]; then
+  if [ "$(CDPATH= cd -- "$LEONAID_MAIN_CHECKOUT" 2>/dev/null && pwd -P)" = "$root_physical" ]; then
+    checkout_kind=main
+  fi
+elif [ ! -f "$root/.git" ] && [ -f "$root/.local/main-instance" ] &&
+  [ "$(cat "$root/.local/main-instance")" = "$root_physical" ]; then
+  checkout_kind=main
+fi
+if [ "$checkout_kind" = main ]; then
+  default_project=leonaid
+else
+  default_project="leonaid-wt-$(printf %s "$root_physical" | cksum | cut -d ' ' -f 1)"
+fi
+if [ "${LEONAID_COMPOSE_PROJECT:-}" = leonaid ] && [ "$checkout_kind" != main ]; then
+  echo "leonaid: ERROR: LEONAID_COMPOSE_PROJECT=leonaid names the main development instance; this checkout is not it (unset the variable)." >&2
+  exit 1
+fi
+dev_project=${LEONAID_COMPOSE_PROJECT:-$default_project}
+# The main checkout's directory, when known: its ports are reserved for it.
+main_checkout=${LEONAID_MAIN_CHECKOUT:-}
+if [ -z "$main_checkout" ] && [ -f "$root/.git" ] &&
+  main_common_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+  main_checkout=$(dirname -- "$main_common_dir")
+fi
+
 usage() {
   cat <<'EOF'
 LeonAid PoC
@@ -22,7 +58,12 @@ Usage: ./leonaid <command>
 
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
+                    [--main-instance] records this checkout as the main
+                    development instance (Compose project "leonaid");
+                    [--other-checkout] confirms a clone that is not it
   doctor            Diagnose Docker, locks, secrets and local dependencies
+  local-instance    Show this checkout's Compose project: "leonaid" only for
+                    the recorded main checkout, leonaid-wt-<checksum> otherwise
   repair-ownership  Give root-owned files in the checkout back to the current user
   release [--dry-run] [--no-ci-check]
                     Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
@@ -180,6 +221,12 @@ Commands:
                     Start Prometheus, Alertmanager and the Watchdog heartbeat
   pilot-deploy --env-file FILE --backup-manifest FILE --release-manifest FILE
                     Deploy the manifest-bound pilot without a live build
+  pilot-cms-provision --env-file FILE --backup-manifest FILE
+                --release-manifest FILE [--system-admin-email EMAIL]
+                    Provision the CMS (campaign pages) of a running pilot:
+                    database, media bucket, editor setup grant, campaign
+                    schema; repeatable, resumes where it stopped (exit 75:
+                    the System Admin completes the setup, then run again)
   pilot-release --env-file FILE --backup-manifest FILE --release-manifest FILE
                 --ledger FILE --password-file FILE --evidence-id ID
                 [--twenty-bootstrap-file FILE]
@@ -488,7 +535,7 @@ compose_queue_store_guard() {
   [ "$twenty_queue_store_checked" = false ] || return 0
   for argument in "$@"; do
     if [ "$argument" = up ]; then
-      LEONAID_COMPOSE_PROJECT="${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+      LEONAID_COMPOSE_PROJECT="$dev_project" \
         /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" migrate "$root"
       twenty_queue_store_checked=true
       return 0
@@ -502,10 +549,11 @@ compose_queue_store_guard() {
 # stacks use their own project names and the pilot has its own compose
 # commands; neither ever loads these files.
 dev_local_enabled() {
-  [ "${LEONAID_COMPOSE_PROJECT:-leonaid}" = leonaid ] && [ -d "$root/.local/dev" ]
+  [ "$dev_project" = "$default_project" ] && [ -d "$root/.local/dev" ]
 }
 
 compose() {
+  require_recorded_main
   compose_queue_store_guard "$@"
   if dev_local_enabled; then
     # Create the bind-mount sources as the invoking user; a missing source
@@ -522,8 +570,10 @@ compose() {
     integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
       "$root/.local/twenty/integration.env")
   fi
-  TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
-    --project-name "${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+  # LEONAID_COMPOSE_PROJECT also satisfies `name:` in compose.yml.
+  LEONAID_COMPOSE_PROJECT="$dev_project" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
+    --project-name "$dev_project" \
     --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
     "$@"
@@ -533,25 +583,97 @@ host_port_free() {
   ! nc -z 127.0.0.1 "$1" >/dev/null 2>&1
 }
 
+# Ports a worktree must never use, even while the main instance is stopped:
+# the main checkout's configured pair and the first fallback pair it gets.
+# Ports any other checkout must never use, even while the main instance is
+# stopped: its defaults, the first fallback pair and its configured pair.
+reserved_ports() {
+  [ "$checkout_kind" = main ] && return 0
+  printf '%s\n' 8080 8443 28080 28081
+  if [ -n "$main_checkout" ]; then
+    sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=\([0-9][0-9]*\)$/\1/p' \
+      "$main_checkout/.env.local" 2>/dev/null || true
+  fi
+}
+
+# Refuse to start a checkout on ports reserved for the main instance.
+require_own_ports() {
+  for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+    if reserved_ports | grep -qx "$configured_port"; then
+      if unrecorded_main; then
+        echo "leonaid: ERROR: this checkout looks like the main development instance (port $configured_port) but is not recorded; run './leonaid bootstrap --main-instance' here once." >&2
+      else
+        echo "leonaid: ERROR: port $configured_port is reserved for the main development instance; run './leonaid bootstrap' to choose this checkout's own ports." >&2
+      fi
+      exit 1
+    fi
+  done
+}
+
+# Working directories of existing "leonaid" containers (Compose labels).
+leonaid_owner_directories() {
+  docker ps -a --filter label=com.docker.compose.project=leonaid \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u
+}
+
+owns_leonaid_stack() {
+  for owner_directory in $(leonaid_owner_directories); do
+    if [ "$owner_directory" = "$root/infra/compose" ] ||
+      [ "$owner_directory" = "$root_physical/infra/compose" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# A primary clone (.git directory) without the record that holds the main
+# instance's ports or owns its containers: the main checkout before
+# `bootstrap --main-instance`. Never rewrite it into another checkout.
+unrecorded_main() {
+  [ "$checkout_kind" != main ] && [ -d "$root/.git" ] || return 1
+  if sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local" 2>/dev/null |
+    grep -qxE '8080|8443|28080|28081'; then
+    return 0
+  fi
+  owns_leonaid_stack
+}
+
+# A checkout that already runs the "leonaid" stack but is not recorded as the
+# main instance (for example the main checkout right after this change) must
+# not silently start a second stack; tell the developer how to record it.
+require_recorded_main() {
+  [ "$checkout_kind" = main ] && return 0
+  [ "${main_owner_checked:-false}" = false ] || return 0
+  main_owner_checked=true
+  if owns_leonaid_stack; then
+    echo "leonaid: ERROR: this checkout runs the 'leonaid' development instance but is not recorded as the main checkout; run './leonaid bootstrap --main-instance' here once." >&2
+    exit 1
+  fi
+}
+
+port_usable() {
+  host_port_free "$1" && ! reserved_ports | grep -qx "$1"
+}
+
 # Pick the local HTTP/HTTPS pair once; generate_secrets.py keeps it afterwards.
 # A running proxy of this project keeps its ports, so it does not count as busy.
 choose_local_ports() {
   proxy=$(docker ps -q \
-    --filter "label=com.docker.compose.project=${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+    --filter "label=com.docker.compose.project=$dev_project" \
     --filter label=com.docker.compose.service=proxy | head -n 1)
   if [ -n "$proxy" ]; then
     local_http_port=$(docker port "$proxy" 8080/tcp | head -n 1 | sed 's/.*://')
     local_https_port=$(docker port "$proxy" 8443/tcp | head -n 1 | sed 's/.*://')
     [ -n "$local_http_port" ] && [ -n "$local_https_port" ] && return 0
   fi
-  if host_port_free 8080 && host_port_free 8443; then
+  if port_usable 8080 && port_usable 8443; then
     local_http_port=8080
     local_https_port=8443
     return 0
   fi
   candidate=28080
   while [ "$candidate" -lt 29000 ]; do
-    if host_port_free "$candidate" && host_port_free $((candidate + 1)); then
+    if port_usable "$candidate" && port_usable $((candidate + 1)); then
       local_http_port=$candidate
       local_https_port=$((candidate + 1))
       return 0
@@ -563,6 +685,39 @@ choose_local_ports() {
 }
 
 bootstrap() {
+  for argument in "$@"; do
+    case "$argument" in
+      --main-instance)
+        if [ -f "$root/.git" ]; then
+          echo "bootstrap: ERROR: a linked worktree cannot be the main development instance" >&2
+          exit 1
+        fi
+        for owner_directory in $(leonaid_owner_directories); do
+          if [ "$owner_directory" != "$root/infra/compose" ] &&
+            [ "$owner_directory" != "$root_physical/infra/compose" ]; then
+            echo "bootstrap: ERROR: the 'leonaid' instance belongs to ${owner_directory%/infra/compose}; record that checkout instead" >&2
+            exit 1
+          fi
+        done
+        mkdir -p "$root/.local"
+        printf '%s\n' "$root_physical" >"$root/.local/main-instance"
+        checkout_kind=main
+        default_project=leonaid
+        dev_project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+        echo "bootstrap: recorded this checkout as the main development instance (project leonaid)"
+        ;;
+      --other-checkout) other_checkout=true ;;
+      *)
+        echo "bootstrap: ERROR: unknown option $argument (see ./leonaid help)" >&2
+        exit 2
+        ;;
+    esac
+  done
+  if [ "${other_checkout:-false}" != true ] && unrecorded_main; then
+    echo "bootstrap: ERROR: this checkout looks like the main development instance (main ports or its 'leonaid' containers) but is not recorded; nothing was changed." >&2
+    echo "bootstrap: run './leonaid bootstrap --main-instance' here, or '--other-checkout' if it is not the main instance." >&2
+    exit 1
+  fi
   require_docker
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
@@ -571,6 +726,19 @@ bootstrap() {
     grep -q '^LEONAID_HTTPS_PORT=[0-9]' "$root/.env.local"; then
     local_http_port=
     local_https_port=
+    # Earlier bootstraps let a worktree take the main instance's ports.
+    for configured_port in $(sed -n 's/^LEONAID_HTTPS\{0,1\}_PORT=//p' "$root/.env.local"); do
+      if reserved_ports | grep -qx "$configured_port"; then
+        choose_local_ports
+        echo "bootstrap: port $configured_port is reserved for the main instance; this checkout now uses HTTP $local_http_port, HTTPS $local_https_port"
+        sed -i.bak \
+          -e "s/^LEONAID_HTTP_PORT=.*/LEONAID_HTTP_PORT=$local_http_port/" \
+          -e "s/^LEONAID_HTTPS_PORT=.*/LEONAID_HTTPS_PORT=$local_https_port/" \
+          "$root/.env.local"
+        rm -f "$root/.env.local.bak"
+        break
+      fi
+    done
   else
     choose_local_ports
     echo "bootstrap: local ports HTTP $local_http_port, HTTPS $local_https_port"
@@ -579,6 +747,7 @@ bootstrap() {
     --user "$host_user_id:$host_group_id" \
     -e LEONAID_HTTP_PORT="$local_http_port" \
     -e LEONAID_HTTPS_PORT="$local_https_port" \
+    -e LEONAID_COMPOSE_PROJECT="$dev_project" \
     -v "$root:/workspace" \
     -w /workspace \
     "$PYTHON_IMAGE" \
@@ -623,6 +792,14 @@ doctor() {
     failures=$((failures + 1))
   else
     echo "doctor: OK: local secrets present, generated and ignored"
+  fi
+
+  env_project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$root/.env.local" 2>/dev/null | tail -n 1)
+  if [ -f "$root/.env.local" ] && [ "$env_project" != "$dev_project" ]; then
+    echo "doctor: ERROR: .env.local names Compose project '${env_project:-<none>}', this checkout uses '$dev_project'. Run './leonaid bootstrap'." >&2
+    failures=$((failures + 1))
+  elif [ -f "$root/.env.local" ]; then
+    echo "doctor: OK: Compose project $dev_project ($checkout_kind checkout)"
   fi
 
   if [ -f "$root/.env.local" ] && ! compose config --quiet; then
@@ -800,6 +977,9 @@ check_all() {
     python /workspace/tools/backup/compose_overlays_test.py
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/backup/cms_bootstrap_state_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/pilot_install/systemd_test.py /workspace
   docker run --rm --network none \
     --user "$host_user" -e PYTHONPATH=/workspace \
@@ -858,9 +1038,12 @@ check_all() {
     "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check
   docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs
+  # CMS provisioning state classification and SCRAM verifier (pilot-cms-provision).
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node --test tools/pilot_cms/cms-provision-state.test.mjs
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
     .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
-    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts \
+    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts tools/pilot_cms/*.mjs \
     tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -1002,6 +1185,11 @@ pilot_doctor() {
     echo "pilot-doctor: BLOCKED: the monitoring path is missing" >&2
     return 1
   }
+  # pilot-cms-provision: the latest backup may predate the CMS.
+  backup_cms_argument=
+  if [ "${pilot_doctor_skip_cms:-false}" = true ]; then
+    backup_cms_argument=--allow-backup-without-cms
+  fi
   config_file=$(mktemp)
   doctor_input_directory=$(mktemp -d)
   if [ -f "$backup_manifest" ]; then
@@ -1087,7 +1275,8 @@ pilot_doctor() {
         --resolve "$portal_domain=127.0.0.1:443" \
         --disk-path /workspace \
         --minimum-free-bytes 1048576 \
-        --minimum-certificate-validity-hours 1 $json_argument $first_install_argument
+        --minimum-certificate-validity-hours 1 $json_argument $first_install_argument \
+        $backup_cms_argument
   else
     # shellcheck disable=SC2086
     docker run --rm \
@@ -1106,7 +1295,7 @@ pilot_doctor() {
         --compose-config /doctor/compose.json \
         --backup-manifest /doctor/input/backup-manifest.json \
         --expected-release-commit "$release_commit" \
-        --gate "$gate" $json_argument $first_install_argument
+        --gate "$gate" $json_argument $first_install_argument $backup_cms_argument
   fi
   status=$?
   # The deploy and release gates run against the started stack: prove the
@@ -1119,6 +1308,19 @@ pilot_doctor() {
           echo "pilot-doctor: BLOCKED: Twenty CRM check failed; apply the schema with './leonaid pilot-release --twenty-bootstrap-file FILE'" >&2
           status=1
         fi
+        ;;
+    esac
+  fi
+  # LEONAID_CMS_ENABLED=true is accepted only for a provisioned CMS. Backup
+  # and restore take the CMS data in any state; pilot-cms-provision runs the
+  # doctor for the rest of the installation before it provisions.
+  if [ "$status" -eq 0 ] && [ -z "$first_install_argument" ] &&
+    [ "${pilot_doctor_skip_cms:-false}" != true ]; then
+    case "$gate" in
+      pilot-backup|pilot-restore) ;;
+      *)
+        pilot_cms_require_provisioned "$project" "$env_file" pilot-doctor ||
+          status=1
         ;;
     esac
   fi
@@ -1248,6 +1450,29 @@ pilot_cms_profile() {
 
 pilot_cms_topology() {
   if pilot_cms_enabled "$1"; then echo emdash; else echo legacy; fi
+}
+
+# Backup topology of a pilot project: the CMS belongs to the recovery point
+# from its completed editor setup on (a restore refuses a setup state that
+# could reopen). Until then the unfinished CMS data stays out, so nightly
+# backups keep working while pilot-cms-provision runs or after the CMS was
+# switched off again before it ever went live (tools/backup/backup.sh).
+pilot_backup_topology() {
+  if ! pilot_cms_enabled "$2"; then
+    echo legacy
+    return 0
+  fi
+  . "$root/tools/backup/cms-bootstrap-state.sh"
+  pilot_backup_cms_state=$(cms_bootstrap_state "${1}_cms-bootstrap-state") || {
+    echo "pilot-backup: BLOCKED: the CMS setup state cannot be read; no backup without a known CMS state" >&2
+    return 1
+  }
+  if [ "$pilot_backup_cms_state" = complete ]; then
+    echo emdash
+  else
+    echo "pilot-backup: NOTE: the CMS setup is not complete yet; this backup does not contain the unfinished CMS" >&2
+    echo legacy
+  fi
 }
 
 pilot_compose_config() {
@@ -1471,6 +1696,14 @@ pilot_deploy() {
   # an old Redis 7.4 store is migrated only by pilot-release.
   LEONAID_COMPOSE_PROJECT="$project" \
     /bin/sh "$root/infra/upgrade/twenty-queue-store.sh" require-current "$root"
+  # A CMS that is not provisioned would never become healthy; refuse before
+  # anything is recreated.
+  if pilot_cms_enabled "$env_file"; then
+    pilot_compose_command "$project" "$env_file" \
+      up --detach --no-build --pull missing --wait --wait-timeout 420 \
+      core-postgres rustfs
+    pilot_cms_require_provisioned "$project" "$env_file" pilot-deploy
+  fi
   pilot_compose_up "$project" "$env_file"
   pilot_doctor \
     --env-file "$env_file" \
@@ -1482,6 +1715,374 @@ pilot_deploy() {
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
   echo "pilot-deploy: OK: $project runs exactly from the verified release manifest"
+}
+
+# CMS provisioning state of a pilot project (specs/multi-domain R11), read by
+# the image-owned operator apps/campaign-site/src/cms-provision-operator.mjs:
+# one "key=value" line per step. Needs core-postgres and rustfs running.
+pilot_cms_status() {
+  pilot_compose_command "$1" "$2" \
+    run --rm --no-deps --pull missing --entrypoint node campaign-site \
+    /app/operator/cms-provision-operator.mjs status
+}
+
+pilot_cms_status_value() {
+  printf '%s\n' "$2" | sed -n "s/^$1=//p" | tail -n 1
+}
+
+# LEONAID_CMS_ENABLED=true is accepted only for a provisioned CMS: database,
+# media bucket, completed editor setup, campaign schema and open traffic.
+# pilot-cms-provision is the one command that runs before that.
+pilot_cms_require_provisioned() {
+  pilot_cms_enabled "$2" || return 0
+  pilot_cms_state=$(pilot_cms_status "$1" "$2") || {
+    echo "$3: BLOCKED: the CMS provisioning state cannot be read; core-postgres and rustfs must run" >&2
+    return 1
+  }
+  pilot_cms_missing=
+  for pilot_cms_expected in database=ready storage=ready bootstrap=complete \
+    setup=complete schema=ready traffic=open; do
+    printf '%s\n' "$pilot_cms_state" | grep -qx "$pilot_cms_expected" ||
+      pilot_cms_missing="$pilot_cms_missing ${pilot_cms_expected%%=*}"
+  done
+  if [ -n "$pilot_cms_missing" ]; then
+    echo "$3: BLOCKED: LEONAID_CMS_ENABLED=true, but the CMS is not provisioned (open:$pilot_cms_missing); run './leonaid pilot-cms-provision' first" >&2
+    return 1
+  fi
+}
+
+# Resolve the designated Core System Admin for the one-time EmDash setup grant.
+pilot_cms_system_admin_id() {
+  pilot_cms_email=$3
+  case "$pilot_cms_email" in
+    *[!a-z0-9@._+-]*|*@*@*|@*|*@|'')
+      echo "pilot-cms-provision: ERROR: --system-admin-email must be a lower-case address" >&2
+      return 64
+      ;;
+    *@*) ;;
+    *)
+      echo "pilot-cms-provision: ERROR: --system-admin-email must be a lower-case address" >&2
+      return 64
+      ;;
+  esac
+  pilot_cms_db_user=$(pilot_environment_value CORE_POSTGRES_USER "$2")
+  pilot_cms_db=$(pilot_environment_value CORE_POSTGRES_DB "$2")
+  # psql quotes the variable itself (:'email'); the address never becomes SQL.
+  printf '%s\n' "SELECT account.id FROM user_account AS account JOIN user_global_role AS role ON role.user_id = account.id WHERE role.role = 'system_admin' AND account.status = 'active' AND account.email = :'email';" |
+    pilot_compose_command "$1" "$2" exec -T core-postgres psql \
+      --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 \
+      --set "email=$pilot_cms_email" \
+      --username "${pilot_cms_db_user:-leonaid}" \
+      --dbname "${pilot_cms_db:-leonaid}"
+}
+
+# Core audit record of an operator decision about the CMS setup grant; the
+# subject is the Core System Admin it concerns, the actor the operator (none).
+pilot_cms_audit() {
+  pilot_cms_db_user=$(pilot_environment_value CORE_POSTGRES_USER "$2")
+  pilot_cms_db=$(pilot_environment_value CORE_POSTGRES_DB "$2")
+  printf '%s\n' "INSERT INTO audit_event (id, action_id, actor_user_id, event_type, entity_type, entity_id, request_id, payload) VALUES (gen_random_uuid(), NULL, NULL, :'event', 'cms_setup_grant', :'subject', 'pilot-cms-provision', '{}'::jsonb);" |
+    pilot_compose_command "$1" "$2" exec -T core-postgres psql \
+      --quiet --set ON_ERROR_STOP=1 \
+      --set "event=$3" --set "subject=$4" \
+      --username "${pilot_cms_db_user:-leonaid}" \
+      --dbname "${pilot_cms_db:-leonaid}" >/dev/null
+}
+
+pilot_cms_provision() {
+  require_docker
+  env_file=
+  backup_manifest=
+  release_manifest=
+  system_admin_email=
+  reset_setup=false
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --reset-setup)
+        reset_setup=true
+        shift
+        ;;
+      --env-file|--backup-manifest|--release-manifest|--system-admin-email)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-cms-provision: ERROR: $1 needs a value" >&2
+          exit 64
+        }
+        case "$1" in
+          --env-file) env_file=$2 ;;
+          --backup-manifest) backup_manifest=$2 ;;
+          --release-manifest) release_manifest=$2 ;;
+          --system-admin-email) system_admin_email=$2 ;;
+        esac
+        shift 2
+        ;;
+      *)
+        echo "pilot-cms-provision: ERROR: unknown option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  for required in env_file backup_manifest release_manifest; do
+    eval "required_value=\${$required}"
+    [ -n "$required_value" ] || {
+      echo "pilot-cms-provision: ERROR: --$(printf '%s' "$required" | tr _ -) is missing" >&2
+      exit 64
+    }
+  done
+  env_file=$(pilot_absolute_file pilot-cms-provision "$env_file")
+  backup_manifest=$(pilot_absolute_file pilot-cms-provision "$backup_manifest")
+  release_manifest=$(pilot_absolute_file pilot-cms-provision "$release_manifest")
+  pilot_require_private_external pilot-cms-provision "$env_file" "environment file" ||
+    exit 1
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-cms-provision: BLOCKED: the Compose project is not environment-specific" >&2
+      exit 1
+      ;;
+  esac
+  pilot_cms_enabled "$env_file" || {
+    echo "pilot-cms-provision: BLOCKED: set LEONAID_CMS_ENABLED=true in the environment file first; backups then include the CMS" >&2
+    exit 1
+  }
+  release_commit=$(git -C "$root" rev-parse HEAD)
+  config_file=$(mktemp)
+  trap 'rm -f "$config_file"' EXIT HUP INT TERM
+  pilot_compose_config "$project" "$env_file" "$config_file"
+  # The CMS stack needs the CMS release contract (release-manifest-cms.json).
+  pilot_verify_release_manifest \
+    "$release_manifest" "$config_file" "$release_commit"
+  rm -f "$config_file"
+  trap - EXIT HUP INT TERM
+  # The running installation, its backup, secrets and decisions; the CMS
+  # check of the doctor is the goal of this command, not its precondition.
+  pilot_doctor_skip_cms=true
+  pilot_doctor \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --gate pilot-deploy
+  pilot_doctor_skip_cms=false
+
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    core-postgres rustfs
+  state=$(pilot_cms_status "$project" "$env_file") || {
+    echo "pilot-cms-provision: BLOCKED: the CMS provisioning state cannot be read" >&2
+    exit 1
+  }
+
+  # Step 1: role, database, grants, EmDash migrations, identity mapping.
+  case "$(pilot_cms_status_value database "$state")" in
+    ready) echo "pilot-cms-provision: 1/4 database: already provisioned" ;;
+    missing)
+      echo "pilot-cms-provision: 1/4 database: provisioning role, database and EmDash migrations"
+      CORE_POSTGRES_PASSWORD=$(pilot_environment_value CORE_POSTGRES_PASSWORD "$env_file")
+      core_database_user=$(pilot_environment_value CORE_POSTGRES_USER "$env_file")
+      core_database=$(pilot_environment_value CORE_POSTGRES_DB "$env_file")
+      export CORE_POSTGRES_PASSWORD
+      # The password reaches the container by name only, never in argv.
+      pilot_compose_command "$project" "$env_file" \
+        run --rm --no-deps --pull missing \
+        --env "CORE_POSTGRES_DB=${core_database:-leonaid}" \
+        --env "CORE_POSTGRES_USER=${core_database_user:-leonaid}" \
+        --env CORE_POSTGRES_PASSWORD \
+        --entrypoint node campaign-site \
+        /app/operator/cms-provision-operator.mjs database
+      unset CORE_POSTGRES_PASSWORD
+      ;;
+    refused)
+      echo "pilot-cms-provision: BLOCKED: the CMS database exists with another EmDash migration state; it is not provisioned over (runbook: CMS provisioning)" >&2
+      exit 1
+      ;;
+    *)
+      echo "pilot-cms-provision: BLOCKED: core-postgres does not answer the CMS probe" >&2
+      exit 1
+      ;;
+  esac
+
+  # Step 2: private media bucket and the scoped CMS user in RustFS.
+  case "$(pilot_cms_status_value storage "$state")" in
+    ready) echo "pilot-cms-provision: 2/4 media bucket: already provisioned" ;;
+    missing)
+      echo "pilot-cms-provision: 2/4 media bucket: provisioning bucket and scoped access key"
+      CMS_S3_SECRET_ACCESS_KEY=$(pilot_environment_value CMS_S3_SECRET_ACCESS_KEY "$env_file")
+      export CMS_S3_SECRET_ACCESS_KEY
+      # The operator ships in the verified Core image; the api environment
+      # holds the RustFS root key it needs, the CMS gets only its own key.
+      pilot_compose_command "$project" "$env_file" \
+        run --rm --no-deps --pull missing \
+        --env CMS_S3_ACCESS_KEY_ID=leonaid-emdash \
+        --env CMS_S3_SECRET_ACCESS_KEY \
+        --entrypoint python \
+        api -m leonaid.entrypoints.cms_storage
+      unset CMS_S3_SECRET_ACCESS_KEY
+      ;;
+    *)
+      echo "pilot-cms-provision: BLOCKED: rustfs does not answer the CMS probe" >&2
+      exit 1
+      ;;
+  esac
+  state=$(pilot_cms_status "$project" "$env_file")
+  for expected in database=ready storage=ready; do
+    printf '%s\n' "$state" | grep -qx "$expected" || {
+      echo "pilot-cms-provision: BLOCKED: ${expected%%=*} is still not ready after provisioning" >&2
+      exit 1
+    }
+  done
+
+  # Step 3: one-time setup grant; the System Admin completes the EmDash setup
+  # in the browser, then this command runs again.
+  bootstrap=$(pilot_cms_status_value bootstrap "$state")
+  # EmDash completed the setup, but the grant was not marked: a crash after
+  # the upstream success, or a reset that raced the request. The operator
+  # verifies the completed setup and the mapped System Admin first.
+  if [ "$(pilot_cms_status_value setup "$state")" = complete ]; then
+    case "$bootstrap" in
+      consumed|none)
+        completed=$(pilot_compose_command "$project" "$env_file" \
+          run --rm --no-deps --pull missing --entrypoint node campaign-site \
+          /app/operator/cms-provision-operator.mjs complete-setup |
+          sed -n 's/^cms-provision: setup grant completed; actor=//p')
+        case "$completed" in
+          ????????-????-????-????-????????????) ;;
+          *)
+            echo "pilot-cms-provision: BLOCKED: the completed setup could not be confirmed for a mapped System Admin" >&2
+            exit 1
+            ;;
+        esac
+        pilot_cms_audit "$project" "$env_file" cms.setup_grant.completed_by_operator "$completed"
+        echo "pilot-cms-provision: 3/4 editor setup: completed setup confirmed, grant marked complete"
+        bootstrap=complete
+        ;;
+    esac
+  fi
+  if [ "$bootstrap" = consumed ] && [ "$reset_setup" = true ]; then
+    # Only a grant whose setup never completed, while the CMS holds nothing
+    # an editor made (the operator checks); recorded in the Core audit log.
+    # The CMS stops first: no setup request may still be in flight.
+    pilot_compose_command "$project" "$env_file" stop campaign-site >/dev/null
+    withdrawn=$(pilot_compose_command "$project" "$env_file" \
+      run --rm --no-deps --pull missing --entrypoint node campaign-site \
+      /app/operator/cms-provision-operator.mjs reset-setup |
+      sed -n 's/^cms-provision: setup grant withdrawn; actor=//p')
+    case "$withdrawn" in
+      ????????-????-????-????-????????????) ;;
+      *)
+        echo "pilot-cms-provision: BLOCKED: the setup grant was not withdrawn" >&2
+        exit 1
+        ;;
+    esac
+    pilot_cms_audit "$project" "$env_file" cms.setup_grant.withdrawn "$withdrawn"
+    echo "pilot-cms-provision: 3/4 editor setup: unfinished setup grant withdrawn"
+    bootstrap=none
+  fi
+  case "$bootstrap" in
+    complete) echo "pilot-cms-provision: 3/4 editor setup: already complete" ;;
+    none|expired|armed)
+      if [ -n "$system_admin_email" ]; then
+        system_admin_id=$(pilot_cms_system_admin_id "$project" "$env_file" "$system_admin_email") ||
+          exit "$?"
+        case "$system_admin_id" in
+          ????????-????-????-????-????????????) ;;
+          *)
+            echo "pilot-cms-provision: BLOCKED: $system_admin_email is no active LeonAid System Admin" >&2
+            exit 1
+            ;;
+        esac
+        # Refuses while another System Admin's grant is armed (with its end).
+        arm_output=$(pilot_compose_command "$project" "$env_file" \
+          run --rm --no-deps --pull missing --entrypoint node campaign-site \
+          /app/operator/cms-provision-operator.mjs arm "$system_admin_id" 2>&1) || {
+          case "$arm_output" in
+            *setup_armed_for_another_system_admin_until_*)
+              armed_until=${arm_output##*setup_armed_for_another_system_admin_until_}
+              armed_until=${armed_until%%)*}
+              echo "pilot-cms-provision: BLOCKED: the setup is armed for another System Admin until $armed_until; complete it or wait" >&2
+              ;;
+            *) printf '%s\n' "$arm_output" | grep -F 'cms-provision:' >&2 ;;
+          esac
+          exit 1
+        }
+        printf '%s\n' "$arm_output" | grep -F 'cms-provision:'
+        case "$arm_output" in
+          *"grant armed for the designated"*)
+            pilot_cms_audit "$project" "$env_file" cms.setup_grant.armed "$system_admin_id"
+            ;;
+        esac
+      elif [ "$bootstrap" != armed ]; then
+        echo "pilot-cms-provision: ERROR: --system-admin-email of the LeonAid System Admin who completes the CMS setup is missing" >&2
+        exit 64
+      fi
+      pilot_compose_command "$project" "$env_file" \
+        up --detach --no-build --pull missing --wait --wait-timeout 420 \
+        campaign-site
+      admin_base=$(pilot_environment_value LEONAID_PUBLIC_BASE_URL "$env_file")
+      echo "pilot-cms-provision: 3/4 editor setup: PENDING"
+      echo "pilot-cms-provision:   within 15 minutes, sign in to $admin_base/admin/ as the designated System Admin,"
+      echo "pilot-cms-provision:   open $admin_base/_emdash/admin/setup and complete the setup;"
+      echo "pilot-cms-provision:   then run this command again (without --system-admin-email)."
+      exit 75
+      ;;
+    consumed)
+      echo "pilot-cms-provision: BLOCKED: the editor setup started but did not complete; run again with --reset-setup to withdraw the grant (allowed only while the CMS is unused)" >&2
+      exit 1
+      ;;
+    *)
+      echo "pilot-cms-provision: BLOCKED: the editor setup state is unreadable" >&2
+      exit 1
+      ;;
+  esac
+  [ "$(pilot_cms_status_value setup "$state")" = complete ] || {
+    echo "pilot-cms-provision: BLOCKED: the setup grant is complete but EmDash reports no completed setup" >&2
+    exit 1
+  }
+
+  # Step 4: campaign schema, binding and media guards under closed traffic.
+  case "$(pilot_cms_status_value schema "$state")" in
+    ready) echo "pilot-cms-provision: 4/4 campaign schema: already installed" ;;
+    missing|partial)
+      echo "pilot-cms-provision: 4/4 campaign schema: installing under closed CMS traffic"
+      # The controller needs the container, not its health: after an
+      # interrupted install traffic is closed and /health/ready answers 503.
+      pilot_compose_command "$project" "$env_file" \
+        up --no-start --no-build --pull missing campaign-site
+      cms_container=$(pilot_compose_command "$project" "$env_file" ps --all --quiet campaign-site)
+      cms_image=$(docker inspect --format '{{.Image}}' "$cms_container")
+      set -- "$root/infra/compose/compose.yml" "$root/infra/pilot/compose.yml"
+      if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+        set -- "$@" "$(pilot_test_overlay "$project")"
+      fi
+      LEONAID_ENV_FILE="$env_file" \
+        /bin/sh "$root/tools/pilot_release/migrate-cms.sh" \
+        "$root" "$project" "$cms_image" install "$@"
+      ;;
+    *)
+      echo "pilot-cms-provision: BLOCKED: the CMS database carries another campaign schema; it is not installed over" >&2
+      exit 1
+      ;;
+  esac
+
+  # Reopen traffic only after the installed schema verified, and never while
+  # another migration controller holds the project lock.
+  state=$(pilot_cms_status "$project" "$env_file")
+  [ "$(pilot_cms_status_value schema "$state")" = ready ] || {
+    echo "pilot-cms-provision: BLOCKED: the campaign schema does not verify; CMS traffic stays closed" >&2
+    exit 1
+  }
+  if [ "$(pilot_cms_status_value traffic "$state")" = closed ]; then
+    if [ -n "$(docker ps -aq --filter "name=^$project-cms-migration-lock\$")" ]; then
+      echo "pilot-cms-provision: BLOCKED: a CMS migration controller holds $project-cms-migration-lock; CMS traffic stays closed" >&2
+      exit 1
+    fi
+    pilot_compose_command "$project" "$env_file" \
+      run --rm --no-deps --pull missing --entrypoint rmdir campaign-site \
+      /app/bootstrap-state/cms-maintenance
+  fi
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    campaign-site
+  pilot_cms_require_provisioned "$project" "$env_file" pilot-cms-provision
+  echo "pilot-cms-provision: OK: $project serves the CMS; campaign pages can be created and published"
 }
 
 # Only pilot-install may use this: it adds the bootstrap override that lifts
@@ -1778,6 +2379,10 @@ pilot_install() {
     pilot_install_fail "the environment file needs exactly one TWENTY_INTEGRATION_API_KEY line"
   [ "$(pilot_environment_value TWENTY_INTEGRATION_API_KEY "$install_env")" = PENDING_PILOT_INSTALL ] ||
     pilot_install_fail "TWENTY_INTEGRATION_API_KEY is not PENDING_PILOT_INSTALL; this installation is provisioned already, use pilot-deploy or pilot-release"
+  # The CMS needs a running installation and a System Admin for its setup.
+  if pilot_cms_enabled "$install_env"; then
+    pilot_install_fail "install with LEONAID_CMS_ENABLED=false; enable the CMS afterwards with pilot-cms-provision"
+  fi
   pilot_install_check_bootstrap "$install_bootstrap"
   install_manifest=$(pilot_environment_value LEONAID_BACKUP_MANIFEST_PATH "$install_env")
   case "$install_manifest" in
@@ -1999,7 +2604,7 @@ pilot_backup() {
   if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
     backup_overlay_secondary=$(pilot_test_overlay "$project")
   fi
-  backup_topology=$(pilot_cms_topology "$env_file") || exit 1
+  backup_topology=$(pilot_backup_topology "$project" "$env_file") || exit 1
   LEONAID_ENV_FILE="$env_file" \
     LEONAID_COMPOSE_PROJECT="$project" \
     LEONAID_BACKUP_REPOSITORY="$repository" \
@@ -2015,13 +2620,18 @@ pilot_backup() {
   cp "$backup_manifest" "$manifest_check_directory/backup-manifest.json"
   if docker run --rm \
     --env "EXPECTED_PROJECT=$project" \
+    --env "TOPOLOGY=$backup_topology" \
     --volume "$manifest_check_directory:/pilot:ro" \
     "$PYTHON_IMAGE" \
     python -c 'import json,os,pathlib
 value=json.loads(pathlib.Path("/pilot/backup-manifest.json").read_text(encoding="utf-8"))
-assert value.get("schemaVersion")==1
+cms=os.environ["TOPOLOGY"]=="emdash"
+assert value.get("schemaVersion")==(2 if cms else 1)
 assert value.get("sourceProject")==os.environ["EXPECTED_PROJECT"]
 required={"core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"}
+# The CMS topology adds its database and bootstrap state (CMS_REQUIRED_FILES).
+if cms:
+    required|={"emdash.dump","cms-bootstrap-state.tar"}
 files=set(value.get("files",{}))
 # caddy-data.tar is optional (tools/backup/manifest.py OPTIONAL_FILES).
 assert required<=files and files-required<={"caddy-data.tar"}, sorted(files)'; then
@@ -2842,7 +3452,46 @@ pilot_restore() {
         ;;
     esac
   fi
-  restore_topology=$(pilot_cms_topology "$target_env_file") || exit 1
+  # The recovery point decides: schema 2 holds a live CMS (tools/backup/
+  # manifest.py), schema 1 none or an unfinished one that was left out.
+  restore_manifest_directory=$(mktemp -d)
+  cp "$backup_manifest" "$restore_manifest_directory/manifest.json"
+  restore_schema=$(docker run --rm --network none \
+    --volume "$restore_manifest_directory:/pilot:ro" "$PYTHON_IMAGE" \
+    python -c 'import json; print(json.load(open("/pilot/manifest.json")).get("schemaVersion"))')
+  rm -rf "$restore_manifest_directory"
+  case "$restore_schema" in
+    1) restore_topology=legacy ;;
+    2)
+      restore_topology=emdash
+      pilot_cms_enabled "$target_env_file" || {
+        echo "pilot-restore: BLOCKED: the backup contains the CMS; set LEONAID_CMS_ENABLED=true in the target environment" >&2
+        exit 1
+      }
+      ;;
+    *)
+      echo "pilot-restore: BLOCKED: unknown backup manifest schema" >&2
+      exit 1
+      ;;
+  esac
+  # The CMS recovery operator runs from the target's verified campaign-site
+  # image: a production checkout has no node_modules for the checkout copy.
+  restore_cms_image=
+  if [ "$restore_topology" = emdash ]; then
+    restore_config=$(mktemp)
+    set -- --project-name "$target_project" --env-file "$target_env_file" \
+      --file "$root/infra/compose/compose.yml" --file "$root/infra/pilot/compose.yml"
+    if [ -n "$restore_overlay_secondary" ]; then
+      set -- "$@" --file "$restore_overlay_secondary"
+    fi
+    docker compose "$@" --profile emdash config --format json >"$restore_config"
+    restore_cms_image=$(docker run --rm --network none \
+      --volume "$restore_config:/pilot/compose.json:ro" "$PYTHON_IMAGE" \
+      python -c 'import json; print(json.load(open("/pilot/compose.json"))["services"]["campaign-site"]["image"])')
+    rm -f "$restore_config"
+    docker image inspect "$restore_cms_image" >/dev/null 2>&1 ||
+      docker pull --quiet "$restore_cms_image" >/dev/null
+  fi
   LEONAID_RESTORE_TLS_STATE=$tls_state
   export LEONAID_RESTORE_TLS_STATE
   LEONAID_RESTORE_RESUME="$resume" \
@@ -2857,6 +3506,7 @@ pilot_restore() {
     LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
     LEONAID_RESTORE_TOPOLOGY="$restore_topology" \
+    LEONAID_RESTORE_CMS_IMAGE="$restore_cms_image" \
     LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$restore_overlay_secondary" \
     LEONAID_RESTORE_NETWORKS_PRERESERVED="$restore_networks_prereserved" \
     LEONAID_RESTORE_ISOLATED_PILOT_TEST="$restore_isolated_test" \
@@ -2968,6 +3618,7 @@ dev() {
     echo "leonaid: ERROR: .env.local is missing. Run './leonaid bootstrap'." >&2
     exit 1
   fi
+  require_own_ports
   compose up --build --detach --wait --wait-timeout 420
   port=$(sed -n 's/^LEONAID_HTTP_PORT=//p' "$root/.env.local" | tail -n 1)
   port=${port:-8080}
@@ -2977,7 +3628,7 @@ dev() {
 }
 
 validate_reset_target() {
-  project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+  project=$dev_project
   compose --profile dev-mail config --format json |
     docker run --rm -i \
       -v "$root:/workspace:ro" \
@@ -3343,8 +3994,16 @@ run_feature_tests() {
 
 command=${1:-help}
 case "$command" in
-  bootstrap) bootstrap ;;
+  bootstrap)
+    shift
+    bootstrap "$@"
+    ;;
   doctor) doctor ;;
+  local-instance)
+    echo "project=$dev_project"
+    echo "checkout=$checkout_kind"
+    echo "reserved_ports=$(reserved_ports | sort -n | uniq | tr '\n' ' ' | sed 's/ $//')"
+    ;;
   repair-ownership) repair_ownership ;;
   release)
     shift
@@ -3696,6 +4355,10 @@ case "$command" in
     shift
     pilot_doctor "$@"
     ;;
+  pilot-cms-provision)
+    shift
+    pilot_cms_provision "$@"
+    ;;
   pilot-deploy)
     shift
     pilot_deploy "$@"
@@ -3748,8 +4411,17 @@ case "$command" in
   test-legal-configuration|test-pilot-legal-config)
     /bin/sh "$root/tools/legal_configuration/test.sh" "$root"
     ;;
-  backup) /bin/sh "$root/tools/backup/backup.sh" "$root" ;;
-  restore) /bin/sh "$root/tools/backup/restore.sh" "$root" ;;
+  backup)
+    require_recorded_main
+    LEONAID_COMPOSE_PROJECT="$dev_project" /bin/sh "$root/tools/backup/backup.sh" "$root"
+    ;;
+  restore)
+    if [ "${LEONAID_RESTORE_PROJECT:-}" = leonaid ] && [ "$checkout_kind" != main ]; then
+      echo "restore: ERROR: the target 'leonaid' is the main development instance; this checkout is not it" >&2
+      exit 1
+    fi
+    /bin/sh "$root/tools/backup/restore.sh" "$root"
+    ;;
   test-backup) /bin/sh "$root/tools/backup/test.sh" "$root" ;;
   test-upgrade) /bin/sh "$root/tools/upgrade/test.sh" "$root" ;;
   generate-api-client)

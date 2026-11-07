@@ -1,4 +1,4 @@
-name: leonaid
+name: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT is missing; run ./leonaid bootstrap}
 
 x-logging: &default-logging
   driver: local
@@ -333,6 +333,12 @@ services:
       interval: 5s
       timeout: 4s
       retries: 20
+      # The worker is ready only after the api applied the migrations, and
+      # the api starts only once twenty-server is healthy (about 90 s on a
+      # loaded CI runner). Without a start period the 100 s retry budget ran
+      # out first and `compose up --wait` failed with "worker is unhealthy"
+      # (survey foundation-failure, runs 42370499734 and 42381410523).
+      start_period: 240s
 
   # One-shot ownership handover for volumes the unprivileged core writes to.
   # Releases before the non-root core image wrote them as root; an existing

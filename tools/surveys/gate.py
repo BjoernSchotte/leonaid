@@ -322,7 +322,7 @@ def run(
                         )
                         save_report(report_path, report)
                         print(
-                            f"FAIL: {name}, exit {code}. Child diagnostics remain in the private local run directory.",
+                            f"FAIL: {name}, exit {code}. Raw child logs stay in the private local run directory; CI prints a sanitized excerpt (tools/surveys/ci_failure_excerpt.py).",
                             flush=True,
                         )
                         return code

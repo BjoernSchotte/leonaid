@@ -25,6 +25,8 @@ from leonaid.adapters.feature_flags.openfeature import (
 )
 from leonaid.adapters.http_readiness import HttpReadinessProbe
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.adapters.postgres.order_mails import PublicCampaignLinks
+from leonaid.application.order_mails import OrderMailLinkResolver
 from leonaid.adapters.postgres.acquisition import (
     AsyncpgAcquisitionPolicyRepository,
 )
@@ -402,8 +404,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
         )
+        # The buyer's order mails link the campaign and the legal pages.
+        order_mail_links = OrderMailLinkResolver(
+            settings.links,
+            PublicCampaignLinks(pool, settings.links).campaign_link,
+        )
         application.state.order_cancellation_service = build_order_cancellation_service(
-            pool, disabled_modules
+            pool, disabled_modules, mail_links=order_mail_links
         )
         feature_flag_provider = LeonAidFeatureProvider()
         feature_flag_evaluator = OpenFeatureBooleanEvaluator(feature_flag_provider)
@@ -515,6 +522,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 crm_gateway,
                 public_order_tokens,
                 legal_configuration_repository,
+                mail_links=order_mail_links,
             )
         else:
             application.state.acquisition_service = None

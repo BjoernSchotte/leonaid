@@ -37,6 +37,10 @@ CADDYFILES = {
     "single": "/infra/pilot/Caddyfile",
     "split": "/infra/pilot/Caddyfile.split",
 }
+# Isolated test projects only: the hand-written test proxy, and the product's
+# single-host route table rendered with an internal CA by tools/proxy/
+# caddyfiles.py (`--render pilot-single --tls-internal`, pilot install proof).
+TEST_CADDYFILES = ("/infra/pilot/Caddyfile.test", "/Caddyfile.pilot-single-test")
 # Caddy reads the aliases as site addresses: separated by ", " or spaces.
 HOSTNAME = re.compile(
     r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$"
@@ -246,10 +250,7 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
             if (
                 service_name != "proxy"
                 or not source.endswith(
-                    (
-                        *CADDYFILES.values(),
-                        "/infra/pilot/Caddyfile.test",
-                    )
+                    (*CADDYFILES.values(), *TEST_CADDYFILES)
                     if isolated_test_mode
                     else tuple(CADDYFILES.values())
                 )
@@ -445,7 +446,7 @@ def validate_hosts(
         if not (
             caddyfile.endswith(CADDYFILES["single"])
             or isolated_test_mode
-            and caddyfile.endswith("/infra/pilot/Caddyfile.test")
+            and caddyfile.endswith(TEST_CADDYFILES)
         ):
             raise DeploymentContractError(
                 "one host needs infra/pilot/Caddyfile (LEONAID_PROXY_CADDYFILE unset)"

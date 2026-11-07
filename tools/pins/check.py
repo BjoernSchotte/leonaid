@@ -74,6 +74,7 @@ ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
         "LEONAID_WEB_IMAGE",
     },
     Path("infra/pilot/compose.test.yml"): {
+        "LEONAID_TEST_CAMPAIGN_SITE_IMAGE",
         "LEONAID_TEST_CORE_IMAGE",
         "LEONAID_TEST_PROXY_IMAGE",
         "LEONAID_TEST_PUBLIC_IMAGE",
